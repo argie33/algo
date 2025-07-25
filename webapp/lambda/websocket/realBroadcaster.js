@@ -73,19 +73,30 @@ async function broadcast(data, filter = null) {
   console.log(`📡 Broadcast sent to ${successCount}/${connections.size} clients`);
 }
 
-// Get API keys from AWS Secrets Manager or database
+// Get API keys from unified API key service
 async function getApiKeys(userId) {
   try {
-    // First try to get from environment or context
-    if (process.env.ALPACA_API_KEY && process.env.ALPACA_SECRET_KEY) {
+    // Use unified API key service for user-specific credentials
+    const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId);
+    
+    if (credentials) {
       return {
-        keyId: process.env.ALPACA_API_KEY,
-        secretKey: process.env.ALPACA_SECRET_KEY
+        keyId: credentials.keyId,
+        secretKey: credentials.secretKey,
+        isPaper: credentials.isPaper !== false
       };
     }
     
-    // TODO: Integrate with existing apiKeyService for user-specific keys
-    // For now, return null to indicate no keys available
+    // Fall back to environment variables if no user-specific keys
+    if (process.env.ALPACA_API_KEY && process.env.ALPACA_SECRET_KEY) {
+      return {
+        keyId: process.env.ALPACA_API_KEY,
+        secretKey: process.env.ALPACA_SECRET_KEY,
+        isPaper: true // Default to paper trading for env vars
+      };
+    }
+    
     console.warn(`⚠️ No Alpaca API keys configured for user: ${userId}`);
     return null;
     

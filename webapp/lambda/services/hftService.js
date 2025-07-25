@@ -17,6 +17,7 @@ class HFTService {
     this.positions = new Map();
     this.orders = new Map();
     this.marketData = new Map();
+    this.userCredentials = null;
     
     // Performance metrics
     this.metrics = {
@@ -127,6 +128,61 @@ class HFTService {
   }
 
   /**
+   * Initialize user credentials for API access
+   */
+  async initializeUserCredentials(userId) {
+    try {
+      const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
+      this.userCredentials = await unifiedApiKeyService.getAlpacaKey(userId);
+      
+      if (!this.userCredentials) {
+        throw new Error('No Alpaca API credentials found for user');
+      }
+      
+      this.logger.info('User credentials initialized', {
+        userId,
+        isPaper: this.userCredentials.isPaper !== false,
+        correlationId: this.correlationId
+      });
+      
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Failed to initialize user credentials', {
+        userId,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Create Alpaca API client with user credentials
+   */
+  createAlpacaClient() {
+    if (!this.userCredentials) {
+      throw new Error('User credentials not initialized');
+    }
+
+    try {
+      const Alpaca = require('@alpacahq/alpaca-trade-api');
+      return new Alpaca({
+        credentials: {
+          key: this.userCredentials.keyId,
+          secret: this.userCredentials.secretKey,
+          paper: this.userCredentials.isPaper !== false
+        }
+      });
+    } catch (error) {
+      this.logger.error('Failed to create Alpaca client', {
+        error: error.message,
+        correlationId: this.correlationId
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Start HFT service
    */
   async start(userId, enabledStrategies = ['scalping_btc']) {
@@ -143,6 +199,16 @@ class HFTService {
         enabledStrategies,
         correlationId: this.correlationId
       });
+
+      // Initialize user credentials first
+      const credentialResult = await this.initializeUserCredentials(userId);
+      if (!credentialResult.success) {
+        return {
+          success: false,
+          error: 'Failed to initialize user credentials',
+          details: credentialResult.error
+        };
+      }
 
       // Reset metrics
       this.metrics.startTime = Date.now();
@@ -491,17 +557,94 @@ class HFTService {
   }
 
   /**
-   * Execute trading order
+   * Execute real order using Alpaca API
+   */
+  async executeRealOrder(signal, orderId, startTime) {
+    try {
+      const alpacaApi = this.createAlpacaClient();
+      
+      // Prepare order request for Alpaca
+      const orderRequest = {
+        symbol: signal.symbol,
+        qty: signal.quantity.toString(),
+        side: signal.type.toLowerCase(), // 'buy' or 'sell'
+        type: 'market',
+        time_in_force: 'ioc' // Immediate or Cancel for HFT
+      };
+
+      this.logger.info('Executing real order', {
+        orderId,
+        orderRequest,
+        correlationId: this.correlationId
+      });
+
+      // Execute order via Alpaca API
+      const alpacaOrder = await alpacaApi.createOrder(orderRequest);
+      
+      this.logger.info('Real order executed', {
+        orderId,
+        alpacaOrderId: alpacaOrder.id,
+        status: alpacaOrder.status,
+        correlationId: this.correlationId
+      });
+
+      return {
+        success: true,
+        alpacaOrderId: alpacaOrder.id,
+        status: alpacaOrder.status,
+        executedPrice: parseFloat(alpacaOrder.filled_avg_price || signal.price),
+        executedQuantity: parseFloat(alpacaOrder.filled_qty || signal.quantity),
+        executionTime: Date.now() - startTime
+      };
+
+    } catch (error) {
+      this.logger.error('Real order execution failed', {
+        orderId,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Execute trading order (with real API integration)
    */
   async executeOrder(signal) {
     const orderId = this.generateOrderId();
     const startTime = Date.now();
 
     try {
-      // In production, this would connect to broker API (Alpaca, Interactive Brokers, etc.)
-      // For now, simulate order execution
+      let executionResult;
+      let executionPrice = signal.price;
+      let executionQuantity = signal.quantity;
+
+      // Try real execution if credentials are available
+      if (this.userCredentials) {
+        executionResult = await this.executeRealOrder(signal, orderId, startTime);
+        
+        if (executionResult.success) {
+          executionPrice = executionResult.executedPrice;
+          executionQuantity = executionResult.executedQuantity;
+        } else {
+          // Fall back to simulation on API failure
+          this.logger.warn('Real order execution failed, falling back to simulation', {
+            orderId,
+            error: executionResult.error,
+            correlationId: this.correlationId
+          });
+        }
+      }
       
-      const executionPrice = signal.price * (1 + (Math.random() - 0.5) * 0.0001); // ±0.01% slippage
+      // Simulation fallback or paper trading
+      if (!executionResult || !executionResult.success) {
+        executionPrice = signal.price * (1 + (Math.random() - 0.5) * 0.0001); // ±0.01% slippage
+        executionQuantity = signal.quantity;
+      }
+
       const executionTime = Date.now();
 
       const order = {

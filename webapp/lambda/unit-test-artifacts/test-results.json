@@ -1,18 +1,18 @@
 {
   "testSuite": "Unit Tests",
-  "timestamp": "2025-07-23T05:25:16.263Z",
+  "timestamp": "2025-07-25T13:10:06.180Z",
   "environment": "test",
   "results": {
-    "total": 413,
-    "passed": 389,
-    "failed": 24,
-    "skipped": 0,
-    "successRate": "94.19%"
+    "total": 553,
+    "passed": 10,
+    "failed": 19,
+    "skipped": 524,
+    "successRate": "1.81%"
   },
   "performance": {
-    "startTime": 1753248277006,
-    "runtime": 35774,
-    "averageTestTime": "86.62ms"
+    "startTime": 1753448990903,
+    "runtime": 11593,
+    "averageTestTime": "20.96ms"
   },
   "coverage": {
     "enabled": true,
@@ -21,98 +21,153 @@
   "testSuites": [
     {
       "name": "tests/unit/optimization-engine.test.js",
-      "skipped": 0,
-      "runtime": 2045
-    },
-    {
-      "name": "tests/unit/backtesting-service-REAL.test.js",
-      "skipped": 0,
-      "runtime": 1249
+      "skipped": 36,
+      "runtime": 157
     },
     {
       "name": "tests/unit/portfolio-service-unit.test.js",
+      "skipped": 10,
+      "runtime": 1109
+    },
+    {
+      "name": "tests/unit/websocket/realBroadcaster.test.js",
+      "skipped": 21,
+      "runtime": 65
+    },
+    {
+      "name": "tests/unit/routes/health-update-status.test.js",
       "skipped": 0,
-      "runtime": 1142
+      "runtime": 1601
+    },
+    {
+      "name": "tests/unit/routes/user-api-endpoints.test.js",
+      "skipped": 31,
+      "runtime": 1271
+    },
+    {
+      "name": "tests/unit/routes/comprehensive-health-check.test.js",
+      "skipped": 0,
+      "runtime": 1289
+    },
+    {
+      "name": "tests/unit/portfolioDatabaseService.test.js",
+      "skipped": 22,
+      "runtime": 129
+    },
+    {
+      "name": "tests/unit/security/api-key-security-real.test.js",
+      "skipped": 14,
+      "runtime": 232
+    },
+    {
+      "name": "tests/unit/routes/market-prices-metrics.test.js",
+      "skipped": 16,
+      "runtime": 154
+    },
+    {
+      "name": "tests/unit/alpaca-integration-validation.test.js",
+      "skipped": 16,
+      "runtime": 99
+    },
+    {
+      "name": "tests/unit/simpleApiKeyService.test.js",
+      "skipped": 0,
+      "runtime": 0
+    },
+    {
+      "name": "tests/unit/routes/portfolio-live-data-integration.test.js",
+      "skipped": 0,
+      "runtime": 0
+    },
+    {
+      "name": "tests/unit/routes/settings-api-keys.test.js",
+      "skipped": 0,
+      "runtime": 0
     },
     {
       "name": "tests/unit/real-timeout-helper.test.js",
-      "skipped": 0,
-      "runtime": 12948
+      "skipped": 41,
+      "runtime": 66
     },
     {
       "name": "tests/unit/real-universal-error-handler.test.js",
-      "skipped": 0,
-      "runtime": 2265
-    },
-    {
-      "name": "tests/unit/risk-manager.test.js",
-      "skipped": 0,
-      "runtime": 1342
-    },
-    {
-      "name": "tests/unit/auth-middleware.test.js",
-      "skipped": 0,
-      "runtime": 1238
-    },
-    {
-      "name": "tests/unit/technical-analysis-service.test.js",
-      "skipped": 0,
-      "runtime": 1237
-    },
-    {
-      "name": "tests/unit/real-database-circuit-breaker.test.js",
-      "skipped": 0,
-      "runtime": 1222
-    },
-    {
-      "name": "tests/unit/backtesting-service.test.js",
-      "skipped": 0,
-      "runtime": 1203
-    },
-    {
-      "name": "tests/unit/circuit-breaker-utils.test.js",
-      "skipped": 0,
-      "runtime": 1198
-    },
-    {
-      "name": "tests/unit/portfolio-service.test.js",
-      "skipped": 0,
-      "runtime": 1198
-    },
-    {
-      "name": "tests/unit/portfolio-service-REAL.test.js",
-      "skipped": 0,
-      "runtime": 1162
-    },
-    {
-      "name": "tests/unit/optimization-engine-REAL.test.js",
-      "skipped": 0,
-      "runtime": 1249
-    },
-    {
-      "name": "tests/unit/portfolioMath-REAL.test.js",
-      "skipped": 0,
-      "runtime": 1147
+      "skipped": 48,
+      "runtime": 66
     },
     {
       "name": "tests/unit/utils/advancedPerformanceAnalytics.test.js",
-      "skipped": 0,
-      "runtime": 1684
+      "skipped": 11,
+      "runtime": 67
+    },
+    {
+      "name": "tests/unit/risk-manager.test.js",
+      "skipped": 34,
+      "runtime": 61
+    },
+    {
+      "name": "tests/unit/optimization-engine-REAL.test.js",
+      "skipped": 8,
+      "runtime": 85
+    },
+    {
+      "name": "tests/unit/backtesting-service-REAL.test.js",
+      "skipped": 13,
+      "runtime": 95
+    },
+    {
+      "name": "tests/unit/auth-middleware.test.js",
+      "skipped": 33,
+      "runtime": 92
+    },
+    {
+      "name": "tests/unit/technical-analysis-service.test.js",
+      "skipped": 41,
+      "runtime": 86
+    },
+    {
+      "name": "tests/unit/real-database-circuit-breaker.test.js",
+      "skipped": 25,
+      "runtime": 1102
+    },
+    {
+      "name": "tests/unit/backtesting-service.test.js",
+      "skipped": 25,
+      "runtime": 98
+    },
+    {
+      "name": "tests/unit/portfolio-service.test.js",
+      "skipped": 13,
+      "runtime": 1159
+    },
+    {
+      "name": "tests/unit/circuit-breaker-utils.test.js",
+      "skipped": 19,
+      "runtime": 74
+    },
+    {
+      "name": "tests/unit/portfolio-service-REAL.test.js",
+      "skipped": 13,
+      "runtime": 1132
+    },
+    {
+      "name": "tests/unit/portfolioMath-REAL.test.js",
+      "skipped": 10,
+      "runtime": 67
     },
     {
       "name": "tests/unit/database-utils.test.js",
-      "skipped": 0,
-      "runtime": 1129
+      "skipped": 14,
+      "runtime": 1097
     },
     {
       "name": "tests/unit/database-utils-proper-unit.test.js",
-      "skipped": 0,
-      "runtime": 1116
+      "skipped": 9,
+      "runtime": 79
     },
     {
       "name": "tests/unit/enhanced-auth-service.test.js",
-      "skipped": 0,
-      "runtime": 0
+      "skipped": 1,
+      "runtime": 61
     }
   ]
 }

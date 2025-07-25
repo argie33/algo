@@ -39,9 +39,24 @@ class LiveDataManager {
   }
 
   /**
-   * Initialize default data providers
+   * Initialize default data providers with user credentials
    */
-  initializeProviders() {
+  async initializeProviders(userId = null) {
+    let alpacaCredentials = null;
+    
+    // Get user-specific Alpaca credentials if userId provided
+    if (userId) {
+      try {
+        const unifiedApiKeyService = require('./unifiedApiKeyService');
+        alpacaCredentials = await unifiedApiKeyService.getAlpacaKey(userId);
+      } catch (error) {
+        this.logger.warn('Could not load user-specific Alpaca credentials', {
+          userId,
+          error: error.message,
+          correlationId: this.correlationId
+        });
+      }
+    }
     const providers = [
       {
         id: 'alpaca',

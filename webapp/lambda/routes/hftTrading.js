@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const HFTService = require('../services/hftService');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const { createLogger } = require('../utils/structuredLogger');
 
 const logger = createLogger('financial-platform', 'hft-api');
@@ -30,7 +30,7 @@ router.use((req, res, next) => {
  * GET /api/hft/status
  * Get HFT engine status and metrics
  */
-router.get('/status', auth, async (req, res) => {
+router.get('/status', authenticateToken, async (req, res) => {
   try {
     const metrics = hftService.getMetrics();
     const strategies = hftService.getStrategies();
@@ -86,7 +86,7 @@ router.get('/status', auth, async (req, res) => {
  * POST /api/hft/start
  * Start HFT engine with specified strategies
  */
-router.post('/start', auth, async (req, res) => {
+router.post('/start', authenticateToken, async (req, res) => {
   try {
     const { strategies = ['scalping_btc'] } = req.body;
     const userId = req.user.userId;
@@ -135,7 +135,7 @@ router.post('/start', auth, async (req, res) => {
  * POST /api/hft/stop
  * Stop HFT engine and close all positions
  */
-router.post('/stop', auth, async (req, res) => {
+router.post('/stop', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
@@ -181,7 +181,7 @@ router.post('/stop', auth, async (req, res) => {
  * GET /api/hft/strategies
  * Get all available strategies
  */
-router.get('/strategies', auth, async (req, res) => {
+router.get('/strategies', authenticateToken, async (req, res) => {
   try {
     const strategies = hftService.getStrategies();
 
@@ -212,7 +212,7 @@ router.get('/strategies', auth, async (req, res) => {
  * PUT /api/hft/strategies/:strategyId
  * Update strategy configuration
  */
-router.put('/strategies/:strategyId', auth, async (req, res) => {
+router.put('/strategies/:strategyId', authenticateToken, async (req, res) => {
   try {
     const { strategyId } = req.params;
     const updates = req.body;
@@ -268,7 +268,7 @@ router.put('/strategies/:strategyId', auth, async (req, res) => {
  * GET /api/hft/positions
  * Get current open positions
  */
-router.get('/positions', auth, async (req, res) => {
+router.get('/positions', authenticateToken, async (req, res) => {
   try {
     const metrics = hftService.getMetrics();
     const positions = Array.from(hftService.positions.values());
@@ -311,7 +311,7 @@ router.get('/positions', auth, async (req, res) => {
  * GET /api/hft/orders
  * Get recent order history
  */
-router.get('/orders', auth, async (req, res) => {
+router.get('/orders', authenticateToken, async (req, res) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     const orders = Array.from(hftService.orders.values())
@@ -360,7 +360,7 @@ router.get('/orders', auth, async (req, res) => {
  * POST /api/hft/market-data
  * Process incoming market data (WebSocket integration endpoint)
  */
-router.post('/market-data', auth, async (req, res) => {
+router.post('/market-data', authenticateToken, async (req, res) => {
   try {
     const { symbol, data } = req.body;
 
@@ -398,7 +398,7 @@ router.post('/market-data', auth, async (req, res) => {
  * GET /api/hft/performance
  * Get detailed performance analytics
  */
-router.get('/performance', auth, async (req, res) => {
+router.get('/performance', authenticateToken, async (req, res) => {
   try {
     const { period = '1d' } = req.query;
     const metrics = hftService.getMetrics();
@@ -472,7 +472,7 @@ router.get('/performance', auth, async (req, res) => {
  * POST /api/hft/backtest
  * Run strategy backtest (future implementation)
  */
-router.post('/backtest', auth, async (req, res) => {
+router.post('/backtest', authenticateToken, async (req, res) => {
   try {
     const { strategyId, startDate, endDate, initialCapital = 10000 } = req.body;
 

@@ -1,0 +1,462 @@
+# AWS Lambda Deployment Configuration
+# Complete deployment configuration for production-ready HFT trading system
+
+# CloudFormation Parameters
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+  
+  DatabaseHost:
+    Type: String
+    Description: RDS PostgreSQL endpoint
+    NoEcho: true
+  
+  DatabasePort:
+    Type: String
+    Default: "5432"
+    Description: Database port
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for Lambda deployment
+  
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnets for Lambda functions
+
+# Lambda Function Configuration
+Resources:
+  # Main Trading Lambda Function
+  TradingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-hft-trading-api"
+      Runtime: nodejs18.x
+      Handler: app.handler
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: !Sub "${Environment}/lambda-package.zip"
+      MemorySize: 1024
+      Timeout: 30
+      ReservedConcurrencyLimit: 20
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          AWS_REGION: !Ref AWS::Region
+          # Database Configuration
+          DB_HOST: !Ref DatabaseHost
+          DB_PORT: !Ref DatabasePort
+          DB_NAME: !Sub "${Environment}_trading_db"
+          DB_POOL_MIN: "2"
+          DB_POOL_MAX: "10"
+          DB_SSL: "true"
+          # Secrets Manager ARNs
+          DB_CREDENTIALS_SECRET: !Ref DatabaseCredentialsSecret
+          JWT_SECRET_ARN: !Ref JWTSecret
+          ENCRYPTION_KEY_ARN: !Ref EncryptionKeySecret
+          # Application Configuration
+          LOG_LEVEL: !If [IsProdEnvironment, "info", "debug"]
+          CORS_ORIGIN: !If [IsProdEnvironment, "https://trading.example.com", "*"]
+          # HFT Configuration
+          HFT_MAX_POSITION_SIZE: "10000"
+          HFT_MAX_DAILY_LOSS: "5000"
+          HFT_MAX_OPEN_POSITIONS: "20"
+          HFT_RISK_CHECK_INTERVAL: "5000"
+          # Rate Limiting
+          RATE_LIMIT_WINDOW: "60000"
+          RATE_LIMIT_MAX: "1000"
+          # Cache Configuration
+          CACHE_TTL: "300"
+          CACHE_MAX_SIZE: "1000"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: hft-trading
+        - Key: CostCenter
+          Value: trading-platform
+
+  # WebSocket Lambda Function
+  WebSocketLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-hft-websocket"
+      Runtime: nodejs18.x
+      Handler: websocket/realBroadcaster.handler
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: !Sub "${Environment}/lambda-package.zip"
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          AWS_REGION: !Ref AWS::Region
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+          MARKET_DATA_TABLE: !Ref MarketDataTable
+      Role: !GetAtt WebSocketLambdaRole.Arn
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-hft-lambda-execution-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DatabaseAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds-db:connect
+                Resource: !Sub "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DatabaseInstanceId}/${Environment}_trading_user"
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref DatabaseCredentialsSecret
+                  - !Ref JWTSecret
+                  - !Ref EncryptionKeySecret
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt ApiKeysTable.Arn
+                  - !GetAtt UserSessionsTable.Arn
+                  - !Sub "${ApiKeysTable.Arn}/index/*"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:DescribeLogGroups
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+  # WebSocket Lambda Role
+  WebSocketLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-websocket-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WebSocketManagement
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:ManageConnections
+                Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+        - PolicyName: DynamoDBWebSocketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt ConnectionsTable.Arn
+                  - !GetAtt SubscriptionsTable.Arn
+                  - !GetAtt MarketDataTable.Arn
+
+  # Security Group for Lambda functions
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${Environment}-hft-lambda-sg"
+      GroupDescription: Security group for HFT Lambda functions
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS outbound
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref DatabaseSecurityGroup
+          Description: PostgreSQL database access
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP outbound for external APIs
+
+  # Database Security Group
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${Environment}-hft-database-sg"
+      GroupDescription: Security group for HFT database
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: Lambda database access
+
+  # Secrets Manager Resources
+  DatabaseCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${Environment}/hft/database/credentials"
+      Description: Database credentials for HFT trading system
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "hft_trading_user"}'
+        GenerateStringKey: "password"
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+
+  JWTSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${Environment}/hft/jwt/secret"
+      Description: JWT signing secret for HFT trading system
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\'
+
+  EncryptionKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${Environment}/hft/encryption/key"
+      Description: Encryption key for sensitive data
+      GenerateSecretString:
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+
+  # DynamoDB Tables
+  ApiKeysTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-hft-api-keys"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: provider
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: provider
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: provider-index
+          KeySchema:
+            - AttributeName: provider
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  UserSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-hft-user-sessions"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-websocket-connections"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-websocket-subscriptions"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: subscriptionId
+          AttributeType: S
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: subscriptionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ConnectionIndex
+          KeySchema:
+            - AttributeName: connectionId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  MarketDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-market-data"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: sortKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: sortKey
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # CloudWatch Log Groups
+  TradingLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Environment}-hft-trading-api"
+      RetentionInDays: !If [IsProdEnvironment, 30, 7]
+
+  WebSocketLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Environment}-hft-websocket"
+      RetentionInDays: !If [IsProdEnvironment, 30, 7]
+
+  # S3 Bucket for Deployment Artifacts
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Environment}-hft-deployment-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # API Gateway WebSocket API
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${Environment}-hft-websocket-api"
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+# Conditions
+Conditions:
+  IsProdEnvironment: !Equals [!Ref Environment, "prod"]
+  IsDevEnvironment: !Equals [!Ref Environment, "dev"]
+
+# Outputs
+Outputs:
+  LambdaFunctionArn:
+    Description: ARN of the main trading Lambda function
+    Value: !GetAtt TradingLambdaFunction.Arn
+    Export:
+      Name: !Sub "${Environment}-hft-lambda-arn"
+
+  WebSocketLambdaArn:
+    Description: ARN of the WebSocket Lambda function
+    Value: !GetAtt WebSocketLambdaFunction.Arn
+
+  DatabaseSecretArn:
+    Description: ARN of the database credentials secret
+    Value: !Ref DatabaseCredentialsSecret
+
+  JWTSecretArn:
+    Description: ARN of the JWT secret
+    Value: !Ref JWTSecret
+
+  ApiKeysTableName:
+    Description: Name of the API keys DynamoDB table
+    Value: !Ref ApiKeysTable
+    Export:
+      Name: !Sub "${Environment}-api-keys-table"
+
+  WebSocketApiId:
+    Description: ID of the WebSocket API Gateway
+    Value: !Ref WebSocketApi
+
+  DeploymentBucketName:
+    Description: Name of the deployment S3 bucket
+    Value: !Ref DeploymentBucket

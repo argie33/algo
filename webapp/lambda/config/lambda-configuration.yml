@@ -1,0 +1,231 @@
+# AWS Lambda Configuration for Production Deployment
+# Use with Serverless Framework, SAM, or CloudFormation
+
+# ============================================================================
+# LAMBDA FUNCTION CONFIGURATION
+# ============================================================================
+FunctionConfiguration:
+  Runtime: nodejs18.x
+  Timeout: 30  # Increased for real-time operations
+  MemorySize: 1024  # Increased for WebSocket handling and HFT operations
+  ReservedConcurrencyLimit: 50  # Prevent overwhelming Alpaca API
+  
+  # VPC Configuration (if database access required)
+  VpcConfig:
+    SecurityGroupIds:
+      - sg-database-access
+      - sg-alpaca-api-access
+    SubnetIds:
+      - subnet-private-a
+      - subnet-private-b
+
+  # Environment Variables
+  Environment:
+    Variables:
+      # Core Configuration
+      AWS_REGION: us-east-1
+      NODE_ENV: production
+      ALLOW_DEV_BYPASS: false
+
+      # Database Configuration
+      DB_ENDPOINT: !Ref DatabaseEndpoint
+      DB_SECRET_ARN: !Ref DatabaseSecretArn
+
+      # Authentication
+      COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+      COGNITO_CLIENT_ID: !Ref CognitoClientId
+      COGNITO_SECRET_ARN: !Ref CognitoSecretArn
+
+      # API Key Management
+      UNIFIED_API_KEY_ENABLED: true
+      API_KEY_CACHE_TTL: 300
+      API_KEY_MAX_CACHE_SIZE: 10000
+
+      # WebSocket Configuration
+      WS_MAX_CONNECTIONS_PER_USER: 5
+      WS_HEARTBEAT_INTERVAL: 30000
+      WS_RECONNECT_DELAY: 5000
+
+      # HFT Configuration
+      HFT_MAX_POSITION_SIZE: 1000
+      HFT_MAX_DAILY_LOSS: 500
+      HFT_EXECUTION_TIMEOUT: 5000
+      HFT_DEFAULT_PAPER_MODE: true
+
+      # Rate Limiting
+      ALPACA_RATE_LIMIT_REQUESTS_PER_MINUTE: 200
+      ALPACA_MAX_CONCURRENT_CONNECTIONS: 1
+
+      # Monitoring
+      LOG_LEVEL: info
+      STRUCTURED_LOGGING: true
+      CORRELATION_ID_ENABLED: true
+      PERFORMANCE_MONITORING: true
+
+  # Lambda Layers
+  Layers:
+    - !Ref NodeModulesLayer  # Node.js dependencies
+    - !Ref UtilsLayer        # Shared utilities
+
+  # IAM Role Permissions
+  Policies:
+    - PolicyName: DatabaseAccess
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - rds:DescribeDBClusters
+              - rds:DescribeDBInstances
+            Resource: !Sub "${DatabaseCluster}"
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref DatabaseSecretArn
+
+    - PolicyName: ApiKeyManagement
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:PutParameter
+              - ssm:DeleteParameter
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/alpaca-keys/*"
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:alpaca-keys/*"
+
+    - PolicyName: CognitoAccess
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - cognito-idp:AdminGetUser
+              - cognito-idp:AdminListGroupsForUser
+            Resource: !GetAtt CognitoUserPool.Arn
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref CognitoSecretArn
+
+    - PolicyName: MonitoringAndLogging
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+          - Effect: Allow
+            Action:
+              - cloudwatch:PutMetricData
+            Resource: "*"
+
+    - PolicyName: WebSocketApiAccess
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - execute-api:ManageConnections
+            Resource: !Sub "${WebSocketApi}/*/*"
+
+# ============================================================================
+# EVENT SOURCES
+# ============================================================================
+EventSources:
+  # API Gateway REST API
+  RestApi:
+    Type: ApiGatewayV2
+    Properties:
+      Path: /{proxy+}
+      Method: ANY
+
+  # WebSocket API Gateway
+  WebSocketApi:
+    Type: ApiGatewayV2
+    Properties:
+      Route: $default
+      RouteKey: $default
+
+  # CloudWatch Events (for scheduled tasks)
+  ScheduledEvents:
+    Type: CloudWatchEvents
+    Properties:
+      Schedule: rate(5 minutes)  # For periodic health checks
+      Enabled: true
+
+# ============================================================================
+# MONITORING AND ALARMS
+# ============================================================================
+Monitoring:
+  CloudWatchAlarms:
+    - AlarmName: LambdaErrors
+      MetricName: Errors
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 2
+
+    - AlarmName: LambdaDuration
+      MetricName: Duration
+      Threshold: 25000  # 25 seconds
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 2
+
+    - AlarmName: LambdaThrottles
+      MetricName: Throttles
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+
+  # X-Ray Tracing
+  TracingConfig:
+    Mode: Active
+
+# ============================================================================
+# DEPLOYMENT CONFIGURATION
+# ============================================================================
+DeploymentConfiguration:
+  # Blue/Green Deployment
+  DeploymentPreference:
+    Type: Canary10Percent5Minutes
+    Alarms:
+      - !Ref AliasErrorMetricGreaterThanZeroAlarm
+      - !Ref LatestVersionErrorMetricGreaterThanZeroAlarm
+    Hooks:
+      PreTraffic: !Ref PreTrafficValidationFunction
+      PostTraffic: !Ref PostTrafficValidationFunction
+
+  # Dead Letter Queue
+  DeadLetterQueue:
+    Type: SQS
+    TargetArn: !GetAtt DeadLetterQueue.Arn
+
+# ============================================================================
+# SECURITY CONFIGURATION
+# ============================================================================
+Security:
+  # KMS Encryption
+  KmsKeyId: !Ref LambdaKmsKey
+  
+  # Environment Variables Encryption
+  EnvironmentEncryption:
+    KmsKeyArn: !GetAtt LambdaKmsKey.Arn
+
+  # Function URL (if needed)
+  FunctionUrlConfig:
+    AuthType: AWS_IAM
+    Cors:
+      AllowOrigins:
+        - "https://your-domain.com"
+      AllowMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+      AllowHeaders:
+        - Content-Type
+        - Authorization
+      MaxAge: 86400
