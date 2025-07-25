@@ -339,4 +339,149 @@ router.get('/correlations', (req, res) => {
   }
 });
 
+// Get commodity history data for a specific symbol
+router.get('/history/:symbol', (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { period = '1d' } = req.query;
+
+    // Mock historical data
+    const periods = ['1d', '1w', '1m', '3m', '1y'];
+    if (!periods.includes(period)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid period',
+        validPeriods: periods
+      });
+    }
+
+    const dataPoints = period === '1d' ? 24 : period === '1w' ? 7 : period === '1m' ? 30 : 90;
+    const basePrice = symbol === 'CL' ? 78.45 : symbol === 'GC' ? 2034.20 : 100;
+    
+    const history = Array.from({ length: dataPoints }, (_, i) => {
+      const timestamp = Date.now() - (dataPoints - i) * (period === '1d' ? 3600000 : 86400000);
+      const variation = (Math.random() - 0.5) * 0.1;
+      
+      return {
+        timestamp,
+        date: new Date(timestamp).toISOString(),
+        price: basePrice * (1 + variation),
+        volume: Math.floor(Math.random() * 100000) + 50000
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        symbol,
+        period,
+        history,
+        summary: {
+          firstPrice: history[0]?.price,
+          lastPrice: history[history.length - 1]?.price,
+          change: history[history.length - 1]?.price - history[0]?.price,
+          changePercent: ((history[history.length - 1]?.price - history[0]?.price) / history[0]?.price) * 100,
+          totalVolume: history.reduce((sum, point) => sum + point.volume, 0)
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch commodity history',
+      details: error.message
+    });
+  }
+});
+
+// Get commodity news
+router.get('/news', (req, res) => {
+  try {
+    const { limit = 10, category } = req.query;
+    const maxLimit = Math.min(parseInt(limit), 50);
+
+    const newsItems = [
+      {
+        id: 'news-1',
+        title: 'Oil Prices Surge on Supply Concerns',
+        summary: 'Crude oil futures jumped 3% amid geopolitical tensions affecting global supply chains.',
+        category: 'energy',
+        source: 'Commodity News',
+        publishedAt: new Date(Date.now() - 3600000).toISOString(),
+        url: '#',
+        symbols: ['CL', 'NG']
+      },
+      {
+        id: 'news-2', 
+        title: 'Gold Reaches New Monthly High',
+        summary: 'Precious metals rally as investors seek safe-haven assets amid market volatility.',
+        category: 'precious-metals',
+        source: 'Market Watch',
+        publishedAt: new Date(Date.now() - 7200000).toISOString(),
+        url: '#',
+        symbols: ['GC', 'SI']
+      },
+      {
+        id: 'news-3',
+        title: 'Copper Demand Rises with Infrastructure Spending',
+        summary: 'Industrial metals see increased demand as global infrastructure projects accelerate.',
+        category: 'base-metals',
+        source: 'Industrial Today',
+        publishedAt: new Date(Date.now() - 10800000).toISOString(),
+        url: '#',
+        symbols: ['HG']
+      },
+      {
+        id: 'news-4',
+        title: 'Agricultural Commodities Mixed on Weather Reports',
+        summary: 'Wheat and corn prices fluctuate as weather patterns affect growing conditions.',
+        category: 'agriculture',
+        source: 'Farm News',
+        publishedAt: new Date(Date.now() - 14400000).toISOString(),
+        url: '#',
+        symbols: ['ZW', 'ZC']
+      },
+      {
+        id: 'news-5',
+        title: 'Natural Gas Storage Levels Drop',
+        summary: 'Weekly inventory data shows continued decline in natural gas storage capacity.',
+        category: 'energy',
+        source: 'Energy Report',
+        publishedAt: new Date(Date.now() - 18000000).toISOString(),
+        url: '#',
+        symbols: ['NG']
+      }
+    ];
+
+    let filteredNews = newsItems;
+    if (category) {
+      filteredNews = newsItems.filter(item => item.category === category);
+    }
+
+    const limitedNews = filteredNews.slice(0, maxLimit);
+
+    res.json({
+      success: true,
+      data: limitedNews,
+      pagination: {
+        limit: maxLimit,
+        total: filteredNews.length,
+        hasMore: filteredNews.length > maxLimit
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching news:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch commodity news',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

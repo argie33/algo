@@ -91,10 +91,26 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
       } catch (err) {
         attempt++;
         
-        // Stop retrying if circuit breaker is open to prevent infinite loops
-        if (err.message?.includes('Circuit breaker is open')) {
-          console.warn('🚫 Circuit breaker is open, stopping retries');
-          setError('Service temporarily unavailable - please try again in a few moments');
+        // Stop retrying for non-retryable errors to prevent infinite loops
+        const shouldNotRetry = err.message?.includes('Circuit breaker is open') ||
+                              err.message?.includes('HTTP 404') ||
+                              err.message?.includes('Not Found') ||
+                              err.message?.includes('API routing misconfiguration');
+        
+        if (shouldNotRetry) {
+          if (err.message?.includes('Circuit breaker is open')) {
+            console.warn('🚫 Circuit breaker is open, stopping retries');
+            setError('Service temporarily unavailable - please try again in a few moments');
+          } else if (err.message?.includes('HTTP 404') || err.message?.includes('Not Found')) {
+            console.warn('🚫 404 endpoint not found, stopping retries:', url);
+            setError('API endpoint not available');
+          } else if (err.message?.includes('API routing misconfiguration')) {
+            console.warn('🚫 API routing issue, stopping retries');
+            setError('API configuration issue - please contact support');
+          } else {
+            setError(err.message);
+          }
+          
           setData(null);
           
           if (onError) {
