@@ -28,6 +28,7 @@ const { createValidationMiddleware, sanitizers } = require('../middleware/valida
 const { createAdvancedSecurityMiddleware } = require('../middleware/advancedSecurityEnhancements');
 const { createEnhancedFinancialValidation } = require('../middleware/financialValidationEnhanced');
 const apiKeyService = require('../utils/apiKeyService');
+const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const RiskCalculator = require('../utils/riskCalculator');
 const SignalEngine = require('../utils/signalEngine');
@@ -35,9 +36,26 @@ const SignalEngine = require('../utils/signalEngine');
 // Apply authentication to all routes
 router.use(authenticateToken);
 
+// Standard paper trading validation schema
+const paperTradingValidationSchema = {
+  accountType: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { defaultValue: 'paper' }),
+    validator: (value) => ['paper', 'live'].includes(value),
+    errorMessage: 'accountType must be paper or live'
+  },
+  force: {
+    type: 'boolean',
+    sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+    validator: (value) => typeof value === 'boolean',
+    errorMessage: 'force must be true or false'
+  }
+};
+
 // Validation schemas for trading endpoints
 const tradingValidationSchemas = {
   tradeHistory: {
+    ...paperTradingValidationSchema,
     page: {
       type: 'integer',
       sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 1000, defaultValue: 1 }),
@@ -71,6 +89,7 @@ const tradingValidationSchemas = {
   },
   
   positionSizing: {
+    ...paperTradingValidationSchema,
     symbol: {
       required: true,
       type: 'string',
@@ -131,6 +150,36 @@ const POSITION_ACTIONS = {
   CLOSE: 'close',
   REDUCE: 'reduce',
   INCREASE: 'increase'
+};
+
+// Enhanced helper function for paper trading API key setup
+const setupAlpacaService = async (userId, accountType = 'paper') => {
+  const credentials = await unifiedApiKeyService.getApiKeyWithAccountType(
+    userId, 
+    'alpaca', 
+    accountType
+  );
+  
+  if (!credentials) {
+    throw new Error(`No Alpaca API keys configured for ${accountType} trading`);
+  }
+  
+  // Validate account type access
+  const hasAccess = await unifiedApiKeyService.validateAccountTypeAccess(
+    userId, 
+    'alpaca', 
+    accountType
+  );
+  
+  if (!hasAccess) {
+    throw new Error(`Access denied for ${accountType} trading with current API keys`);
+  }
+  
+  return new AlpacaService(
+    credentials.apiKey,
+    credentials.apiSecret,
+    credentials.isSandbox
+  );
 };
 
 // Helper function to check if required tables exist
@@ -2328,8 +2377,11 @@ router.get('/history', createValidationMiddleware(tradingValidationSchemas.trade
     if (!userId) {
       throw new Error('User authentication required');
     }
+    const { accountType = 'paper' } = req.query;
+    
     console.log(`🚀 [${requestId}] Trade history request initiated`, {
       userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      accountType: accountType,
       userAgent: req.headers['user-agent'],
       ip: req.ip,
       timestamp: new Date().toISOString()
