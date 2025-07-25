@@ -219,6 +219,76 @@ Resources:
             AllowedOrigins:
               - '*'
             MaxAge: 3600
+
+  # Security Group for Secrets Manager VPC Endpoint (created first to avoid circular dependency)
+  SecretsManagerEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Secrets Manager VPC endpoint
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "10.0.0.0/16"
+          Description: "Allow HTTPS from VPC CIDR range"
+      Tags:
+        - Key: Name
+          Value: !Sub 'secrets-manager-endpoint-sg-${EnvironmentName}'
+
+  # Security Group for Lambda function
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda function accessing RDS and Secrets Manager
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "10.0.0.0/16"
+          Description: "Allow PostgreSQL access to RDS within VPC"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          DestinationSecurityGroupId: !Ref SecretsManagerEndpointSecurityGroup
+          Description: "Allow HTTPS to Secrets Manager VPC endpoint"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+          Description: "Allow HTTPS for other AWS services and external APIs"
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+          Description: "Allow HTTP for external API calls"
+      Tags:
+        - Key: Name
+          Value: !Sub 'lambda-security-group-${EnvironmentName}'
+
+  # VPC Endpoint for Secrets Manager (for Lambda to access secrets within VPC)
+  SecretsManagerVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !ImportValue StocksCore-VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
+      SecurityGroupIds:
+        - !Ref SecretsManagerEndpointSecurityGroup
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+            Resource: '*'
+
   # Origin Access Control for CloudFront (newer than OAI)
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
@@ -314,7 +384,13 @@ Resources:
       CodeUri: webapp/lambda/
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      # No VPC config needed - RDS is publicly accessible
+      # VPC Configuration - Place Lambda in same public subnets as RDS
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
       Timeout: 60
       MemorySize: 256
       Environment:
@@ -446,6 +522,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: DatabaseAccess
           PolicyDocument:
