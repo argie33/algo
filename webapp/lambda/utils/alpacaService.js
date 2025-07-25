@@ -82,6 +82,12 @@ class AlpacaService {
    */
   setupRetryInterceptors() {
     const retryInterceptor = (axiosInstance) => {
+      // Check if axiosInstance exists before trying to access interceptors
+      if (!axiosInstance || !axiosInstance.interceptors) {
+        console.warn('AlpacaService: Cannot setup interceptors - axios instance not available');
+        return;
+      }
+      
       axiosInstance.interceptors.response.use(
         (response) => response,
         async (error) => {
@@ -112,8 +118,13 @@ class AlpacaService {
       );
     };
     
-    retryInterceptor(this.api);
-    retryInterceptor(this.dataApi);
+    // Only setup interceptors if axios instances exist
+    if (this.api) {
+      retryInterceptor(this.api);
+    }
+    if (this.dataApi) {
+      retryInterceptor(this.dataApi);
+    }
   }
 
   /**

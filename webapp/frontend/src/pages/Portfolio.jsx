@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Portfolio page - fully integrated with real broker API keys for live data
-// Updated: 2025-07-14 - Enhanced real-time integration with HFT system and WebSocket live data
+// Updated: 2025-07-25 - Enhanced backend integration with sync status, data sources, and response tracking
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import RequiresApiKeys from '../components/RequiresApiKeys';
 import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getAvailableAccounts, getAccountInfo, getApiKeys, getApiConfig, testApiConnection } from '../services/api';
 import { useLivePortfolioData } from '../hooks/useLivePortfolioData';
 import { usePortfolioFactorAnalysis } from '../hooks/usePortfolioFactorAnalysis';
+
+// Import enhanced portfolio components
+import PortfolioSyncStatus from '../components/portfolio/PortfolioSyncStatus';
+import PortfolioDataSource from '../components/portfolio/PortfolioDataSource';
+import EnhancedPortfolioActions from '../components/portfolio/EnhancedPortfolioActions';
 import {
   Box,
   Container,
@@ -353,6 +358,11 @@ const Portfolio = () => {
   const [availableAccounts, setAvailableAccounts] = useState([]);
   const [accountInfo, setAccountInfo] = useState(null);
   
+  // Enhanced backend integration state
+  const [enhancedDataSource, setEnhancedDataSource] = useState(null);
+  const [responseMetrics, setResponseMetrics] = useState(null);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  
   // State variables that were defined later but used earlier
   const [addHoldingDialog, setAddHoldingDialog] = useState(false);
   const [orderBy, setOrderBy] = useState('allocation');
@@ -678,13 +688,14 @@ const Portfolio = () => {
     }
   }, [isAuthenticated, user]);
 
-  const loadPortfolioData = async () => {
+  const loadPortfolioData = async (forceRefresh = false) => {
     console.log('🔄 Loading portfolio data...', { 
       isAuthenticated, 
       dataSource, 
       accountType,
       hasUser: !!user,
-      apiUrl: getApiConfig().apiUrl 
+      apiUrl: getApiConfig().apiUrl,
+      forceRefresh 
     });
 
     // Ensure user is authenticated before loading data
@@ -714,14 +725,37 @@ const Portfolio = () => {
       });
       
       try {
-        console.log(`📊 [PORTFOLIO] Loading holdings for account type: ${accountType}`);
-        // Load real data from API with built-in timeout handling
-        const portfolioResponse = await getPortfolioData(accountType);
+        console.log(`📊 [PORTFOLIO] Loading holdings for account type: ${accountType}, force: ${forceRefresh}`);
+        // Load real data from API with built-in timeout handling and enhanced response tracking
+        const portfolioParams = forceRefresh ? `${accountType}&force=true` : accountType;
+        const portfolioResponse = await getPortfolioData(portfolioParams);
         console.log('✅ [PORTFOLIO] Portfolio API Response:', {
           success: portfolioResponse?.success,
           holdingsCount: portfolioResponse?.holdings?.length || 0,
-          hasData: !!portfolioResponse
+          hasData: !!portfolioResponse,
+          source: portfolioResponse?.source,
+          responseTime: portfolioResponse?.responseTime
         });
+        
+        // Handle enhanced backend response format
+        if (portfolioResponse?.source) {
+          setEnhancedDataSource({
+            source: portfolioResponse.source,
+            responseTime: portfolioResponse.responseTime,
+            syncInfo: portfolioResponse.syncInfo,
+            warning: portfolioResponse.warning,
+            syncError: portfolioResponse.syncError,
+            message: portfolioResponse.message
+          });
+          setResponseMetrics({
+            responseTime: portfolioResponse.responseTime,
+            timestamp: new Date(),
+            source: portfolioResponse.source
+          });
+          if (portfolioResponse.syncInfo?.syncId) {
+            setLastSyncTime(new Date());
+          }
+        }
         
         console.log(`🏦 [ACCOUNT] Loading account info for: ${accountType}`);
         const accountResponse = await Promise.race([
@@ -845,6 +879,43 @@ const Portfolio = () => {
       setAccountType(newAccountType);
     }
   };
+
+  // Enhanced portfolio action handlers
+  const handleForceSync = useCallback((force = true) => {
+    console.log('🔄 Force sync requested, reloading portfolio data...');
+    loadPortfolioData(force);
+  }, []);
+
+  const handleSyncComplete = useCallback(() => {
+    console.log('✅ Sync completed, refreshing portfolio data...');
+    loadPortfolioData(false);
+  }, []);
+
+  const handleExportPortfolio = useCallback(() => {
+    if (portfolioData?.holdings) {
+      const exportData = {
+        portfolio: portfolioData,
+        accountInfo: accountInfo,
+        exportDate: new Date().toISOString(),
+        accountType: accountType
+      };
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `portfolio-${accountType}-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+    }
+  }, [portfolioData, accountInfo, accountType]);
+
+  const handleAnalyzePortfolio = useCallback(() => {
+    navigate('/portfolio/performance');
+  }, [navigate]);
+
+  const handleViewHistory = useCallback(() => {
+    navigate('/portfolio/performance');
+  }, [navigate]);
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
   // Real portfolio data from API
@@ -1942,6 +2013,28 @@ const Portfolio = () => {
         />
       </Box>
 
+      {/* Enhanced Portfolio Components */}
+      {/* Sync Status */}
+      <PortfolioSyncStatus 
+        userId={user?.sub}
+        onSyncComplete={handleSyncComplete}
+        compact={false}
+      />
+
+      {/* Data Source Information */}
+      {enhancedDataSource && (
+        <Box sx={{ mb: 3 }}>
+          <PortfolioDataSource
+            source={enhancedDataSource.source}
+            responseTime={enhancedDataSource.responseTime}
+            syncInfo={enhancedDataSource.syncInfo}
+            warning={enhancedDataSource.warning}
+            error={enhancedDataSource.syncError}
+            compact={false}
+          />
+        </Box>
+      )}
+
       {/* Portfolio Header */}
       <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
         <Box>
@@ -2132,6 +2225,18 @@ const Portfolio = () => {
               </Badge>
             </IconButton>
           </Tooltip>
+          
+          {/* Enhanced Portfolio Actions */}
+          <EnhancedPortfolioActions
+            onRefresh={() => loadPortfolioData(false)}
+            onForceSync={handleForceSync}
+            onExport={handleExportPortfolio}
+            onAnalyze={handleAnalyzePortfolio}
+            onViewHistory={handleViewHistory}
+            loading={loading}
+            dataSource={enhancedDataSource}
+            showDataSource={true}
+          />
           
           <Button 
             variant="outlined" 
