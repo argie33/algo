@@ -75,20 +75,34 @@ async function getDbConfig() {
             const secretArn = process.env.DB_SECRET_ARN;
             console.log(`🔑 Getting credentials from Secrets Manager: ${secretArn}`);
             
+            // Use direct AWS SDK for reliable secret retrieval
+            console.log(`🔑 Getting secret directly from AWS SDK: ${secretArn}`);
+            const command = new GetSecretValueCommand({ SecretId: secretArn });
+            const response = await secretsManager.send(command);
+            
+            if (!response.SecretString) {
+                throw new Error('SecretString is empty - check secret configuration');
+            }
+            
             let secret;
             try {
-                // Try diagnostic tool first
-                const SecretsManagerDiagnostic = require('./secretsManagerDiagnostic');
-                const diagnostic = new SecretsManagerDiagnostic();
-                secret = await diagnostic.getSecret(secretArn);
-            } catch (diagError) {
-                console.warn('⚠️ Diagnostic tool failed, using direct AWS SDK:', diagError.message);
-                
-                const command = new GetSecretValueCommand({ SecretId: secretArn });
-                const response = await secretsManager.send(command);
                 secret = JSON.parse(response.SecretString);
+                console.log(`✅ Secret parsed successfully, keys: ${Object.keys(secret).join(', ')}`);
+            } catch (parseError) {
+                console.error(`❌ Failed to parse secret JSON: ${parseError.message}`);
+                console.error(`Secret string preview: ${response.SecretString.substring(0, 100)}...`);
+                throw new Error(`Invalid secret format: ${parseError.message}`);
             }
 
+            // Validate secret has required fields
+            if (!secret.username || !secret.password || !secret.host) {
+                const missing = [];
+                if (!secret.username) missing.push('username');
+                if (!secret.password) missing.push('password');  
+                if (!secret.host) missing.push('host');
+                throw new Error(`Secret missing required fields: ${missing.join(', ')}`);
+            }
+            
             // FIXED: Prioritize RDS endpoint from secrets, fallback to ENV vars, reject localhost in AWS
             const dbHost = secret.host || secret.endpoint || process.env.DB_ENDPOINT || process.env.DB_HOST;
             
@@ -98,10 +112,12 @@ async function getDbConfig() {
                 throw new Error('Invalid database host: localhost not allowed in AWS Lambda environment');
             }
             
+            console.log(`🔧 Building database config with host: ${dbHost}`);
+            
             dbConfig = {
                 host: dbHost,
                 port: parseInt(secret.port) || parseInt(process.env.DB_PORT) || 5432,
-                database: secret.dbname || secret.database || process.env.DB_NAME || 'stocks',
+                database: secret.dbname || secret.database || process.env.DB_NAME || 'financial_dashboard',
                 user: secret.username || secret.user || process.env.DB_USER,
                 password: secret.password,
                 ssl: { rejectUnauthorized: false },
@@ -109,6 +125,11 @@ async function getDbConfig() {
                 idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
                 connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
             };
+            
+            // Validate final config
+            if (!dbConfig.host || !dbConfig.user || !dbConfig.password) {
+                throw new Error(`Invalid database config: host=${!!dbConfig.host}, user=${!!dbConfig.user}, password=${!!dbConfig.password}`);
+            }
 
             const configDuration = Date.now() - configStart;
             console.log(`✅ Database config loaded from AWS Secrets Manager (${configDuration}ms)`);
