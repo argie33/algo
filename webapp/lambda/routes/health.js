@@ -1,11 +1,38 @@
 const express = require('express');
-const { query, initializeDatabase, getPool, healthCheck } = require('../utils/database');
-const DatabaseCircuitBreaker = require('../utils/databaseCircuitBreaker');
 
-// Create circuit breaker instance for health checks
-const databaseCircuitBreaker = new DatabaseCircuitBreaker();
+// Safe database imports with error handling
+let query, initializeDatabase, getPool, healthCheck, DatabaseCircuitBreaker, databaseCircuitBreaker;
+
+try {
+  const dbUtils = require('../utils/database');
+  ({ query, initializeDatabase, getPool, healthCheck } = dbUtils);
+  DatabaseCircuitBreaker = require('../utils/databaseCircuitBreaker');
+  databaseCircuitBreaker = new DatabaseCircuitBreaker();
+} catch (error) {
+  console.error('⚠️ Database dependencies not available:', error.message);
+  // Create fallback functions
+  query = () => Promise.reject(new Error('Database unavailable'));
+  initializeDatabase = () => Promise.reject(new Error('Database unavailable'));
+  getPool = () => null;
+  healthCheck = () => Promise.resolve({ healthy: false, error: 'Database unavailable' });
+  databaseCircuitBreaker = {
+    execute: (fn) => Promise.reject(new Error('Circuit breaker unavailable'))
+  };
+}
 
 const router = express.Router();
+
+// Ultra-simple health check - no dependencies
+router.get('/simple', (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: 'healthy',
+    service: 'Financial Dashboard API',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    message: 'Basic health check passed'
+  });
+});
 
 // Comprehensive health check endpoint - complete environmental insights
 router.get('/comprehensive', async (req, res) => {
@@ -360,8 +387,9 @@ router.get('/quick', (req, res) => {
 
 // Unified Health Dashboard - Complete system overview
 router.get('/', async (req, res) => {
-  const startTime = Date.now();
-  const dashboard = {
+  try {
+    const startTime = Date.now();
+    const dashboard = {
     service: 'Financial Dashboard API',
     timestamp: new Date().toISOString(),
     status: 'healthy',
@@ -504,6 +532,22 @@ router.get('/', async (req, res) => {
   // Return appropriate status code based on health
   const statusCode = dashboard.healthy ? 200 : 503;
   res.status(statusCode).json(dashboard);
+  
+  } catch (outerError) {
+    console.error('Fatal health route error:', outerError);
+    res.status(500).json({
+      success: false,
+      error: 'Health check failed',
+      message: outerError.message,
+      service: 'Financial Dashboard API',
+      timestamp: new Date().toISOString(),
+      troubleshooting: {
+        issue: 'Health route crashed',
+        possibleCauses: ['Database connection failure', 'Missing dependencies', 'Memory/resource issues'],
+        suggestion: 'Try /api/health/simple for basic health check'
+      }
+    });
+  }
 });
 
 module.exports = router;
