@@ -126,12 +126,12 @@ function ServiceHealth() {
       category: 'System Health & Debug',
       tests: [
         { name: 'Health Check', fn: () => api.get('/health'), critical: true },
-        { name: 'Health Ready', fn: () => api.get('/health/ready'), critical: true },
-        { name: 'Health Debug DB', fn: () => api.get('/health/debug/db-test'), critical: false },
-        { name: 'Health Debug Tables', fn: () => api.get('/health/debug/tables'), critical: false },
-        { name: 'Health Debug Query', fn: () => api.get('/health/debug/test-query'), critical: false },
-        { name: 'Health Debug Env', fn: () => api.get('/health/debug/env'), critical: false },
-        { name: 'Health Debug CORS', fn: () => api.get('/health/debug/cors-test'), critical: false }
+        { name: 'Health Ready', fn: () => api.get('/health/quick'), critical: true },
+        { name: 'Health Database', fn: () => api.get('/health/database'), critical: false },
+        { name: 'Health Environment', fn: () => api.get('/health/environment'), critical: false },
+        { name: 'Health Circuit Breakers', fn: () => api.get('/health/circuit-breakers'), critical: false },
+        { name: 'Health Comprehensive', fn: () => api.get('/health/comprehensive'), critical: false },
+        { name: 'Health Simple', fn: () => api.get('/health/simple'), critical: false }
       ]
     },
     {
@@ -374,11 +374,11 @@ function ServiceHealth() {
       setLoadingStatus('Checking database connection...');
       setHealthTier(1);
       
-      const connectionResponse = await api.get('/health/connection', {
+      const connectionResponse = await api.get('/health/database', {
         timeout: 5000
       });
       
-      if (connectionResponse.data.status !== 'connected') {
+      if (!connectionResponse.data.success || connectionResponse.data.database?.connection?.status !== 'connected') {
         throw new Error('Database connection failed');
       }
       
@@ -386,14 +386,14 @@ function ServiceHealth() {
       setLoadingStatus('Loading critical tables...');
       setHealthTier(2);
       
-      const criticalResponse = await api.get('/health/critical', {
+      const criticalResponse = await api.get('/health/database', {
         timeout: 8000
       });
       
       // Merge connection and critical data
       const healthData = {
-        status: criticalResponse.data.status,
-        healthy: criticalResponse.data.status === 'operational',
+        status: criticalResponse.data.success ? 'operational' : 'degraded',
+        healthy: criticalResponse.data.success,
         database: {
           ...connectionResponse.data.database,
           critical_tables: criticalResponse.data.critical_tables,
@@ -414,16 +414,16 @@ function ServiceHealth() {
       setHealthTier(3);
       
       // Non-blocking full health check
-      api.get('/health/full', { timeout: 10000 })
+      api.get('/health/comprehensive', { timeout: 10000 })
         .then(fullResponse => {
-          if (fullResponse.data && fullResponse.data.all_tables) {
+          if (fullResponse.data && fullResponse.data.database?.tables) {
             // Full scan completed, update with complete data
             const completeHealthData = {
               ...healthData,
               database: {
                 ...healthData.database,
-                all_tables: fullResponse.data.all_tables,
-                full_summary: fullResponse.data.summary
+                all_tables: fullResponse.data.database.tables,
+                full_summary: fullResponse.data.summary || fullResponse.data.status
               },
               full: fullResponse.data,
               full_scan_available: true,
