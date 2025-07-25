@@ -321,6 +321,7 @@ Resources:
         Variables:
           # Database configuration via Secrets Manager
           DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_ENDPOINT: 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
           DB_NAME: 'stocks'
           DB_PORT: '5432'
           DB_SSL: 'true'
