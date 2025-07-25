@@ -181,7 +181,7 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
             <Box sx={{ mb: 1 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2" fontWeight={600}>
-                  5% Buy Zone (O'Neill Method)
+                  5% Buy Zone (O&apos;Neill Method)
                 </Typography>
                 <Typography 
                   variant="body2" 
@@ -262,7 +262,7 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
               borderRadius: 1
             }}>
               <Typography variant="caption" color="text.secondary" gutterBottom>
-                Exit Zone Targets (O'Neill Method)
+                Exit Zone Targets (O&apos;Neill Method)
               </Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 1 }}>
                 <Chip

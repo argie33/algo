@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card as MuiCard, CardHeader as MuiCardHeader, CardContent as MuiCardContent } from '@mui/material';
+import { Card as MuiCard, CardHeader as MuiCardHeader, CardContent as MuiCardContent, Typography } from '@mui/material';
 
 const Card = React.forwardRef(({ className, ...props }, ref) => (
   <MuiCard ref={ref} className={className} {...props} />
@@ -12,16 +12,16 @@ const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
 CardHeader.displayName = "CardHeader";
 
 const CardTitle = React.forwardRef(({ className, children, ...props }, ref) => (
-  <div  ref={ref} variant="h6" component="div" className={className} {...props}>
+  <Typography ref={ref} variant="h6" component="div" className={className} {...props}>
     {children}
-  </div>
+  </Typography>
 ));
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef(({ className, children, ...props }, ref) => (
-  <div  ref={ref} variant="body2" color="text.secondary" className={className} {...props}>
+  <Typography ref={ref} variant="body2" color="text.secondary" className={className} {...props}>
     {children}
-  </div>
+  </Typography>
 ));
 CardDescription.displayName = "CardDescription";
 

@@ -661,7 +661,7 @@ const AIAssistant = () => {
               
               <Alert severity="info" sx={{ mt: 1 }}>
                 <Typography variant="body2">
-                  <strong>Digital Human Avatar:</strong> This feature uses NVIDIA's Digital Human technology 
+                  <strong>Digital Human Avatar:</strong> This feature uses NVIDIA&apos;s Digital Human technology 
                   to provide a more engaging experience. Currently in beta phase.
                 </Typography>
               </Alert>

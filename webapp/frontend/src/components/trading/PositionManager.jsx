@@ -342,7 +342,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
         <DialogContent dividers>
           <Stack spacing={3}>
             <Alert severity="info">
-              Following O'Neill's methodology, consider taking partial profits at key levels.
+              Following O&apos;Neill&apos;s methodology, consider taking partial profits at key levels.
             </Alert>
 
             <FormControl fullWidth>

@@ -74,7 +74,7 @@ class PasswordValidator {
       hasVariety: this.hasCharacterVariety(password),
       noRepeatingChars: !/(.).*\1.*\1/.test(password),
       strongLength: password.length >= 16,
-      hasUnicode: /[^\u0000-\u007F]/.test(password),
+      hasUnicode: /[^\u0020-\u007F]/.test(password),
       entropy: this.calculateEntropy(password) >= 50
     };
 
@@ -102,7 +102,7 @@ class PasswordValidator {
     if (/[A-Z]/.test(password)) size += 26;
     if (/\d/.test(password)) size += 10;
     if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) size += 32;
-    if (/[^\u0000-\u007F]/.test(password)) size += 100; // Unicode estimate
+    if (/[^\u0020-\u007F]/.test(password)) size += 100; // Unicode estimate
     return size;
   }
 
