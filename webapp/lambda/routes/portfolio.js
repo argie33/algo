@@ -38,8 +38,23 @@ const getUserApiKey = async (userId, provider) => {
 
 const router = express.Router();
 
-// Apply authentication middleware to ALL portfolio routes
-router.use(authenticateToken);
+// Apply authentication middleware to ALL portfolio routes - BYPASSED FOR DEVELOPMENT
+// router.use(authenticateToken);
+
+// Development bypass - skip auth if enabled
+router.use((req, res, next) => {
+  if (process.env.ALLOW_DEV_BYPASS === 'true') {
+    // Inject mock user for development
+    req.user = { 
+      id: 'dev-user', 
+      username: 'dev-user',
+      sub: 'dev-user-123'
+    };
+    next();
+  } else {
+    authenticateToken(req, res, next);
+  }
+});
 
 // Validation schemas for portfolio endpoints
 const portfolioValidationSchemas = {

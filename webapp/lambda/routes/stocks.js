@@ -125,7 +125,7 @@ router.get('/popular', async (req, res) => {
     
     const limit = parseInt(req.query.limit) || 20;
     
-    // Query popular stocks based on volume and market cap
+    // Query popular stocks based on volume and market cap with TIMEOUT PROTECTION
     const popularQuery = `
       SELECT 
         symbol,
@@ -147,12 +147,18 @@ router.get('/popular', async (req, res) => {
     
     let result;
     try {
-      result = await query(popularQuery, [limit]);
+      // Add timeout protection - max 5 seconds for database query
+      const queryPromise = query(popularQuery, [limit]);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout - taking too long')), 5000)
+      );
+      
+      result = await Promise.race([queryPromise, timeoutPromise]);
       console.log(`✅ Popular stocks query successful: ${result.rows.length} stocks found`);
     } catch (dbError) {
-      console.error('❌ Popular stocks query failed:', dbError.message);
+      console.error('❌ Popular stocks query failed or timed out:', dbError.message);
       
-      // Return fallback popular stocks data
+      // Return fallback popular stocks data immediately
       const fallbackStocks = [
         { symbol: 'AAPL', company_name: 'Apple Inc.', sector: 'Technology', exchange: 'NASDAQ', market_cap: 3000000000000, price: 190.50, volume: 45000000, pe_ratio: 28.5, dividend_yield: 0.52 },
         { symbol: 'MSFT', company_name: 'Microsoft Corporation', sector: 'Technology', exchange: 'NASDAQ', market_cap: 2800000000000, price: 337.80, volume: 20000000, pe_ratio: 30.2, dividend_yield: 0.68 },
@@ -185,7 +191,8 @@ router.get('/popular', async (req, res) => {
         data: formattedFallbackStocks,
         count: formattedFallbackStocks.length,
         source: 'fallback_data',
-        message: 'Using fallback popular stocks data - database connection issue',
+        message: 'Using fallback popular stocks data - database timeout or connection issue',
+        dbTimeout: dbError.message.includes('timeout'),
         timestamp: new Date().toISOString()
       });
     }
