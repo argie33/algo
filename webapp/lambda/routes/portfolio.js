@@ -378,4 +378,73 @@ router.post('/import', async (req, res) => {
   }
 });
 
+// Portfolio Performance endpoint - Analytics and metrics
+router.get('/performance', createValidationMiddleware({
+  period: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { maxLength: 10, defaultValue: '1Y' }),
+    validator: (value) => ['1D', '1W', '1M', '3M', '6M', '1Y', '2Y', '5Y', 'ALL'].includes(value),
+    errorMessage: 'Period must be one of: 1D, 1W, 1M, 3M, 6M, 1Y, 2Y, 5Y, ALL'
+  }
+}), async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const { period = '1Y' } = req.query;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
+    // Get user's API credentials
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API credentials not configured. Please add your API keys in Settings.'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
+    
+    // Get account info and portfolio history
+    const [account, portfolioHistory] = await Promise.all([
+      alpaca.getAccount(),
+      alpaca.getPortfolioHistory({ period, timeframe: '1Day' })
+    ]);
+
+    // Calculate performance metrics
+    const performanceData = {
+      account: {
+        equity: parseFloat(account.equity),
+        dayChange: parseFloat(account.equity) - parseFloat(account.last_equity),
+        dayChangePercent: ((parseFloat(account.equity) - parseFloat(account.last_equity)) / parseFloat(account.last_equity)) * 100,
+        totalValue: parseFloat(account.equity),
+        buyingPower: parseFloat(account.buying_power),
+        cashBalance: parseFloat(account.cash)
+      },
+      history: portfolioHistory.equity ? portfolioHistory : null,
+      period,
+      lastUpdated: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      data: performanceData,
+      message: `Portfolio performance data for ${period} period`
+    });
+
+  } catch (error) {
+    console.error('❌ Portfolio performance error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch portfolio performance data',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
