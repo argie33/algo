@@ -66,6 +66,7 @@ safeRouteLoader('./routes/health', 'Health Direct', '/health');
 // Core Data Routes - These are critical for portfolio page
 safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
 safeRouteLoader('./routes/stocks', 'Stocks', '/api/stocks');
+safeRouteLoader('./routes/financials', 'Financials', '/api/financials');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
 
 // API Key Management

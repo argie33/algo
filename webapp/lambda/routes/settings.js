@@ -664,6 +664,230 @@ router.post('/api-keys', async (req, res) => {
   }
 });
 
+// Add API key for specific user (frontend compatibility route)
+router.post('/api-keys/:userId/:provider', async (req, res) => {
+  const authenticatedUserId = req.user.sub;
+  const { userId, provider } = req.params;
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  console.log(`🔐 [${requestId}] POST /api-keys/${userId}/${provider} - Frontend compatibility route`);
+  console.log(`🔐 [${requestId}] Authenticated user: ${authenticatedUserId}`);
+  
+  // Use the existing POST logic from the main endpoint
+  const { name, key, secret, apiKey, apiSecret, isSandbox = true, description } = req.body;
+  
+  // Support both old and new API formats
+  const finalProvider = name || provider;
+  const finalApiKey = key || apiKey;
+  const finalSecret = secret || apiSecret;
+  
+  console.log(`🔐 [${requestId}] Request body:`, JSON.stringify({ 
+    finalProvider, 
+    isSandbox, 
+    description, 
+    hasApiKey: !!finalApiKey, 
+    hasSecret: !!finalSecret,
+    apiKeyLength: finalApiKey?.length,
+    secretLength: finalSecret?.length
+  }, null, 2));
+
+  if (!finalProvider || !finalApiKey) {
+    console.error(`❌ [${requestId}] Missing required fields: provider=${!!finalProvider}, apiKey=${!!finalApiKey}`);
+    return res.status(400).json({
+      success: false,
+      error: 'Provider and API key are required'
+    });
+  }
+
+  // Validate API key format based on provider
+  const formatValidation = validateApiKeyFormat(finalProvider, finalApiKey, finalSecret);
+  if (!formatValidation.valid) {
+    console.error(`❌ [${requestId}] Invalid API key format for ${finalProvider}: ${formatValidation.error}`);
+    return res.status(400).json({
+      success: false,
+      error: formatValidation.error,
+      details: formatValidation.details
+    });
+  }
+
+  try {
+    console.log(`🔐 [${requestId}] Storing API key using Parameter Store...`);
+    
+    // Store API key using authenticated user ID, not the one in the URL
+    const storeStart = Date.now();
+    await apiKeyService.storeApiKey(authenticatedUserId, finalProvider, finalApiKey, finalSecret);
+    console.log(`✅ [${requestId}] API key stored successfully after ${Date.now() - storeStart}ms`);
+    
+    console.log(`✅ [${requestId}] Total request time: ${Date.now() - startTime}ms`);
+
+    res.json({
+      success: true,
+      message: 'API key added successfully',
+      apiKey: {
+        provider: finalProvider,
+        description: description || `${finalProvider} API key`,
+        isSandbox,
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error(`❌ [${requestId}] Error after ${Date.now() - startTime}ms:`, error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to store API key',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Test API key connection for specific user (frontend compatibility route)
+router.post('/api-keys/:userId/:provider/test', async (req, res) => {
+  const authenticatedUserId = req.user.sub;
+  const { userId, provider } = req.params;
+  const requestId = crypto.randomUUID().split('-')[0];
+  const requestStart = Date.now();
+
+  console.log(`🚀 [${requestId}] API key connection test for user ${userId}, provider ${provider}`);
+  console.log(`🚀 [${requestId}] Authenticated as: ${authenticatedUserId}`);
+
+  try {
+    if (!provider || !['alpaca', 'polygon', 'finnhub', 'iex'].includes(provider.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider. Must be alpaca, polygon, finnhub, or iex',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get API key from Parameter Store using authenticated user ID
+    console.log(`🔍 [${requestId}] Retrieving API key from Parameter Store`);
+    const credentials = await apiKeyService.getApiKey(authenticatedUserId, provider);
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'API key not found',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log(`✅ [${requestId}] API key found for provider: ${provider}`);
+    
+    // Test connection based on provider
+    console.log(`📡 [${requestId}] Testing connection to ${provider} API`);
+    const connectionTestStart = Date.now();
+    let connectionResult = { valid: false, error: 'Provider not supported' };
+    
+    if (provider === 'alpaca') {
+      const AlpacaService = require('../utils/alpacaService');
+      
+      try {
+        const alpaca = new AlpacaService(credentials.keyId, credentials.secretKey, false);
+        const account = await alpaca.getAccount();
+        
+        if (account) {
+          connectionResult = {
+            valid: true,
+            accountInfo: {
+              accountId: account.id,
+              portfolioValue: parseFloat(account.portfolio_value || account.equity || 0),
+              buyingPower: parseFloat(account.buying_power || 0),
+              environment: 'live',
+              accountStatus: account.status
+            },
+            connectionTime: Date.now() - connectionTestStart
+          };
+          
+          console.log(`✅ [${requestId}] Alpaca connection test SUCCESSFUL`);
+        } else {
+          connectionResult = {
+            valid: false,
+            error: 'No account data returned from Alpaca API'
+          };
+        }
+        
+      } catch (alpacaError) {
+        console.error(`❌ [${requestId}] Alpaca connection test FAILED:`, alpacaError.message);
+        connectionResult = {
+          valid: false,
+          error: alpacaError.message,
+          errorCode: alpacaError.code
+        };
+      }
+    }
+
+    const connectionTestDuration = Date.now() - connectionTestStart;
+    const totalDuration = Date.now() - requestStart;
+
+    res.json({
+      success: true,
+      connection: connectionResult,
+      metadata: {
+        provider: provider,
+        tested_at: new Date().toISOString(),
+        connection_duration_ms: connectionTestDuration
+      },
+      request_info: {
+        request_id: requestId,
+        total_duration_ms: totalDuration,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    const errorDuration = Date.now() - requestStart;
+    console.error(`❌ [${requestId}] API key connection test FAILED:`, error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test API key connection',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      request_info: {
+        request_id: requestId,
+        error_duration_ms: errorDuration,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
+// Delete API key for specific user (frontend compatibility route)
+router.delete('/api-keys/:userId/:provider', async (req, res) => {
+  const authenticatedUserId = req.user.sub;
+  const { userId, provider } = req.params;
+
+  console.log(`🗑️ DELETE API key for user ${userId}, provider ${provider}`);
+  console.log(`🗑️ Authenticated as: ${authenticatedUserId}`);
+
+  try {
+    // Delete from Parameter Store using authenticated user ID
+    await apiKeyService.deleteApiKey(authenticatedUserId, provider);
+
+    res.json({
+      success: true,
+      message: 'API key deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting API key:', error);
+    if (error.name === 'ParameterNotFound') {
+      return res.status(404).json({
+        success: false,
+        error: 'API key not found'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete API key',
+      message: error.message
+    });
+  }
+});
+
 // Update API key
 router.put('/api-keys/:keyId', createValidationMiddleware(settingsValidationSchemas.apiKey), async (req, res) => {
   const userId = req.user.sub;
@@ -731,7 +955,112 @@ router.delete('/api-keys/:provider', async (req, res) => {
   }
 });
 
-// Get API key (without exposing the secret)
+// Get all API keys for a specific user (frontend compatibility route)
+router.get('/api-keys/:userIdOrProvider', async (req, res) => {
+  const authenticatedUserId = req.user.sub;
+  const { userIdOrProvider } = req.params;
+  
+  // Check if the parameter looks like an email (user ID) or a provider name
+  const isEmailPattern = userIdOrProvider.includes('@') || userIdOrProvider.includes('.');
+  
+  if (isEmailPattern) {
+    // This is a user ID, redirect to the main API keys endpoint
+    try {
+      console.log(`🔍 API Keys request for user: ${userIdOrProvider} (authenticated as: ${authenticatedUserId})`);
+      
+      // Use the same logic as the main /api-keys endpoint
+      if (!apiKeyService.isEnabled) {
+        console.warn('⚠️  API Key encryption service is disabled - returning setup guidance');
+        return res.json({
+          success: true,
+          data: [],
+          setupRequired: true,
+          message: 'API key service is initializing. You can still use demo data while we configure the encryption service.',
+          guidance: {
+            status: 'setup_required',
+            title: 'API Key Service Setup Required',
+            description: 'The API key encryption service needs to be configured by the administrator.',
+            actions: [
+              'Use demo data for now',
+              'Contact administrator to configure encryption service',
+              'Check back in a few minutes'
+            ]
+          },
+          encryptionEnabled: false
+        });
+      }
+      
+      console.log('🔄 Fetching API keys from Parameter Store...');
+      const apiKeys = await apiKeyService.listApiKeys(authenticatedUserId);
+      
+      console.log('✅ API keys fetched successfully');
+      console.log('📊 Found API keys for user', authenticatedUserId, ':', apiKeys.length);
+      
+      // Format for frontend compatibility
+      const formattedApiKeys = apiKeys.map(key => ({
+        id: `${key.provider}-${authenticatedUserId}`,
+        provider: key.provider,
+        description: `${key.provider} API Key`,
+        is_sandbox: true,
+        is_active: true,
+        created_at: key.created,
+        last_used: null,
+        masked_api_key: key.keyId,
+        validation_status: 'valid'
+      }));
+
+      res.json({ 
+        success: true, 
+        data: formattedApiKeys
+      });
+    } catch (error) {
+      console.error('❌ API Key service error:', error);
+      
+      // Return fallback empty list for better UX
+      console.log('🔄 API Key service failed, returning empty list as fallback');
+      res.json({ 
+        success: true, 
+        data: [],
+        note: 'API key service temporarily unavailable',
+        errorCode: 'SERVICE_UNAVAILABLE',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  } else {
+    // This is a provider name, treat as the original provider-specific endpoint
+    const provider = userIdOrProvider;
+    try {
+      const apiKey = await apiKeyService.getApiKey(authenticatedUserId, provider);
+      
+      if (!apiKey) {
+        return res.status(404).json({
+          success: false,
+          error: 'API key not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        apiKey: {
+          provider: apiKey.provider,
+          keyId: apiKey.keyId.substring(0, 4) + '***' + apiKey.keyId.slice(-4),
+          hasSecret: !!apiKey.secretKey,
+          created: apiKey.created,
+          version: apiKey.version
+        }
+      });
+    } catch (error) {
+      console.error('Error retrieving API key:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve API key',
+        message: error.message
+      });
+    }
+  }
+});
+
+// Get API key (without exposing the secret) - DEPRECATED, use above route
 router.get('/api-keys/:provider', async (req, res) => {
   const userId = req.user.sub;
   const { provider } = req.params;
