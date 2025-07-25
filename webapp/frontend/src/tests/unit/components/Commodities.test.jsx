@@ -186,7 +186,7 @@ describe('Commodities Page', () => {
       renderWithTheme(<Commodities />);
       
       expect(screen.getByText('Live Prices')).toBeInTheDocument();
-      expect(screen.getByText('Technical Analysis')).toBeInTheDocument();
+      expect(screen.getAllByText('Technical Analysis')[0]).toBeInTheDocument();
       expect(screen.getByText('Correlations')).toBeInTheDocument();
       expect(screen.getByText('Futures Ready')).toBeInTheDocument();
     });
@@ -350,7 +350,7 @@ describe('Commodities Page', () => {
       renderWithTheme(<Commodities />);
       
       expect(screen.getByText('Add to Watchlist')).toBeInTheDocument();
-      expect(screen.getByText('Technical Analysis')).toBeInTheDocument();
+      expect(screen.getAllByText('Technical Analysis')[1]).toBeInTheDocument();
       expect(screen.getByText('Export Data')).toBeInTheDocument();
       expect(screen.getByText('Price Alert')).toBeInTheDocument();
     });

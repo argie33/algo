@@ -124,6 +124,7 @@ safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
 safeRouteLoader('./routes/stocks', 'Stocks', '/api/stocks');
 safeRouteLoader('./routes/financials', 'Financials', '/api/financials');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
+safeRouteLoader('./routes/sectors', 'Sectors', '/api/sectors');
 
 // API Key Management
 safeRouteLoader('./routes/unified-api-keys', 'Unified API Keys', '/api/api-keys');
@@ -195,6 +196,7 @@ app.get('/', (req, res) => {
       '/api/portfolio',
       '/api/stocks', 
       '/api/metrics',
+      '/api/sectors',
       '/api/api-keys',
       '/api/market',
       '/api/dashboard',
@@ -223,6 +225,7 @@ app.get('/api', (req, res) => {
       '/api/portfolio',
       '/api/stocks',
       '/api/metrics',
+      '/api/sectors',
       '/api/api-keys',
       '/api/market',
       '/api/trading',
@@ -237,6 +240,7 @@ app.get('/api', (req, res) => {
       portfolio: 'GET /api/portfolio/* - Portfolio management',
       stocks: 'GET /api/stocks/* - Stock data and information',
       metrics: 'GET /api/metrics/* - Market metrics and analytics',
+      sectors: 'GET /api/sectors/* - Sector analysis and data',
       apiKeys: 'GET /api/api-keys/* - API key management',
       market: 'GET /api/market/* - Market data and analysis',
       user: 'POST /api/user/* - User management and authentication',
@@ -264,6 +268,7 @@ app.use('*', (req, res) => {
       '/api/portfolio', 
       '/api/stocks',
       '/api/metrics',
+      '/api/sectors',
       '/api/api-keys'
     ]
   });

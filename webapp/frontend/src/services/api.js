@@ -10,21 +10,31 @@ let circuitBreakerState = {
   isOpen: false,
   failures: 0,
   lastFailureTime: null,
-  threshold: 10, // Increased from 3 to 10 to be less aggressive
-  timeout: 30000 // 30 seconds
+  threshold: 25, // Increased from 10 to 25 to be much less aggressive
+  timeout: 60000, // Increased to 60 seconds for better recovery
+  halfOpenRetries: 0,
+  maxHalfOpenRetries: 3
 };
 // Circuit breaker manual reset functions
 export const resetCircuitBreaker = () => {
   console.log('🔄 Manually resetting circuit breaker...');
+  console.log(`📊 Previous state: ${circuitBreakerState.failures} failures, open: ${circuitBreakerState.isOpen}`);
   circuitBreakerState.isOpen = false;
   circuitBreakerState.failures = 0;
   circuitBreakerState.lastFailureTime = null;
-  console.log('✅ Circuit breaker reset complete');
+  circuitBreakerState.halfOpenRetries = 0;
+  console.log('✅ Circuit breaker reset complete - ready for requests');
 };
 
 export const getCircuitBreakerStatus = () => {
   return { ...circuitBreakerState };
 };
+
+// Make reset function available globally for debugging
+if (typeof window !== 'undefined') {
+  window.resetCircuitBreaker = resetCircuitBreaker;
+  window.getCircuitBreakerStatus = getCircuitBreakerStatus;
+}
 
 // COMPLETED: Helper methods for API configuration
 const detectEnvironment = (envInfo) => {
@@ -390,14 +400,19 @@ const checkCircuitBreaker = () => {
   const now = Date.now();
   const timeSinceFailure = now - (circuitBreakerState.lastFailureTime || 0);
   
+  // Check if timeout period has passed for recovery attempt
   if (timeSinceFailure > circuitBreakerState.timeout) {
-    console.log('🔄 Circuit breaker timeout expired, attempting half-open state');
+    console.log('🔄 Circuit breaker timeout expired, entering half-open state');
+    console.log(`⏱️ Time since last failure: ${Math.round(timeSinceFailure / 1000)}s (timeout: ${circuitBreakerState.timeout / 1000}s)`);
     circuitBreakerState.isOpen = false;
-    circuitBreakerState.failures = 0;
+    circuitBreakerState.halfOpenRetries = 0;
+    // Reset failures to give it a fresh chance, but keep some count for monitoring
+    circuitBreakerState.failures = Math.max(0, circuitBreakerState.failures - 10);
     return true;
   }
   
-  console.warn('🚫 Circuit breaker is open, blocking API request');
+  const timeRemaining = Math.round((circuitBreakerState.timeout - timeSinceFailure) / 1000);
+  console.warn(`🚫 Circuit breaker is open (${circuitBreakerState.failures} failures), retry in ${timeRemaining}s`);
   return false;
 };
 
@@ -414,15 +429,35 @@ const recordFailure = (error) => {
   circuitBreakerState.failures++;
   circuitBreakerState.lastFailureTime = Date.now();
   
+  // In half-open state, be more lenient but track retries
+  if (circuitBreakerState.halfOpenRetries > 0) {
+    circuitBreakerState.halfOpenRetries++;
+    console.warn(`⚠️ Half-open state failure ${circuitBreakerState.halfOpenRetries}/${circuitBreakerState.maxHalfOpenRetries}`);
+    
+    if (circuitBreakerState.halfOpenRetries >= circuitBreakerState.maxHalfOpenRetries) {
+      console.error('🚨 Circuit breaker re-opening after half-open failures');
+      circuitBreakerState.isOpen = true;
+      circuitBreakerState.halfOpenRetries = 0;
+    }
+    return;
+  }
+  
+  // Normal failure handling with higher threshold
   if (circuitBreakerState.failures >= circuitBreakerState.threshold) {
     console.error('🚨 Circuit breaker opening due to consecutive failures:', circuitBreakerState.failures);
     circuitBreakerState.isOpen = true;
     
     // Only trigger health check occasionally to prevent infinite loops
-    if (circuitBreakerState.failures % 10 === 0) {
-      apiHealthService.forceHealthCheck().catch(err => 
-        console.warn('Failed to trigger health check after API failure:', err)
-      );
+    if (circuitBreakerState.failures % 25 === 0) {
+      try {
+        import('./apiHealthService.js').then(({ apiHealthService }) => {
+          apiHealthService.forceHealthCheck().catch(err => 
+            console.warn('Failed to trigger health check after API failure:', err)
+          );
+        });
+      } catch (err) {
+        console.warn('Health service not available:', err);
+      }
     }
   }
 };
@@ -783,6 +818,26 @@ export const getChatHistory = async (limit = 20) => {
     },
     successMessage: `Chat history loaded (${limit} messages)`,
     errorMessage: 'Failed to load chat history'
+  });
+};
+
+export const sendChatMessage = async (message, context = {}) => {
+  return apiWrapper.execute('sendChatMessage', async () => {
+    if (!message || message.trim().length === 0) {
+      throw new Error('Message cannot be empty');
+    }
+    
+    const response = await initializeApi().post('/api/ai/chat', { message, context });
+    return response.data;
+  }, {
+    context: {
+      messageLength: message?.length || 0,
+      hasContext: Object.keys(context || {}).length > 0,
+      operation: 'sendChatMessage'
+    },
+    successMessage: 'Message sent successfully',
+    errorMessage: 'Failed to send message',
+    timeout: 30000 // 30 second timeout for AI responses
   });
 };
 

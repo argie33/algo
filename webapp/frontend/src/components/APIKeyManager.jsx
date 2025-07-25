@@ -109,17 +109,50 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/settings/api/api-keys/${userId}`);
+      // Use unified API key service endpoint
+      const response = await fetch('/api/api-keys', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
       if (response.ok) {
         const data = await response.json();
-        setApiKeys(data.apiKeys || {});
-        setConnectionStatus(data.connectionStatus || {});
+        // Transform unified API key format to legacy format for compatibility
+        const transformedKeys = {};
+        const transformedStatus = {};
+        
+        if (data.success && data.data && data.data.length > 0) {
+          data.data.forEach(key => {
+            if (key.provider === 'alpaca') {
+              transformedKeys.alpaca = {
+                alpaca_key_id: key.masked_api_key,
+                alpaca_secret_key: '****' // Always masked for display
+              };
+              transformedStatus.alpaca = {
+                status: key.status === 'active' ? 'connected' : 'error',
+                message: `${key.name} - ${key.description}`,
+                lastTested: key.created_at
+              };
+            }
+          });
+        }
+        
+        setApiKeys(transformedKeys);
+        setConnectionStatus(transformedStatus);
       } else {
-        throw new Error('Failed to load API keys');
+        console.warn('Failed to load API keys from unified endpoint, trying fallback...');
+        // Fallback to empty state
+        setApiKeys({});
+        setConnectionStatus({});
       }
     } catch (error) {
       console.error('Error loading API keys:', error);
       addAlert('error', 'Failed to load API keys');
+      setApiKeys({});
+      setConnectionStatus({});
     } finally {
       setLoading(false);
     }
@@ -128,29 +161,68 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
   const saveAPIKey = async (provider, keyData) => {
     setSaving(prev => ({ ...prev, [provider]: true }));
     try {
-      const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(keyData)
-      });
+      if (provider === 'alpaca') {
+        // Use unified API key endpoint for Alpaca
+        const response = await fetch('/api/api-keys', {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({
+            apiKey: keyData.alpaca_key_id,
+            secretKey: keyData.alpaca_secret_key,
+            isSandbox: true // Default to sandbox
+          })
+        });
 
-      if (response.ok) {
-        const result = await response.json();
-        setApiKeys(prev => ({ ...prev, [provider]: result.data }));
-        addAlert('success', `${API_PROVIDERS[provider].name} API key saved successfully`);
-        
-        // Test connection after saving
-        await testConnection(provider);
-        
-        if (onAPIKeysChange) {
-          onAPIKeysChange({ ...apiKeys, [provider]: result.data });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            // Transform response to legacy format
+            const transformedData = {
+              alpaca_key_id: result.apiKey?.masked_api_key || keyData.alpaca_key_id,
+              alpaca_secret_key: '****'
+            };
+            setApiKeys(prev => ({ ...prev, [provider]: transformedData }));
+            addAlert('success', `${API_PROVIDERS[provider].name} API key saved successfully`);
+            
+            // Reload to get updated data
+            await loadAPIKeys();
+            
+            if (onAPIKeysChange) {
+              onAPIKeysChange({ ...apiKeys, [provider]: transformedData });
+            }
+          } else {
+            throw new Error(result.message || 'Failed to save API key');
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to save API key');
         }
       } else {
-        throw new Error('Failed to save API key');
+        // For other providers, use legacy endpoint
+        const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(keyData)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setApiKeys(prev => ({ ...prev, [provider]: result.data }));
+          addAlert('success', `${API_PROVIDERS[provider].name} API key saved successfully`);
+          
+          if (onAPIKeysChange) {
+            onAPIKeysChange({ ...apiKeys, [provider]: result.data });
+          }
+        } else {
+          throw new Error('Failed to save API key');
+        }
       }
     } catch (error) {
       console.error('Error saving API key:', error);
-      addAlert('error', `Failed to save ${API_PROVIDERS[provider].name} API key`);
+      addAlert('error', `Failed to save ${API_PROVIDERS[provider].name} API key: ${error.message}`);
     } finally {
       setSaving(prev => ({ ...prev, [provider]: false }));
     }
@@ -163,34 +235,74 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
 
     setSaving(prev => ({ ...prev, [provider]: true }));
     try {
-      const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}`, {
-        method: 'DELETE'
-      });
+      if (provider === 'alpaca') {
+        // Use unified API key endpoint for Alpaca
+        const response = await fetch('/api/api-keys', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('accessToken') || localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-      if (response.ok) {
-        setApiKeys(prev => {
-          const updated = { ...prev };
-          delete updated[provider];
-          return updated;
-        });
-        setConnectionStatus(prev => {
-          const updated = { ...prev };
-          delete updated[provider];
-          return updated;
-        });
-        addAlert('info', `${API_PROVIDERS[provider].name} API key deleted`);
-        
-        if (onAPIKeysChange) {
-          const updated = { ...apiKeys };
-          delete updated[provider];
-          onAPIKeysChange(updated);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setApiKeys(prev => {
+              const updated = { ...prev };
+              delete updated[provider];
+              return updated;
+            });
+            setConnectionStatus(prev => {
+              const updated = { ...prev };
+              delete updated[provider];
+              return updated;
+            });
+            addAlert('info', `${API_PROVIDERS[provider].name} API key deleted`);
+            
+            if (onAPIKeysChange) {
+              const updated = { ...apiKeys };
+              delete updated[provider];
+              onAPIKeysChange(updated);
+            }
+          } else {
+            throw new Error(result.message || 'Failed to delete API key');
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to delete API key');
         }
       } else {
-        throw new Error('Failed to delete API key');
+        // For other providers, use legacy endpoint
+        const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          setApiKeys(prev => {
+            const updated = { ...prev };
+            delete updated[provider];
+            return updated;
+          });
+          setConnectionStatus(prev => {
+            const updated = { ...prev };
+            delete updated[provider];
+            return updated;
+          });
+          addAlert('info', `${API_PROVIDERS[provider].name} API key deleted`);
+          
+          if (onAPIKeysChange) {
+            const updated = { ...apiKeys };
+            delete updated[provider];
+            onAPIKeysChange(updated);
+          }
+        } else {
+          throw new Error('Failed to delete API key');
+        }
       }
     } catch (error) {
       console.error('Error deleting API key:', error);
-      addAlert('error', `Failed to delete ${API_PROVIDERS[provider].name} API key`);
+      addAlert('error', `Failed to delete ${API_PROVIDERS[provider].name} API key: ${error.message}`);
     } finally {
       setSaving(prev => ({ ...prev, [provider]: false }));
     }

@@ -162,19 +162,21 @@ const getCommodityIcon = (category) => {
 };
 
 const formatPrice = (price, unit) => {
-  if (!price) return '--';
-  return `$${price.toFixed(2)} ${unit || ''}`;
+  if (!price || isNaN(price)) return '--';
+  return `$${Number(price).toFixed(2)} ${unit || ''}`;
 };
 
 const getChangeColor = (change) => {
-  if (change > 0) return 'success.main';
-  if (change < 0) return 'error.main';
+  const numChange = Number(change) || 0;
+  if (numChange > 0) return 'success.main';
+  if (numChange < 0) return 'error.main';
   return 'text.secondary';
 };
 
 const getChangeIcon = (change) => {
-  if (change > 0) return <TrendingUp sx={{ fontSize: 16 }} />;
-  if (change < 0) return <TrendingDown sx={{ fontSize: 16 }} />;
+  const numChange = Number(change) || 0;
+  if (numChange > 0) return <TrendingUp sx={{ fontSize: 16 }} />;
+  if (numChange < 0) return <TrendingDown sx={{ fontSize: 16 }} />;
   return <TrendingFlat sx={{ fontSize: 16 }} />;
 };
 
@@ -393,7 +395,7 @@ function CategoryNavigation({ categories, selectedCategory, onCategoryChange }) 
 }
 
 function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
-  const PriceCard = ({ commodity }) => (
+  const PriceCard = React.memo(({ commodity }) => (
     <Card 
       sx={{ 
         height: '100%',
@@ -441,14 +443,14 @@ function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
               color={getChangeColor(commodity.change)}
               fontWeight="bold"
             >
-              {commodity.change > 0 ? '+' : ''}{commodity.change?.toFixed(2)}
+              {(commodity.change || 0) > 0 ? '+' : ''}{(commodity.change || 0).toFixed(2)}
             </Typography>
             <Typography 
               variant="body2" 
               color={getChangeColor(commodity.changePercent)}
               fontWeight="bold"
             >
-              ({commodity.changePercent > 0 ? '+' : ''}{commodity.changePercent?.toFixed(2)}%)
+              ({(commodity.changePercent || 0) > 0 ? '+' : ''}{(commodity.changePercent || 0).toFixed(2)}%)
             </Typography>
           </Box>
           <IconButton size="small">
@@ -458,12 +460,12 @@ function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
         
         <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Typography variant="caption" color="text.secondary">
-            Volume: {commodity.volume?.toLocaleString()}
+            Volume: {(commodity.volume || 0).toLocaleString()}
           </Typography>
         </Box>
       </CardContent>
     </Card>
-  );
+  ));
 
   const PriceTable = () => (
     <TableContainer component={Paper}>
@@ -525,7 +527,7 @@ function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
                       fontSize: '0.8rem'
                     }}
                   >
-                    {commodity.symbol.slice(0, 2)}
+                    {(commodity.symbol || '??').slice(0, 2).toUpperCase()}
                   </Avatar>
                   <Typography fontWeight="bold">{commodity.symbol}</Typography>
                 </Box>
@@ -558,13 +560,13 @@ function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
                       color={getChangeColor(commodity.change)}
                       fontWeight="bold"
                     >
-                      {commodity.change > 0 ? '+' : ''}{commodity.change?.toFixed(2)}
+                      {(commodity.change || 0) > 0 ? '+' : ''}{(commodity.change || 0).toFixed(2)}
                     </Typography>
                     <Typography 
                       variant="caption" 
                       color={getChangeColor(commodity.changePercent)}
                     >
-                      ({commodity.changePercent > 0 ? '+' : ''}{commodity.changePercent?.toFixed(2)}%)
+                      ({(commodity.changePercent || 0) > 0 ? '+' : ''}{(commodity.changePercent || 0).toFixed(2)}%)
                     </Typography>
                   </Box>
                 </Box>
@@ -1030,15 +1032,21 @@ const Commodities = () => {
   const summary = summaryData?.data || null;
   const correlations = correlationsData?.data || null;
 
-  // Filter and sort prices
+  // Filter and sort prices with defensive programming
   const filteredPrices = useMemo(() => {
-    let filtered = prices;
+    // Ensure prices is an array and filter out invalid entries
+    let filtered = (prices || []).filter(commodity => 
+      commodity && 
+      typeof commodity === 'object' &&
+      commodity.symbol &&
+      commodity.name
+    );
 
     // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(commodity =>
-        commodity.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        commodity.name.toLowerCase().includes(searchTerm.toLowerCase())
+        (commodity.symbol || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (commodity.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -1062,6 +1070,16 @@ const Commodities = () => {
 
     return filtered;
   }, [prices, searchTerm, sortConfig]);
+
+  // Memoized calculations for performance
+  const commodityCount = useMemo(() => filteredPrices.length, [filteredPrices]);
+  
+  const categoryChipsData = useMemo(() => 
+    categories.map(category => ({
+      ...category,
+      performance: category.performance || {}
+    })), [categories]
+  );
 
   // Event handlers
   const handleRefreshAll = () => {
@@ -1106,7 +1124,7 @@ const Commodities = () => {
         context="categories"
       >
         <CategoryNavigation
-          categories={categories}
+          categories={categoryChipsData}
           selectedCategory={selectedCategory}
           onCategoryChange={setSelectedCategory}
         />
@@ -1118,7 +1136,7 @@ const Commodities = () => {
             Market Data
           </Typography>
           <Chip 
-            label={`${filteredPrices.length} commodities`} 
+            label={`${commodityCount} commodities`} 
             color="primary" 
             size="small" 
           />
@@ -1225,9 +1243,9 @@ const Commodities = () => {
                                 fontSize: '0.7rem'
                               }}
                             >
-                              {commodity.symbol.slice(0, 2)}
+                              {(commodity.symbol || '??').slice(0, 2).toUpperCase()}
                             </Avatar>
-                            {commodity.symbol} - {commodity.name}
+                            {commodity.symbol || 'N/A'} - {commodity.name || 'Unknown'}
                           </Box>
                         </MenuItem>
                       ))}

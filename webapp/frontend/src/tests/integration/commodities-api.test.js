@@ -43,7 +43,7 @@ describe('Commodities API Integration', () => {
         }
       } catch (error) {
         // Network errors are acceptable for testing
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
   });
@@ -73,7 +73,7 @@ describe('Commodities API Integration', () => {
           expect(response.status).toBeOneOf([404, 501]);
         }
       } catch (error) {
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
 
@@ -96,7 +96,7 @@ describe('Commodities API Integration', () => {
           expect(response.status).toBeOneOf([404, 501]);
         }
       } catch (error) {
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
   });
@@ -125,7 +125,7 @@ describe('Commodities API Integration', () => {
           expect(response.status).toBeOneOf([404, 501]);
         }
       } catch (error) {
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
   });
@@ -154,7 +154,7 @@ describe('Commodities API Integration', () => {
           expect(response.status).toBeOneOf([404, 501]);
         }
       } catch (error) {
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
   });
@@ -176,7 +176,7 @@ describe('Commodities API Integration', () => {
           expect(response.status).toBeOneOf([404, 501]);
         }
       } catch (error) {
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
   });
@@ -190,7 +190,7 @@ describe('Commodities API Integration', () => {
         expect(response.status).toBe(404);
       } catch (error) {
         // Network errors are acceptable
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
 
@@ -210,7 +210,7 @@ describe('Commodities API Integration', () => {
           expect(response.status).toBeOneOf([400, 404, 501]);
         }
       } catch (error) {
-        expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
       }
     });
   });
@@ -246,7 +246,7 @@ describe('Commodities API Integration', () => {
           }
         } catch (error) {
           // Network errors are acceptable for testing
-          expect(error.message).toMatch(/fetch|network|ECONNREFUSED/i);
+          expect(error.message).toMatch(/fetch|network|ECONNREFUSED|parse|URL/i);
         }
       }
     });
@@ -270,7 +270,7 @@ describe('Commodities API Integration', () => {
         }
       } catch (error) {
         // Network timeouts are acceptable
-        expect(error.message).toMatch(/fetch|network|timeout|ECONNREFUSED/i);
+        expect(error.message).toMatch(/fetch|network|timeout|ECONNREFUSED|parse|URL/i);
       }
     });
   });

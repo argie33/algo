@@ -46,6 +46,7 @@ import {
   Security
 } from '@mui/icons-material';
 import apiHealthService from '../services/apiHealthService';
+import { resetCircuitBreaker, getCircuitBreakerStatus } from '../services/api';
 import { useApiKeys } from './ApiKeyProvider';
 
 const SystemHealthMonitor = ({ 
@@ -64,6 +65,7 @@ const SystemHealthMonitor = ({
     successRate: 0,
     errorRate: 0
   });
+  const [circuitBreakerStatus, setCircuitBreakerStatus] = useState(null);
 
   // Load health data
   const loadHealthData = async () => {
@@ -88,6 +90,9 @@ const SystemHealthMonitor = ({
         successRate,
         errorRate: 100 - successRate
       });
+      
+      // Update circuit breaker status
+      setCircuitBreakerStatus(getCircuitBreakerStatus());
       
     } catch (error) {
       console.error('Failed to load health data:', error);
@@ -115,6 +120,14 @@ const SystemHealthMonitor = ({
     
     return unsubscribe;
   }, []);
+
+  // Circuit breaker reset handler
+  const handleCircuitBreakerReset = () => {
+    resetCircuitBreaker();
+    setCircuitBreakerStatus(getCircuitBreakerStatus());
+    // Reload health data after reset
+    setTimeout(loadHealthData, 1000);
+  };
 
   const getOverallStatusInfo = () => {
     if (!healthData) {
@@ -253,15 +266,43 @@ const SystemHealthMonitor = ({
             </Grid>
           </Grid>
 
-          {/* Circuit Breaker Warning */}
-          {healthData?.circuitBreakerOpen && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+          {/* Circuit Breaker Status & Control */}
+          {circuitBreakerStatus && (
+            <Alert 
+              severity={circuitBreakerStatus.isOpen ? "error" : "success"} 
+              sx={{ mt: 2 }}
+              action={
+                circuitBreakerStatus.isOpen && (
+                  <Button 
+                    color="inherit" 
+                    size="small" 
+                    onClick={handleCircuitBreakerReset}
+                    variant="outlined"
+                  >
+                    Reset Now
+                  </Button>
+                )
+              }
+            >
               <Typography variant="subtitle2" gutterBottom>
-                Circuit Breaker Active
+                Circuit Breaker {circuitBreakerStatus.isOpen ? 'OPEN' : 'Closed'}
               </Typography>
               <Typography variant="body2">
-                API requests are being blocked due to consecutive failures. 
-                The system will automatically retry when the timeout expires.
+                {circuitBreakerStatus.isOpen ? (
+                  <>
+                    ⚠️ API requests blocked after {circuitBreakerStatus.failures} failures. 
+                    {circuitBreakerStatus.lastFailureTime && (
+                      <> Last failure: {new Date(circuitBreakerStatus.lastFailureTime).toLocaleTimeString()}</>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    ✅ API requests flowing normally. 
+                    {circuitBreakerStatus.failures > 0 && (
+                      <> Previous failures: {circuitBreakerStatus.failures}</>
+                    )}
+                  </>
+                )}
               </Typography>
             </Alert>
           )}
