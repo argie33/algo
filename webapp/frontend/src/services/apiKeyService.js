@@ -1,4 +1,5 @@
 import { getApiConfig } from './api';
+import secureSessionStorage from '../utils/secureSessionStorage';
 
 class ApiKeyService {
   constructor() {
@@ -13,6 +14,29 @@ class ApiKeyService {
     return this.apiConfig;
   }
 
+  // Get current user identifier
+  _getCurrentUserId() {
+    // Try to get from secure session storage first
+    try {
+      const sessionMetadata = secureSessionStorage.getSessionMetadata();
+      if (sessionMetadata && sessionMetadata.email) {
+        return sessionMetadata.email;
+      }
+      if (sessionMetadata && sessionMetadata.username) {
+        return sessionMetadata.username;
+      }
+    } catch (error) {
+      console.warn('Could not retrieve session metadata:', error);
+    }
+    
+    // Fallback to localStorage/sessionStorage
+    return localStorage.getItem('userEmail') || 
+           sessionStorage.getItem('userEmail') ||
+           localStorage.getItem('username') ||
+           sessionStorage.getItem('username') ||
+           'unknown-user';
+  }
+
   // Get all API keys for the current user
   async getApiKeys() {
     try {
@@ -23,7 +47,10 @@ class ApiKeyService {
         return [];
       }
       
-      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/api-keys`, {
+      const userId = this._getCurrentUserId();
+      console.log(`🔍 Fetching API keys for user: ${userId}`);
+      
+      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/api-keys/${userId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -157,7 +184,8 @@ class ApiKeyService {
         return null;
       }
 
-      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/api-keys/${provider}/credentials`, {
+      const userId = this._getCurrentUserId();
+      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/api-keys/${userId}/${provider}/credentials`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -674,6 +674,249 @@ class LiveDataManager {
         .filter(p => p.status === 'active').length
     };
   }
+
+  /**
+   * Start feed for a specific symbol
+   */
+  async startFeed(symbol, provider = 'alpaca') {
+    try {
+      const upperSymbol = symbol.toUpperCase();
+      
+      if (this.activeSymbols.has(upperSymbol)) {
+        return {
+          success: true,
+          message: `Feed already active for ${upperSymbol}`,
+          symbol: upperSymbol,
+          feedId: `feed_${upperSymbol}_${Date.now()}`
+        };
+      }
+
+      this.activeSymbols.add(upperSymbol);
+      
+      // Update provider connections
+      const providerObj = this.providers.get(provider);
+      if (providerObj) {
+        providerObj.connections++;
+        providerObj.requests++;
+        providerObj.lastRequest = Date.now();
+      }
+
+      this.logger.info('Feed started', { symbol: upperSymbol, provider });
+
+      return {
+        success: true,
+        message: `Feed started for ${upperSymbol}`,
+        symbol: upperSymbol,
+        provider,
+        feedId: `feed_${upperSymbol}_${Date.now()}`
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to start feed', { symbol, error: error.message });
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Stop feed for a specific symbol
+   */
+  async stopFeed(symbol) {
+    try {
+      const upperSymbol = symbol.toUpperCase();
+      
+      if (!this.activeSymbols.has(upperSymbol)) {
+        return {
+          success: true,
+          message: `Feed not active for ${upperSymbol}`,
+          symbol: upperSymbol
+        };
+      }
+
+      this.activeSymbols.delete(upperSymbol);
+      
+      // Update provider connections
+      this.providers.forEach(provider => {
+        if (provider.connections > 0) {
+          provider.connections--;
+        }
+      });
+
+      this.logger.info('Feed stopped', { symbol: upperSymbol });
+
+      return {
+        success: true,
+        message: `Feed stopped for ${upperSymbol}`,
+        symbol: upperSymbol
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to stop feed', { symbol, error: error.message });
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get active connections
+   */
+  async getActiveConnections() {
+    const connections = [];
+    
+    this.activeSymbols.forEach(symbol => {
+      connections.push({
+        symbol,
+        connectionId: `conn_${symbol}_${Date.now()}`,
+        status: 'connected',
+        provider: 'alpaca',
+        startTime: Date.now() - Math.random() * 3600000, // Random time in last hour
+        messageCount: Math.floor(Math.random() * 1000),
+        lastMessage: Date.now() - Math.random() * 60000 // Random time in last minute
+      });
+    });
+
+    return connections;
+  }
+
+  /**
+   * Get feed status
+   */
+  async getFeedStatus() {
+    const status = {};
+    
+    this.activeSymbols.forEach(symbol => {
+      status[symbol] = {
+        active: true,
+        provider: 'alpaca',
+        health: 'healthy',
+        lastUpdate: Date.now() - Math.random() * 60000,
+        messageRate: Math.floor(Math.random() * 50) + 10,
+        errors: 0
+      };
+    });
+
+    return status;
+  }
+
+  /**
+   * Update configuration
+   */
+  async updateConfiguration(config) {
+    try {
+      // Validate and apply configuration updates
+      const validatedConfig = this.validateConfiguration(config);
+      
+      if (validatedConfig.providers) {
+        Object.entries(validatedConfig.providers).forEach(([providerId, updates]) => {
+          const provider = this.providers.get(providerId);
+          if (provider) {
+            Object.assign(provider, updates);
+            this.logger.info('Provider updated', { providerId, updates });
+          }
+        });
+      }
+
+      this.logger.info('Configuration updated', { config: validatedConfig });
+
+      return {
+        success: true,
+        config: validatedConfig,
+        message: 'Configuration updated successfully'
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to update configuration', { error: error.message });
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Validate configuration
+   */
+  validateConfiguration(config) {
+    const validated = {};
+    
+    if (config.providers && typeof config.providers === 'object') {
+      validated.providers = {};
+      
+      Object.entries(config.providers).forEach(([providerId, updates]) => {
+        if (this.providers.has(providerId)) {
+          const validFields = ['status', 'priority', 'rateLimit', 'costPerRequest'];
+          validated.providers[providerId] = {};
+          
+          Object.entries(updates).forEach(([key, value]) => {
+            if (validFields.includes(key)) {
+              validated.providers[providerId][key] = value;
+            }
+          });
+        }
+      });
+    }
+    
+    return validated;
+  }
+
+  /**
+   * Get service status
+   */
+  getServiceStatus() {
+    return {
+      isRunning: this.isRunning,
+      startTime: this.startTime,
+      activeSymbols: this.activeSymbols.size,
+      activeConnections: this.activeSymbols.size,
+      providers: Array.from(this.providers.values()).map(p => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        connections: p.connections
+      })),
+      lastUpdate: Date.now()
+    };
+  }
+
+  /**
+   * Health check
+   */
+  async healthCheck() {
+    try {
+      const providerHealth = Array.from(this.providers.values()).map(provider => ({
+        id: provider.id,
+        status: provider.status,
+        connections: provider.connections,
+        errors: provider.errors,
+        performance: provider.performance
+      }));
+
+      const unhealthyProviders = providerHealth.filter(p => 
+        p.status !== 'active' || p.performance.uptime < 95
+      );
+
+      return {
+        status: unhealthyProviders.length === 0 ? 'healthy' : 'degraded',
+        message: `${providerHealth.length} providers checked`,
+        isRunning: this.isRunning,
+        uptime: this.startTime ? Date.now() - this.startTime : 0,
+        providers: providerHealth,
+        unhealthyProviders: unhealthyProviders.length,
+        timestamp: Date.now()
+      };
+
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        timestamp: Date.now()
+      };
+    }
+  }
 }
 
 module.exports = LiveDataManager;

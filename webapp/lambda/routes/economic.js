@@ -8,11 +8,20 @@ router.use(authenticateToken);
 
 // Try to initialize economic modeling engine with fallback
 let economicEngine = null;
+let EconomicDataPopulationService = null;
+
 try {
   const EconomicModelingEngine = require('../utils/economicModelingEngine');
   economicEngine = new EconomicModelingEngine();
 } catch (error) {
   console.log('EconomicModelingEngine not available, using fallback methods:', error.message);
+}
+
+try {
+  const EconomicDataPopulationServiceClass = require('../services/economicDataPopulationService');
+  EconomicDataPopulationService = new EconomicDataPopulationServiceClass();
+} catch (error) {
+  console.log('EconomicDataPopulationService not available:', error.message);
 }
 
 // Get economic indicators
@@ -102,21 +111,13 @@ router.get('/calendar', async (req, res) => {
   try {
     const { from_date, to_date, importance, country = 'US' } = req.query;
     
-    let whereClause = 'WHERE country = $1';
-    const params = [country];
-    let paramIndex = 2;
+    // Default date range if not provided
+    const defaultFromDate = from_date || new Date().toISOString().split('T')[0];
+    const defaultToDate = to_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
-    if (from_date) {
-      whereClause += ` AND event_date >= $${paramIndex}`;
-      params.push(from_date);
-      paramIndex++;
-    }
-    
-    if (to_date) {
-      whereClause += ` AND event_date <= $${paramIndex}`;
-      params.push(to_date);
-      paramIndex++;
-    }
+    let whereClause = 'WHERE country = $1 AND event_date >= $2 AND event_date <= $3';
+    const params = [country, defaultFromDate, defaultToDate];
+    let paramIndex = 4;
     
     if (importance) {
       whereClause += ` AND importance = $${paramIndex}`;
@@ -143,7 +144,43 @@ router.get('/calendar', async (req, res) => {
       FROM economic_calendar
       ${whereClause}
       ORDER BY event_date ASC, event_time ASC
+      LIMIT 50
     `, params);
+    
+    // If no events found and we have the population service, try to populate
+    if (result.rows.length === 0 && EconomicDataPopulationService) {
+      try {
+        console.log('📅 No calendar events found, populating...');
+        await EconomicDataPopulationService.populateEconomicCalendar();
+        
+        // Retry the query
+        const retryResult = await query(`
+          SELECT 
+            event_id,
+            event_name,
+            event_date,
+            event_time,
+            country,
+            importance,
+            forecast_value,
+            previous_value,
+            actual_value,
+            currency,
+            category,
+            source,
+            description,
+            impact_score
+          FROM economic_calendar
+          ${whereClause}
+          ORDER BY event_date ASC, event_time ASC
+          LIMIT 50
+        `, params);
+        
+        result.rows = retryResult.rows;
+      } catch (populateError) {
+        console.warn('Failed to populate calendar data:', populateError.message);
+      }
+    }
     
     res.json({
       success: true,
@@ -151,8 +188,8 @@ router.get('/calendar', async (req, res) => {
         events: result.rows,
         count: result.rows.length,
         filters: {
-          from_date,
-          to_date,
+          from_date: defaultFromDate,
+          to_date: defaultToDate,
           importance,
           country
         }
@@ -458,6 +495,36 @@ router.get('/indicators/list', async (req, res) => {
       ORDER BY category, indicator_name
     `);
     
+    // If no indicators found and we have the population service, try to populate
+    if (result.rows.length === 0 && EconomicDataPopulationService) {
+      try {
+        console.log('📊 No indicators found, populating from FRED...');
+        const populationResult = await EconomicDataPopulationService.updateRecentData(30);
+        console.log(`📊 Population completed: ${populationResult.success.length} indicators populated`);
+        
+        // Retry the query
+        const retryResult = await query(`
+          SELECT DISTINCT
+            indicator_id,
+            indicator_name,
+            category,
+            units,
+            frequency,
+            description,
+            source,
+            last_updated,
+            COUNT(*) as data_points
+          FROM economic_indicators
+          GROUP BY indicator_id, indicator_name, category, units, frequency, description, source, last_updated
+          ORDER BY category, indicator_name
+        `);
+        
+        result.rows = retryResult.rows;
+      } catch (populateError) {
+        console.warn('Failed to populate indicator data:', populateError.message);
+      }
+    }
+    
     const indicators = result.rows.map(row => ({
       id: row.indicator_id,
       name: row.indicator_name,
@@ -492,6 +559,75 @@ router.get('/indicators/list', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch indicators list',
+      message: error.message
+    });
+  }
+});
+
+// Add data population endpoints
+router.post('/populate', async (req, res) => {
+  try {
+    if (!EconomicDataPopulationService) {
+      return res.status(503).json({
+        success: false,
+        error: 'Data population service not available'
+      });
+    }
+    
+    const { lookbackMonths = 12 } = req.body;
+    
+    console.log(`📊 Starting economic data population (${lookbackMonths} months)...`);
+    const result = await EconomicDataPopulationService.populateAllIndicators(lookbackMonths);
+    
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total_indicators: result.total,
+          successful: result.success.length,
+          failed: result.errors.length
+        },
+        details: result
+      }
+    });
+  } catch (error) {
+    console.error('Error populating economic data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to populate economic data',
+      message: error.message
+    });
+  }
+});
+
+// Get population status
+router.get('/population/status', async (req, res) => {
+  try {
+    if (!EconomicDataPopulationService) {
+      return res.status(503).json({
+        success: false,
+        error: 'Data population service not available'
+      });
+    }
+    
+    const [stats, staleIndicators] = await Promise.all([
+      EconomicDataPopulationService.getPopulationStats(),
+      EconomicDataPopulationService.getStaleIndicators(24)
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        statistics: stats,
+        stale_indicators: staleIndicators,
+        needs_update: staleIndicators.length > 0
+      }
+    });
+  } catch (error) {
+    console.error('Error getting population status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get population status',
       message: error.message
     });
   }

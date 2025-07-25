@@ -297,6 +297,149 @@ export const createFallbackData = (dataType, count = 5) => {
         date: timestamp,
         impact: ['High', 'Medium', 'Low'][i % 3]
       }));
+
+    case 'commodity_categories':
+      return [
+        {
+          id: 'energy',
+          name: 'Energy',
+          description: 'Oil, gas, and energy commodities',
+          commodities: ['crude-oil', 'natural-gas', 'heating-oil', 'gasoline'],
+          weight: 0.35,
+          performance: { '1d': 0.5, '1w': -2.1, '1m': 4.3, '3m': -8.7, '1y': 12.4 }
+        },
+        {
+          id: 'precious-metals',
+          name: 'Precious Metals',
+          description: 'Gold, silver, platinum, and palladium',
+          commodities: ['gold', 'silver', 'platinum', 'palladium'],
+          weight: 0.25,
+          performance: { '1d': -0.3, '1w': 1.8, '1m': -1.2, '3m': 5.6, '1y': 8.9 }
+        },
+        {
+          id: 'base-metals',
+          name: 'Base Metals',
+          description: 'Copper, aluminum, zinc, and industrial metals',
+          commodities: ['copper', 'aluminum', 'zinc', 'nickel', 'lead'],
+          weight: 0.20,
+          performance: { '1d': 1.2, '1w': 3.4, '1m': 2.8, '3m': -4.2, '1y': 15.7 }
+        },
+        {
+          id: 'agriculture',
+          name: 'Agriculture',
+          description: 'Grains, livestock, and soft commodities',
+          commodities: ['wheat', 'corn', 'soybeans', 'coffee', 'sugar', 'cotton'],
+          weight: 0.15,
+          performance: { '1d': -0.8, '1w': -1.5, '1m': 6.2, '3m': 12.1, '1y': -3.4 }
+        },
+        {
+          id: 'livestock',
+          name: 'Livestock',
+          description: 'Cattle, hogs, and feeder cattle',
+          commodities: ['live-cattle', 'feeder-cattle', 'lean-hogs'],
+          weight: 0.05,
+          performance: { '1d': 0.2, '1w': 2.1, '1m': -1.8, '3m': 7.3, '1y': 11.2 }
+        }
+      ];
+
+    case 'commodity_prices':
+      return [
+        {
+          symbol: 'CL',
+          name: 'Crude Oil',
+          category: 'energy',
+          price: 78.45 + (Math.random() - 0.5) * 5,
+          change: (Math.random() - 0.5) * 2,
+          changePercent: (Math.random() - 0.5) * 3,
+          unit: 'per barrel',
+          currency: 'USD',
+          volume: Math.floor(200000 + Math.random() * 100000),
+          lastUpdated: timestamp
+        },
+        {
+          symbol: 'GC',
+          name: 'Gold',
+          category: 'precious-metals',
+          price: 2034.20 + (Math.random() - 0.5) * 50,
+          change: (Math.random() - 0.5) * 10,
+          changePercent: (Math.random() - 0.5) * 1,
+          unit: 'per ounce',
+          currency: 'USD',
+          volume: Math.floor(80000 + Math.random() * 20000),
+          lastUpdated: timestamp
+        },
+        {
+          symbol: 'SI',
+          name: 'Silver',
+          category: 'precious-metals',
+          price: 24.67 + (Math.random() - 0.5) * 2,
+          change: (Math.random() - 0.5) * 0.5,
+          changePercent: (Math.random() - 0.5) * 2,
+          unit: 'per ounce',
+          currency: 'USD',
+          volume: Math.floor(30000 + Math.random() * 10000),
+          lastUpdated: timestamp
+        },
+        {
+          symbol: 'HG',
+          name: 'Copper',
+          category: 'base-metals',
+          price: 3.89 + (Math.random() - 0.5) * 0.2,
+          change: (Math.random() - 0.5) * 0.1,
+          changePercent: (Math.random() - 0.5) * 2,
+          unit: 'per pound',
+          currency: 'USD',
+          volume: Math.floor(60000 + Math.random() * 20000),
+          lastUpdated: timestamp
+        },
+        {
+          symbol: 'NG',
+          name: 'Natural Gas',
+          category: 'energy',
+          price: 2.87 + (Math.random() - 0.5) * 0.3,
+          change: (Math.random() - 0.5) * 0.2,
+          changePercent: (Math.random() - 0.5) * 5,
+          unit: 'per MMBtu',
+          currency: 'USD',
+          volume: Math.floor(100000 + Math.random() * 50000),
+          lastUpdated: timestamp
+        },
+        {
+          symbol: 'ZW',
+          name: 'Wheat',
+          category: 'agriculture',
+          price: 6.45 + (Math.random() - 0.5) * 0.5,
+          change: (Math.random() - 0.5) * 0.2,
+          changePercent: (Math.random() - 0.5) * 3,
+          unit: 'per bushel',
+          currency: 'USD',
+          volume: Math.floor(40000 + Math.random() * 20000),
+          lastUpdated: timestamp
+        }
+      ].slice(0, count);
+
+    case 'commodity_summary':
+      return {
+        overview: {
+          totalMarketCap: 4.2e12,
+          totalVolume: 1.8e9,
+          activeContracts: 125847,
+          tradingSession: 'open'
+        },
+        performance: {
+          '1d': {
+            gainers: 18,
+            losers: 12,
+            unchanged: 3,
+            topGainer: { symbol: 'HG', name: 'Copper', change: 1.17 },
+            topLoser: { symbol: 'NG', name: 'Natural Gas', change: -4.02 }
+          }
+        },
+        sectors: [
+          { name: 'Energy', weight: 0.35, change: 0.62, volume: 8.9e8 },
+          { name: 'Precious Metals', weight: 0.25, change: -0.15, volume: 3.2e8 }
+        ]
+      };
       
     default:
       return [];

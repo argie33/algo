@@ -138,6 +138,7 @@ safeRouteLoader('./routes/trades', 'Trades', '/api/trades');
 safeRouteLoader('./routes/user', 'User Management', '/api/user');
 safeRouteLoader('./routes/settings', 'Settings', '/api/settings');
 safeRouteLoader('./routes/liveData', 'Live Data', '/api/live-data');
+safeRouteLoader('./routes/adminLiveData', 'Admin Live Data', '/admin/live-data');
 safeRouteLoader('./routes/websocket', 'WebSocket', '/api/websocket');
 safeRouteLoader('./routes/hftTrading', 'HFT Trading', '/api/hft');
 
@@ -197,7 +198,8 @@ app.get('/', (req, res) => {
       '/api/api-keys',
       '/api/market',
       '/api/dashboard',
-      '/api/hft'
+      '/api/hft',
+      '/admin/live-data'
     ]
   });
 });
@@ -227,7 +229,8 @@ app.get('/api', (req, res) => {
       '/api/user',
       '/api/settings',
       '/api/dashboard',
-      '/api/hft'
+      '/api/hft',
+      '/admin/live-data'
     ],
     documentation: {
       health: 'GET /api/health - System health check',
@@ -237,7 +240,8 @@ app.get('/api', (req, res) => {
       apiKeys: 'GET /api/api-keys/* - API key management',
       market: 'GET /api/market/* - Market data and analysis',
       user: 'POST /api/user/* - User management and authentication',
-      settings: 'GET /api/settings/* - Application settings'
+      settings: 'GET /api/settings/* - Application settings',
+      adminLiveData: 'GET /admin/live-data/* - Admin live data management'
     }
   });
 });

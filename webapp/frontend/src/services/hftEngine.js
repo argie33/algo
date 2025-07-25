@@ -108,6 +108,12 @@ class HFTEngine {
     try {
       console.log('🚀 Starting HFT Engine...');
       
+      // Start backend HFT service first
+      const backendResponse = await this.startBackendService(enabledStrategies);
+      if (!backendResponse.success) {
+        console.warn('⚠️ Backend HFT service failed to start, continuing in frontend-only mode');
+      }
+      
       // Initialize metrics
       this.metrics.startTime = Date.now();
       this.metrics.totalTrades = 0;
@@ -134,7 +140,8 @@ class HFTEngine {
         success: true,
         message: 'HFT Engine started',
         enabledStrategies: enabledStrategies,
-        subscribedSymbols: this.getSubscribedSymbols()
+        subscribedSymbols: this.getSubscribedSymbols(),
+        backendIntegrated: backendResponse.success
       };
       
     } catch (error) {
@@ -157,6 +164,12 @@ class HFTEngine {
     try {
       console.log('🛑 Stopping HFT Engine...');
       
+      // Stop backend HFT service
+      const backendResponse = await this.stopBackendService();
+      if (!backendResponse.success) {
+        console.warn('⚠️ Backend HFT service failed to stop properly');
+      }
+      
       // Stop strategy execution
       this.stopStrategyLoop();
       
@@ -174,7 +187,8 @@ class HFTEngine {
       return {
         success: true,
         message: 'HFT Engine stopped',
-        finalMetrics: finalMetrics
+        finalMetrics: finalMetrics,
+        backendStopped: backendResponse.success
       };
       
     } catch (error) {
@@ -731,6 +745,163 @@ class HFTEngine {
   initializeStrategy(strategyName) {
     console.log(`🎯 Initializing strategy: ${strategyName}`);
     // Additional strategy-specific initialization can go here
+  }
+
+  /**
+   * Backend API Integration Methods
+   */
+  
+  /**
+   * Start backend HFT service
+   */
+  async startBackendService(strategies) {
+    try {
+      const response = await fetch('/api/hft/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        },
+        body: JSON.stringify({ strategies })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        console.log('✅ Backend HFT service started', data);
+        return data;
+      } else {
+        console.warn('⚠️ Backend HFT service start failed', data);
+        return { success: false, error: data.error || 'Backend service unavailable' };
+      }
+    } catch (error) {
+      console.warn('⚠️ Backend HFT service unreachable', error);
+      return { success: false, error: 'Backend service unreachable' };
+    }
+  }
+
+  /**
+   * Stop backend HFT service
+   */
+  async stopBackendService() {
+    try {
+      const response = await fetch('/api/hft/stop', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        console.log('✅ Backend HFT service stopped', data);
+        return data;
+      } else {
+        console.warn('⚠️ Backend HFT service stop failed', data);
+        return { success: false, error: data.error || 'Backend service unavailable' };
+      }
+    } catch (error) {
+      console.warn('⚠️ Backend HFT service unreachable during stop', error);
+      return { success: false, error: 'Backend service unreachable' };
+    }
+  }
+
+  /**
+   * Get backend HFT metrics
+   */
+  async getBackendMetrics() {
+    try {
+      const response = await fetch('/api/hft/status', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        return data.data;
+      } else {
+        console.warn('⚠️ Failed to get backend metrics', data);
+        return null;
+      }
+    } catch (error) {
+      console.warn('⚠️ Backend metrics unreachable', error);
+      return null;
+    }
+  }
+
+  /**
+   * Send market data to backend for processing
+   */
+  async sendMarketDataToBackend(marketData) {
+    try {
+      const response = await fetch('/api/hft/market-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        },
+        body: JSON.stringify(marketData)
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        console.warn('⚠️ Failed to send market data to backend', data);
+      }
+    } catch (error) {
+      // Silently fail - this is non-critical
+      console.debug('Backend market data sync failed', error);
+    }
+  }
+
+  /**
+   * Get authentication token (stub - should integrate with your auth system)
+   */
+  getAuthToken() {
+    // TODO: Integrate with your authentication system
+    // For now, return a placeholder token
+    return localStorage.getItem('authToken') || 'demo-token';
+  }
+
+  /**
+   * Enhanced metrics that combine frontend and backend data
+   */
+  async getEnhancedMetrics() {
+    const frontendMetrics = this.getMetrics();
+    const backendMetrics = await this.getBackendMetrics();
+    
+    if (backendMetrics) {
+      return {
+        ...frontendMetrics,
+        backend: backendMetrics,
+        integrated: true,
+        combinedPnL: (frontendMetrics.totalPnL || 0) + (backendMetrics.totalPnL || 0),
+        combinedTrades: (frontendMetrics.totalTrades || 0) + (backendMetrics.totalTrades || 0)
+      };
+    }
+    
+    return {
+      ...frontendMetrics,
+      integrated: false
+    };
+  }
+
+  /**
+   * Enhanced market data handler that syncs with backend
+   */
+  async handleMarketDataEnhanced(marketDataEvent) {
+    // Process on frontend
+    this.handleMarketData(marketDataEvent);
+    
+    // Sync with backend if running
+    if (this.isRunning) {
+      await this.sendMarketDataToBackend(marketDataEvent);
+    }
   }
 }
 

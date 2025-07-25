@@ -604,12 +604,419 @@ function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
   return <PriceTable />;
 }
 
+function CommodityChart({ symbol, timeframe, onTimeframeChange }) {
+  const generatePriceHistory = (symbol, days = 30) => {
+    const basePrice = {
+      'CL': 78.45,
+      'GC': 2034.20,
+      'SI': 24.67,
+      'HG': 3.89,
+      'NG': 2.87,
+      'ZW': 6.45
+    }[symbol] || 100;
+
+    const data = [];
+    const now = new Date();
+    
+    for (let i = days; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      
+      const volatility = 0.02 + (Math.random() * 0.02); // 2-4% daily volatility
+      const change = (Math.random() - 0.5) * 2 * volatility;
+      const price = i === days ? basePrice : data[data.length - 1]?.close || basePrice;
+      const newPrice = price * (1 + change);
+      
+      data.push({
+        date: date.getTime(),
+        timestamp: date.toISOString().split('T')[0],
+        open: newPrice * (1 + (Math.random() - 0.5) * 0.01),
+        high: newPrice * (1 + Math.random() * 0.02),
+        low: newPrice * (1 - Math.random() * 0.02),
+        close: newPrice,
+        volume: Math.floor(50000 + Math.random() * 100000)
+      });
+    }
+    
+    return data;
+  };
+
+  const { data: priceHistory, loading: historyLoading } = useSimpleFetch(
+    `${API_BASE}/api/commodities/history/${symbol}?period=${timeframe}`,
+    {
+      enabled: !!symbol,
+      retry: 3,
+      staleTime: 60000,
+      fallback: generatePriceHistory(symbol, timeframe === '1d' ? 1 : timeframe === '1w' ? 7 : timeframe === '1m' ? 30 : timeframe === '3m' ? 90 : 365),
+      errorMessage: 'Failed to load price history'
+    }
+  );
+
+  const ChartComponent = ({ data, isFallbackData = false }) => {
+    const chartData = Array.isArray(data) ? data : generatePriceHistory(symbol);
+    
+    return (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Timeline sx={{ color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight="bold">
+                {symbol} Price Chart
+              </Typography>
+              <Chip 
+                label={isFallbackData ? "Demo Data" : "Live"} 
+                color={isFallbackData ? "warning" : "success"} 
+                size="small" 
+              />
+            </Box>
+            
+            <Box display="flex" gap={1}>
+              {TIMEFRAMES.map((tf) => (
+                <Button
+                  key={tf.value}
+                  size="small"
+                  variant={timeframe === tf.value ? 'contained' : 'outlined'}
+                  onClick={() => onTimeframeChange(tf.value)}
+                >
+                  {tf.label}
+                </Button>
+              ))}
+            </Box>
+          </Box>
+          
+          <Box sx={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="timestamp" 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                />
+                <YAxis 
+                  yAxisId="price"
+                  orientation="left"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => `$${value.toFixed(2)}`}
+                />
+                <YAxis 
+                  yAxisId="volume"
+                  orientation="right"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                />
+                <RechartsTooltip 
+                  formatter={(value, name) => {
+                    if (name === 'volume') return [`${(value / 1000).toFixed(0)}K`, 'Volume'];
+                    return [`$${value.toFixed(2)}`, name];
+                  }}
+                  labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                />
+                <Bar 
+                  yAxisId="volume" 
+                  dataKey="volume" 
+                  fill="#8884d8" 
+                  opacity={0.3}
+                  name="volume"
+                />
+                <Line 
+                  yAxisId="price"
+                  type="monotone" 
+                  dataKey="close" 
+                  stroke="#ff7300" 
+                  strokeWidth={2}
+                  dot={false}
+                  name="Price"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <DataContainer
+      loading={historyLoading}
+      data={priceHistory}
+      fallbackDataType="commodity_prices"
+      context="price history"
+    >
+      <ChartComponent />
+    </DataContainer>
+  );
+}
+
+function CorrelationHeatmap({ correlations }) {
+  const HeatmapComponent = ({ data, isFallbackData = false }) => {
+    // Generate fallback correlation data if needed
+    const fallbackData = {
+      matrix: {
+        'energy': { 'energy': 1.00, 'precious-metals': -0.23, 'base-metals': 0.47, 'agriculture': 0.12, 'livestock': 0.08 },
+        'precious-metals': { 'energy': -0.23, 'precious-metals': 1.00, 'base-metals': 0.18, 'agriculture': -0.05, 'livestock': -0.02 },
+        'base-metals': { 'energy': 0.47, 'precious-metals': 0.18, 'base-metals': 1.00, 'agriculture': 0.23, 'livestock': 0.15 },
+        'agriculture': { 'energy': 0.12, 'precious-metals': -0.05, 'base-metals': 0.23, 'agriculture': 1.00, 'livestock': 0.34 },
+        'livestock': { 'energy': 0.08, 'precious-metals': -0.02, 'base-metals': 0.15, 'agriculture': 0.34, 'livestock': 1.00 }
+      }
+    };
+
+    const correlationData = data || fallbackData;
+    const matrix = correlationData.matrix || {};
+    const categories = Object.keys(matrix);
+
+    const getCorrelationColor = (value) => {
+      if (value > 0.5) return '#2e7d32'; // Strong positive - dark green
+      if (value > 0.2) return '#66bb6a'; // Moderate positive - light green
+      if (value > -0.2) return '#bdbdbd'; // Neutral - gray
+      if (value > -0.5) return '#ef5350'; // Moderate negative - light red
+      return '#c62828'; // Strong negative - dark red
+    };
+
+    const getTextColor = (value) => {
+      return Math.abs(value) > 0.5 ? 'white' : 'black';
+    };
+
+    return (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" mb={2}>
+            <Assessment sx={{ color: 'primary.main', mr: 1 }} />
+            <Typography variant="h6" fontWeight="bold">
+              Sector Correlations
+            </Typography>
+            <Chip 
+              label={isFallbackData ? "Demo Data" : "Live"} 
+              color={isFallbackData ? "warning" : "success"} 
+              size="small" 
+              sx={{ ml: 1 }}
+            />
+          </Box>
+          
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            90-day correlation matrix between commodity sectors
+          </Typography>
+
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: `120px repeat(${categories.length}, 1fr)`,
+            gap: 1,
+            fontSize: '0.75rem'
+          }}>
+            {/* Header row */}
+            <Box /> {/* Empty corner */}
+            {categories.map((cat) => (
+              <Box 
+                key={cat} 
+                sx={{ 
+                  p: 1, 
+                  textAlign: 'center', 
+                  fontWeight: 'bold',
+                  textTransform: 'capitalize',
+                  fontSize: '0.7rem'
+                }}
+              >
+                {cat.replace('-', ' ')}
+              </Box>
+            ))}
+            
+            {/* Data rows */}
+            {categories.map((rowCat) => (
+              <React.Fragment key={rowCat}>
+                <Box sx={{ 
+                  p: 1, 
+                  fontWeight: 'bold',
+                  textTransform: 'capitalize',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  {rowCat.replace('-', ' ')}
+                </Box>
+                {categories.map((colCat) => {
+                  const value = matrix[rowCat]?.[colCat] || 0;
+                  return (
+                    <Paper
+                      key={`${rowCat}-${colCat}`}
+                      elevation={1}
+                      sx={{
+                        p: 1,
+                        textAlign: 'center',
+                        bgcolor: getCorrelationColor(value),
+                        color: getTextColor(value),
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s',
+                        '&:hover': {
+                          transform: 'scale(1.05)',
+                          zIndex: 1
+                        }
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight="bold">
+                        {value.toFixed(2)}
+                      </Typography>
+                    </Paper>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </Box>
+
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Box width={12} height={12} bgcolor="#c62828" />
+              <Typography variant="caption">Strong Negative</Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Box width={12} height={12} bgcolor="#bdbdbd" />
+              <Typography variant="caption">Neutral</Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Box width={12} height={12} bgcolor="#2e7d32" />
+              <Typography variant="caption">Strong Positive</Typography>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <DataContainer
+      data={correlations}
+      fallbackDataType="commodity_correlations"
+      context="correlations"
+    >
+      <HeatmapComponent />
+    </DataContainer>
+  );
+}
+
+function CommodityNewsWidget() {
+  const { data: newsData, loading: newsLoading, error: newsError } = useSimpleFetch(
+    `${API_BASE}/api/commodities/news?limit=5`,
+    {
+      enabled: true,
+      retry: 3,
+      staleTime: 300000, // 5 minutes
+      fallback: [],
+      errorMessage: 'Failed to load commodity news'
+    }
+  );
+
+  const NewsComponent = ({ data, isFallbackData = false }) => {
+    const fallbackNews = [
+      {
+        id: 'news-1',
+        title: 'Oil Prices Surge on Supply Chain Concerns',
+        summary: 'Crude oil futures climb as geopolitical tensions affect major shipping routes...',
+        source: 'Commodity News',
+        publishedAt: new Date().toISOString(),
+        category: 'energy'
+      },
+      {
+        id: 'news-2',
+        title: 'Gold Holds Steady Amid Market Volatility',
+        summary: 'Precious metals maintain strength as investors seek safe-haven assets...',
+        source: 'Metal Markets',
+        publishedAt: new Date(Date.now() - 3600000).toISOString(),
+        category: 'precious-metals'
+      },
+      {
+        id: 'news-3',
+        title: 'Agricultural Commodities See Mixed Performance',
+        summary: 'Weather patterns and seasonal factors drive varied outcomes across grain markets...',
+        source: 'Agri Reports',
+        publishedAt: new Date(Date.now() - 7200000).toISOString(),
+        category: 'agriculture'
+      }
+    ];
+
+    const news = Array.isArray(data) ? data : fallbackNews;
+
+    return (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" mb={2}>
+            <Business sx={{ color: 'primary.main', mr: 1 }} />
+            <Typography variant="h6" fontWeight="bold">
+              Commodity News
+            </Typography>
+            <Chip 
+              label={isFallbackData ? "Demo Data" : "Live"} 
+              color={isFallbackData ? "warning" : "success"} 
+              size="small" 
+              sx={{ ml: 1 }}
+            />
+          </Box>
+
+          <Stack spacing={2}>
+            {news.slice(0, 5).map((article, idx) => (
+              <Paper 
+                key={article.id || idx} 
+                sx={{ 
+                  p: 2, 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': { 
+                    bgcolor: 'action.hover',
+                    transform: 'translateY(-1px)'
+                  }
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                  {article.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  {article.summary}
+                </Typography>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="caption" color="text.secondary">
+                    {article.source}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {format(new Date(article.publishedAt), 'MMM d, HH:mm')}
+                  </Typography>
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+
+          <Button 
+            fullWidth 
+            variant="outlined" 
+            sx={{ mt: 2 }}
+            onClick={() => window.open('/news?category=commodities', '_blank')}
+          >
+            View All Commodity News
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <DataContainer
+      loading={newsLoading}
+      error={newsError}
+      data={newsData}
+      fallbackDataType="news"
+      fallbackCount={5}
+      context="commodity news"
+    >
+      <NewsComponent />
+    </DataContainer>
+  );
+}
+
 const Commodities = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState('grid');
   const [sortConfig, setSortConfig] = useState({ field: 'symbol', direction: 'asc' });
   const [timeframe, setTimeframe] = useState('1d');
+  const [selectedSymbol, setSelectedSymbol] = useState('CL'); // Default to Crude Oil
 
   // Data fetching
   const { data: categoriesData, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useCommodityCategories();
@@ -768,6 +1175,129 @@ const Commodities = () => {
           view={view}
         />
       </DataContainer>
+
+      {/* Charts and Analysis Section */}
+      <Grid container spacing={3} sx={{ mt: 3 }}>
+        <Grid item xs={12} lg={8}>
+          <CommodityChart
+            symbol={selectedSymbol}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+          />
+        </Grid>
+        <Grid item xs={12} lg={4}>
+          <CommodityNewsWidget />
+        </Grid>
+      </Grid>
+
+      {/* Correlation Analysis */}
+      <Grid container spacing={3} sx={{ mt: 3 }}>
+        <Grid item xs={12} md={6}>
+          <CorrelationHeatmap correlations={correlations} />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={2}>
+                <ShowChart sx={{ color: 'primary.main', mr: 1 }} />
+                <Typography variant="h6" fontWeight="bold">
+                  Quick Actions
+                </Typography>
+              </Box>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Select Commodity to Chart</InputLabel>
+                    <Select
+                      value={selectedSymbol}
+                      onChange={(e) => setSelectedSymbol(e.target.value)}
+                      label="Select Commodity to Chart"
+                    >
+                      {filteredPrices.map((commodity) => (
+                        <MenuItem key={commodity.symbol} value={commodity.symbol}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Avatar
+                              sx={{ 
+                                width: 24, 
+                                height: 24, 
+                                bgcolor: COMMODITY_COLORS[commodity.category] || '#1976d2',
+                                fontSize: '0.7rem'
+                              }}
+                            >
+                              {commodity.symbol.slice(0, 2)}
+                            </Avatar>
+                            {commodity.symbol} - {commodity.name}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={6}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<Star />}
+                    onClick={() => console.log('Add to watchlist:', selectedSymbol)}
+                    sx={{ background: 'linear-gradient(45deg, #ff5722, #ffb300)' }}
+                  >
+                    Add to Watchlist
+                  </Button>
+                </Grid>
+                <Grid item xs={6}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="success"
+                    startIcon={<ShowChart />}
+                    onClick={() => console.log('Analyze:', selectedSymbol)}
+                  >
+                    Technical Analysis
+                  </Button>
+                </Grid>
+                
+                <Grid item xs={6}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<Download />}
+                    onClick={() => console.log('Export data')}
+                  >
+                    Export Data
+                  </Button>
+                </Grid>
+                <Grid item xs={6}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<Notifications />}
+                    onClick={() => console.log('Set alert')}
+                  >
+                    Price Alert
+                  </Button>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Market Insights
+                </Typography>
+                <Typography variant="body2">
+                  • Energy commodities showing mixed performance with supply concerns
+                </Typography>
+                <Typography variant="body2">
+                  • Precious metals maintaining safe-haven demand
+                </Typography>
+                <Typography variant="body2">
+                  • Agricultural markets influenced by weather patterns
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Container>
   );
 };
