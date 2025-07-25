@@ -153,23 +153,29 @@ const SettingsApiKeys = () => {
   const fetchApiKeys = useErrorBoundaryCallback(async () => {
     setLoading(true);
     try {
-      // Try the new settings API first if user is available
-      if (user?.email || user?.id) {
-        const userId = user.email || user.id;
-        const response = await getSettingsApiKeys(userId);
-        setApiKeys(response?.apiKeys || []);
-        
-        if (response?.note) {
-          console.log('Settings API Keys note:', response.note);
-        }
-        
-        setError(null);
-        return;
-      }
-      
-      // Fallback to legacy API if no user info
+      // FIXED: Use the same endpoint as the quick status indicator
+      // This ensures both components show the same data
+      console.log('🔑 Fetching API keys using unified endpoint...');
       const response = await getApiKeys();
-      setApiKeys(response?.apiKeys || []);
+      const apiKeysData = response?.data || response?.apiKeys || [];
+      
+      console.log('📊 API Keys response:', { response, apiKeysData });
+      setApiKeys(apiKeysData);
+      
+      // Try the settings API as fallback only if the main endpoint fails
+      if (apiKeysData.length === 0 && (user?.email || user?.id)) {
+        console.log('🔄 Fallback: Trying settings API...');
+        const userId = user.email || user.id;
+        const fallbackResponse = await getSettingsApiKeys(userId);
+        const fallbackKeys = fallbackResponse?.apiKeys || [];
+        
+        if (fallbackKeys.length > 0) {
+          setApiKeys(fallbackKeys);
+          if (fallbackResponse?.note) {
+            console.log('Settings API Keys note:', fallbackResponse.note);
+          }
+        }
+      }
       
       // Handle new error structure with guidance
       if (response?.setupRequired || response?.encryptionEnabled === false) {
@@ -224,27 +230,19 @@ const SettingsApiKeys = () => {
         return;
       }
 
-      // Use new settings API if user is available
-      if (user?.email || user?.id) {
-        const userId = user.email || user.id;
-        const keyData = {
-          key: formData.apiKey,
-          secret: formData.apiSecret || '',
-          description: formData.description
-        };
-
-        await addSettingsApiKey(userId, formData.provider, keyData);
-      } else {
-        // Fallback to legacy API
-        const apiKeyData = {
-          name: formData.provider,
-          key: formData.apiKey,
-          secret: formData.apiSecret,
-          isSandbox: formData.isSandbox,
-          description: formData.description
-        };
-        await addApiKey(apiKeyData);
-      }
+      // FIXED: Use unified API that matches the data display
+      console.log('➕ Adding API key using unified endpoint...');
+      const apiKeyData = {
+        name: formData.provider,
+        key: formData.apiKey,
+        secret: formData.apiSecret,
+        isSandbox: formData.isSandbox,
+        description: formData.description
+      };
+      
+      await addApiKey(apiKeyData);
+      
+      console.log('✅ API key added successfully via unified endpoint');
 
       setAddDialogOpen(false);
       setFormData({
@@ -284,21 +282,12 @@ const SettingsApiKeys = () => {
 
   const handleDeleteApiKey = async (keyId, provider) => {
     try {
-      console.log('🗑️ Deleting API key:', { keyId, provider, userEmail: user?.email, userId: user?.id });
+      console.log('🗑️ Deleting API key using unified endpoint:', { keyId, provider });
       
-      if (!provider) {
-        throw new Error('Provider is required for API key deletion');
-      }
+      // FIXED: Use unified API that matches the data display
+      await deleteApiKey();
       
-      // Use new settings API if user is available
-      if (user?.email || user?.id) {
-        const userId = user.email || user.id;
-        await deleteSettingsApiKey(userId, provider);
-      } else {
-        // Fallback to legacy API
-        await deleteApiKey(keyId);
-      }
-      
+      console.log('✅ API key deleted successfully via unified endpoint');      
       setSuccess('API key deleted successfully');
       fetchApiKeys();
     } catch (err) {
@@ -311,15 +300,9 @@ const SettingsApiKeys = () => {
     try {
       setTesting(prev => ({ ...prev, [keyId]: true }));
       
-      let result;
-      // Use new settings API if user is available
-      if (user?.email || user?.id) {
-        const userId = user.email || user.id;
-        result = await testSettingsApiKeyConnection(userId, provider);
-      } else {
-        // Fallback to legacy API
-        result = await testApiKeyConnection(keyId);
-      }
+      // FIXED: Use unified API that matches the data display
+      console.log('🧪 Testing connection using unified endpoint:', { keyId, provider });
+      const result = await testApiKeyConnection(keyId);
       
       if (result.success) {
         setSuccess(`${provider} connection test successful`);
