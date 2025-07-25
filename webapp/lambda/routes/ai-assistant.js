@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../utils/database');
+const bedrockAIService = require('../utils/bedrockAIService');
 
 const router = express.Router();
 
@@ -82,173 +83,92 @@ const getPortfolioContext = async (userId) => {
   }
 };
 
-// Helper function to generate AI response
+// Helper function to generate AI response using AWS Bedrock
 const generateAIResponse = async (userMessage, userId, context = {}) => {
-  const message = userMessage.toLowerCase();
+  try {
+    console.log('🤖 Processing AI request for user:', userId);
+    
+    // Get portfolio context if needed
+    let portfolioContext = null;
+    const message = userMessage.toLowerCase();
+    if (message.includes('portfolio') || message.includes('holdings') || message.includes('performance')) {
+      portfolioContext = await getPortfolioContext(userId);
+    }
+
+    // Get recent conversation history for context
+    const recentMessages = getUserHistory(userId).slice(-5);
+    
+    // Build enhanced context for AI
+    const enhancedContext = {
+      ...context,
+      portfolioContext,
+      recentMessages,
+      userId,
+      timestamp: new Date().toISOString()
+    };
+
+    // Use Bedrock AI service for intelligent response
+    const aiResponse = await bedrockAIService.generateResponse(userMessage, enhancedContext);
+    
+    console.log('✅ AI response generated successfully');
+    return aiResponse;
+
+  } catch (error) {
+    console.error('❌ Error in generateAIResponse:', error);
+    
+    // Fallback to basic response if Bedrock fails
+    return generateBasicFallbackResponse(userMessage, userId);
+  }
+};
+
+// Fallback response generator for when Bedrock is unavailable
+const generateBasicFallbackResponse = async (userMessage, userId) => {
+  console.log('🔄 Using basic fallback response');
   
-  // Get portfolio context if needed
+  const message = userMessage.toLowerCase();
   let portfolioContext = null;
-  if (message.includes('portfolio') || message.includes('holdings') || message.includes('performance')) {
-    portfolioContext = await getPortfolioContext(userId);
+  
+  // Get portfolio context for fallback
+  if (message.includes('portfolio') || message.includes('holdings')) {
+    try {
+      portfolioContext = await getPortfolioContext(userId);
+    } catch (error) {
+      console.log('Portfolio context unavailable for fallback');
+    }
   }
 
-  // Generate contextual response
-  let response = '';
-  let suggestions = [];
-  
   if (message.includes('portfolio') && portfolioContext) {
-    response = `Based on your portfolio analysis:
+    return {
+      content: `Based on your portfolio analysis:
     
 • Total Portfolio Value: $${portfolioContext.totalValue.toFixed(2)}
 • Total Gain/Loss: ${portfolioContext.totalGainLoss >= 0 ? '+' : ''}$${portfolioContext.totalGainLoss.toFixed(2)} (${portfolioContext.gainLossPercent.toFixed(2)}%)
 • Number of Holdings: ${portfolioContext.holdings.length}
 
 Your top holdings by value:
-${portfolioContext.holdings.slice(0, 5).map((holding, index) => 
-  `${index + 1}. ${holding.symbol}: $${parseFloat(holding.market_value).toFixed(2)} (${parseFloat(holding.unrealized_plpc || 0).toFixed(2)}%)`
+${portfolioContext.holdings.slice(0, 3).map((holding, index) => 
+  `${index + 1}. ${holding.symbol}: $${parseFloat(holding.market_value).toFixed(2)}`
 ).join('\n')}
 
-${portfolioContext.gainLossPercent > 0 ? 
-  'Your portfolio is performing well! ' : 
-  'Your portfolio is down, but this could be a good time to review your strategy. '
-}Would you like me to analyze any specific holdings or suggest rebalancing strategies?`;
-    
-    suggestions = ['Analyze top performers', 'Suggest rebalancing', 'Risk assessment', 'Compare to benchmark'];
-  } 
-  else if (message.includes('market') || message.includes('trending')) {
-    response = `Here's today's market overview:
-
-• **Market Sentiment**: Mixed signals with technology stocks leading gains
-• **Key Movers**: Healthcare and renewable energy showing strength
-• **Volatility**: Moderate with VIX at typical levels
-• **Sector Rotation**: Investors moving from growth to value stocks
-
-**Key Points to Watch:**
-- Federal Reserve policy updates
-- Earnings season momentum
-- Economic indicators (employment, inflation)
-- Geopolitical developments
-
-The current market presents both opportunities and risks. Consider focusing on quality companies with strong fundamentals and dividend-paying stocks for stability.`;
-    
-    suggestions = ['Sector analysis', 'Economic indicators', 'Earnings calendar', 'Volatility outlook'];
-  }
-  else if (message.includes('stock') || message.includes('research')) {
-    response = `I can help you research stocks comprehensively. Here's what I analyze:
-
-**Fundamental Analysis:**
-• Financial statements and ratios
-• Revenue and earnings trends
-• Debt levels and cash flow
-• Industry position and competitive advantages
-
-**Technical Analysis:**
-• Price trends and patterns
-• Volume analysis
-• Support and resistance levels
-• Technical indicators (RSI, MACD, etc.)
-
-**Market Sentiment:**
-• Analyst ratings and price targets
-• News sentiment analysis
-• Social media buzz
-• Institutional activity
-
-Please provide a ticker symbol, and I'll give you a detailed analysis with actionable insights.`;
-    
-    suggestions = ['Analyze AAPL', 'Research TSLA', 'Check NVDA', 'Screen for value stocks'];
-  }
-  else if (message.includes('invest') || message.includes('strategy')) {
-    response = `Let me help you with investment strategies based on current market conditions:
-
-**Recommended Strategies:**
-1. **Diversification**: Spread risk across sectors and asset classes
-2. **Dollar-Cost Averaging**: Regular investments to reduce timing risk
-3. **Quality Focus**: Companies with strong balance sheets and consistent earnings
-4. **Dividend Growth**: Stocks with history of increasing dividends
-
-**Current Opportunities:**
-• Undervalued blue-chip stocks
-• REITs for income generation
-• International diversification
-• ESG-focused investments
-
-**Risk Management:**
-• Position sizing (no more than 5% in single stock)
-• Stop-loss orders for downside protection
-• Regular portfolio rebalancing
-• Emergency fund maintenance
-
-What's your investment timeline and risk tolerance? I can provide more specific recommendations.`;
-    
-    suggestions = ['Risk assessment', 'Portfolio allocation', 'Investment timeline', 'Dividend strategies'];
-  }
-  else if (message.includes('risk')) {
-    response = `Let me analyze your risk profile and portfolio risk metrics:
-
-**Risk Assessment Factors:**
-• **Volatility**: How much your portfolio value fluctuates
-• **Concentration Risk**: Over-exposure to single stocks/sectors
-• **Market Risk**: Sensitivity to overall market movements
-• **Liquidity Risk**: Ability to sell positions quickly
-
-**Risk Management Tools:**
-• Diversification across asset classes
-• Hedging strategies (options, inverse ETFs)
-• Regular rebalancing
-• Position sizing limits
-
-**Your Risk Tolerance:**
-Based on your portfolio, you appear to have a moderate risk tolerance. Consider:
-- Maintaining 60-70% stocks, 30-40% bonds
-- International exposure for diversification
-- Some alternative investments (REITs, commodities)
-
-Would you like me to analyze specific risk metrics for your current holdings?`;
-    
-    suggestions = ['Portfolio beta', 'Volatility analysis', 'Correlation matrix', 'Risk-adjusted returns'];
-  }
-  else {
-    response = `I'm your AI investment assistant, ready to help with:
-
-**Portfolio Management:**
-• Performance analysis and optimization
-• Risk assessment and management
-• Rebalancing recommendations
-• Asset allocation strategies
-
-**Market Intelligence:**
-• Daily market analysis and trends
-• Sector rotation insights
-• Economic indicator interpretation
-• Volatility and sentiment analysis
-
-**Stock Research:**
-• Fundamental and technical analysis
-• Earnings and news impact
-• Analyst ratings compilation
-• Price target analysis
-
-**Investment Education:**
-• Strategy explanations
-• Risk management principles
-• Market mechanics
-• Investment best practices
-
-What specific area would you like to explore? I can provide detailed analysis and actionable recommendations.`;
-    
-    suggestions = ['Portfolio review', 'Market analysis', 'Stock research', 'Investment strategies'];
+Note: I'm currently running in basic mode. For detailed analysis and insights, please try again when my advanced AI features are available.`,
+      suggestions: ['Try advanced analysis', 'Portfolio overview', 'Market basics', 'Investment principles'],
+      context: {
+        hasPortfolioData: true,
+        dataSource: 'basic_fallback'
+      }
+    };
   }
 
   return {
-    content: response,
-    suggestions: suggestions,
+    content: `I understand you're asking about: "${userMessage}"
+
+I'm currently running in basic mode due to temporary technical limitations. I can still help with simple portfolio overviews and basic investment information.
+
+For comprehensive market analysis, detailed investment strategies, and personalized recommendations, please try again in a few moments when my full AI capabilities are restored.`,
+    suggestions: ['Portfolio overview', 'Basic market info', 'Investment basics', 'Try again later'],
     context: {
-      hasPortfolioData: !!portfolioContext,
-      portfolioValue: portfolioContext?.totalValue,
-      analysisType: message.includes('portfolio') ? 'portfolio' : 
-                   message.includes('market') ? 'market' : 
-                   message.includes('stock') ? 'stock' : 'general'
+      dataSource: 'basic_fallback',
+      isLimitedMode: true
     }
   };
 };
@@ -341,6 +261,32 @@ router.delete('/history', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to clear conversation history'
+    });
+  }
+});
+
+// Get AI service health status
+router.get('/health', async (req, res) => {
+  try {
+    const healthStatus = await bedrockAIService.healthCheck();
+    const usageStats = bedrockAIService.getUsageStats();
+    
+    res.json({
+      success: true,
+      health: healthStatus,
+      usage: usageStats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error checking AI service health:', error);
+    res.json({
+      success: false,
+      health: {
+        status: 'unknown',
+        error: error.message,
+        fallbackAvailable: true
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
