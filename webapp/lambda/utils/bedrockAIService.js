@@ -38,18 +38,20 @@ class BedrockAIService {
    * @param {string} userMessage - User's message
    * @param {Object} context - Conversation and user context
    * @returns {Promise<Object>} AI response with suggestions
+   * @throws {Error} Throws detailed error with actionable steps if Bedrock unavailable
    */
   async generateResponse(userMessage, context = {}) {
+    console.log('🤖 Generating AI response with Bedrock for message:', userMessage.substring(0, 50) + '...');
+    
+    // Check cache first
+    const cacheKey = this.getCacheKey(userMessage, context);
+    const cachedResponse = this.getFromCache(cacheKey);
+    if (cachedResponse) {
+      console.log('✅ Returning cached response');
+      return cachedResponse;
+    }
+
     try {
-      console.log('🤖 Generating AI response with Bedrock for message:', userMessage.substring(0, 50) + '...');
-      
-      // Check cache first
-      const cacheKey = this.getCacheKey(userMessage, context);
-      const cachedResponse = this.getFromCache(cacheKey);
-      if (cachedResponse) {
-        console.log('✅ Returning cached response');
-        return cachedResponse;
-      }
 
       // Build conversation context
       const conversationContext = this.buildConversationContext(userMessage, context);
@@ -108,8 +110,8 @@ class BedrockAIService {
     } catch (error) {
       console.error('❌ Error generating AI response:', error);
       
-      // Fallback to basic response
-      return this.generateFallbackResponse(userMessage, context);
+      // Provide detailed error information instead of fallback
+      throw this.createDetailedError(error, userMessage, context);
     }
   }
 
