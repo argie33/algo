@@ -62,6 +62,8 @@ import HistoricalPriceChart from '../components/HistoricalPriceChart';
 import dataCache from '../services/dataCache';
 import MarketStatusBar from '../components/MarketStatusBar';
 import RealTimePriceWidget from '../components/RealTimePriceWidget';
+import ApiErrorAlert from '../components/ApiErrorAlert';
+import DataContainer from '../components/DataContainer';
 
 // Logo import with fallback 
 let logoSrc = null;
@@ -217,215 +219,56 @@ function useUser() {
 }
 
 function TechnicalSignalsWidget() {
-  const { data, loading: isLoading } = useSimpleFetch(`${API_BASE}/api/trading/signals/daily?limit=10`, {
+  const { data, loading: isLoading, error, refetch, showRoutingAlert } = useSimpleFetch(`${API_BASE}/api/trading/signals/daily?limit=10`, {
     enabled: true,
     retry: 3,
     staleTime: 300000
   });
-  
-  const signals = Array.isArray(data?.data) ? data.data : [
-    { symbol: 'AAPL', signal: 'Buy', date: '2025-07-03', current_price: 195.12, performance_percent: 2.1 },
-    { symbol: 'TSLA', signal: 'Sell', date: '2025-07-02', current_price: 710.22, performance_percent: -1.8 },
-    { symbol: 'NVDA', signal: 'Buy', date: '2025-07-01', current_price: 1200, performance_percent: 3.5 }
-  ];
-  
-  return (
+
+  const SignalsTable = ({ data, isFallbackData = false }) => (
     <Card sx={{ height: '100%' }}>
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <AutoGraph sx={{ color: 'primary.main', mr: 1 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</Typography>
-          <Chip label="Live" color="success" size="small" sx={{ ml: 1 }} />
-        </Box>
-        
-        {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading signals...</Typography>
-        ) : (
-          <TableContainer sx={{ maxHeight: 200 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>Signal</TableCell>
-                  <TableCell align="right">Price</TableCell>
-                  <TableCell align="right">Perf</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(signals || []).map((sig, idx) => (
-                  <TableRow key={sig.symbol + sig.date + idx}>
-                    <TableCell>{sig.symbol}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={sig.signal}
-                        color={sig.signal === 'Buy' ? 'success' : 'error'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="right">${sig.current_price?.toFixed(2) || '--'}</TableCell>
-                    <TableCell align="right">
-                      <Typography 
-                        variant="body2" 
-                        color={sig.performance_percent >= 0 ? 'success.main' : 'error.main'}
-                      >
-                        {sig.performance_percent ? sig.performance_percent.toFixed(1) + '%' : '--'}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- ENHANCED WIDGETS ---
-function MarketSentimentWidget() {
-  const { data: sentimentData, loading: isLoading } = useLiveSentiment();
-  const sentiment = sentimentData?.data || null;
-  
-  const getSentimentColor = (value) => {
-    if (value > 75) return 'success';
-    if (value > 50) return 'warning';
-    return 'error';
-  };
-  
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <PsychologyIcon sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Market Sentiment</Typography>
-        </Box>
-        
-        <Grid container spacing={2}>
-          <Grid item xs={6}>
-            <Box textAlign="center">
-              <Typography variant="h4" color={getSentimentColor(sentiment?.fearGreed || 0)}>
-                {sentiment?.fearGreed || '--'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">Fear & Greed</Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Box textAlign="center">
-              <Typography variant="h4" color={getSentimentColor(sentiment?.naaim || 0)}>
-                {sentiment?.naaim || '--'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">NAAIM</Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-              <Box>
-                <Typography variant="body2" color="success.main">
-                  Bulls: {sentiment?.aaii?.bullish || '--'}%
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Neutral: {sentiment?.aaii?.neutral || '--'}%
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" color="error.main">
-                  Bears: {sentiment?.aaii?.bearish || '--'}%
-                </Typography>
-              </Box>
-            </Box>
-          </Grid>
-        </Grid>
-        
-        <Box sx={{ mt: 2 }}>
           <Chip 
-            label={`${sentiment?.status || 'Unknown'} Market`} 
-            color={getSentimentColor(sentiment?.fearGreed || 0)}
-            size="small"
-          />
-          <Chip 
-            label={`VIX: ${sentiment?.vix || '--'}`} 
-            color={(sentiment?.vix || 0) < 20 ? 'success' : 'warning'}
-            size="small"
-            sx={{ ml: 1 }}
+            label={isFallbackData ? "Demo Data" : "Live"} 
+            color={isFallbackData ? "warning" : "success"} 
+            size="small" 
+            sx={{ ml: 1 }} 
           />
         </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SectorPerformanceWidget() {
-  const { data: sectorsData, loading: isLoading } = useLiveSectorPerformance();
-  const sectors = sectorsData?.data || [];
-  
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Business sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Sector Performance</Typography>
-        </Box>
         
-        <ResponsiveContainer width="100%" height={200}>
-          <RechartsBarChart data={sectors}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
-            <Bar dataKey="performance" fill="#8884d8">
-              {(sectors || []).map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.performance >= 0 ? '#00C49F' : '#FF8042'} />
-              ))}
-            </Bar>
-          </RechartsBarChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TopStocksWidget() {
-  const { data: stocksData, loading: isLoading } = useTopStocks();
-  const stocks = Array.isArray(stocksData?.data) ? stocksData.data : [];
-  
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Star sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Top Rated Stocks</Typography>
-        </Box>
-        
-        <TableContainer sx={{ maxHeight: 250 }}>
+        <TableContainer sx={{ maxHeight: 200 }}>
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>Symbol</TableCell>
-                <TableCell align="right">Score</TableCell>
-                <TableCell align="right">Quality</TableCell>
-                <TableCell align="right">Value</TableCell>
+                <TableCell>Signal</TableCell>
+                <TableCell align="right">Price</TableCell>
+                <TableCell align="right">Perf</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(stocks || []).slice(0, 6).map((stock, idx) => (
-                <TableRow key={stock.symbol || idx}>
+              {(data || []).map((sig, idx) => (
+                <TableRow key={sig.symbol + sig.date + idx}>
+                  <TableCell>{sig.symbol}</TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Typography variant="body2" fontWeight="bold">{stock.symbol}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">
                     <Chip 
-                      label={stock.score} 
-                      color={stock.score >= 90 ? 'success' : stock.score >= 80 ? 'warning' : 'default'}
+                      label={sig.signal}
+                      color={sig.signal === 'Buy' ? 'success' : 'error'}
                       size="small"
                     />
                   </TableCell>
-                  <TableCell align="right">{stock.quality}</TableCell>
-                  <TableCell align="right">{stock.value}</TableCell>
+                  <TableCell align="right">${sig.current_price?.toFixed(2) || '--'}</TableCell>
+                  <TableCell align="right">
+                    <Typography 
+                      variant="body2" 
+                      color={sig.performance_percent >= 0 ? 'success.main' : 'error.main'}
+                    >
+                      {sig.performance_percent ? sig.performance_percent.toFixed(1) + '%' : '--'}
+                    </Typography>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -433,6 +276,244 @@ function TopStocksWidget() {
         </TableContainer>
       </CardContent>
     </Card>
+  );
+
+  return (
+    <DataContainer
+      loading={isLoading}
+      error={error}
+      data={data}
+      onRetry={refetch}
+      fallbackDataType="trading_signals"
+      fallbackCount={10}
+      context="trading signals"
+      showTechnicalDetails={true}
+    >
+      <SignalsTable />
+    </DataContainer>
+  );
+}
+
+// --- ENHANCED WIDGETS ---
+function MarketSentimentWidget() {
+  const { data: sentimentData, loading: isLoading, error, refetch } = useLiveSentiment();
+
+  const SentimentCard = ({ data, isFallbackData = false }) => {
+    const sentiment = data?.data || data || null;
+  
+    const getSentimentColor = (value) => {
+      if (value > 75) return 'success';
+      if (value > 50) return 'warning';
+      return 'error';
+    };
+    
+    return (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <PsychologyIcon sx={{ color: 'primary.main', mr: 1 }} />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>Market Sentiment</Typography>
+            <Chip 
+              label={isFallbackData ? "Demo Data" : "Live"} 
+              color={isFallbackData ? "warning" : "success"} 
+              size="small" 
+              sx={{ ml: 1 }} 
+            />
+          </Box>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Box textAlign="center">
+                <Typography variant="h4" color={getSentimentColor(sentiment?.fearGreed || 0)}>
+                  {sentiment?.fearGreed || '--'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Fear & Greed</Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={6}>
+              <Box textAlign="center">
+                <Typography variant="h4" color={getSentimentColor(sentiment?.naaim || 0)}>
+                  {sentiment?.naaim || '--'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">NAAIM</Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                <Box>
+                  <Typography variant="body2" color="success.main">
+                    Bulls: {sentiment?.aaii?.bullish || '--'}%
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Neutral: {sentiment?.aaii?.neutral || '--'}%
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="error.main">
+                    Bears: {sentiment?.aaii?.bearish || '--'}%
+                  </Typography>
+                </Box>
+              </Box>
+            </Grid>
+          </Grid>
+          
+          <Box sx={{ mt: 2 }}>
+            <Chip 
+              label={`${sentiment?.status || 'Unknown'} Market`} 
+              color={getSentimentColor(sentiment?.fearGreed || 0)}
+              size="small"
+            />
+            <Chip 
+              label={`VIX: ${sentiment?.vix || '--'}`} 
+              color={(sentiment?.vix || 0) < 20 ? 'success' : 'warning'}
+              size="small"
+              sx={{ ml: 1 }}
+            />
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <DataContainer
+      loading={isLoading}
+      error={error}
+      data={sentimentData}
+      onRetry={refetch}
+      fallbackDataType="market_sentiment"
+      context="market sentiment"
+      showTechnicalDetails={true}
+    >
+      <SentimentCard />
+    </DataContainer>
+  );
+}
+
+function SectorPerformanceWidget() {
+  const { data: sectorsData, loading: isLoading, error, refetch } = useLiveSectorPerformance();
+
+  const SectorChart = ({ data, isFallbackData = false }) => {
+    const sectors = data?.data || data || [];
+  
+    return (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Business sx={{ color: 'primary.main', mr: 1 }} />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>Sector Performance</Typography>
+            <Chip 
+              label={isFallbackData ? "Demo Data" : "Live"} 
+              color={isFallbackData ? "warning" : "success"} 
+              size="small" 
+              sx={{ ml: 1 }} 
+            />
+          </Box>
+          
+          <ResponsiveContainer width="100%" height={200}>
+            <RechartsBarChart data={sectors}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
+              <Bar dataKey="performance" fill="#8884d8">
+                {(sectors || []).map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.performance >= 0 ? '#00C49F' : '#FF8042'} />
+                ))}
+              </Bar>
+            </RechartsBarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <DataContainer
+      loading={isLoading}
+      error={error}
+      data={sectorsData}
+      onRetry={refetch}
+      fallbackDataType="sectors"
+      context="sector performance"
+      showTechnicalDetails={true}
+    >
+      <SectorChart />
+    </DataContainer>
+  );
+}
+
+function TopStocksWidget() {
+  const { data: stocksData, loading: isLoading, error, refetch } = useTopStocks();
+
+  const StocksTable = ({ data, isFallbackData = false }) => {
+    const stocks = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+  
+    return (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Star sx={{ color: 'primary.main', mr: 1 }} />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>Top Rated Stocks</Typography>
+            <Chip 
+              label={isFallbackData ? "Demo Data" : "Live"} 
+              color={isFallbackData ? "warning" : "success"} 
+              size="small" 
+              sx={{ ml: 1 }} 
+            />
+          </Box>
+          
+          <TableContainer sx={{ maxHeight: 250 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Symbol</TableCell>
+                  <TableCell align="right">Score</TableCell>
+                  <TableCell align="right">Quality</TableCell>
+                  <TableCell align="right">Value</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(stocks || []).slice(0, 6).map((stock, idx) => (
+                  <TableRow key={stock.symbol || idx}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="body2" fontWeight="bold">{stock.symbol}</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Chip 
+                        label={stock.score} 
+                        color={stock.score >= 90 ? 'success' : stock.score >= 80 ? 'warning' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell align="right">{stock.quality}</TableCell>
+                    <TableCell align="right">{stock.value}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <DataContainer
+      loading={isLoading}
+      error={error}
+      data={stocksData}
+      onRetry={refetch}
+      fallbackDataType="stocks"
+      context="top stocks"
+      showTechnicalDetails={true}
+    >
+      <StocksTable />
+    </DataContainer>
   );
 }
 

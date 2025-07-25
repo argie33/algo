@@ -23,7 +23,8 @@ import {
   BugReport,
   Home
 } from '@mui/icons-material';
-import { debugReactError } from '../utils/reactDebugger.js';
+// Removed missing import: reactDebugger.js
+// import { debugReactError } from '../utils/reactDebugger.js';
 // import { diagnoseReactError } from '../utils/testRunner.js'; // Temporarily disabled
 const diagnoseReactError = () => Promise.resolve({ skipped: true, reason: 'Disabled during test runs' });
 
@@ -54,7 +55,7 @@ class ErrorBoundary extends React.Component {
     this.reportError(error, errorInfo);
     
     // Enhanced error debugging
-    debugReactError(error, errorInfo.componentStack);
+    // debugReactError(error, errorInfo.componentStack); // Removed missing function
     
     // Run diagnostic tests for this specific error
     diagnoseReactError(error).then(diagnosticResults => {

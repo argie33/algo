@@ -1,9 +1,56 @@
 /**
- * HFT Trading Dashboard - Award-Winning High Frequency Trading Interface
+ * HFT Trading Dashboard - High Frequency Trading Interface
  * Real-time monitoring, strategy management, and performance analytics
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  Grid,
+  Button,
+  Switch,
+  FormControlLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  LinearProgress,
+  IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  TextField,
+  Alert,
+  Divider,
+  Tooltip,
+  Badge
+} from '@mui/material';
+import {
+  PlayArrow,
+  Stop,
+  TrendingUp,
+  TrendingDown,
+  Speed,
+  Timeline,
+  Assessment,
+  MonetizationOn,
+  AccountBalance,
+  Settings,
+  Refresh,
+  Circle,
+  CheckCircle,
+  Warning,
+  Error
+} from '@mui/icons-material';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -11,7 +58,7 @@ import {
   PointElement, 
   LineElement, 
   Title, 
-  Tooltip, 
+  Tooltip as ChartTooltip, 
   Legend,
   Filler 
 } from 'chart.js';
@@ -25,7 +72,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   Title,
-  Tooltip,
+  ChartTooltip,
   Legend,
   Filler
 );
@@ -184,19 +231,12 @@ const HFTTrading = () => {
       title: {
         display: true,
         text: 'Real-Time P&L Performance',
-        color: '#ffffff',
         font: { size: 14 }
       }
     },
     scales: {
-      x: {
-        grid: { color: '#374151' },
-        ticks: { color: '#9ca3af' }
-      },
       y: {
-        grid: { color: '#374151' },
         ticks: { 
-          color: '#9ca3af',
           callback: (value) => `$${value.toFixed(2)}`
         }
       }
@@ -218,9 +258,9 @@ const HFTTrading = () => {
         label: 'P&L',
         data: performanceData.data,
         borderColor: performanceData.data.length > 0 && performanceData.data[performanceData.data.length - 1] >= 0 
-          ? '#10b981' : '#ef4444',
+          ? '#4caf50' : '#f44336',
         backgroundColor: performanceData.data.length > 0 && performanceData.data[performanceData.data.length - 1] >= 0 
-          ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
         fill: true,
         borderWidth: 2,
         pointRadius: 1,
@@ -231,9 +271,9 @@ const HFTTrading = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'connected': return 'text-green-400';
-      case 'connecting': return 'text-yellow-400';
-      default: return 'text-red-400';
+      case 'connected': return 'success';
+      case 'connecting': return 'warning';
+      default: return 'error';
     }
   };
 
@@ -264,282 +304,394 @@ const HFTTrading = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <Box sx={{ p: 3 }}>
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+      <Box mb={3}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
               HFT Trading Dashboard
-            </h1>
-            <p className="text-gray-400 mt-1">High Frequency Trading • Real-time Strategy Execution</p>
-          </div>
+            </Typography>
+            <Typography variant="body1" color="textSecondary">
+              High Frequency Trading • Real-time Strategy Execution
+            </Typography>
+          </Box>
           
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${connectionStatus === 'connected' ? 'bg-green-400' : 'bg-red-400'} animate-pulse`}></div>
-              <span className={`text-sm ${getStatusColor(connectionStatus)}`}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Circle 
+                color={getStatusColor(connectionStatus)} 
+                sx={{ fontSize: 12 }}
+              />
+              <Typography variant="body2" color={getStatusColor(connectionStatus)}>
                 {connectionStatus.toUpperCase()}
-              </span>
-            </div>
+              </Typography>
+            </Box>
             
             {isEngineRunning ? (
-              <button
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<Stop />}
                 onClick={handleStopEngine}
-                className="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-semibold transition-colors"
+                sx={{ fontWeight: 'bold' }}
               >
-                🛑 Stop Engine
-              </button>
+                Stop Engine
+              </Button>
             ) : (
-              <button
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<PlayArrow />}
                 onClick={handleStartEngine}
-                className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-semibold transition-colors"
                 disabled={connectionStatus !== 'connected'}
+                sx={{ fontWeight: 'bold' }}
               >
-                🚀 Start Engine
-              </button>
+                Start Engine
+              </Button>
             )}
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Box>
+      </Box>
 
       {/* Key Metrics Dashboard */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-blue-400">{formatCurrency(metrics.totalPnL)}</div>
-          <div className="text-sm text-gray-400">Total P&L</div>
-        </div>
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <MonetizationOn color="primary" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="primary">
+                    {formatCurrency(metrics.totalPnL)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Total P&L
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
         
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-green-400">{formatCurrency(metrics.dailyPnL)}</div>
-          <div className="text-sm text-gray-400">Daily P&L</div>
-        </div>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <TrendingUp color="success" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="success.main">
+                    {formatCurrency(metrics.dailyPnL)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Daily P&L
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
         
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-purple-400">{metrics.totalTrades}</div>
-          <div className="text-sm text-gray-400">Total Trades</div>
-        </div>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <Assessment color="secondary" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="secondary">
+                    {metrics.totalTrades}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Total Trades
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
         
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-yellow-400">{formatPercentage(metrics.winRate || 0)}</div>
-          <div className="text-sm text-gray-400">Win Rate</div>
-        </div>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <Timeline color="warning" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="warning.main">
+                    {formatPercentage(metrics.winRate || 0)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Win Rate
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
         
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-orange-400">{metrics.openPositions}</div>
-          <div className="text-sm text-gray-400">Open Positions</div>
-        </div>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <AccountBalance color="info" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="info.main">
+                    {metrics.openPositions}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Open Positions
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
         
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-cyan-400">{metrics.avgExecutionTime?.toFixed(0) || 0}ms</div>
-          <div className="text-sm text-gray-400">Avg Execution</div>
-        </div>
-      </div>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <Speed color="action" />
+                <Box ml={1}>
+                  <Typography variant="h4">
+                    {metrics.avgExecutionTime?.toFixed(0) || 0}ms
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Avg Execution
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <Grid container spacing={3} mb={3}>
         {/* Performance Chart */}
-        <div className="lg:col-span-2 bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="h-80">
-            <Line data={chartData} options={chartOptions} />
-          </div>
-        </div>
+        <Grid item xs={12} lg={8}>
+          <Card>
+            <CardHeader title="Real-Time P&L Performance" />
+            <CardContent>
+              <Box sx={{ height: 300 }}>
+                <Line data={chartData} options={chartOptions} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Strategy Controls */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-xl font-semibold mb-4 text-white">Strategy Configuration</h3>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Active Strategy</label>
-              <select
-                value={selectedStrategy}
-                onChange={(e) => setSelectedStrategy(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-              >
-                {strategies.map((strategy) => (
-                  <option key={strategy.name} value={strategy.name}>
-                    {strategy.name.charAt(0).toUpperCase() + strategy.name.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <Grid item xs={12} lg={4}>
+          <Card>
+            <CardHeader title="Strategy Configuration" />
+            <CardContent>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Active Strategy</InputLabel>
+                  <Select
+                    value={selectedStrategy}
+                    label="Active Strategy"
+                    onChange={(e) => setSelectedStrategy(e.target.value)}
+                  >
+                    {strategies.map((strategy) => (
+                      <MenuItem key={strategy.name} value={strategy.name}>
+                        {strategy.name.charAt(0).toUpperCase() + strategy.name.slice(1)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-            {selectedStrategy === 'scalping' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Min Spread (%)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={strategyParams.minSpread || 0.001}
-                    onChange={(e) => setStrategyParams(prev => ({ ...prev, minSpread: parseFloat(e.target.value) }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Max Spread (%)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={strategyParams.maxSpread || 0.005}
-                    onChange={(e) => setStrategyParams(prev => ({ ...prev, maxSpread: parseFloat(e.target.value) }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Volume Threshold</label>
-                  <input
-                    type="number"
-                    value={strategyParams.volume_threshold || 1000}
-                    onChange={(e) => setStrategyParams(prev => ({ ...prev, volume_threshold: parseInt(e.target.value) }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-                  />
-                </div>
-              </div>
-            )}
+                {selectedStrategy === 'scalping' && (
+                  <>
+                    <TextField
+                      label="Min Spread (%)"
+                      type="number"
+                      inputProps={{ step: 0.001 }}
+                      value={strategyParams.minSpread || 0.001}
+                      onChange={(e) => setStrategyParams(prev => ({ ...prev, minSpread: parseFloat(e.target.value) }))}
+                      fullWidth
+                      size="small"
+                    />
+                    
+                    <TextField
+                      label="Max Spread (%)"
+                      type="number"
+                      inputProps={{ step: 0.001 }}
+                      value={strategyParams.maxSpread || 0.005}
+                      onChange={(e) => setStrategyParams(prev => ({ ...prev, maxSpread: parseFloat(e.target.value) }))}
+                      fullWidth
+                      size="small"
+                    />
+                    
+                    <TextField
+                      label="Volume Threshold"
+                      type="number"
+                      value={strategyParams.volume_threshold || 1000}
+                      onChange={(e) => setStrategyParams(prev => ({ ...prev, volume_threshold: parseInt(e.target.value) }))}
+                      fullWidth
+                      size="small"
+                    />
+                  </>
+                )}
 
-            <button
-              onClick={handleStrategyUpdate}
-              className="w-full bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded-lg font-semibold transition-colors"
-            >
-              Update Strategy
-            </button>
-          </div>
-        </div>
-      </div>
+                <Button
+                  variant="contained"
+                  onClick={handleStrategyUpdate}
+                  fullWidth
+                  startIcon={<Settings />}
+                >
+                  Update Strategy
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Grid container spacing={3}>
         {/* Active Positions */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-xl font-semibold mb-4 text-white">Active Positions</h3>
-          
-          {positions.length > 0 ? (
-            <div className="space-y-3">
-              {positions.map((position, index) => (
-                <div key={index} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <div className="font-semibold text-white">{position.symbol}</div>
-                      <div className="text-sm text-gray-400">{position.strategy}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-green-400">{position.type}</div>
-                      <div className="text-sm text-gray-400">{position.quantity} units</div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-400">Entry:</span>
-                      <span className="text-white ml-2">{formatCurrency(position.avgPrice)}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Current:</span>
-                      <span className="text-white ml-2">
-                        {formatCurrency(marketData.get(position.symbol)?.price || position.avgPrice)}
-                      </span>
-                    </div>
-                    {position.stopLoss && (
-                      <div>
-                        <span className="text-gray-400">Stop Loss:</span>
-                        <span className="text-red-400 ml-2">{formatCurrency(position.stopLoss)}</span>
-                      </div>
-                    )}
-                    {position.takeProfit && (
-                      <div>
-                        <span className="text-gray-400">Take Profit:</span>
-                        <span className="text-green-400 ml-2">{formatCurrency(position.takeProfit)}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 text-xs text-gray-400">
-                    Opened: {new Date(position.openTime).toLocaleTimeString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-gray-400 py-8">
-              No active positions
-            </div>
-          )}
-        </div>
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardHeader title="Active Positions" />
+            <CardContent>
+              {positions.length > 0 ? (
+                <Box display="flex" flexDirection="column" gap={2}>
+                  {positions.map((position, index) => (
+                    <Paper key={index} elevation={1} sx={{ p: 2 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                        <Box>
+                          <Typography variant="h6">{position.symbol}</Typography>
+                          <Typography variant="body2" color="textSecondary">{position.strategy}</Typography>
+                        </Box>
+                        <Box textAlign="right">
+                          <Chip 
+                            label={position.type} 
+                            color="success" 
+                            size="small" 
+                          />
+                          <Typography variant="body2" color="textSecondary">
+                            {position.quantity} units
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="textSecondary">Entry:</Typography>
+                          <Typography variant="body2">{formatCurrency(position.avgPrice)}</Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="textSecondary">Current:</Typography>
+                          <Typography variant="body2">
+                            {formatCurrency(marketData.get(position.symbol)?.price || position.avgPrice)}
+                          </Typography>
+                        </Grid>
+                        {position.stopLoss && (
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="textSecondary">Stop Loss:</Typography>
+                            <Typography variant="body2" color="error">{formatCurrency(position.stopLoss)}</Typography>
+                          </Grid>
+                        )}
+                        {position.takeProfit && (
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="textSecondary">Take Profit:</Typography>
+                            <Typography variant="body2" color="success.main">{formatCurrency(position.takeProfit)}</Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                      
+                      <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                        Opened: {new Date(position.openTime).toLocaleTimeString()}
+                      </Typography>
+                    </Paper>
+                  ))}
+                </Box>
+              ) : (
+                <Box textAlign="center" py={4}>
+                  <Typography color="textSecondary">
+                    No active positions
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* System Status */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-xl font-semibold mb-4 text-white">System Status</h3>
-          
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-2 border-b border-gray-700">
-              <span className="text-gray-400">Engine Status</span>
-              <span className={`font-semibold ${isEngineRunning ? 'text-green-400' : 'text-red-400'}`}>
-                {isEngineRunning ? '🟢 RUNNING' : '🔴 STOPPED'}
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center py-2 border-b border-gray-700">
-              <span className="text-gray-400">Uptime</span>
-              <span className="text-white">{formatTime(metrics.uptime || 0)}</span>
-            </div>
-            
-            <div className="flex justify-between items-center py-2 border-b border-gray-700">
-              <span className="text-gray-400">Signals Generated</span>
-              <span className="text-white">{metrics.signalsGenerated}</span>
-            </div>
-            
-            <div className="flex justify-between items-center py-2 border-b border-gray-700">
-              <span className="text-gray-400">Orders Executed</span>
-              <span className="text-white">{metrics.ordersExecuted || 0}</span>
-            </div>
-            
-            <div className="flex justify-between items-center py-2 border-b border-gray-700">
-              <span className="text-gray-400">Connection Quality</span>
-              <span className="text-green-400">
-                {connectionStatus === 'connected' ? 'EXCELLENT' : 'POOR'}
-              </span>
-            </div>
-          </div>
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardHeader title="System Status" />
+            <CardContent>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Engine Status</Typography>
+                  <Chip 
+                    label={isEngineRunning ? 'RUNNING' : 'STOPPED'} 
+                    color={isEngineRunning ? 'success' : 'error'}
+                    icon={isEngineRunning ? <CheckCircle /> : <Error />}
+                  />
+                </Box>
+                
+                <Divider />
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Uptime</Typography>
+                  <Typography>{formatTime(metrics.uptime || 0)}</Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Signals Generated</Typography>
+                  <Typography>{metrics.signalsGenerated}</Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Orders Executed</Typography>
+                  <Typography>{metrics.ordersExecuted || 0}</Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Connection Quality</Typography>
+                  <Chip 
+                    label={connectionStatus === 'connected' ? 'EXCELLENT' : 'POOR'}
+                    color={connectionStatus === 'connected' ? 'success' : 'error'}
+                    size="small"
+                  />
+                </Box>
 
-          {/* Risk Metrics */}
-          <div className="mt-6">
-            <h4 className="text-lg font-semibold mb-3 text-gray-300">Risk Management</h4>
-            
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-400">Daily Loss Limit</span>
-                  <span className="text-white">
-                    {formatCurrency(Math.abs(metrics.dailyPnL || 0))} / {formatCurrency(500)}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div 
-                    className="bg-red-400 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, (Math.abs(metrics.dailyPnL || 0) / 500) * 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-400">Open Positions</span>
-                  <span className="text-white">{metrics.openPositions} / 5</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div 
-                    className="bg-blue-400 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, (metrics.openPositions / 5) * 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                <Divider sx={{ my: 2 }} />
+                
+                {/* Risk Metrics */}
+                <Typography variant="h6" gutterBottom>Risk Management</Typography>
+                
+                <Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Daily Loss Limit</Typography>
+                    <Typography variant="body2">
+                      {formatCurrency(Math.abs(metrics.dailyPnL || 0))} / {formatCurrency(500)}
+                    </Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min(100, (Math.abs(metrics.dailyPnL || 0) / 500) * 100)}
+                    color="error"
+                  />
+                </Box>
+                
+                <Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Open Positions</Typography>
+                    <Typography variant="body2">{metrics.openPositions} / 5</Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min(100, (metrics.openPositions / 5) * 100)}
+                    color="primary"
+                  />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 

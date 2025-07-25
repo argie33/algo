@@ -138,6 +138,8 @@ import {
 import { formatCurrency, formatPercentage, formatNumber, validateChartData, formatChartPercentage } from '../utils/formatters';
 import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 import portfolioMathService from '../services/portfolioMathService';
+import ApiErrorAlert from '../components/ApiErrorAlert';
+import DataContainer from '../components/DataContainer';
 
 // ✅ REAL VaR CALCULATIONS - Using portfolioMathService for accurate risk metrics
 // Enhanced portfolio data with real mathematical calculations

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { extractResponseData, normalizeError, getUIState } from '../utils/dataFormatHelper';
 
 export function useSimpleFetch(urlOrOptions, options = {}) {
   const [data, setData] = useState(null);
@@ -21,7 +22,20 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      return response.json();
+      
+      const contentType = response.headers.get('content-type');
+      const text = await response.text();
+      
+      // Detect HTML response (routing issue)
+      if (text.includes('<!DOCTYPE html>') || contentType?.includes('text/html')) {
+        throw new Error('API routing misconfiguration - receiving HTML instead of JSON');
+      }
+      
+      try {
+        return JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
     };
     actualOptions = options;
   } else if (typeof urlOrOptions === 'object' && urlOrOptions !== null) {
@@ -64,8 +78,15 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
     while (attempt <= retry) {
       try {
         const result = await queryFn();
-        setData(result);
-        setError(null);
+        const normalized = extractResponseData(result);
+        
+        if (normalized.success) {
+          setData(normalized.data);
+          setError(null);
+        } else {
+          setError(normalized.error);
+          setData(null);
+        }
         break;
       } catch (err) {
         attempt++;
@@ -130,6 +151,8 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
     fetchData();
   }, [fetchData]);
 
+  const uiState = getUIState(loading, error, data);
+  
   return {
     data,
     loading,
@@ -137,7 +160,8 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
     refetch,
     isLoading: loading,
     isError: !!error,
-    isSuccess: !loading && !error && data !== null
+    isSuccess: !loading && !error && data !== null,
+    ...uiState
   };
 }
 
