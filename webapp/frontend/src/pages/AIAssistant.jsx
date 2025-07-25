@@ -53,10 +53,11 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { sendChatMessage, getChatHistory, clearChatHistory, getAIConfig, updateAIPreferences, requestDigitalHuman } from '../services/api';
-import speechService from '../services/speechService';
+import getSpeechService from '../services/speechService';
 
 const AIAssistant = () => {
   const { user } = useAuth();
+  const speechService = getSpeechService(); // Initialize speech service instance
   const [messages, setMessages] = useState([
     {
       id: 1,
