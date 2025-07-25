@@ -132,6 +132,8 @@ safeRouteLoader('./routes/unified-api-keys', 'Unified API Keys', '/api/api-keys'
 // Market Data Routes
 safeRouteLoader('./routes/market', 'Market', '/api/market');
 safeRouteLoader('./routes/trading', 'Trading', '/api/trading');
+safeRouteLoader('./routes/commodities', 'Commodities', '/api/commodities');
+safeRouteLoader('./routes/economic', 'Economic Data', '/api/economic');
 
 // Additional Routes
 safeRouteLoader('./routes/configuration', 'Configuration', '/api/config');
@@ -199,6 +201,8 @@ app.get('/', (req, res) => {
       '/api/sectors',
       '/api/api-keys',
       '/api/market',
+      '/api/commodities',
+      '/api/economic',
       '/api/dashboard',
       '/api/hft',
       '/admin/live-data'

@@ -47,4 +47,4 @@ Thumbs.db
 
 # AWS
 .aws/
-*.pem
+*.pemwebapp/lambda/test-results/
