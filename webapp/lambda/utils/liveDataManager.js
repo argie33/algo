@@ -1,5 +1,7 @@
 const { query } = require('./database');
 const { createLogger } = require('./structuredLogger');
+const intelligentCachingSystem = require('./intelligentCachingSystem');
+const EnhancedCircuitBreaker = require('./enhancedCircuitBreaker');
 
 /**
  * Live Data Manager - Centralized service for managing live data providers
@@ -30,12 +32,57 @@ class LiveDataManager {
     this.costTracker = new Map();
     this.performanceMetrics = new Map();
     
+    // Enhanced infrastructure
+    this.cache = intelligentCachingSystem;
+    this.circuitBreakers = new Map();
+    
+    // Initialize circuit breakers for each service
+    this.initializeCircuitBreakers();
+    
     // Initialize default providers
     this.initializeProviders();
   }
 
   generateCorrelationId() {
     return `live-data-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Initialize circuit breakers for all critical services
+   */
+  initializeCircuitBreakers() {
+    // Alpaca API circuit breaker
+    this.circuitBreakers.set('alpaca', new EnhancedCircuitBreaker('alpaca', {
+      failureThreshold: 5,
+      timeout: 30000,
+      adaptiveThresholds: true,
+      fallbackEnabled: true,
+      cacheFallback: true,
+      criticalService: true
+    }));
+    
+    // API Key service circuit breaker
+    this.circuitBreakers.set('api-key-service', new EnhancedCircuitBreaker('api-key-service', {
+      failureThreshold: 3,
+      timeout: 20000,
+      adaptiveThresholds: true,
+      fallbackEnabled: true,
+      userFailureThreshold: 2
+    }));
+    
+    // Database circuit breaker
+    this.circuitBreakers.set('database', new EnhancedCircuitBreaker('database', {
+      failureThreshold: 10,
+      timeout: 15000,
+      adaptiveThresholds: true,
+      cacheFallback: true,
+      criticalService: true
+    }));
+    
+    this.logger.info('Circuit breakers initialized', {
+      services: Array.from(this.circuitBreakers.keys()),
+      correlationId: this.correlationId
+    });
   }
 
   /**
