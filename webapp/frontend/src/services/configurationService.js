@@ -135,8 +135,23 @@ class ConfigurationService {
 
   /**
    * Get API base URL for configuration fetching
+   * Enhanced with intelligent URL resolution
    */
-  getApiBaseUrl() {
+  async getApiBaseUrl() {
+    try {
+      // Use the new API URL resolver for intelligent detection
+      const { default: apiUrlResolver } = await import('./apiUrlResolver');
+      return await apiUrlResolver.getApiUrl();
+    } catch (error) {
+      console.warn('API URL resolver failed, using fallback:', error.message);
+      return this.getApiBaseUrlSync();
+    }
+  }
+
+  /**
+   * Get API base URL synchronously (for backward compatibility)
+   */
+  getApiBaseUrlSync() {
     // Try multiple sources for API URL
     if (typeof window !== 'undefined' && window.__CONFIG__?.API?.BASE_URL) {
       return window.__CONFIG__.API.BASE_URL;
@@ -144,6 +159,11 @@ class ConfigurationService {
     
     if (process.env.REACT_APP_API_URL) {
       return process.env.REACT_APP_API_URL;
+    }
+
+    // Check CloudFormation config
+    if (typeof window !== 'undefined' && window.__CLOUDFORMATION_CONFIG__?.ApiGatewayUrl) {
+      return window.__CLOUDFORMATION_CONFIG__.ApiGatewayUrl;
     }
     
     // Fallback to known CloudFormation output

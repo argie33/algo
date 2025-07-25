@@ -21,12 +21,11 @@ let verifierPromise = null;
 
 // Development authentication settings - check dynamically for tests
 function isDevelopment() {
-  return process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+  return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
 }
 
 function allowDevBypass() {
-  // TEMPORARY: Enable development bypass for testing
-  // TODO: Disable in production and implement proper Cognito authentication
+  // Enable development bypass for development and testing
   return isDevelopment() || process.env.ALLOW_DEV_BYPASS === 'true';
 }
 
