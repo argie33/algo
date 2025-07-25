@@ -416,6 +416,68 @@ class UnifiedApiKeyService {
       throw error;
     }
   }
+
+  /**
+   * Get API key with account type support for paper trading
+   */
+  async getApiKeyWithAccountType(userId, provider, accountType = 'paper') {
+    try {
+      let credentials;
+      
+      // Use optimized method for Alpaca
+      if (provider === 'alpaca') {
+        credentials = await this.getAlpacaKey(userId);
+      } else {
+        credentials = await this.databaseService.getApiKey(userId, provider);
+      }
+      
+      if (!credentials) return null;
+      
+      return {
+        apiKey: credentials.keyId,
+        apiSecret: credentials.secretKey,
+        isSandbox: accountType === 'paper' || credentials.version === '1.0',
+        accountType: accountType,
+        provider: provider,
+        supportsLive: credentials.version !== '1.0', // v1.0 is paper-only
+        supportsPaper: true // Alpaca always supports paper
+      };
+    } catch (error) {
+      console.error(`Failed to get API key with account type for ${provider}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate if user has access to specific account type
+   */
+  async validateAccountTypeAccess(userId, provider, requestedAccountType) {
+    try {
+      let credentials;
+      
+      // Use optimized method for Alpaca
+      if (provider === 'alpaca') {
+        credentials = await this.getAlpacaKey(userId);
+      } else {
+        credentials = await this.databaseService.getApiKey(userId, provider);
+      }
+      
+      if (!credentials) return false;
+      
+      // Paper trading always allowed
+      if (requestedAccountType === 'paper') return true;
+      
+      // Live trading only if not restricted to paper-only
+      if (requestedAccountType === 'live') {
+        return credentials.version !== '1.0';
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`Failed to validate account type access:`, error);
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
