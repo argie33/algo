@@ -358,7 +358,7 @@ class AlpacaService {
       }
 
       return history.sort((a, b) => new Date(a.date) - new Date(b.date));
-    }, 'portfolio history fetch');
+    }, 'portfolio history fetch', 'portfolio');
   }
 
   /**

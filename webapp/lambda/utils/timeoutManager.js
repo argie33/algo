@@ -29,7 +29,10 @@ const TIMEOUT_CONFIGS = {
     orders: 12000,      // 12 seconds - order placement
     positions: 10000,   // 10 seconds - position retrieval
     history: 15000,     // 15 seconds - trade history
-    account: 10000      // 10 seconds - account info
+    account: 10000,     // 10 seconds - account info
+    portfolio: 35000,   // 35 seconds - portfolio performance analysis (1Y+ data)
+    performance: 35000, // 35 seconds - portfolio performance metrics
+    standard: 10000     // 10 seconds - standard operations
   },
 
   // Market data services

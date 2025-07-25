@@ -798,7 +798,7 @@ router.get('/performance', createValidationMiddleware({
     // Get account info and portfolio history
     const [account, portfolioHistory] = await Promise.all([
       alpaca.getAccount(),
-      alpaca.getPortfolioHistory({ period, timeframe: '1Day' })
+      alpaca.getPortfolioHistory(period, '1Day')
     ]);
 
     // Calculate performance metrics

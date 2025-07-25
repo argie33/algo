@@ -4611,6 +4611,9 @@ export const getAaiiData = initializeApi().getAaiiData;
 export const getDataLoaderStatus = initializeApi().getDataLoaderStatus;
 export const triggerDataLoader = initializeApi().triggerDataLoader;
 
+// Export initializeApi function itself
+export { initializeApi };
+
 // Circuit breaker management (duplicates removed)
 // resetCircuitBreaker and getCircuitBreakerStatus already exported at top of file
 const getCircuitBreakerStatusInternal2 = () => {
