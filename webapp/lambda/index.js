@@ -115,9 +115,9 @@ const safeRouteLoader = (routePath, routeName, mountPath) => {
 };
 
 
-// Essential Infrastructure Routes
-safeRouteLoader('./routes/health', 'Health', '/api/health');
-safeRouteLoader('./routes/health', 'Health Direct', '/health');
+// Essential Infrastructure Routes - Smart Health with Caching
+safeRouteLoader('./routes/health-v3', 'Smart Health', '/api/health');
+safeRouteLoader('./routes/health-v3', 'Smart Health Direct', '/health');
 
 // Core Data Routes - These are critical for portfolio page
 safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
