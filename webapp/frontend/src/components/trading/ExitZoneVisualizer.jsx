@@ -113,11 +113,11 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
         border: `1px solid ${'#e0e0e01A'}`
       }}
     >
-      <div  sx={{ mb: 2 }}>
-        <div  variant="h6" gutterBottom>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h6" gutterBottom>
           Exit Zone Management
-        </div>
-        <div  sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label={`Current Zone: ${currentZone.zone}`}
             sx={{ 
@@ -126,14 +126,14 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
               fontWeight: 600
             }}
           />
-          <div  variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary">
             Gain: {currentGain >= 0 ? '+' : ''}{currentGain.toFixed(2)}%
-          </div>
-        </div>
-      </div>
+          </Typography>
+        </Box>
+      </Box>
 
       {/* Visual Zone Representation */}
-      <div  sx={{ position: 'relative', mb: 3 }}>
+      <Box sx={{ position: 'relative', mb: 3 }}>
         <div  sx={{ 
           display: 'flex', 
           height: 60, 

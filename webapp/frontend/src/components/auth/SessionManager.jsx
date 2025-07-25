@@ -385,7 +385,7 @@ function SessionManager({ children }) {
             Are you still there?
           </Typography>
           <Typography variant="body1" color="text.secondary" gutterBottom>
-            You've been inactive for a while. For security, your session will end automatically.
+            You&apos;ve been inactive for a while. For security, your session will end automatically.
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 3 }}>

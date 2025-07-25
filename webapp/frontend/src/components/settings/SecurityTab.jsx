@@ -679,7 +679,7 @@ const SecurityTab = ({ settings, updateSettings }) => {
           {mfaSetupStep === 1 && (
             <Box>
               <Typography variant="body2" paragraph>
-                Choose how you'd like to receive verification codes:
+                Choose how you&apos;d like to receive verification codes:
               </Typography>
               
               <List>
