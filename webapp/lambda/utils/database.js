@@ -89,11 +89,20 @@ async function getDbConfig() {
                 secret = JSON.parse(response.SecretString);
             }
 
+            // FIXED: Prioritize RDS endpoint from secrets, fallback to ENV vars, reject localhost in AWS
+            const dbHost = secret.host || secret.endpoint || process.env.DB_ENDPOINT || process.env.DB_HOST;
+            
+            // AWS Production Security: Reject localhost connections in AWS Lambda environment
+            if (process.env.AWS_LAMBDA_FUNCTION_NAME && (dbHost === 'localhost' || dbHost === '127.0.0.1')) {
+                console.error('🚨 SECURITY ALERT: Lambda attempting localhost connection - forcing RDS endpoint');
+                throw new Error('Invalid database host: localhost not allowed in AWS Lambda environment');
+            }
+            
             dbConfig = {
-                host: secret.host || secret.endpoint,
-                port: parseInt(secret.port) || 5432,
-                database: secret.dbname || secret.database || 'stocks',
-                user: secret.username || secret.user,
+                host: dbHost,
+                port: parseInt(secret.port) || parseInt(process.env.DB_PORT) || 5432,
+                database: secret.dbname || secret.database || process.env.DB_NAME || 'stocks',
+                user: secret.username || secret.user || process.env.DB_USER,
                 password: secret.password,
                 ssl: { rejectUnauthorized: false },
                 max: parseInt(process.env.DB_POOL_MAX) || 3,
@@ -164,10 +173,10 @@ async function getDbConfig() {
             }
             
             dbConfig = {
-                host: process.env.DB_HOST || process.env.DB_ENDPOINT,
-                port: parseInt(process.env.DB_PORT) || 5432,
-                database: process.env.DB_NAME || process.env.DB_DATABASE || 'stocks',
-                user: process.env.DB_USER || process.env.DB_USERNAME,
+                host: process.env.DB_HOST || process.env.DB_ENDPOINT || secret.host || secret.endpoint,
+                port: parseInt(process.env.DB_PORT) || parseInt(secret.port) || 5432,
+                database: process.env.DB_NAME || process.env.DB_DATABASE || secret.dbname || secret.database || 'stocks',
+                user: process.env.DB_USER || process.env.DB_USERNAME || secret.username || secret.user,
                 password: secret.password,  // Password from secret
                 ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
                 max: parseInt(process.env.DB_POOL_MAX) || 3,

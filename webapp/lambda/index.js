@@ -14,9 +14,18 @@ app.use(corsWithTimeoutHandling());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Set development bypass for authentication
-process.env.ALLOW_DEV_BYPASS = 'true';
-process.env.NODE_ENV = 'development';
+// Authentication bypass only enabled if explicitly set in environment
+// For production security, ensure ALLOW_DEV_BYPASS is not set or is 'false'
+if (!process.env.ALLOW_DEV_BYPASS) {
+  process.env.ALLOW_DEV_BYPASS = 'false';
+}
+
+// Use NODE_ENV from environment, default to production for security
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'production';
+}
+
+console.log(`🔒 Security Configuration: NODE_ENV=${process.env.NODE_ENV}, ALLOW_DEV_BYPASS=${process.env.ALLOW_DEV_BYPASS}`);
 
 // Add request logging for debugging
 app.use((req, res, next) => {

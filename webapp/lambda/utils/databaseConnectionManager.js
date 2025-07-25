@@ -102,8 +102,17 @@ class DatabaseConnectionManager {
           throw new Error('Failed to parse database secret JSON: ' + parseError.message);
         }
         
+        // FIXED: Prioritize RDS endpoint, reject localhost in AWS environment  
+        const dbHost = secret.host || secret.endpoint || process.env.DB_ENDPOINT || process.env.DB_HOST;
+        
+        // AWS Production Security: Reject localhost connections in AWS Lambda environment
+        if (process.env.AWS_LAMBDA_FUNCTION_NAME && (dbHost === 'localhost' || dbHost === '127.0.0.1')) {
+          console.error('🚨 SECURITY ALERT: Lambda attempting localhost connection - forcing RDS endpoint');
+          throw new Error('Invalid database host: localhost not allowed in AWS Lambda environment');
+        }
+        
         return {
-          host: secret.host || process.env.DB_HOST,
+          host: dbHost,
           port: secret.port || parseInt(process.env.DB_PORT) || 5432,
           database: secret.dbname || secret.database || 'stocks',
           user: secret.username || secret.user,

@@ -10,9 +10,22 @@ let circuitBreakerState = {
   isOpen: false,
   failures: 0,
   lastFailureTime: null,
-  threshold: 3,
+  threshold: 10, // Increased from 3 to 10 to be less aggressive
   timeout: 30000 // 30 seconds
 };
+// Circuit breaker manual reset functions
+export const resetCircuitBreaker = () => {
+  console.log('🔄 Manually resetting circuit breaker...');
+  circuitBreakerState.isOpen = false;
+  circuitBreakerState.failures = 0;
+  circuitBreakerState.lastFailureTime = null;
+  console.log('✅ Circuit breaker reset complete');
+};
+
+export const getCircuitBreakerStatus = () => {
+  return { ...circuitBreakerState };
+};
+
 // COMPLETED: Helper methods for API configuration
 const detectEnvironment = (envInfo) => {
   // 1. For smoke tests that expect 'development', check window config first
@@ -115,25 +128,28 @@ export const getApiConfig = () => {
       console.warn('⚠️ Could not access import.meta.env:', error.message);
     }
     
-    // Priority: window config > env vars > defaults
-    // COMPLETED: Only use default if we have explicit configuration  
-    let apiUrl = windowConfig || envApiUrl;
+    // Simplified priority: window config > env vars > hardcoded fallback
+    let apiUrl = null;
+    let configSource = 'none';
     
-    // Check if the provided URL is a placeholder before using default
-    const hasExplicitConfig = windowConfig || envApiUrl;
-    const isExplicitPlaceholder = hasExplicitConfig && isPlaceholderUrl(apiUrl);
-    
-    // If no API URL found, use development environment fallback
-    if (!apiUrl || isExplicitPlaceholder) {
-      // Use development API URL as fallback
+    // Try window config first (most reliable for runtime configuration)
+    if (windowConfig && !isPlaceholderUrl(windowConfig)) {
+      apiUrl = windowConfig;
+      configSource = 'window.__CONFIG__';
+    }
+    // Then try environment variables
+    else if (envApiUrl && !isPlaceholderUrl(envApiUrl)) {
+      apiUrl = envApiUrl;
+      configSource = 'environment';
+    }
+    // Finally, use known working development API URL
+    else {
       apiUrl = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
-      console.log('[API CONFIG] Using development API URL fallback');
+      configSource = 'hardcoded-fallback';
+      console.log('🔧 [API CONFIG] Using hardcoded development API URL fallback');
     }
     
-    // For placeholder URLs, always mark as not configured
-    if (isExplicitPlaceholder) {
-      apiUrl = windowConfig || envApiUrl; // Use the placeholder value for logging
-    }
+    console.log(`🔧 [API CONFIG] Using API URL from ${configSource}: ${apiUrl}`);
     
     // COMPLETED: Enhanced validation with proper placeholder detection
     const isPlaceholder = isPlaceholderUrl(apiUrl);
@@ -409,6 +425,18 @@ const recordFailure = (error) => {
       );
     }
   }
+};
+
+// Get circuit breaker status (duplicate removed)
+// resetCircuitBreaker and getCircuitBreakerStatus are defined at top of file
+const getCircuitBreakerStatusInternal = () => {
+  return {
+    isOpen: circuitBreakerState.isOpen,
+    failures: circuitBreakerState.failures,
+    lastFailureTime: circuitBreakerState.lastFailureTime,
+    threshold: circuitBreakerState.threshold,
+    timeout: circuitBreakerState.timeout
+  };
 };
 
 
@@ -4529,16 +4557,9 @@ export const getAaiiData = initializeApi().getAaiiData;
 export const getDataLoaderStatus = initializeApi().getDataLoaderStatus;
 export const triggerDataLoader = initializeApi().triggerDataLoader;
 
-// Circuit breaker management
-export const resetCircuitBreaker = () => {
-  console.log('🔄 [API] Manually resetting circuit breaker');
-  circuitBreakerState.isOpen = false;
-  circuitBreakerState.failures = 0;
-  circuitBreakerState.lastFailureTime = null;
-  console.log('✅ [API] Circuit breaker reset successfully');
-};
-
-export const getCircuitBreakerStatus = () => {
+// Circuit breaker management (duplicates removed)
+// resetCircuitBreaker and getCircuitBreakerStatus already exported at top of file
+const getCircuitBreakerStatusInternal2 = () => {
   return {
     isOpen: circuitBreakerState.isOpen,
     failures: circuitBreakerState.failures,

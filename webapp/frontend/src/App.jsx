@@ -101,6 +101,7 @@ import HFTTrading from './pages/HFTTrading'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 import WelcomeLanding from './pages/WelcomeLanding'
 import SmartRouting from './components/SmartRouting'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const drawerWidth = 240
 
@@ -472,7 +473,8 @@ function App() {
       >
         <Toolbar />
         <Container maxWidth="xl">
-          <Routes>
+          <ErrorBoundary>
+            <Routes>
             <Route path="/" element={<SmartRouting onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/portfolio/trade-history" element={<TradeHistory />} />
@@ -531,7 +533,8 @@ function App() {
             <Route path="/crypto/portfolio" element={<CryptoPortfolio />} />
             <Route path="/crypto/realtime" element={<CryptoRealTimeTracker />} />
             <Route path="/crypto/analytics" element={<CryptoAdvancedAnalytics />} />
-          </Routes>
+            </Routes>
+          </ErrorBoundary>
         </Container>
       </Box>
       
