@@ -2,14 +2,15 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../utils/database');
 const bedrockAIService = require('../utils/bedrockAIService');
+const conversationStore = require('../utils/conversationStore');
 
 const router = express.Router();
 
 // Apply authentication middleware to all AI assistant routes
 router.use(authenticateToken);
 
-// Store conversation history in memory (in production, use Redis or database)
-const conversationHistory = new Map();
+// Initialize conversation storage
+conversationStore.initializeTables().catch(console.error);
 
 // AI Assistant Configuration
 const AI_CONFIG = {
@@ -27,27 +28,25 @@ const AI_CONFIG = {
 };
 
 // Helper function to get user conversation history
-const getUserHistory = (userId) => {
-  if (!conversationHistory.has(userId)) {
-    conversationHistory.set(userId, []);
+const getUserHistory = async (userId, conversationId = 'default') => {
+  try {
+    return await conversationStore.getHistory(userId, conversationId, AI_CONFIG.maxHistoryLength);
+  } catch (error) {
+    console.error('Error getting conversation history:', error);
+    return [];
   }
-  return conversationHistory.get(userId);
 };
 
 // Helper function to add message to history
-const addToHistory = (userId, message) => {
-  const history = getUserHistory(userId);
-  history.push({
-    ...message,
-    timestamp: new Date()
-  });
-  
-  // Keep only last N messages
-  if (history.length > AI_CONFIG.maxHistoryLength) {
-    history.splice(0, history.length - AI_CONFIG.maxHistoryLength);
+const addToHistory = async (userId, message, conversationId = 'default') => {
+  try {
+    await conversationStore.addMessage(userId, conversationId, {
+      ...message,
+      timestamp: message.timestamp || new Date()
+    });
+  } catch (error) {
+    console.error('Error adding message to history:', error);
   }
-  
-  conversationHistory.set(userId, history);
 };
 
 // Helper function to analyze user's portfolio context
@@ -96,7 +95,7 @@ const generateAIResponse = async (userMessage, userId, context = {}) => {
     }
 
     // Get recent conversation history for context
-    const recentMessages = getUserHistory(userId).slice(-5);
+    const recentMessages = (await getUserHistory(userId)).slice(-5);
     
     // Build enhanced context for AI
     const enhancedContext = {
@@ -186,6 +185,8 @@ router.post('/chat', async (req, res) => {
   }
 
   try {
+    const conversationId = req.body.conversationId || 'default';
+    
     // Add user message to history
     const userMessage = {
       id: Date.now(),
@@ -193,7 +194,7 @@ router.post('/chat', async (req, res) => {
       content: message.trim(),
       context: context
     };
-    addToHistory(userId, userMessage);
+    await addToHistory(userId, userMessage, conversationId);
 
     // Generate AI response
     const aiResponse = await generateAIResponse(message, userId, context);
@@ -206,7 +207,7 @@ router.post('/chat', async (req, res) => {
       suggestions: aiResponse.suggestions,
       context: aiResponse.context
     };
-    addToHistory(userId, assistantMessage);
+    await addToHistory(userId, assistantMessage, conversationId);
 
     res.json({
       success: true,
@@ -225,16 +226,18 @@ router.post('/chat', async (req, res) => {
 // Get conversation history
 router.get('/history', async (req, res) => {
   const userId = req.user.sub;
-  const { limit = 20 } = req.query;
+  const { limit = 20, conversationId = 'default' } = req.query;
 
   try {
-    const history = getUserHistory(userId);
+    const history = await getUserHistory(userId, conversationId);
     const recentHistory = history.slice(-parseInt(limit));
 
     res.json({
       success: true,
       history: recentHistory,
-      total: history.length
+      total: history.length,
+      conversationId: conversationId,
+      storageStats: conversationStore.getStorageStats()
     });
   } catch (error) {
     console.error('Error fetching conversation history:', error);
@@ -245,16 +248,41 @@ router.get('/history', async (req, res) => {
   }
 });
 
-// Clear conversation history
-router.delete('/history', async (req, res) => {
+// Get list of conversations for user
+router.get('/conversations', async (req, res) => {
   const userId = req.user.sub;
+  const { limit = 20 } = req.query;
 
   try {
-    conversationHistory.delete(userId);
+    const conversations = await conversationStore.getConversations(userId, parseInt(limit));
     
     res.json({
       success: true,
-      message: 'Conversation history cleared'
+      conversations: conversations,
+      total: conversations.length,
+      storageMode: conversationStore.getStorageStats().storageMode
+    });
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch conversations'
+    });
+  }
+});
+
+// Clear conversation history
+router.delete('/history', async (req, res) => {
+  const userId = req.user.sub;
+  const { conversationId = 'default' } = req.body;
+
+  try {
+    await conversationStore.clearHistory(userId, conversationId);
+    
+    res.json({
+      success: true,
+      message: 'Conversation history cleared',
+      conversationId: conversationId
     });
   } catch (error) {
     console.error('Error clearing conversation history:', error);

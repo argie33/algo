@@ -807,13 +807,14 @@ export const sendChatMessage = async (message, context = {}) => {
   });
 };
 
-export const getChatHistory = async (limit = 20) => {
+export const getChatHistory = async (limit = 20, conversationId = 'default') => {
   return apiWrapper.execute('getChatHistory', async () => {
-    const response = await initializeApi().get(`/api/ai/history?limit=${limit}`);
+    const response = await initializeApi().get(`/api/ai/history?limit=${limit}&conversationId=${conversationId}`);
     return response.data;
   }, {
     context: {
       limit,
+      conversationId,
       operation: 'getChatHistory'
     },
     successMessage: `Chat history loaded (${limit} messages)`,
@@ -821,23 +822,17 @@ export const getChatHistory = async (limit = 20) => {
   });
 };
 
-export const sendChatMessage = async (message, context = {}) => {
-  return apiWrapper.execute('sendChatMessage', async () => {
-    if (!message || message.trim().length === 0) {
-      throw new Error('Message cannot be empty');
-    }
-    
-    const response = await initializeApi().post('/api/ai/chat', { message, context });
+export const getConversations = async (limit = 20) => {
+  return apiWrapper.execute('getConversations', async () => {
+    const response = await initializeApi().get(`/api/ai/conversations?limit=${limit}`);
     return response.data;
   }, {
     context: {
-      messageLength: message?.length || 0,
-      hasContext: Object.keys(context || {}).length > 0,
-      operation: 'sendChatMessage'
+      limit,
+      operation: 'getConversations'
     },
-    successMessage: 'Message sent successfully',
-    errorMessage: 'Failed to send message',
-    timeout: 30000 // 30 second timeout for AI responses
+    successMessage: `Conversations loaded (${limit} conversations)`,
+    errorMessage: 'Failed to load conversations'
   });
 };
 
