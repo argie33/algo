@@ -166,10 +166,24 @@ router.get('/popular', async (req, res) => {
         { symbol: 'V', company_name: 'Visa Inc.', sector: 'Financial Services', exchange: 'NYSE', market_cap: 520000000000, price: 275.45, volume: 7000000, pe_ratio: 32.1, dividend_yield: 0.78 }
       ].slice(0, limit);
       
+      // Format fallback data consistently
+      const formattedFallbackStocks = fallbackStocks.map(stock => ({
+        symbol: stock.symbol,
+        companyName: stock.company_name,
+        name: stock.company_name,
+        sector: stock.sector || 'Unknown',
+        exchange: stock.exchange,
+        marketCap: stock.market_cap || 0,
+        price: stock.price || 0,
+        volume: stock.volume || 0,
+        peRatio: stock.pe_ratio || null,
+        dividendYield: stock.dividend_yield || 0
+      }));
+      
       return res.json({
         success: true,
-        data: fallbackStocks,
-        count: fallbackStocks.length,
+        data: formattedFallbackStocks,
+        count: formattedFallbackStocks.length,
         source: 'fallback_data',
         message: 'Using fallback popular stocks data - database connection issue',
         timestamp: new Date().toISOString()
