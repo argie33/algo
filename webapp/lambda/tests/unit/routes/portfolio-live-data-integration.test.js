@@ -6,11 +6,11 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 
 // Mock dependencies
-jest.mock('../../../utils/simpleApiKeyService');
+jest.mock('../../../utils/apiKeyService');
 jest.mock('../../../utils/alpacaService');
 jest.mock('../../../middleware/auth');
 
-const mockApiKeyService = require('../../../utils/simpleApiKeyService');
+const mockApiKeyService = require('../../../utils/apiKeyService');
 const MockAlpacaService = require('../../../utils/alpacaService');
 const { authenticateToken } = require('../../../middleware/auth');
 

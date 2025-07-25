@@ -90,7 +90,7 @@ export const ApiKeyProvider = ({ children }) => {
       console.log('🔑 Loading API keys from backend...');
       
       // Try to get API keys from backend first
-      const response = await api.get('/api/settings/api/api-keys');
+      const response = await api.get('/api/settings/api-keys');
       
       if (response.data?.success && Array.isArray(response.data.data)) {
         // Convert array response to object format

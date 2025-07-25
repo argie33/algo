@@ -159,15 +159,54 @@ router.get('/api-keys', async (req, res) => {
 
     console.log('API keys check for user:', userId);
     
-    // Simple response indicating API keys are available
+    // Check for actual API keys using the API key service
+    const providers = ['alpaca', 'polygon', 'finnhub', 'iex'];
+    const configuredProviders = {};
+    const apiKeysArray = [];
+    
+    for (const provider of providers) {
+      try {
+        const credentials = await apiKeyService.getApiKey(userId, provider);
+        if (credentials) {
+          configuredProviders[provider] = {
+            configured: true,
+            environment: credentials.version === '1.0' ? 'paper' : 'live',
+            created: credentials.created,
+            keyId: credentials.keyId
+          };
+          
+          // Add to array format for compatibility
+          apiKeysArray.push({
+            id: `${provider}-${userId}`,
+            provider: provider,
+            description: `${provider} API Key`,
+            is_sandbox: credentials.version === '1.0',
+            is_active: true,
+            created_at: credentials.created,
+            masked_api_key: credentials.keyId,
+            validation_status: 'valid'
+          });
+        } else {
+          configuredProviders[provider] = {
+            configured: false,
+            environment: 'paper'
+          };
+        }
+      } catch (error) {
+        console.warn(`Failed to check ${provider} API key:`, error.message);
+        configuredProviders[provider] = {
+          configured: false,
+          environment: 'paper',
+          error: error.message
+        };
+      }
+    }
+    
     res.json({
       success: true,
-      providers: {
-        alpaca: {
-          configured: false,
-          environment: 'paper'
-        }
-      }
+      providers: configuredProviders,
+      data: apiKeysArray,  // Add array format for SettingsApiKeys compatibility
+      apiKeys: apiKeysArray  // Add secondary key for compatibility
     });
     
   } catch (error) {

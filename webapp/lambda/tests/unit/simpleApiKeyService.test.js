@@ -3,7 +3,7 @@
  * Tests the core AWS Parameter Store API key functionality
  */
 
-const simpleApiKeyService = require('../../utils/simpleApiKeyService');
+const simpleApiKeyService = require('../../utils/apiKeyService');
 
 // Mock AWS SDK
 jest.mock('@aws-sdk/client-ssm', () => {

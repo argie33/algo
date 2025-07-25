@@ -8,10 +8,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 
 // Mock dependencies
-jest.mock('../../../utils/simpleApiKeyService');
+jest.mock('../../../utils/apiKeyService');
 jest.mock('../../../middleware/auth');
 
-const mockApiKeyService = require('../../../utils/simpleApiKeyService');
+const mockApiKeyService = require('../../../utils/apiKeyService');
 const { authenticateToken } = require('../../../middleware/auth');
 
 // Create test app
