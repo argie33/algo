@@ -37,7 +37,7 @@ if (typeof window !== 'undefined') {
 }
 
 // COMPLETED: Helper methods for API configuration
-const detectEnvironment = (envInfo) => {
+export const detectEnvironment = (envInfo) => {
   // 1. For smoke tests that expect 'development', check window config first
   if (typeof window !== 'undefined' && window.__CONFIG__?.API_URL?.includes('localhost')) {
     return 'development';
@@ -81,7 +81,7 @@ const detectEnvironment = (envInfo) => {
   return 'production';
 };
 
-const isPlaceholderUrl = (url) => {
+export const isPlaceholderUrl = (url) => {
   if (!url || typeof url !== 'string') return true;
   
   const placeholderPatterns = [

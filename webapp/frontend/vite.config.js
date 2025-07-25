@@ -7,8 +7,8 @@ export default defineConfig(({ mode }) => {
   const isDevelopment = mode === 'development'
   const isProduction = mode === 'production'
   
-  // API URL configuration
-  const apiUrl = process.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev')
+  // API URL configuration - use AWS API Gateway for all environments
+  const apiUrl = process.env.VITE_API_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
   
   console.log('Vite Config:', {
     mode,

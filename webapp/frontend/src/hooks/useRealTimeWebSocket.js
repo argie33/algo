@@ -43,9 +43,10 @@ const useRealTimeWebSocket = () => {
       return import.meta.env.VITE_WS_URL;
     }
     
-    // Localhost fallback for development
+    // AWS WebSocket fallback - use deployed WebSocket API Gateway
     if (window.location.hostname === 'localhost') {
-      return 'ws://localhost:3001';
+      // Use AWS WebSocket API Gateway for development consistency
+      return 'wss://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'.replace('https://', 'wss://');
     }
     
     throw new Error('WebSocket URL not configured - set VITE_WS_URL or configure API.BASE_URL');

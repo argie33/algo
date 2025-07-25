@@ -71,8 +71,7 @@ class ApiUrlResolver {
 
     // 4. Known working URLs (prioritize working Lambda URL)
     candidates.push(
-      'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
-      'http://localhost:3001/api'
+      'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
     );
 
     // Remove duplicates and invalid URLs
@@ -159,10 +158,15 @@ class ApiUrlResolver {
     // Remove trailing slash
     const cleanUrl = baseUrl.replace(/\/$/, '');
     
-    // Try different health endpoint patterns (fixed double /api issue)
-    const healthPaths = ['/api/health/quick', '/health/quick', '/api/health', '/health'];
+    // Check if baseUrl already contains /api path to prevent double /api
+    const hasApiPath = cleanUrl.includes('/api');
     
-    // Use the first health path (most common)
+    // Try different health endpoint patterns based on base URL structure
+    const healthPaths = hasApiPath 
+      ? ['/health/quick', '/health'] // Use paths without /api prefix
+      : ['/api/health/quick', '/health/quick', '/api/health', '/health']; // Use full paths
+    
+    // Use the first health path (most appropriate)
     return `${cleanUrl}${healthPaths[0]}`;
   }
 
