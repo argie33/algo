@@ -3,39 +3,40 @@
  * Tests advanced API endpoints for HFT system management
  */
 
-const { describe, it, expect, vi, beforeEach, afterEach } = require('vitest');
+const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
+const { jest } = require('@jest/globals');
 const request = require('supertest');
 const express = require('express');
 const hftTradingRoutes = require('../../../routes/hftTrading');
 
 // Mock dependencies
 const mockHftService = {
-  getMetrics: vi.fn(),
-  getStrategies: vi.fn(),
-  start: vi.fn(),
-  stop: vi.fn(),
-  updateStrategy: vi.fn(),
+  getMetrics: jest.fn(),
+  getStrategies: jest.fn(),
+  start: jest.fn(),
+  stop: jest.fn(),
+  updateStrategy: jest.fn(),
   positions: new Map(),
   orders: new Map()
 };
 
-vi.mock('../../../services/hftService', () => {
-  return vi.fn(() => mockHftService);
+jest.mock('../../../services/hftService', () => {
+  return jest.fn(() => mockHftService);
 });
 
-vi.mock('../../../middleware/auth', () => ({
+jest.mock('../../../middleware/auth', () => ({
   authenticateToken: (req, res, next) => {
     req.user = { userId: 'test-user-123' };
     next();
   }
 }));
 
-vi.mock('../../../utils/structuredLogger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn()
+jest.mock('../../../utils/structuredLogger', () => ({
+  createLogger: jest.fn(() => ({
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
   }))
 }));
 
@@ -43,7 +44,7 @@ describe('HFT Trading API Routes - Phase 4', () => {
   let app;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     
     app = express();
     app.use(express.json());

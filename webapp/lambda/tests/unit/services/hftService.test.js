@@ -3,27 +3,28 @@
  * Tests advanced risk management and real-time data integration
  */
 
-const { describe, it, expect, vi, beforeEach, afterEach } = require('vitest');
+const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
+const { jest } = require('@jest/globals');
 const HFTService = require('../../../services/hftService');
 const AdvancedRiskManager = require('../../../services/advancedRiskManager');
 const RealTimeDataIntegrator = require('../../../services/realTimeDataIntegrator');
 
 // Mock dependencies
-vi.mock('../../../utils/database', () => ({
-  query: vi.fn(() => Promise.resolve([{ success: true }]))
+jest.mock('../../../utils/database', () => ({
+  query: jest.fn(() => Promise.resolve([{ success: true }]))
 }));
 
-vi.mock('../../../utils/structuredLogger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn()
+jest.mock('../../../utils/structuredLogger', () => ({
+  createLogger: jest.fn(() => ({
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
   }))
 }));
 
-vi.mock('../../../services/advancedRiskManager');
-vi.mock('../../../services/realTimeDataIntegrator');
+jest.mock('../../../services/advancedRiskManager');
+jest.mock('../../../services/realTimeDataIntegrator');
 
 describe('HFTService - Phase 4 Integration', () => {
   let hftService;
@@ -31,32 +32,32 @@ describe('HFTService - Phase 4 Integration', () => {
   let mockDataIntegrator;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     
     // Setup mock instances
     mockRiskManager = {
-      updatePortfolioState: vi.fn(),
-      assessTradeRisk: vi.fn(() => ({ approved: true, riskScore: 0.3 })),
-      getMetrics: vi.fn(() => ({
+      updatePortfolioState: jest.fn(),
+      assessTradeRisk: jest.fn(() => ({ approved: true, riskScore: 0.3 })),
+      getMetrics: jest.fn(() => ({
         portfolioExposure: 5000,
         dailyLoss: 150,
         riskUtilization: { exposure: 0.5, dailyLoss: 0.3 }
       })),
-      initialize: vi.fn(() => Promise.resolve()),
-      stop: vi.fn(() => Promise.resolve())
+      initialize: jest.fn(() => Promise.resolve()),
+      stop: jest.fn(() => Promise.resolve())
     };
 
     mockDataIntegrator = {
-      initialize: vi.fn(() => Promise.resolve()),
-      on: vi.fn(),
-      off: vi.fn(),
-      processMarketData: vi.fn(),
-      getMetrics: vi.fn(() => ({
+      initialize: jest.fn(() => Promise.resolve()),
+      on: jest.fn(),
+      off: jest.fn(),
+      processMarketData: jest.fn(),
+      getMetrics: jest.fn(() => ({
         connectionStatus: 'active',
         signalsGenerated: 25,
         dataQuality: 'excellent'
       })),
-      stop: vi.fn(() => Promise.resolve())
+      stop: jest.fn(() => Promise.resolve())
     };
 
     // Mock constructors

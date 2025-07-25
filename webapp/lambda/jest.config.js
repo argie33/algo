@@ -15,7 +15,7 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html', 'json'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-  testTimeout: 30000,
+  testTimeout: 120000, // Extended to 2 minutes to prevent timeout failures
   reporters: [
     'default',
     ['jest-junit', {

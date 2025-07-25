@@ -198,9 +198,21 @@ async function getDbConfig() {
         // Fallback to Secrets Manager if environment variables not available
         const secretArn = process.env.DB_SECRET_ARN;
         if (!secretArn || secretArn.includes('${') || secretArn === '${DB_SECRET_ARN}') {
-            // Handle common deployment issues with placeholder values
+            // Enhanced error reporting with diagnostic information
+            const DatabaseConfigValidator = require('./databaseConfigValidator');
+            const validator = new DatabaseConfigValidator();
+            const validation = validator.validateConfig();
+            
             const errorMsg = `Database configuration incomplete. DB_SECRET_ARN is invalid or placeholder: "${secretArn}". Available: DB_HOST="${process.env.DB_HOST || 'undefined'}", DB_USER="${process.env.DB_USER || 'undefined'}", DB_PASSWORD="${process.env.DB_PASSWORD ? '[SET]' : 'undefined'}". Need either complete env vars or valid DB_SECRET_ARN.`;
             console.error('❌ Database configuration error:', errorMsg);
+            
+            // Log validation results and suggestions
+            if (validation.errors.length > 0) {
+                console.error('🔍 Configuration errors:', validation.errors);
+            }
+            if (validation.suggestions.length > 0) {
+                console.log('💡 Configuration suggestions:', validation.suggestions);
+            }
             
             // Return a stub configuration that allows health route to load but reports unhealthy status
             dbConfig = {
@@ -214,10 +226,12 @@ async function getDbConfig() {
                 idleTimeoutMillis: 1000,
                 connectionTimeoutMillis: 1000,
                 __isStub: true,
-                __error: errorMsg
+                __error: errorMsg,
+                __validation: validation
             };
             
             console.log('⚠️ Using stub database configuration - health checks will report service unavailable');
+            console.log('📋 See validation suggestions above for configuration fixes');
             return dbConfig;
         }
 

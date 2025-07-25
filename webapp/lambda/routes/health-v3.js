@@ -7,19 +7,23 @@ const express = require('express');
 const SmartHealthMonitor = require('../services/smartHealthMonitor');
 
 // Safe database imports with error handling
-let query, databaseCircuitBreaker;
+let query, databaseCircuitBreaker, DatabaseConfigValidator;
 
 try {
   const dbUtils = require('../utils/database');
   ({ query } = dbUtils);
   const DatabaseCircuitBreaker = require('../utils/databaseCircuitBreaker');
   databaseCircuitBreaker = new DatabaseCircuitBreaker();
+  DatabaseConfigValidator = require('../utils/databaseConfigValidator');
 } catch (error) {
   console.error('⚠️ Database dependencies not available:', error.message);
   query = () => Promise.reject(new Error('Database unavailable'));
   databaseCircuitBreaker = {
     execute: (fn) => Promise.reject(new Error('Circuit breaker unavailable')),
     getStatus: () => ({ state: 'OPEN', error: 'Circuit breaker unavailable' })
+  };
+  DatabaseConfigValidator = class {
+    validateConfig() { return { isValid: false, errors: ['Database dependencies unavailable'] }; }
   };
 }
 
@@ -382,6 +386,64 @@ router.get('/quick', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.ENVIRONMENT || 'dev'
   });
+});
+
+/**
+ * GET /health/diagnostic
+ * Comprehensive diagnostic information for troubleshooting
+ */
+router.get('/diagnostic', async (req, res) => {
+  try {
+    const validator = new DatabaseConfigValidator();
+    const configValidation = validator.validateConfig();
+    const connectionTest = await validator.testConnection();
+    
+    const diagnostic = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      service: 'Financial Dashboard API - Diagnostic',
+      version: '3.0',
+      environment: {
+        NODE_ENV: process.env.NODE_ENV || 'unknown',
+        ENVIRONMENT: process.env.ENVIRONMENT || 'dev',
+        AWS_REGION: process.env.AWS_REGION || 'not_set',
+        IS_LAMBDA: !!process.env.AWS_LAMBDA_FUNCTION_NAME
+      },
+      database: {
+        configuration: configValidation,
+        connectionTest: connectionTest,
+        recommendations: validator.getConfigurationRecommendations(),
+        deploymentChecklist: validator.getDeploymentChecklist()
+      },
+      healthMonitor: {
+        initialized: healthMonitor ? true : false,
+        status: healthMonitor ? 'available' : 'unavailable'
+      },
+      circuitBreaker: databaseCircuitBreaker.getStatus(),
+      system: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        pid: process.pid
+      }
+    };
+    
+    res.json(diagnostic);
+    
+  } catch (error) {
+    console.error('Diagnostic endpoint failed:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Diagnostic check failed',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      basicInfo: {
+        service: 'Financial Dashboard API',
+        environment: process.env.ENVIRONMENT || 'dev',
+        uptime: process.uptime()
+      }
+    });
+  }
 });
 
 /**

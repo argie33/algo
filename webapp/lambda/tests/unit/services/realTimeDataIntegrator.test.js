@@ -3,7 +3,8 @@
  * Tests WebSocket connections, signal processing, and market data integration
  */
 
-const { describe, it, expect, vi, beforeEach, afterEach } = require('vitest');
+const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
+const { jest } = require('@jest/globals');
 const RealTimeDataIntegrator = require('../../../services/realTimeDataIntegrator');
 const EventEmitter = require('events');
 
@@ -30,16 +31,16 @@ class MockWebSocket extends EventEmitter {
 }
 
 // Mock dependencies
-vi.mock('ws', () => ({
+jest.mock('ws', () => ({
   default: MockWebSocket
 }));
 
-vi.mock('../../../utils/structuredLogger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn()
+jest.mock('../../../utils/structuredLogger', () => ({
+  createLogger: jest.fn(() => ({
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
   }))
 }));
 
@@ -48,8 +49,8 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
   let mockWebSocket;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
+    jest.clearAllMocks();
+    jest.useFakeTimers();
     
     dataIntegrator = new RealTimeDataIntegrator();
     
@@ -58,7 +59,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    jest.useRealTimers();
     if (dataIntegrator) {
       dataIntegrator.stop();
     }
@@ -139,7 +140,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       
       let connectionAttempts = 0;
       const originalConnect = dataIntegrator.connectToProvider;
-      dataIntegrator.connectToProvider = vi.fn().mockImplementation(() => {
+      dataIntegrator.connectToProvider = jest.fn().mockImplementation(() => {
         connectionAttempts++;
         if (connectionAttempts < 3) {
           throw new Error('Connection failed');
@@ -461,7 +462,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       connection.ws.emit('close');
 
       // Should attempt reconnection
-      vi.advanceTimersByTime(6000); // Advance past reconnect delay
+      jest.advanceTimersByTime(6000); // Advance past reconnect delay
 
       expect(dataIntegrator.metrics.errors.connectionDrops).toBe(1);
     });
@@ -470,12 +471,12 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       const connection = Array.from(dataIntegrator.connections.values())[0];
       
       // Mock failed reconnections
-      dataIntegrator.connectToProvider = vi.fn().mockRejectedValue(new Error('Failed'));
+      dataIntegrator.connectToProvider = jest.fn().mockRejectedValue(new Error('Failed'));
 
       // Simulate multiple connection drops
       for (let i = 0; i < 10; i++) {
         connection.ws.emit('close');
-        vi.advanceTimersByTime(6000);
+        jest.advanceTimersByTime(6000);
       }
 
       // Should stop trying after max attempts
@@ -485,7 +486,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
     it('handles data processing errors gracefully', () => {
       // Mock error in signal generation
       const originalMethod = dataIntegrator.generateTradingSignal;
-      dataIntegrator.generateTradingSignal = vi.fn().mockImplementation(() => {
+      dataIntegrator.generateTradingSignal = jest.fn().mockImplementation(() => {
         throw new Error('Signal generation failed');
       });
 
@@ -517,7 +518,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       const connection = Array.from(dataIntegrator.connections.values())[0];
       
       // Advance time to trigger heartbeat
-      vi.advanceTimersByTime(31000); // Past heartbeat interval
+      jest.advanceTimersByTime(31000); // Past heartbeat interval
 
       expect(connection.ws.lastSentData).toContain('ping');
     });
@@ -528,7 +529,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       // Simulate no messages for extended period
       connection.lastActivity = Date.now() - 120000; // 2 minutes ago
       
-      vi.advanceTimersByTime(31000);
+      jest.advanceTimersByTime(31000);
 
       expect(dataIntegrator.metrics.warnings.staleConnections).toBe(1);
     });
@@ -586,8 +587,8 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       const credentials = { apiKey: 'test-key' };
       await dataIntegrator.initialize(credentials);
 
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+      const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
 
       await dataIntegrator.stop();
 
@@ -600,7 +601,7 @@ describe('RealTimeDataIntegrator - Phase 4', () => {
       await dataIntegrator.initialize(credentials);
 
       const connection = Array.from(dataIntegrator.connections.values())[0];
-      connection.ws.close = vi.fn().mockImplementation(() => {
+      connection.ws.close = jest.fn().mockImplementation(() => {
         throw new Error('Close failed');
       });
 

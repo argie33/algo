@@ -450,10 +450,17 @@ const recordFailure = (error) => {
     // Only trigger health check occasionally to prevent infinite loops
     if (circuitBreakerState.failures % 25 === 0) {
       try {
-        import('./apiHealthService.js').then(({ apiHealthService }) => {
-          apiHealthService.forceHealthCheck().catch(err => 
-            console.warn('Failed to trigger health check after API failure:', err)
-          );
+        import('./apiHealthService.js').then((module) => {
+          const apiHealthService = module.default || module.apiHealthService;
+          if (apiHealthService && typeof apiHealthService.forceHealthCheck === 'function') {
+            apiHealthService.forceHealthCheck().catch(err => 
+              console.warn('Failed to trigger health check after API failure:', err)
+            );
+          } else {
+            console.warn('Health service forceHealthCheck method not available');
+          }
+        }).catch(err => {
+          console.warn('Failed to import health service:', err);
         });
       } catch (err) {
         console.warn('Health service not available:', err);

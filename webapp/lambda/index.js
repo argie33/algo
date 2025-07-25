@@ -124,6 +124,7 @@ safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
 safeRouteLoader('./routes/dashboard', 'Dashboard', '/api/dashboard');
 safeRouteLoader('./routes/stocks', 'Stocks', '/api/stocks');
 safeRouteLoader('./routes/financials', 'Financials', '/api/financials');
+safeRouteLoader('./routes/technical', 'Technical Analysis', '/api/technical');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
 safeRouteLoader('./routes/sectors', 'Sectors', '/api/sectors');
 
@@ -183,6 +184,8 @@ app.get('/', (req, res) => {
       '/api/health',
       '/api/portfolio',
       '/api/stocks', 
+      '/api/financials',
+      '/api/technical',
       '/api/metrics',
       '/api/sectors',
       '/api/api-keys',
@@ -214,6 +217,8 @@ app.get('/api', (req, res) => {
       '/api/health',
       '/api/portfolio',
       '/api/stocks',
+      '/api/financials',
+      '/api/technical',
       '/api/metrics',
       '/api/sectors',
       '/api/api-keys',
@@ -231,6 +236,8 @@ app.get('/api', (req, res) => {
       health: 'GET /api/health - System health check',
       portfolio: 'GET /api/portfolio/* - Portfolio management',
       stocks: 'GET /api/stocks/* - Stock data and information',
+      financials: 'GET /api/financials/* - Financial statements and data',
+      technical: 'GET /api/technical/* - Technical analysis and indicators',
       metrics: 'GET /api/metrics/* - Market metrics and analytics',
       sectors: 'GET /api/sectors/* - Sector analysis and data',
       apiKeys: 'GET /api/api-keys/* - API key management',
