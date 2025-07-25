@@ -173,9 +173,9 @@ class DataCacheService {
       console.log('[Cache] Preloading common data during off-hours');
       
       const commonEndpoints = [
-        { endpoint: '/api/market/overview', cacheType: 'marketData' },
-        { endpoint: '/api/stocks?limit=10', cacheType: 'stockData' },
-        { endpoint: '/api/metrics', cacheType: 'metricsData' }
+        { endpoint: '/api/health/quick', cacheType: 'healthData' },
+        { endpoint: '/api/stocks/popular', cacheType: 'stockData' },
+        { endpoint: '/api/portfolio', cacheType: 'portfolioData' }
       ];
       
       // Stagger requests to avoid spike
@@ -203,16 +203,9 @@ class DataCacheService {
                 
                 let response = await fetch(fullUrl, { headers, timeout: 15000 });
                 
-                // If main endpoint times out or returns 504, try emergency endpoint
+                // If main endpoint fails, log and continue with original response for proper error handling
                 if (!response.ok && (response.status === 504 || response.status === 503)) {
-                  console.log(`[DataCache] Main endpoint failed (${response.status}), trying emergency endpoint`);
-                  
-                  // Convert to emergency endpoint
-                  const emergencyEndpoint = endpoint.endpoint.replace('/api/stocks', '/api/health/stocks');
-                  const emergencyUrl = getApiUrl(emergencyEndpoint);
-                  
-                  console.log(`[DataCache] Fetching emergency endpoint: ${emergencyUrl}`);
-                  response = await fetch(emergencyUrl, { headers, timeout: 10000 });
+                  console.log(`[DataCache] Main endpoint failed (${response.status}), endpoint: ${endpoint.endpoint}`);
                 }
                 
                 if (!response.ok && !response.headers.get('content-type')?.includes('json')) {
