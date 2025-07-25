@@ -127,7 +127,8 @@ function ServiceHealth() {
       tests: [
         { name: 'Health Check', fn: () => api.get('/health'), critical: true },
         { name: 'Health Ready', fn: () => api.get('/health/quick'), critical: true },
-        { name: 'Health Database', fn: () => api.get('/health/database'), critical: false },
+        { name: 'Health Database Quick', fn: () => api.get('/health/database/quick'), critical: true },
+        { name: 'Health Database Full', fn: () => api.get('/health/database'), critical: false },
         { name: 'Health Environment', fn: () => api.get('/health/environment'), critical: false },
         { name: 'Health Circuit Breakers', fn: () => api.get('/health/circuit-breakers'), critical: false },
         { name: 'Health Comprehensive', fn: () => api.get('/health/comprehensive'), critical: false },
@@ -316,7 +317,7 @@ function ServiceHealth() {
       // Force refresh of health cache and trigger background scan
       const response = await api.get('/health/database', {
         params: { level: 'critical' },
-        timeout: 8000 // Use existing database health endpoint
+        timeout: 15000 // Increased from 8000ms to 15000ms (15 seconds) to match main health check
       });
       
       // Refetch health data with progressive loading
@@ -371,13 +372,29 @@ function ServiceHealth() {
     setHealthTier(0);
     
     try {
-      // Progressive loading: Start with connection health
+      // Progressive loading: Start with quick connection health
       setLoadingStatus('Checking database connection...');
       setHealthTier(1);
       
-      const connectionResponse = await api.get('/health/database', {
-        timeout: 5000
-      });
+      // Try quick database test first (3 seconds max)
+      let connectionResponse;
+      try {
+        connectionResponse = await api.get('/health/database/quick', {
+          timeout: 5000
+        });
+        
+        // If quick test fails, fall back to full database check
+        if (!connectionResponse.data.success || !connectionResponse.data.database?.connected) {
+          throw new Error('Quick test failed, trying full check');
+        }
+      } catch (quickError) {
+        console.log('Quick database test failed, trying full check:', quickError.message);
+        setLoadingStatus('Quick test failed, running full database check...');
+        
+        connectionResponse = await api.get('/health/database', {
+          timeout: 15000 // Increased from 5000ms to 15000ms (15 seconds)
+        });
+      }
       
       if (!connectionResponse.data.success || connectionResponse.data.database?.connection?.status !== 'connected') {
         throw new Error('Database connection failed');
@@ -415,7 +432,7 @@ function ServiceHealth() {
       setHealthTier(3);
       
       // Non-blocking full health check
-      api.get('/health/comprehensive', { timeout: 10000 })
+      api.get('/health/comprehensive', { timeout: 20000 }) // Increased from 10000ms to 20000ms (20 seconds)
         .then(fullResponse => {
           if (fullResponse.data && fullResponse.data.database?.tables) {
             // Full scan completed, update with complete data
@@ -447,7 +464,7 @@ function ServiceHealth() {
       
       let timeoutCause = 'Unknown';
       if (error.code === 'ECONNABORTED') {
-        timeoutCause = duration < 5000 ? 'Connection timeout' : 'Query timeout';
+        timeoutCause = duration < 10000 ? 'Connection timeout (may need longer than 15s)' : 'Database query timeout (complex queries need more time)';
       } else if (!error.response) {
         timeoutCause = 'Network error - cannot reach server';
       } else if (error.response?.status >= 500) {

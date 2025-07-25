@@ -95,7 +95,9 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
         const shouldNotRetry = err.message?.includes('Circuit breaker is open') ||
                               err.message?.includes('HTTP 404') ||
                               err.message?.includes('Not Found') ||
-                              err.message?.includes('API routing misconfiguration');
+                              err.message?.includes('API routing misconfiguration') ||
+                              err.message?.includes('ERR_INSUFFICIENT_RESOURCES') ||
+                              err.message?.includes('net::ERR_INSUFFICIENT_RESOURCES');
         
         if (shouldNotRetry) {
           if (err.message?.includes('Circuit breaker is open')) {
@@ -107,6 +109,9 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
           } else if (err.message?.includes('API routing misconfiguration')) {
             console.warn('🚫 API routing issue, stopping retries');
             setError('API configuration issue - please contact support');
+          } else if (err.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+            console.warn('🚫 Browser resource exhaustion detected, stopping retries');
+            setError('Too many requests - please wait a moment and refresh the page');
           } else {
             setError(err.message);
           }

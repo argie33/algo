@@ -174,6 +174,7 @@ router.get('/comprehensive', async (req, res) => {
 router.get('/database', async (req, res) => {
   try {
     const dbDiagnostics = await databaseCircuitBreaker.execute(async () => {
+      const startTime = Date.now();
       const diagnostics = {
         connection: {
           status: 'connected',
@@ -185,6 +186,11 @@ router.get('/database', async (req, res) => {
         schema: {},
         performance: {}
       };
+
+      // Quick connection test first (very fast)
+      const [connectionTest] = await query('SELECT 1 as connected, NOW() as timestamp');
+      diagnostics.connection.responseTime = Date.now() - startTime;
+      diagnostics.connection.serverTime = connectionTest.timestamp;
 
       // Detailed table analysis for all financial tables
       const financialTables = {
@@ -199,8 +205,28 @@ router.get('/database', async (req, res) => {
         'performance_metrics': 'Portfolio performance calculations'
       };
 
-      for (const [tableName, description] of Object.entries(financialTables)) {
+      // Batch table analysis for better performance
+      const tableAnalysisPromises = Object.entries(financialTables).map(async ([tableName, description]) => {
         try {
+          // Check if table exists first (fast)
+          const [existsResult] = await query(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' 
+              AND table_name = $1
+            )
+          `, [tableName]);
+          
+          if (!existsResult.exists) {
+            return [tableName, {
+              description,
+              exists: false,
+              status: 'missing',
+              error: 'Table does not exist'
+            }];
+          }
+
+          // If table exists, get stats in parallel
           const [countResult, sizeResult, lastModified] = await Promise.all([
             query(`SELECT COUNT(*) as count FROM ${tableName}`),
             query(`SELECT pg_size_pretty(pg_total_relation_size('${tableName}')) as size, 
@@ -210,7 +236,7 @@ router.get('/database', async (req, res) => {
             )
           ]);
           
-          diagnostics.tables[tableName] = {
+          return [tableName, {
             description,
             exists: true,
             rowCount: parseInt(countResult[0]?.count || 0),
@@ -218,16 +244,35 @@ router.get('/database', async (req, res) => {
             sizeBytes: parseInt(sizeResult[0]?.size_bytes || 0),
             lastUpdated: lastModified[0]?.last_updated || null,
             status: 'healthy'
-          };
+          }];
         } catch (tableError) {
-          diagnostics.tables[tableName] = {
+          return [tableName, {
             description,
             exists: false,
             error: tableError.message,
             status: tableError.code === '42P01' ? 'missing' : 'error'
+          }];
+        }
+      });
+
+      // Wait for all table analyses to complete
+      const tableResults = await Promise.allSettled(tableAnalysisPromises);
+      
+      // Process results
+      tableResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const [tableName, tableData] = result.value;
+          diagnostics.tables[tableName] = tableData;
+        } else {
+          const tableName = Object.keys(financialTables)[index];
+          diagnostics.tables[tableName] = {
+            description: financialTables[tableName],
+            exists: false,
+            error: result.reason?.message || 'Analysis failed',
+            status: 'error'
           };
         }
-      }
+      });
 
       // Connection pool diagnostics
       const pool = getPool();
@@ -255,6 +300,7 @@ router.get('/database', async (req, res) => {
       `);
 
       diagnostics.performance = {
+        totalExecutionTime: Date.now() - startTime,
         activeConnections: dbStats?.active_connections || 0,
         transactionStats: {
           committed: dbStats?.transactions_committed || 0,
@@ -383,6 +429,45 @@ router.get('/quick', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.ENVIRONMENT || 'dev'
   });
+});
+
+// Fast database connection test endpoint (1-2 second max)
+router.get('/database/quick', async (req, res) => {
+  try {
+    const startTime = Date.now();
+    
+    // Ultra-fast connection test
+    const [result] = await Promise.race([
+      query('SELECT 1 as connected, NOW() as timestamp'),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Quick test timeout')), 3000)
+      )
+    ]);
+    
+    const responseTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      database: {
+        connected: true,
+        responseTime,
+        serverTime: result.timestamp,
+        status: 'healthy'
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      database: {
+        connected: false,
+        error: error.message,
+        status: 'unhealthy'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Unified Health Dashboard - Complete system overview

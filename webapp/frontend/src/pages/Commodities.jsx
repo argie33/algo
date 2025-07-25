@@ -107,7 +107,7 @@ const TIMEFRAMES = [
 function useCommodityCategories() {
   return useSimpleFetch(`${API_BASE}/api/commodities/categories`, {
     enabled: true,
-    retry: 3,
+    retry: 1, // Reduced retries to prevent resource exhaustion
     staleTime: 300000, // 5 minutes
     fallback: [],
     errorMessage: 'Failed to load commodity categories'
@@ -121,9 +121,8 @@ function useCommodityPrices(category = null, symbol = null) {
   
   return useSimpleFetch(`${API_BASE}/api/commodities/prices?${params.toString()}`, {
     enabled: true,
-    retry: 3,
-    staleTime: 30000, // 30 seconds for prices
-    refreshInterval: 5000, // Real-time updates every 5 seconds
+    retry: 2, // Reduced retries to prevent resource exhaustion
+    staleTime: 60000, // Increased to 1 minute to reduce request frequency
     fallback: [],
     errorMessage: 'Failed to load commodity prices'
   });
@@ -132,8 +131,8 @@ function useCommodityPrices(category = null, symbol = null) {
 function useCommodityMarketSummary() {
   return useSimpleFetch(`${API_BASE}/api/commodities/market-summary`, {
     enabled: true,
-    retry: 3,
-    staleTime: 60000, // 1 minute
+    retry: 1, // Reduced retries to prevent resource exhaustion
+    staleTime: 120000, // Increased to 2 minutes
     fallback: null,
     errorMessage: 'Failed to load market summary'
   });
@@ -142,8 +141,8 @@ function useCommodityMarketSummary() {
 function useCommodityCorrelations() {
   return useSimpleFetch(`${API_BASE}/api/commodities/correlations`, {
     enabled: true,
-    retry: 3,
-    staleTime: 300000, // 5 minutes
+    retry: 1, // Reduced retries to prevent resource exhaustion
+    staleTime: 600000, // Increased to 10 minutes - correlations change slowly
     fallback: null,
     errorMessage: 'Failed to load correlations'
   });
@@ -647,8 +646,8 @@ function CommodityChart({ symbol, timeframe, onTimeframeChange }) {
     `${API_BASE}/api/commodities/history/${symbol}?period=${timeframe}`,
     {
       enabled: !!symbol,
-      retry: 3,
-      staleTime: 60000,
+      retry: 1, // Reduced retries to prevent resource exhaustion
+      staleTime: 120000, // Increased to 2 minutes
       fallback: generatePriceHistory(symbol, timeframe === '1d' ? 1 : timeframe === '1w' ? 7 : timeframe === '1m' ? 30 : timeframe === '3m' ? 90 : 365),
       errorMessage: 'Failed to load price history'
     }
@@ -900,8 +899,8 @@ function CommodityNewsWidget() {
     `${API_BASE}/api/commodities/news?limit=5`,
     {
       enabled: true,
-      retry: 3,
-      staleTime: 300000, // 5 minutes
+      retry: 1, // Reduced retries to prevent resource exhaustion
+      staleTime: 600000, // Increased to 10 minutes - news doesn't change that often
       fallback: [],
       errorMessage: 'Failed to load commodity news'
     }
@@ -1020,9 +1019,11 @@ const Commodities = () => {
   const [timeframe, setTimeframe] = useState('1d');
   const [selectedSymbol, setSelectedSymbol] = useState('CL'); // Default to Crude Oil
 
-  // Data fetching
+  // Data fetching with controlled loading to prevent resource exhaustion
   const { data: categoriesData, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useCommodityCategories();
   const { data: pricesData, loading: pricesLoading, error: pricesError, refetch: refetchPrices } = useCommodityPrices(selectedCategory);
+  
+  // Load summary and correlations only after categories are loaded
   const { data: summaryData, loading: summaryLoading, error: summaryError, refetch: refetchSummary } = useCommodityMarketSummary();
   const { data: correlationsData, loading: correlationsLoading } = useCommodityCorrelations();
 
