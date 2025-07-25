@@ -118,6 +118,97 @@ router.get('/sectors', async (req, res) => {
   }
 });
 
+// Popular stocks endpoint - public endpoint for popular stocks
+router.get('/popular', async (req, res) => {
+  try {
+    console.log('📈 Popular stocks endpoint called');
+    
+    const limit = parseInt(req.query.limit) || 20;
+    
+    // Query popular stocks based on volume and market cap
+    const popularQuery = `
+      SELECT 
+        symbol,
+        name as company_name,
+        sector,
+        exchange,
+        market_cap,
+        price,
+        volume,
+        pe_ratio,
+        dividend_yield
+      FROM stock_symbols
+      WHERE is_active = TRUE 
+        AND market_cap > 0 
+        AND volume > 0
+      ORDER BY market_cap DESC, volume DESC
+      LIMIT $1
+    `;
+    
+    let result;
+    try {
+      result = await query(popularQuery, [limit]);
+      console.log(`✅ Popular stocks query successful: ${result.rows.length} stocks found`);
+    } catch (dbError) {
+      console.error('❌ Popular stocks query failed:', dbError.message);
+      
+      // Return fallback popular stocks data
+      const fallbackStocks = [
+        { symbol: 'AAPL', company_name: 'Apple Inc.', sector: 'Technology', exchange: 'NASDAQ', market_cap: 3000000000000, price: 190.50, volume: 45000000, pe_ratio: 28.5, dividend_yield: 0.52 },
+        { symbol: 'MSFT', company_name: 'Microsoft Corporation', sector: 'Technology', exchange: 'NASDAQ', market_cap: 2800000000000, price: 337.80, volume: 20000000, pe_ratio: 30.2, dividend_yield: 0.68 },
+        { symbol: 'GOOGL', company_name: 'Alphabet Inc.', sector: 'Technology', exchange: 'NASDAQ', market_cap: 1700000000000, price: 143.90, volume: 25000000, pe_ratio: 25.8, dividend_yield: 0.0 },
+        { symbol: 'AMZN', company_name: 'Amazon.com Inc.', sector: 'Consumer Discretionary', exchange: 'NASDAQ', market_cap: 1500000000000, price: 155.20, volume: 30000000, pe_ratio: 45.2, dividend_yield: 0.0 },
+        { symbol: 'TSLA', company_name: 'Tesla Inc.', sector: 'Consumer Discretionary', exchange: 'NASDAQ', market_cap: 800000000000, price: 250.80, volume: 40000000, pe_ratio: 65.4, dividend_yield: 0.0 },
+        { symbol: 'NVDA', company_name: 'NVIDIA Corporation', sector: 'Technology', exchange: 'NASDAQ', market_cap: 1200000000000, price: 489.40, volume: 60000000, pe_ratio: 75.3, dividend_yield: 0.11 },
+        { symbol: 'META', company_name: 'Meta Platforms Inc.', sector: 'Technology', exchange: 'NASDAQ', market_cap: 900000000000, price: 350.25, volume: 25000000, pe_ratio: 22.1, dividend_yield: 0.0 },
+        { symbol: 'BRK.B', company_name: 'Berkshire Hathaway Inc.', sector: 'Financial Services', exchange: 'NYSE', market_cap: 750000000000, price: 425.80, volume: 5000000, pe_ratio: 15.2, dividend_yield: 0.0 },
+        { symbol: 'JNJ', company_name: 'Johnson & Johnson', sector: 'Healthcare', exchange: 'NYSE', market_cap: 450000000000, price: 168.90, volume: 8000000, pe_ratio: 18.7, dividend_yield: 2.85 },
+        { symbol: 'V', company_name: 'Visa Inc.', sector: 'Financial Services', exchange: 'NYSE', market_cap: 520000000000, price: 275.45, volume: 7000000, pe_ratio: 32.1, dividend_yield: 0.78 }
+      ].slice(0, limit);
+      
+      return res.json({
+        success: true,
+        data: fallbackStocks,
+        count: fallbackStocks.length,
+        source: 'fallback_data',
+        message: 'Using fallback popular stocks data - database connection issue',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Format the data for frontend
+    const popularStocks = result.rows.map(stock => ({
+      symbol: stock.symbol,
+      companyName: stock.company_name,
+      name: stock.company_name,
+      sector: stock.sector || 'Unknown',
+      exchange: stock.exchange,
+      marketCap: parseFloat(stock.market_cap) || 0,
+      price: parseFloat(stock.price) || 0,
+      volume: parseInt(stock.volume) || 0,
+      peRatio: parseFloat(stock.pe_ratio) || null,
+      dividendYield: parseFloat(stock.dividend_yield) || 0
+    }));
+    
+    res.json({
+      success: true,
+      data: popularStocks,
+      count: popularStocks.length,
+      source: 'database',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in popular stocks endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch popular stocks',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Public endpoint for monitoring purposes - basic stock data without authentication
 router.get('/public/sample', async (req, res) => {
   try {
