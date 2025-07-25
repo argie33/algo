@@ -1095,17 +1095,28 @@ router.get('/api-keys/:provider', async (req, res) => {
   }
 });
 
-// Test API key connection
-router.post('/test-connection/:provider', async (req, res) => {
+// Test API key connection - Updated to handle both keyId and provider formats
+router.post('/test-connection/:keyIdOrProvider', async (req, res) => {
   const requestId = crypto.randomUUID().split('-')[0];
   const requestStart = Date.now();
   const userId = req.user.sub;
-  const { provider } = req.params;
+  const { keyIdOrProvider } = req.params;
 
   try {
+    // Extract provider from keyId format (e.g., "alpaca-userid" -> "alpaca") or use directly
+    let provider;
+    if (keyIdOrProvider.includes('-')) {
+      // KeyId format: "alpaca-54884408-1031-70cf-8c81-b5f09860e6fc"
+      provider = keyIdOrProvider.split('-')[0];
+    } else {
+      // Direct provider format: "alpaca"
+      provider = keyIdOrProvider;
+    }
+
     console.log(`🚀 [${requestId}] API key connection test initiated`, {
       userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
-      provider,
+      keyIdOrProvider,
+      extractedProvider: provider,
       timestamp: new Date().toISOString()
     });
 
@@ -1114,6 +1125,8 @@ router.post('/test-connection/:provider', async (req, res) => {
         success: false,
         error: 'Invalid provider. Must be alpaca, polygon, finnhub, or iex',
         requestId,
+        keyIdOrProvider,
+        extractedProvider: provider,
         timestamp: new Date().toISOString()
       });
     }
