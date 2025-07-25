@@ -314,8 +314,9 @@ function ServiceHealth() {
       setRefreshing(true);
       
       // Force refresh of health cache and trigger background scan
-      const response = await api.post('/health/update-status', {}, {
-        timeout: 10000 // Reduced timeout since this should be fast
+      const response = await api.get('/health/database', {
+        params: { level: 'critical' },
+        timeout: 8000 // Use existing database health endpoint
       });
       
       // Refetch health data with progressive loading
