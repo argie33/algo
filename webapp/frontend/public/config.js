@@ -31,8 +31,8 @@ window.__CONFIG__ = {
       const hostname = window.location.hostname;
       
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        // Development - use local backend or placeholder
-        return 'http://localhost:3001/api';
+        // Development - use AWS API Gateway for consistency with AWS environment
+        return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
       }
       
       if (hostname.includes('staging') || hostname.includes('dev')) {

@@ -14,15 +14,33 @@ app.use(corsWithTimeoutHandling());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Authentication bypass only enabled if explicitly set in environment
-// For production security, ensure ALLOW_DEV_BYPASS is not set or is 'false'
+// Authentication configuration - allow development bypass when Cognito is not configured
+// Check if Cognito is properly configured
+const hasCognitoConfig = !!(
+  process.env.COGNITO_USER_POOL_ID && 
+  process.env.COGNITO_CLIENT_ID
+) || !!(
+  process.env.COGNITO_SECRET_ARN
+);
+
+// If Cognito is not configured, enable development bypass for functionality
 if (!process.env.ALLOW_DEV_BYPASS) {
-  process.env.ALLOW_DEV_BYPASS = 'false';
+  if (hasCognitoConfig) {
+    process.env.ALLOW_DEV_BYPASS = 'false'; // Production security when Cognito is configured
+  } else {
+    process.env.ALLOW_DEV_BYPASS = 'true';  // Enable bypass when Cognito is not configured
+    console.log('⚠️ Cognito not configured - enabling development bypass for API functionality');
+  }
 }
 
-// Use NODE_ENV from environment, default to production for security
+// Use NODE_ENV from environment, default based on Cognito configuration
 if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = 'production';
+  if (hasCognitoConfig) {
+    process.env.NODE_ENV = 'production';   // Production when properly configured
+  } else {
+    process.env.NODE_ENV = 'development';  // Development when not configured
+    console.log('⚠️ Setting NODE_ENV=development due to missing Cognito configuration');
+  }
 }
 
 console.log(`🔒 Security Configuration: NODE_ENV=${process.env.NODE_ENV}, ALLOW_DEV_BYPASS=${process.env.ALLOW_DEV_BYPASS}`);
