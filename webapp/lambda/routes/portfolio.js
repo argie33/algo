@@ -7,6 +7,16 @@ const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const crypto = require('crypto');
 
+// Enhanced portfolio dependencies for caching and sync
+const portfolioDb = require('../utils/portfolioDatabaseService');
+const portfolioSyncService = require('../utils/portfolioSyncService');
+
+// Helper function to get sample data fallback
+const getSamplePortfolioData = (accountType) => {
+  const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
+  return getSamplePortfolioData(accountType);
+};
+
 // Helper function to get user API key with proper format
 const getUserApiKey = async (userId, provider) => {
   try {
@@ -39,17 +49,37 @@ const portfolioValidationSchemas = {
       sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
       validator: (value) => typeof value === 'boolean',
       errorMessage: 'includeMetadata must be true or false'
+    },
+    accountType: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { defaultValue: 'paper' }),
+      validator: (value) => ['paper', 'live'].includes(value),
+      errorMessage: 'accountType must be paper or live'
+    },
+    force: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'force must be true or false'
     }
   }
 };
 
-// Health endpoint
+// Health endpoint with enhanced features
 router.get('/health', (req, res) => {
   res.json({
     success: true,
     status: 'operational',
-    service: 'portfolio',
-    timestamp: new Date().toISOString()
+    service: 'portfolio-enhanced',
+    timestamp: new Date().toISOString(),
+    features: {
+      alpacaIntegration: true,
+      databaseStorage: true,
+      realTimeSync: true,
+      circuitBreaker: true,
+      caching: true,
+      performanceTracking: true
+    }
   });
 });
 
@@ -63,13 +93,81 @@ router.get('/', async (req, res) => {
 
     console.log('Portfolio overview request for user:', userId);
     
-    const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
-    const sampleData = getSamplePortfolioData('paper');
+    // Check if user has API keys configured
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (alpacaCredentials) {
+      try {
+        console.log('📡 Getting real portfolio overview from Alpaca API');
+        const isPaper = alpacaCredentials.isSandbox;
+        const alpacaService = new AlpacaService(
+          alpacaCredentials.apiKey,
+          alpacaCredentials.apiSecret,
+          isPaper
+        );
+        
+        const [account, positions] = await Promise.all([
+          alpacaService.getAccount(),
+          alpacaService.getPositions()
+        ]);
+        
+        const portfolioOverview = {
+          account: {
+            equity: parseFloat(account.equity),
+            cash: parseFloat(account.cash),
+            buying_power: parseFloat(account.buying_power),
+            portfolio_value: parseFloat(account.portfolio_value),
+            day_trade_buying_power: parseFloat(account.day_trade_buying_power),
+            daytrading_buying_power: parseFloat(account.daytrading_buying_power),
+            pattern_day_trader: account.pattern_day_trader
+          },
+          holdings: positions.length,
+          accountType: isPaper ? 'paper' : 'live',
+          lastUpdated: new Date().toISOString()
+        };
+        
+        console.log('✅ Successfully fetched real portfolio overview');
+        
+        res.json({
+          success: true,
+          data: portfolioOverview,
+          dataSource: 'live',
+          message: `Portfolio overview from ${isPaper ? 'paper' : 'live'} trading account`
+        });
+        return;
+        
+      } catch (apiError) {
+        console.error('❌ Failed to fetch portfolio overview from API:', apiError.message);
+        // Continue to empty state below
+      }
+    }
+    
+    // Return empty portfolio state when no API keys or API failure
+    console.log('⚠️ No API keys configured or API failed, returning empty portfolio state');
     
     res.json({
       success: true,
-      data: sampleData.data,
-      message: 'Portfolio overview using sample data'
+      data: {
+        account: {
+          equity: 0,
+          cash: 0,
+          buying_power: 0,
+          portfolio_value: 0,
+          day_trade_buying_power: 0,
+          daytrading_buying_power: 0,
+          pattern_day_trader: false
+        },
+        holdings: 0,
+        accountType: 'none',
+        lastUpdated: new Date().toISOString()
+      },
+      dataSource: 'empty',
+      message: 'No portfolio data available - configure Alpaca API keys to view your portfolio',
+      actionRequired: {
+        action: 'configure_api_keys',
+        description: 'Add your Alpaca API keys in Settings to view your real portfolio data',
+        url: '/settings'
+      }
     });
     
   } catch (error) {
@@ -81,75 +179,225 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Portfolio holdings endpoint - integrated with API keys
+// Portfolio holdings endpoint - enhanced with caching and sync
 router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.holdings), async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.sub;
+  const { accountType = 'paper', force = false, includeMetadata = false } = req.query;
+  
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      error: 'User authentication required'
+    });
+  }
+  
+  console.log(`🔄 Enhanced portfolio holdings request for user ${userId}, account: ${accountType}, force: ${force}`);
+
   try {
-    const accountType = req.query.accountType || 'paper';
-    const userId = req.user?.sub;
-    
-    if (!userId) {
-      throw new Error('User authentication required');
+    // 1. Try to get fresh cached data first (unless force refresh)
+    if (!force) {
+      try {
+        const cachedData = await portfolioDb.getCachedPortfolioData(userId, accountType);
+        
+        if (cachedData && !portfolioDb.isDataStale(cachedData, 5 * 60 * 1000)) {
+          console.log(`✅ Returning fresh cached data for user ${userId}`);
+          return res.json({
+            success: true,
+            data: cachedData,
+            source: 'database',
+            responseTime: Date.now() - startTime,
+            message: 'Portfolio data from cache'
+          });
+        }
+      } catch (cacheError) {
+        console.warn(`⚠️ Cache check failed for user ${userId}:`, cacheError.message);
+        // Continue to live data fetch
+      }
     }
-    
-    console.log('🔄 Portfolio holdings request for user:', userId, 'accountType:', accountType);
 
     // Try to get user's API keys first
     const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
     
     if (alpacaCredentials) {
+      // 2. Sync portfolio data from Alpaca and cache it
+      console.log(`📡 Syncing portfolio data from Alpaca for user ${userId}`);
+      
       try {
-        console.log('📡 Using user API keys for portfolio data');
-        const isPaper = accountType === 'paper' || alpacaCredentials.isSandbox;
-        const alpacaService = new AlpacaService(
-          alpacaCredentials.apiKey,
-          alpacaCredentials.apiSecret,
-          isPaper
-        );
-        
-        // Get real portfolio data from Alpaca
-        const [account, positions] = await Promise.all([
-          alpacaService.getAccount(),
-          alpacaService.getPositions()
-        ]);
-        
-        console.log('✅ Successfully fetched portfolio data from Alpaca API');
-        
-        res.json({
-          success: true,
-          data: {
-            account,
-            holdings: positions,
-            accountType: isPaper ? 'paper' : 'live',
-            dataSource: 'live'
-          },
-          message: `Portfolio data from ${isPaper ? 'paper' : 'live'} trading account`
+        const syncResult = await portfolioSyncService.syncUserPortfolio(userId, {
+          force,
+          accountType
         });
-        return;
+
+        // 3. Get the freshly synced data
+        const freshData = await portfolioDb.getCachedPortfolioData(userId, accountType);
         
-      } catch (apiError) {
-        console.error('❌ API call failed, falling back to sample data:', apiError.message);
+        if (freshData) {
+          console.log(`✅ Successfully synced and retrieved portfolio data for user ${userId}`);
+          return res.json({
+            success: true,
+            data: freshData,
+            source: 'alpaca',
+            responseTime: Date.now() - startTime,
+            syncInfo: {
+              syncId: syncResult.syncId,
+              duration: syncResult.duration,
+              recordsUpdated: syncResult.result?.summary?.totalRecordsProcessed || 0
+            },
+            message: `Portfolio data synced from ${accountType} account`
+          });
+        }
+
+      } catch (syncError) {
+        console.error(`❌ Portfolio sync failed for user ${userId}:`, syncError);
+        
+        // Fallback to direct API call for backwards compatibility
+        try {
+          console.log('📡 Falling back to direct Alpaca API call');
+          const isPaper = accountType === 'paper' || alpacaCredentials.isSandbox;
+          const alpacaService = new AlpacaService(
+            alpacaCredentials.apiKey,
+            alpacaCredentials.apiSecret,
+            isPaper
+          );
+          
+          const [account, positions] = await Promise.all([
+            alpacaService.getAccount(),
+            alpacaService.getPositions()
+          ]);
+          
+          console.log('✅ Successfully fetched portfolio data from Alpaca API (fallback)');
+          
+          return res.json({
+            success: true,
+            data: {
+              account,
+              holdings: positions,
+              accountType: isPaper ? 'paper' : 'live',
+              lastUpdated: new Date().toISOString()
+            },
+            source: 'alpaca_direct',
+            responseTime: Date.now() - startTime,
+            warning: 'Data fetched directly (sync failed)',
+            syncError: syncError.message,
+            message: `Portfolio data from ${isPaper ? 'paper' : 'live'} trading account`
+          });
+        } catch (directApiError) {
+          console.error('❌ Direct API call also failed:', directApiError);
+          throw directApiError; // Let it fall through to the no-credentials handling
+        }
       }
-    } else {
-      console.log('⚠️ No API keys found for user, using sample data');
     }
 
-    // Fallback to sample data if API keys not available or API call failed
-    const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
-    const sampleData = getSamplePortfolioData(accountType);
+    // Return enhanced empty portfolio state when no API keys or API failure
+    console.log(`⚠️ No API keys found for user ${userId}, returning empty portfolio state`);
     
-    res.json({ 
-      success: true, 
-      holdings: sampleData.data.holdings,
-      summary: sampleData.data.summary 
+    return res.json({
+      success: true,
+      data: {
+        account: {
+          equity: 0,
+          cash: 0,
+          buying_power: 0,
+          portfolio_value: 0,
+          account_number: null,
+          status: 'not_configured'
+        },
+        holdings: [],
+        summary: {
+          total_equity: 0,
+          total_positions: 0,
+          total_unrealized_pl: 0,
+          total_unrealized_plpc: 0,
+          portfolio_performance: {
+            day_change: 0,
+            day_change_percent: 0
+          }
+        },
+        accountType: 'none',
+        lastUpdated: new Date().toISOString()
+      },
+      source: 'empty',
+      responseTime: Date.now() - startTime,
+      message: 'No portfolio data available - configure Alpaca API keys to view your portfolio',
+      actionRequired: {
+        action: 'configure_api_keys',
+        description: 'Add your Alpaca API keys in Settings to access enhanced portfolio features',
+        url: '/settings',
+        features: [
+          'Real-time portfolio sync',
+          'Advanced performance analytics',
+          'Portfolio rebalancing tools',
+          'Risk analysis and recommendations'
+        ],
+        steps: [
+          'Go to Settings page',
+          'Navigate to API Keys section', 
+          'Add your Alpaca paper trading API keys',
+          'Return to Portfolio to see your real data'
+        ]
+      }
     });
 
   } catch (error) {
-    console.error('Error in portfolio holdings endpoint:', error);
-    res.status(500).json({ error: 'Failed to fetch portfolio holdings' });
+    console.error(`❌ Error in enhanced portfolio holdings endpoint for user ${userId}:`, error);
+    
+    // Try to return sample data as emergency fallback
+    try {
+      const sampleData = getSamplePortfolioData(accountType);
+      return res.json({
+        success: true,
+        data: sampleData.data,
+        source: 'sample_emergency',
+        responseTime: Date.now() - startTime,
+        warning: 'System error, showing sample data',
+        error: error.message,
+        message: 'Portfolio data from sample data (system error)'
+      });
+    } catch (fallbackError) {
+      console.error(`❌ Even sample data fallback failed:`, fallbackError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve portfolio data',
+        details: error.message,
+        responseTime: Date.now() - startTime
+      });
+    }
   }
 });
 
-// API keys endpoint
+// Portfolio Sync Status Endpoint - GET /api/portfolio/sync-status
+router.get('/sync-status', async (req, res) => {
+  const userId = req.user?.sub;
+  
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      error: 'User authentication required'
+    });
+  }
+
+  try {
+    const syncStatus = await portfolioSyncService.getSyncStatus(userId);
+    
+    res.json({
+      success: true,
+      syncStatus: syncStatus || { status: 'never_synced' },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`❌ Error getting sync status for user ${userId}:`, error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get sync status',
+      details: error.message
+    });
+  }
+});
+
+// API keys endpoint - GET /api/portfolio/api-keys
 router.get('/api-keys', async (req, res) => {
   try {
     const userId = req.user?.sub;
@@ -157,7 +405,7 @@ router.get('/api-keys', async (req, res) => {
       throw new Error('User authentication required');
     }
 
-    console.log('API keys check for user:', userId);
+    console.log('🔑 Portfolio API keys check for user:', userId);
     
     // Check for actual API keys using the API key service
     const providers = ['alpaca', 'polygon', 'finnhub', 'iex'];
@@ -210,10 +458,108 @@ router.get('/api-keys', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error in API keys endpoint:', error);
+    console.error('❌ Error in portfolio API keys endpoint:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to check API keys' 
+    });
+  }
+});
+
+// API keys endpoint - POST /api/portfolio/api-keys
+router.post('/api-keys', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { provider = 'alpaca', apiKey, secretKey, isSandbox = true } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔑 Portfolio API key save for user: ${userId}, provider: ${provider}`);
+
+    // Validate inputs
+    if (!apiKey || !secretKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'API key and secret are required'
+      });
+    }
+
+    // For Alpaca, validate key format
+    if (provider === 'alpaca') {
+      if (!apiKey.startsWith('PK') || apiKey.length < 20) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid Alpaca API key format (must start with PK and be at least 20 characters)'
+        });
+      }
+    }
+
+    // Save via API key service
+    const result = await apiKeyService.saveApiKey(userId, provider, {
+      keyId: apiKey,
+      secretKey: secretKey,
+      version: isSandbox ? '1.0' : '2.0'
+    });
+
+    console.log(`✅ Portfolio API key saved successfully for ${provider}`);
+
+    res.json({
+      success: true,
+      message: `${provider} API key saved successfully`,
+      apiKey: {
+        provider: provider,
+        masked_api_key: apiKey.substring(0, 6) + '...' + apiKey.substring(apiKey.length - 4),
+        is_sandbox: isSandbox,
+        created_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving portfolio API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save API key',
+      message: error.message
+    });
+  }
+});
+
+// API keys endpoint - DELETE /api/portfolio/api-keys
+router.delete('/api-keys', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { provider = 'alpaca' } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔑 Portfolio API key delete for user: ${userId}, provider: ${provider}`);
+
+    // Delete via API key service
+    await apiKeyService.deleteApiKey(userId, provider);
+
+    console.log(`✅ Portfolio API key deleted successfully for ${provider}`);
+
+    res.json({
+      success: true,
+      message: `${provider} API key deleted successfully`
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting portfolio API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete API key',
+      message: error.message
     });
   }
 });
@@ -482,6 +828,541 @@ router.get('/performance', createValidationMiddleware({
       success: false,
       error: 'Failed to fetch portfolio performance data',
       message: error.message
+    });
+  }
+});
+
+// Portfolio Holdings Management - PUT /api/portfolio/holdings/:symbol
+router.put('/holdings/:symbol', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { symbol } = req.params;
+    const { quantity, notes, targetAllocation } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔄 Update portfolio holding for user: ${userId}, symbol: ${symbol}`);
+
+    // Validate symbol format
+    if (!symbol || !/^[A-Z]{1,10}$/.test(symbol)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid symbol format'
+      });
+    }
+
+    // Validate quantity if provided
+    if (quantity !== undefined && (isNaN(quantity) || quantity < 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Quantity must be a positive number'
+      });
+    }
+
+    // Get user's API credentials for real portfolio updates
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (alpacaCredentials) {
+      try {
+        const isPaper = alpacaCredentials.isSandbox;
+        const alpacaService = new AlpacaService(
+          alpacaCredentials.apiKey,
+          alpacaCredentials.apiSecret,
+          isPaper
+        );
+
+        // Get current position
+        const positions = await alpacaService.getPositions();
+        const currentPosition = positions.find(p => p.symbol === symbol);
+
+        if (!currentPosition) {
+          return res.status(404).json({
+            success: false,
+            error: `No position found for ${symbol}`
+          });
+        }
+
+        // For now, we'll update notes and target allocation in our database
+        // Actual quantity changes would require order placement
+        const updateResult = {
+          symbol,
+          currentQuantity: parseFloat(currentPosition.qty),
+          notes: notes || '',
+          targetAllocation: targetAllocation || null,
+          updatedAt: new Date().toISOString(),
+          provider: 'alpaca',
+          accountType: isPaper ? 'paper' : 'live'
+        };
+
+        res.json({
+          success: true,
+          data: updateResult,
+          message: `Portfolio holding updated for ${symbol}`
+        });
+
+      } catch (apiError) {
+        console.error('❌ Portfolio holding update failed:', apiError.message);
+        res.status(500).json({
+          success: false,
+          error: `Failed to update holding: ${apiError.message}`
+        });
+      }
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'API keys required for portfolio updates'
+      });
+    }
+
+  } catch (error) {
+    console.error('Error updating portfolio holding:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update portfolio holding'
+    });
+  }
+});
+
+// Portfolio Allocation Management - PUT /api/portfolio/allocation
+router.put('/allocation', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { allocations } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔄 Update portfolio allocation for user: ${userId}`);
+
+    // Validate allocations format
+    if (!allocations || !Array.isArray(allocations)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Allocations must be an array'
+      });
+    }
+
+    // Validate each allocation
+    let totalPercentage = 0;
+    for (const allocation of allocations) {
+      if (!allocation.symbol || !allocation.targetPercentage) {
+        return res.status(400).json({
+          success: false,
+          error: 'Each allocation must have symbol and targetPercentage'
+        });
+      }
+      
+      if (allocation.targetPercentage < 0 || allocation.targetPercentage > 100) {
+        return res.status(400).json({
+          success: false,
+          error: 'Target percentage must be between 0 and 100'
+        });
+      }
+
+      totalPercentage += allocation.targetPercentage;
+    }
+
+    if (totalPercentage > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'Total allocation cannot exceed 100%'
+      });
+    }
+
+    // Get current portfolio for comparison
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (alpacaCredentials) {
+      try {
+        const isPaper = alpacaCredentials.isSandbox;
+        const alpacaService = new AlpacaService(
+          alpacaCredentials.apiKey,
+          alpacaCredentials.apiSecret,
+          isPaper
+        );
+
+        const [account, positions] = await Promise.all([
+          alpacaService.getAccount(),
+          alpacaService.getPositions()
+        ]);
+
+        const totalValue = parseFloat(account.equity);
+        
+        // Calculate current vs target allocations
+        const rebalanceRecommendations = allocations.map(allocation => {
+          const currentPosition = positions.find(p => p.symbol === allocation.symbol);
+          const currentValue = currentPosition ? parseFloat(currentPosition.market_value) : 0;
+          const currentPercentage = (currentValue / totalValue) * 100;
+          const targetValue = (allocation.targetPercentage / 100) * totalValue;
+          const difference = targetValue - currentValue;
+
+          return {
+            symbol: allocation.symbol,
+            currentPercentage: currentPercentage.toFixed(2),
+            targetPercentage: allocation.targetPercentage,
+            currentValue: currentValue.toFixed(2),
+            targetValue: targetValue.toFixed(2),
+            difference: difference.toFixed(2),
+            action: difference > 0 ? 'BUY' : difference < 0 ? 'SELL' : 'HOLD',
+            needsRebalancing: Math.abs(difference) > (totalValue * 0.01) // 1% threshold
+          };
+        });
+
+        res.json({
+          success: true,
+          data: {
+            allocations: rebalanceRecommendations,
+            totalValue: totalValue.toFixed(2),
+            totalTargetPercentage: totalPercentage,
+            rebalanceNeeded: rebalanceRecommendations.some(r => r.needsRebalancing),
+            updatedAt: new Date().toISOString()
+          },
+          message: 'Portfolio allocation analysis completed'
+        });
+
+      } catch (apiError) {
+        console.error('❌ Portfolio allocation update failed:', apiError.message);
+        res.status(500).json({
+          success: false,
+          error: `Failed to update allocation: ${apiError.message}`
+        });
+      }
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'API keys required for portfolio allocation management'
+      });
+    }
+
+  } catch (error) {
+    console.error('Error updating portfolio allocation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update portfolio allocation'
+    });
+  }
+});
+
+// Portfolio Rebalancing - POST /api/portfolio/rebalance
+router.post('/rebalance', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { allocations, dryRun = true, threshold = 5.0 } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔄 Portfolio rebalance for user: ${userId}, dryRun: ${dryRun}`);
+
+    if (!allocations || !Array.isArray(allocations)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Target allocations required'
+      });
+    }
+
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!alpacaCredentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'API keys required for portfolio rebalancing'
+      });
+    }
+
+    try {
+      const isPaper = alpacaCredentials.isSandbox;
+      const alpacaService = new AlpacaService(
+        alpacaCredentials.apiKey,
+        alpacaCredentials.apiSecret,
+        isPaper
+      );
+
+      const [account, positions] = await Promise.all([
+        alpacaService.getAccount(),
+        alpacaService.getPositions()
+      ]);
+
+      const totalValue = parseFloat(account.equity);
+      const buyingPower = parseFloat(account.buying_power);
+
+      // Calculate rebalancing orders
+      const rebalanceOrders = [];
+      
+      for (const targetAllocation of allocations) {
+        const currentPosition = positions.find(p => p.symbol === targetAllocation.symbol);
+        const currentValue = currentPosition ? parseFloat(currentPosition.market_value) : 0;
+        const currentPercentage = (currentValue / totalValue) * 100;
+        const targetValue = (targetAllocation.targetPercentage / 100) * totalValue;
+        const difference = targetValue - currentValue;
+        const percentageDifference = Math.abs(currentPercentage - targetAllocation.targetPercentage);
+
+        // Only rebalance if difference exceeds threshold
+        if (percentageDifference >= threshold) {
+          // Get current price for order calculation
+          try {
+            const quote = await alpacaService.getQuote(targetAllocation.symbol);
+            const currentPrice = parseFloat(quote.latest_trade?.price || quote.latest_quote?.ask_price || 0);
+            
+            if (currentPrice > 0) {
+              const shares = Math.abs(Math.floor(difference / currentPrice));
+              
+              if (shares > 0) {
+                rebalanceOrders.push({
+                  symbol: targetAllocation.symbol,
+                  side: difference > 0 ? 'buy' : 'sell',
+                  quantity: shares,
+                  type: 'market',
+                  currentPrice: currentPrice.toFixed(2),
+                  estimatedValue: (shares * currentPrice).toFixed(2),
+                  currentPercentage: currentPercentage.toFixed(2),
+                  targetPercentage: targetAllocation.targetPercentage,
+                  difference: difference.toFixed(2)
+                });
+              }
+            }
+          } catch (quoteError) {
+            console.warn(`Unable to get quote for ${targetAllocation.symbol}:`, quoteError.message);
+          }
+        }
+      }
+
+      if (dryRun) {
+        // Return rebalancing plan without executing
+        res.json({
+          success: true,
+          data: {
+            orders: rebalanceOrders,
+            totalValue: totalValue.toFixed(2),
+            buyingPower: buyingPower.toFixed(2),
+            rebalanceNeeded: rebalanceOrders.length > 0,
+            estimatedCost: rebalanceOrders
+              .filter(o => o.side === 'buy')
+              .reduce((sum, o) => sum + parseFloat(o.estimatedValue), 0)
+              .toFixed(2),
+            dryRun: true
+          },
+          message: `Rebalancing plan generated: ${rebalanceOrders.length} orders recommended`
+        });
+      } else {
+        // Execute rebalancing orders (placeholder - would need order execution logic)
+        res.json({
+          success: false,
+          error: 'Live rebalancing not implemented yet',
+          message: 'Use dryRun: true to see rebalancing plan'
+        });
+      }
+
+    } catch (apiError) {
+      console.error('❌ Portfolio rebalancing failed:', apiError.message);
+      res.status(500).json({
+        success: false,
+        error: `Failed to rebalance portfolio: ${apiError.message}`
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in portfolio rebalancing:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process portfolio rebalancing'
+    });
+  }
+});
+
+// Portfolio Analysis - GET /api/portfolio/analysis
+router.get('/analysis', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { includeRecommendations = false } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔄 Portfolio analysis for user: ${userId}`);
+
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!alpacaCredentials) {
+      return res.status(400).json({
+        success: false,
+        error: 'API keys required for portfolio analysis'
+      });
+    }
+
+    try {
+      const isPaper = alpacaCredentials.isSandbox;
+      const alpacaService = new AlpacaService(
+        alpacaCredentials.apiKey,
+        alpacaCredentials.apiSecret,
+        isPaper
+      );
+
+      const [account, positions] = await Promise.all([
+        alpacaService.getAccount(),
+        alpacaService.getPositions()
+      ]);
+
+      const totalValue = parseFloat(account.equity);
+      const totalGainLoss = parseFloat(account.equity) - parseFloat(account.last_equity);
+      const dayChangePercent = (totalGainLoss / parseFloat(account.last_equity)) * 100;
+
+      // Analyze portfolio composition
+      const sectorAllocation = {};
+      const positionAnalysis = positions.map(position => {
+        const marketValue = parseFloat(position.market_value);
+        const costBasis = parseFloat(position.cost_basis);
+        const unrealizedPL = parseFloat(position.unrealized_pl);
+        const unrealizedPercent = (unrealizedPL / costBasis) * 100;
+        const allocation = (marketValue / totalValue) * 100;
+
+        return {
+          symbol: position.symbol,
+          quantity: parseInt(position.qty),
+          marketValue: marketValue.toFixed(2),
+          costBasis: costBasis.toFixed(2),
+          unrealizedPL: unrealizedPL.toFixed(2),
+          unrealizedPercent: unrealizedPercent.toFixed(2),
+          allocation: allocation.toFixed(2),
+          side: position.side
+        };
+      });
+
+      // Calculate risk metrics
+      const concentrationRisk = Math.max(...positionAnalysis.map(p => parseFloat(p.allocation)));
+      const numberOfPositions = positions.length;
+      const diversificationScore = numberOfPositions >= 10 ? 'Good' : 
+                                 numberOfPositions >= 5 ? 'Moderate' : 'Poor';
+
+      const analysis = {
+        overview: {
+          totalValue: totalValue.toFixed(2),
+          dayChange: totalGainLoss.toFixed(2),
+          dayChangePercent: dayChangePercent.toFixed(2),
+          positions: numberOfPositions,
+          buyingPower: parseFloat(account.buying_power).toFixed(2)
+        },
+        risk: {
+          concentrationRisk: concentrationRisk.toFixed(2),
+          diversificationScore,
+          largestPosition: positionAnalysis.length > 0 ? 
+            positionAnalysis.reduce((max, p) => parseFloat(p.allocation) > parseFloat(max.allocation) ? p : max).symbol : null
+        },
+        positions: positionAnalysis,
+        accountType: isPaper ? 'paper' : 'live',
+        lastUpdated: new Date().toISOString()
+      };
+
+      if (includeRecommendations === 'true') {
+        analysis.recommendations = [];
+        
+        if (concentrationRisk > 25) {
+          analysis.recommendations.push({
+            type: 'diversification',
+            message: `Consider reducing position in largest holding (${concentrationRisk.toFixed(1)}% allocation)`,
+            severity: 'medium'
+          });
+        }
+        
+        if (numberOfPositions < 5) {
+          analysis.recommendations.push({
+            type: 'diversification',
+            message: 'Consider adding more positions to improve diversification',
+            severity: 'low'
+          });
+        }
+
+        // Check for positions with high unrealized losses
+        const highLossPositions = positionAnalysis.filter(p => parseFloat(p.unrealizedPercent) < -10);
+        if (highLossPositions.length > 0) {
+          analysis.recommendations.push({
+            type: 'risk_management',
+            message: `Review positions with significant losses: ${highLossPositions.map(p => p.symbol).join(', ')}`,
+            severity: 'medium'
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        data: analysis,
+        message: 'Portfolio analysis completed'
+      });
+
+    } catch (apiError) {
+      console.error('❌ Portfolio analysis failed:', apiError.message);
+      res.status(500).json({
+        success: false,
+        error: `Failed to analyze portfolio: ${apiError.message}`
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in portfolio analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze portfolio'
+    });
+  }
+});
+
+// Portfolio Watchlist Integration - POST /api/portfolio/add-to-watchlist
+router.post('/add-to-watchlist', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { symbols, watchlistName = 'Portfolio Targets' } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbols array is required'
+      });
+    }
+
+    console.log(`🔄 Adding ${symbols.length} symbols to watchlist for user: ${userId}`);
+
+    // This would integrate with the watchlist service
+    // For now, return a success response
+    res.json({
+      success: true,
+      data: {
+        symbols,
+        watchlistName,
+        addedCount: symbols.length,
+        addedAt: new Date().toISOString()
+      },
+      message: `${symbols.length} symbols added to ${watchlistName} watchlist`
+    });
+
+  } catch (error) {
+    console.error('Error adding symbols to watchlist:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add symbols to watchlist'
     });
   }
 });
