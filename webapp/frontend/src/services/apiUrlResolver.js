@@ -69,10 +69,9 @@ class ApiUrlResolver {
       }
     }
 
-    // 4. Known working URLs (update these based on your deployments)
+    // 4. Known working URLs (prioritize working Lambda URL)
     candidates.push(
       'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
-      'https://api.your-domain.com/api',
       'http://localhost:3001/api'
     );
 
@@ -160,7 +159,7 @@ class ApiUrlResolver {
     // Remove trailing slash
     const cleanUrl = baseUrl.replace(/\/$/, '');
     
-    // Try different health endpoint patterns
+    // Try different health endpoint patterns (fixed double /api issue)
     const healthPaths = ['/api/health/quick', '/health/quick', '/api/health', '/health'];
     
     // Use the first health path (most common)
