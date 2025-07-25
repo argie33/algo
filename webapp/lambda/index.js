@@ -233,6 +233,8 @@ app.get('/api', (req, res) => {
       '/api/api-keys',
       '/api/market',
       '/api/trading',
+      '/api/commodities',
+      '/api/economic',
       '/api/user',
       '/api/settings',
       '/api/dashboard',
@@ -247,6 +249,8 @@ app.get('/api', (req, res) => {
       sectors: 'GET /api/sectors/* - Sector analysis and data',
       apiKeys: 'GET /api/api-keys/* - API key management',
       market: 'GET /api/market/* - Market data and analysis',
+      commodities: 'GET /api/commodities/* - Commodities market data and analysis',
+      economic: 'GET /api/economic/* - Economic indicators and data',
       user: 'POST /api/user/* - User management and authentication',
       settings: 'GET /api/settings/* - Application settings',
       adminLiveData: 'GET /admin/live-data/* - Admin live data management'
@@ -273,7 +277,9 @@ app.use('*', (req, res) => {
       '/api/stocks',
       '/api/metrics',
       '/api/sectors',
-      '/api/api-keys'
+      '/api/api-keys',
+      '/api/commodities',
+      '/api/economic'
     ]
   });
 });
