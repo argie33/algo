@@ -37,7 +37,7 @@ app.use((req, res, next) => {
 // ROUTE MOUNTING - Load all existing routes with proper error handling
 // ============================================================================
 
-// Enhanced route loader with better error handling and fallbacks
+// Enhanced route loader with detailed error diagnostics
 const safeRouteLoader = (routePath, routeName, mountPath) => {
   try {
     // First check if the route file exists
@@ -64,100 +64,56 @@ const safeRouteLoader = (routePath, routeName, mountPath) => {
     console.error(`❌ Failed to load ${routeName} route from ${routePath}:`, error.message);
     console.error(`📍 Error stack: ${error.stack}`);
     
-    // Create enhanced fallback for critical routes with sample data
-    const isCriticalRoute = ['Portfolio', 'Stocks', 'Metrics', 'Financials', 'Health'].includes(routeName);
+    // Create diagnostic error endpoint instead of fallback
+    const express = require('express');
+    const router = express.Router();
     
-    if (isCriticalRoute) {
-      const express = require('express');
-      const router = express.Router();
-      
-      // Provide helpful fallback responses with sample data where appropriate
-      router.get('*', (req, res) => {
-        const fallbackData = getFallbackData(routeName, req.path);
-        
-        if (fallbackData) {
-          // Return sample data with clear indication it's fallback
-          res.json({
-            success: true,
-            data: fallbackData,
-            warning: `${routeName} service unavailable - using sample data`,
-            fallback: true,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          res.status(503).json({
-            success: false,
-            error: `${routeName} service temporarily unavailable`,
-            message: 'Service is being initialized. Please try again in a moment.',
-            routeError: error.message,
-            timestamp: new Date().toISOString()
-          });
-        }
+    // Provide detailed error diagnostics for all requests
+    router.all('*', (req, res) => {
+      res.status(503).json({
+        success: false,
+        error: `${routeName} route failed to load`,
+        diagnostics: {
+          routeName: routeName,
+          routePath: routePath,
+          mountPath: mountPath,
+          fullPath: path.resolve(__dirname, routePath + '.js'),
+          errorType: error.name,
+          errorMessage: error.message,
+          errorStack: error.stack,
+          fileExists: fs.existsSync(path.resolve(__dirname, routePath + '.js')),
+          timestamp: new Date().toISOString(),
+          method: req.method,
+          requestPath: req.path,
+          requestUrl: req.url
+        },
+        troubleshooting: {
+          possibleCauses: [
+            'Route file missing or moved',
+            'Syntax error in route file',
+            'Missing dependencies in route file',
+            'Invalid Express router export',
+            'File permission issues'
+          ],
+          nextSteps: [
+            `Check if file exists: ${routePath}.js`,
+            'Verify route file syntax',
+            'Check route file dependencies',
+            'Verify Express router export'
+          ]
+        },
+        message: `Route ${routeName} is unavailable due to loading error. See diagnostics for details.`,
+        timestamp: new Date().toISOString()
       });
-      
-      // Handle POST/PUT/DELETE with appropriate responses
-      router.all('*', (req, res) => {
-        if (req.method !== 'GET') {
-          res.status(503).json({
-            success: false,
-            error: `${routeName} service temporarily unavailable`,
-            message: 'Write operations are disabled while service is initializing',
-            method: req.method,
-            timestamp: new Date().toISOString()
-          });
-        }
-      });
-      
-      app.use(mountPath, router);
-      console.log(`⚠️ ${routeName} fallback route created at ${mountPath} with sample data`);
-    } else {
-      console.log(`⚠️ Non-critical route ${routeName} failed to load - no fallback created`);
-    }
+    });
+    
+    app.use(mountPath, router);
+    console.log(`🔍 ${routeName} diagnostic error route created at ${mountPath}`);
     
     return false;
   }
 };
 
-// Provide sample data for fallback routes
-function getFallbackData(routeName, path) {
-  switch (routeName) {
-    case 'Stocks':
-      return [
-        { ticker: 'AAPL', company_name: 'Apple Inc.', price: 150.25, change: 2.15, change_percent: 1.45 },
-        { ticker: 'GOOGL', company_name: 'Alphabet Inc.', price: 2800.50, change: -15.25, change_percent: -0.54 },
-        { ticker: 'MSFT', company_name: 'Microsoft Corporation', price: 300.75, change: 5.20, change_percent: 1.76 },
-        { ticker: 'AMZN', company_name: 'Amazon.com Inc.', price: 3200.00, change: -8.75, change_percent: -0.27 },
-        { ticker: 'TSLA', company_name: 'Tesla, Inc.', price: 850.30, change: 12.50, change_percent: 1.49 }
-      ];
-      
-    case 'Portfolio':
-      return {
-        holdings: [],
-        totalValue: 0,
-        totalGainLoss: 0,
-        totalGainLossPercent: 0,
-        message: 'No portfolio data available - connect your broker to see real holdings'
-      };
-      
-    case 'Metrics':
-      return {
-        marketSummary: {
-          sp500: { price: 4200, change: 15.2, changePercent: 0.36 },
-          nasdaq: { price: 13000, change: -22.1, changePercent: -0.17 },
-          dow: { price: 34000, change: 125.8, changePercent: 0.37 }
-        }
-      };
-      
-    case 'Financials':
-      if (path.includes('balance-sheet') || path.includes('income') || path.includes('cash-flow')) {
-        return [];
-      }
-      return null;
-      
-    default:
-      return null;
-  }
-}
 
 // Essential Infrastructure Routes
 safeRouteLoader('./routes/health', 'Health', '/api/health');
@@ -191,26 +147,26 @@ safeRouteLoader('./routes/news', 'News', '/api/news');
 safeRouteLoader('./routes/calendar', 'Calendar', '/api/calendar');
 
 // ============================================================================
-// FALLBACK ENDPOINTS - For any routes that failed to load
+// DIAGNOSTIC ENDPOINTS - For debugging and system health
 // ============================================================================
 
-// Dashboard endpoint fallback
+// Dashboard endpoint diagnostic
 app.get('/api/dashboard', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      marketSummary: {
-        sp500: { price: 4200, change: 15.2, changePercent: 0.36 },
-        nasdaq: { price: 13000, change: -22.1, changePercent: -0.17 },
-        dow: { price: 34000, change: 125.8, changePercent: 0.37 }
-      },
-      topStocks: [
-        { symbol: 'AAPL', price: 150, change: 2.5 },
-        { symbol: 'GOOGL', price: 2800, change: -15.2 },
-        { symbol: 'MSFT', price: 300, change: 5.1 }
+  res.status(503).json({
+    success: false,
+    error: 'Dashboard service not properly configured',
+    diagnostics: {
+      issue: 'No dedicated dashboard route file exists',
+      expectedFile: './routes/dashboard.js',
+      currentBehavior: 'Using diagnostic endpoint',
+      recommendations: [
+        'Create ./routes/dashboard.js with proper Express router',
+        'Implement dashboard data aggregation from portfolio and market services',
+        'Add proper database connectivity for real-time data'
       ]
     },
-    message: 'Dashboard data from fallback service'
+    message: 'Dashboard endpoint requires proper route implementation',
+    timestamp: new Date().toISOString()
   });
 });
 
