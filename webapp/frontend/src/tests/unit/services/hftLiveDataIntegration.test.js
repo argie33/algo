@@ -206,7 +206,7 @@ describe('HFTLiveDataIntegration', () => {
       expect(metrics.latencyStats.avg).toBe(30);
     });
 
-    it('forwards data to HFT engine', () => {
+    it('forwards data to HFT engine', async () => {
       const mockHftEngine = await import('../../../services/hftEngine.js');
       
       const mockData = {

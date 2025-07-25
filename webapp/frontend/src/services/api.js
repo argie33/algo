@@ -1357,13 +1357,17 @@ if (typeof window !== 'undefined') {
       }
       
       console.log('🔧 [API STARTUP] Trying alternative health endpoints...');
-      const altEndpoints = ['/api/health', '/api', '/'];
+      const altEndpoints = ['/api/health', '/', '/api/portfolio'];
       
       for (const endpoint of altEndpoints) {
         try {
           const api = initializeApi();
           const response = await api.get(endpoint, { timeout: 3000 });
           console.log(`✅ [API STARTUP] Alternative endpoint ${endpoint} successful:`, response.status);
+          // Log available endpoints if this is the root endpoint
+          if (endpoint === '/' && response.data?.availableEndpoints) {
+            console.log('📋 [API STARTUP] Available endpoints:', response.data.availableEndpoints);
+          }
           break;
         } catch (err) {
           console.log(`❌ [API STARTUP] Alternative endpoint ${endpoint} failed:`, err.message);

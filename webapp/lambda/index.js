@@ -203,6 +203,46 @@ app.get('/', (req, res) => {
 });
 
 // ============================================================================
+// ADDITIONAL API ENDPOINTS
+// ============================================================================
+
+// Generic /api endpoint for frontend health checks and API discovery
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    service: 'Financial Dashboard API',
+    version: '1.0.0-fixed',
+    status: 'operational',
+    message: 'API is healthy and operational',
+    developmentMode: process.env.ALLOW_DEV_BYPASS === 'true',
+    timestamp: new Date().toISOString(),
+    availableEndpoints: [
+      '/api/health',
+      '/api/portfolio',
+      '/api/stocks',
+      '/api/metrics',
+      '/api/api-keys',
+      '/api/market',
+      '/api/trading',
+      '/api/user',
+      '/api/settings',
+      '/api/dashboard',
+      '/api/hft'
+    ],
+    documentation: {
+      health: 'GET /api/health - System health check',
+      portfolio: 'GET /api/portfolio/* - Portfolio management',
+      stocks: 'GET /api/stocks/* - Stock data and information',
+      metrics: 'GET /api/metrics/* - Market metrics and analytics',
+      apiKeys: 'GET /api/api-keys/* - API key management',
+      market: 'GET /api/market/* - Market data and analysis',
+      user: 'POST /api/user/* - User management and authentication',
+      settings: 'GET /api/settings/* - Application settings'
+    }
+  });
+});
+
+// ============================================================================
 // ERROR HANDLING
 // ============================================================================
 
