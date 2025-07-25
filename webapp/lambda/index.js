@@ -150,6 +150,9 @@ safeRouteLoader('./routes/adminLiveData', 'Admin Live Data', '/admin/live-data')
 safeRouteLoader('./routes/websocket', 'WebSocket', '/api/websocket');
 safeRouteLoader('./routes/hftTrading', 'HFT Trading', '/api/hft');
 
+// Portfolio Optimization - Advanced portfolio analytics and rebalancing
+safeRouteLoader('./routes/portfolioOptimization', 'Portfolio Optimization', '/api/portfolio/optimization');
+
 // Watchlist and other features  
 safeRouteLoader('./routes/watchlist', 'Watchlist', '/api/watchlist');
 safeRouteLoader('./routes/news', 'News', '/api/news');
@@ -229,6 +232,7 @@ app.get('/api', (req, res) => {
       '/api/user',
       '/api/settings',
       '/api/dashboard',
+      '/api/portfolio/optimization',
       '/api/hft',
       '/admin/live-data'
     ],
@@ -271,6 +275,7 @@ app.use('*', (req, res) => {
       '/api/metrics',
       '/api/sectors',
       '/api/api-keys',
+      '/api/portfolio/optimization',
       '/api/commodities',
       '/api/economic'
     ]
