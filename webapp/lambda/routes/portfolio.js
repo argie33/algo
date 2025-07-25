@@ -182,6 +182,7 @@ router.get('/', async (req, res) => {
 // Portfolio holdings endpoint - enhanced with caching and sync
 router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.holdings), async (req, res) => {
   const startTime = Date.now();
+  const REQUEST_TIMEOUT = 25000; // 25 seconds - leave buffer for Lambda timeout
   const userId = req.user?.sub;
   const { accountType = 'paper', force = false, includeMetadata = false } = req.query;
   
@@ -194,27 +195,36 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
   
   console.log(`🔄 Enhanced portfolio holdings request for user ${userId}, account: ${accountType}, force: ${force}`);
 
+  // Set up timeout promise to prevent 504 errors
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('Request timeout - operation took longer than expected'));
+    }, REQUEST_TIMEOUT);
+  });
+
   try {
-    // 1. Try to get fresh cached data first (unless force refresh)
-    if (!force) {
-      try {
-        const cachedData = await portfolioDb.getCachedPortfolioData(userId, accountType);
-        
-        if (cachedData && !portfolioDb.isDataStale(cachedData, 5 * 60 * 1000)) {
-          console.log(`✅ Returning fresh cached data for user ${userId}`);
-          return res.json({
-            success: true,
-            data: cachedData,
-            source: 'database',
-            responseTime: Date.now() - startTime,
-            message: 'Portfolio data from cache'
-          });
+    // Wrap entire operation in timeout race
+    const portfolioOperation = async () => {
+      // 1. Try to get fresh cached data first (unless force refresh)
+      if (!force) {
+        try {
+          const cachedData = await portfolioDb.getCachedPortfolioData(userId, accountType);
+          
+          if (cachedData && !portfolioDb.isDataStale(cachedData, 5 * 60 * 1000)) {
+            console.log(`✅ Returning fresh cached data for user ${userId}`);
+            return res.json({
+              success: true,
+              data: cachedData,
+              source: 'database',
+              responseTime: Date.now() - startTime,
+              message: 'Portfolio data from cache'
+            });
+          }
+        } catch (cacheError) {
+          console.warn(`⚠️ Cache check failed for user ${userId}:`, cacheError.message);
+          // Continue to live data fetch
         }
-      } catch (cacheError) {
-        console.warn(`⚠️ Cache check failed for user ${userId}:`, cacheError.message);
-        // Continue to live data fetch
       }
-    }
 
     // Try to get user's API keys first
     const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
@@ -339,8 +349,36 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       }
     });
 
+    };
+
+    // Execute operation with timeout protection
+    await Promise.race([portfolioOperation(), timeoutPromise]);
+
   } catch (error) {
     console.error(`❌ Error in enhanced portfolio holdings endpoint for user ${userId}:`, error);
+    
+    // Handle timeout errors specifically
+    if (error.message.includes('timeout')) {
+      console.warn(`⏱️ Request timeout for user ${userId} - returning cached or sample data`);
+      
+      // Try to return stale cached data as timeout fallback
+      try {
+        const staleCachedData = await portfolioDb.getCachedPortfolioData(userId, accountType);
+        if (staleCachedData) {
+          console.log(`📋 Returning stale cached data due to timeout for user ${userId}`);
+          return res.json({
+            success: true,
+            data: staleCachedData,
+            source: 'database_stale',
+            responseTime: Date.now() - startTime,
+            warning: 'Request timeout - showing cached data',
+            message: 'Portfolio data from cache (timeout fallback)'
+          });
+        }
+      } catch (cacheError) {
+        console.warn(`⚠️ Stale cache fallback failed for user ${userId}:`, cacheError.message);
+      }
+    }
     
     // Try to return sample data as emergency fallback
     try {

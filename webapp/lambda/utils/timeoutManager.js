@@ -30,8 +30,8 @@ const TIMEOUT_CONFIGS = {
     positions: 10000,   // 10 seconds - position retrieval
     history: 15000,     // 15 seconds - trade history
     account: 10000,     // 10 seconds - account info
-    portfolio: 35000,   // 35 seconds - portfolio performance analysis (1Y+ data)
-    performance: 35000, // 35 seconds - portfolio performance metrics
+    portfolio: 20000,   // 20 seconds - portfolio performance analysis (reduced from 35s)
+    performance: 20000, // 20 seconds - portfolio performance metrics (reduced from 35s)
     standard: 10000     // 10 seconds - standard operations
   },
 
