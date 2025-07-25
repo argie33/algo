@@ -46,7 +46,9 @@ class ConfigurationService {
     } catch (error) {
       console.error('❌ Configuration initialization failed:', error);
       
-      // Return safe fallback configuration
+      // Return safe fallback configuration with enhanced error context
+      console.warn('🔧 Using safety fallback configuration due to initialization error');
+      console.warn('💡 The app will continue to work with CloudFormation config and default settings');
       this.configCache = this.getSafetyFallbackConfig();
       this.initialized = true;
       return this.configCache;
@@ -93,25 +95,50 @@ class ConfigurationService {
       }
       
       if (response.ok) {
-        const data = await response.json();
-        const source = data.source === 'environment_variables' ? 'api' : 'health_api';
-        console.log(`✅ Configuration fetched from ${source} (${data.source})`);
+        // Check content type to ensure we're getting JSON, not HTML
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.warn('⚠️ Configuration endpoint returned non-JSON content:', contentType);
+          console.warn('⚠️ This might be a routing issue or HTML error page');
+          throw new Error('Invalid response type - expected JSON but got ' + (contentType || 'unknown'));
+        }
+
+        // Get response text first to check for HTML
+        const responseText = await response.text();
         
-        return {
-          api: {
-            baseUrl: data.api?.gatewayUrl
-          },
-          cognito: {
-            userPoolId: data.cognito?.userPoolId,
-            clientId: data.cognito?.clientId,
-            domain: data.cognito?.domain
-          },
-          aws: {
-            region: data.cognito?.region || data.region || 'us-east-1'
-          },
-          source: source,
-          environment: data.environment
-        };
+        // Check if response is HTML (common in routing errors)
+        if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+          console.error('🚨 Configuration endpoint returned HTML instead of JSON:');
+          console.error('Response text:', responseText.substring(0, 200) + '...');
+          throw new Error('Configuration endpoint returned HTML - possible routing misconfiguration');
+        }
+
+        try {
+          const data = JSON.parse(responseText);
+          const source = data.source === 'environment_variables' ? 'api' : 'health_api';
+          console.log(`✅ Configuration fetched from ${source} (${data.source})`);
+          
+          return {
+            api: {
+              baseUrl: data.api?.gatewayUrl
+            },
+            cognito: {
+              userPoolId: data.cognito?.userPoolId,
+              clientId: data.cognito?.clientId,
+              domain: data.cognito?.domain
+            },
+            aws: {
+              region: data.cognito?.region || data.region || 'us-east-1'
+            },
+            source: source,
+            environment: data.environment
+          };
+        } catch (parseError) {
+          console.error('🚨 Failed to parse configuration response as JSON:');
+          console.error('Parse error:', parseError.message);
+          console.error('Response text:', responseText.substring(0, 500));
+          throw new Error(`JSON parse error: ${parseError.message}`);
+        }
       } else {
         console.warn('⚠️ Failed to fetch configuration from both main and health API:', response.status);
         
@@ -128,6 +155,17 @@ class ConfigurationService {
       }
     } catch (fetchError) {
       console.warn('⚠️ Error fetching configuration from API:', fetchError.message);
+      
+      // Provide more specific error messages
+      if (fetchError.message.includes('HTML')) {
+        console.error('🔧 SOLUTION: This looks like a routing issue. The API endpoint may be returning an HTML error page instead of JSON.');
+        console.error('💡 Check your API Gateway configuration and ensure the /api/config endpoint is properly configured.');
+      } else if (fetchError.message.includes('JSON')) {
+        console.error('🔧 SOLUTION: JSON parsing failed. The API response may be malformed or empty.');
+        console.error('💡 Check the API endpoint response format and ensure it returns valid JSON.');
+      } else if (fetchError.message.includes('Failed to fetch')) {
+        console.error('🔧 SOLUTION: Network request failed. Check your internet connection and API endpoint availability.');
+      }
     }
 
     return {};
