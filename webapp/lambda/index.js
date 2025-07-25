@@ -121,6 +121,7 @@ safeRouteLoader('./routes/health-v3', 'Smart Health Direct', '/health');
 
 // Core Data Routes - These are critical for portfolio page
 safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
+safeRouteLoader('./routes/dashboard', 'Dashboard', '/api/dashboard');
 safeRouteLoader('./routes/stocks', 'Stocks', '/api/stocks');
 safeRouteLoader('./routes/financials', 'Financials', '/api/financials');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
@@ -128,6 +129,9 @@ safeRouteLoader('./routes/sectors', 'Sectors', '/api/sectors');
 
 // API Key Management
 safeRouteLoader('./routes/unified-api-keys', 'Unified API Keys', '/api/api-keys');
+
+// Handle legacy frontend calls to /api-keys (without /api prefix)
+safeRouteLoader('./routes/unified-api-keys', 'Legacy API Keys', '/api-keys');
 
 // Market Data Routes
 safeRouteLoader('./routes/market', 'Market', '/api/market');
@@ -154,25 +158,7 @@ safeRouteLoader('./routes/calendar', 'Calendar', '/api/calendar');
 // DIAGNOSTIC ENDPOINTS - For debugging and system health
 // ============================================================================
 
-// Dashboard endpoint diagnostic
-app.get('/api/dashboard', (req, res) => {
-  res.status(503).json({
-    success: false,
-    error: 'Dashboard service not properly configured',
-    diagnostics: {
-      issue: 'No dedicated dashboard route file exists',
-      expectedFile: './routes/dashboard.js',
-      currentBehavior: 'Using diagnostic endpoint',
-      recommendations: [
-        'Create ./routes/dashboard.js with proper Express router',
-        'Implement dashboard data aggregation from portfolio and market services',
-        'Add proper database connectivity for real-time data'
-      ]
-    },
-    message: 'Dashboard endpoint requires proper route implementation',
-    timestamp: new Date().toISOString()
-  });
-});
+// Dashboard endpoint is now properly loaded from ./routes/dashboard.js
 
 // Auth status endpoint with development bypass
 app.get('/api/auth-status', (req, res) => {

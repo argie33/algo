@@ -123,15 +123,47 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
     const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
     
     if (!alpacaCredentials) {
-      console.log(`⚠️ No API keys found for user ${userId}, returning sample data`);
-      const sampleData = getSamplePortfolioData(accountType);
+      console.log(`⚠️ No API keys found for user ${userId}, returning empty portfolio state`);
       
       return res.json({
         success: true,
-        data: sampleData.data,
-        source: 'sample',
+        data: {
+          account: {
+            equity: 0,
+            cash: 0,
+            buying_power: 0,
+            portfolio_value: 0,
+            account_number: null,
+            status: 'not_configured'
+          },
+          holdings: [],
+          summary: {
+            total_equity: 0,
+            total_positions: 0,
+            total_unrealized_pl: 0,
+            total_unrealized_plpc: 0,
+            portfolio_performance: {
+              day_change: 0,
+              day_change_percent: 0
+            }
+          },
+          accountType: 'none',
+          lastUpdated: new Date().toISOString()
+        },
+        source: 'empty',
         responseTime: Date.now() - startTime,
-        message: 'Portfolio data from sample data - configure API keys for live data'
+        message: 'No portfolio data available - configure Alpaca API keys to view your portfolio',
+        actionRequired: {
+          action: 'configure_api_keys',
+          description: 'Add your Alpaca API keys in Settings to access enhanced portfolio features',
+          url: '/settings',
+          features: [
+            'Real-time portfolio sync',
+            'Advanced performance analytics',
+            'Portfolio rebalancing tools',
+            'Risk analysis and recommendations'
+          ]
+        }
       });
     }
 
@@ -181,18 +213,49 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
         });
       }
 
-      // 6. Final fallback to sample data
-      console.log(`⚠️ Falling back to sample data for user ${userId}`);
-      const sampleData = getSamplePortfolioData(accountType);
+      // 6. Final fallback to empty state
+      console.log(`⚠️ All data sources failed for user ${userId}, returning empty state`);
       
       return res.json({
         success: true,
-        data: sampleData.data,
-        source: 'sample_fallback',
+        data: {
+          account: {
+            equity: 0,
+            cash: 0,
+            buying_power: 0,
+            portfolio_value: 0,
+            account_number: null,
+            status: 'sync_failed'
+          },
+          holdings: [],
+          summary: {
+            total_equity: 0,
+            total_positions: 0,
+            total_unrealized_pl: 0,
+            total_unrealized_plpc: 0,
+            portfolio_performance: {
+              day_change: 0,
+              day_change_percent: 0
+            }
+          },
+          accountType: accountType,
+          lastUpdated: new Date().toISOString()
+        },
+        source: 'empty_fallback',
         responseTime: Date.now() - startTime,
-        warning: 'Portfolio sync failed, showing sample data',
+        error: 'Portfolio sync failed - unable to retrieve data',
         syncError: syncError.message,
-        message: 'Portfolio data from sample data (sync failed)'
+        message: 'Portfolio sync failed - please try again or contact support',
+        actionRequired: {
+          action: 'retry_or_contact_support',
+          description: 'Portfolio sync failed. Try refreshing or check API key configuration.',
+          suggestions: [
+            'Refresh the page to retry sync',
+            'Check your Alpaca API key configuration',
+            'Verify your internet connection',
+            'Contact support if the issue persists'
+          ]
+        }
       });
     }
 

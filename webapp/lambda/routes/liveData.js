@@ -19,22 +19,50 @@ const router = express.Router();
 // Initialize live data manager and Alpaca service
 const liveDataManager = new LiveDataManager();
 
-// Initialize Alpaca service only if API keys are available
-let alpacaService = null;
+// Enhanced user-specific Alpaca service with fallback
+const alpacaServicePool = new Map();
+const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
+
+// Helper to get or create user-specific Alpaca service
+const getUserAlpacaService = async (userId) => {
+  if (alpacaServicePool.has(userId)) {
+    return alpacaServicePool.get(userId);
+  }
+  
+  try {
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId);
+    if (credentials && credentials.keyId && credentials.secretKey) {
+      const alpacaService = new AlpacaService(
+        credentials.keyId, 
+        credentials.secretKey, 
+        true // Default to paper trading for safety
+      );
+      alpacaServicePool.set(userId, alpacaService);
+      console.log(`✅ User-specific Alpaca service created for ${userId}`);
+      return alpacaService;
+    }
+  } catch (error) {
+    console.warn(`⚠️ Failed to create user-specific Alpaca service for ${userId}:`, error.message);
+  }
+  
+  return null;
+};
+
+// Initialize system-level Alpaca service as fallback
+let systemAlpacaService = null;
 try {
-  // Try to get API keys from environment (for admin/system-level access)
   const apiKey = process.env.ALPACA_API_KEY;
   const apiSecret = process.env.ALPACA_API_SECRET;
   const isPaper = process.env.ALPACA_ENVIRONMENT !== 'live';
   
   if (apiKey && apiSecret) {
-    alpacaService = new AlpacaService(apiKey, apiSecret, isPaper);
-    console.log('✅ Alpaca service initialized with system credentials');
+    systemAlpacaService = new AlpacaService(apiKey, apiSecret, isPaper);
+    console.log('✅ System Alpaca service initialized with environment credentials');
   } else {
-    console.log('⚠️ Alpaca service not initialized - missing system API keys (will use user-specific keys)');
+    console.log('ℹ️ System Alpaca service not initialized - will use user-specific keys only');
   }
 } catch (error) {
-  console.warn('⚠️ Alpaca service initialization failed:', error.message);
+  console.warn('⚠️ System Alpaca service initialization failed:', error.message);
 }
 
 // Active feeds storage (in production, use Redis)
@@ -161,11 +189,25 @@ router.post('/subscribe', authenticateToken, async (req, res) => {
       });
     }
 
+    // Get user-specific Alpaca service for this subscription
+    const userAlpacaService = await getUserAlpacaService(userId);
+    
+    if (!userAlpacaService) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid API keys found. Please configure your Alpaca API keys in Settings.',
+        code: 'NO_API_KEYS',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Initialize live data manager with user-specific credentials
+    await liveDataManager.initializeProviders(userId);
     const result = await liveDataManager.subscribe(userId, symbol, provider);
     
     res.json({
       success: result.success,
-      data: result.success ? result : null,
+      data: result.success ? { ...result, hasApiKeys: true } : null,
       error: result.success ? null : result.error,
       timestamp: new Date().toISOString()
     });

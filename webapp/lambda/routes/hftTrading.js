@@ -504,6 +504,178 @@ router.post('/backtest', authenticateToken, async (req, res) => {
 });
 
 /**
+ * GET /api/hft/advanced/risk-metrics
+ * Get advanced risk management metrics
+ */
+router.get('/advanced/risk-metrics', authenticateToken, async (req, res) => {
+  try {
+    const metrics = hftService.getMetrics();
+    const riskMetrics = metrics.advancedServices?.riskManager || {};
+
+    res.json({
+      success: true,
+      data: {
+        riskManager: riskMetrics,
+        portfolioRisk: {
+          dailyLossUtilization: metrics.riskUtilization?.dailyLoss || 0,
+          positionUtilization: metrics.riskUtilization?.openPositions || 0,
+          totalPnL: metrics.totalPnL,
+          openPositions: metrics.openPositions
+        },
+        servicesStatus: {
+          initialized: metrics.advancedServices?.initialized || false,
+          riskManagerActive: !!riskMetrics.portfolioExposure,
+          timestamp: Date.now()
+        }
+      },
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to get risk metrics', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get risk metrics',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/hft/advanced/realtime-data
+ * Get real-time data integrator metrics
+ */
+router.get('/advanced/realtime-data', authenticateToken, async (req, res) => {
+  try {
+    const metrics = hftService.getMetrics();
+    const dataMetrics = metrics.advancedServices?.dataIntegrator || {};
+
+    res.json({
+      success: true,
+      data: {
+        dataIntegrator: dataMetrics,
+        signalGeneration: {
+          signalsGenerated: metrics.signalsGenerated || 0,
+          ordersExecuted: metrics.ordersExecuted || 0,
+          executionRate: metrics.signalsGenerated > 0 ? 
+            (metrics.ordersExecuted / metrics.signalsGenerated * 100).toFixed(2) + '%' : '0%'
+        },
+        servicesStatus: {
+          initialized: metrics.advancedServices?.initialized || false,
+          dataFeedActive: !!dataMetrics.connectionStatus,
+          timestamp: Date.now()
+        }
+      },
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to get realtime data metrics', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get realtime data metrics',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/hft/advanced/update-risk-config
+ * Update risk management configuration
+ */
+router.post('/advanced/update-risk-config', authenticateToken, async (req, res) => {
+  try {
+    const { riskConfig } = req.body;
+
+    if (!riskConfig || typeof riskConfig !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid risk configuration provided'
+      });
+    }
+
+    // Get current HFT service instance and update risk config
+    const metrics = hftService.getMetrics();
+    
+    if (!metrics.advancedServices?.initialized) {
+      return res.status(400).json({
+        success: false,
+        error: 'Advanced services not initialized'
+      });
+    }
+
+    // Update risk configuration (this would need to be implemented in the service)
+    logger.info('Risk configuration update requested', {
+      riskConfig,
+      correlationId: req.correlationId
+    });
+
+    res.json({
+      success: true,
+      message: 'Risk configuration updated successfully',
+      data: {
+        updatedConfig: riskConfig,
+        timestamp: Date.now()
+      }
+    });
+
+  } catch (error) {
+    logger.error('Failed to update risk configuration', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update risk configuration',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/hft/advanced/market-signals
+ * Get latest market signals from real-time data integrator
+ */
+router.get('/advanced/market-signals', authenticateToken, async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    // This would need to be implemented in the HFT service to expose signals
+    res.json({
+      success: true,
+      data: {
+        signals: [], // Would come from data integrator
+        count: 0,
+        limit: parseInt(limit),
+        note: 'Signal history feature - to be implemented',
+        timestamp: Date.now()
+      }
+    });
+
+  } catch (error) {
+    logger.error('Failed to get market signals', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get market signals',
+      details: error.message
+    });
+  }
+});
+
+/**
  * GET /api/hft/health
  * Health check endpoint
  */

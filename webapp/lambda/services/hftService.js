@@ -5,6 +5,8 @@
 
 const { createLogger } = require('../utils/structuredLogger');
 const { query } = require('../utils/database');
+const AdvancedRiskManager = require('./advancedRiskManager');
+const RealTimeDataIntegrator = require('./realTimeDataIntegrator');
 
 class HFTService {
   constructor() {
@@ -18,6 +20,11 @@ class HFTService {
     this.orders = new Map();
     this.marketData = new Map();
     this.userCredentials = null;
+    
+    // Advanced services
+    this.riskManager = new AdvancedRiskManager();
+    this.dataIntegrator = new RealTimeDataIntegrator();
+    this.servicesInitialized = false;
     
     // Performance metrics
     this.metrics = {
@@ -183,6 +190,223 @@ class HFTService {
   }
 
   /**
+   * Initialize advanced services (risk manager and data integrator)
+   */
+  async initializeAdvancedServices() {
+    if (this.servicesInitialized) {
+      return { success: true };
+    }
+
+    try {
+      this.logger.info('Initializing advanced HFT services', {
+        correlationId: this.correlationId
+      });
+
+      // Initialize real-time data integrator
+      await this.dataIntegrator.initialize(this.userCredentials);
+      
+      // Set up real-time signal listening
+      this.dataIntegrator.on('signal', (signal) => {
+        this.handleRealTimeSignal(signal);
+      });
+
+      this.dataIntegrator.on('trade', (trade) => {
+        this.handleRealTimeMarketData(trade);
+      });
+
+      // Subscribe to default symbols for scalping strategy
+      const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY'];
+      await this.dataIntegrator.subscribeToSymbols(defaultSymbols);
+
+      this.servicesInitialized = true;
+      
+      this.logger.info('Advanced HFT services initialized successfully', {
+        correlationId: this.correlationId
+      });
+
+      return { success: true };
+      
+    } catch (error) {
+      this.logger.error('Failed to initialize advanced services', {
+        error: error.message,
+        correlationId: this.correlationId
+      });
+      
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Handle real-time trading signals from data integrator
+   */
+  async handleRealTimeSignal(signal) {
+    try {
+      this.logger.info('Processing real-time signal', {
+        symbol: signal.symbol,
+        type: signal.type,
+        confidence: signal.confidence,
+        correlationId: this.correlationId
+      });
+
+      // Get current positions for risk assessment
+      const currentPositions = this.getCurrentPositionsMap();
+      const portfolioValue = this.calculatePortfolioValue();
+
+      // Advanced risk assessment
+      const riskAssessment = await this.riskManager.assessTradeRisk(
+        signal, 
+        currentPositions, 
+        portfolioValue
+      );
+
+      if (riskAssessment.approved) {
+        // Execute trade with risk-adjusted quantity
+        await this.executeSignalTrade(signal, riskAssessment.adjustedQuantity);
+        
+        // Record trade execution for tracking
+        this.riskManager.recordTradeExecution(signal);
+        
+        this.metrics.signalsGenerated++;
+      } else {
+        this.logger.info('Signal rejected by risk manager', {
+          symbol: signal.symbol,
+          riskScore: riskAssessment.riskScore,
+          reasoning: riskAssessment.reasoning,
+          correlationId: this.correlationId
+        });
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to handle real-time signal', {
+        signal,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+    }
+  }
+
+  /**
+   * Handle real-time market data updates
+   */
+  handleRealTimeMarketData(trade) {
+    try {
+      // Update internal market data
+      this.marketData.set(trade.symbol, {
+        ...this.marketData.get(trade.symbol),
+        latestTrade: trade,
+        lastUpdate: Date.now()
+      });
+
+      // Update position valuations if we have positions in this symbol
+      if (this.positions.has(trade.symbol)) {
+        this.updatePositionValuation(trade.symbol, trade.price);
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to handle market data update', {
+        trade,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+    }
+  }
+
+  /**
+   * Execute trade from real-time signal
+   */
+  async executeSignalTrade(signal, quantity) {
+    try {
+      // Create order based on signal
+      const order = {
+        orderId: this.generateOrderId(),
+        symbol: signal.symbol,
+        type: signal.type, // 'buy' or 'sell'
+        quantity: quantity,
+        requestedPrice: signal.price,
+        strategy: 'realtime-signal',
+        timestamp: Date.now(),
+        source: signal.source,
+        confidence: signal.confidence
+      };
+
+      // Execute the order
+      const executionResult = await this.executeRealOrder(order);
+      
+      if (executionResult.success) {
+        this.logger.info('Real-time signal trade executed successfully', {
+          orderId: order.orderId,
+          symbol: signal.symbol,
+          quantity: quantity,
+          correlationId: this.correlationId
+        });
+      }
+
+      return executionResult;
+
+    } catch (error) {
+      this.logger.error('Failed to execute signal trade', {
+        signal,
+        quantity,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get current positions formatted for risk manager
+   */
+  getCurrentPositionsMap() {
+    const positionsMap = new Map();
+    
+    for (const [symbol, position] of this.positions) {
+      positionsMap.set(symbol, {
+        symbol: position.symbol,
+        quantity: position.quantity,
+        value: position.quantity * position.avgPrice,
+        avgPrice: position.avgPrice
+      });
+    }
+    
+    return positionsMap;
+  }
+
+  /**
+   * Calculate current portfolio value
+   */
+  calculatePortfolioValue() {
+    let totalValue = 10000; // Base portfolio value
+    
+    for (const [symbol, position] of this.positions) {
+      const currentPrice = this.marketData.get(symbol)?.latestTrade?.price || position.avgPrice;
+      totalValue += position.quantity * currentPrice;
+    }
+    
+    return totalValue;
+  }
+
+  /**
+   * Update position valuation with current market price
+   */
+  updatePositionValuation(symbol, currentPrice) {
+    const position = this.positions.get(symbol);
+    if (position) {
+      const previousValue = position.quantity * position.avgPrice;
+      const currentValue = position.quantity * currentPrice;
+      const pnl = currentValue - previousValue;
+      
+      position.currentPrice = currentPrice;
+      position.currentValue = currentValue;
+      position.unrealizedPnL = pnl;
+      position.lastUpdate = Date.now();
+      
+      this.positions.set(symbol, position);
+    }
+  }
+
+  /**
    * Start HFT service
    */
   async start(userId, enabledStrategies = ['scalping_btc']) {
@@ -209,6 +433,9 @@ class HFTService {
           details: credentialResult.error
         };
       }
+
+      // Initialize advanced services
+      await this.initializeAdvancedServices();
 
       // Reset metrics
       this.metrics.startTime = Date.now();
@@ -275,6 +502,9 @@ class HFTService {
       this.stopExecutionLoop();
       this.stopRiskMonitoring();
 
+      // Shutdown advanced services
+      await this.shutdownAdvancedServices();
+
       // Close all open positions
       await this.closeAllPositions('service_stop');
 
@@ -303,6 +533,34 @@ class HFTService {
         error: 'Failed to stop HFT service',
         details: error.message
       };
+    }
+  }
+
+  /**
+   * Shutdown advanced services
+   */
+  async shutdownAdvancedServices() {
+    try {
+      this.logger.info('Shutting down advanced HFT services', {
+        correlationId: this.correlationId
+      });
+
+      // Shutdown real-time data integrator
+      if (this.dataIntegrator) {
+        await this.dataIntegrator.shutdown();
+      }
+
+      this.servicesInitialized = false;
+      
+      this.logger.info('Advanced HFT services shut down successfully', {
+        correlationId: this.correlationId
+      });
+
+    } catch (error) {
+      this.logger.error('Failed to shutdown advanced services', {
+        error: error.message,
+        correlationId: this.correlationId
+      });
     }
   }
 
@@ -780,6 +1038,9 @@ class HFTService {
     const winRate = this.metrics.totalTrades > 0 ? 
       (this.metrics.profitableTrades / this.metrics.totalTrades) * 100 : 0;
 
+    // Get advanced service metrics
+    const advancedMetrics = this.getAdvancedServiceMetrics();
+
     return {
       ...this.metrics,
       uptime,
@@ -794,7 +1055,41 @@ class HFTService {
       riskUtilization: {
         dailyLoss: Math.abs(this.metrics.dailyPnL) / this.riskConfig.maxDailyLoss * 100,
         openPositions: this.positions.size / this.riskConfig.maxOpenPositions * 100
+      },
+      advancedServices: {
+        initialized: this.servicesInitialized,
+        riskManager: advancedMetrics.riskManager,
+        dataIntegrator: advancedMetrics.dataIntegrator
       }
+    };
+  }
+
+  /**
+   * Get advanced service metrics
+   */
+  getAdvancedServiceMetrics() {
+    let riskManagerMetrics = {};
+    let dataIntegratorMetrics = {};
+
+    try {
+      if (this.riskManager && this.servicesInitialized) {
+        riskManagerMetrics = this.riskManager.getRiskMetrics();
+      }
+    } catch (error) {
+      riskManagerMetrics = { error: 'Risk manager metrics unavailable' };
+    }
+
+    try {
+      if (this.dataIntegrator && this.servicesInitialized) {
+        dataIntegratorMetrics = this.dataIntegrator.getMetrics();
+      }
+    } catch (error) {
+      dataIntegratorMetrics = { error: 'Data integrator metrics unavailable' };
+    }
+
+    return {
+      riskManager: riskManagerMetrics,
+      dataIntegrator: dataIntegratorMetrics
     };
   }
 

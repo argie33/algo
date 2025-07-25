@@ -1,8 +1,9 @@
 /**
- * Circuit Breaker for API Key Service
+ * Enhanced Circuit Breaker for Live Data Infrastructure
  * 
- * User-aware circuit breaker that prevents cascading failures
- * while maintaining service availability for healthy operations
+ * Multi-service circuit breaker with user-aware protection,
+ * adaptive thresholds, and intelligent fallback strategies
+ * for live data feeds, API services, and database connections
  */
 
 const { CloudWatchClient, PutMetricDataCommand } = require('@aws-sdk/client-cloudwatch');
