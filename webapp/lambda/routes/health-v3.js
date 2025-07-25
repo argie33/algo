@@ -52,6 +52,52 @@ const ensureInitialized = async () => {
 };
 
 /**
+ * GET /health/secrets/test
+ * Test Secrets Manager access and database secret retrieval
+ */
+router.get('/secrets/test', async (req, res) => {
+  try {
+    const { getDatabaseSecretDirect } = require('../utils/database');
+    const secretArn = process.env.DB_SECRET_ARN || 'stocks-db-secrets-stocks-app-stack-us-east-1-001';
+    
+    console.log(`🔍 Testing secret access: ${secretArn}`);
+    
+    const secret = await getDatabaseSecretDirect(secretArn);
+    
+    res.json({
+      success: true,
+      secretAccess: {
+        canAccess: true,
+        secretArn: secretArn,
+        hasUsername: !!secret.username,
+        hasPassword: !!secret.password,
+        hasHost: !!secret.host,
+        hasPort: !!secret.port,
+        hasDatabase: !!secret.dbname || !!secret.database,
+        host: secret.host,
+        port: secret.port,
+        database: secret.dbname || secret.database
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Secret access test failed:', error);
+    
+    res.status(503).json({
+      success: false,
+      secretAccess: {
+        canAccess: false,
+        error: error.message,
+        errorCode: error.code || error.name,
+        secretArn: process.env.DB_SECRET_ARN || 'stocks-db-secrets-stocks-app-stack-us-east-1-001'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
  * GET /health/database/quick
  * Ultra-fast database connection test (sub-3s)
  */
