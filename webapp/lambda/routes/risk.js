@@ -1,8 +1,64 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const { query } = require('../utils/database');
+const apiKeyService = require('../utils/apiKeyService');
+const AlpacaService = require('../utils/alpacaService');
 const RiskEngine = require('../utils/riskEngine');
+
+// Standard paper trading validation schema
+const paperTradingValidationSchema = {
+  accountType: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { defaultValue: 'paper' }),
+    validator: (value) => ['paper', 'live'].includes(value),
+    errorMessage: 'accountType must be paper or live'
+  },
+  force: {
+    type: 'boolean',
+    sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+    validator: (value) => typeof value === 'boolean',
+    errorMessage: 'force must be true or false'
+  }
+};
+
+// Helper function to get user API key with proper format (matching portfolio.js pattern)
+const getUserApiKey = async (userId, provider) => {
+  try {
+    const credentials = await apiKeyService.getApiKey(userId, provider);
+    if (!credentials) {
+      return null;
+    }
+    
+    return {
+      apiKey: credentials.keyId,
+      apiSecret: credentials.secretKey,
+      isSandbox: credentials.version === '1.0' // Default to sandbox for v1.0
+    };
+  } catch (error) {
+    console.error(`Failed to get API key for ${provider}:`, error);
+    return null;
+  }
+};
+
+// Helper function to setup Alpaca service with account type
+const setupAlpacaService = async (userId, accountType = 'paper') => {
+  const credentials = await getUserApiKey(userId, 'alpaca');
+  
+  if (!credentials) {
+    throw new Error(`No Alpaca API keys configured`);
+  }
+  
+  // Determine if we should use sandbox based on account type preference and credentials
+  const useSandbox = accountType === 'paper' || credentials.isSandbox;
+  
+  return new AlpacaService(
+    credentials.apiKey,
+    credentials.apiSecret,
+    useSandbox
+  );
+};
 
 // Health endpoint (no auth required)
 router.get('/health', (req, res) => {
@@ -31,92 +87,214 @@ router.use(authenticateToken);
 // Initialize risk engine
 const riskEngine = new RiskEngine();
 
-// Get portfolio risk metrics
-router.get('/portfolio/:portfolioId', async (req, res) => {
-  try {
-    const { portfolioId } = req.params;
-    const { timeframe = '1Y', confidence_level = 0.95 } = req.query;
-    const userId = req.user.sub;
-    
-    // Verify portfolio ownership
-    const portfolioResult = await query(`
-      SELECT id FROM portfolios 
-      WHERE id = $1 AND user_id = $2
-    `, [portfolioId, userId]);
-    
-    if (portfolioResult.rows.length === 0) {
-      return res.status(404).json({
+// Get portfolio risk metrics with paper trading support
+router.get('/portfolio/:portfolioId',
+  createValidationMiddleware({
+    ...paperTradingValidationSchema,
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { defaultValue: '1Y' }),
+      validator: (value) => ['1D', '1W', '1M', '3M', '6M', '1Y', '2Y'].includes(value),
+      errorMessage: 'timeframe must be 1D, 1W, 1M, 3M, 6M, 1Y, or 2Y'
+    },
+    confidence_level: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0.8, max: 0.99, defaultValue: 0.95 }),
+      validator: (value) => !value || (value >= 0.8 && value <= 0.99),
+      errorMessage: 'confidence_level must be between 0.8 and 0.99'
+    }
+  }),
+  async (req, res) => {
+    try {
+      const { portfolioId } = req.params;
+      const { accountType = 'paper', timeframe = '1Y', confidence_level = 0.95 } = req.query;
+      const userId = req.user.sub;
+      
+      // Setup Alpaca service for account type
+      const alpacaService = await setupAlpacaService(userId, accountType);
+      
+      // Get portfolio data from Alpaca instead of database lookup
+      const [account, positions, portfolioHistory] = await Promise.all([
+        alpacaService.getAccount(),
+        alpacaService.getPositions(),
+        alpacaService.getPortfolioHistory({ period: timeframe, timeframe: '1Day' })
+      ]);
+      
+      if (!positions || positions.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            portfolioId: `${accountType}-${userId}`,
+            riskMetrics: {
+              message: 'No positions found for risk analysis',
+              totalValue: account?.portfolio_value || 0,
+              positionCount: 0
+            }
+          },
+          accountType,
+          tradingMode: accountType === 'paper' ? 'Paper Trading' : 'Live Trading',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Calculate risk metrics using portfolio data
+      const riskMetrics = await riskEngine.calculatePortfolioRisk(
+        { positions, portfolioHistory, account, accountType },
+        timeframe,
+        parseFloat(confidence_level)
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          portfolioId: `${accountType}-${userId}`,
+          riskMetrics,
+          accountInfo: {
+            totalValue: account?.portfolio_value,
+            cash: account?.cash,
+            dayTradeCount: account?.day_trade_count,
+            positionCount: positions.length
+          }
+        },
+        accountType,
+        tradingMode: accountType === 'paper' ? 'Paper Trading' : 'Live Trading',
+        source: 'alpaca',
+        timestamp: new Date().toISOString(),
+        
+        // Paper trading specific info
+        paperTradingInfo: accountType === 'paper' ? {
+          isPaperAccount: true,
+          virtualCash: account?.cash || 0,
+          restrictions: ['No real money risk', 'Simulated risk calculations'],
+          benefits: ['Risk-free analysis', 'Strategy testing']
+        } : undefined
+      });
+    } catch (error) {
+      console.error('Error calculating portfolio risk:', error);
+      res.status(500).json({
         success: false,
-        error: 'Portfolio not found'
+        error: 'Failed to calculate portfolio risk',
+        message: error.message,
+        timestamp: new Date().toISOString()
       });
     }
-    
-    const riskMetrics = await riskEngine.calculatePortfolioRisk(
-      portfolioId, 
-      timeframe, 
-      parseFloat(confidence_level)
-    );
-    
-    res.json({
-      success: true,
-      data: riskMetrics
-    });
-  } catch (error) {
-    console.error('Error calculating portfolio risk:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate portfolio risk',
-      message: error.message
-    });
   }
-});
+);
 
-// Get Value at Risk (VaR) analysis
-router.get('/var/:portfolioId', async (req, res) => {
-  try {
-    const { portfolioId } = req.params;
-    const { 
-      method = 'historical', 
-      confidence_level = 0.95, 
-      time_horizon = 1,
-      lookback_days = 252
-    } = req.query;
-    const userId = req.user.sub;
-    
-    // Verify portfolio ownership
-    const portfolioResult = await query(`
-      SELECT id FROM portfolios 
-      WHERE id = $1 AND user_id = $2
-    `, [portfolioId, userId]);
-    
-    if (portfolioResult.rows.length === 0) {
-      return res.status(404).json({
+// Get Value at Risk (VaR) analysis with paper trading support
+router.get('/var',
+  createValidationMiddleware({
+    ...paperTradingValidationSchema,
+    method: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { defaultValue: 'historical' }),
+      validator: (value) => ['historical', 'parametric', 'monte_carlo'].includes(value),
+      errorMessage: 'method must be historical, parametric, or monte_carlo'
+    },
+    confidence_level: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0.8, max: 0.99, defaultValue: 0.95 }),
+      validator: (value) => !value || (value >= 0.8 && value <= 0.99),
+      errorMessage: 'confidence_level must be between 0.8 and 0.99'
+    },
+    time_horizon: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 30, defaultValue: 1 }),
+      validator: (value) => !value || (value >= 1 && value <= 30),
+      errorMessage: 'time_horizon must be between 1 and 30 days'
+    },
+    lookback_days: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 30, max: 1000, defaultValue: 252 }),
+      validator: (value) => !value || (value >= 30 && value <= 1000),
+      errorMessage: 'lookback_days must be between 30 and 1000'
+    }
+  }),
+  async (req, res) => {
+    try {
+      const { 
+        accountType = 'paper',
+        method = 'historical', 
+        confidence_level = 0.95, 
+        time_horizon = 1,
+        lookback_days = 252
+      } = req.query;
+      const userId = req.user.sub;
+      
+      // Setup Alpaca service for account type
+      const alpacaService = await setupAlpacaService(userId, accountType);
+      
+      // Get portfolio data from Alpaca
+      const [account, positions, portfolioHistory] = await Promise.all([
+        alpacaService.getAccount(),
+        alpacaService.getPositions(),
+        alpacaService.getPortfolioHistory({ 
+          period: lookback_days > 365 ? '2Y' : '1Y', 
+          timeframe: '1Day' 
+        })
+      ]);
+      
+      if (!positions || positions.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            var: 0,
+            message: 'No positions found for VaR analysis',
+            totalValue: account?.portfolio_value || 0
+          },
+          accountType,
+          tradingMode: accountType === 'paper' ? 'Paper Trading' : 'Live Trading',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Calculate VaR using portfolio data
+      const varAnalysis = await riskEngine.calculateVaR(
+        { positions, portfolioHistory, account, accountType },
+        method,
+        parseFloat(confidence_level),
+        parseInt(time_horizon),
+        parseInt(lookback_days)
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          ...varAnalysis,
+          parameters: {
+            method,
+            confidence_level: parseFloat(confidence_level),
+            time_horizon: parseInt(time_horizon),
+            lookback_days: parseInt(lookback_days)
+          },
+          accountInfo: {
+            totalValue: account?.portfolio_value,
+            positionCount: positions.length
+          }
+        },
+        accountType,
+        tradingMode: accountType === 'paper' ? 'Paper Trading' : 'Live Trading',
+        source: 'alpaca',
+        timestamp: new Date().toISOString(),
+        
+        // Paper trading specific info
+        paperTradingInfo: accountType === 'paper' ? {
+          isPaperAccount: true,
+          virtualRisk: true,
+          disclaimer: 'VaR calculations based on simulated portfolio data'
+        } : undefined
+      });
+    } catch (error) {
+      console.error('Error calculating VaR:', error);
+      res.status(500).json({
         success: false,
-        error: 'Portfolio not found'
+        error: 'Failed to calculate VaR',
+        message: error.message,
+        timestamp: new Date().toISOString()
       });
     }
-    
-    const varAnalysis = await riskEngine.calculateVaR(
-      portfolioId,
-      method,
-      parseFloat(confidence_level),
-      parseInt(time_horizon),
-      parseInt(lookback_days)
-    );
-    
-    res.json({
-      success: true,
-      data: varAnalysis
-    });
-  } catch (error) {
-    console.error('Error calculating VaR:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate VaR',
-      message: error.message
-    });
   }
-});
+);
 
 // Get stress testing results
 router.post('/stress-test/:portfolioId', async (req, res) => {
@@ -465,80 +643,128 @@ router.put('/limits/:portfolioId', async (req, res) => {
   }
 });
 
-// Get risk dashboard summary
-router.get('/dashboard', async (req, res) => {
-  try {
-    const userId = req.user.sub;
-    
-    // Get portfolio risk summary
-    const portfolioRiskResult = await query(`
-      SELECT 
-        p.id,
-        p.name,
-        p.total_value,
-        prm.var_95,
-        prm.var_99,
-        prm.expected_shortfall,
-        prm.volatility,
-        prm.beta,
-        prm.sharpe_ratio,
-        prm.max_drawdown,
-        prm.calculated_at
-      FROM portfolios p
-      LEFT JOIN portfolio_risk_metrics prm ON p.id = prm.portfolio_id
-      WHERE p.user_id = $1
-      ORDER BY p.created_at DESC
-    `, [userId]);
-    
-    // Get active risk alerts count
-    const alertsResult = await query(`
-      SELECT 
-        severity,
-        COUNT(*) as count
-      FROM risk_alerts
-      WHERE user_id = $1 AND status = 'active'
-      GROUP BY severity
-    `, [userId]);
-    
-    // Get market risk indicators
-    const marketRiskResult = await query(`
-      SELECT 
-        indicator_name,
-        current_value,
-        risk_level,
-        last_updated
-      FROM market_risk_indicators
-      WHERE last_updated >= CURRENT_DATE
-      ORDER BY risk_level DESC
-    `);
-    
-    const alertCounts = alertsResult.rows.reduce((acc, row) => {
-      acc[row.severity] = parseInt(row.count);
-      return acc;
-    }, { high: 0, medium: 0, low: 0 });
-    
-    res.json({
-      success: true,
-      data: {
-        portfolios: portfolioRiskResult.rows,
-        alert_counts: alertCounts,
-        market_indicators: marketRiskResult.rows,
-        summary: {
-          total_portfolios: portfolioRiskResult.rows.length,
-          total_alerts: alertsResult.rows.reduce((sum, row) => sum + parseInt(row.count), 0),
-          high_risk_portfolios: portfolioRiskResult.rows.filter(p => p.var_95 > 0.05).length
+// Get risk dashboard summary with paper trading support
+router.get('/dashboard',
+  createValidationMiddleware(paperTradingValidationSchema),
+  async (req, res) => {
+    try {
+      const { accountType = 'paper' } = req.query;
+      const userId = req.user.sub;
+      
+      // Setup Alpaca service for account type
+      const alpacaService = await setupAlpacaService(userId, accountType);
+      
+      // Get portfolio data from Alpaca
+      const [account, positions, portfolioHistory] = await Promise.all([
+        alpacaService.getAccount(),
+        alpacaService.getPositions(),
+        alpacaService.getPortfolioHistory({ period: '3M', timeframe: '1Day' })
+      ]);
+      
+      // Calculate risk summary
+      let riskSummary = {
+        totalValue: account?.portfolio_value || 0,
+        positionCount: positions?.length || 0,
+        cashBalance: account?.cash || 0,
+        dayTradeCount: account?.day_trade_count || 0,
+        riskMetrics: null
+      };
+      
+      // Calculate risk metrics if positions exist
+      if (positions && positions.length > 0) {
+        try {
+          const portfolioRisk = await riskEngine.calculatePortfolioRisk(
+            { positions, portfolioHistory, account, accountType },
+            '3M',
+            0.95
+          );
+          
+          riskSummary.riskMetrics = {
+            var95: portfolioRisk.var_95,
+            volatility: portfolioRisk.volatility,
+            beta: portfolioRisk.beta,
+            sharpeRatio: portfolioRisk.sharpe_ratio,
+            maxDrawdown: portfolioRisk.max_drawdown
+          };
+        } catch (riskError) {
+          console.warn('Risk calculation failed:', riskError.message);
         }
       }
-    });
-  } catch (error) {
-    console.error('Error fetching risk dashboard:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch risk dashboard',
-      message: error.message
-    });
+      
+      // Get risk alerts from database (account-type aware)
+      const alertsResult = await query(`
+        SELECT 
+          severity,
+          COUNT(*) as count
+        FROM risk_alerts
+        WHERE user_id = $1 AND status = 'active' AND account_type = $2
+        GROUP BY severity
+      `, [userId, accountType]);
+      
+      // Get market risk indicators (same for both paper and live)
+      const marketRiskResult = await query(`
+        SELECT 
+          indicator_name,
+          current_value,
+          risk_level,
+          last_updated
+        FROM market_risk_indicators
+        WHERE last_updated >= CURRENT_DATE
+        ORDER BY risk_level DESC
+        LIMIT 10
+      `);
+      
+      const alertCounts = alertsResult.rows.reduce((acc, row) => {
+        acc[row.severity] = parseInt(row.count);
+        return acc;
+      }, { high: 0, medium: 0, low: 0 });
+      
+      // Portfolio risk classification
+      const riskLevel = riskSummary.riskMetrics?.var95 ? 
+        (riskSummary.riskMetrics.var95 > 0.05 ? 'high' : 
+         riskSummary.riskMetrics.var95 > 0.02 ? 'medium' : 'low') : 'unknown';
+      
+      res.json({
+        success: true,
+        data: {
+          portfolio: {
+            id: `${accountType}-${userId}`,
+            name: `${accountType === 'paper' ? 'Paper' : 'Live'} Trading Account`,
+            ...riskSummary,
+            riskLevel
+          },
+          alert_counts: alertCounts,
+          market_indicators: marketRiskResult.rows,
+          summary: {
+            total_portfolios: 1,
+            total_alerts: Object.values(alertCounts).reduce((sum, count) => sum + count, 0),
+            high_risk_portfolios: riskLevel === 'high' ? 1 : 0,
+            account_type: accountType
+          }
+        },
+        accountType,
+        tradingMode: accountType === 'paper' ? 'Paper Trading' : 'Live Trading',
+        source: 'alpaca',
+        timestamp: new Date().toISOString(),
+        
+        // Paper trading specific info
+        paperTradingInfo: accountType === 'paper' ? {
+          isPaperAccount: true,
+          virtualRisk: true,
+          disclaimer: 'All risk calculations are based on simulated trading data'
+        } : undefined
+      });
+    } catch (error) {
+      console.error('Error fetching risk dashboard:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch risk dashboard',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
-});
+);
 
 // Start real-time risk monitoring
 router.post('/monitoring/start', async (req, res) => {

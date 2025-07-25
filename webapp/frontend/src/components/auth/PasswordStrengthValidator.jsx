@@ -67,14 +67,14 @@ class PasswordValidator {
       hasUppercase: /[A-Z]/.test(password),
       hasLowercase: /[a-z]/.test(password),
       hasNumbers: /\d/.test(password),
-      hasSymbols: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+      hasSymbols: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password),
       noCommonPassword: !this.commonPasswords.includes(password.toLowerCase()),
       noWeakPatterns: !this.weakPatterns.some(pattern => pattern.test(password)),
       noPersonalInfo: true, // Would check against user info in real implementation
       hasVariety: this.hasCharacterVariety(password),
       noRepeatingChars: !/(.).*\1.*\1/.test(password),
       strongLength: password.length >= 16,
-      hasUnicode: /[^\x00-\x7F]/.test(password),
+      hasUnicode: /[^\u0000-\u007F]/.test(password),
       entropy: this.calculateEntropy(password) >= 50
     };
 
@@ -86,7 +86,7 @@ class PasswordValidator {
       /[a-z]/.test(password), // lowercase
       /[A-Z]/.test(password), // uppercase
       /\d/.test(password),    // numbers
-      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password), // symbols
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password), // symbols
     ];
     return types.filter(Boolean).length >= 3;
   }
@@ -101,8 +101,8 @@ class PasswordValidator {
     if (/[a-z]/.test(password)) size += 26;
     if (/[A-Z]/.test(password)) size += 26;
     if (/\d/.test(password)) size += 10;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) size += 32;
-    if (/[^\x00-\x7F]/.test(password)) size += 100; // Unicode estimate
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password)) size += 32;
+    if (/[^\u0000-\u007F]/.test(password)) size += 100; // Unicode estimate
     return size;
   }
 

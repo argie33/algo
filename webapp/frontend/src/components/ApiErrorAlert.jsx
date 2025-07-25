@@ -167,7 +167,7 @@ const ApiErrorAlert = ({
                     Quick Test:
                   </Typography>
                   <Typography variant="body2" color="text.secondary" fontFamily="monospace">
-                    curl -H "Accept: application/json" https://d1zb7knau41vl9.cloudfront.net/api/health
+                    curl -H &quot;Accept: application/json&quot; https://d1zb7knau41vl9.cloudfront.net/api/health
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     Should return JSON, not HTML

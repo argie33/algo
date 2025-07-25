@@ -27,7 +27,6 @@ const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const { createAdvancedSecurityMiddleware } = require('../middleware/advancedSecurityEnhancements');
 const { createEnhancedFinancialValidation } = require('../middleware/financialValidationEnhanced');
-const apiKeyService = require('../utils/apiKeyService');
 const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const RiskCalculator = require('../utils/riskCalculator');

@@ -147,7 +147,7 @@ const WelcomeBanner = ({ user, isFirstTimeUser, onDismiss }) => {
             <>
               <Box mb={3}>
                 <Typography variant="body1" paragraph>
-                  Your account has been successfully created! Here's what you can do with your new financial dashboard:
+                  Your account has been successfully created! Here&apos;s what you can do with your new financial dashboard:
                 </Typography>
                 
                 <Grid container spacing={1} mb={2}>
