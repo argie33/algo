@@ -152,6 +152,11 @@ class SmartHealthMonitor {
     const startTime = Date.now();
     
     try {
+      // Check if database query function is available
+      if (!query || typeof query !== 'function') {
+        throw new Error('Database query function not available');
+      }
+
       // Ultra-fast connection test
       const [connectionTest] = await Promise.race([
         query('SELECT 1 as connected, NOW() as timestamp'),
@@ -219,13 +224,13 @@ class SmartHealthMonitor {
    * Emergency fallback when all else fails
    */
   getEmergencyFallbackHealth(error) {
-    return {
+    const fallbackHealth = {
       status: 'degraded',
       source: 'fallback',
       timestamp: new Date().toISOString(),
       connection: {
-        status: 'unknown',
-        error: error.message
+        status: 'failed',
+        error: error ? error.message : 'Unknown error'
       },
       tables: {},
       performance: {
@@ -234,6 +239,23 @@ class SmartHealthMonitor {
       },
       note: 'Emergency fallback - system may be experiencing issues'
     };
+
+    // Ensure all values are JSON serializable
+    try {
+      JSON.stringify(fallbackHealth);
+    } catch (jsonError) {
+      // Return minimal safe fallback
+      return {
+        status: 'error',
+        source: 'fallback',
+        timestamp: new Date().toISOString(),
+        connection: { status: 'failed' },
+        tables: {},
+        performance: { responseTime: 0 }
+      };
+    }
+
+    return fallbackHealth;
   }
 
   /**

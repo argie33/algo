@@ -35,11 +35,67 @@ const ensureInitialized = async () => {
     initPromise = healthMonitor.initialize().catch(error => {
       console.error('Health monitor initialization failed:', error);
       initPromise = null; // Reset for retry
-      throw error;
+      
+      // Return a basic health status instead of throwing
+      return { 
+        success: false, 
+        initialized: false, 
+        error: error.message || 'Initialization failed'
+      };
     });
   }
   return initPromise;
 };
+
+/**
+ * GET /health/database/quick
+ * Ultra-fast database connection test (sub-3s)
+ */
+router.get('/database/quick', async (req, res) => {
+  try {
+    const initResult = await ensureInitialized();
+    
+    // Handle initialization failure
+    if (initResult && !initResult.success) {
+      throw new Error(`Health monitor not initialized: ${initResult.error}`);
+    }
+    
+    const health = await healthMonitor.getInstantHealth();
+    
+    // Quick format for compatibility  
+    res.json({
+      success: true,
+      database: {
+        connected: health.connection?.status === 'connected',
+        responseTime: health.responseTime || 0,
+        serverTime: health.connection?.serverTime || health.timestamp,
+        status: health.connection?.status === 'connected' ? 'healthy' : 'unhealthy'
+      },
+      timestamp: health.timestamp || new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Quick database test failed:', error);
+    
+    // Safe error response
+    const safeError = {
+      success: false,
+      database: {
+        connected: false,
+        error: error && error.message ? String(error.message) : 'Database health check failed',
+        status: 'unhealthy'
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      res.status(503).json(safeError);
+    } catch (jsonError) {
+      // Fallback to basic error
+      res.status(503).send('{"success":false,"error":"Health check failed"}');
+    }
+  }
+});
 
 /**
  * GET /health/database

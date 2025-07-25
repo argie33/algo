@@ -387,6 +387,11 @@ function ServiceHealth() {
         if (!connectionResponse.data.success || !connectionResponse.data.database?.connected) {
           throw new Error('Quick test failed, trying full check');
         }
+        
+        // Convert quick test response to expected format
+        connectionResponse.data.database.connection = {
+          status: connectionResponse.data.database.connected ? 'connected' : 'failed'
+        };
       } catch (quickError) {
         console.log('Quick database test failed, trying full check:', quickError.message);
         setLoadingStatus('Quick test failed, running full database check...');
