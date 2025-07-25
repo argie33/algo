@@ -69,6 +69,7 @@ Resources:
                   - secretsmanager:DescribeSecret
                 Resource: 
                   - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-db-secrets-*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-db-credentials-*'
                   - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-app-*'
                   - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*-stocks-*'
 
