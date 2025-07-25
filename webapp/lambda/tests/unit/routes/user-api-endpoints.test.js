@@ -454,8 +454,9 @@ describe('User API Endpoints - TDD Tests', () => {
   describe('Error Handling', () => {
     it('should handle database connection errors gracefully', async () => {
       // Mock database error
-      const originalQuery = require('../../utils/databaseConnectionManager').query;
-      require('../../utils/databaseConnectionManager').query = jest.fn()
+      const databaseConnectionManager = require('../../../utils/databaseConnectionManager');
+      const originalQuery = databaseConnectionManager.query;
+      databaseConnectionManager.query = jest.fn()
         .mockRejectedValue(new Error('Database connection failed'));
 
       const response = await request(app)
@@ -469,7 +470,7 @@ describe('User API Endpoints - TDD Tests', () => {
       });
 
       // Restore original function
-      require('../../utils/databaseConnectionManager').query = originalQuery;
+      databaseConnectionManager.query = originalQuery;
     });
 
     it('should sanitize error messages in production', async () => {
