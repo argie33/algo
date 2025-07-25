@@ -234,8 +234,8 @@ const SettingsApiKeys = () => {
       console.log('➕ Adding API key using unified endpoint...');
       const apiKeyData = {
         name: formData.provider,
-        key: formData.apiKey,
-        secret: formData.apiSecret,
+        apiKey: formData.apiKey,
+        secretKey: formData.apiSecret,
         isSandbox: formData.isSandbox,
         description: formData.description
       };
