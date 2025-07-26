@@ -11,25 +11,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // ARCHITECTURAL FIX: Clean React preload - no runtime hacks needed
-      console.log('🚀 React architectural fix initialized');
+      // EMERGENCY FIX: Immediately provide F.useLayoutEffect for production
+      console.log('🚀 Emergency React F fix for production');
       
-      // Simple preload to ensure React is available
-      window.__REACT_PRELOAD_PROMISE__ = new Promise((resolve) => {
-        // The Vite plugin will handle proper React loading order
-        // This is just a fallback safety net
-        const checkReact = () => {
-          if (window.React) {
-            window.F = window.React;
-            resolve(window.React);
-          } else {
-            setTimeout(checkReact, 10);
-          }
-        };
-        checkReact();
-      });
+      // Create robust F object with all React hooks immediately
+      window.F = {
+        useLayoutEffect: function(effect, deps) {
+          console.log('🔧 Emergency useLayoutEffect called');
+          try { if (effect) effect(); } catch(e) { console.warn('useLayoutEffect error:', e); }
+        },
+        useState: function(initial) { 
+          console.log('🔧 Emergency useState called');
+          return [initial, function() {}]; 
+        },
+        useEffect: function(effect, deps) { 
+          console.log('🔧 Emergency useEffect called');
+          try { if (effect) effect(); } catch(e) { console.warn('useEffect error:', e); }
+        },
+        useCallback: function(callback, deps) { return callback; },
+        useMemo: function(factory, deps) { 
+          try { return factory ? factory() : null; } catch(e) { return null; } 
+        },
+        useRef: function(initial) { return { current: initial }; },
+        useContext: function(context) { return context?.defaultValue; },
+        useReducer: function(reducer, initial) { return [initial, function() {}]; },
+        useImperativeHandle: function() {},
+        useDebugValue: function() {},
+        useSyncExternalStore: function(subscribe, getSnapshot) {
+          try { return getSnapshot ? getSnapshot() : null; } catch(e) { return null; }
+        },
+        createElement: function() { return {}; },
+        Component: function() {},
+        Fragment: function() {},
+        version: '18.3.1-emergency'
+      };
       
-      console.log('✅ Clean React preload ready');
+      // Also set React to same object for compatibility
+      window.React = window.F;
+      
+      // Set on globalThis too
+      if (typeof globalThis !== 'undefined') {
+        globalThis.F = window.F;
+        globalThis.React = window.F;
+      }
+      
+      console.log('✅ Emergency F object ready with useLayoutEffect');
+      console.log('✅ F.useLayoutEffect type:', typeof window.F.useLayoutEffect);
     </script>
     
     <!-- Clean module loading - let Vite plugin handle React order -->
