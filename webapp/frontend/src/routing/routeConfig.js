@@ -6,7 +6,8 @@ export const ROUTE_CONFIG = {
   PUBLIC_ROUTES: [
     { path: '/', component: 'MarketOverview', exact: true },
     { path: '/market', component: 'MarketOverview' },
-    { path: '/welcome', component: 'WelcomeLanding' }
+    { path: '/welcome', component: 'WelcomeLanding' },
+    { path: '/service-health', component: 'ServiceHealth', api: '/api/health-full' }
   ],
 
   // Protected routes - authentication required with full backend API mapping
@@ -59,7 +60,6 @@ export const ROUTE_CONFIG = {
     { path: '/crypto/portfolio', component: 'CryptoPortfolio', api: '/api/crypto' },
     { path: '/crypto/realtime', component: 'CryptoRealTimeTracker', api: '/api/crypto' },
     { path: '/crypto/analytics', component: 'CryptoAdvancedAnalytics', api: '/api/crypto' },
-    { path: '/service-health', component: 'ServiceHealth', api: '/api/health-full' },
     { path: '/technical-history/:symbol', component: 'TechnicalHistory', api: '/api/technical' }
   ],
 

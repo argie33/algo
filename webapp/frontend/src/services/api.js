@@ -666,12 +666,16 @@ export const importPortfolioFromBroker = async (broker, accountType = 'paper', s
       throw new Error('Broker is required');
     }
     
-    const params = new URLSearchParams({ accountType });
+    const requestBody = {
+      provider: broker,
+      accountType
+    };
+    
     if (selectedKeyId) {
-      params.append('keyId', selectedKeyId);
+      requestBody.selectedKeyId = selectedKeyId;
     }
     
-    const response = await initializeApi().post(`/api/portfolio/import/${broker}?${params.toString()}`);
+    const response = await initializeApi().post('/api/portfolio/import', requestBody);
     return response.data;
   }, {
     context: {
