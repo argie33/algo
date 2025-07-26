@@ -96,7 +96,6 @@ import CryptoMarketOverview from './pages/CryptoMarketOverview'
 import CryptoPortfolio from './pages/CryptoPortfolio'
 import CryptoRealTimeTracker from './pages/CryptoRealTimeTracker'
 import CryptoAdvancedAnalytics from './pages/CryptoAdvancedAnalytics'
-import LiveData from './pages/LiveData'
 import LiveDataAdmin from './pages/LiveDataAdmin'
 import HFTTrading from './pages/HFTTrading'
 import NeuralHFTCommandCenter from './pages/NeuralHFTCommandCenter'
@@ -487,7 +486,6 @@ function App() {
             <Route path="/portfolio/trade-history" element={<TradeHistory />} />
             <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
             <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
-            <Route path="/market" element={<MarketOverview />} />
             <Route path="/welcome" element={<WelcomeLanding onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/login" element={<LoginRedirect onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/screener-advanced" element={<AdvancedScreener />} />
@@ -497,7 +495,6 @@ function App() {
             <Route path="/metrics" element={<MetricsDashboard />} />
             <Route path="/stocks" element={<StockExplorer />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
-            <Route path="/screener" element={<StockExplorer />} />
             <Route path="/trading" element={<TradingSignals />} />
             <Route path="/technical" element={<TechnicalAnalysis />} />
             <Route path="/analysts" element={<AnalystInsights />} />
@@ -514,10 +511,8 @@ function App() {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
             <Route path="/sentiment/news" element={<NewsSentiment />} />
-            <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route path="/research/commentary" element={<MarketCommentary />} />
             <Route path="/research/education" element={<EducationalContent />} />
-            <Route path="/research/reports" element={<AnalystInsights />} />
             <Route path="/stocks/patterns" element={<PatternRecognition />} />
             <Route path="/tools/ai" element={<AIAssistant />} />
             
@@ -530,7 +525,6 @@ function App() {
             
             {/* Live Data Routes */}
             <Route path="/live-data" element={<LiveDataAdmin />} />
-            <Route path="/live-data-legacy" element={<LiveData />} />
             <Route path="/hft-trading" element={<HFTTrading />} />
             <Route path="/neural-hft" element={<NeuralHFTCommandCenter />} />
             
