@@ -46,12 +46,29 @@ class ConfigurationService {
     } catch (error) {
       console.error('❌ Configuration initialization failed:', error);
       
-      // Return safe fallback configuration with enhanced error context
-      console.warn('🔧 Using safety fallback configuration due to initialization error');
-      console.warn('💡 The app will continue to work with CloudFormation config and default settings');
-      this.configCache = this.getSafetyFallbackConfig();
-      this.initialized = true;
-      return this.configCache;
+      // Instead of fallback, provide detailed error context and fail fast
+      const errorContext = {
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        attemptedSources: ['CloudFormation', 'Window Config', 'Environment Variables'],
+        troubleshooting: {
+          commonCauses: [
+            'API Gateway not deployed or misconfigured',
+            'CloudFormation stack outputs not properly set',
+            'Environment variables missing or incorrect',
+            'Network connectivity issues'
+          ],
+          nextSteps: [
+            'Check API Gateway deployment status',
+            'Verify CloudFormation stack outputs',
+            'Ensure /api/config endpoint returns valid JSON',
+            'Check browser network tab for actual API responses'
+          ]
+        }
+      };
+      
+      console.error('🚨 Configuration Error Context:', errorContext);
+      throw new Error(`Configuration initialization failed: ${error.message}. See console for detailed troubleshooting context.`);
     }
   }
 
@@ -88,19 +105,41 @@ class ConfigurationService {
       // Fetch from new configuration endpoint (no CloudFormation API calls)
       let response = await fetch(`${apiUrl}/api/config`);
       
-      // If main endpoint fails, try health endpoint
-      if (!response.ok && response.status === 503) {
-        console.log('🔄 Main configuration endpoint failed, trying health endpoint...');
-        response = await fetch(`${apiUrl}/api/config/health`);
+      // Don't try fallback endpoints - fail fast with clear error
+      if (!response.ok) {
+        const errorContext = {
+          status: response.status,
+          statusText: response.statusText,
+          url: `${apiUrl}/api/config`,
+          timestamp: new Date().toISOString()
+        };
+        console.error('🚨 Configuration API Error:', errorContext);
+        throw new Error(`Configuration API returned ${response.status}: ${response.statusText}`);
       }
       
       if (response.ok) {
         // Check content type to ensure we're getting JSON, not HTML
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
-          console.warn('⚠️ Configuration endpoint returned non-JSON content:', contentType);
-          console.warn('⚠️ This might be a routing issue or HTML error page');
-          throw new Error('Invalid response type - expected JSON but got ' + (contentType || 'unknown'));
+          const errorContext = {
+            expectedContentType: 'application/json',
+            actualContentType: contentType || 'unknown',
+            url: `${apiUrl}/api/config`,
+            possibleCauses: [
+              'API Gateway routing misconfiguration',
+              'Lambda function returning HTML error page',
+              'CloudFront caching HTML instead of JSON',
+              'API endpoint not properly configured'
+            ],
+            troubleshooting: [
+              'Check API Gateway console for routing rules',
+              'Verify Lambda function response format',
+              'Clear CloudFront cache if applicable',
+              'Test API endpoint directly with curl'
+            ]
+          };
+          console.error('🚨 Content Type Error:', errorContext);
+          throw new Error(`Configuration endpoint returned non-JSON content: ${contentType || 'unknown'}`);
         }
 
         // Get response text first to check for HTML
@@ -108,9 +147,24 @@ class ConfigurationService {
         
         // Check if response is HTML (common in routing errors)
         if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
-          console.error('🚨 Configuration endpoint returned HTML instead of JSON:');
-          console.error('Response text:', responseText.substring(0, 200) + '...');
-          throw new Error('Configuration endpoint returned HTML - possible routing misconfiguration');
+          const errorContext = {
+            responsePreview: responseText.substring(0, 500),
+            detectedIssue: 'HTML response instead of JSON',
+            likelyCauses: [
+              'API Gateway returning default error page',
+              'Lambda function exception causing HTML error response',
+              'Incorrect routing configuration',
+              'CloudFront serving cached HTML error page'
+            ],
+            immediateActions: [
+              'Check Lambda function logs in CloudWatch',
+              'Verify API Gateway stage deployment',
+              'Test endpoint with curl: curl -H "Content-Type: application/json" ' + `${apiUrl}/api/config`,
+              'Check CloudFront cache headers and invalidation'
+            ]
+          };
+          console.error('🚨 HTML Response Error:', errorContext);
+          throw new Error('Configuration endpoint returned HTML instead of JSON - API routing misconfiguration detected');
         }
 
         try {
@@ -134,46 +188,56 @@ class ConfigurationService {
             environment: data.environment
           };
         } catch (parseError) {
-          console.error('🚨 Failed to parse configuration response as JSON:');
-          console.error('Parse error:', parseError.message);
-          console.error('Response text:', responseText.substring(0, 500));
-          throw new Error(`JSON parse error: ${parseError.message}`);
-        }
-      } else {
-        console.warn('⚠️ Failed to fetch configuration from both main and health API:', response.status);
-        
-        // Log API error for debugging
-        if (response.status === 500) {
-          try {
-            const errorData = await response.json();
-            console.error('🔐 Configuration Service Error:', errorData.message || errorData.error);
-            console.error('💡 Check Lambda environment variables and CloudFormation deployment');
-          } catch (parseError) {
-            console.error('🔐 Configuration Service Error: Unable to parse error response');
-          }
+          const errorContext = {
+            parseError: parseError.message,
+            responsePreview: responseText.substring(0, 500),
+            responseLength: responseText.length,
+            contentType: response.headers.get('content-type'),
+            troubleshooting: [
+              'Response is not valid JSON format',
+              'API may be returning partial or corrupted response',
+              'Check Lambda function return format',
+              'Verify API Gateway response mapping'
+            ]
+          };
+          console.error('🚨 JSON Parse Error:', errorContext);
+          throw new Error(`Configuration API returned invalid JSON: ${parseError.message}`);
         }
       }
     } catch (fetchError) {
-      console.warn('⚠️ Error fetching configuration from API:', fetchError.message);
-      
-      // Provide more specific error messages
-      if (fetchError.message.includes('HTML')) {
-        console.error('🔧 SOLUTION: This looks like a routing issue. The API endpoint may be returning an HTML error page instead of JSON.');
-        console.error('💡 Check your API Gateway configuration and ensure the /api/config endpoint is properly configured.');
-      } else if (fetchError.message.includes('JSON')) {
-        console.error('🔧 SOLUTION: JSON parsing failed. The API response may be malformed or empty.');
-        console.error('💡 Check the API endpoint response format and ensure it returns valid JSON.');
-      } else if (fetchError.message.includes('Failed to fetch')) {
-        console.error('🔧 SOLUTION: Network request failed. Check your internet connection and API endpoint availability.');
-      }
+      const errorContext = {
+        error: fetchError.message,
+        url: `${this.getApiBaseUrlSync()}/api/config`,
+        timestamp: new Date().toISOString(),
+        troubleshooting: {
+          networkErrors: fetchError.message.includes('fetch') ? [
+            'Check internet connectivity',
+            'Verify API Gateway URL is correct',
+            'Check CORS configuration',
+            'Ensure API Gateway is deployed and accessible'
+          ] : [],
+          htmlErrors: fetchError.message.includes('HTML') ? [
+            'API Gateway returning HTML error page instead of JSON',
+            'Check Lambda function logs for exceptions',
+            'Verify API Gateway routing configuration',
+            'Check CloudFront cache settings'
+          ] : [],
+          jsonErrors: fetchError.message.includes('JSON') ? [
+            'API response is not valid JSON',
+            'Check Lambda function response format',
+            'Verify API Gateway response mapping templates',
+            'Ensure content-type headers are correct'
+          ] : []
+        }
+      };
+      console.error('🚨 Configuration Fetch Error:', errorContext);
+      throw fetchError;
     }
-
-    return {};
   }
 
   /**
    * Get API base URL for configuration fetching
-   * Enhanced with intelligent URL resolution
+   * No fallbacks - fail fast if URL resolution fails
    */
   async getApiBaseUrl() {
     try {
@@ -181,8 +245,19 @@ class ConfigurationService {
       const { default: apiUrlResolver } = await import('./apiUrlResolver');
       return await apiUrlResolver.getApiUrl();
     } catch (error) {
-      console.warn('API URL resolver failed, using fallback:', error.message);
-      return this.getApiBaseUrlSync();
+      const errorContext = {
+        error: error.message,
+        module: 'apiUrlResolver',
+        fallbackAttempted: false,
+        troubleshooting: [
+          'Check if apiUrlResolver module exists and is properly exported',
+          'Verify API URL configuration in environment variables',
+          'Ensure CloudFormation outputs are properly set',
+          'Check for import/export syntax errors in apiUrlResolver'
+        ]
+      };
+      console.error('🚨 API URL Resolution Error:', errorContext);
+      throw new Error(`API URL resolution failed: ${error.message}`);
     }
   }
 
@@ -278,30 +353,6 @@ class ConfigurationService {
     };
   }
 
-  /**
-   * Get safety fallback configuration for when everything fails
-   */
-  getSafetyFallbackConfig() {
-    return {
-      api: {
-        baseUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
-      },
-      cognito: {
-        userPoolId: null,
-        clientId: null,
-        domain: null
-      },
-      aws: {
-        region: 'us-east-1'
-      },
-      features: {
-        authentication: false, // Disable auth if config is broken
-        cognito: false
-      },
-      source: 'safety_fallback',
-      error: true
-    };
-  }
 
   /**
    * Merge configurations with proper priority

@@ -224,7 +224,7 @@ const Settings = () => {
 
   const loadApiKeys = async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/settings/api-keys/${user?.email || user?.id}`, {
+      const response = await fetch(`${apiUrl}/api/settings/api-keys`, {
         headers: getAuthHeaders()
       });
       
