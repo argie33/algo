@@ -100,7 +100,6 @@ const CryptoRealTimeTracker = lazy(() => import('./pages/CryptoRealTimeTracker')
 const CryptoAdvancedAnalytics = lazy(() => import('./pages/CryptoAdvancedAnalytics'))
 const LiveDataAdmin = lazy(() => import('./pages/LiveDataAdmin'))
 const HFTTrading = lazy(() => import('./pages/HFTTrading'))
-const NeuralHFTCommandCenter = lazy(() => import('./pages/NeuralHFTCommandCenter'))
 const ServiceHealth = lazy(() => import('./pages/ServiceHealth'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Watchlist = lazy(() => import('./pages/Watchlist'))
@@ -147,7 +146,6 @@ const COMPONENT_MAP = {
   CryptoAdvancedAnalytics,
   LiveDataAdmin,
   HFTTrading,
-  NeuralHFTCommandCenter,
   ServiceHealth,
   Settings,
   Watchlist,
@@ -231,7 +229,6 @@ const menuItems = [
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools' },
   { text: 'Live Data Manager', icon: <TrendingUpIcon />, path: '/live-data', category: 'tools' },
   { text: 'HFT Trading', icon: <ShowChartIcon />, path: '/hft-trading', category: 'tools' },
-  { text: 'Neural HFT Command Center', icon: <BoltIcon />, path: '/neural-hft', category: 'tools' },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools' },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
