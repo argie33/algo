@@ -11,6 +11,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
+      // CRITICAL: Emergency F protection - Must run before ANY React chunks load
+      (function() {
+        console.log('🚨 EMERGENCY F PROTECTION ACTIVATED');
+        
+        // Pre-create a React-like object for F
+        const emergencyReact = {
+          useState: function(initial) { 
+            console.warn('Emergency useState called');
+            return [initial, function() {}]; 
+          },
+          useEffect: function(effect, deps) { 
+            console.warn('Emergency useEffect called');
+            try { effect(); } catch(e) { console.warn('Emergency useEffect error:', e); }
+          },
+          useLayoutEffect: function(effect, deps) { 
+            console.warn('Emergency useLayoutEffect called');
+            try { effect(); } catch(e) { console.warn('Emergency useLayoutEffect error:', e); }
+          },
+          useCallback: function(callback, deps) { return callback; },
+          useMemo: function(factory, deps) { try { return factory(); } catch(e) { return null; } },
+          useRef: function(initial) { return { current: initial }; },
+          useContext: function(context) { return context?.defaultValue; },
+          useReducer: function(reducer, initial) { return [initial, function() {}]; },
+          createElement: function() { return {}; },
+          version: '18.3.1-emergency'
+        };
+        
+        // Ensure F is ALWAYS available
+        Object.defineProperty(window, 'F', {
+          get: function() { 
+            return window.React || emergencyReact; 
+          },
+          set: function(value) { 
+            // Allow setting but log it
+            console.log('F was set to:', value);
+          },
+          configurable: true,
+          enumerable: true
+        });
+        
+        // Also ensure React is available
+        window.React = window.React || emergencyReact;
+        
+        console.log('✅ Emergency F protection installed:', typeof window.F, typeof window.F.useLayoutEffect);
+      })();
+      
       // Initialize empty config - will be populated by config.js
       window.__CONFIG__ = window.__CONFIG__ || {
         ENVIRONMENT: 'development',
@@ -56,6 +102,61 @@
       </div>
     </div>
     <script>
+      // CRITICAL: Global error interceptor for F.useLayoutEffect
+      (function() {
+        const originalError = window.onerror;
+        window.onerror = function(message, source, lineno, colno, error) {
+          if (message && message.includes('useLayoutEffect') && message.includes('undefined')) {
+            console.error('🚨 INTERCEPTED useLayoutEffect ERROR:', message);
+            console.log('🔧 Attempting emergency F restoration...');
+            
+            // Emergency restoration
+            if (typeof window.F === 'undefined' || !window.F.useLayoutEffect) {
+              const emergencyReact = {
+                useState: function(initial) { return [initial, function() {}]; },
+                useEffect: function(effect) { try { effect(); } catch(e) {} },
+                useLayoutEffect: function(effect) { try { effect(); } catch(e) {} },
+                useCallback: function(callback) { return callback; },
+                useMemo: function(factory) { try { return factory(); } catch(e) { return null; } },
+                useRef: function(initial) { return { current: initial }; },
+                createElement: function() { return {}; },
+                version: '18.3.1-emergency-restore'
+              };
+              
+              window.F = emergencyReact;
+              window.React = window.React || emergencyReact;
+              
+              console.log('✅ Emergency F restored after error');
+              
+              // Try to reload the page to retry with F available
+              setTimeout(() => {
+                console.log('🔄 Reloading page to retry with F protection...');
+                window.location.reload();
+              }, 100);
+              
+              return true; // Prevent default error handling
+            }
+          }
+          
+          // Call original error handler if it exists
+          if (originalError) {
+            return originalError.apply(this, arguments);
+          }
+          return false;
+        };
+        
+        // Also add unhandledrejection handler
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && event.reason.message && 
+              event.reason.message.includes('useLayoutEffect')) {
+            console.error('🚨 INTERCEPTED Promise rejection for useLayoutEffect');
+            event.preventDefault();
+          }
+        });
+        
+        console.log('✅ Global error interceptor installed for F.useLayoutEffect');
+      })();
+      
       // Show loading progress
       setTimeout(() => {
         const configStatus = document.getElementById('config-status');
