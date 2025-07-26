@@ -94,7 +94,7 @@ class LiveDataManager {
     // Get user-specific Alpaca credentials if userId provided
     if (userId) {
       try {
-        const unifiedApiKeyService = require('./unifiedApiKeyService');
+        const unifiedApiKeyService = require('./apiKeyService');
         alpacaCredentials = await unifiedApiKeyService.getAlpacaKey(userId);
       } catch (error) {
         this.logger.warn('Could not load user-specific Alpaca credentials', {

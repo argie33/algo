@@ -361,8 +361,10 @@ async function cleanup() {
   if (pool && !pool.ended) {
     try {
       console.log('🧹 Cleaning up database connections...');
+      const poolToEnd = pool;
+      pool = null; // Prevent multiple cleanup calls
       await withTimeout(
-        pool.end(),
+        poolToEnd.end(),
         5000,
         'pool_cleanup'
       );
@@ -372,7 +374,6 @@ async function cleanup() {
     }
   }
   
-  pool = null;
   isInitialized = false;
   dbConfig = null;
 }

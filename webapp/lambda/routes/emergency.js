@@ -78,10 +78,11 @@ router.get('/circuit-breaker-status', async (req, res) => {
 
 // Emergency CloudFormation config endpoint - DEPRECATED
 router.get('/config/cloudformation', async (req, res) => {
-  console.log('🚨 DEPRECATED: Emergency CloudFormation config endpoint called');
-  
-  // Return proper error - no hardcoded configuration values
-  res.status(501).json({
+  try {
+    console.log('🚨 DEPRECATED: Emergency CloudFormation config endpoint called');
+    
+    // Return proper error - no hardcoded configuration values
+    res.status(501).json({
     success: false,
     error: 'Emergency CloudFormation Configuration Deprecated',
     details: {
@@ -107,7 +108,8 @@ router.get('/config/cloudformation', async (req, res) => {
       },
       security_improvement: 'Removed hardcoded API Gateway URLs and resource identifiers'
     }
-  } catch (error) {
+  });
+} catch (error) {
     console.error('❌ Emergency CloudFormation config error:', error);
     res.status(500).json({
       success: false,

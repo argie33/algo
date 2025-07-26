@@ -195,7 +195,7 @@ async function checkStatus() {
   
   try {
     // Get migration stats from database service
-    const unifiedService = require('../utils/unifiedApiKeyService');
+    const unifiedService = require('../utils/apiKeyService');
     const status = await unifiedService.getMigrationStatus();
     
     log('\n📈 Migration Status:', 'cyan');

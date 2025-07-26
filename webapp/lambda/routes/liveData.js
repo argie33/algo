@@ -21,7 +21,7 @@ const liveDataManager = new LiveDataManager();
 
 // Enhanced user-specific Alpaca service with fallback
 const alpacaServicePool = new Map();
-const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
+const unifiedApiKeyService = require('../utils/apiKeyService');
 
 // Helper to get or create user-specific Alpaca service
 const getUserAlpacaService = async (userId) => {

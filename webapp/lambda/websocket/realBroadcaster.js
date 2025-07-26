@@ -77,7 +77,7 @@ async function broadcast(data, filter = null) {
 async function getApiKeys(userId) {
   try {
     // Use unified API key service for user-specific credentials
-    const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
+    const unifiedApiKeyService = require('../utils/apiKeyService');
     const credentials = await unifiedApiKeyService.getAlpacaKey(userId);
     
     if (credentials) {

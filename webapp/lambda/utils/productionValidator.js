@@ -278,7 +278,7 @@ class ProductionValidator {
     
     try {
       // Check API key service availability
-      const unifiedApiKeyService = require('./unifiedApiKeyService');
+      const unifiedApiKeyService = require('./apiKeyService');
       checks.push({ name: 'Unified API key service available', passed: true });
       passed++;
       

@@ -6,7 +6,9 @@
 const { createLogger } = require('../utils/structuredLogger');
 const { query } = require('../utils/database');
 const AdvancedRiskManager = require('./advancedRiskManager');
-const RealTimeDataIntegrator = require('./realTimeDataIntegrator');
+const AlpacaHFTService = require('./alpacaHFTService');
+const RealTimePositionSync = require('./realTimePositionSync');
+const HFTWebSocketManager = require('./hftWebSocketManager');
 
 class HFTService {
   constructor() {
@@ -23,7 +25,9 @@ class HFTService {
     
     // Advanced services
     this.riskManager = new AdvancedRiskManager();
-    this.dataIntegrator = new RealTimeDataIntegrator();
+    this.alpacaHFTService = null; // Initialized when user credentials are available
+    this.realTimePositionSync = new RealTimePositionSync(); // Real-time position synchronization
+    this.webSocketManager = new HFTWebSocketManager(); // Ultra-low latency market data streaming
     this.servicesInitialized = false;
     
     // Performance metrics
@@ -139,20 +143,38 @@ class HFTService {
    */
   async initializeUserCredentials(userId) {
     try {
-      const unifiedApiKeyService = require('../utils/unifiedApiKeyService');
+      const unifiedApiKeyService = require('../utils/apiKeyService');
       this.userCredentials = await unifiedApiKeyService.getAlpacaKey(userId);
       
       if (!this.userCredentials) {
         throw new Error('No Alpaca API credentials found for user');
       }
       
-      this.logger.info('User credentials initialized', {
+      // Initialize AlpacaHFTService with user credentials
+      this.alpacaHFTService = new AlpacaHFTService(
+        this.userCredentials.keyId,
+        this.userCredentials.secretKey,
+        this.userCredentials.isPaper !== false
+      );
+      
+      // Initialize the HFT service
+      const initResult = await this.alpacaHFTService.initialize();
+      if (!initResult.success) {
+        throw new Error(`Failed to initialize Alpaca HFT service: ${initResult.error}`);
+      }
+      
+      this.logger.info('User credentials and HFT service initialized', {
         userId,
         isPaper: this.userCredentials.isPaper !== false,
+        alpacaAccount: initResult.account.id,
+        buyingPower: initResult.account.buyingPower,
         correlationId: this.correlationId
       });
       
-      return { success: true };
+      return { 
+        success: true, 
+        account: initResult.account 
+      };
     } catch (error) {
       this.logger.error('Failed to initialize user credentials', {
         userId,
@@ -217,6 +239,15 @@ class HFTService {
       // Subscribe to default symbols for scalping strategy
       const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY'];
       await this.dataIntegrator.subscribeToSymbols(defaultSymbols);
+
+      // Initialize real-time position synchronization
+      const positionSyncResult = await this.realTimePositionSync.initialize();
+      if (!positionSyncResult.success) {
+        this.logger.warn('Real-time position sync initialization failed', {
+          error: positionSyncResult.error,
+          correlationId: this.correlationId
+        });
+      }
 
       this.servicesInitialized = true;
       
@@ -550,6 +581,11 @@ class HFTService {
         await this.dataIntegrator.shutdown();
       }
 
+      // Shutdown real-time position sync
+      if (this.realTimePositionSync && this.realTimePositionSync.isActive) {
+        await this.realTimePositionSync.stop();
+      }
+
       this.servicesInitialized = false;
       
       this.logger.info('Advanced HFT services shut down successfully', {
@@ -815,45 +851,58 @@ class HFTService {
   }
 
   /**
-   * Execute real order using Alpaca API
+   * Execute real order using enhanced Alpaca HFT Service
    */
   async executeRealOrder(signal, orderId, startTime) {
     try {
-      const alpacaApi = this.createAlpacaClient();
-      
-      // Prepare order request for Alpaca
-      const orderRequest = {
+      if (!this.alpacaHFTService) {
+        throw new Error('Alpaca HFT Service not initialized');
+      }
+
+      this.logger.info('Executing HFT order via AlpacaHFTService', {
+        orderId,
         symbol: signal.symbol,
-        qty: signal.quantity.toString(),
-        side: signal.type.toLowerCase(), // 'buy' or 'sell'
-        type: 'market',
-        time_in_force: 'ioc' // Immediate or Cancel for HFT
-      };
-
-      this.logger.info('Executing real order', {
-        orderId,
-        orderRequest,
+        type: signal.type,
+        quantity: signal.quantity,
         correlationId: this.correlationId
       });
 
-      // Execute order via Alpaca API
-      const alpacaOrder = await alpacaApi.createOrder(orderRequest);
+      // Execute order via enhanced HFT service
+      const executionResult = await this.alpacaHFTService.executeHFTOrder(signal);
       
-      this.logger.info('Real order executed', {
-        orderId,
-        alpacaOrderId: alpacaOrder.id,
-        status: alpacaOrder.status,
-        correlationId: this.correlationId
-      });
+      if (executionResult.success) {
+        this.logger.info('HFT order executed successfully', {
+          orderId,
+          alpacaOrderId: executionResult.alpacaOrderId,
+          status: executionResult.status,
+          executionTime: executionResult.executionTime,
+          correlationId: this.correlationId
+        });
 
-      return {
-        success: true,
-        alpacaOrderId: alpacaOrder.id,
-        status: alpacaOrder.status,
-        executedPrice: parseFloat(alpacaOrder.filled_avg_price || signal.price),
-        executedQuantity: parseFloat(alpacaOrder.filled_qty || signal.quantity),
-        executionTime: Date.now() - startTime
-      };
+        // Trigger real-time position sync for order execution
+        if (this.realTimePositionSync && this.realTimePositionSync.isActive) {
+          this.realTimePositionSync.emit('orderFilled', {
+            userId: signal.userId || 'system',
+            orderId,
+            symbol: signal.symbol,
+            quantity: executionResult.executedQuantity,
+            fillPrice: executionResult.executedPrice,
+            side: signal.type
+          });
+        }
+
+        return {
+          success: true,
+          alpacaOrderId: executionResult.alpacaOrderId,
+          status: executionResult.status,
+          executedPrice: executionResult.executedPrice,
+          executedQuantity: executionResult.executedQuantity,
+          executionTime: executionResult.executionTime,
+          commission: executionResult.commission
+        };
+      } else {
+        throw new Error(`HFT order execution failed: ${executionResult.error}`);
+      }
 
     } catch (error) {
       this.logger.error('Real order execution failed', {
@@ -861,6 +910,17 @@ class HFTService {
         error: error.message,
         correlationId: this.correlationId
       });
+
+      // Trigger real-time position sync for order rejection
+      if (this.realTimePositionSync && this.realTimePositionSync.isActive) {
+        this.realTimePositionSync.emit('orderRejected', {
+          userId: signal.userId || 'system',
+          orderId,
+          symbol: signal.symbol,
+          reason: error.message
+        });
+      }
+
       return {
         success: false,
         error: error.message
@@ -1482,6 +1542,93 @@ class HFTService {
         timestamp: Date.now()
       };
     }
+  }
+
+  /**
+   * Synchronize positions with Alpaca
+   */
+  async syncPositionsWithAlpaca() {
+    if (!this.alpacaHFTService) {
+      throw new Error('Alpaca HFT Service not initialized');
+    }
+
+    try {
+      this.logger.info('Synchronizing positions with Alpaca', {
+        correlationId: this.correlationId
+      });
+
+      // Get current positions from Alpaca
+      const alpacaPositions = await this.alpacaHFTService.getPositions();
+      
+      // Clear existing positions
+      this.positions.clear();
+      
+      // Update positions with Alpaca data
+      for (const position of alpacaPositions) {
+        const positionId = `${position.symbol}_${Date.now()}`;
+        
+        this.positions.set(positionId, {
+          symbol: position.symbol,
+          strategy: 'external', // Mark as external position
+          type: position.side === 'long' ? 'BUY' : 'SELL',
+          quantity: Math.abs(position.quantity),
+          avgPrice: position.avgEntryPrice,
+          openTime: Date.now(),
+          stopLoss: null,
+          takeProfit: null,
+          currentPnL: position.unrealizedPL,
+          marketValue: position.marketValue,
+          costBasis: position.costBasis,
+          source: 'alpaca'
+        });
+      }
+
+      this.logger.info('Position synchronization completed', {
+        positionsCount: alpacaPositions.length,
+        correlationId: this.correlationId
+      });
+
+      return {
+        success: true,
+        positionsCount: alpacaPositions.length,
+        positions: alpacaPositions
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to sync positions with Alpaca', {
+        error: error.message,
+        correlationId: this.correlationId
+      });
+
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get enhanced metrics including Alpaca integration status
+   */
+  getEnhancedMetrics() {
+    const baseMetrics = this.getMetrics();
+    
+    return {
+      ...baseMetrics,
+      alpacaIntegration: {
+        connected: !!this.alpacaHFTService,
+        isPaper: this.userCredentials?.isPaper !== false,
+        lastSync: this.lastPositionSync || null
+      },
+      positions: {
+        total: this.positions.size,
+        bySource: {
+          hft: Array.from(this.positions.values()).filter(p => p.source !== 'alpaca').length,
+          alpaca: Array.from(this.positions.values()).filter(p => p.source === 'alpaca').length
+        }
+      },
+      realTimeSync: this.realTimePositionSync ? this.realTimePositionSync.getMetrics() : null
+    };
   }
 }
 
