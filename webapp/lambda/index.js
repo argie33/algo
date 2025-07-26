@@ -205,7 +205,6 @@ safeRouteLoader('./routes/performance', 'Performance (Consolidated)', '/api/perf
 // NOTE: performance-analytics.js has been consolidated into performance.js
 // Advanced analytics now available at /api/performance/analytics/* endpoints
 safeRouteLoader('./routes/hftTrading', 'HFT Trading', '/api/hft');
-safeRouteLoader('./routes/enhancedHftApi', 'Enhanced HFT API', '/api/hft/enhanced');
 
 // 9. CONFIGURATION & SETTINGS - User preferences and system config
 console.log('⚙️ Loading configuration routes...');
