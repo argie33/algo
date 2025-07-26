@@ -160,10 +160,12 @@ const Settings = () => {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (payload.exp && payload.exp < Date.now() / 1000) {
-          console.warn('⚠️ Token appears to be expired');
+          console.warn('⚠️ Token appears to be expired, skipping auth header');
+          // Don't use expired token - return headers without auth
+          return headers;
         }
       } catch (e) {
-        console.warn('⚠️ Could not validate token format');
+        console.warn('⚠️ Could not validate token format, proceeding anyway');
       }
       
       headers['Authorization'] = `Bearer ${token}`;
