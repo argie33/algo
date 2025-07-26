@@ -394,7 +394,8 @@ function CategoryNavigation({ categories, selectedCategory, onCategoryChange }) 
 }
 
 function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
-  const PriceCard = React.memo(({ commodity }) => (
+  const PriceCard = React.memo(function PriceCard({ commodity }) {
+    return (
     <Card 
       sx={{ 
         height: '100%',
@@ -464,7 +465,8 @@ function CommodityPriceGrid({ prices, onSort, sortConfig, view }) {
         </Box>
       </CardContent>
     </Card>
-  ));
+    );
+  });
 
   const PriceTable = () => (
     <TableContainer component={Paper}>

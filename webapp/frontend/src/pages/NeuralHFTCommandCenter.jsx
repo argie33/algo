@@ -97,7 +97,7 @@ import {
 } from '@mui/icons-material';
 
 // Import services
-import { adminLiveDataService } from '../services/adminLiveDataService';
+import adminLiveDataService from '../services/adminLiveDataService';
 import { hftTradingService } from '../services/hftTradingService';
 
 // Neural HFT Command Center Component
