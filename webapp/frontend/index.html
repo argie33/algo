@@ -11,50 +11,96 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // CRITICAL: Emergency F protection - Must run before ANY React chunks load
+      // DIAGNOSTIC MODE: Track down the source of F.useLayoutEffect usage
       (function() {
-        console.log('🚨 EMERGENCY F PROTECTION ACTIVATED');
+        console.log('🔍 DIAGNOSTIC MODE: Tracking F.useLayoutEffect usage');
         
-        // Pre-create a React-like object for F
-        const emergencyReact = {
-          useState: function(initial) { 
-            console.warn('Emergency useState called');
-            return [initial, function() {}]; 
-          },
-          useEffect: function(effect, deps) { 
-            console.warn('Emergency useEffect called');
-            try { effect(); } catch(e) { console.warn('Emergency useEffect error:', e); }
-          },
-          useLayoutEffect: function(effect, deps) { 
-            console.warn('Emergency useLayoutEffect called');
-            try { effect(); } catch(e) { console.warn('Emergency useLayoutEffect error:', e); }
-          },
-          useCallback: function(callback, deps) { return callback; },
-          useMemo: function(factory, deps) { try { return factory(); } catch(e) { return null; } },
-          useRef: function(initial) { return { current: initial }; },
-          useContext: function(context) { return context?.defaultValue; },
-          useReducer: function(reducer, initial) { return [initial, function() {}]; },
-          createElement: function() { return {}; },
-          version: '18.3.1-emergency'
+        // Create detailed diagnostic tracker
+        const diagnosticTracker = {
+          accesses: [],
+          stackTraces: [],
+          timing: []
         };
         
-        // Ensure F is ALWAYS available
+        // Intercept all property access on F
+        let fAccessCount = 0;
         Object.defineProperty(window, 'F', {
-          get: function() { 
-            return window.React || emergencyReact; 
+          get: function() {
+            fAccessCount++;
+            const stack = new Error().stack;
+            const timestamp = Date.now();
+            
+            console.group(`🔍 F ACCESS #${fAccessCount} at ${timestamp}`);
+            console.log('📊 Stack trace:', stack);
+            console.log('📍 Caller info:', {
+              line: stack.split('\n')[2],
+              source: stack.split('\n')[1]
+            });
+            console.groupEnd();
+            
+            diagnosticTracker.accesses.push({
+              count: fAccessCount,
+              timestamp,
+              stack: stack,
+              caller: stack.split('\n')[2]
+            });
+            
+            // Return React if available, otherwise throw descriptive error
+            if (window.React) {
+              console.log('✅ Returning actual React for F');
+              return window.React;
+            } else {
+              console.error('❌ DIAGNOSTIC: F accessed but React not available!');
+              console.log('📋 Full diagnostic report:', diagnosticTracker);
+              
+              // Throw error with full context
+              const error = new Error(`
+🚨 F.useLayoutEffect ACCESS DETECTED 🚨
+
+F was accessed but React is not yet available.
+
+ACCESS #${fAccessCount}
+TIMESTAMP: ${new Date(timestamp).toISOString()}
+CALLER: ${stack.split('\n')[2]}
+
+STACK TRACE:
+${stack}
+
+DIAGNOSTIC DATA:
+- Total F accesses: ${fAccessCount}
+- React available: ${!!window.React}
+- Window.React type: ${typeof window.React}
+
+This suggests a library is expecting React to be available as global 'F'.
+Check your dependencies for:
+- @emotion/react
+- @mui/material  
+- styled-components
+- Any library that might alias React as 'F'
+              `);
+              error.diagnosticData = diagnosticTracker;
+              throw error;
+            }
           },
-          set: function(value) { 
-            // Allow setting but log it
-            console.log('F was set to:', value);
+          set: function(value) {
+            console.log('📝 F SET with value:', value, typeof value);
+            console.log('📊 Setter stack:', new Error().stack);
+            
+            // Allow setting and store the diagnostic
+            diagnosticTracker.timing.push({
+              action: 'set',
+              timestamp: Date.now(),
+              value: value,
+              type: typeof value,
+              stack: new Error().stack
+            });
           },
           configurable: true,
           enumerable: true
         });
         
-        // Also ensure React is available
-        window.React = window.React || emergencyReact;
-        
-        console.log('✅ Emergency F protection installed:', typeof window.F, typeof window.F.useLayoutEffect);
+        console.log('✅ F diagnostic tracker installed');
+        window.__F_DIAGNOSTICS__ = diagnosticTracker;
       })();
       
       // Initialize empty config - will be populated by config.js
@@ -102,40 +148,67 @@
       </div>
     </div>
     <script>
-      // CRITICAL: Global error interceptor for F.useLayoutEffect
+      // ENHANCED ERROR REPORTING: Detailed analysis of useLayoutEffect errors
       (function() {
         const originalError = window.onerror;
         window.onerror = function(message, source, lineno, colno, error) {
           if (message && message.includes('useLayoutEffect') && message.includes('undefined')) {
-            console.error('🚨 INTERCEPTED useLayoutEffect ERROR:', message);
-            console.log('🔧 Attempting emergency F restoration...');
+            console.group('🚨 USELAYOUTEFFECT ERROR DETECTED');
+            console.error('ERROR MESSAGE:', message);
+            console.log('SOURCE FILE:', source);
+            console.log('LINE:COLUMN:', `${lineno}:${colno}`);
+            console.log('ERROR OBJECT:', error);
             
-            // Emergency restoration
-            if (typeof window.F === 'undefined' || !window.F.useLayoutEffect) {
-              const emergencyReact = {
-                useState: function(initial) { return [initial, function() {}]; },
-                useEffect: function(effect) { try { effect(); } catch(e) {} },
-                useLayoutEffect: function(effect) { try { effect(); } catch(e) {} },
-                useCallback: function(callback) { return callback; },
-                useMemo: function(factory) { try { return factory(); } catch(e) { return null; } },
-                useRef: function(initial) { return { current: initial }; },
-                createElement: function() { return {}; },
-                version: '18.3.1-emergency-restore'
+            // Detailed environment analysis
+            console.group('📊 ENVIRONMENT ANALYSIS');
+            console.log('window.F type:', typeof window.F);
+            console.log('window.React type:', typeof window.React);
+            console.log('F diagnostic data:', window.__F_DIAGNOSTICS__);
+            
+            // Check all global React-related variables
+            const reactGlobals = {};
+            ['React', 'F', '__REACT_DEVTOOLS_GLOBAL_HOOK__'].forEach(key => {
+              reactGlobals[key] = {
+                exists: key in window,
+                type: typeof window[key],
+                value: window[key]
               };
-              
-              window.F = emergencyReact;
-              window.React = window.React || emergencyReact;
-              
-              console.log('✅ Emergency F restored after error');
-              
-              // Try to reload the page to retry with F available
-              setTimeout(() => {
-                console.log('🔄 Reloading page to retry with F protection...');
-                window.location.reload();
-              }, 100);
-              
-              return true; // Prevent default error handling
+            });
+            console.log('React globals:', reactGlobals);
+            console.groupEnd();
+            
+            // Analyze the chunk that caused the error
+            if (source && source.includes('chunk-')) {
+              const chunkName = source.match(/chunk-[^.]+\.js/)?.[0];
+              console.group(`📦 CHUNK ANALYSIS: ${chunkName}`);
+              console.log('This chunk is trying to access F.useLayoutEffect');
+              console.log('Likely suspects:');
+              console.log('- @emotion/react (uses F as React alias)');
+              console.log('- @mui/material (depends on emotion)');
+              console.log('- styled-components');
+              console.log('- Any library expecting React as global F');
+              console.groupEnd();
             }
+            
+            // Module loading analysis
+            console.group('📝 MODULE LOADING STATE');
+            const scripts = Array.from(document.scripts);
+            console.log('Total scripts loaded:', scripts.length);
+            console.log('Module scripts:', scripts.filter(s => s.type === 'module').length);
+            console.log('Last script src:', scripts[scripts.length - 1]?.src);
+            console.groupEnd();
+            
+            console.group('🔧 NEXT STEPS');
+            console.log('1. Check package.json for @emotion/react or @mui/material');
+            console.log('2. Look for any library that might expect React as global F');
+            console.log('3. Check if React module preloader is loading too late');
+            console.log('4. Consider moving React import to <head> instead of module');
+            console.groupEnd();
+            
+            console.groupEnd();
+            
+            // Don't try to fix it - let it fail with good diagnostics
+            return false;
           }
           
           // Call original error handler if it exists
@@ -145,16 +218,7 @@
           return false;
         };
         
-        // Also add unhandledrejection handler
-        window.addEventListener('unhandledrejection', function(event) {
-          if (event.reason && event.reason.message && 
-              event.reason.message.includes('useLayoutEffect')) {
-            console.error('🚨 INTERCEPTED Promise rejection for useLayoutEffect');
-            event.preventDefault();
-          }
-        });
-        
-        console.log('✅ Global error interceptor installed for F.useLayoutEffect');
+        console.log('✅ Enhanced error reporting installed');
       })();
       
       // Show loading progress
