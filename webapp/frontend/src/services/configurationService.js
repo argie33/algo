@@ -222,7 +222,8 @@ class ConfigurationService {
       // Get API URL safely for error context
       let errorUrl;
       try {
-        errorUrl = `${await this.getApiBaseUrl()}/api/config`;
+        const apiUrlForError = await this.getApiBaseUrl();
+        errorUrl = `${apiUrlForError}/api/config`;
       } catch (urlError) {
         errorUrl = 'URL_RESOLUTION_FAILED';
       }
@@ -540,16 +541,46 @@ class ConfigurationService {
     
     // Don't try to configure auth in emergency mode
     if (config.emergency) {
+      console.warn('⚠️ Emergency mode active - authentication disabled');
       return false;
     }
     
-    return !!(
-      config.features?.authentication &&
-      config.cognito?.userPoolId &&
-      config.cognito?.clientId &&
-      !this.isPlaceholderValue(config.cognito.userPoolId) &&
-      !this.isPlaceholderValue(config.cognito.clientId)
-    );
+    // Check authentication feature flag
+    if (!config.features?.authentication) {
+      console.warn('⚠️ Authentication feature disabled in configuration');
+      return false;
+    }
+    
+    // Validate Cognito configuration
+    const hasUserPoolId = config.cognito?.userPoolId;
+    const hasClientId = config.cognito?.clientId;
+    const userPoolIdValid = hasUserPoolId && !this.isPlaceholderValue(config.cognito.userPoolId);
+    const clientIdValid = hasClientId && !this.isPlaceholderValue(config.cognito.clientId);
+    
+    if (!hasUserPoolId) {
+      console.error('❌ Missing Cognito User Pool ID in configuration');
+    } else if (!userPoolIdValid) {
+      console.error('❌ Cognito User Pool ID is placeholder/invalid:', config.cognito.userPoolId);
+    }
+    
+    if (!hasClientId) {
+      console.error('❌ Missing Cognito Client ID in configuration');
+    } else if (!clientIdValid) {
+      console.error('❌ Cognito Client ID is placeholder/invalid:', config.cognito.clientId);
+    }
+    
+    const isConfigured = userPoolIdValid && clientIdValid;
+    
+    if (!isConfigured) {
+      console.error('❌ Authentication configuration validation failed:', {
+        userPoolId: config.cognito?.userPoolId || 'missing',
+        clientId: config.cognito?.clientId || 'missing',
+        userPoolIdValid,
+        clientIdValid
+      });
+    }
+    
+    return isConfigured;
   }
 
   /**
