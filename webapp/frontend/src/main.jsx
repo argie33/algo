@@ -10,6 +10,7 @@ import App from './App'
 import { queryClient } from './lib/queryClient'
 import muiTheme from './theme/muiTheme'
 import { AuthProvider } from './contexts/AuthContext'
+import { ApiKeyProvider } from './components/ApiKeyProvider'
 
 // Import styles
 import './index.css'
@@ -33,7 +34,9 @@ root.render(
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
         <AuthProvider>
-          <App />
+          <ApiKeyProvider>
+            <App />
+          </ApiKeyProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
