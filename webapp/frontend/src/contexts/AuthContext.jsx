@@ -3,22 +3,24 @@ import { fetchAuthSession, signIn, signUp, confirmSignUp, confirmSignIn, signOut
 import SessionManager from '../components/auth/SessionManager';
 import secureSessionStorage from '../utils/secureSessionStorage';
 
+// SIMPLIFIED AUTH CONTEXT - NAVIGATION REMOVED
+// Authentication state management only - no navigation logic
+
 // Enhanced retry configuration
 const RETRY_CONFIG = {
-  maxRetries: 5,
+  maxRetries: 3, // Reduced retries
   baseDelay: 1000,
-  maxDelay: 30000,
+  maxDelay: 10000, // Reduced max delay
   retryableErrors: [
     'NetworkError',
     'TimeoutError', 
     'ENOTFOUND',
     'ECONNREFUSED',
     'NETWORK_ERROR'
-  ],
-  circuitBreakerThreshold: 10
+  ]
 };
 
-// Initial auth state
+// Initial auth state - navigation removed
 const initialState = {
   user: null,
   isAuthenticated: false,
@@ -28,13 +30,11 @@ const initialState = {
   retryCount: 0,
   maxRetries: RETRY_CONFIG.maxRetries,
   lastRetryTime: 0,
-  consecutiveFailures: 0,
-  circuitBreakerOpen: false,
   mfaChallenge: null,
   mfaChallengeSession: null
 };
 
-// Auth actions
+// Auth actions - navigation actions removed
 const AUTH_ACTIONS = {
   LOADING: 'LOADING',
   LOGIN_SUCCESS: 'LOGIN_SUCCESS',
@@ -45,16 +45,12 @@ const AUTH_ACTIONS = {
   UPDATE_TOKENS: 'UPDATE_TOKENS',
   INCREMENT_RETRY: 'INCREMENT_RETRY',
   RESET_RETRIES: 'RESET_RETRIES',
-  INCREMENT_FAILURES: 'INCREMENT_FAILURES',
-  RESET_FAILURES: 'RESET_FAILURES',
-  OPEN_CIRCUIT_BREAKER: 'OPEN_CIRCUIT_BREAKER',
-  CLOSE_CIRCUIT_BREAKER: 'CLOSE_CIRCUIT_BREAKER',
   MFA_CHALLENGE: 'MFA_CHALLENGE',
   MFA_SUCCESS: 'MFA_SUCCESS',
   CLEAR_MFA: 'CLEAR_MFA'
 };
 
-// Auth reducer
+// Simplified auth reducer - no navigation state
 function authReducer(state, action) {
   switch (action.type) {
     case AUTH_ACTIONS.LOADING:
@@ -69,7 +65,8 @@ function authReducer(state, action) {
         tokens: action.payload.tokens,
         isAuthenticated: true,
         isLoading: false,
-        error: null
+        error: null,
+        retryCount: 0 // Reset on success
       };
     case AUTH_ACTIONS.LOGIN_FAILURE:
       return {
@@ -87,7 +84,8 @@ function authReducer(state, action) {
         tokens: null,
         isAuthenticated: false,
         isLoading: false,
-        error: null
+        error: null,
+        retryCount: 0
       };
     case AUTH_ACTIONS.SET_ERROR:
       return {
@@ -116,26 +114,6 @@ function authReducer(state, action) {
         ...state,
         retryCount: 0,
         lastRetryTime: 0
-      };
-    case AUTH_ACTIONS.INCREMENT_FAILURES:
-      return {
-        ...state,
-        consecutiveFailures: state.consecutiveFailures + 1
-      };
-    case AUTH_ACTIONS.RESET_FAILURES:
-      return {
-        ...state,
-        consecutiveFailures: 0
-      };
-    case AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER:
-      return {
-        ...state,
-        circuitBreakerOpen: true
-      };
-    case AUTH_ACTIONS.CLOSE_CIRCUIT_BREAKER:
-      return {
-        ...state,
-        circuitBreakerOpen: false
       };
     case AUTH_ACTIONS.MFA_CHALLENGE:
       return {
@@ -166,11 +144,11 @@ function authReducer(state, action) {
 // Create auth context
 const AuthContext = createContext();
 
-// Auth provider component
+// Simplified auth provider - no navigation logic
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Check if user is authenticated on app start
+  // Check authentication on app start - simplified
   useEffect(() => {
     checkAuthState();
   }, []);
@@ -193,27 +171,21 @@ export function AuthProvider({ children }) {
     return delay + Math.random() * 1000; // Add jitter
   };
 
+  // SIMPLIFIED checkAuthState - no navigation logic
   const checkAuthState = async (forceRetry = false) => {
     const now = Date.now();
     const timeSinceLastRetry = now - state.lastRetryTime;
     const backoffDelay = getBackoffDelay(state.retryCount);
     
-    // Circuit breaker check
-    if (state.circuitBreakerOpen && !forceRetry) {
-      console.warn('🔴 Circuit breaker open - authentication temporarily disabled');
-      return;
-    }
-    
-    // Enhanced retry logic with better conditions
+    // Simplified retry logic
     if (!forceRetry && state.retryCount >= state.maxRetries) {
-      console.warn('🛑 Auth retry limit reached. Opening circuit breaker.');
-      dispatch({ type: AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER });
-      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication service temporarily unavailable. Please try again later.' });
+      console.warn('🛑 Auth retry limit reached.');
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication service temporarily unavailable.' });
       return;
     }
     
     if (!forceRetry && timeSinceLastRetry < backoffDelay) {
-      console.warn(`🛑 Auth retry backoff active. Wait ${Math.ceil((backoffDelay - timeSinceLastRetry) / 1000)}s before next attempt.`);
+      console.warn(`🛑 Auth retry backoff active. Wait ${Math.ceil((backoffDelay - timeSinceLastRetry) / 1000)}s`);
       return;
     }
     
@@ -221,47 +193,32 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.INCREMENT_RETRY });
       
-      // SECURITY: Clear any existing demo/fallback authentication sessions
+      // Clear any demo/fallback sessions
       localStorage.removeItem('demo-user');
-      localStorage.removeItem('demo-session');
-      localStorage.removeItem('fallback-auth');
       sessionStorage.removeItem('demo-user');
-      sessionStorage.removeItem('demo-session');
       
-      // Initialize runtime configuration first
+      // Initialize runtime configuration
       try {
         const { initializeRuntimeConfig } = await import('../services/runtimeConfig');
         await initializeRuntimeConfig();
-        console.log('✅ Runtime configuration loaded in AuthContext');
+        console.log('✅ Runtime configuration loaded');
       } catch (runtimeError) {
-        console.warn('⚠️ Runtime config failed, using static config:', runtimeError);
+        console.warn('⚠️ Runtime config failed:', runtimeError);
       }
       
-      // Check if authentication is enabled and Cognito is configured
-      const { FEATURES, AWS_CONFIG } = await import('../config/environment');
+      // Check Cognito configuration
+      const { FEATURES } = await import('../config/environment');
       const { isCognitoConfigured } = await import('../config/amplify');
       
-      if (!FEATURES.authentication.enabled) {
-        console.warn('⚠️ Authentication is disabled via feature flags');
+      if (!FEATURES.authentication.enabled || !FEATURES.authentication.methods.cognito || !isCognitoConfigured()) {
+        console.warn('❌ Cognito not configured properly');
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
         return;
       }
       
-      if (!FEATURES.authentication.methods.cognito || !isCognitoConfigured()) {
-        console.error('❌ Cognito not configured - authentication required');
-        // DISABLED: No automatic demo user login
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
-        return;
-      }
-      
-      // COGNITO ONLY - Use real authentication
-      console.log('🚀 Using AWS Cognito authentication');
-      
+      // Try to get current user and session
       try {
-        // Get current authenticated user
         const user = await getCurrentUser();
-        
-        // Get current session with tokens
         const session = await fetchAuthSession();
         
         if (user && session.tokens) {
@@ -279,14 +236,11 @@ export function AuthProvider({ children }) {
             email: user.signInDetails?.loginId || user.username
           };
           secureSessionStorage.storeTokens(tokenData);
-          
-          // Legacy support - store access token for API requests
           localStorage.setItem('accessToken', tokens.accessToken);
-          
-          // Check if user has MFA enabled by checking user attributes
+
           const mfaEnabled = user.userAttributes?.['custom:mfa_enabled'] === 'true' || 
                              user.userAttributes?.phone_number_verified === 'true' ||
-                             false; // Default to false if not set
+                             false;
 
           dispatch({
             type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -303,9 +257,8 @@ export function AuthProvider({ children }) {
               tokens
             }
           });
+          
           dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
-          dispatch({ type: AUTH_ACTIONS.RESET_FAILURES });
-          dispatch({ type: AUTH_ACTIONS.CLOSE_CIRCUIT_BREAKER });
           console.log('✅ User authenticated with Cognito');
           return;
         }
@@ -318,35 +271,19 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Error checking auth state:', error);
       
-      dispatch({ type: AUTH_ACTIONS.INCREMENT_FAILURES });
-      
-      // Check if this is a retryable error
-      if (isRetryableError(error)) {
+      if (isRetryableError(error) && state.retryCount < state.maxRetries) {
         console.warn('⚠️ Retryable error encountered:', error.message);
-        
-        if (state.retryCount >= state.maxRetries) {
-          console.error('🛑 Max auth retries reached for retryable error.');
-          dispatch({ type: AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER });
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication service temporarily unavailable.' });
-        } else {
-          dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
-        }
+        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
       } else {
-        // Non-retryable error - fail immediately but don't open circuit breaker
-        console.error('❌ Non-retryable authentication error:', error.message);
+        console.error('❌ Authentication error:', error.message);
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      }
-      
-      // Open circuit breaker if too many consecutive failures
-      if (state.consecutiveFailures >= RETRY_CONFIG.circuitBreakerThreshold) {
-        console.error('🔴 Too many consecutive failures. Opening circuit breaker.');
-        dispatch({ type: AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER });
       }
     } finally {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
     }
   };
 
+  // Login method - simplified, no navigation
   const login = async (username, password) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
@@ -357,11 +294,9 @@ export function AuthProvider({ children }) {
       // Clear any local state first
       localStorage.removeItem('accessToken');
       
-      // Try to sign out first if there's already a signed in user
+      // Try to sign out first if there's already a session
       try {
         await signOut();
-        console.log('🧹 Cleared existing session before sign in');
-        // Wait a moment for signOut to complete
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
         console.log('No existing session to clear:', error.message);
@@ -371,7 +306,7 @@ export function AuthProvider({ children }) {
 
       if (isSignedIn) {
         dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
-        await checkAuthState(true); // Force retry for successful login
+        await checkAuthState(true);
         return { success: true };
       } else if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
         return { 
@@ -426,24 +361,16 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      console.log('🔐 Confirming MFA challenge...');
-      const { isSignedIn, nextStep } = await confirmSignIn({ challengeResponse });
+      const { isSignedIn } = await confirmSignIn({ challengeResponse });
 
       if (isSignedIn) {
-        console.log('✅ MFA verification successful');
         dispatch({ type: AUTH_ACTIONS.MFA_SUCCESS });
-        dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
-        await checkAuthState(true); // Force retry for successful login
+        await checkAuthState(true);
         return { success: true };
       } else {
-        console.log('❌ MFA verification failed, additional steps required:', nextStep);
-        return { 
-          success: false, 
-          message: `Additional verification required: ${nextStep.signInStep}`
-        };
+        return { success: false, message: 'MFA verification failed' };
       }
     } catch (error) {
-      console.error('❌ MFA confirmation error:', error);
       dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
       return { success: false, message: error.message };
     }
@@ -515,27 +442,21 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Logout - simplified, no navigation
   const logout = async () => {
     try {
       console.log('🚪 Signing out...');
       
-      // Clear secure session storage
       secureSessionStorage.clearSession();
-      
-      // Clear local storage first
       localStorage.removeItem('accessToken');
       
-      // Clear React state
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      
-      // Sign out from Cognito
       await signOut();
       
       console.log('✅ Logout successful');
       return { success: true };
     } catch (error) {
       console.error('❌ Logout error:', error);
-      // Even if logout fails, we've already cleared local state
       return { success: false, message: error.message };
     }
   };
@@ -592,7 +513,6 @@ export function AuthProvider({ children }) {
           refreshToken: session.tokens.refreshToken?.toString()
         };
         
-        // Update secure storage
         const tokenData = {
           ...tokens,
           userId: state.user?.userId,
@@ -627,6 +547,7 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Simplified value object - no navigation methods
   const value = {
     user: state.user,
     isAuthenticated: state.isAuthenticated,
@@ -648,9 +569,7 @@ export function AuthProvider({ children }) {
     checkAuthState,
     updateUserMfaStatus,
     retryCount: state.retryCount,
-    maxRetries: state.maxRetries,
-    consecutiveFailures: state.consecutiveFailures,
-    circuitBreakerOpen: state.circuitBreakerOpen
+    maxRetries: state.maxRetries
   };
 
   return (

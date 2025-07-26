@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import WelcomeBanner from '../components/WelcomeBanner';
-import usePostLoginFlow from '../hooks/usePostLoginFlow';
+// Removed usePostLoginFlow - navigation handled by NavigationContext
 import {
   Box,
   Grid,
@@ -625,7 +625,26 @@ function EconomicIndicatorsWidget() {
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
-  const { showWelcomeMessage, isFirstTimeUser, dismissWelcomeMessage } = usePostLoginFlow();
+  // Welcome message state handled locally - no longer using usePostLoginFlow
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
+  
+  // Check for first-time user on authentication
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const lastLogin = localStorage.getItem(`lastLogin_${user.userId}`);
+      const isFirstTime = !lastLogin;
+      setIsFirstTimeUser(isFirstTime);
+      setShowWelcomeMessage(isFirstTime);
+      
+      // Store current login timestamp
+      localStorage.setItem(`lastLogin_${user.userId}`, new Date().toISOString());
+    }
+  }, [isAuthenticated, user]);
+  
+  const dismissWelcomeMessage = () => {
+    setShowWelcomeMessage(false);
+  };
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [dashboardView, setDashboardView] = useState('overview');
   

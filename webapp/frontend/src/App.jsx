@@ -1,6 +1,6 @@
-// PERFORMANCE FIX: Massive bundle size reduction through lazy loading - v1.8
+// UNIFIED ROUTING ARCHITECTURE - Single predictable flow
 import { useState, lazy, Suspense } from 'react'
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { 
   AppBar, 
   Box, 
@@ -21,7 +21,8 @@ import {
   MenuItem,
   Avatar,
   Divider,
-  CircularProgress
+  CircularProgress,
+  Collapse
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -54,33 +55,27 @@ import {
   Bolt as BoltIcon
 } from '@mui/icons-material'
 
-// CRITICAL: Keep only essential components for initial load
+// UNIFIED ROUTING IMPORTS
+import { NavigationProvider, useNavigation } from './contexts/NavigationContext'
 import { useAuth } from './contexts/AuthContext'
+import { ROUTE_CONFIG } from './routing/routeConfig'
+import RouteGuard from './components/routing/RouteGuard'
 import AuthModal from './components/auth/AuthModal'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
-import LoginRedirect from './components/LoginRedirect'
-import SmartRouting from './components/SmartRouting'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// LAZY LOADED PAGES - Reduces initial bundle from 1.01MB to ~200KB
-// Core pages (loaded first)
+// LAZY LOADED PAGES - Keep existing lazy loading for performance
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const MarketOverview = lazy(() => import('./pages/MarketOverview'))
-
-// Market pages
 const StockExplorer = lazy(() => import('./pages/StockExplorer'))
 const StockDetail = lazy(() => import('./pages/StockDetail'))
 const SectorAnalysis = lazy(() => import('./pages/SectorAnalysis'))
 const Commodities = lazy(() => import('./pages/Commodities'))
 const EconomicModeling = lazy(() => import('./pages/EconomicModeling'))
-
-// Portfolio pages
 const Portfolio = lazy(() => import('./pages/Portfolio'))
 const PortfolioPerformance = lazy(() => import('./pages/PortfolioPerformance'))
 const PortfolioOptimization = lazy(() => import('./pages/PortfolioOptimization'))
 const TradeHistory = lazy(() => import('./pages/TradeHistory'))
-
-// Analysis pages
 const TechnicalAnalysis = lazy(() => import('./pages/TechnicalAnalysis'))
 const AnalystInsights = lazy(() => import('./pages/AnalystInsights'))
 const MetricsDashboard = lazy(() => import('./pages/MetricsDashboard'))
@@ -88,48 +83,82 @@ const FinancialData = lazy(() => import('./pages/FinancialData'))
 const EarningsCalendar = lazy(() => import('./pages/EarningsCalendar'))
 const TechnicalHistory = lazy(() => import('./pages/TechnicalHistory'))
 const ScoresDashboard = lazy(() => import('./pages/ScoresDashboard'))
-
-// Trading pages
 const TradingSignals = lazy(() => import('./pages/TradingSignals'))
 const Backtest = lazy(() => import('./pages/Backtest'))
 const AdvancedScreener = lazy(() => import('./pages/AdvancedScreener'))
-
-// Sentiment pages
 const SentimentAnalysis = lazy(() => import('./pages/SentimentAnalysis'))
 const SocialMediaSentiment = lazy(() => import('./pages/SocialMediaSentiment'))
 const NewsSentiment = lazy(() => import('./pages/NewsSentiment'))
-
-// Options pages (heavy components)
 const OptionsAnalytics = lazy(() => import('./pages/options/OptionsAnalytics'))
 const OptionsStrategies = lazy(() => import('./pages/options/OptionsStrategies'))
 const OptionsFlow = lazy(() => import('./pages/options/OptionsFlow'))
 const VolatilitySurface = lazy(() => import('./pages/options/VolatilitySurface'))
 const GreeksMonitor = lazy(() => import('./pages/options/GreeksMonitor'))
-
-// Crypto pages
 const CryptoMarketOverview = lazy(() => import('./pages/CryptoMarketOverview'))
 const CryptoPortfolio = lazy(() => import('./pages/CryptoPortfolio'))
 const CryptoRealTimeTracker = lazy(() => import('./pages/CryptoRealTimeTracker'))
 const CryptoAdvancedAnalytics = lazy(() => import('./pages/CryptoAdvancedAnalytics'))
-
-// Tools & Admin pages
 const LiveDataAdmin = lazy(() => import('./pages/LiveDataAdmin'))
 const HFTTrading = lazy(() => import('./pages/HFTTrading'))
 const NeuralHFTCommandCenter = lazy(() => import('./pages/NeuralHFTCommandCenter'))
 const ServiceHealth = lazy(() => import('./pages/ServiceHealth'))
 const Settings = lazy(() => import('./pages/Settings'))
-
-// Research pages
 const Watchlist = lazy(() => import('./pages/Watchlist'))
 const MarketCommentary = lazy(() => import('./pages/MarketCommentary'))
 const EducationalContent = lazy(() => import('./pages/EducationalContent'))
 const PatternRecognition = lazy(() => import('./pages/PatternRecognition'))
 const AIAssistant = lazy(() => import('./pages/AIAssistant'))
-
-// Landing page
 const WelcomeLanding = lazy(() => import('./pages/WelcomeLanding'))
 
-// Loading component for lazy-loaded pages
+// Component mapping for routes
+const COMPONENT_MAP = {
+  Dashboard,
+  MarketOverview,
+  StockExplorer,
+  StockDetail,
+  SectorAnalysis,
+  Commodities,
+  EconomicModeling,
+  Portfolio,
+  PortfolioPerformance,
+  PortfolioOptimization,
+  TradeHistory,
+  TechnicalAnalysis,
+  AnalystInsights,
+  MetricsDashboard,
+  FinancialData,
+  EarningsCalendar,
+  TechnicalHistory,
+  ScoresDashboard,
+  TradingSignals,
+  Backtest,
+  AdvancedScreener,
+  SentimentAnalysis,
+  SocialMediaSentiment,
+  NewsSentiment,
+  OptionsAnalytics,
+  OptionsStrategies,
+  OptionsFlow,
+  VolatilitySurface,
+  GreeksMonitor,
+  CryptoMarketOverview,
+  CryptoPortfolio,
+  CryptoRealTimeTracker,
+  CryptoAdvancedAnalytics,
+  LiveDataAdmin,
+  HFTTrading,
+  NeuralHFTCommandCenter,
+  ServiceHealth,
+  Settings,
+  Watchlist,
+  MarketCommentary,
+  EducationalContent,
+  PatternRecognition,
+  AIAssistant,
+  WelcomeLanding
+};
+
+// Centralized loading component
 const PageLoader = () => (
   <Box 
     display="flex" 
@@ -162,57 +191,55 @@ const menuItems = [
   { text: 'Crypto Market', icon: <TrendingUpIcon />, path: '/crypto', category: 'crypto' },
   { text: 'Crypto Portfolio', icon: <AccountBalanceIcon />, path: '/crypto/portfolio', category: 'crypto' },
   { text: 'Real-Time Tracker', icon: <ShowChartIcon />, path: '/crypto/realtime', category: 'crypto' },
-  { text: 'Advanced Analytics', icon: <AnalyticsIcon />, path: '/crypto/analytics', category: 'crypto', premium: true },
+  { text: 'Advanced Analytics', icon: <AnalyticsIcon />, path: '/crypto/analytics', category: 'crypto' },
   
   // Stocks Section
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
   { text: 'Stock Analysis', icon: <FilterListIcon />, path: '/stocks', category: 'stocks' },
   { text: 'Technical Analysis', icon: <ShowChartIcon />, path: '/technical', category: 'stocks' },
-  { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/stocks/patterns', category: 'stocks', premium: true },
+  { text: 'Pattern Recognition', icon: <AnalyticsIcon />, path: '/stocks/patterns', category: 'stocks' },
   { text: 'Trading Signals', icon: <TrendingUpIcon />, path: '/trading', category: 'stocks' },
-  { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks', premium: true },
+  { text: 'Stock Scores', icon: <Stars />, path: '/scores', category: 'stocks' },
   { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'stocks' },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings', category: 'stocks' },
   { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },
   
-  // Options Trading Section (Premium)
-  { text: 'Options Analytics', icon: <AssessmentIcon />, path: '/options', category: 'options', premium: true },
-  { text: 'Options Strategies', icon: <AnalyticsIcon />, path: '/options/strategies', category: 'options', premium: true },
-  { text: 'Options Flow', icon: <TimelineIcon />, path: '/options/flow', category: 'options', premium: true },
-  { text: 'Volatility Surface', icon: <ShowChartIcon />, path: '/options/volatility', category: 'options', premium: true },
-  { text: 'Greeks Monitor', icon: <AnalyticsIcon />, path: '/options/greeks', category: 'options', premium: true },
+  // Options Trading Section
+  { text: 'Options Analytics', icon: <AssessmentIcon />, path: '/options', category: 'options' },
+  { text: 'Options Strategies', icon: <AnalyticsIcon />, path: '/options/strategies', category: 'options' },
+  { text: 'Options Flow', icon: <TimelineIcon />, path: '/options/flow', category: 'options' },
+  { text: 'Volatility Surface', icon: <ShowChartIcon />, path: '/options/volatility', category: 'options' },
+  { text: 'Greeks Monitor', icon: <AnalyticsIcon />, path: '/options/greeks', category: 'options' },
   
-  // Sentiment Analysis Section (Premium)
-  { text: 'Market Sentiment', icon: <PsychologyIcon />, path: '/sentiment', category: 'sentiment', premium: true },
-  { text: 'Social Media Sentiment', icon: <PsychologyIcon />, path: '/sentiment/social', category: 'sentiment', premium: true },
-  { text: 'News Sentiment', icon: <PsychologyIcon />, path: '/sentiment/news', category: 'sentiment', premium: true },
-  { text: 'Analyst Insights', icon: <PersonIcon />, path: '/sentiment/analysts', category: 'sentiment', premium: true },
+  // Sentiment Analysis Section
+  { text: 'Market Sentiment', icon: <PsychologyIcon />, path: '/sentiment', category: 'sentiment' },
+  { text: 'Social Media Sentiment', icon: <PsychologyIcon />, path: '/sentiment/social', category: 'sentiment' },
+  { text: 'News Sentiment', icon: <PsychologyIcon />, path: '/sentiment/news', category: 'sentiment' },
+  { text: 'Analyst Insights', icon: <PersonIcon />, path: '/sentiment/analysts', category: 'sentiment' },
   
   // Portfolio Section
   { text: 'Portfolio Overview', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
   { text: 'Trade History', icon: <HistoryIcon />, path: '/portfolio/trade-history', category: 'portfolio' },
-  { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
-  { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio', premium: true },
+  { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio' },
+  { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio' },
   
   // Research & Education Section
   { text: 'Market Commentary', icon: <EventIcon />, path: '/research/commentary', category: 'research' },
   { text: 'Educational Content', icon: <HealthAndSafetyIcon />, path: '/research/education', category: 'research' },
-  { text: 'Research Reports', icon: <AnalyticsIcon />, path: '/research/reports', category: 'research', premium: true },
   
   // Tools Section
-  { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
+  { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools' },
   { text: 'Live Data Manager', icon: <TrendingUpIcon />, path: '/live-data', category: 'tools' },
-  { text: 'HFT Trading', icon: <ShowChartIcon />, path: '/hft-trading', category: 'tools', premium: true },
-  { text: 'Neural HFT Command Center', icon: <BoltIcon />, path: '/neural-hft', category: 'tools', premium: true },
-  { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
+  { text: 'HFT Trading', icon: <ShowChartIcon />, path: '/hft-trading', category: 'tools' },
+  { text: 'Neural HFT Command Center', icon: <BoltIcon />, path: '/neural-hft', category: 'tools' },
+  { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools' },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
 ]
 
-
-function App() {
+// Main App Component with Unified Navigation
+function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [authModalOpen, setAuthModalOpen] = useState(false)
   const [userMenuAnchor, setUserMenuAnchor] = useState(null)
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
@@ -226,10 +253,11 @@ function App() {
   })
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const { isAuthenticated, user, logout } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
   
+  // UNIFIED NAVIGATION HOOKS
+  const { isAuthenticated, user, logout } = useAuth()
+  const { authModalOpen, closeAuthModal, navigateTo, handleSpecialRoute } = useNavigation()
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -246,23 +274,24 @@ function App() {
   const handleLogout = async () => {
     handleUserMenuClose()
     await logout()
+    // Navigation will be handled by NavigationContext
   }
 
+  // UNIFIED NAVIGATION HANDLER
   const handleNavigation = (path) => {
-    // All features are now available - no premium restrictions
-    navigate(path)
+    navigateTo(path)
     if (isMobile) {
       setMobileOpen(false)
     }
   }
-  
+
   const handleSectionToggle = (section) => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
     }))
   }
-  
+
   const groupedMenuItems = menuItems.reduce((acc, item) => {
     if (!acc[item.category]) {
       acc[item.category] = []
@@ -270,7 +299,7 @@ function App() {
     acc[item.category].push(item)
     return acc
   }, {})
-  
+
   const sectionTitles = {
     main: 'Dashboard',
     markets: 'Markets',
@@ -282,6 +311,31 @@ function App() {
     research: 'Research & Education',
     tools: 'Tools'
   }
+
+  // Render component for route
+  const renderRouteComponent = (route) => {
+    const Component = COMPONENT_MAP[route.component];
+    
+    if (!Component) {
+      return <div>Component {route.component} not found</div>;
+    }
+    
+    return (
+      <RouteGuard path={route.path}>
+        <Component />
+      </RouteGuard>
+    );
+  };
+
+  // Get page title
+  const getPageTitle = (pathname) => {
+    if (pathname === '/') return 'Market Overview';
+    if (pathname === '/dashboard') return 'Dashboard';
+    
+    const route = [...ROUTE_CONFIG.PUBLIC_ROUTES, ...ROUTE_CONFIG.PROTECTED_ROUTES]
+      .find(r => r.path === pathname);
+    return route?.component || 'Financial Platform';
+  };
 
   const drawer = (
     <div>
@@ -299,7 +353,7 @@ function App() {
                 <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
                   <ListItemButton
                     selected={location.pathname === item.path}
-                    onClick={() => handleNavigation(item.path, item.premium)}
+                    onClick={() => handleNavigation(item.path)}
                     sx={{
                       borderRadius: 1,
                       '&.Mui-selected': {
@@ -345,42 +399,40 @@ function App() {
                 </ListItem>
                 
                 {/* Section Items */}
-                {expandedSections[category] && items.map((item) => (
-                  <ListItem key={item.text} disablePadding sx={{ pl: 2 }}>
-                    <ListItemButton
-                      selected={location.pathname === item.path}
-                      onClick={() => handleNavigation(item.path, item.premium)}
-                      disabled={false}
-                      sx={{
-                        borderRadius: 1,
-                        py: 0.5,
-                        '&.Mui-selected': {
-                          backgroundColor: theme.palette.primary.main + '20',
-                          '& .MuiListItemIcon-root': {
-                            color: theme.palette.primary.main,
+                <Collapse in={expandedSections[category]} timeout="auto" unmountOnExit>
+                  {items.map((item) => (
+                    <ListItem key={item.text} disablePadding sx={{ pl: 2 }}>
+                      <ListItemButton
+                        selected={location.pathname === item.path}
+                        onClick={() => handleNavigation(item.path)}
+                        sx={{
+                          borderRadius: 1,
+                          py: 0.5,
+                          '&.Mui-selected': {
+                            backgroundColor: theme.palette.primary.main + '20',
+                            '& .MuiListItemIcon-root': {
+                              color: theme.palette.primary.main,
+                            },
+                            '& .MuiListItemText-primary': {
+                              color: theme.palette.primary.main,
+                              fontWeight: 600,
+                            },
                           },
-                          '& .MuiListItemText-primary': {
-                            color: theme.palette.primary.main,
-                            fontWeight: 600,
-                          },
-                        },
-                        '&.Mui-disabled': {
-                          opacity: 0.6,
-                        },
-                      }}
-                    >
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        {item.icon}
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={item.text}
-                        primaryTypographyProps={{
-                          variant: 'body2'
                         }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          {item.icon}
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={item.text}
+                          primaryTypographyProps={{
+                            variant: 'body2'
+                          }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </Collapse>
                 <Divider sx={{ my: 1 }} />
               </>
             )}
@@ -392,6 +444,7 @@ function App() {
 
   return (
     <Box sx={{ display: 'flex' }}>
+      {/* App Bar */}
       <AppBar
         position="fixed"
         sx={{
@@ -412,26 +465,19 @@ function App() {
           >
             <MenuIcon />
           </IconButton>
+          
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {location.pathname === '/dashboard' ? 'Dashboard' : 
-             location.pathname === '/' ? 'Market Overview' :
-             menuItems.find(item => item.path === location.pathname)?.text || 'Financial Platform'}
+            {getPageTitle(location.pathname)}
           </Typography>
           
-          {/* System Health Monitor - Compact view in header */}
           <Box sx={{ mr: 2 }}>
             <SystemHealthMonitor compact={true} showDetails={false} />
           </Box>
           
-          {/* Authentication UI */}
+          {/* UNIFIED AUTH UI */}
           {isAuthenticated ? (
             <>
-              <IconButton
-                onClick={handleUserMenuOpen}
-                size="large"
-                edge="end"
-                color="inherit"
-              >
+              <IconButton onClick={handleUserMenuOpen} size="large" edge="end" color="inherit">
                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
                   {user?.username?.[0]?.toUpperCase() || 'U'}
                 </Avatar>
@@ -454,7 +500,7 @@ function App() {
                   {user?.username || 'User'}
                 </MenuItem>
                 <Divider />
-                <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
+                <MenuItem onClick={() => { handleUserMenuClose(); handleNavigation('/settings'); }}>
                   <SettingsIcon sx={{ mr: 1 }} />
                   Settings
                 </MenuItem>
@@ -468,7 +514,7 @@ function App() {
             <Button
               color="inherit"
               startIcon={<LoginIcon />}
-              onClick={() => setAuthModalOpen(true)}
+              onClick={() => handleSpecialRoute('/login')}
               sx={{ ml: 2 }}
             >
               Sign In
@@ -477,16 +523,14 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      <Box
-        component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
-      >
+      {/* Navigation Drawer */}
+      <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
+            keepMounted: true,
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
@@ -507,6 +551,7 @@ function App() {
         </Drawer>
       </Box>
 
+      {/* Main Content */}
       <Box
         component="main"
         sx={{
@@ -522,72 +567,45 @@ function App() {
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
-            <Route path="/" element={<MarketOverview />} />
-            <Route path="/dashboard" element={<SmartRouting onSignInClick={() => setAuthModalOpen(true)} />} />
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/portfolio/trade-history" element={<TradeHistory />} />
-            <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
-            <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
-            <Route path="/welcome" element={<WelcomeLanding onSignInClick={() => setAuthModalOpen(true)} />} />
-            <Route path="/login" element={<LoginRedirect onSignInClick={() => setAuthModalOpen(true)} />} />
-            <Route path="/screener-advanced" element={<AdvancedScreener />} />
-            <Route path="/scores" element={<ScoresDashboard />} />
-            <Route path="/sentiment" element={<SentimentAnalysis />} />
-            <Route path="/economic" element={<EconomicModeling />} />
-            <Route path="/metrics" element={<MetricsDashboard />} />
-            <Route path="/stocks" element={<StockExplorer />} />
-            <Route path="/stocks/:ticker" element={<StockDetail />} />
-            <Route path="/trading" element={<TradingSignals />} />
-            <Route path="/technical" element={<TechnicalAnalysis />} />
-            <Route path="/analysts" element={<AnalystInsights />} />
-            <Route path="/earnings" element={<EarningsCalendar />} />
-            <Route path="/backtest" element={<Backtest />} />
-            <Route path="/financial-data" element={<FinancialData />} />
-            <Route path="/service-health" element={<ServiceHealth />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
-            
-            {/* Sector Analysis */}
-            <Route path="/sectors" element={<SectorAnalysis />} />
-            <Route path="/commodities" element={<Commodities />} />
-            <Route path="/watchlist" element={<Watchlist />} />
-            <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
-            <Route path="/sentiment/news" element={<NewsSentiment />} />
-            <Route path="/research/commentary" element={<MarketCommentary />} />
-            <Route path="/research/education" element={<EducationalContent />} />
-            <Route path="/stocks/patterns" element={<PatternRecognition />} />
-            <Route path="/tools/ai" element={<AIAssistant />} />
-            
-            {/* Options Trading Routes */}
-            <Route path="/options" element={<OptionsAnalytics />} />
-            <Route path="/options/strategies" element={<OptionsStrategies />} />
-            <Route path="/options/flow" element={<OptionsFlow />} />
-            <Route path="/options/volatility" element={<VolatilitySurface />} />
-            <Route path="/options/greeks" element={<GreeksMonitor />} />
-            
-            {/* Live Data Routes */}
-            <Route path="/live-data" element={<LiveDataAdmin />} />
-            <Route path="/hft-trading" element={<HFTTrading />} />
-            <Route path="/neural-hft" element={<NeuralHFTCommandCenter />} />
-            
-            {/* Cryptocurrency Routes */}
-            <Route path="/crypto" element={<CryptoMarketOverview />} />
-            <Route path="/crypto/portfolio" element={<CryptoPortfolio />} />
-            <Route path="/crypto/realtime" element={<CryptoRealTimeTracker />} />
-            <Route path="/crypto/analytics" element={<CryptoAdvancedAnalytics />} />
+                {/* PUBLIC ROUTES */}
+                {ROUTE_CONFIG.PUBLIC_ROUTES.map(route => (
+                  <Route 
+                    key={route.path} 
+                    path={route.path} 
+                    element={renderRouteComponent(route)} 
+                  />
+                ))}
+                
+                {/* PROTECTED ROUTES */}
+                {ROUTE_CONFIG.PROTECTED_ROUTES.map(route => (
+                  <Route 
+                    key={route.path} 
+                    path={route.path} 
+                    element={renderRouteComponent(route)} 
+                  />
+                ))}
               </Routes>
             </Suspense>
           </ErrorBoundary>
         </Container>
       </Box>
       
-      {/* Authentication Modal */}
+      {/* UNIFIED AUTH MODAL */}
       <AuthModal
         open={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
+        onClose={closeAuthModal}
       />
     </Box>
   )
+}
+
+// Root App with Navigation Provider
+function App() {
+  return (
+    <NavigationProvider>
+      <AppContent />
+    </NavigationProvider>
+  );
 }
 
 export default App
