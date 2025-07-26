@@ -258,8 +258,8 @@ jobs:
           echo "🚀 SMOKE TESTS - Fast Quality Check"
           echo "=================================="
           
-          # Create results directory
-          mkdir -p smoke-test-results
+          # Create results directory in webapp folder
+          mkdir -p webapp/smoke-test-results
           
           cd webapp/frontend
           echo "📦 Frontend lint check..."
@@ -289,7 +289,7 @@ jobs:
           mkdir -p smoke-upload/smoke-tests/${BRANCH_NAME}
           
           # Copy results to upload directory
-          cp -r smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
+          cp -r webapp/smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
           
           # Create summary report
           cat > smoke-upload/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json << EOF
@@ -300,9 +300,9 @@ jobs:
             "commit": "${{ github.sha }}",
             "status": "completed",
             "tests": {
-              "frontend_lint": "$([ -f smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
-              "frontend_build": "$([ -f smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
-              "backend_lint": "$([ -f smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
+              "frontend_lint": "$([ -f webapp/smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
+              "frontend_build": "$([ -f webapp/smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
+              "backend_lint": "$([ -f webapp/smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
             },
             "completedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           }
