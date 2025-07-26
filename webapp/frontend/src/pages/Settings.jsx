@@ -137,7 +137,16 @@ const Settings = () => {
 
   // Helper function to get authentication headers
   const getAuthHeaders = () => {
-    const token = tokens?.accessToken || 
+    // Check authentication state first
+    if (!isAuthenticated || !tokens) {
+      console.warn('⚠️ User not authenticated or tokens missing');
+      return {
+        'Content-Type': 'application/json'
+      };
+    }
+
+    const token = tokens?.accessToken?.toString() || 
+                 tokens?.idToken?.toString() ||
                  localStorage.getItem('accessToken') || 
                  localStorage.getItem('authToken') || 
                  localStorage.getItem('token');
@@ -148,30 +157,62 @@ const Settings = () => {
     
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('🔐 Auth header added with token length:', token.length);
+    } else {
+      console.error('❌ No valid token found for API request');
     }
     
     return headers;
   };
 
-  // Authentication guard - disabled
-  // useEffect(() => {
-  //   if (!isLoading && !isAuthenticated) {
-  //     navigate('/login');
-  //   }
-  // }, [isAuthenticated, isLoading, navigate]);
+  // Authentication guard - redirect if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      console.warn('⚠️ User not authenticated, redirecting to login');
+      navigate('/login', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
-  // Load user data with circuit breaker
+  // Load user data and handle token refresh
   useEffect(() => {
     if (isAuthenticated && user) {
       loadUserSettings();
-    } else if (!isLoading && !user && !isAuthenticated && retryCount < maxRetries) {
-      // Only retry if we haven't exceeded the limit
-      console.log(`Settings: No user found, attempting to re-check authentication (${retryCount}/${maxRetries})`);
-      checkAuthState();
-    } else if (retryCount >= maxRetries) {
-      console.warn('🛑 Settings: Auth retry limit reached, stopping attempts');
+    } else if (!isLoading && !isAuthenticated) {
+      // User is not authenticated, redirect handled by auth guard above
+      return;
     }
-  }, [isAuthenticated, user, isLoading, retryCount, maxRetries]);
+  }, [isAuthenticated, user, isLoading]);
+
+  // Token refresh handler for expired tokens
+  useEffect(() => {
+    const handleTokenExpiration = async () => {
+      if (isAuthenticated && tokens) {
+        try {
+          // Check if token is close to expiration (within 5 minutes)
+          const accessToken = tokens.accessToken;
+          if (accessToken) {
+            // JWT tokens contain expiration info in payload
+            const payload = JSON.parse(atob(accessToken.split('.')[1]));
+            const currentTime = Date.now() / 1000;
+            const expirationTime = payload.exp;
+            
+            // Refresh if token expires in less than 5 minutes
+            if (expirationTime - currentTime < 300) {
+              console.log('🔄 Token expiring soon, attempting refresh...');
+              await checkAuthState(true);
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not check token expiration:', error);
+        }
+      }
+    };
+
+    // Check token expiration every minute
+    const tokenCheckInterval = setInterval(handleTokenExpiration, 60000);
+    
+    return () => clearInterval(tokenCheckInterval);
+  }, [isAuthenticated, tokens, checkAuthState]);
 
   const loadUserSettings = async () => {
     try {
