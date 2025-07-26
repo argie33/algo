@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import WelcomeLanding from '../pages/WelcomeLanding';
@@ -9,6 +9,21 @@ const SmartRouting = ({ onSignInClick }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  // Prevent infinite loading - timeout after 10 seconds
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        console.warn('⚠️ SmartRouting loading timeout - forcing fallback');
+        setLoadingTimeout(true);
+      }, 10000);
+      
+      return () => clearTimeout(timeout);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [isLoading]);
 
   // Handle post-login redirect logic
   useEffect(() => {
@@ -32,15 +47,21 @@ const SmartRouting = ({ onSignInClick }) => {
     }
   }, [isAuthenticated, location.pathname]);
 
-  // Show loading while checking authentication
-  if (isLoading) {
+  // Show loading while checking authentication (with timeout fallback)
+  if (isLoading && !loadingTimeout) {
     return (
       <LoadingTransition 
-        message="Checking authentication..."
-        submessage="Verifying your session and preparing your dashboard"
+        message="Loading dashboard..."
+        submessage="Please wait while we prepare your workspace"
         type="auth"
       />
     );
+  }
+
+  // If loading timed out, force show dashboard for authenticated users
+  if (loadingTimeout && isAuthenticated) {
+    console.warn('⚠️ Loading timeout - showing dashboard despite loading state');
+    return <Dashboard />;
   }
 
   // Show appropriate content based on authentication status

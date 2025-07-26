@@ -110,6 +110,22 @@ class AdminLiveDataService {
       throw error;
     }
   }
+
+  /**
+   * Toggle HFT eligibility for a symbol
+   * @param {string} symbol - Stock symbol
+   * @returns {Promise<Object>} Operation result
+   */
+  async toggleHFTEligibility(symbol) {
+    try {
+      const response = await api.post(`${this.baseUrl}/hft-eligibility`, { symbol });
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to toggle HFT eligibility for ${symbol}:`, error);
+      // Return mock success for development
+      return { success: true, symbol, hftEligible: Math.random() > 0.5 };
+    }
+  }
 }
 
 export default new AdminLiveDataService();

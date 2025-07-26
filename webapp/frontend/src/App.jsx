@@ -49,7 +49,8 @@ import {
   ExpandMore,
   Stars,
   History as HistoryIcon,
-  Grain as GrainIcon
+  Grain as GrainIcon,
+  Bolt as BoltIcon
 } from '@mui/icons-material'
 
 // All real page imports
@@ -98,9 +99,10 @@ import CryptoAdvancedAnalytics from './pages/CryptoAdvancedAnalytics'
 import LiveData from './pages/LiveData'
 import LiveDataAdmin from './pages/LiveDataAdmin'
 import HFTTrading from './pages/HFTTrading'
+import NeuralHFTCommandCenter from './pages/NeuralHFTCommandCenter'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 import WelcomeLanding from './pages/WelcomeLanding'
-import LoginPage from './pages/LoginPage'
+import LoginRedirect from './components/LoginRedirect'
 import SmartRouting from './components/SmartRouting'
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -161,6 +163,7 @@ const menuItems = [
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'Live Data Manager', icon: <TrendingUpIcon />, path: '/live-data', category: 'tools' },
   { text: 'HFT Trading', icon: <ShowChartIcon />, path: '/hft-trading', category: 'tools', premium: true },
+  { text: 'Neural HFT Command Center', icon: <BoltIcon />, path: '/neural-hft', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
@@ -486,7 +489,7 @@ function App() {
             <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
             <Route path="/market" element={<MarketOverview />} />
             <Route path="/welcome" element={<WelcomeLanding onSignInClick={() => setAuthModalOpen(true)} />} />
-            <Route path="/login" element={<LoginPage onSuccess={() => navigate('/dashboard')} />} />
+            <Route path="/login" element={<LoginRedirect onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/screener-advanced" element={<AdvancedScreener />} />
             <Route path="/scores" element={<ScoresDashboard />} />
             <Route path="/sentiment" element={<SentimentAnalysis />} />
@@ -529,6 +532,7 @@ function App() {
             <Route path="/live-data" element={<LiveDataAdmin />} />
             <Route path="/live-data-legacy" element={<LiveData />} />
             <Route path="/hft-trading" element={<HFTTrading />} />
+            <Route path="/neural-hft" element={<NeuralHFTCommandCenter />} />
             
             {/* Cryptocurrency Routes */}
             <Route path="/crypto" element={<CryptoMarketOverview />} />

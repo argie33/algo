@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -32,7 +32,11 @@ import MFAChallenge from '../components/auth/MFAChallenge';
 const LoginPage = ({ onSuccess }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isAuthenticated, user, isLoading, error, clearError, mfaChallenge } = useAuth();
+  
+  // Get the intended destination from location state, default to dashboard
+  const from = location.state?.from?.pathname || '/dashboard';
   
   const [formData, setFormData] = useState({
     username: '',
@@ -46,18 +50,30 @@ const LoginPage = ({ onSuccess }) => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user && !loginSuccess) {
+      console.log('✅ User authenticated, starting login success flow');
       setLoginSuccess(true);
       setShowSuccessAnimation(true);
       
       // Show success animation then redirect
       const timer = setTimeout(() => {
+        console.log(`🚀 Redirecting to ${from} after successful login`);
         onSuccess?.();
-        navigate('/dashboard');
+        navigate(from, { replace: true });
       }, 2000);
       
-      return () => clearTimeout(timer);
+      // Fallback: Force redirect after 5 seconds if something goes wrong
+      const fallbackTimer = setTimeout(() => {
+        console.warn('⚠️ Login redirect fallback triggered - forcing navigation');
+        onSuccess?.();
+        navigate(from, { replace: true });
+      }, 5000);
+      
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(fallbackTimer);
+      };
     }
-  }, [isAuthenticated, user, navigate, onSuccess, loginSuccess]);
+  }, [isAuthenticated, user, navigate, onSuccess, loginSuccess, from]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -79,12 +95,24 @@ const LoginPage = ({ onSuccess }) => {
       return;
     }
 
-    const result = await login(formData.username, formData.password);
-    
-    if (!result.success && result.nextStep !== 'MFA_CHALLENGE') {
-      if (result.message) {
-        setLocalError(result.message);
+    try {
+      console.log('🔑 Starting login process...');
+      const result = await login(formData.username, formData.password);
+      
+      if (result.success) {
+        console.log('✅ Login successful, user will be redirected');
+        // Success will be handled by the useEffect above
+      } else if (result.nextStep !== 'MFA_CHALLENGE') {
+        if (result.message) {
+          console.warn('❌ Login failed:', result.message);
+          setLocalError(result.message);
+        } else {
+          setLocalError('Login failed. Please check your credentials and try again.');
+        }
       }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      setLocalError('An unexpected error occurred. Please try again.');
     }
   };
 
@@ -105,8 +133,8 @@ const LoginPage = ({ onSuccess }) => {
         sx={{
           minHeight: '100vh',
           background: `linear-gradient(135deg, 
-            ${alpha(theme.palette.success.main, 0.1)} 0%, 
-            ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
+            ${alpha(theme.palette.primary.main, 0.02)} 0%, 
+            ${alpha(theme.palette.background.default, 1)} 100%)`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
@@ -114,32 +142,26 @@ const LoginPage = ({ onSuccess }) => {
       >
         <Fade in={showSuccessAnimation} timeout={500}>
           <Paper
-            elevation={12}
+            elevation={1}
             sx={{
-              p: 6,
-              borderRadius: 4,
+              p: 4,
+              borderRadius: 1,
               textAlign: 'center',
-              background: alpha(theme.palette.background.paper, 0.98),
-              backdropFilter: 'blur(10px)',
-              border: `2px solid ${theme.palette.success.main}`,
-              maxWidth: 400
+              backgroundColor: theme.palette.background.paper,
+              border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+              maxWidth: 320
             }}
           >
-            <Slide direction="down" in={showSuccessAnimation} timeout={600}>
-              <CheckCircle sx={{ fontSize: 80, mb: 2, color: theme.palette.success.main }} />
-            </Slide>
-            <Typography variant="h4" fontWeight="bold" mb={2} color="text.primary">
+            <Typography variant="h5" sx={{ mb: 1, fontWeight: 500, color: 'text.primary' }}>
               Welcome Back!
             </Typography>
-            <Typography variant="h6" sx={{ mb: 2, color: theme.palette.text.secondary }}>
-              {user?.username || user?.email}
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              {user?.username || user?.email || 'User'}
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
               Redirecting to your dashboard...
             </Typography>
-            <Box mt={3}>
-              <CircularProgress size={32} sx={{ color: theme.palette.primary.main }} />
-            </Box>
+            <CircularProgress size={24} sx={{ color: theme.palette.primary.main }} />
           </Paper>
         </Fade>
       </Box>

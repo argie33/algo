@@ -3078,10 +3078,17 @@ export const testApiConnection = async (customUrl = null) => {
     console.log('Environment:', import.meta.env.MODE)
     console.log('API_URL:', 'https://2m14opj30h.execute-initializeApi().us-east-1.amazonaws.com/dev')
     const testUrl = customUrl || currentConfig.baseURL
-    const response = await initializeApi().get('/api/health?quick=true', {
+    
+    // Create API instance without auth headers for connection testing
+    const testApi = axios.create({
       baseURL: testUrl,
-      timeout: 7000
-    })
+      timeout: 7000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const response = await testApi.get('/api/health?quick=true')
     return {
       success: true,
       apiUrl: testUrl,
@@ -3136,15 +3143,22 @@ export const getDatabaseHealthFull = async () => {
   }
 }
 
-// Health check (robust: tries /health, then /)
+// Health check (robust: tries /health, then /) - NO AUTH REQUIRED
 export const healthCheck = async (queryParams = '') => {
   let triedRoot = false;
   let healthUrl = `/api/health${queryParams}`;
   let rootUrl = `/${queryParams}`;
   try {
-    const response = await initializeApi().get(healthUrl, {
-      baseURL: currentConfig.baseURL
+    // Create API instance without auth headers for health checks
+    const healthApi = axios.create({
+      baseURL: currentConfig.baseURL,
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
+    
+    const response = await healthApi.get(healthUrl);
     console.log('Health check response:', response.data);
     return {
       data: response.data,
@@ -3158,9 +3172,7 @@ export const healthCheck = async (queryParams = '') => {
     console.warn('Health check failed for /api/health, trying root / endpoint...');
     triedRoot = true;
     try {
-      const response = await initializeApi().get(rootUrl, {
-        baseURL: currentConfig.baseURL
-      });
+      const response = await healthApi.get(rootUrl);
       console.log('Root endpoint health check response:', response.data);
       return {
         data: response.data,

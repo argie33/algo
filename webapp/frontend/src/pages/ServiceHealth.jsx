@@ -61,6 +61,9 @@ import {
   api
 } from '../services/api';
 
+// Import axios for non-authenticated health calls
+import axios from 'axios';
+
 function isObject(val) {
   return val && typeof val === 'object' && !Array.isArray(val);
 }
@@ -68,6 +71,18 @@ function isObject(val) {
 function ServiceHealth() {
   const [environmentInfo, setEnvironmentInfo] = useState({});
   const [testResults, setTestResults] = useState({});
+  
+  // Create non-authenticated API instance for health checks
+  const healthApi = useMemo(() => {
+    const apiUrl = getCurrentBaseURL() || window.__CONFIG__?.API?.BASE_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+    return axios.create({
+      baseURL: apiUrl,
+      timeout: 15000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+  }, []);
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -125,14 +140,14 @@ function ServiceHealth() {
     {
       category: 'System Health & Debug',
       tests: [
-        { name: 'Health Check', fn: () => api.get('/health'), critical: true },
-        { name: 'Health Ready', fn: () => api.get('/health/quick'), critical: true },
-        { name: 'Health Database Quick', fn: () => api.get('/health/database/quick'), critical: true },
-        { name: 'Health Database Full', fn: () => api.get('/health/database'), critical: false },
-        { name: 'Health Environment', fn: () => api.get('/health/environment'), critical: false },
-        { name: 'Health Circuit Breakers', fn: () => api.get('/health/circuit-breakers'), critical: false },
-        { name: 'Health Comprehensive', fn: () => api.get('/health/comprehensive'), critical: false },
-        { name: 'Health Simple', fn: () => api.get('/health/simple'), critical: false }
+        { name: 'Health Check', fn: () => healthApi.get('/health'), critical: true },
+        { name: 'Health Ready', fn: () => healthApi.get('/health/quick'), critical: true },
+        { name: 'Health Database Quick', fn: () => healthApi.get('/health/database/quick'), critical: true },
+        { name: 'Health Database Full', fn: () => healthApi.get('/health/database'), critical: false },
+        { name: 'Health Environment', fn: () => healthApi.get('/health/environment'), critical: false },
+        { name: 'Health Circuit Breakers', fn: () => healthApi.get('/health/circuit-breakers'), critical: false },
+        { name: 'Health Comprehensive', fn: () => healthApi.get('/health/comprehensive'), critical: false },
+        { name: 'Health Simple', fn: () => healthApi.get('/health/simple'), critical: false }
       ]
     },
     {
@@ -315,7 +330,7 @@ function ServiceHealth() {
       setRefreshing(true);
       
       // Force refresh of health cache and trigger background scan
-      const response = await api.get('/health/database', {
+      const response = await healthApi.get('/health/database', {
         params: { level: 'critical' },
         timeout: 15000 // Increased from 8000ms to 15000ms (15 seconds) to match main health check
       });
@@ -379,7 +394,7 @@ function ServiceHealth() {
       // Try quick database test first (3 seconds max)
       let connectionResponse;
       try {
-        connectionResponse = await api.get('/health/database/quick', {
+        connectionResponse = await healthApi.get('/health/database/quick', {
           timeout: 5000
         });
         
@@ -396,7 +411,7 @@ function ServiceHealth() {
         console.log('Quick database test failed, trying full check:', quickError.message);
         setLoadingStatus('Quick test failed, running full database check...');
         
-        connectionResponse = await api.get('/health/database', {
+        connectionResponse = await healthApi.get('/health/database', {
           timeout: 15000 // Increased from 5000ms to 15000ms (15 seconds)
         });
       }
@@ -409,7 +424,7 @@ function ServiceHealth() {
       setLoadingStatus('Loading critical tables...');
       setHealthTier(2);
       
-      const criticalResponse = await api.get('/health/database', {
+      const criticalResponse = await healthApi.get('/health/database', {
         timeout: 8000
       });
       
@@ -437,7 +452,7 @@ function ServiceHealth() {
       setHealthTier(3);
       
       // Non-blocking full health check
-      api.get('/health/comprehensive', { timeout: 20000 }) // Increased from 10000ms to 20000ms (20 seconds)
+      healthApi.get('/health/comprehensive', { timeout: 20000 }) // Increased from 10000ms to 20000ms (20 seconds)
         .then(fullResponse => {
           if (fullResponse.data && fullResponse.data.database?.tables) {
             // Full scan completed, update with complete data
