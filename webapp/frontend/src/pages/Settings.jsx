@@ -156,6 +156,16 @@ const Settings = () => {
     };
     
     if (token) {
+      // Check if token is expired (basic validation)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp && payload.exp < Date.now() / 1000) {
+          console.warn('⚠️ Token appears to be expired');
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not validate token format');
+      }
+      
       headers['Authorization'] = `Bearer ${token}`;
       console.log('🔐 Auth header added with token length:', token.length);
     } else {
@@ -269,9 +279,24 @@ const Settings = () => {
         headers: getAuthHeaders()
       });
       
-      if (response.ok) {
+      if (response.status === 401) {
+        console.log('🔄 Token expired, attempting refresh...');
+        await checkAuthState(); // Refresh token
+        
+        // Retry with new token
+        const retryResponse = await fetch(`${apiUrl}/api/settings/api-keys`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (retryResponse.ok) {
+          const data = await retryResponse.json();
+          setApiKeys(data.data || data.apiKeys || []);
+        } else {
+          throw new Error(`Retry failed: ${retryResponse.status}`);
+        }
+      } else if (response.ok) {
         const data = await response.json();
-        setApiKeys(data.apiKeys || []);
+        setApiKeys(data.data || data.apiKeys || []);
       } else {
         console.error('API keys endpoint returned non-OK status:', response.status);
         throw new Error(`API keys endpoint failed: ${response.status}`);
