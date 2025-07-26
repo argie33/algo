@@ -100,6 +100,7 @@ import LiveDataAdmin from './pages/LiveDataAdmin'
 import HFTTrading from './pages/HFTTrading'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 import WelcomeLanding from './pages/WelcomeLanding'
+import LoginPage from './pages/LoginPage'
 import SmartRouting from './components/SmartRouting'
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -107,7 +108,7 @@ const drawerWidth = 240
 
 const menuItems = [
   // Dashboard Section
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/', category: 'main' },
+  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', category: 'main' },
   
   // Markets Section
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market', category: 'markets' },
@@ -369,7 +370,9 @@ function App() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
+            {location.pathname === '/dashboard' ? 'Dashboard' : 
+             location.pathname === '/' ? 'Market Overview' :
+             menuItems.find(item => item.path === location.pathname)?.text || 'Financial Platform'}
           </Typography>
           
           {/* System Health Monitor - Compact view in header */}
@@ -475,16 +478,15 @@ function App() {
         <Container maxWidth="xl">
           <ErrorBoundary>
             <Routes>
-            <Route path="/" element={<SmartRouting onSignInClick={() => setAuthModalOpen(true)} />} />
+            <Route path="/" element={<MarketOverview />} />
+            <Route path="/dashboard" element={<SmartRouting onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/portfolio/trade-history" element={<TradeHistory />} />
             <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
             <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
-            <Route path="/market" element={
-              !isAuthenticated ? 
-                <WelcomeLanding onSignInClick={() => setAuthModalOpen(true)} /> : 
-                <MarketOverview />
-            } />
+            <Route path="/market" element={<MarketOverview />} />
+            <Route path="/welcome" element={<WelcomeLanding onSignInClick={() => setAuthModalOpen(true)} />} />
+            <Route path="/login" element={<LoginPage onSuccess={() => navigate('/dashboard')} />} />
             <Route path="/screener-advanced" element={<AdvancedScreener />} />
             <Route path="/scores" element={<ScoresDashboard />} />
             <Route path="/sentiment" element={<SentimentAnalysis />} />

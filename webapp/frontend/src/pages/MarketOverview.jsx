@@ -82,11 +82,15 @@ import {
   Equalizer,
   WaterDrop,
   Bolt,
-  LocalFireDepartment
+  LocalFireDepartment,
+  Login as LoginIcon,
+  Lock as LockIcon
 } from '@mui/icons-material'
 
 import { api, getMarketOverview, getMarketSentimentHistory, getMarketSectorPerformance, getMarketBreadth, getEconomicIndicators, getSeasonalityData, getMarketResearchIndicators } from '../services/api'
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor, getMarketCapCategory } from '../utils/formatters'
+import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c']
 
@@ -418,6 +422,9 @@ const fetchResearchIndicators = async () => {
 }
 
 function MarketOverview() {
+  const navigate = useNavigate()
+  const { isAuthenticated, user } = useAuth()
+  
   const [tabValue, setTabValue] = useState(0)
   const [timeframe, setTimeframe] = useState('1D')
   const [viewMode, setViewMode] = useState('cards')
@@ -613,6 +620,46 @@ function MarketOverview() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* Authentication Prompt for Unauthenticated Users */}
+      {!isAuthenticated && (
+        <Alert 
+          severity="info" 
+          sx={{ 
+            mb: 3, 
+            borderRadius: 2,
+            '& .MuiAlert-message': { width: '100%' }
+          }}
+          action={
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<LoginIcon />}
+              onClick={() => navigate('/login')}
+              sx={{ 
+                ml: 2,
+                background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #1565c0 0%, #8e24aa 100%)',
+                }
+              }}
+            >
+              Sign In
+            </Button>
+          }
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight="bold">
+                Welcome to Market Overview
+              </Typography>
+              <Typography variant="body2">
+                Sign in to access advanced features, personalized insights, and portfolio integration
+              </Typography>
+            </Box>
+          </Box>
+        </Alert>
+      )}
+
       {/* Enhanced Header Section */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={2} alignItems="center">
@@ -628,6 +675,14 @@ function MarketOverview() {
             </Typography>
             <Typography variant="subtitle1" color="text.secondary">
               Real-time market analysis, sentiment indicators, and institutional-grade research insights
+              {isAuthenticated && user && (
+                <Chip 
+                  label={`Welcome back, ${user.username}`} 
+                  size="small" 
+                  color="primary" 
+                  sx={{ ml: 2 }} 
+                />
+              )}
             </Typography>
           </Grid>
           <Grid item xs={12} md={6}>

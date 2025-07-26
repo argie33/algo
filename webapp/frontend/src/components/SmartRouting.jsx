@@ -16,14 +16,12 @@ const SmartRouting = ({ onSignInClick }) => {
       // Get the path user was trying to access before login
       const intendedPath = sessionStorage.getItem('intendedPath');
       
-      if (intendedPath && intendedPath !== '/') {
+      if (intendedPath && intendedPath !== '/' && intendedPath !== '/dashboard') {
         // Clear the intended path and redirect
         sessionStorage.removeItem('intendedPath');
         navigate(intendedPath, { replace: true });
-      } else {
-        // Default redirect to dashboard for successful login
-        navigate('/', { replace: true });
       }
+      // If no intended path, we stay on dashboard (which is what this component renders)
     }
   }, [isAuthenticated, user, isLoading, navigate]);
 

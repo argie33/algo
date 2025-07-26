@@ -115,8 +115,9 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         PaperProps={{
           sx: { 
             borderRadius: 3,
-            background: 'linear-gradient(135deg, #4CAF50 0%, #45A049 100%)',
-            color: 'white'
+            background: 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(10px)',
+            border: `2px solid #4CAF50`
           }
         }}
       >
@@ -124,17 +125,17 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
           <Fade in={showSuccess} timeout={500}>
             <Box>
               <Slide direction="down" in={showSuccess} timeout={600}>
-                <CheckCircle sx={{ fontSize: 64, mb: 2 }} />
+                <CheckCircle sx={{ fontSize: 64, mb: 2, color: '#4CAF50' }} />
               </Slide>
-              <Typography variant="h5" fontWeight="bold" mb={1}>
+              <Typography variant="h5" fontWeight="bold" mb={1} color="text.primary">
                 Login Successful!
               </Typography>
-              <Typography variant="body1" sx={{ opacity: 0.9 }}>
+              <Typography variant="body1" color="text.secondary">
                 {successMessage}
               </Typography>
               {isClosing && (
                 <Box mt={2}>
-                  <CircularProgress size={24} sx={{ color: 'white' }} />
+                  <CircularProgress size={24} sx={{ color: '#4CAF50' }} />
                 </Box>
               )}
             </Box>
