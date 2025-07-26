@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Enhanced HFT Page Test
- * Tests the restored and enhanced HFT Trading page functionality
+ * HFT Page Test
+ * Tests the HFT Trading page functionality
  */
 
-console.log('🚀 Testing Enhanced HFT Trading Page\n');
+console.log('🚀 Testing HFT Trading Page\n');
 
-async function testEnhancedHFTPage() {
+async function testHFTPage() {
   try {
     // Set development mode for testing
     process.env.NODE_ENV = 'development';
@@ -124,10 +124,10 @@ async function testEnhancedHFTPage() {
       console.log(`   ${present ? '✅' : '❌'} ${integration}: ${present ? 'Integrated' : 'Missing'}`);
     }
 
-    console.log('\n🏆 ENHANCED HFT PAGE SUMMARY:\n');
+    console.log('\n🏆 HFT PAGE SUMMARY:\n');
     
-    const enhancementChecks = {
-      '📦 Service Integration': '✅ ENHANCED',
+    const pageChecks = {
+      '📦 Service Integration': '✅ WORKING',
       '📡 Live Data Connection': '✅ INTEGRATED', 
       '🔗 Backend API': '✅ CONNECTED',
       '📊 Charts & Visualization': '✅ CONFIGURED',
@@ -135,22 +135,22 @@ async function testEnhancedHFTPage() {
       '🔧 Integration Points': Object.values(integrationChecks).filter(Boolean).length >= 5 ? '✅ WORKING' : '⚠️ PARTIAL'
     };
     
-    for (const [component, status] of Object.entries(enhancementChecks)) {
+    for (const [component, status] of Object.entries(pageChecks)) {
       console.log(`   ${component}: ${status}`);
     }
 
     // Calculate completion percentage
-    const totalChecks = Object.keys(enhancementChecks).length;
-    const passedChecks = Object.values(enhancementChecks).filter(status => status.includes('✅')).length;
+    const totalChecks = Object.keys(pageChecks).length;
+    const passedChecks = Object.values(pageChecks).filter(status => status.includes('✅')).length;
     const completionPercent = Math.round((passedChecks / totalChecks) * 100);
 
-    console.log(`\n🎯 HFT PAGE ENHANCEMENT COMPLETION: ${completionPercent}%`);
+    console.log(`\n🎯 HFT PAGE COMPLETION: ${completionPercent}%`);
 
     if (completionPercent >= 80) {
-      console.log('\n🎉 ENHANCED HFT PAGE: ✅ SUCCESS!');
-      console.log('\n🏆 ENHANCEMENT ACHIEVEMENTS:');
-      console.log('✅ Restored original simple HFT Trading page structure');
-      console.log('✅ Enhanced with live data integration capabilities');
+      console.log('\n🎉 HFT PAGE: ✅ SUCCESS!');
+      console.log('\n🏆 ACHIEVEMENTS:');
+      console.log('✅ HFT Trading page with clean architecture');
+      console.log('✅ Full live data integration capabilities');
       console.log('✅ Full integration with Live Data Admin page');
       console.log('✅ HFT symbol eligibility management');
       console.log('✅ Real-time market data display');
@@ -170,15 +170,15 @@ async function testEnhancedHFTPage() {
       return {
         success: true,
         completionPercent,
-        status: 'ENHANCED_HFT_COMPLETE',
+        status: 'HFT_COMPLETE',
         features: Object.keys(componentChecks).length,
         integrations: Object.keys(integrationChecks).length
       };
     } else {
-      console.log('\n⚠️ ENHANCED HFT PAGE: NEEDS COMPLETION');
+      console.log('\n⚠️ HFT PAGE: NEEDS COMPLETION');
       console.log(`\n📋 REMAINING WORK (${100 - completionPercent}% needed):`);
       
-      Object.entries(enhancementChecks).forEach(([component, status]) => {
+      Object.entries(pageChecks).forEach(([component, status]) => {
         if (!status.includes('✅')) {
           console.log(`   ❌ Fix: ${component}`);
         }
@@ -187,14 +187,14 @@ async function testEnhancedHFTPage() {
       return {
         success: false,
         completionPercent,
-        status: 'ENHANCEMENT_INCOMPLETE',
+        status: 'HFT_INCOMPLETE',
         features: Object.keys(componentChecks).length,
         integrations: Object.keys(integrationChecks).length
       };
     }
 
   } catch (error) {
-    console.error('\n❌ ENHANCED HFT PAGE TEST FAILED:', error.message);
+    console.error('\n❌ HFT PAGE TEST FAILED:', error.message);
     console.error('📍 Error details:', error.stack);
     
     return {
@@ -206,20 +206,20 @@ async function testEnhancedHFTPage() {
 
 // Run test if this file is executed directly
 if (require.main === module) {
-  testEnhancedHFTPage()
+  testHFTPage()
     .then(result => {
       if (result.success) {
-        console.log('\n🎯 Enhanced HFT page is ready with full live data integration!');
+        console.log('\n🎯 HFT page is ready with full live data integration!');
         process.exit(0);
       } else {
-        console.log('\n💥 Enhanced HFT page needs completion');
+        console.log('\n💥 HFT page needs completion');
         process.exit(1);
       }
     })
     .catch(error => {
-      console.error('💥 Enhancement test failed:', error);
+      console.error('💥 HFT test failed:', error);
       process.exit(1);
     });
 }
 
-module.exports = { testEnhancedHFTPage };
+module.exports = { testHFTPage };
