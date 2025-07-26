@@ -3,6 +3,9 @@
  * Eliminates hardcoded values and provides a single source of truth for all configuration
  */
 
+// STATIC import to fix build warnings
+import CloudFormationConfigService from '../services/cloudFormationConfigService';
+
 // Environment detection
 export const NODE_ENV = import.meta.env.NODE_ENV || 'development';
 export const IS_DEVELOPMENT = NODE_ENV === 'development';
@@ -23,12 +26,10 @@ export const APP_CONFIG = {
   }
 };
 
-// Initialize CloudFormation configuration service
 let cloudFormationConfig = null;
 const initCloudFormationConfig = async () => {
   if (!cloudFormationConfig) {
     try {
-      const { default: CloudFormationConfigService } = await import('../services/cloudFormationConfigService');
       cloudFormationConfig = await CloudFormationConfigService.getRealConfig();
       console.log('✅ Loaded real CloudFormation configuration');
     } catch (error) {

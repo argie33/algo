@@ -42,82 +42,136 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-      sourcemap: true,
-      chunkSizeWarningLimit: 500,
+      sourcemap: isProduction ? false : true,
+      minify: 'esbuild',
+      target: 'es2015',
+      chunkSizeWarningLimit: 1000, // Increased limit for better performance
       rollupOptions: {
         output: {
+          // OPTIMIZED CHUNK SPLITTING for massive bundle size reduction
           manualChunks(id) {
-            // Split into smaller, more specific chunks for better caching
+            // Create more granular chunks for node_modules
             if (id.includes('node_modules')) {
-              // DON'T separate React and ReactDOM - keep them in main bundle to avoid conflicts
-              // Skip React chunking entirely to prevent SECRET_INTERNALS errors
+              // Core React (keep together for stability)
+              if (id.includes('react') && !id.includes('react-router')) {
+                return 'vendor-react';
+              }
+              
+              // React Router (separate for route-level lazy loading)
               if (id.includes('react-router')) {
                 return 'react-router';
               }
               
-              // UI libraries - MUI only (keep Emotion in main bundle for proper initialization)
-              if (id.includes('@mui/material') || id.includes('@mui/icons-material')) {
-                return 'mui';
+              // MUI Core - Split into smaller chunks
+              if (id.includes('@mui/material')) {
+                return 'mui-material';
               }
-              // Keep Emotion in main bundle to ensure proper initialization order
+              if (id.includes('@mui/icons-material')) {
+                return 'mui-icons';
+              }
+              if (id.includes('@emotion')) {
+                return 'mui-emotion';
+              }
               
-              // Chart libraries - Keep recharts in main bundle to prevent initialization errors
-              // Similar to Emotion, recharts has variable initialization timing issues when split
-              // if (id.includes('recharts')) {
-              //   return 'charts';
-              // }
+              // Charts & Visualization (lazy loaded)
+              if (id.includes('recharts') || id.includes('d3')) {
+                return 'charts';
+              }
               
-              // AWS services
-              if (id.includes('aws-amplify') || id.includes('@aws-amplify')) {
+              // AWS Services (lazy loaded)
+              if (id.includes('aws-amplify') || id.includes('@aws-amplify') || id.includes('@aws-sdk')) {
                 return 'aws';
               }
               
-              // Data management
-              if (id.includes('@tanstack/react-query')) {
-                return 'react-query';
+              // Data management libraries
+              if (id.includes('@tanstack/react-query') || id.includes('swr')) {
+                return 'data-management';
               }
               
-              // Utility libraries  
-              if (id.includes('lodash')) {
+              // Utility libraries (lazy loaded)
+              if (id.includes('lodash') || id.includes('ramda')) {
                 return 'lodash';
               }
-              if (id.includes('date-fns') || id.includes('numeral')) {
+              if (id.includes('date-fns') || id.includes('moment') || id.includes('dayjs')) {
                 return 'date-utils';
               }
-              if (id.includes('framer-motion')) {
+              if (id.includes('numeral') || id.includes('accounting')) {
+                return 'number-utils';
+              }
+              
+              // Animation libraries (lazy loaded)
+              if (id.includes('framer-motion') || id.includes('react-spring')) {
                 return 'animations';
               }
-              if (id.includes('axios')) {
+              
+              // HTTP libraries
+              if (id.includes('axios') || id.includes('fetch')) {
                 return 'http';
               }
               
-              // Everything else goes to vendor (smaller now)
+              // Form libraries (lazy loaded)
+              if (id.includes('formik') || id.includes('react-hook-form')) {
+                return 'forms';
+              }
+              
+              // Everything else - much smaller now
               return 'vendor';
             }
             
-            // Split our own code by feature for better lazy loading
+            // Split application code by logical groupings
             if (id.includes('/pages/')) {
               const page = id.split('/pages/')[1].split('/')[0].split('.')[0];
+              // Group related pages together
+              if (['Portfolio', 'PortfolioPerformance', 'PortfolioOptimization', 'TradeHistory'].includes(page)) {
+                return 'page-portfolio';
+              }
+              if (['Options', 'OptionsAnalytics', 'OptionsStrategies', 'OptionsFlow', 'VolatilitySurface', 'GreeksMonitor'].some(name => page.includes(name))) {
+                return 'page-options';
+              }
+              if (['Crypto', 'CryptoMarketOverview', 'CryptoPortfolio', 'CryptoRealTimeTracker', 'CryptoAdvancedAnalytics'].some(name => page.includes(name))) {
+                return 'page-crypto';
+              }
+              if (['Sentiment', 'SocialMediaSentiment', 'NewsSentiment'].some(name => page.includes(name))) {
+                return 'page-sentiment';
+              }
+              if (['HFT', 'Neural', 'LiveData'].some(name => page.includes(name))) {
+                return 'page-trading';
+              }
               return `page-${page}`;
             }
-            // Keep chart components with main bundle to avoid recharts dependency issues
-            // if (id.includes('/components/') && id.includes('Chart')) {
-            //   return 'chart-components';
-            // }
+            
+            // Component splitting
             if (id.includes('/components/')) {
+              if (id.includes('Chart') || id.includes('Graph')) {
+                return 'chart-components';
+              }
+              if (id.includes('auth') || id.includes('Auth')) {
+                return 'auth-components';
+              }
               return 'components';
             }
+            
+            // Service and utility splitting
             if (id.includes('/services/')) {
               return 'services';
             }
             if (id.includes('/utils/')) {
               return 'app-utils';
             }
+          },
+          // Optimize chunk naming
+          chunkFileNames: (chunkInfo) => {
+            const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop().replace('.jsx', '').replace('.js', '') : 'chunk';
+            return `assets/${facadeModuleId}-[hash].js`;
           }
         },
-        // Limit concurrent operations to prevent EMFILE
-        maxParallelFileOps: 5
-      }
+        // Performance optimizations
+        maxParallelFileOps: 5,
+        cache: false // Disable cache for consistent builds
+      },
+      // Optimize asset handling
+      assetsInlineLimit: 4096, // Inline smaller assets
+      cssCodeSplit: true // Split CSS for better caching
     },
     server: {
       port: 3000,

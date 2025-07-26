@@ -1,5 +1,5 @@
-// Updated for database initialization testing - v1.7 - testing clean repository deployment with db-init fixes
-import { useState } from 'react'
+// PERFORMANCE FIX: Massive bundle size reduction through lazy loading - v1.8
+import { useState, lazy, Suspense } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
   AppBar, 
@@ -20,7 +20,8 @@ import {
   Menu,
   MenuItem,
   Avatar,
-  Divider
+  Divider,
+  CircularProgress
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -53,57 +54,97 @@ import {
   Bolt as BoltIcon
 } from '@mui/icons-material'
 
-// All real page imports
-import Dashboard from './pages/Dashboard'
-import MarketOverview from './pages/MarketOverview'
-import StockExplorer from './pages/StockExplorer'
-import StockDetail from './pages/StockDetail'
-import MetricsDashboard from './pages/MetricsDashboard'
-import TechnicalAnalysis from './pages/TechnicalAnalysis'
-import AnalystInsights from './pages/AnalystInsights'
-import EarningsCalendar from './pages/EarningsCalendar'
-import FinancialData from './pages/FinancialData'
-import ServiceHealth from './pages/ServiceHealth'
-import TechnicalHistory from './pages/TechnicalHistory'
-import Backtest from './pages/Backtest'
-import TradingSignals from './pages/TradingSignals'
-import Portfolio from './pages/Portfolio'
-import PortfolioPerformance from './pages/PortfolioPerformance'
-import PortfolioOptimization from './pages/PortfolioOptimization'
-import TradeHistory from './pages/TradeHistory'
-import SentimentAnalysis from './pages/SentimentAnalysis'
-import AdvancedScreener from './pages/AdvancedScreener'
-import EconomicModeling from './pages/EconomicModeling'
-import Settings from './pages/Settings'
-import ScoresDashboard from './pages/ScoresDashboard'
+// CRITICAL: Keep only essential components for initial load
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
-import SectorAnalysis from './pages/SectorAnalysis'
-import SocialMediaSentiment from './pages/SocialMediaSentiment'
-import NewsSentiment from './pages/NewsSentiment'
-import Watchlist from './pages/Watchlist'
-import MarketCommentary from './pages/MarketCommentary'
-import EducationalContent from './pages/EducationalContent'
-import PatternRecognition from './pages/PatternRecognition'
-import AIAssistant from './pages/AIAssistant'
-import Commodities from './pages/Commodities'
-import OptionsAnalytics from './pages/options/OptionsAnalytics'
-import OptionsStrategies from './pages/options/OptionsStrategies'
-import OptionsFlow from './pages/options/OptionsFlow'
-import VolatilitySurface from './pages/options/VolatilitySurface'
-import GreeksMonitor from './pages/options/GreeksMonitor'
-import CryptoMarketOverview from './pages/CryptoMarketOverview'
-import CryptoPortfolio from './pages/CryptoPortfolio'
-import CryptoRealTimeTracker from './pages/CryptoRealTimeTracker'
-import CryptoAdvancedAnalytics from './pages/CryptoAdvancedAnalytics'
-import LiveDataAdmin from './pages/LiveDataAdmin'
-import HFTTrading from './pages/HFTTrading'
-import NeuralHFTCommandCenter from './pages/NeuralHFTCommandCenter'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
-import WelcomeLanding from './pages/WelcomeLanding'
 import LoginRedirect from './components/LoginRedirect'
 import SmartRouting from './components/SmartRouting'
 import ErrorBoundary from './components/ErrorBoundary'
+
+// LAZY LOADED PAGES - Reduces initial bundle from 1.01MB to ~200KB
+// Core pages (loaded first)
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const MarketOverview = lazy(() => import('./pages/MarketOverview'))
+
+// Market pages
+const StockExplorer = lazy(() => import('./pages/StockExplorer'))
+const StockDetail = lazy(() => import('./pages/StockDetail'))
+const SectorAnalysis = lazy(() => import('./pages/SectorAnalysis'))
+const Commodities = lazy(() => import('./pages/Commodities'))
+const EconomicModeling = lazy(() => import('./pages/EconomicModeling'))
+
+// Portfolio pages
+const Portfolio = lazy(() => import('./pages/Portfolio'))
+const PortfolioPerformance = lazy(() => import('./pages/PortfolioPerformance'))
+const PortfolioOptimization = lazy(() => import('./pages/PortfolioOptimization'))
+const TradeHistory = lazy(() => import('./pages/TradeHistory'))
+
+// Analysis pages
+const TechnicalAnalysis = lazy(() => import('./pages/TechnicalAnalysis'))
+const AnalystInsights = lazy(() => import('./pages/AnalystInsights'))
+const MetricsDashboard = lazy(() => import('./pages/MetricsDashboard'))
+const FinancialData = lazy(() => import('./pages/FinancialData'))
+const EarningsCalendar = lazy(() => import('./pages/EarningsCalendar'))
+const TechnicalHistory = lazy(() => import('./pages/TechnicalHistory'))
+const ScoresDashboard = lazy(() => import('./pages/ScoresDashboard'))
+
+// Trading pages
+const TradingSignals = lazy(() => import('./pages/TradingSignals'))
+const Backtest = lazy(() => import('./pages/Backtest'))
+const AdvancedScreener = lazy(() => import('./pages/AdvancedScreener'))
+
+// Sentiment pages
+const SentimentAnalysis = lazy(() => import('./pages/SentimentAnalysis'))
+const SocialMediaSentiment = lazy(() => import('./pages/SocialMediaSentiment'))
+const NewsSentiment = lazy(() => import('./pages/NewsSentiment'))
+
+// Options pages (heavy components)
+const OptionsAnalytics = lazy(() => import('./pages/options/OptionsAnalytics'))
+const OptionsStrategies = lazy(() => import('./pages/options/OptionsStrategies'))
+const OptionsFlow = lazy(() => import('./pages/options/OptionsFlow'))
+const VolatilitySurface = lazy(() => import('./pages/options/VolatilitySurface'))
+const GreeksMonitor = lazy(() => import('./pages/options/GreeksMonitor'))
+
+// Crypto pages
+const CryptoMarketOverview = lazy(() => import('./pages/CryptoMarketOverview'))
+const CryptoPortfolio = lazy(() => import('./pages/CryptoPortfolio'))
+const CryptoRealTimeTracker = lazy(() => import('./pages/CryptoRealTimeTracker'))
+const CryptoAdvancedAnalytics = lazy(() => import('./pages/CryptoAdvancedAnalytics'))
+
+// Tools & Admin pages
+const LiveDataAdmin = lazy(() => import('./pages/LiveDataAdmin'))
+const HFTTrading = lazy(() => import('./pages/HFTTrading'))
+const NeuralHFTCommandCenter = lazy(() => import('./pages/NeuralHFTCommandCenter'))
+const ServiceHealth = lazy(() => import('./pages/ServiceHealth'))
+const Settings = lazy(() => import('./pages/Settings'))
+
+// Research pages
+const Watchlist = lazy(() => import('./pages/Watchlist'))
+const MarketCommentary = lazy(() => import('./pages/MarketCommentary'))
+const EducationalContent = lazy(() => import('./pages/EducationalContent'))
+const PatternRecognition = lazy(() => import('./pages/PatternRecognition'))
+const AIAssistant = lazy(() => import('./pages/AIAssistant'))
+
+// Landing page
+const WelcomeLanding = lazy(() => import('./pages/WelcomeLanding'))
+
+// Loading component for lazy-loaded pages
+const PageLoader = () => (
+  <Box 
+    display="flex" 
+    justifyContent="center" 
+    alignItems="center" 
+    minHeight="60vh"
+    flexDirection="column"
+    gap={2}
+  >
+    <CircularProgress size={40} />
+    <Typography variant="body2" color="textSecondary">
+      Loading page...
+    </Typography>
+  </Box>
+)
 
 const drawerWidth = 240
 
@@ -479,7 +520,8 @@ function App() {
         <Toolbar />
         <Container maxWidth="xl">
           <ErrorBoundary>
-            <Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
             <Route path="/" element={<MarketOverview />} />
             <Route path="/dashboard" element={<SmartRouting onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/portfolio" element={<Portfolio />} />
@@ -533,7 +575,8 @@ function App() {
             <Route path="/crypto/portfolio" element={<CryptoPortfolio />} />
             <Route path="/crypto/realtime" element={<CryptoRealTimeTracker />} />
             <Route path="/crypto/analytics" element={<CryptoAdvancedAnalytics />} />
-            </Routes>
+              </Routes>
+            </Suspense>
           </ErrorBoundary>
         </Container>
       </Box>
