@@ -1,16 +1,4 @@
-// CRITICAL: Import React module preloader FIRST to fix useLayoutEffect errors
-import './utils/reactModulePreloader'
-
-// IMMEDIATE FIX: Ensure F is available before any other imports
-if (typeof window !== 'undefined' && typeof window.F === 'undefined') {
-  import('react').then(React => {
-    window.F = React.default || React;
-    console.log('✅ Emergency F restoration completed');
-  });
-}
-
-// Verify React is properly loaded
-import './utils/reactFixVerification'
+// ARCHITECTURAL FIX: Clean React imports - no patches needed
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -29,7 +17,7 @@ import EnhancedAsyncErrorBoundary from './components/EnhancedAsyncErrorBoundary'
 import { LoadingProvider } from './components/LoadingStateManager'
 import { AuthProvider } from './contexts/AuthContext'
 import ApiKeyProvider from './components/ApiKeyProvider'
-import { SimpleQueryClient, SimpleQueryProvider } from './hooks/useSimpleFetch.js'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Configure Amplify for authentication
 import { configureAmplify } from './config/amplify'
@@ -41,13 +29,13 @@ try {
   console.warn('⚠️ Amplify configuration failed, using fallback auth:', error);
 }
 
-// Create query client
-const queryClient = new SimpleQueryClient({
+// Create React Query client
+const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 3,
       staleTime: 30000,
-      cacheTime: 10 * 60 * 1000,
+      gcTime: 10 * 60 * 1000, // Updated from cacheTime in v5
       refetchOnWindowFocus: false,
     },
   },
@@ -79,9 +67,9 @@ root.render(
         v7_relativeSplatPath: true
       }}
     >
-      <SimpleQueryProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
         <AppWithProviders />
-      </SimpleQueryProvider>
+      </QueryClientProvider>
     </BrowserRouter>
   </EnhancedAsyncErrorBoundary>
 );

@@ -229,9 +229,12 @@ export default defineConfig(({ mode }) => {
         '@': resolve(__dirname, 'src'),
         // Force React to resolve to single instance
         'react': resolve(__dirname, 'node_modules/react'),
-        'react-dom': resolve(__dirname, 'node_modules/react-dom')
+        'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+        // CRITICAL: Force use-sync-external-store to use React 18's built-in version
+        'use-sync-external-store/shim': resolve(__dirname, 'src/utils/useSyncExternalStoreShim.js'),
+        'use-sync-external-store': resolve(__dirname, 'src/utils/useSyncExternalStoreShim.js')
       },
-      dedupe: ['react', 'react-dom', 'use-sync-external-store', '@emotion/react', '@emotion/styled', 'recharts']
+      dedupe: ['react', 'react-dom', '@emotion/react', '@emotion/styled', 'recharts']
     }
   }
 })
