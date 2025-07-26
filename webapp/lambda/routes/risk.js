@@ -113,12 +113,13 @@ router.get('/portfolio/:portfolioId',
       // Setup Alpaca service for account type
       const alpacaService = await setupAlpacaService(userId, accountType);
       
-      // Get portfolio data from Alpaca instead of database lookup
-      const [account, positions, portfolioHistory] = await Promise.all([
-        alpacaService.getAccount(),
-        alpacaService.getPositions(),
-        alpacaService.getPortfolioHistory({ period: timeframe, timeframe: '1Day' })
-      ]);
+      // FIXED: Sequential API calls to prevent rate limiting and reduce Lambda load
+      const account = await alpacaService.getAccount();
+      const positions = await alpacaService.getPositions();
+      // Only fetch history if needed for risk calculations
+      const portfolioHistory = positions && positions.length > 0 
+        ? await alpacaService.getPortfolioHistory({ period: timeframe, timeframe: '1Day' })
+        : null;
       
       if (!positions || positions.length === 0) {
         return res.json({

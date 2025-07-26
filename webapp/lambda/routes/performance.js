@@ -340,12 +340,14 @@ router.get('/portfolio/:accountId',
       const alpacaService = await setupAlpacaService(userId, accountType);
       const performanceAnalytics = new AdvancedPerformanceAnalytics();
       
-      // Get portfolio data and performance history
-      const [account, positions, portfolioHistory] = await Promise.all([
-        alpacaService.getAccount(),
-        alpacaService.getPositions(),
-        alpacaService.getPortfolioHistory({ period, timeframe: '1Day' })
-      ]);
+      // FIXED: Sequential API calls with proper timeout management to prevent rate limiting
+      // and reduce concurrent connection load on Lambda
+      const account = await alpacaService.getAccount();
+      const positions = await alpacaService.getPositions();
+      // Only get history if we have positions (optimization)
+      const portfolioHistory = positions && positions.length > 0 
+        ? await alpacaService.getPortfolioHistory({ period, timeframe: '1Day' })
+        : null;
       
       // Calculate comprehensive performance metrics
       const performanceMetrics = await performanceAnalytics.generatePerformanceReport({

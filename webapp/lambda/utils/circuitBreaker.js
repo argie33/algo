@@ -7,14 +7,18 @@
  */
 
 const { CloudWatchClient, PutMetricDataCommand } = require('@aws-sdk/client-cloudwatch');
+const { getTimeout } = require('./timeoutManager');
 
 class CircuitBreaker {
   constructor(options = {}) {
+    // Get coordinated timeout from unified configuration
+    const coordinatedTimeout = options.timeout || getTimeout('lambda', 'circuit') || 20000;
+    
     this.config = {
       // Failure thresholds
       failureThreshold: options.failureThreshold || 5,
       successThreshold: options.successThreshold || 3,
-      timeout: options.timeout || 30000, // 30 seconds
+      timeout: coordinatedTimeout, // Use coordinated timeout (20s max)
       
       // User-aware settings
       userFailureThreshold: options.userFailureThreshold || 3,

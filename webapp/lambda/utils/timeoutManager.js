@@ -4,60 +4,69 @@
  * Optimized for Lambda environment with consistent error handling
  */
 
-// Standard timeout configurations for different service types
+// UNIFIED TIMEOUT HIERARCHY - Coordinated with UnifiedDatabaseManager
+// Lambda constraint: 25s max execution time
+// Timeout hierarchy: Lambda 25s > Circuit 20s > Database 18s > External APIs 15s
 const TIMEOUT_CONFIGS = {
-  // Database operations
+  // Lambda execution limits
+  lambda: {
+    max: 25000,         // Maximum Lambda execution time (with 2s buffer)
+    circuit: 20000,     // Circuit breaker timeout (< lambda max)
+    cleanup: 2000       // Time reserved for cleanup operations
+  },
+
+  // Database operations (must be < circuit timeout)
   database: {
-    connect: 15000,     // 15 seconds - database connection
-    query: 10000,       // 10 seconds - standard query
-    transaction: 30000, // 30 seconds - complex transactions
+    connect: 8000,      // 8 seconds - database connection (REDUCED)
+    query: 12000,       // 12 seconds - standard query (INCREASED for stability)
+    transaction: 18000, // 18 seconds - complex transactions (REDUCED)
     healthCheck: 5000   // 5 seconds - health checks
   },
 
-  // External API calls
+  // External API calls (must be < database timeouts)
   api: {
     fast: 5000,         // 5 seconds - simple data requests
     standard: 10000,    // 10 seconds - standard API calls
-    slow: 15000,        // 15 seconds - complex operations
-    upload: 30000,      // 30 seconds - file uploads
-    download: 45000     // 45 seconds - file downloads
+    slow: 15000,        // 15 seconds - complex operations (REDUCED)
+    upload: 15000,      // 15 seconds - file uploads (REDUCED from 30s)
+    download: 20000     // 20 seconds - file downloads (REDUCED from 45s)
   },
 
-  // Broker/Trading APIs (mission-critical)
+  // Broker/Trading APIs (mission-critical, must be < api.slow)
   trading: {
-    quotes: 8000,       // 8 seconds - real-time quotes
-    orders: 12000,      // 12 seconds - order placement
-    positions: 10000,   // 10 seconds - position retrieval
-    history: 15000,     // 15 seconds - trade history
-    account: 10000,     // 10 seconds - account info
-    portfolio: 20000,   // 20 seconds - portfolio performance analysis (reduced from 35s)
-    performance: 20000, // 20 seconds - portfolio performance metrics (reduced from 35s)
-    standard: 10000     // 10 seconds - standard operations
+    quotes: 6000,       // 6 seconds - real-time quotes (REDUCED)
+    orders: 10000,      // 10 seconds - order placement (REDUCED)
+    positions: 8000,    // 8 seconds - position retrieval (REDUCED)
+    history: 12000,     // 12 seconds - trade history (REDUCED)
+    account: 8000,      // 8 seconds - account info (REDUCED)
+    portfolio: 14000,   // 14 seconds - portfolio performance (REDUCED to be < api.slow)
+    performance: 14000, // 14 seconds - performance metrics (REDUCED to be < api.slow)
+    standard: 8000      // 8 seconds - standard operations (REDUCED)
   },
 
-  // Market data services
+  // Market data services (must be < trading timeouts)
   market_data: {
-    realtime: 8000,     // 8 seconds - real-time data
-    historical: 15000,  // 15 seconds - historical data
-    news: 10000,        // 10 seconds - news feeds
+    realtime: 6000,     // 6 seconds - real-time data (REDUCED)
+    historical: 12000,  // 12 seconds - historical data (REDUCED)
+    news: 8000,         // 8 seconds - news feeds (REDUCED)
     calendar: 5000,     // 5 seconds - market calendar
-    fundamental: 12000  // 12 seconds - fundamental data
+    fundamental: 10000  // 10 seconds - fundamental data (REDUCED)
   },
 
-  // Authentication services
+  // Authentication services (must be fast)
   auth: {
-    login: 10000,       // 10 seconds - login operations
-    token_verify: 5000, // 5 seconds - token verification
-    refresh: 8000,      // 8 seconds - token refresh
-    logout: 3000        // 3 seconds - logout
+    login: 8000,        // 8 seconds - login operations (REDUCED)
+    token_verify: 3000, // 3 seconds - token verification (REDUCED)
+    refresh: 5000,      // 5 seconds - token refresh (REDUCED)
+    logout: 2000        // 2 seconds - logout (REDUCED)
   },
 
-  // AWS services
+  // AWS services (must be < database timeouts)
   aws: {
-    secrets: 10000,     // 10 seconds - secrets manager
-    cognito: 8000,      // 8 seconds - cognito operations
-    s3: 15000,          // 15 seconds - S3 operations
-    lambda: 25000       // 25 seconds - lambda invocations
+    secrets: 6000,      // 6 seconds - secrets manager (REDUCED)
+    cognito: 6000,      // 6 seconds - cognito operations (REDUCED)
+    s3: 10000,          // 10 seconds - S3 operations (REDUCED)
+    lambda: 22000       // 22 seconds - lambda invocations (REDUCED)
   }
 };
 
@@ -254,22 +263,91 @@ async function callExternalApi(config) {
 }
 
 /**
- * Get timeout for specific service and operation
+ * Get timeout for specific service and operation with hierarchy validation
  */
 function getTimeout(service, operation = 'standard') {
   const serviceConfig = TIMEOUT_CONFIGS[service];
   if (!serviceConfig) {
-    console.warn(`Unknown service '${service}', using default timeout`);
+    console.warn(`⚠️ Unknown service '${service}', using default timeout`);
     return TIMEOUT_CONFIGS.api.standard;
   }
 
   const timeout = serviceConfig[operation];
   if (!timeout) {
-    console.warn(`Unknown operation '${operation}' for service '${service}', using standard timeout`);
+    console.warn(`⚠️ Unknown operation '${operation}' for service '${service}', using standard timeout`);
     return serviceConfig.standard || TIMEOUT_CONFIGS.api.standard;
   }
 
+  // Validate timeout doesn't exceed Lambda limits
+  if (timeout > TIMEOUT_CONFIGS.lambda.max) {
+    console.warn(`⚠️ Timeout ${timeout}ms exceeds Lambda limit ${TIMEOUT_CONFIGS.lambda.max}ms, reducing`);
+    return TIMEOUT_CONFIGS.lambda.max - TIMEOUT_CONFIGS.lambda.cleanup;
+  }
+
   return timeout;
+}
+
+/**
+ * Get coordinated timeouts for database operations
+ */
+function getDatabaseTimeouts() {
+  return {
+    connection: TIMEOUT_CONFIGS.database.connect,
+    query: TIMEOUT_CONFIGS.database.query,
+    transaction: TIMEOUT_CONFIGS.database.transaction,
+    healthCheck: TIMEOUT_CONFIGS.database.healthCheck,
+    circuit: TIMEOUT_CONFIGS.lambda.circuit
+  };
+}
+
+/**
+ * Get timeout hierarchy for debugging and validation
+ */
+function getTimeoutHierarchy() {
+  return {
+    lambda: TIMEOUT_CONFIGS.lambda.max,
+    circuit: TIMEOUT_CONFIGS.lambda.circuit,
+    database: TIMEOUT_CONFIGS.database.transaction,
+    api: TIMEOUT_CONFIGS.api.slow,
+    trading: Math.max(...Object.values(TIMEOUT_CONFIGS.trading)),
+    cleanup: TIMEOUT_CONFIGS.lambda.cleanup
+  };
+}
+
+/**
+ * Validate timeout hierarchy - ensures no timeouts exceed their parents
+ */
+function validateTimeoutHierarchy() {
+  const issues = [];
+  const hierarchy = getTimeoutHierarchy();
+  
+  // Check circuit breaker doesn't exceed Lambda
+  if (hierarchy.circuit >= hierarchy.lambda) {
+    issues.push(`Circuit timeout (${hierarchy.circuit}ms) >= Lambda timeout (${hierarchy.lambda}ms)`);
+  }
+  
+  // Check database doesn't exceed circuit
+  if (hierarchy.database >= hierarchy.circuit) {
+    issues.push(`Database timeout (${hierarchy.database}ms) >= Circuit timeout (${hierarchy.circuit}ms)`);
+  }
+  
+  // Check API doesn't exceed database
+  if (hierarchy.api >= hierarchy.database) {
+    issues.push(`API timeout (${hierarchy.api}ms) >= Database timeout (${hierarchy.database}ms)`);
+  }
+  
+  // Check trading doesn't exceed API
+  if (hierarchy.trading >= hierarchy.api) {
+    issues.push(`Trading timeout (${hierarchy.trading}ms) >= API timeout (${hierarchy.api}ms)`);
+  }
+  
+  if (issues.length > 0) {
+    console.error('❌ Timeout hierarchy validation failed:', issues);
+    return { valid: false, issues };
+  }
+  
+  console.log('✅ Timeout hierarchy validation passed');
+  return { valid: true, hierarchy };
 }
 
 /**
@@ -449,5 +527,8 @@ module.exports = {
   
   // Configuration utilities
   getTimeout,
+  getDatabaseTimeouts,
+  getTimeoutHierarchy,
+  validateTimeoutHierarchy,
   TIMEOUT_CONFIGS
 };
