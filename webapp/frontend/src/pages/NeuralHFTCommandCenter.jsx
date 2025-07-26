@@ -591,7 +591,7 @@ function NeuralHFTCommandCenter() {
                   +$12,847
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  Today's P&L
+                  Today&apos;s P&L
                 </Typography>
               </CardContent>
             </Card>

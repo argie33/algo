@@ -758,6 +758,9 @@ const Portfolio = () => {
         }
         
         console.log(`🏦 [ACCOUNT] Loading account info for: ${accountType}`);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Account info request timeout')), 30000)
+        );
         const accountResponse = await Promise.race([
           getAccountInfo(accountType),
           timeoutPromise

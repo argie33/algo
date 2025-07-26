@@ -182,7 +182,7 @@ const TradingSignalsEnhanced = () => {
           Swing Trading Signals
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Professional swing trading using William O'Neill's proven methodology
+          Professional swing trading using William O&apos;Neill&apos;s proven methodology
         </Typography>
       </Box>
 

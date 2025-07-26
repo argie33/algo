@@ -928,7 +928,7 @@ function StockExplorer() {
                                         Recent Price Data Loaded ({priceHistoryData[stock.symbol]?.length || 0} records)
                                       </Typography>
                                       <Typography variant="caption" color="success.main">
-                                        Click "Price History" again to see detailed view
+                                        Click &quot;Price History&quot; again to see detailed view
                                       </Typography>
                                     </Box>
                                   )}

@@ -1056,7 +1056,7 @@ export const testApiKeyConnection = async (keyId) => {
       throw new Error('Key ID is required');
     }
     
-    const response = await initializeApi().post(`/settings/test-connection/${keyId}`);
+    const response = await initializeApi().post(`/api/settings/test-connection/${keyId}`);
     return response.data;
   }, {
     context: {
@@ -2768,7 +2768,7 @@ export const getEconomicData = async (params = {}) => {
 export const getTechnicalHistory = async (symbol) => {
   console.log(`📊 [API] Fetching technical history for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/technical/history/${symbol}`);
+    const response = await initializeApi().get(`/api/technical/history/${symbol}`);
     console.log(`📊 [API] Technical history response for ${symbol}:`, response);
     return normalizeApiResponse(response, true);
   } catch (error) {
@@ -2781,7 +2781,7 @@ export const getTechnicalHistory = async (symbol) => {
 export const getStockInfo = async (symbol) => {
   console.log(`ℹ️ [API] Fetching stock info for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/stocks/info/${symbol}`);
+    const response = await initializeApi().get(`/api/stocks/info/${symbol}`);
     console.log(`ℹ️ [API] Stock info response for ${symbol}:`, response);
     return normalizeApiResponse(response, false);
   } catch (error) {
@@ -2793,7 +2793,7 @@ export const getStockInfo = async (symbol) => {
 export const getStockPrice = async (symbol) => {
   console.log(`💰 [API] Fetching stock price for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/stocks/price/${symbol}`);
+    const response = await initializeApi().get(`/api/stocks/price/${symbol}`);
     console.log(`💰 [API] Stock price response for ${symbol}:`, response);
     return normalizeApiResponse(response, false);
   } catch (error) {
@@ -2805,7 +2805,7 @@ export const getStockPrice = async (symbol) => {
 export const getStockHistory = async (symbol) => {
   console.log(`📊 [API] Fetching stock history for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/stocks/history/${symbol}`);
+    const response = await initializeApi().get(`/api/stocks/history/${symbol}`);
     console.log(`📊 [API] Stock history response for ${symbol}:`, response);
     return normalizeApiResponse(response, true);
   } catch (error) {
@@ -2817,7 +2817,7 @@ export const getStockHistory = async (symbol) => {
 export const searchStocks = async (query) => {
   console.log(`🔍 [API] Searching stocks with query: ${query}...`);
   try {
-    const response = await initializeApi().get(`/stocks/search?q=${encodeURIComponent(query)}`);
+    const response = await initializeApi().get(`/api/stocks/search?q=${encodeURIComponent(query)}`);
     console.log(`🔍 [API] Stock search response:`, response);
     return normalizeApiResponse(response, true);
   } catch (error) {
@@ -2890,7 +2890,7 @@ export const getPriceHistory = async (timeframe = 'daily', params = {}) => {
     
     // Try multiple endpoint variations
     const endpoints = [
-      `/price/history/${timeframe}?${queryParams.toString()}`,
+      `/api/price/history/${timeframe}?${queryParams.toString()}`,
       `/api/price/history/${timeframe}?${queryParams.toString()}`
     ];
     
@@ -3813,7 +3813,7 @@ export const getMarketSentiment = async () => {
 export const getFinancialData = async (symbol) => {
   console.log(`💰 [API] Fetching financial data for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/financials/data/${symbol}`);
+    const response = await initializeApi().get(`/api/financials/data/${symbol}`);
     console.log(`💰 [API] Financial data response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
@@ -3827,7 +3827,7 @@ export const getFinancialData = async (symbol) => {
 export const getEarningsData = async (symbol) => {
   console.log(`📊 [API] Fetching earnings data for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/financials/earnings/${symbol}`);
+    const response = await initializeApi().get(`/api/financials/earnings/${symbol}`);
     console.log(`📊 [API] Earnings data response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
@@ -3841,7 +3841,7 @@ export const getEarningsData = async (symbol) => {
 export const getCashFlow = async (symbol) => {
   console.log(`💵 [API] Fetching cash flow for ${symbol}...`);
   try {
-    const response = await initializeApi().get(`/financials/cash-flow/${symbol}`);
+    const response = await initializeApi().get(`/api/financials/cash-flow/${symbol}`);
     console.log(`💵 [API] Cash flow response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
@@ -4434,7 +4434,7 @@ initializeApi().getHistoricalScores = async (symbol, period = '3M') => {
   try {
     // Try multiple endpoint variations
     const endpoints = [
-      `/historical-scores?symbol=${symbol}&period=${period}`, 
+      `/api/historical-scores?symbol=${symbol}&period=${period}`, 
       `/api/historical-scores?symbol=${symbol}&period=${period}`
     ];
     
@@ -4546,7 +4546,7 @@ initializeApi().getCalendarEvents = async (timeFilter = 'upcoming', page = 0, li
       page: page + 1,
       limit: limit
     });
-    const response = await initializeApi().get(`/calendar/events?${params}`);
+    const response = await initializeApi().get(`/api/calendar/events?${params}`);
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching calendar events:', error);
@@ -4617,7 +4617,7 @@ initializeApi().triggerDataLoader = async (loaderName) => {
   console.log(`🚀 [API] Triggering data loader: ${loaderName}`);
   
   try {
-    const response = await initializeApi().post(`/data/trigger/${loaderName}`);
+    const response = await initializeApi().post(`/api/data/trigger/${loaderName}`);
     console.log(`🚀 [API] Trigger ${loaderName} response:`, response.data);
     
     return {

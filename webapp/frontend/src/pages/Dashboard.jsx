@@ -88,6 +88,7 @@ import DataContainer from '../components/DataContainer';
 let logoSrc = null;
 try {
   // Use dynamic import for assets in Vite
+  /* @vite-ignore */
   logoSrc = new URL('../assets/logo.png', import.meta.url).href;
 } catch (e) {
   console.warn('Logo not found, using fallback avatar');

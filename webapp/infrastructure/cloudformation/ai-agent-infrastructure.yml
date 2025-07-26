@@ -1,0 +1,672 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AI Agent Infrastructure - Integrated with Financial Dashboard'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Deployment environment'
+  
+  ProjectName:
+    Type: String
+    Default: 'stocks-webapp'
+    Description: 'Project name for resource naming'
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID for resources'
+  
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Private subnet IDs for Lambda and RDS'
+  
+  PublicSubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Public subnet IDs for ALB'
+  
+  # Import existing infrastructure outputs
+  DatabaseEndpoint:
+    Type: String
+    Description: 'Existing database endpoint'
+  
+  LambdaSecurityGroupId:
+    Type: String
+    Description: 'Existing Lambda security group ID'
+    Default: ''
+  
+  # AI-specific parameters
+  BedrockModelId:
+    Type: String
+    Default: 'anthropic.claude-3-haiku-20240307-v1:0'
+    Description: 'Bedrock model ID for AI responses'
+  
+  ConversationRetentionDays:
+    Type: Number
+    Default: 90
+    Description: 'Number of days to retain conversation data'
+
+Conditions:
+  CreateLambdaSecurityGroup: !Equals [!Ref LambdaSecurityGroupId, '']
+  IsProd: !Equals [!Ref Environment, 'prod']
+
+Resources:
+  # ==================== AI AGENT CORE INFRASTRUCTURE ====================
+  
+  # Enhanced IAM Role for AI Lambda Functions
+  AILambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-ai-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: AIAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Bedrock permissions
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: 
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+              
+              # Secrets Manager for AI configuration
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: 
+                  - !Ref AIConfigurationSecrets
+                  - !Ref ConversationEncryptionSecrets
+              
+              # Database access (using existing database)
+              - Effect: Allow
+                Action:
+                  - rds-db:connect
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/ai-agent-user'
+              
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              
+              # WebSocket API Gateway
+              - Effect: Allow
+                Action:
+                  - execute-api:ManageConnections
+                Resource: !Sub '${AIWebSocketApi}/*/*'
+              
+              # CloudWatch metrics for monitoring
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+  # AI Configuration Secrets
+  AIConfigurationSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-ai-configuration'
+      Description: 'AI agent configuration including model parameters and API keys'
+      GenerateSecretString:
+        SecretStringTemplate: !Sub |
+          {
+            "bedrock_model_id": "${BedrockModelId}",
+            "environment": "${Environment}",
+            "project_name": "${ProjectName}",
+            "max_tokens": 2000,
+            "temperature": 0.1,
+            "streaming_enabled": true,
+            "conversation_retention_days": ${ConversationRetentionDays}
+          }
+        GenerateStringKey: 'api_encryption_key'
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Component
+          Value: 'ai-agent'
+
+  # Conversation Encryption Secrets
+  ConversationEncryptionSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-conversation-encryption'
+      Description: 'Encryption keys for conversation data'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm": "AES-256-GCM"}'
+        GenerateStringKey: 'conversation_encryption_key'
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Component
+          Value: 'ai-agent'
+
+  # ==================== WEBSOCKET INFRASTRUCTURE ====================
+  
+  # WebSocket API for real-time streaming
+  AIWebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-ai-websocket'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: '$request.body.action'
+      Description: 'WebSocket API for AI agent real-time streaming'
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+        Component: 'ai-agent-websocket'
+
+  # WebSocket Stage
+  AIWebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      StageName: !Ref Environment
+      Description: !Sub 'WebSocket stage for ${Environment}'
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 500
+        ThrottlingRateLimit: 100
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  # Connection Management Lambda
+  AIConnectionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-connection-manager'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt AILambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+          AI_CONFIG_SECRET_ARN: !Ref AIConfigurationSecrets
+          DATABASE_ENDPOINT: !Ref DatabaseEndpoint
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const apiGateway = new AWS.ApiGatewayManagementApi({
+            endpoint: process.env.WEBSOCKET_API_ENDPOINT
+          });
+          
+          // Connection management for WebSocket
+          exports.handler = async (event) => {
+            const { requestContext } = event;
+            const { connectionId, routeKey } = requestContext;
+            
+            try {
+              switch (routeKey) {
+                case '$connect':
+                  return await handleConnect(connectionId, event);
+                case '$disconnect':
+                  return await handleDisconnect(connectionId);
+                case 'ai_message':
+                  return await handleMessage(connectionId, JSON.parse(event.body));
+                default:
+                  return { statusCode: 400, body: 'Unknown route' };
+              }
+            } catch (error) {
+              console.error('WebSocket error:', error);
+              return { statusCode: 500, body: 'Internal server error' };
+            }
+          };
+          
+          async function handleConnect(connectionId, event) {
+            console.log('Client connected:', connectionId);
+            
+            // Store connection info in database
+            // Implementation would go here
+            
+            return { statusCode: 200 };
+          }
+          
+          async function handleDisconnect(connectionId) {
+            console.log('Client disconnected:', connectionId);
+            
+            // Clean up connection info from database
+            // Implementation would go here
+            
+            return { statusCode: 200 };
+          }
+          
+          async function handleMessage(connectionId, message) {
+            console.log('Message received:', message);
+            
+            // Route to AI processing lambda
+            // Implementation would go here
+            
+            return { statusCode: 200 };
+          }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # WebSocket Routes
+  AIConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: '$connect'
+      Target: !Sub 'integrations/${AIConnectIntegration}'
+
+  AIDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: '$disconnect'
+      Target: !Sub 'integrations/${AIDisconnectIntegration}'
+
+  AIMessageRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: 'ai_message'
+      Target: !Sub 'integrations/${AIMessageIntegration}'
+
+  # WebSocket Integrations
+  AIConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIConnectionLambda.Arn}/invocations'
+
+  AIDisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIConnectionLambda.Arn}/invocations'
+
+  AIMessageIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIConnectionLambda.Arn}/invocations'
+
+  # Lambda Permissions for WebSocket
+  AIWebSocketLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AIConnectionLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${AIWebSocketApi}/*/*'
+
+  # ==================== AI PROCESSING INFRASTRUCTURE ====================
+  
+  # Main AI Processing Lambda
+  AIProcessingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-processing'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt AILambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          AI_CONFIG_SECRET_ARN: !Ref AIConfigurationSecrets
+          CONVERSATION_SECRET_ARN: !Ref ConversationEncryptionSecrets
+          DATABASE_ENDPOINT: !Ref DatabaseEndpoint
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          const { BedrockRuntimeClient, InvokeModelCommand, InvokeModelWithResponseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
+          const AWS = require('aws-sdk');
+          
+          const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
+          const secretsManager = new AWS.SecretsManager();
+          
+          exports.handler = async (event) => {
+            console.log('AI Processing Event:', JSON.stringify(event, null, 2));
+            
+            try {
+              // Get AI configuration
+              const configSecret = await secretsManager.getSecretValue({
+                SecretId: process.env.AI_CONFIG_SECRET_ARN
+              }).promise();
+              
+              const config = JSON.parse(configSecret.SecretString);
+              
+              // Process AI request
+              const { message, userId, conversationId, streaming = false } = JSON.parse(event.body || '{}');
+              
+              if (streaming) {
+                return await handleStreamingResponse(message, userId, conversationId, config);
+              } else {
+                return await handleRegularResponse(message, userId, conversationId, config);
+              }
+              
+            } catch (error) {
+              console.error('AI Processing Error:', error);
+              return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'AI processing failed' })
+              };
+            }
+          };
+          
+          async function handleRegularResponse(message, userId, conversationId, config) {
+            const request = {
+              modelId: config.bedrock_model_id,
+              contentType: 'application/json',
+              accept: 'application/json',
+              body: JSON.stringify({
+                anthropic_version: 'bedrock-2023-05-31',
+                max_tokens: config.max_tokens,
+                temperature: config.temperature,
+                messages: [{
+                  role: 'user',
+                  content: message
+                }]
+              })
+            };
+            
+            const command = new InvokeModelCommand(request);
+            const response = await bedrockClient.send(command);
+            const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+            
+            return {
+              statusCode: 200,
+              body: JSON.stringify({
+                success: true,
+                response: responseBody.content[0].text,
+                conversationId,
+                metadata: {
+                  tokensUsed: responseBody.usage?.output_tokens || 0,
+                  model: config.bedrock_model_id
+                }
+              })
+            };
+          }
+          
+          async function handleStreamingResponse(message, userId, conversationId, config) {
+            // Implementation for streaming would require additional WebSocket handling
+            // This is a placeholder for the streaming functionality
+            return {
+              statusCode: 200,
+              body: JSON.stringify({
+                success: true,
+                streaming: true,
+                message: 'Streaming response initiated'
+              })
+            };
+          }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ==================== DATABASE ENHANCEMENTS ====================
+  
+  # Database migration Lambda for AI tables
+  AIDatabaseSetupLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-db-setup'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt AILambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          DATABASE_ENDPOINT: !Ref DatabaseEndpoint
+      Code:
+        ZipFile: |
+          const { Client } = require('pg');
+          
+          exports.handler = async (event) => {
+            console.log('Setting up AI database tables...');
+            
+            const client = new Client({
+              host: process.env.DATABASE_ENDPOINT.split(':')[0],
+              port: 5432,
+              database: 'stocks_db',
+              user: 'stocks_user',
+              // Password would come from secrets manager in real implementation
+            });
+            
+            try {
+              await client.connect();
+              
+              // Create enhanced conversation tables
+              await client.query(`
+                CREATE TABLE IF NOT EXISTS ai_conversations_enhanced (
+                  id SERIAL PRIMARY KEY,
+                  user_id VARCHAR(255) NOT NULL,
+                  conversation_id VARCHAR(255) NOT NULL,
+                  message_id BIGINT NOT NULL,
+                  parent_message_id BIGINT,
+                  message_type VARCHAR(20) NOT NULL CHECK (message_type IN ('user', 'assistant')),
+                  content TEXT NOT NULL,
+                  content_encrypted BOOLEAN DEFAULT FALSE,
+                  suggestions JSONB,
+                  context JSONB,
+                  metadata JSONB,
+                  token_count INTEGER,
+                  model_used VARCHAR(100),
+                  response_time_ms INTEGER,
+                  timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                  
+                  INDEX(user_id, conversation_id, timestamp),
+                  INDEX(user_id, timestamp),
+                  INDEX(conversation_id, message_id),
+                  UNIQUE(user_id, conversation_id, message_id)
+                );
+              `);
+              
+              // Create conversation analytics table
+              await client.query(`
+                CREATE TABLE IF NOT EXISTS ai_conversation_analytics (
+                  id SERIAL PRIMARY KEY,
+                  conversation_id VARCHAR(255) NOT NULL,
+                  user_id VARCHAR(255) NOT NULL,
+                  session_duration INTEGER,
+                  message_count INTEGER,
+                  total_tokens INTEGER,
+                  topics TEXT[],
+                  sentiment_score DECIMAL(3,2),
+                  satisfaction_score INTEGER,
+                  cost_estimate DECIMAL(10,4),
+                  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                  
+                  INDEX(user_id, created_at),
+                  INDEX(conversation_id)
+                );
+              `);
+              
+              // Create AI configuration table
+              await client.query(`
+                CREATE TABLE IF NOT EXISTS ai_user_configurations (
+                  id SERIAL PRIMARY KEY,
+                  user_id VARCHAR(255) UNIQUE NOT NULL,
+                  preferred_model VARCHAR(100) DEFAULT 'claude-3-haiku',
+                  response_style VARCHAR(50) DEFAULT 'balanced',
+                  max_tokens INTEGER DEFAULT 1000,
+                  temperature DECIMAL(3,2) DEFAULT 0.1,
+                  streaming_enabled BOOLEAN DEFAULT TRUE,
+                  conversation_history_enabled BOOLEAN DEFAULT TRUE,
+                  analytics_enabled BOOLEAN DEFAULT TRUE,
+                  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                  
+                  INDEX(user_id)
+                );
+              `);
+              
+              await client.end();
+              
+              return {
+                statusCode: 200,
+                body: JSON.stringify({ success: true, message: 'AI database tables created successfully' })
+              };
+              
+            } catch (error) {
+              console.error('Database setup error:', error);
+              await client.end();
+              throw error;
+            }
+          };
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ==================== MONITORING & ANALYTICS ====================
+  
+  # CloudWatch Log Groups
+  AIProcessingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ai-processing'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  AIConnectionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ai-connection-manager'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  # CloudWatch Alarms
+  AIProcessingErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ai-processing-errors'
+      AlarmDescription: 'Monitor AI processing Lambda errors'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AIProcessingLambda
+
+  AIProcessingDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ai-processing-duration'
+      AlarmDescription: 'Monitor AI processing Lambda duration'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 30000  # 30 seconds
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AIProcessingLambda
+
+  # Custom CloudWatch Dashboard
+  AIDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}-AI-Agent'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${AIProcessingLambda}"],
+                  [".", "Errors", ".", "."],
+                  [".", "Duration", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "AI Processing Lambda Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/ApiGatewayV2", "Count", "ApiId", "${AIWebSocketApi}"],
+                  [".", "IntegrationLatency", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "WebSocket API Metrics"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  # AI Infrastructure Outputs
+  AIWebSocketApiUrl:
+    Description: 'WebSocket API URL for real-time AI communication'
+    Value: !Sub 'wss://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-websocket-url'
+
+  AIProcessingLambdaArn:
+    Description: 'ARN of AI processing Lambda function'
+    Value: !GetAtt AIProcessingLambda.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-processing-lambda-arn'
+
+  AIConfigurationSecretsArn:
+    Description: 'ARN of AI configuration secrets'
+    Value: !Ref AIConfigurationSecrets
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-config-secrets-arn'
+
+  ConversationEncryptionSecretsArn:
+    Description: 'ARN of conversation encryption secrets'
+    Value: !Ref ConversationEncryptionSecrets
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-conversation-encryption-secrets-arn'
+
+  AILambdaExecutionRoleArn:
+    Description: 'ARN of AI Lambda execution role'
+    Value: !GetAtt AILambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-lambda-role-arn'
+
+  AIDashboardUrl:
+    Description: 'CloudWatch Dashboard URL for AI Agent monitoring'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}-AI-Agent'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-dashboard-url'

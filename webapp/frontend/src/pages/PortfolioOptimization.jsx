@@ -198,17 +198,19 @@ const optimizePortfolio = (returns, covariance, objective = 'maxSharpe', constra
       case 'maxReturn':
         score = metrics.expectedReturn;
         break;
-      case 'equalWeight':
+      case 'equalWeight': {
         // Penalize deviation from equal weights
         const equalWeight = 1 / numAssets;
         score = -weights.reduce((sum, w) => sum + Math.abs(w - equalWeight), 0);
         break;
-      case 'riskParity':
+      }
+      case 'riskParity': {
         // Risk parity optimization (simplified)
         const riskContributions = weights.map((w, i) => w * Math.sqrt(covariance[i][i]));
         const avgRiskContrib = riskContributions.reduce((sum, rc) => sum + rc, 0) / numAssets;
         score = -riskContributions.reduce((sum, rc) => sum + Math.abs(rc - avgRiskContrib), 0);
         break;
+      }
       default:
         score = metrics.sharpeRatio;
     }

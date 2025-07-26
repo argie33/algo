@@ -9,9 +9,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Keep all default colors available, but replace deprecated ones
-        ...colors,
-        // Fix deprecated color names
+        // Keep all default colors available, excluding deprecated ones
+        ...Object.fromEntries(
+          Object.entries(colors).filter(([name]) => 
+            !['lightBlue', 'warmGray', 'trueGray', 'coolGray', 'blueGray'].includes(name)
+          )
+        ),
+        // Map deprecated color names to new names
         lightBlue: colors.sky,
         warmGray: colors.stone,
         trueGray: colors.neutral,

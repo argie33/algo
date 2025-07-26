@@ -276,9 +276,10 @@ const NewsSentiment = () => {
       switch (sortBy) {
         case 'sentiment':
           return b.sentiment - a.sentiment;
-        case 'impact':
+        case 'impact': {
           const impactOrder = { high: 3, medium: 2, low: 1 };
           return impactOrder[b.impact] - impactOrder[a.impact];
+        }
         case 'time':
         default:
           return b.timestamp - a.timestamp;

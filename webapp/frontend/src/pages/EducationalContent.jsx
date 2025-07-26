@@ -731,7 +731,7 @@ const EducationalContent = () => {
                   <CardContent>
                     <Typography variant="h6" gutterBottom>Beginner Investor Path</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Complete beginner's guide to stock market investing
+                      Complete beginner&apos;s guide to stock market investing
                     </Typography>
                     <List dense>
                       <ListItem>
