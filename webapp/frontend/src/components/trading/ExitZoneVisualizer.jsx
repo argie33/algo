@@ -119,13 +119,13 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           Exit Zone Management
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
-            label={`Current Zone: ${currentZone.zone}`}
-            sx={{ 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
+            style={{ 
               backgroundColor: currentZone.color + '33',
               color: currentZone.color,
               fontWeight: 600
             }}
+            title={`Current Zone: ${currentZone.zone}`}
           />
           <Typography variant="body2" color="text.secondary">
             Gain: {currentGain >= 0 ? '+' : ''}{currentGain.toFixed(2)}%
@@ -309,7 +309,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       {!entryPrice && signal?.pivot_price && (
         <Box sx={{ mt: 3 }}>
           <Typography variant="subtitle2" gutterBottom>
-            5% Buy Zone (O'Neill Method)
+            5% Buy Zone (O&apos;Neill Method)
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ flex: 1 }}>

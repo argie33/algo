@@ -4,6 +4,7 @@
  * Addresses REQ-010: Error Handling Critical Gaps - Offline Handling
  */
 
+import React from 'react';
 import correlationService from './correlationService';
 
 class OfflineService {

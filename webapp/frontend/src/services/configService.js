@@ -167,7 +167,7 @@ class ConfigService extends StandardService {
         if (runtimeConfig.features) {
           Object.entries(runtimeConfig.features).forEach(([key, value]) => {
             const configKey = `FEATURES_${key.toUpperCase()}`;
-            if (config.hasOwnProperty(configKey)) {
+            if (Object.prototype.hasOwnProperty.call(config, configKey)) {
               config[configKey] = value;
             }
           });

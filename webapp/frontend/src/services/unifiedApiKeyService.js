@@ -184,7 +184,7 @@ class UnifiedApiKeyService {
       if (secret.length > 80) {
         errors.push('API secret must be no more than 80 characters');
       }
-      if (!/^[A-Za-z0-9\/+=]+$/.test(secret)) {
+      if (!/^[A-Za-z0-9/+=]+$/.test(secret)) {
         errors.push('API secret contains invalid characters (only alphanumeric and /+= allowed)');
       }
     }
