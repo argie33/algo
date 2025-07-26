@@ -19,7 +19,8 @@ import {
   Divider,
   Alert,
   Badge,
-  Stack
+  Stack,
+  Button
 } from '@mui/material';
 import {
   MoreVert,
@@ -105,7 +106,7 @@ const EconomicIndicatorsWidget = ({
   };
 
   const handleRefresh = () => {
-    refetch();
+    refresh();
   };
 
   const getTrendIcon = (trend) => {

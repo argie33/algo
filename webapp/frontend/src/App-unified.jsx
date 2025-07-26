@@ -1,5 +1,5 @@
 // UNIFIED ROUTING ARCHITECTURE - Eliminates competing navigation systems
-import { useState, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { 
   AppBar, 
@@ -257,7 +257,7 @@ function AppContent() {
 const SpecialRouteHandler = ({ route }) => {
   const { handleSpecialRoute } = useNavigation();
   
-  React.useEffect(() => {
+  useEffect(() => {
     handleSpecialRoute(route.path);
   }, [route.path, handleSpecialRoute]);
   

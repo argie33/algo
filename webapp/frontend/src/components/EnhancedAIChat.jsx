@@ -197,7 +197,7 @@ const EnhancedAIChat = () => {
           }
           break;
           
-        case 'ai_stream_error':
+        case 'ai_stream_error': {
           console.error('Streaming error:', data.error);
           setIsStreaming(false);
           setStreamingMessage('');
@@ -212,6 +212,7 @@ const EnhancedAIChat = () => {
           };
           setMessages(prev => [...prev, errorMessage]);
           break;
+        }
           
         case 'error':
           console.error('WebSocket error:', data.error);
@@ -902,7 +903,7 @@ const EnhancedAIChat = () => {
       </Box>
       
       {/* CSS for blinking cursor */}
-      <style jsx global>{`
+      <style>{`
         @keyframes blink {
           0%, 50% { opacity: 1; }
           51%, 100% { opacity: 0; }

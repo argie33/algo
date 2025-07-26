@@ -1517,7 +1517,7 @@ const AdvancedScreener = () => {
         <DialogContent>
           <Box sx={{ mt: 2 }}>
             <Typography variant="body1" gutterBottom>
-              You're about to add {selectedStocks.length} stock{selectedStocks.length > 1 ? 's' : ''} to your portfolio:
+              You&apos;re about to add {selectedStocks.length} stock{selectedStocks.length > 1 ? 's' : ''} to your portfolio:
             </Typography>
             
             <Box sx={{ my: 2 }}>
@@ -1586,7 +1586,7 @@ const AdvancedScreener = () => {
               ) : (
                 <Box>
                   <Typography variant="body2">
-                    You're not signed in. These stocks will be saved locally and won't sync across devices.
+                    You&apos;re not signed in. These stocks will be saved locally and won&apos;t sync across devices.
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 1 }}>
                     <strong>Tip:</strong> Sign in to sync your portfolio across all devices.
