@@ -141,8 +141,8 @@ async function getDbConfig() {
             return dbConfig;
         }
 
-        // Fallback: try direct environment variables (for local development only)
-        if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD && process.env.NODE_ENV === 'development') {
+        // Fallback: try direct environment variables (for local development)
+        if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
             console.log('🔧 Using direct database environment variables (LOCAL DEVELOPMENT ONLY)');
             
             dbConfig = {
