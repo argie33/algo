@@ -1,33 +1,19 @@
-// ARCHITECTURAL FIX: Clean React imports - ensure F is set immediately
 import React from 'react'
-
-// CRITICAL: Set F immediately to prevent useLayoutEffect errors
-if (typeof window !== 'undefined') {
-  window.React = React;
-  window.F = React;
-  if (typeof globalThis !== 'undefined') {
-    globalThis.React = React;
-    globalThis.F = React;
-  }
-  console.log('✅ React set as F immediately in main.jsx');
-}
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// Import theme - COMPLEX IMPLEMENTATION
+import App from './App'
+import { queryClient } from './lib/queryClient'
 import muiTheme from './theme/muiTheme'
+import { AuthProvider } from './contexts/AuthContext'
 
-// Import core components
+// Import styles
 import './index.css'
 import './mobile-responsive.css'
-import App from './App'
-import EnhancedAsyncErrorBoundary from './components/EnhancedAsyncErrorBoundary'
-import { LoadingProvider } from './components/LoadingStateManager'
-import { AuthProvider } from './contexts/AuthContext'
-import ApiKeyProvider from './components/ApiKeyProvider'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Configure Amplify for authentication
 import { configureAmplify } from './config/amplify'
@@ -39,47 +25,18 @@ try {
   console.warn('⚠️ Amplify configuration failed, using fallback auth:', error);
 }
 
-// Create React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 3,
-      staleTime: 30000,
-      gcTime: 10 * 60 * 1000, // Updated from cacheTime in v5
-      refetchOnWindowFocus: false,
-    },
-  },
-})
+const root = ReactDOM.createRoot(document.getElementById('root'))
 
-// Main app component - COMPLEX IMPLEMENTATION
-const AppWithProviders = () => {
-  return (
-    <ThemeProvider theme={muiTheme}>
-      <CssBaseline />
-      <LoadingProvider>
-        <AuthProvider>
-          <ApiKeyProvider>
-            <App />
-          </ApiKeyProvider>
-        </AuthProvider>
-      </LoadingProvider>
-    </ThemeProvider>
-  );
-};
-
-// Render application - COMPLEX ERROR BOUNDARY
-const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <EnhancedAsyncErrorBoundary>
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true
-      }}
-    >
-      <QueryClientProvider client={queryClient}>
-        <AppWithProviders />
-      </QueryClientProvider>
+  <QueryClientProvider client={queryClient}>
+    <BrowserRouter>
+      <ThemeProvider theme={muiTheme}>
+        <CssBaseline />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
-  </EnhancedAsyncErrorBoundary>
-);
+    <ReactQueryDevtools initialIsOpen={false} />
+  </QueryClientProvider>
+)

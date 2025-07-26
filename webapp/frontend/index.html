@@ -5,66 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Financial Dashboard</title>
-    <!-- FORCE CACHE BUST - 2025-07-11 22:00 - Debug React loading -->
     <meta name="description" content="Professional financial data dashboard with real-time stock metrics, market analysis, and portfolio tools." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-      // EMERGENCY FIX: Immediately provide F.useLayoutEffect for production
-      console.log('🚀 Emergency React F fix for production');
-      
-      // Create robust F object with all React hooks immediately
-      window.F = {
-        useLayoutEffect: function(effect, deps) {
-          console.log('🔧 Emergency useLayoutEffect called');
-          try { if (effect) effect(); } catch(e) { console.warn('useLayoutEffect error:', e); }
-        },
-        useState: function(initial) { 
-          console.log('🔧 Emergency useState called');
-          return [initial, function() {}]; 
-        },
-        useEffect: function(effect, deps) { 
-          console.log('🔧 Emergency useEffect called');
-          try { if (effect) effect(); } catch(e) { console.warn('useEffect error:', e); }
-        },
-        useCallback: function(callback, deps) { return callback; },
-        useMemo: function(factory, deps) { 
-          try { return factory ? factory() : null; } catch(e) { return null; } 
-        },
-        useRef: function(initial) { return { current: initial }; },
-        useContext: function(context) { return context?.defaultValue; },
-        useReducer: function(reducer, initial) { return [initial, function() {}]; },
-        useImperativeHandle: function() {},
-        useDebugValue: function() {},
-        useSyncExternalStore: function(subscribe, getSnapshot) {
-          try { return getSnapshot ? getSnapshot() : null; } catch(e) { return null; }
-        },
-        createElement: function() { return {}; },
-        Component: function() {},
-        Fragment: function() {},
-        version: '18.3.1-emergency'
-      };
-      
-      // Also set React to same object for compatibility
-      window.React = window.F;
-      
-      // Set on globalThis too
-      if (typeof globalThis !== 'undefined') {
-        globalThis.F = window.F;
-        globalThis.React = window.F;
-      }
-      
-      console.log('✅ Emergency F object ready with useLayoutEffect');
-      console.log('✅ F.useLayoutEffect type:', typeof window.F.useLayoutEffect);
-    </script>
     
-    <!-- Clean module loading - let Vite plugin handle React order -->
-    <script type="module">
-      console.log('🚀 Module loading with architectural fix active');
-    </script>
     <script>
-      // Initialize empty config - will be populated by config.js
+      // Initialize config - will be populated by config.js
       window.__CONFIG__ = window.__CONFIG__ || {
         ENVIRONMENT: 'development',
         VERSION: 'fallback',
@@ -94,8 +41,8 @@
   <body>
     <div id="root">
       <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
-        <h2>Loading Financial Dashboard v1.0.6...</h2>
-        <p>Initializing React application - API is working!</p>
+        <h2>Loading Financial Dashboard...</h2>
+        <p>Initializing React application...</p>
         <div style="margin: 20px 0;">
           <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
         </div>
@@ -108,98 +55,6 @@
         <p><small>If this message persists, check browser console for errors.</small></p>
       </div>
     </div>
-    <script>
-      // ENHANCED ERROR REPORTING: Detailed analysis of useLayoutEffect errors
-      (function() {
-        const originalError = window.onerror;
-        window.onerror = function(message, source, lineno, colno, error) {
-          if (message && message.includes('useLayoutEffect') && message.includes('undefined')) {
-            console.group('🚨 USELAYOUTEFFECT ERROR DETECTED');
-            console.error('ERROR MESSAGE:', message);
-            console.log('SOURCE FILE:', source);
-            console.log('LINE:COLUMN:', `${lineno}:${colno}`);
-            console.log('ERROR OBJECT:', error);
-            
-            // Detailed environment analysis
-            console.group('📊 ENVIRONMENT ANALYSIS');
-            console.log('window.F type:', typeof window.F);
-            console.log('window.React type:', typeof window.React);
-            console.log('F diagnostic data:', window.__F_DIAGNOSTICS__);
-            
-            // Check all global React-related variables
-            const reactGlobals = {};
-            ['React', 'F', '__REACT_DEVTOOLS_GLOBAL_HOOK__'].forEach(key => {
-              reactGlobals[key] = {
-                exists: key in window,
-                type: typeof window[key],
-                value: window[key]
-              };
-            });
-            console.log('React globals:', reactGlobals);
-            console.groupEnd();
-            
-            // Analyze the chunk that caused the error
-            if (source && source.includes('chunk-')) {
-              const chunkName = source.match(/chunk-[^.]+\.js/)?.[0];
-              console.group(`📦 CHUNK ANALYSIS: ${chunkName}`);
-              console.log('This chunk is trying to access F.useLayoutEffect');
-              console.log('Likely suspects:');
-              console.log('- @emotion/react (uses F as React alias)');
-              console.log('- @mui/material (depends on emotion)');
-              console.log('- styled-components');
-              console.log('- Any library expecting React as global F');
-              console.groupEnd();
-            }
-            
-            // Module loading analysis
-            console.group('📝 MODULE LOADING STATE');
-            const scripts = Array.from(document.scripts);
-            console.log('Total scripts loaded:', scripts.length);
-            console.log('Module scripts:', scripts.filter(s => s.type === 'module').length);
-            console.log('Last script src:', scripts[scripts.length - 1]?.src);
-            console.groupEnd();
-            
-            console.group('🔧 NEXT STEPS');
-            console.log('1. Check package.json for @emotion/react or @mui/material');
-            console.log('2. Look for any library that might expect React as global F');
-            console.log('3. Check if React module preloader is loading too late');
-            console.log('4. Consider moving React import to <head> instead of module');
-            console.groupEnd();
-            
-            console.groupEnd();
-            
-            // Don't try to fix it - let it fail with good diagnostics
-            return false;
-          }
-          
-          // Call original error handler if it exists
-          if (originalError) {
-            return originalError.apply(this, arguments);
-          }
-          return false;
-        };
-        
-        console.log('✅ Enhanced error reporting installed');
-      })();
-      
-      // Show loading progress
-      setTimeout(() => {
-        const configStatus = document.getElementById('config-status');
-        if (configStatus) {
-          configStatus.innerHTML = window.__CONFIG__ ? 
-            'Config loaded ✅' : 
-            'Config failed to load ❌';
-        }
-      }, 1000);
-      
-      // Remove this timeout - let React load naturally
-      // setTimeout(() => {
-      //   const root = document.getElementById('root');
-      //   if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
-      //     root.innerHTML = '<div style="padding: 20px; text-align: center; color: red;"><h1>Loading Failed</h1><p>React app failed to load. Check browser console for errors.</p></div>';
-      //   }
-      // }, 5000);
-    </script>
-    <script type="module" src="/src/main.jsx" onerror="console.error('Failed to load main.jsx')"></script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
