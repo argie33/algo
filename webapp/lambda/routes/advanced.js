@@ -5,10 +5,13 @@ const { success, error } = require('../utils/responseFormatter');
 // Import dependencies with error handling
 let logger, createValidationMiddleware, authenticateUser;
 
-// Initialize fallback functions first
+// Initialize secure authentication function - no demo user fallbacks
 authenticateUser = (req, res, next) => {
-  req.user = { userId: 'demo-user' };
-  next();
+  return res.status(401).json({
+    success: false,
+    error: 'Authentication service not properly configured',
+    message: 'Advanced features require proper authentication middleware setup'
+  });
 };
 createValidationMiddleware = (schema) => (req, res, next) => {
   req.validated = req.body;

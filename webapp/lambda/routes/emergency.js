@@ -76,63 +76,44 @@ router.get('/circuit-breaker-status', async (req, res) => {
   }
 });
 
-// Emergency CloudFormation config endpoint - temporary workaround for cloudformation route loading issue
+// Emergency CloudFormation config endpoint - DEPRECATED
 router.get('/config/cloudformation', async (req, res) => {
-  try {
-    console.log('🔄 Emergency CloudFormation config requested');
-    
-    // Provide basic fallback configuration 
-    const fallbackConfig = {
-      success: true,
-      stackName: 'stocks-webapp-dev',
-      region: 'us-east-1',
-      stackStatus: 'EMERGENCY_FALLBACK',
-      
-      // Hardcoded configuration from known working values
-      api: {
-        gatewayUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
-        gatewayId: '2m14opj30h',
-        stageName: 'dev'
+  console.log('🚨 DEPRECATED: Emergency CloudFormation config endpoint called');
+  
+  // Return proper error - no hardcoded configuration values
+  res.status(501).json({
+    success: false,
+    error: 'Emergency CloudFormation Configuration Deprecated',
+    details: {
+      type: 'ENDPOINT_DEPRECATED',
+      message: 'Hardcoded configuration values have been removed for security',
+      reason: 'Emergency fallback configurations contained sensitive hardcoded values',
+      alternatives: {
+        primary: 'Use /api/cloudformation endpoint with proper AWS parameter retrieval',
+        backup: 'Configure CloudFormation outputs through AWS Parameter Store',
+        manual: 'Set configuration values through environment variables'
       },
-      
-      cognito: {
-        userPoolId: null, // Not configured yet
-        clientId: null,   // Not configured yet
-        domain: null,
-        region: 'us-east-1'
+      migration_required: {
+        environment_variables: [
+          'AWS_REGION - AWS region for resource discovery',
+          'CLOUDFORMATION_STACK_NAME - Stack name for parameter retrieval',
+          'API_GATEWAY_URL - Dynamic API Gateway URL from CloudFormation'
+        ],
+        aws_integration: [
+          'CloudFormation stack outputs',
+          'AWS Parameter Store configuration',
+          'AWS Systems Manager integration'
+        ]
       },
-      
-      frontend: {
-        bucketName: 'stocks-webapp-frontend',
-        websiteUrl: 'https://d1zb7knau41vl9.cloudfront.net'
-      },
-      
-      environment: {
-        name: 'dev',
-        stackName: 'stocks-webapp-dev'
-      },
-      
-      outputs: {
-        ApiGatewayUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
-        ApiGatewayId: '2m14opj30h',
-        ApiGatewayStageName: 'dev'
-      },
-      
-      fetchedAt: new Date().toISOString(),
-      source: 'emergency_fallback',
-      note: 'Emergency endpoint - CloudFormation route temporarily unavailable'
-    };
-    
-    res.json(fallbackConfig);
-    
+      security_improvement: 'Removed hardcoded API Gateway URLs and resource identifiers'
+    }
   } catch (error) {
-    console.error('❌ Failed to provide emergency CloudFormation config:', error);
+    console.error('❌ Emergency CloudFormation config error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to provide emergency CloudFormation config',
+      error: 'Emergency CloudFormation configuration service error',
       details: error.message,
-      timestamp: new Date().toISOString(),
-      note: 'Emergency CloudFormation config error'
+      timestamp: new Date().toISOString()
     });
   }
 });

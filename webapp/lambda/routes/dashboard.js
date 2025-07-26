@@ -4,27 +4,8 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Development bypass - skip auth if enabled
-router.use((req, res, next) => {
-  // Always bypass authentication in development environment
-  const isDevelopment = process.env.NODE_ENV === 'development' || 
-                       process.env.ALLOW_DEV_BYPASS === 'true' ||
-                       !process.env.AWS_REGION; // Local development indicator
-  
-  if (isDevelopment) {
-    console.log('🔧 Dashboard - Development mode detected - bypassing authentication');
-    // Inject mock user for development
-    req.user = { 
-      id: 'dev-user', 
-      username: 'dev-user',
-      sub: 'dev-user-123'
-    };
-    next();
-  } else {
-    console.log('🔒 Dashboard - Production mode - requiring authentication');
-    authenticateToken(req, res, next);
-  }
-});
+// Apply authentication to ALL dashboard requests - no bypasses
+router.use(authenticateToken);
 
 // Main dashboard aggregation endpoint (what frontend expects at /api/dashboard)
 router.get('/', async (req, res) => {
@@ -35,7 +16,7 @@ router.get('/', async (req, res) => {
     // Get overview data
     const { query } = require('../utils/database');
     
-    // Initialize with working fallback data
+    // Initialize with empty data structure - will populate with live data only
     let dashboardData = {
       success: true,
       timestamp: new Date().toISOString(),
@@ -44,22 +25,30 @@ router.get('/', async (req, res) => {
         authenticated: !!req.user
       },
       portfolio: {
-        totalValue: 125000,
-        dayChange: 2500,
-        dayChangePercent: 2.04,
-        positions: 8,
-        dataSource: 'fallback'
+        totalValue: 0,
+        dayChange: 0,
+        dayChangePercent: 0,
+        positions: 0,
+        dataSource: 'unavailable',
+        error: {
+          type: 'NO_API_CONNECTION',
+          message: 'Portfolio data requires broker API configuration',
+          setup_url: '/settings/api-keys'
+        }
       },
       stocks: {
-        popular: [
-          { symbol: 'AAPL', name: 'Apple Inc.', price: 190.50, change: 2.50, changePercent: 1.33 },
-          { symbol: 'MSFT', name: 'Microsoft Corporation', price: 337.80, change: -1.20, changePercent: -0.35 },
-          { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 143.90, change: 3.40, changePercent: 2.42 },
-          { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 155.20, change: 1.80, changePercent: 1.17 },
-          { symbol: 'TSLA', name: 'Tesla Inc.', price: 250.80, change: -5.20, changePercent: -2.03 }
-        ],
+        popular: [],
         trending: [],
-        dataSource: 'fallback'
+        dataSource: 'unavailable',
+        error: {
+          type: 'MARKET_DATA_UNAVAILABLE',
+          message: 'Real-time market data requires API configuration',
+          setup_required: {
+            action: 'Configure market data provider',
+            providers: ['Polygon', 'IEX', 'Alpha Vantage'],
+            setup_url: '/settings/api-keys'
+          }
+        }
       },
       market: {
         status: 'market_hours',
@@ -87,9 +76,11 @@ router.get('/', async (req, res) => {
         const row = portfolioResult.rows[0];
         dashboardData.portfolio = {
           totalValue: parseFloat(row.total_value),
-          dayChange: Math.round(parseFloat(row.total_value) * 0.02 * (Math.random() - 0.4)),
+          dayChange: 0, // Remove mock random calculation - needs real day change calculation
+          dayChangePercent: 0, // Should be calculated from real data
           positions: parseInt(row.position_count),
-          dataSource: 'database'
+          dataSource: 'database',
+          note: 'Day change calculation requires historical data - connect market data API for accurate tracking'
         };
         console.log('✅ Retrieved real portfolio data');
       }
@@ -105,15 +96,29 @@ router.get('/', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Dashboard error:', error);
-    // Always return working data, never fail
-    res.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      portfolio: { totalValue: 0, dayChange: 0, positions: 0, dataSource: 'emergency' },
-      stocks: { popular: [], dataSource: 'emergency' },
-      market: { status: 'unknown' },
-      alerts: [{ type: 'info', message: 'Dashboard loaded with limited data' }],
-      error: false // Don't expose errors to UI
+    // Return proper error instead of mock data
+    res.status(500).json({
+      success: false,
+      error: 'Dashboard service unavailable',
+      details: {
+        type: 'DASHBOARD_SERVICE_ERROR',
+        message: 'Unable to load dashboard data',
+        troubleshooting: {
+          check_api_keys: 'Verify broker API keys are configured in Settings',
+          check_database: 'Database connection may be unavailable',
+          retry_action: 'Refresh the page or try again in a few minutes'
+        },
+        technical_info: {
+          error_id: `dashboard-error-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          service: 'dashboard'
+        },
+        support: {
+          status_page: '/status',
+          documentation: '/help/dashboard-troubleshooting',
+          contact: '/support'
+        }
+      }
     });
   }
 });

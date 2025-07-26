@@ -647,6 +647,15 @@ npm test     # Run frontend test suite
 - **File Naming**: kebab-case for scripts, camelCase for modules
 - **Imports**: Group AWS SDK, third-party, then local imports
 
+## 🚨 CRITICAL RULE: NEVER CREATE NEW FILES WHEN EXISTING ONES CAN BE UPDATED 🚨
+- **ABSOLUTE PROHIBITION**: Never create new files like "unifiedDatabaseManager.js" when you can update existing files like "database.js"
+- **FIX EXISTING FILES**: Always work with and improve existing files rather than creating new abstractions
+- **USER'S EXACT WORDS**: "never to do that shit again creating new files and shit just update and work with the originals take copies if needed but dont create new random iterations"
+- **KEEP IT SIMPLE**: Users prefer simple, direct updates to original files over confusing new file hierarchies
+- **BACKUP STRATEGY**: If needed, create backup copies (.bak files) but always fix the original file name and location
+- **MAINTAIN FAMILIARITY**: Keep file names and structures that users recognize and understand
+- **NO ABSTRACTIONS**: Don't create "unified", "enhanced", "improved" versions - just fix the original files directly
+
 ## Critical Database Connection Issue - ACTIVE BLOCKER (July 16, 2025)
 
 ### Root Cause: AWS Secrets Manager JSON Parsing Error

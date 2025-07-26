@@ -14,13 +14,15 @@ import {
 import { Schedule, Warning, Security, Close } from '@mui/icons-material';
 import { fetchAuthSession } from '@aws-amplify/auth';
 
-// Session management configuration
+// Optimized session management configuration
 const SESSION_CONFIG = {
-  WARNING_THRESHOLD: 5 * 60 * 1000, // 5 minutes before expiry
-  AUTO_REFRESH_THRESHOLD: 10 * 60 * 1000, // 10 minutes before expiry
+  WARNING_THRESHOLD: 15 * 60 * 1000, // 15 minutes before expiry (increased)
+  AUTO_REFRESH_THRESHOLD: 5 * 60 * 1000, // 5 minutes before expiry (decreased)
+  GRACE_PERIOD: 2 * 60 * 1000, // 2 minutes grace period after expiry
   CHECK_INTERVAL: 30 * 1000, // Check every 30 seconds
   IDLE_TIMEOUT: 30 * 60 * 1000, // 30 minutes of inactivity
-  MAX_REFRESH_ATTEMPTS: 3,
+  MAX_REFRESH_ATTEMPTS: 2, // Reduced from 3
+  REFRESH_COOLDOWN: 30 * 1000, // 30 seconds between refresh attempts
   SESSION_STORAGE_KEY: 'session_info'
 };
 
@@ -87,6 +89,8 @@ function SessionManager({ children }) {
   const [showWarning, setShowWarning] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [lastRefreshAttempt, setLastRefreshAttempt] = useState(0);
+  const [warningDismissed, setWarningDismissed] = useState(false);
   const [isIdle, setIsIdle] = useState(false);
   const [showIdleWarning, setShowIdleWarning] = useState(false);
   const [activityTracker, setActivityTracker] = useState(null);
@@ -159,27 +163,38 @@ function SessionManager({ children }) {
 
     const currentTime = Date.now();
     const timeUntilExpiry = sessionInfo.tokenExpiresAt - currentTime;
+    const timeSinceLastRefresh = currentTime - lastRefreshAttempt;
     
     setTimeToExpiry(timeUntilExpiry);
 
-    // Auto-refresh if approaching expiry
+    // Auto-refresh if approaching expiry (with cooldown protection)
     if (timeUntilExpiry <= SESSION_CONFIG.AUTO_REFRESH_THRESHOLD && 
-        timeUntilExpiry > 0 && 
+        timeUntilExpiry > -SESSION_CONFIG.GRACE_PERIOD && 
         !isRefreshing &&
-        refreshAttempts < SESSION_CONFIG.MAX_REFRESH_ATTEMPTS) {
+        refreshAttempts < SESSION_CONFIG.MAX_REFRESH_ATTEMPTS &&
+        timeSinceLastRefresh >= SESSION_CONFIG.REFRESH_COOLDOWN) {
       handleTokenRefresh();
     }
     
-    // Show warning if very close to expiry
-    else if (timeUntilExpiry <= SESSION_CONFIG.WARNING_THRESHOLD && timeUntilExpiry > 0) {
+    // Show warning if close to expiry (and not dismissed)
+    else if (timeUntilExpiry <= SESSION_CONFIG.WARNING_THRESHOLD && 
+             timeUntilExpiry > 0 && 
+             !warningDismissed) {
       setShowWarning(true);
     }
     
-    // Force logout if token has expired
-    else if (timeUntilExpiry <= 0) {
+    // Hide warning if user has more time
+    else if (timeUntilExpiry > SESSION_CONFIG.WARNING_THRESHOLD) {
+      setShowWarning(false);
+      setWarningDismissed(false);
+    }
+    
+    // Force logout only after grace period
+    else if (timeUntilExpiry <= -SESSION_CONFIG.GRACE_PERIOD) {
+      console.warn('⏰ Token expired beyond grace period, logging out');
       handleSessionExpiry();
     }
-  }, [sessionInfo, isRefreshing, refreshAttempts]);
+  }, [sessionInfo, isRefreshing, refreshAttempts, lastRefreshAttempt, warningDismissed]);
 
   const handleTokenRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -187,8 +202,9 @@ function SessionManager({ children }) {
     try {
       setIsRefreshing(true);
       setRefreshAttempts(prev => prev + 1);
+      setLastRefreshAttempt(Date.now());
       
-      console.log('Attempting token refresh...');
+      console.log(`🔄 Attempting token refresh (attempt ${refreshAttempts + 1}/${SESSION_CONFIG.MAX_REFRESH_ATTEMPTS})...`);
       const newTokens = await refreshTokens();
       
       if (newTokens) {
@@ -205,13 +221,15 @@ function SessionManager({ children }) {
         sessionStorage.setItem(SESSION_CONFIG.SESSION_STORAGE_KEY, JSON.stringify(updatedSessionInfo));
         
         setRefreshAttempts(0);
+        setLastRefreshAttempt(0);
         setShowWarning(false);
+        setWarningDismissed(false);
         setSessionExtended(true);
         
         // Hide extended message after 3 seconds
         setTimeout(() => setSessionExtended(false), 3000);
         
-        console.log('Token refreshed successfully');
+        console.log('✅ Token refreshed successfully');
       }
     } catch (error) {
       console.error('Token refresh failed:', error);
@@ -273,8 +291,14 @@ function SessionManager({ children }) {
 
   const extendSession = useCallback(() => {
     setShowWarning(false);
+    setWarningDismissed(false);
     handleTokenRefresh();
   }, [handleTokenRefresh]);
+
+  const dismissWarning = useCallback(() => {
+    setShowWarning(false);
+    setWarningDismissed(true);
+  }, []);
 
   const formatTimeRemaining = (milliseconds) => {
     if (milliseconds <= 0) return 'Expired';

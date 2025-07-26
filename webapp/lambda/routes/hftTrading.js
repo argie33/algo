@@ -8,6 +8,7 @@ const router = express.Router();
 const HFTService = require('../services/hftService');
 const { authenticateToken } = require('../middleware/auth');
 const { createLogger } = require('../utils/structuredLogger');
+const { sendNotImplemented, sendServiceUnavailable } = require('../utils/standardErrorResponses');
 
 const logger = createLogger('financial-platform', 'hft-api');
 const hftService = new HFTService();
@@ -476,16 +477,30 @@ router.post('/backtest', authenticateToken, async (req, res) => {
   try {
     const { strategyId, startDate, endDate, initialCapital = 10000 } = req.body;
 
-    res.json({
-      success: true,
-      message: 'Backtesting feature coming soon',
-      data: {
-        strategyId,
-        startDate,
-        endDate,
-        initialCapital,
+    res.status(501).json({
+      success: false,
+      error: 'Feature Not Implemented',
+      details: {
+        feature: 'HFT Strategy Backtesting',
         status: 'not_implemented',
-        timestamp: Date.now()
+        message: 'HFT backtesting functionality is not yet available',
+        alternatives: {
+          paper_trading: {
+            description: 'Test strategies with paper trading',
+            endpoint: '/api/hft/start',
+            benefits: ['Real market conditions', 'No risk', 'Live performance tracking']
+          },
+          historical_analysis: {
+            description: 'View historical performance data',
+            endpoint: '/api/hft/performance',
+            benefits: ['Past performance metrics', 'Strategy comparison']
+          }
+        },
+        development_info: {
+          planned_release: 'Q2 2024',
+          features_planned: ['Historical data replay', 'Strategy optimization', 'Risk-adjusted returns'],
+          contact_for_updates: '/support'
+        }
       }
     });
 
@@ -650,14 +665,29 @@ router.get('/advanced/market-signals', authenticateToken, async (req, res) => {
     const { limit = 10 } = req.query;
     
     // This would need to be implemented in the HFT service to expose signals
-    res.json({
-      success: true,
-      data: {
-        signals: [], // Would come from data integrator
-        count: 0,
-        limit: parseInt(limit),
-        note: 'Signal history feature - to be implemented',
-        timestamp: Date.now()
+    res.status(501).json({
+      success: false,
+      error: 'Feature Not Available',
+      details: {
+        feature: 'Market Signals History',
+        status: 'requires_configuration',
+        message: 'Market signal tracking requires active data integrator service',
+        requirements: {
+          data_feed: {
+            description: 'Real-time market data connection required',
+            providers: ['Alpaca', 'Polygon', 'IEX'],
+            setup_url: '/settings/api-keys'
+          },
+          hft_engine: {
+            description: 'HFT engine must be running to generate signals',
+            status: 'check /api/hft/status',
+            start_url: '/api/hft/start'
+          }
+        },
+        alternative: {
+          current_status: 'Check real-time HFT status at /api/hft/status',
+          live_signals: 'Signals are generated in real-time when HFT engine is active'
+        }
       }
     });
 

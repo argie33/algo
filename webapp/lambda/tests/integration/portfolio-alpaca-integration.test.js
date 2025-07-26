@@ -159,10 +159,7 @@ describe('Portfolio Alpaca Integration Routes', () => {
         }
       };
 
-      // Mock the sample portfolio store
-      jest.doMock('../../utils/sample-portfolio-store', () => ({
-        getSamplePortfolioData: jest.fn().mockReturnValue(mockSampleData)
-      }));
+      // Sample portfolio store removed - using proper API mocks instead
 
       const response = await request(app)
         .get('/api/portfolio/holdings')
@@ -560,14 +557,7 @@ describe('Portfolio Alpaca Integration Routes', () => {
       apiKeyService.getApiKey.mockRejectedValue(new Error('Service unavailable'));
 
       // Mock sample data fallback
-      jest.doMock('../../utils/sample-portfolio-store', () => ({
-        getSamplePortfolioData: jest.fn().mockReturnValue({
-          data: {
-            holdings: [{ symbol: 'SAMPLE' }],
-            summary: { totalEquity: 100000 }
-          }
-        })
-      }));
+      // Sample portfolio store removed - test uses proper API mocks
 
       const response = await request(app)
         .get('/api/portfolio/holdings')

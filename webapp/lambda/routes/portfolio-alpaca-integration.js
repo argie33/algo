@@ -59,11 +59,7 @@ const getUserApiKey = async (userId, provider) => {
   }
 };
 
-// Helper function to get sample data fallback
-const getSamplePortfolioData = (accountType) => {
-  const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
-  return getSamplePortfolioData(accountType);
-};
+// Sample data removed - portfolio requires live API connections only
 
 /**
  * Portfolio Health Check
@@ -262,27 +258,40 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
   } catch (error) {
     console.error(`❌ Error in enhanced portfolio holdings endpoint for user ${userId}:`, error);
     
-    // Emergency fallback to sample data
-    try {
-      const sampleData = getSamplePortfolioData(accountType);
-      return res.json({
-        success: true,
-        data: sampleData.data,
-        source: 'sample_emergency',
-        responseTime: Date.now() - startTime,
-        warning: 'System error, showing sample data',
-        error: error.message,
-        message: 'Portfolio data from sample data (system error)'
-      });
-    } catch (fallbackError) {
-      console.error(`❌ Even sample data fallback failed:`, fallbackError);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve portfolio data',
-        details: error.message,
-        responseTime: Date.now() - startTime
-      });
-    }
+    // Return proper error without sample data fallback
+    console.error(`❌ Portfolio service completely failed for user ${userId}:`, error);
+    return res.status(503).json({
+      success: false,
+      error: 'Portfolio Service Unavailable',
+      details: {
+        type: 'COMPLETE_SERVICE_FAILURE',
+        message: 'All portfolio data sources are currently unavailable',
+        failed_sources: ['alpaca_api', 'database_cache', 'sync_service'],
+        troubleshooting: {
+          immediate: [
+            'Check system status at /health',
+            'Verify API keys are valid in Settings',
+            'Try again in 2-3 minutes'
+          ],
+          advanced: [
+            'Check AWS service health',
+            'Verify database connectivity',
+            'Review API rate limits'
+          ]
+        },
+        technical_info: {
+          error_id: `portfolio-complete-failure-${Date.now()}`,
+          user_id: userId,
+          response_time_ms: Date.now() - startTime,
+          timestamp: new Date().toISOString()
+        },
+        support: {
+          escalation_required: true,
+          contact: '/support',
+          status_page: '/status'
+        }
+      }
+    });
   }
 });
 

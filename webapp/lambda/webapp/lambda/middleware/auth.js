@@ -19,44 +19,22 @@ let configLoadPromise = null;
 let verifier = null;
 let verifierPromise = null;
 
-// Enhanced authentication mode detection
-function getAuthMode() {
-  // Production: Cognito only, no bypasses
-  if (process.env.NODE_ENV === 'production') {
-    return 'COGNITO_ONLY';
-  }
-  
-  // Test: Allow bypasses for testing
-  if (process.env.NODE_ENV === 'test') {
-    return 'BYPASS_ALLOWED';
-  }
-  
-  // Development: Cognito with fallback
-  if (process.env.NODE_ENV === 'development') {
-    // Only allow bypass for true local development (never in AWS)
-    const isLocalDevelopment = !process.env.AWS_LAMBDA_FUNCTION_NAME && 
-                              !process.env.AWS_EXECUTION_ENV;
-    
-    return isLocalDevelopment ? 'COGNITO_WITH_FALLBACK' : 'COGNITO_ONLY';
-  }
-  
-  // Default: Cognito only
-  return 'COGNITO_ONLY';
-}
-
+// Development authentication settings - check dynamically for tests
 function isDevelopment() {
   return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
 }
 
 function allowDevBypass() {
-  const authMode = getAuthMode();
-  const allowed = authMode === 'BYPASS_ALLOWED' || authMode === 'COGNITO_WITH_FALLBACK';
+  // Only allow bypass for true local development (never in AWS)
+  const isLocalDevelopment = !process.env.AWS_LAMBDA_FUNCTION_NAME && 
+                            !process.env.AWS_EXECUTION_ENV &&
+                            process.env.NODE_ENV === 'development';
   
-  if (allowed) {
-    console.log(`🔧 Development bypass enabled for auth mode: ${authMode}`);
+  if (isLocalDevelopment) {
+    console.log('🔧 Local development bypass enabled for localhost testing');
   }
   
-  return allowed;
+  return isLocalDevelopment;
 }
 
 /**
@@ -201,10 +179,9 @@ const authenticateToken = async (req, res, next) => {
   const { getClientIP } = require('../utils/ipDetection');
   const clientIp = getClientIP(req);
   const userAgent = req.headers['user-agent'] || 'unknown';
-  const authMode = getAuthMode();
   
   try {
-    console.log(`🔐 [${requestId}] Authentication middleware called for ${req.method} ${req.path} (mode: ${authMode})`);
+    console.log(`🔐 [${requestId}] Authentication middleware called for ${req.method} ${req.path}`);
     
     // Get authorization header
     const authHeader = req.headers['authorization'];
@@ -212,21 +189,9 @@ const authenticateToken = async (req, res, next) => {
     
     console.log(`🎫 [${requestId}] Token present: ${!!token}`);
     
-    // Handle missing token based on auth mode
+    // If no token provided, check if we're in development mode
     if (!token) {
-      if (authMode === 'COGNITO_ONLY') {
-        console.error(`❌ [${requestId}] No token found in production mode`);
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'Access token is missing from Authorization header',
-          details: {
-            requestId,
-            authMode,
-            authHeaderPresent: !!authHeader,
-            expectedFormat: 'Bearer <token>'
-          }
-        });
-      } else if (allowDevBypass()) {
+      if (allowDevBypass()) {
         console.log(`🔧 [${requestId}] No token provided, using development bypass`);
         
         // Create development user
@@ -256,7 +221,6 @@ const authenticateToken = async (req, res, next) => {
           message: 'Access token is missing from Authorization header',
           details: {
             requestId,
-            authMode,
             authHeaderPresent: !!authHeader,
             expectedFormat: 'Bearer <token>'
           }
@@ -418,24 +382,22 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Only allow development fallback in specific auth modes and for specific errors
-    if (authMode === 'COGNITO_WITH_FALLBACK' && 
-        (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || 
-         (error.message && error.message.includes('Network error')))) {
-      console.warn(`🔧 [${requestId}] Cognito unavailable, using development fallback`);
-      console.warn(`🔧 [${requestId}] Network error: ${error.name} - ${error.message}`);
+    // Only allow development fallback for true local development
+    if (allowDevBypass()) {
+      console.warn(`🔧 [${requestId}] Authentication failed, using local development fallback`);
+      console.warn(`🔧 [${requestId}] Error was: ${error.name} - ${error.message}`);
       
       req.user = {
-        sub: 'dev-user-fallback',
+        sub: 'dev-user-localhost',
         email: 'dev@localhost.com',
-        username: 'dev-fallback',
+        username: 'dev-localhost',
         role: 'admin',
         groups: ['admin'],
         clientIp,
         userAgent,
         requestId,
         authenticatedAt: new Date().toISOString(),
-        authMethod: 'cognito-fallback',
+        authMethod: 'localhost-dev',
         givenName: 'Dev',
         familyName: 'User',
         emailVerified: true,
@@ -443,7 +405,7 @@ const authenticateToken = async (req, res, next) => {
         authError: error.message
       };
       
-      console.log(`✅ [${requestId}] Development fallback successful (Cognito unavailable)`);
+      console.log(`✅ [${requestId}] Local development fallback successful`);
       return next();
     }
 

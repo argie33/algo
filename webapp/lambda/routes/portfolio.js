@@ -11,11 +11,7 @@ const crypto = require('crypto');
 const portfolioDb = require('../utils/portfolioDatabaseService');
 const portfolioSyncService = require('../utils/portfolioSyncService');
 
-// Helper function to get sample data fallback
-const getSamplePortfolioData = (accountType) => {
-  const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
-  return getSamplePortfolioData(accountType);
-};
+// Sample data removed - portfolio now requires live API connections
 
 // Helper function to get user API key with proper format
 const getUserApiKey = async (userId, provider) => {
@@ -38,30 +34,8 @@ const getUserApiKey = async (userId, provider) => {
 
 const router = express.Router();
 
-// Apply authentication middleware to ALL portfolio routes - BYPASSED FOR DEVELOPMENT
-// router.use(authenticateToken);
-
-// Development bypass - skip auth if enabled
-router.use((req, res, next) => {
-  // Always bypass authentication in development environment
-  const isDevelopment = process.env.NODE_ENV === 'development' || 
-                       process.env.ALLOW_DEV_BYPASS === 'true' ||
-                       !process.env.AWS_REGION; // Local development indicator
-  
-  if (isDevelopment) {
-    console.log('🔧 Development mode detected - bypassing authentication');
-    // Inject mock user for development
-    req.user = { 
-      id: 'dev-user', 
-      username: 'dev-user',
-      sub: 'dev-user-123'
-    };
-    next();
-  } else {
-    console.log('🔒 Production mode - requiring authentication');
-    authenticateToken(req, res, next);
-  }
-});
+// Apply authentication middleware to ALL portfolio routes
+router.use(authenticateToken);
 
 // Validation schemas for portfolio endpoints
 const portfolioValidationSchemas = {
@@ -165,7 +139,7 @@ router.get('/', async (req, res) => {
     }
     
     // Return empty portfolio state when no API keys or API failure
-    console.log('⚠️ No API keys configured or API failed, returning empty portfolio state');
+    console.log('⚠️ No API keys configured - returning configuration required response');
     
     res.json({
       success: true,
@@ -184,11 +158,21 @@ router.get('/', async (req, res) => {
         lastUpdated: new Date().toISOString()
       },
       dataSource: 'empty',
-      message: 'No portfolio data available - configure Alpaca API keys to view your portfolio',
-      actionRequired: {
-        action: 'configure_api_keys',
-        description: 'Add your Alpaca API keys in Settings to view your real portfolio data',
-        url: '/settings'
+      message: 'No portfolio data - API connection required',
+      error: {
+        type: 'NO_API_CREDENTIALS',
+        title: 'Portfolio Data Unavailable',
+        description: 'This endpoint requires valid Alpaca API credentials to return real portfolio data.',
+        resolution: {
+          required_action: 'Configure Alpaca API keys in Settings',
+          setup_url: '/settings/api-keys',
+          documentation: '/help/alpaca-setup'
+        },
+        technical_details: {
+          missing: 'Alpaca API credentials',
+          required_scopes: ['account:read', 'positions:read'],
+          environment: 'paper_trading_recommended'
+        }
       }
     });
     
@@ -351,23 +335,60 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       },
       source: 'empty',
       responseTime: Date.now() - startTime,
-      message: 'No portfolio data available - configure Alpaca API keys to view your portfolio',
-      actionRequired: {
-        action: 'configure_api_keys',
-        description: 'Add your Alpaca API keys in Settings to access enhanced portfolio features',
-        url: '/settings',
-        features: [
-          'Real-time portfolio sync',
-          'Advanced performance analytics',
-          'Portfolio rebalancing tools',
-          'Risk analysis and recommendations'
-        ],
+      message: 'Connect your investment account to view your real portfolio',
+      onboarding: {
+        title: 'Get Started with Portfolio Tracking',
+        subtitle: 'Connect your investment account to see real-time data and advanced analytics',
+        current_step: 1,
+        total_steps: 3,
+        completion_time: '~5 minutes',
         steps: [
-          'Go to Settings page',
-          'Navigate to API Keys section', 
-          'Add your Alpaca paper trading API keys',
-          'Return to Portfolio to see your real data'
-        ]
+          {
+            step: 1,
+            title: 'Create Free Paper Trading Account',
+            description: 'Get free Alpaca paper trading account (no real money required)',
+            action_url: 'https://app.alpaca.markets/signup',
+            action_text: 'Create Account',
+            estimated_time: '3 minutes',
+            requirements: ['Email address', 'Basic information']
+          },
+          {
+            step: 2,
+            title: 'Generate API Keys',
+            description: 'Create secure API keys for paper trading (sandbox mode)',
+            action_url: 'https://app.alpaca.markets/paper/dashboard/overview',
+            action_text: 'Get API Keys',
+            estimated_time: '1 minute',
+            requirements: ['Alpaca account', 'Generate keys in paper trading section']
+          },
+          {
+            step: 3,
+            title: 'Connect to Platform',
+            description: 'Add your paper trading API keys to enable portfolio tracking',
+            action_url: '/settings/api-keys',
+            action_text: 'Add API Keys',
+            estimated_time: '1 minute',
+            requirements: ['API Key ID', 'Secret Key from Alpaca']
+          }
+        ],
+        benefits: {
+          immediate: [
+            'Real-time portfolio sync',
+            'Automatic position tracking',
+            'Live profit/loss updates'
+          ],
+          advanced: [
+            'Performance analytics & charts',
+            'Risk analysis & recommendations',
+            'Portfolio rebalancing tools',
+            'Tax-loss harvesting insights'
+          ]
+        },
+        help_resources: {
+          video_tutorial: '/help/portfolio-setup-video',
+          documentation: '/help/alpaca-integration',
+          support_chat: '/support'
+        }
       }
     });
 
@@ -402,27 +423,33 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       }
     }
     
-    // Try to return sample data as emergency fallback
-    try {
-      const sampleData = getSamplePortfolioData(accountType);
-      return res.json({
-        success: true,
-        data: sampleData.data,
-        source: 'sample_emergency',
-        responseTime: Date.now() - startTime,
-        warning: 'System error, showing sample data',
-        error: error.message,
-        message: 'Portfolio data from sample data (system error)'
-      });
-    } catch (fallbackError) {
-      console.error(`❌ Even sample data fallback failed:`, fallbackError);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve portfolio data',
-        details: error.message,
-        responseTime: Date.now() - startTime
-      });
-    }
+    // Return proper error without sample data fallback
+    console.error(`❌ Portfolio operation failed for user ${userId}:`, error);
+    return res.status(500).json({
+      success: false,
+      error: 'Portfolio data retrieval failed',
+      details: {
+        type: 'PORTFOLIO_SERVICE_ERROR',
+        message: 'Unable to retrieve portfolio data from configured sources',
+        troubleshooting: {
+          check_api_keys: 'Verify Alpaca API keys are valid in Settings',
+          check_permissions: 'Ensure API keys have portfolio read permissions',
+          check_network: 'Verify network connectivity to Alpaca services',
+          retry_action: 'Try refreshing the page or check back in a few minutes'
+        },
+        technical_info: {
+          error_id: `portfolio-error-${Date.now()}`,
+          user_id: userId,
+          timestamp: new Date().toISOString(),
+          response_time_ms: Date.now() - startTime
+        },
+        support: {
+          documentation: '/help/portfolio-troubleshooting',
+          contact: '/support',
+          status_page: '/status'
+        }
+      }
+    });
   }
 });
 
@@ -735,18 +762,33 @@ router.get('/account', async (req, res) => {
       }
     }
 
-    // Fallback to mock account data
-    res.json({
-      success: true,
-      data: {
-        accountType: accountType,
-        balance: accountType === 'paper' ? 100000 : 0,
-        buyingPower: accountType === 'paper' ? 100000 : 0,
-        isActive: accountType === 'paper',
-        provider: 'alpaca',
-        dataSource: 'demo'
-      },
-      message: 'Using demo account data - no API keys configured'
+    // No API keys configured - return proper error response
+    res.status(503).json({
+      success: false,
+      error: 'Account Information Service Unavailable',
+      details: {
+        type: 'NO_API_CONFIGURATION',
+        message: 'Account information requires broker API keys to be configured',
+        required_action: {
+          action: 'configure_api_keys',
+          description: 'Configure your Alpaca API keys to access real account information',
+          setup_url: '/settings/api-keys',
+          supported_providers: ['alpaca']
+        },
+        missing_features: [
+          'Real-time account balance and buying power',
+          'Account status and trading permissions', 
+          'Position values and P&L tracking',
+          'Day trading buying power calculations',
+          'Account restrictions and compliance info'
+        ],
+        troubleshooting: {
+          step1: 'Go to Settings > API Keys',
+          step2: 'Add your Alpaca API credentials',
+          step3: 'Verify API key permissions include account access',
+          step4: 'Refresh this page to see real account data'
+        }
+      }
     });
 
   } catch (error) {

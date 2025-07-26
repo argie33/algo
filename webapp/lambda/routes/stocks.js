@@ -6,17 +6,7 @@ const { createValidationMiddleware, validationSchemas, sanitizers } = require('.
 
 const router = express.Router();
 
-// Development bypass for protected endpoints
-const devBypass = (req, res, next) => {
-  const isDevelopment = process.env.NODE_ENV === 'development' || 
-                       process.env.ALLOW_DEV_BYPASS === 'true' ||
-                       !process.env.AWS_REGION;
-  
-  if (isDevelopment) {
-    req.user = { id: 'dev-user', username: 'dev-user', sub: 'dev-user-123' };
-  }
-  next();
-};
+// Security: Removed development authentication bypass - all endpoints require proper authentication
 
 // Public endpoints (no authentication required)
 // Get available sectors for filtering - public endpoint for general market data

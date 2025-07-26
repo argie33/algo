@@ -144,6 +144,7 @@ safeRouteLoader('./routes/financials', 'Financials', '/api/financials');
 safeRouteLoader('./routes/technical', 'Technical Analysis', '/api/technical');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
 safeRouteLoader('./routes/sectors', 'Sectors', '/api/sectors');
+safeRouteLoader('./routes/scores', 'Scores', '/api/scores');
 
 // API Key Management - Use settings route which contains api-keys endpoints
 safeRouteLoader('./routes/settings', 'Settings (includes API Keys)', '/api/settings');

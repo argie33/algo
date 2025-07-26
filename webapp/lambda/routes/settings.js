@@ -16,8 +16,8 @@ const settingsValidationSchemas = {
       required: true,
       type: 'string',
       sanitizer: (value) => sanitizers.string(value, { maxLength: 20, toLowerCase: true }),
-      validator: (value) => ['alpaca', 'polygon', 'iex'].includes(value),
-      errorMessage: 'Provider must be alpaca, polygon, or iex'
+      validator: (value) => ['alpaca', 'polygon', 'finnhub', 'iex', 'td_ameritrade'].includes(value),
+      errorMessage: 'Provider must be one of: alpaca, polygon, finnhub, iex, td_ameritrade'
     },
     apiKey: {
       required: true,
@@ -410,22 +410,36 @@ router.get('/api-keys', async (req, res) => {
   // Check if encryption service is available
   if (!apiKeyService.isEnabled) {
     console.warn('⚠️  API Key encryption service is disabled - returning setup guidance');
-    return res.json({
-      success: true,
-      data: [],
-      setupRequired: true,
-      message: 'API key service is initializing. You can still use demo data while we configure the encryption service.',
-      guidance: {
-        status: 'setup_required',
-        title: 'API Key Service Setup Required',
-        description: 'The API key encryption service needs to be configured by the administrator.',
-        actions: [
-          'Use demo data for now',
-          'Contact administrator to configure encryption service',
-          'Check back in a few minutes'
-        ]
-      },
-      encryptionEnabled: false
+    return res.status(503).json({
+      success: false,
+      error: 'API Key Service Unavailable',
+      details: {
+        type: 'SERVICE_NOT_CONFIGURED',
+        message: 'The API key encryption service is not properly configured',
+        technical_details: {
+          service: 'AWS Parameter Store',
+          encryption: 'AWS KMS',
+          status: 'not_initialized'
+        },
+        admin_action_required: {
+          steps: [
+            'Configure AWS Parameter Store access',
+            'Set up KMS encryption keys',
+            'Initialize API key service',
+            'Restart application services'
+          ],
+          documentation: '/admin/api-key-service-setup',
+          estimated_time: '15-30 minutes'
+        },
+        user_impact: {
+          affected_features: [
+            'Portfolio sync with brokers',
+            'Real-time market data',
+            'Trading functionality'
+          ],
+          workaround: 'No workaround available - admin setup required'
+        }
+      }
     });
   }
   
@@ -487,14 +501,31 @@ router.get('/api-keys', async (req, res) => {
   } catch (error) {
     console.error('❌ API Key service error:', error);
     
-    // Return fallback empty list for better UX
-    console.log('🔄 API Key service failed, returning empty list as fallback');
-    res.json({ 
-      success: true, 
-      data: [],
-      note: 'API key service temporarily unavailable',
-      errorCode: 'SERVICE_UNAVAILABLE',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    // Return proper error instead of empty list
+    console.error('❌ API Key service failed:', error);
+    res.status(503).json({
+      success: false,
+      error: 'API Key Service Error',
+      details: {
+        type: 'API_KEY_SERVICE_FAILURE',
+        message: 'Unable to retrieve API key information',
+        service_status: 'unavailable',
+        troubleshooting: {
+          check_aws_connectivity: 'Verify AWS Parameter Store connectivity',
+          check_permissions: 'Ensure proper IAM permissions are configured',
+          check_service_health: 'Visit /api/settings/api-keys/health for diagnostics'
+        },
+        technical_info: {
+          error_type: error.name || 'UNKNOWN_ERROR',
+          timestamp: new Date().toISOString(),
+          details: process.env.NODE_ENV === 'development' ? error.message : 'Contact administrator'
+        },
+        retry: {
+          suggested_wait: '2-5 minutes',
+          max_retries: 3,
+          escalation: 'Contact system administrator if problem persists'
+        }
+      }
     });
   }
 });
@@ -754,10 +785,10 @@ router.post('/api-keys/:userId/:provider/test', async (req, res) => {
   console.log(`🚀 [${requestId}] Authenticated as: ${authenticatedUserId}`);
 
   try {
-    if (!provider || !['alpaca', 'polygon', 'finnhub', 'iex'].includes(provider.toLowerCase())) {
+    if (!provider || !['alpaca', 'polygon', 'finnhub', 'iex', 'td_ameritrade'].includes(provider.toLowerCase())) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid provider. Must be alpaca, polygon, finnhub, or iex',
+        error: 'Invalid provider. Must be one of: alpaca, polygon, finnhub, iex, td_ameritrade',
         requestId,
         timestamp: new Date().toISOString()
       });
@@ -1120,10 +1151,10 @@ router.post('/test-connection/:keyIdOrProvider', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    if (!provider || !['alpaca', 'polygon', 'finnhub', 'iex'].includes(provider.toLowerCase())) {
+    if (!provider || !['alpaca', 'polygon', 'finnhub', 'iex', 'td_ameritrade'].includes(provider.toLowerCase())) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid provider. Must be alpaca, polygon, finnhub, or iex',
+        error: 'Invalid provider. Must be one of: alpaca, polygon, finnhub, iex, td_ameritrade',
         requestId,
         keyIdOrProvider,
         extractedProvider: provider,
@@ -1419,26 +1450,38 @@ router.get('/api-keys/analytics', async (req, res) => {
   const userId = req.user.sub;
   const { provider, timeframe = '24h' } = req.query;
 
-  try {
-    const analytics = await generatePerformanceAnalytics(userId, provider, timeframe);
-    
-    res.json({
-      success: true,
-      data: analytics,
-      metadata: {
-        timeframe,
+  // Analytics feature requires historical data collection infrastructure
+  res.status(501).json({
+    success: false,
+    error: 'API Key Performance Analytics Not Implemented',
+    details: {
+      type: 'ANALYTICS_FEATURE_NOT_IMPLEMENTED',
+      message: 'Performance analytics requires historical data collection and analysis infrastructure',
+      requested_parameters: {
         provider: provider || 'all',
-        timestamp: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error generating performance analytics:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate analytics',
-      details: error.message
-    });
-  }
+        timeframe,
+        user_id: userId.substring(0, 8) + '...'
+      },
+      implementation_requirements: {
+        data_collection: 'Historical performance data collection system',
+        analytics_engine: 'Performance calculation and trend analysis engine',
+        metrics_storage: 'Time-series database for performance metrics storage',
+        visualization_api: 'Charts and graphs data formatting for frontend'
+      },
+      alternative_approaches: {
+        manual_analysis: 'Review API key usage in provider dashboards',
+        basic_monitoring: 'Use /api-keys/health endpoint for basic status',
+        log_analysis: 'Analyze application logs for API call patterns'
+      },
+      future_features: [
+        'API call volume and rate analysis',
+        'Response time and latency tracking',
+        'Error rate and failure pattern analysis',
+        'Cost optimization recommendations',
+        'Usage trend predictions and alerts'
+      ]
+    }
+  });
 });
 
 // Real-time API key status endpoint

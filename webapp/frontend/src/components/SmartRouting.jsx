@@ -6,24 +6,31 @@ import Dashboard from '../pages/Dashboard';
 import LoadingTransition from './LoadingTransition';
 
 const SmartRouting = ({ onSignInClick }) => {
-  const { isAuthenticated, user, isLoading } = useAuth();
+  const { isAuthenticated, user, isLoading, retryCount, maxRetries, circuitBreakerOpen } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [authStateVersion, setAuthStateVersion] = useState(0);
 
-  // Prevent infinite loading - timeout after 10 seconds
+  // Track auth state changes for better synchronization
   useEffect(() => {
-    if (isLoading) {
+    setAuthStateVersion(prev => prev + 1);
+  }, [isAuthenticated, user?.sub, circuitBreakerOpen]);
+
+  // Prevent infinite loading - reduced timeout with better fallback
+  useEffect(() => {
+    if (isLoading && !circuitBreakerOpen) {
       const timeout = setTimeout(() => {
-        console.warn('⚠️ SmartRouting loading timeout - forcing fallback');
+        console.warn('⚠️ SmartRouting loading timeout - auth state may be stuck');
+        console.warn(`Auth state: authenticated=${isAuthenticated}, retries=${retryCount}/${maxRetries}, circuitOpen=${circuitBreakerOpen}`);
         setLoadingTimeout(true);
-      }, 10000);
+      }, 5000); // Reduced from 10 seconds
       
       return () => clearTimeout(timeout);
     } else {
       setLoadingTimeout(false);
     }
-  }, [isLoading]);
+  }, [isLoading, circuitBreakerOpen, isAuthenticated, retryCount, maxRetries]);
 
   // Handle post-login redirect logic
   useEffect(() => {
@@ -47,21 +54,34 @@ const SmartRouting = ({ onSignInClick }) => {
     }
   }, [isAuthenticated, location.pathname]);
 
-  // Show loading while checking authentication (with timeout fallback)
-  if (isLoading && !loadingTimeout) {
+  // Handle circuit breaker state
+  if (circuitBreakerOpen) {
+    console.warn('🔴 Circuit breaker open - showing welcome page with error state');
+    return <WelcomeLanding onSignInClick={onSignInClick} authError="Authentication service temporarily unavailable" />;
+  }
+
+  // Show loading while checking authentication (with improved timeout handling)
+  if (isLoading && !loadingTimeout && retryCount < maxRetries) {
     return (
       <LoadingTransition 
-        message="Loading dashboard..."
-        submessage="Please wait while we prepare your workspace"
+        message="Verifying authentication..."
+        submessage={retryCount > 0 ? `Retry attempt ${retryCount}/${maxRetries}` : "Please wait while we verify your session"}
         type="auth"
       />
     );
   }
 
-  // If loading timed out, force show dashboard for authenticated users
-  if (loadingTimeout && isAuthenticated) {
-    console.warn('⚠️ Loading timeout - showing dashboard despite loading state');
-    return <Dashboard />;
+  // If loading timed out or max retries reached, handle gracefully
+  if (loadingTimeout || (isLoading && retryCount >= maxRetries)) {
+    console.warn(`⚠️ Auth resolution timeout/failed - state: authenticated=${isAuthenticated}, user=${!!user}`);
+    
+    if (isAuthenticated && user) {
+      console.warn('⚠️ Showing dashboard despite auth timeout (user appears authenticated)');
+      return <Dashboard />;
+    } else {
+      console.warn('⚠️ Showing welcome page due to auth timeout (user not authenticated)');
+      return <WelcomeLanding onSignInClick={onSignInClick} authError="Authentication verification timed out" />;
+    }
   }
 
   // Show appropriate content based on authentication status

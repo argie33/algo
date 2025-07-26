@@ -3,6 +3,21 @@ import { fetchAuthSession, signIn, signUp, confirmSignUp, confirmSignIn, signOut
 import SessionManager from '../components/auth/SessionManager';
 import secureSessionStorage from '../utils/secureSessionStorage';
 
+// Enhanced retry configuration
+const RETRY_CONFIG = {
+  maxRetries: 5,
+  baseDelay: 1000,
+  maxDelay: 30000,
+  retryableErrors: [
+    'NetworkError',
+    'TimeoutError', 
+    'ENOTFOUND',
+    'ECONNREFUSED',
+    'NETWORK_ERROR'
+  ],
+  circuitBreakerThreshold: 10
+};
+
 // Initial auth state
 const initialState = {
   user: null,
@@ -11,8 +26,10 @@ const initialState = {
   error: null,
   tokens: null,
   retryCount: 0,
-  maxRetries: 3,
+  maxRetries: RETRY_CONFIG.maxRetries,
   lastRetryTime: 0,
+  consecutiveFailures: 0,
+  circuitBreakerOpen: false,
   mfaChallenge: null,
   mfaChallengeSession: null
 };
@@ -28,6 +45,10 @@ const AUTH_ACTIONS = {
   UPDATE_TOKENS: 'UPDATE_TOKENS',
   INCREMENT_RETRY: 'INCREMENT_RETRY',
   RESET_RETRIES: 'RESET_RETRIES',
+  INCREMENT_FAILURES: 'INCREMENT_FAILURES',
+  RESET_FAILURES: 'RESET_FAILURES',
+  OPEN_CIRCUIT_BREAKER: 'OPEN_CIRCUIT_BREAKER',
+  CLOSE_CIRCUIT_BREAKER: 'CLOSE_CIRCUIT_BREAKER',
   MFA_CHALLENGE: 'MFA_CHALLENGE',
   MFA_SUCCESS: 'MFA_SUCCESS',
   CLEAR_MFA: 'CLEAR_MFA'
@@ -96,6 +117,26 @@ function authReducer(state, action) {
         retryCount: 0,
         lastRetryTime: 0
       };
+    case AUTH_ACTIONS.INCREMENT_FAILURES:
+      return {
+        ...state,
+        consecutiveFailures: state.consecutiveFailures + 1
+      };
+    case AUTH_ACTIONS.RESET_FAILURES:
+      return {
+        ...state,
+        consecutiveFailures: 0
+      };
+    case AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER:
+      return {
+        ...state,
+        circuitBreakerOpen: true
+      };
+    case AUTH_ACTIONS.CLOSE_CIRCUIT_BREAKER:
+      return {
+        ...state,
+        circuitBreakerOpen: false
+      };
     case AUTH_ACTIONS.MFA_CHALLENGE:
       return {
         ...state,
@@ -134,21 +175,45 @@ export function AuthProvider({ children }) {
     checkAuthState();
   }, []);
 
+  // Helper function to check if error is retryable
+  const isRetryableError = (error) => {
+    if (!error) return false;
+    const errorString = error.toString().toLowerCase();
+    return RETRY_CONFIG.retryableErrors.some(retryableError => 
+      errorString.includes(retryableError.toLowerCase())
+    );
+  };
+
+  // Calculate exponential backoff delay
+  const getBackoffDelay = (retryCount) => {
+    const delay = Math.min(
+      RETRY_CONFIG.baseDelay * Math.pow(2, retryCount),
+      RETRY_CONFIG.maxDelay
+    );
+    return delay + Math.random() * 1000; // Add jitter
+  };
+
   const checkAuthState = async (forceRetry = false) => {
-    // Circuit breaker: prevent infinite loops
     const now = Date.now();
     const timeSinceLastRetry = now - state.lastRetryTime;
-    const exponentialBackoff = Math.min(10000 * Math.pow(2, state.retryCount), 60000); // Max 1 minute
+    const backoffDelay = getBackoffDelay(state.retryCount);
     
-    if (!forceRetry && state.retryCount >= state.maxRetries) {
-      console.warn('🛑 Auth retry limit reached. Preventing infinite loop.');
-      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication retry limit exceeded. Please sign in manually.' });
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
+    // Circuit breaker check
+    if (state.circuitBreakerOpen && !forceRetry) {
+      console.warn('🔴 Circuit breaker open - authentication temporarily disabled');
       return;
     }
     
-    if (!forceRetry && timeSinceLastRetry < exponentialBackoff) {
-      console.warn(`🛑 Auth retry backoff active. Wait ${Math.ceil((exponentialBackoff - timeSinceLastRetry) / 1000)}s before next attempt.`);
+    // Enhanced retry logic with better conditions
+    if (!forceRetry && state.retryCount >= state.maxRetries) {
+      console.warn('🛑 Auth retry limit reached. Opening circuit breaker.');
+      dispatch({ type: AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER });
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication service temporarily unavailable. Please try again later.' });
+      return;
+    }
+    
+    if (!forceRetry && timeSinceLastRetry < backoffDelay) {
+      console.warn(`🛑 Auth retry backoff active. Wait ${Math.ceil((backoffDelay - timeSinceLastRetry) / 1000)}s before next attempt.`);
       return;
     }
     
@@ -238,7 +303,9 @@ export function AuthProvider({ children }) {
               tokens
             }
           });
-          dispatch({ type: AUTH_ACTIONS.RESET_RETRIES }); // Reset retry count on success
+          dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
+          dispatch({ type: AUTH_ACTIONS.RESET_FAILURES });
+          dispatch({ type: AUTH_ACTIONS.CLOSE_CIRCUIT_BREAKER });
           console.log('✅ User authenticated with Cognito');
           return;
         }
@@ -251,12 +318,29 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Error checking auth state:', error);
       
-      // Stop retrying after max attempts to prevent infinite loops
-      if (state.retryCount >= state.maxRetries) {
-        console.error('🛑 Max auth retries reached. Stopping attempts.');
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      dispatch({ type: AUTH_ACTIONS.INCREMENT_FAILURES });
+      
+      // Check if this is a retryable error
+      if (isRetryableError(error)) {
+        console.warn('⚠️ Retryable error encountered:', error.message);
+        
+        if (state.retryCount >= state.maxRetries) {
+          console.error('🛑 Max auth retries reached for retryable error.');
+          dispatch({ type: AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER });
+          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication service temporarily unavailable.' });
+        } else {
+          dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+        }
       } else {
-        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+        // Non-retryable error - fail immediately but don't open circuit breaker
+        console.error('❌ Non-retryable authentication error:', error.message);
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      }
+      
+      // Open circuit breaker if too many consecutive failures
+      if (state.consecutiveFailures >= RETRY_CONFIG.circuitBreakerThreshold) {
+        console.error('🔴 Too many consecutive failures. Opening circuit breaker.');
+        dispatch({ type: AUTH_ACTIONS.OPEN_CIRCUIT_BREAKER });
       }
     } finally {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
@@ -564,7 +648,9 @@ export function AuthProvider({ children }) {
     checkAuthState,
     updateUserMfaStatus,
     retryCount: state.retryCount,
-    maxRetries: state.maxRetries
+    maxRetries: state.maxRetries,
+    consecutiveFailures: state.consecutiveFailures,
+    circuitBreakerOpen: state.circuitBreakerOpen
   };
 
   return (
