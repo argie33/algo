@@ -132,46 +132,103 @@ const safeRouteLoader = (routePath, routeName, mountPath) => {
 };
 
 
-// Simple Health Route - Immediate Response
+// ============================================================================
+// CONSISTENT ROUTE LOADING - Organized by category and priority
+// ============================================================================
+
+// 1. CRITICAL SYSTEM ROUTES - Must load first
+console.log('📋 Loading critical system routes...');
 safeRouteLoader('./routes/health', 'Health', '/api/health');
 safeRouteLoader('./routes/health', 'Health Direct', '/health');
+safeRouteLoader('./routes/auth', 'Authentication', '/api/auth');
+safeRouteLoader('./routes/user', 'User Management', '/api/user');
 
-// Core Data Routes - These are critical for portfolio page
+// 2. CORE BUSINESS ROUTES - Portfolio and market data
+console.log('📈 Loading core business routes...');
 safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
 safeRouteLoader('./routes/dashboard', 'Dashboard', '/api/dashboard');
 safeRouteLoader('./routes/stocks', 'Stocks', '/api/stocks');
+safeRouteLoader('./routes/market', 'Market Data', '/api/market');
+safeRouteLoader('./routes/market-data', 'Market Data Enhanced', '/api/market-data');
+
+// 3. FINANCIAL DATA ROUTES - Analysis and metrics
+console.log('💰 Loading financial data routes...');
 safeRouteLoader('./routes/financials', 'Financials', '/api/financials');
 safeRouteLoader('./routes/technical', 'Technical Analysis', '/api/technical');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
 safeRouteLoader('./routes/sectors', 'Sectors', '/api/sectors');
-safeRouteLoader('./routes/scores', 'Scores', '/api/scores');
+safeRouteLoader('./routes/scores', 'Stock Scores', '/api/scores');
+safeRouteLoader('./routes/scoring', 'Scoring System', '/api/scoring');
 
-// API Key Management - Use settings route which contains api-keys endpoints
-safeRouteLoader('./routes/settings', 'Settings (includes API Keys)', '/api/settings');
-
-// Market Data Routes
-safeRouteLoader('./routes/market', 'Market', '/api/market');
+// 4. TRADING ROUTES - Trading and risk management
+console.log('📊 Loading trading routes...');
 safeRouteLoader('./routes/trading', 'Trading', '/api/trading');
+safeRouteLoader('./routes/trades', 'Trade History', '/api/trades');
+safeRouteLoader('./routes/trading-strategies', 'Trading Strategies', '/api/trading-strategies');
+safeRouteLoader('./routes/risk', 'Risk Management', '/api/risk');
+safeRouteLoader('./routes/risk-management', 'Risk Management Enhanced', '/api/risk-management');
+safeRouteLoader('./routes/backtest', 'Backtesting', '/api/backtest');
+
+// 5. ADVANCED FEATURES - AI, algorithms, optimization
+console.log('🤖 Loading advanced feature routes...');
+safeRouteLoader('./routes/ai-assistant', 'AI Assistant', '/api/ai-assistant');
+safeRouteLoader('./routes/algorithmicTrading', 'Algorithmic Trading', '/api/algorithmic-trading');
+safeRouteLoader('./routes/portfolioOptimization', 'Portfolio Optimization', '/api/portfolio/optimization');
+safeRouteLoader('./routes/signals', 'Trading Signals', '/api/signals');
+safeRouteLoader('./routes/patterns', 'Pattern Recognition', '/api/patterns');
+
+// 6. MARKET DATA SOURCES - External data integration
+console.log('🌐 Loading market data sources...');
 safeRouteLoader('./routes/commodities', 'Commodities', '/api/commodities');
 safeRouteLoader('./routes/economic', 'Economic Data', '/api/economic');
+safeRouteLoader('./routes/news', 'News', '/api/news');
+safeRouteLoader('./routes/calendar', 'Economic Calendar', '/api/calendar');
+safeRouteLoader('./routes/sentiment', 'Market Sentiment', '/api/sentiment');
 
-// Additional Routes
-safeRouteLoader('./routes/configuration', 'Configuration', '/api/config');
-safeRouteLoader('./routes/trades', 'Trades', '/api/trades');
-safeRouteLoader('./routes/user', 'User Management', '/api/user');
-// Settings route already loaded above with API Keys
-safeRouteLoader('./routes/liveData', 'Live Data', '/api/live-data');
-safeRouteLoader('./routes/adminLiveData', 'Admin Live Data', '/admin/live-data');
-safeRouteLoader('./routes/websocket', 'WebSocket', '/api/websocket');
+// 7. CRYPTO ROUTES - Cryptocurrency features
+console.log('₿ Loading cryptocurrency routes...');
+safeRouteLoader('./routes/crypto', 'Crypto Base', '/api/crypto');
+safeRouteLoader('./routes/crypto-portfolio', 'Crypto Portfolio', '/api/crypto/portfolio');
+safeRouteLoader('./routes/crypto-analytics', 'Crypto Analytics', '/api/crypto/analytics');
+safeRouteLoader('./routes/crypto-signals', 'Crypto Signals', '/api/crypto/signals');
+safeRouteLoader('./routes/crypto-risk', 'Crypto Risk', '/api/crypto/risk');
+
+// 8. PERFORMANCE & MONITORING - System performance
+console.log('⚡ Loading performance routes...');
+safeRouteLoader('./routes/performance', 'Performance', '/api/performance');
+safeRouteLoader('./routes/performance-analytics', 'Performance Analytics', '/api/performance/analytics');
 safeRouteLoader('./routes/hftTrading', 'HFT Trading', '/api/hft');
 
-// Portfolio Optimization - Advanced portfolio analytics and rebalancing
-safeRouteLoader('./routes/portfolioOptimization', 'Portfolio Optimization', '/api/portfolio/optimization');
+// 9. CONFIGURATION & SETTINGS - User preferences and system config
+console.log('⚙️ Loading configuration routes...');
+safeRouteLoader('./routes/settings', 'Settings', '/api/settings');
+safeRouteLoader('./routes/settings-api-keys', 'API Keys Management', '/api/settings/api-keys');
+safeRouteLoader('./routes/configuration', 'Configuration', '/api/config');
+safeRouteLoader('./routes/user-profile', 'User Profile', '/api/user-profile');
 
-// Watchlist and other features  
+// 10. REAL-TIME DATA - Live feeds and WebSocket
+console.log('📡 Loading real-time data routes...');
+safeRouteLoader('./routes/liveData', 'Live Data', '/api/live-data');
+safeRouteLoader('./routes/realTimeData', 'Real-Time Data', '/api/realtime');
+safeRouteLoader('./routes/websocket', 'WebSocket', '/api/websocket');
+
+// 11. ADMIN & DIAGNOSTIC ROUTES - Administrative functions
+console.log('👨‍💼 Loading admin routes...');
+safeRouteLoader('./routes/admin', 'Admin', '/api/admin');
+safeRouteLoader('./routes/adminLiveData', 'Admin Live Data', '/admin/live-data');
+safeRouteLoader('./routes/diagnostics', 'Diagnostics', '/api/diagnostics');
+safeRouteLoader('./routes/emergency', 'Emergency Controls', '/api/emergency');
+
+// 12. UTILITY ROUTES - Supporting features
+console.log('🔧 Loading utility routes...');
 safeRouteLoader('./routes/watchlist', 'Watchlist', '/api/watchlist');
-safeRouteLoader('./routes/news', 'News', '/api/news');
-safeRouteLoader('./routes/calendar', 'Calendar', '/api/calendar');
+safeRouteLoader('./routes/alerts', 'Alerts', '/api/alerts');
+safeRouteLoader('./routes/screener', 'Stock Screener', '/api/screener');
+safeRouteLoader('./routes/analysts', 'Analyst Ratings', '/api/analysts');
+safeRouteLoader('./routes/data', 'Data Management', '/api/data');
+safeRouteLoader('./routes/validation', 'Data Validation', '/api/validation');
+
+console.log('✅ All routes loaded with consistent organization');
 
 // ============================================================================
 // DIAGNOSTIC ENDPOINTS - For debugging and system health
@@ -219,20 +276,22 @@ app.get('/', (req, res) => {
     developmentMode: process.env.ALLOW_DEV_BYPASS === 'true',
     timestamp: new Date().toISOString(),
     availableEndpoints: [
-      '/api/health',
-      '/api/portfolio',
-      '/api/stocks', 
-      '/api/financials',
-      '/api/technical',
-      '/api/metrics',
-      '/api/sectors',
-      '/api/api-keys',
-      '/api/market',
-      '/api/commodities',
-      '/api/economic',
-      '/api/dashboard',
-      '/api/hft',
-      '/admin/live-data'
+      // Critical System
+      '/api/health', '/api/auth', '/api/user',
+      // Core Business  
+      '/api/portfolio', '/api/dashboard', '/api/stocks', '/api/market',
+      // Financial Data
+      '/api/financials', '/api/technical', '/api/metrics', '/api/sectors', '/api/scores',
+      // Trading
+      '/api/trading', '/api/trades', '/api/risk', '/api/backtest',
+      // Advanced Features
+      '/api/ai-assistant', '/api/algorithmic-trading', '/api/signals',
+      // Market Data
+      '/api/commodities', '/api/economic', '/api/news', '/api/calendar',
+      // Configuration
+      '/api/settings', '/api/config',
+      // Real-time & Admin
+      '/api/live-data', '/api/hft', '/admin/live-data'
     ]
   });
 });
@@ -252,24 +311,30 @@ app.get('/api', (req, res) => {
     developmentMode: process.env.ALLOW_DEV_BYPASS === 'true',
     timestamp: new Date().toISOString(),
     availableEndpoints: [
-      '/api/health',
-      '/api/portfolio',
-      '/api/stocks',
-      '/api/financials',
-      '/api/technical',
-      '/api/metrics',
-      '/api/sectors',
-      '/api/api-keys',
-      '/api/market',
-      '/api/trading',
-      '/api/commodities',
-      '/api/economic',
-      '/api/user',
-      '/api/settings',
-      '/api/dashboard',
-      '/api/portfolio/optimization',
-      '/api/hft',
-      '/admin/live-data'
+      // Critical System Routes
+      '/api/health', '/api/auth', '/api/user',
+      // Core Business Routes
+      '/api/portfolio', '/api/dashboard', '/api/stocks', '/api/market', '/api/market-data',
+      // Financial Data Routes
+      '/api/financials', '/api/technical', '/api/metrics', '/api/sectors', '/api/scores', '/api/scoring',
+      // Trading Routes
+      '/api/trading', '/api/trades', '/api/trading-strategies', '/api/risk', '/api/risk-management', '/api/backtest',
+      // Advanced Features
+      '/api/ai-assistant', '/api/algorithmic-trading', '/api/portfolio/optimization', '/api/signals', '/api/patterns',
+      // Market Data Sources
+      '/api/commodities', '/api/economic', '/api/news', '/api/calendar', '/api/sentiment',
+      // Crypto Routes
+      '/api/crypto', '/api/crypto/portfolio', '/api/crypto/analytics', '/api/crypto/signals', '/api/crypto/risk',
+      // Performance & Monitoring
+      '/api/performance', '/api/performance/analytics', '/api/hft',
+      // Configuration & Settings
+      '/api/settings', '/api/settings/api-keys', '/api/config', '/api/user-profile',
+      // Real-time Data
+      '/api/live-data', '/api/realtime', '/api/websocket',
+      // Admin & Diagnostics
+      '/api/admin', '/admin/live-data', '/api/diagnostics', '/api/emergency',
+      // Utilities
+      '/api/watchlist', '/api/alerts', '/api/screener', '/api/analysts', '/api/data', '/api/validation'
     ],
     documentation: {
       health: 'GET /api/health - System health check',
@@ -304,15 +369,9 @@ app.use('*', (req, res) => {
     message: 'This endpoint is not available',
     timestamp: new Date().toISOString(),
     availableEndpoints: [
-      '/api/health',
-      '/api/portfolio', 
-      '/api/stocks',
-      '/api/metrics',
-      '/api/sectors',
-      '/api/api-keys',
-      '/api/portfolio/optimization',
-      '/api/commodities',
-      '/api/economic'
+      '/api/health', '/api/portfolio', '/api/dashboard', '/api/stocks',
+      '/api/trading', '/api/risk', '/api/settings', '/api/market',
+      '/api/commodities', '/api/economic', '/api/hft', '/admin/live-data'
     ]
   });
 });

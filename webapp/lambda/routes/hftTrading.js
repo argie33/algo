@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const HFTService = require('../services/hftService');
+const HFTExecutionEngine = require('../services/hftExecutionEngine');
+const AlpacaService = require('../utils/alpacaService');
+const apiKeyService = require('../utils/apiKeyService');
 const { authenticateToken } = require('../middleware/auth');
 const { createLogger } = require('../utils/structuredLogger');
 const { sendNotImplemented, sendServiceUnavailable } = require('../utils/standardErrorResponses');
@@ -758,6 +761,202 @@ router.use((error, req, res, next) => {
     correlationId: req.correlationId,
     timestamp: Date.now()
   });
+});
+
+/**
+ * POST /api/hft/execute/order
+ * Execute a single order through the HFT execution engine
+ */
+router.post('/execute/order', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { symbol, side, qty, type, limit_price, stop_price, time_in_force, priority } = req.body;
+
+    // Input validation
+    if (!symbol || !side || !qty) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: symbol, side, qty'
+      });
+    }
+
+    if (!['buy', 'sell'].includes(side.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid side. Must be "buy" or "sell"'
+      });
+    }
+
+    // Get user's Alpaca credentials
+    const credentials = await apiKeyService.getApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return sendServiceUnavailable(res, 'Alpaca API', {
+        reason: 'No Alpaca API keys configured for user',
+        setup_url: '/settings/api-keys'
+      });
+    }
+
+    // Initialize Alpaca service and execution engine
+    const alpacaService = new AlpacaService(
+      credentials.keyId,
+      credentials.secretKey,
+      credentials.version === '1.0' // Use paper trading for v1.0
+    );
+
+    const executionEngine = new HFTExecutionEngine(alpacaService, null);
+    
+    // Start execution engine if not already running
+    const startResult = await executionEngine.start();
+    if (!startResult.success) {
+      return res.status(503).json({
+        success: false,
+        error: 'Failed to start execution engine',
+        details: startResult.message
+      });
+    }
+
+    // Queue the order for execution
+    const orderResult = await executionEngine.queueOrder({
+      symbol: symbol.toUpperCase(),
+      side: side.toLowerCase(),
+      qty: parseFloat(qty),
+      type: type || 'market',
+      limit_price: limit_price ? parseFloat(limit_price) : undefined,
+      stop_price: stop_price ? parseFloat(stop_price) : undefined,
+      time_in_force: time_in_force || 'day',
+      priority: priority || 'normal'
+    });
+
+    logger.info('HFT order execution requested', {
+      userId,
+      orderId: orderResult.orderId,
+      symbol,
+      side,
+      qty,
+      status: orderResult.status
+    });
+
+    res.json({
+      success: orderResult.success,
+      data: {
+        orderId: orderResult.orderId,
+        status: orderResult.status,
+        queuePosition: orderResult.queuePosition,
+        executionEngine: {
+          status: 'active',
+          metrics: executionEngine.getMetrics()
+        }
+      },
+      message: orderResult.success ? 'Order queued for execution' : 'Order rejected',
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to execute HFT order', {
+      error: error.message,
+      userId: req.user?.sub
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Order execution failed',
+      details: error.message,
+      timestamp: Date.now()
+    });
+  }
+});
+
+/**
+ * GET /api/hft/execute/status/:orderId
+ * Get status of a specific order
+ */
+router.get('/execute/status/:orderId', authenticateToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user?.sub;
+
+    // Note: In production, you'd maintain execution engines per user
+    // For now, we'll return a structured response about order tracking
+
+    res.json({
+      success: true,
+      data: {
+        orderId,
+        status: 'tracking_not_implemented',
+        message: 'Order status tracking requires persistent execution engine storage',
+        implementation_required: {
+          feature: 'Persistent execution engine with Redis/Database storage',
+          components: [
+            'User-specific execution engine instances',
+            'Order status persistence',
+            'Real-time status updates',
+            'WebSocket notifications'
+          ]
+        },
+        alternative: 'Check order status through Alpaca API directly'
+      },
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to get order status', {
+      error: error.message,
+      orderId: req.params.orderId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get order status',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/hft/execute/metrics
+ * Get real-time execution metrics
+ */
+router.get('/execute/metrics', authenticateToken, async (req, res) => {
+  try {
+    // This would show metrics from active execution engines
+    res.json({
+      success: true,
+      data: {
+        engine_status: 'metrics_not_persistent',
+        message: 'Real-time execution metrics require persistent engine management',
+        implementation_required: {
+          feature: 'Persistent HFT Execution Engine Management',
+          components: [
+            'User execution engine registry',
+            'Real-time metrics collection',
+            'Performance analytics database',
+            'Risk monitoring dashboard'
+          ]
+        },
+        sample_metrics: {
+          ordersExecuted: 0,
+          successfulExecutions: 0,
+          averageExecutionTime: 0,
+          queueLength: 0,
+          activeEngines: 0,
+          dailyVolume: 0,
+          dailyPnL: 0
+        }
+      },
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to get execution metrics', {
+      error: error.message
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get execution metrics',
+      details: error.message
+    });
+  }
 });
 
 module.exports = router;
