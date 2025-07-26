@@ -70,13 +70,34 @@ const getAmplifyConfig = () => {
 // Configure Amplify
 export async function configureAmplify() {
   try {
+    console.log('🔧 Starting Amplify configuration...');
+    
     // Use the new configuration service for robust configuration loading
     const cognitoConfig = await configurationService.getCognitoConfig();
     const isAuthConfigured = await configurationService.isAuthenticationConfigured();
     
+    console.log('🔍 Configuration check results:', {
+      isAuthConfigured,
+      userPoolId: cognitoConfig.userPoolId ? `${cognitoConfig.userPoolId.substring(0, 15)}...` : 'null',
+      clientId: cognitoConfig.clientId ? `${cognitoConfig.clientId.substring(0, 8)}...` : 'null',
+      region: cognitoConfig.region
+    });
+    
     if (!isAuthConfigured) {
-      console.warn('⚠️ Authentication not properly configured - skipping Amplify setup');
-      return { success: false, reason: 'Authentication not configured' };
+      const detailedError = {
+        message: 'Authentication not properly configured',
+        userPoolId: cognitoConfig.userPoolId,
+        clientId: cognitoConfig.clientId,
+        region: cognitoConfig.region,
+        troubleshooting: [
+          'Check CloudFormation stack deployment status',
+          'Verify UserPool and UserPoolClient resources are created',
+          'Confirm CloudFormation outputs are being loaded',
+          'Check network connectivity to CloudFormation API'
+        ]
+      };
+      console.error('❌ AUTHENTICATION CONFIGURATION FAILED:', detailedError);
+      return { success: false, reason: 'Authentication not configured', details: detailedError };
     }
     
     const amplifyConfig = {
@@ -122,19 +143,50 @@ export async function configureAmplify() {
       return { success: true, reason: 'Cognito disabled by feature flag' };
     }
     
-    Amplify.configure(amplifyConfig);
-    console.log('✅ Amplify configured successfully');
-    return true;
+    try {
+      Amplify.configure(amplifyConfig);
+      console.log('✅ Amplify configured successfully');
+      return { success: true };
+    } catch (amplifyError) {
+      const detailedError = {
+        message: 'Amplify.configure() failed',
+        originalError: amplifyError.message,
+        config: {
+          userPoolId: amplifyConfig.Auth.Cognito.userPoolId,
+          userPoolClientId: amplifyConfig.Auth.Cognito.userPoolClientId,
+          region: amplifyConfig.Auth.Cognito.region
+        },
+        troubleshooting: [
+          'Verify Cognito User Pool exists in AWS',
+          'Check User Pool Client configuration',
+          'Confirm region matches AWS deployment',
+          'Validate Cognito service permissions'
+        ]
+      };
+      console.error('❌ AMPLIFY CONFIGURATION FAILED:', detailedError);
+      throw new Error(`Amplify configuration failed: ${amplifyError.message}`);
+    }
   } catch (error) {
-    console.error('❌ Failed to configure Amplify:', error);
+    const detailedError = {
+      message: 'Critical authentication setup failure',
+      originalError: error.message,
+      stack: error.stack,
+      troubleshooting: [
+        'Check CloudFormation deployment status',
+        'Verify all AWS resources are created',
+        'Confirm configuration service is working',
+        'Check network connectivity to AWS services'
+      ]
+    };
+    console.error('❌ CRITICAL AUTHENTICATION FAILURE:', detailedError);
     
     // Don't allow app to continue without proper AWS authentication in production
     if (!IS_DEVELOPMENT) {
       throw error; // Fail fast on production deployment
     }
     
-    console.warn('⚠️ Development mode fallback - authentication disabled');
-    return false;
+    console.warn('⚠️ Development mode - authentication failure will prevent app functionality');
+    return { success: false, error: detailedError };
   }
 }
 

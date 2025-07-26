@@ -43,33 +43,33 @@ const initCloudFormationConfig = async () => {
 export const AWS_CONFIG = {
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
   
-  // API Gateway Configuration - uses real CloudFormation outputs when available
+  // API Gateway Configuration - MUST come from CloudFormation deployment
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 
              window.__CONFIG__?.API?.BASE_URL ||
              window.__CLOUDFORMATION_CONFIG__?.ApiGatewayUrl ||
              (cloudFormationConfig?.api?.baseUrl) ||
-             'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev', // Real AWS API Gateway for fallback
+             null, // No fallback - must be configured
     version: import.meta.env.VITE_API_VERSION || 'v1',
     timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
     retryAttempts: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS) || 3,
     retryDelay: parseInt(import.meta.env.VITE_API_RETRY_DELAY) || 1000
   },
   
-  // Cognito Configuration - loaded from CloudFormation outputs
+  // Cognito Configuration - MUST be loaded from CloudFormation outputs
   cognito: {
     userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || 
                window.__CONFIG__?.COGNITO?.USER_POOL_ID ||
                window.__CLOUDFORMATION_CONFIG__?.UserPoolId ||
                window.__RUNTIME_CONFIG__?.cognito?.userPoolId ||
                (cloudFormationConfig?.cognito?.userPoolId) ||
-               null, // Will be populated by CloudFormation service
+               null, // No fallback - CloudFormation deployment required
     clientId: import.meta.env.VITE_COGNITO_CLIENT_ID || 
               window.__CONFIG__?.COGNITO?.CLIENT_ID ||
               window.__CLOUDFORMATION_CONFIG__?.UserPoolClientId ||
               window.__RUNTIME_CONFIG__?.cognito?.clientId ||
               (cloudFormationConfig?.cognito?.clientId) ||
-              null, // Will be populated by CloudFormation service
+              null, // No fallback - CloudFormation deployment required
     domain: import.meta.env.VITE_COGNITO_DOMAIN || 
             window.__CONFIG__?.COGNITO?.DOMAIN ||
             window.__RUNTIME_CONFIG__?.cognito?.domain ||
