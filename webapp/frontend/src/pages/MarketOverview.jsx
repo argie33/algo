@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
+import { useMarketOverview, useMarketSentiment, useSectorPerformance, useEconomicIndicators } from '../hooks/useMarketData'
+import { useAnalystInsights } from '../hooks/useApiData'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
@@ -431,52 +432,38 @@ function MarketOverview() {
   const [selectedSector, setSelectedSector] = useState('all')
   const [fullscreen, setFullscreen] = useState(false)
   
-  const { data: marketData, isLoading: marketLoading, error: marketError } = useSimpleFetch({
-    queryKey: ['market-overview'],
-    queryFn: fetchMarketOverview,
+  const { data: marketData, isLoading: marketLoading, error: marketError } = useMarketOverview({
     refetchInterval: 60000,
     retry: 2,
     staleTime: 30000
   })
 
-  const { data: sentimentData, isLoading: sentimentLoading } = useSimpleFetch({
-    queryKey: ['market-sentiment-history'],
-    queryFn: () => fetchSentimentHistory(30),
+  const { data: sentimentData, isLoading: sentimentLoading } = useMarketSentiment({
     enabled: tabValue === 1,
     staleTime: 30000
   })
 
-  const { data: sectorData, isLoading: sectorLoading } = useSimpleFetch({
-    queryKey: ['market-sector-performance'],
-    queryFn: fetchSectorPerformance,
+  const { data: sectorData, isLoading: sectorLoading } = useSectorPerformance({
     enabled: tabValue === 2,
     staleTime: 30000
   })
 
-  const { data: breadthData, isLoading: breadthLoading } = useSimpleFetch({
-    queryKey: ['market-breadth'],
-    queryFn: fetchMarketBreadth,
+  const { data: breadthData, isLoading: breadthLoading } = useMarketOverview({
     enabled: tabValue === 3,
     staleTime: 30000
   })
 
-  const { data: economicData, isLoading: economicLoading } = useSimpleFetch({
-    queryKey: ['economic-indicators'],
-    queryFn: () => fetchEconomicIndicators(90),
+  const { data: economicData, isLoading: economicLoading } = useEconomicIndicators(90, {
     enabled: tabValue === 4,
     staleTime: 30000
   })
 
-  const { data: seasonalityData, isLoading: seasonalityLoading } = useSimpleFetch({
-    queryKey: ['seasonality-data'],
-    queryFn: fetchSeasonalityData,
+  const { data: seasonalityData, isLoading: seasonalityLoading } = useMarketOverview({
     enabled: tabValue === 5,
     staleTime: 30000
   })
 
-  const { data: researchData, isLoading: researchLoading } = useSimpleFetch({
-    queryKey: ['market-research-indicators'],
-    queryFn: fetchResearchIndicators,
+  const { data: researchData, isLoading: researchLoading } = useAnalystInsights({
     enabled: tabValue === 6,
     staleTime: 30000
   })

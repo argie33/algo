@@ -14,7 +14,7 @@ import {
 import { MoreVert, TrendingUp, TrendingDown } from '@mui/icons-material';
 import StockChart from './StockChart';
 import alpacaWebSocketService from '../services/alpacaWebSocketService';
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import { useStockPrices } from '../hooks/useMarketData';
 import axios from 'axios';
 
 const DashboardStockChart = ({ 
@@ -29,8 +29,8 @@ const DashboardStockChart = ({
   const [isConnected, setIsConnected] = useState(false);
 
   // Fetch historical data
-  const { data: chartData, isLoading, error, refetch } = useSimpleFetch({
-    queryKey: ['stock-chart', symbol, selectedTimeframe],
+  const { data: chartData, isLoading, error, refetch } = useStockPrices(symbol, {
+    enabled: !!symbol,
     queryFn: async () => {
       // Map timeframe to API period
       const periodMap = {

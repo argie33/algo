@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useCommoditiesData } from '../hooks/useApiData';
 import {
   Box,
   Typography,
@@ -78,7 +79,6 @@ import {
   PieChart,
   Pie
 } from 'recharts';
-import { useSimpleFetch } from '../hooks/useSimpleFetch';
 import { getApiConfig } from '../services/api';
 import DataContainer from '../components/DataContainer';
 import { format } from 'date-fns';
@@ -105,46 +105,31 @@ const TIMEFRAMES = [
 
 // Custom hooks for commodity data
 function useCommodityCategories() {
-  return useSimpleFetch(`${API_BASE}/api/commodities/categories`, {
-    enabled: true,
-    retry: 1, // Reduced retries to prevent resource exhaustion
-    staleTime: 300000, // 5 minutes
-    fallback: [],
-    errorMessage: 'Failed to load commodity categories'
+  return useCommoditiesData({
+    retry: 1,
+    staleTime: 300000
   });
 }
 
 function useCommodityPrices(category = null, symbol = null) {
-  const params = new URLSearchParams();
-  if (category) params.append('category', category);
-  if (symbol) params.append('symbol', symbol);
-  
-  return useSimpleFetch(`${API_BASE}/api/commodities/prices?${params.toString()}`, {
-    enabled: true,
-    retry: 2, // Reduced retries to prevent resource exhaustion
-    staleTime: 60000, // Increased to 1 minute to reduce request frequency
-    fallback: [],
-    errorMessage: 'Failed to load commodity prices'
+  return useCommoditiesData({
+    enabled: !!(category || symbol),
+    retry: 2,
+    staleTime: 60000
   });
 }
 
 function useCommodityMarketSummary() {
-  return useSimpleFetch(`${API_BASE}/api/commodities/market-summary`, {
-    enabled: true,
-    retry: 1, // Reduced retries to prevent resource exhaustion
-    staleTime: 120000, // Increased to 2 minutes
-    fallback: null,
-    errorMessage: 'Failed to load market summary'
+  return useCommoditiesData({
+    retry: 1,
+    staleTime: 120000
   });
 }
 
 function useCommodityCorrelations() {
-  return useSimpleFetch(`${API_BASE}/api/commodities/correlations`, {
-    enabled: true,
-    retry: 1, // Reduced retries to prevent resource exhaustion
-    staleTime: 600000, // Increased to 10 minutes - correlations change slowly
-    fallback: null,
-    errorMessage: 'Failed to load correlations'
+  return useCommoditiesData({
+    retry: 1,
+    staleTime: 600000
   });
 }
 
@@ -644,16 +629,11 @@ function CommodityChart({ symbol, timeframe, onTimeframeChange }) {
     return data;
   };
 
-  const { data: priceHistory, loading: historyLoading } = useSimpleFetch(
-    `${API_BASE}/api/commodities/history/${symbol}?period=${timeframe}`,
-    {
-      enabled: !!symbol,
-      retry: 1, // Reduced retries to prevent resource exhaustion
-      staleTime: 120000, // Increased to 2 minutes
-      fallback: generatePriceHistory(symbol, timeframe === '1d' ? 1 : timeframe === '1w' ? 7 : timeframe === '1m' ? 30 : timeframe === '3m' ? 90 : 365),
-      errorMessage: 'Failed to load price history'
-    }
-  );
+  const { data: priceHistory, isLoading: historyLoading } = useCommoditiesData({
+    enabled: !!symbol,
+    retry: 1,
+    staleTime: 120000
+  });
 
   const ChartComponent = ({ data, isFallbackData = false }) => {
     const chartData = Array.isArray(data) ? data : generatePriceHistory(symbol);
@@ -897,16 +877,10 @@ function CorrelationHeatmap({ correlations }) {
 }
 
 function CommodityNewsWidget() {
-  const { data: newsData, loading: newsLoading, error: newsError } = useSimpleFetch(
-    `${API_BASE}/api/commodities/news?limit=5`,
-    {
-      enabled: true,
-      retry: 1, // Reduced retries to prevent resource exhaustion
-      staleTime: 600000, // Increased to 10 minutes - news doesn't change that often
-      fallback: [],
-      errorMessage: 'Failed to load commodity news'
-    }
-  );
+  const { data: newsData, isLoading: newsLoading, error: newsError } = useCommoditiesData({
+    retry: 1,
+    staleTime: 600000
+  });
 
   const NewsComponent = ({ data, isFallbackData = false }) => {
     const fallbackNews = [

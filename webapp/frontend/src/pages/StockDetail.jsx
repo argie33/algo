@@ -104,7 +104,7 @@ function StockDetail() {
     fetchMarketIntelligence()
   }, [symbol, logger])
   // Fetch stock profile data
-  const { data: profile, isLoading: profileLoading, error: profileError } = useSimpleFetch({
+  const { data: profile, isLoading: profileLoading, error: profileError } = useStockDetail({
     queryKey: ['stockProfile', symbol],
     queryFn: () => api.getStockProfile(symbol),
     enabled: !!symbol,
@@ -112,14 +112,14 @@ function StockDetail() {
   })
 
   // Fetch key metrics
-  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useSimpleFetch({
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useStockDetail({
     queryKey: ['stockMetrics', symbol],
     queryFn: () => api.getStockMetrics(symbol),
     enabled: !!symbol,
     onError: (error) => logger.queryError('stockMetrics', error, { symbol })
   })
   // Fetch financial data
-  const { data: financials, isLoading: financialsLoading, error: financialsError } = useSimpleFetch({
+  const { data: financials, isLoading: financialsLoading, error: financialsError } = useStockDetail({
     queryKey: ['stockFinancials', symbol],
     queryFn: () => api.getStockFinancials(symbol),
     enabled: !!symbol,
@@ -127,39 +127,39 @@ function StockDetail() {
   })
 
   // Fetch analyst recommendations
-  const { data: recommendations, isLoading: recLoading, error: recError } = useSimpleFetch({
+  const { data: recommendations, isLoading: recLoading, error: recError } = useStockDetail({
     queryKey: ['stockRecommendations', symbol],
     queryFn: () => api.getAnalystRecommendations(symbol),
     enabled: !!symbol,
     onError: (error) => logger.queryError('analystRecommendations', error, { symbol })  })
 
   // Fetch comprehensive financial statements
-  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useSimpleFetch({
+  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useStockDetail({
     queryKey: ['balanceSheet', symbol, 'annual'],
     queryFn: () => api.getBalanceSheet(symbol, 'annual'),
     enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('balanceSheet', error, { symbol, period: 'annual' })
   })
-  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useSimpleFetch({
+  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useStockDetail({
     queryKey: ['incomeStatement', symbol, 'annual'],
     queryFn: () => api.getIncomeStatement(symbol, 'annual'),
     enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('incomeStatement', error, { symbol, period: 'annual' })
   })
-  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useSimpleFetch({
+  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useStockDetail({
     queryKey: ['cashFlowStatement', symbol, 'annual'],
     queryFn: () => api.getCashFlowStatement(symbol, 'annual'),
     enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('cashFlowStatement', error, { symbol, period: 'annual' })
   })  // Fetch comprehensive analyst data
-  const { data: analystOverview, isLoading: analystOverviewLoading, error: analystOverviewError } = useSimpleFetch({
+  const { data: analystOverview, isLoading: analystOverviewLoading, error: analystOverviewError } = useStockDetail({
     queryKey: ['analystOverview', symbol],
     queryFn: () => api.getAnalystOverview(symbol),
     enabled: !!symbol && tabValue === 4,
     onError: (error) => logger.queryError('analystOverview', error, { symbol })
   })
   // Fetch recent price data only when Price tab is selected - lightweight and fast
-  const { data: recentPrices, isLoading: recentPricesLoading, error: recentPricesError } = useSimpleFetch({
+  const { data: recentPrices, isLoading: recentPricesLoading, error: recentPricesError } = useStockDetail({
     queryKey: ['stockPricesRecent', symbol],
     queryFn: () => api.getStockPricesRecent(symbol, 30), // Only 30 days for performance
     enabled: !!symbol && tabValue === 1, // Only load when Price tab is selected

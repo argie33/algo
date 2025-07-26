@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
+import { useEarningsCalendar } from '../hooks/useApiData'
+import { useCalendarEvents } from '../hooks/useTradingData'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
@@ -80,84 +81,37 @@ function EarningsCalendar() {
   const [epsInput, setEpsInput] = useState('AAPL');
 
   // Fetch calendar events
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useSimpleFetch({
-    queryKey: ['calendarEvents', timeFilter, page, rowsPerPage],
-    queryFn: async () => {
-      try {
-        return await getCalendarEvents(timeFilter, page, rowsPerPage);
-      } catch (error) {
-        console.warn('Calendar API failed, using mock data:', error);
-        // Return mock data when API fails
-        return {
-          success: true,
-          data: {
-            events: [],
-            summary: {
-              upcoming_events: 0,
-              this_week: 0,
-              earnings_seasons: 0,
-              total_companies: 0
-            },
-            pagination: {
-              total: 0,
-              page: 1,
-              limit: rowsPerPage,
-              hasMore: false
-            }
-          }
-        };
-      }
-    },
+  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarEvents({
     enabled: activeTab === 0,
-    refetchInterval: 300000 // Refresh every 5 minutes
+    refetchInterval: 300000
   });
 
   // Fetch earnings estimates
-  const { data: estimatesData, isLoading: estimatesLoading } = useSimpleFetch({
-    queryKey: ['earningsEstimates', page, rowsPerPage],
-    queryFn: async () => {
-      return await getEarningsEstimates({ page: page + 1, limit: rowsPerPage });
-    },
+  const { data: estimatesData, isLoading: estimatesLoading } = useEarningsCalendar({
     enabled: activeTab === 1,
     refetchInterval: 300000
   });
 
   // Fetch earnings history
-  const { data: historyData, isLoading: historyLoading } = useSimpleFetch({
-    queryKey: ['earningsHistory', page, rowsPerPage],
-    queryFn: async () => {
-      return await getEarningsHistory({ page: page + 1, limit: rowsPerPage });
-    },
+  const { data: historyData, isLoading: historyLoading } = useEarningsCalendar({
     enabled: activeTab === 2,
-    refetchInterval: 600000 // Refresh every 10 minutes
+    refetchInterval: 600000
   });
 
   // EPS Revisions fetch
-  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useSimpleFetch({
-    queryKey: ['epsRevisions', epsSymbol],
-    queryFn: async () => {
-      return await getEpsRevisions(epsSymbol);
-    },
+  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useEarningsCalendar({
     enabled: activeTab === 3 && !!epsSymbol,
     staleTime: 60000
   });
 
   // EPS Trend fetch
-  const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useSimpleFetch({
-    queryKey: ['epsTrend', epsSymbol],
-    queryFn: async () => {
-      return await getEpsTrend(epsSymbol);
-    },
+  const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useEarningsCalendar({
     enabled: activeTab === 4 && !!epsSymbol,
     staleTime: 60000
   });
 
   // Earnings Metrics fetch
-  const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useSimpleFetch({
-    queryKey: ['earningsMetrics', epsSymbol, page, rowsPerPage],
-    queryFn: async () => {
-      return await getEarningsMetrics(epsSymbol, page, rowsPerPage);
-    },
+  const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useEarningsCalendar({
     enabled: activeTab === 5 && !!epsSymbol,
     staleTime: 60000
   });

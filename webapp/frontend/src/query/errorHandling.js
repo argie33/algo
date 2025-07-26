@@ -3,7 +3,7 @@
  * Integrates with our error management system for better logging and recovery
  */
 
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import { useQuery } from '@tanstack/react-query';
 import ErrorManager from '../error/ErrorManager';
 
 // Error handling configuration for custom fetch implementation
@@ -86,7 +86,7 @@ export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
     }
   };
 
-  return useSimpleFetch(queryKey, queryFn, enhancedOptions);
+  return useQuery({ queryKey, queryFn, ...enhancedOptions });
 };
 
 // Enhanced mutation helper with error handling

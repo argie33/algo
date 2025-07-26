@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSentimentAnalysis } from '../hooks/useApiData';
+import { useMarketSentiment } from '../hooks/useMarketData';
+import { useNews } from '../hooks/useTradingData';
 import ApiErrorAlert from '../components/ApiErrorAlert';
 import DataContainer from '../components/DataContainer';
 import {
@@ -102,7 +105,6 @@ import {
   Scatter
 } from 'recharts';
 import { formatPercentage, formatNumber } from '../utils/formatters';
-import { useSimpleFetch } from '../hooks/useSimpleFetch';
 import { getApiConfig } from '../services/api';
 
 // Get API configuration
@@ -128,34 +130,31 @@ function TabPanel({ children, value, index, ...other }) {
 
 // Live sentiment data hooks
 function useLiveSentiment(symbol = 'SPY', timeframe = '24h') {
-  return useSimpleFetch(`${API_BASE}/api/news/sentiment/${symbol}?timeframe=${timeframe}`, {
-    fallback: null,
-    errorMessage: 'Failed to load sentiment data'
+  return useSentimentAnalysis({
+    enabled: !!symbol,
+    retry: 2,
+    staleTime: 30000
   });
 }
 
 function useLiveMarketSentiment(timeframe = '24h') {
-  return useSimpleFetch(`${API_BASE}/api/news/market-sentiment?timeframe=${timeframe}`, {
-    fallback: null,
-    errorMessage: 'Failed to load market sentiment'
+  return useMarketSentiment({
+    retry: 2,
+    staleTime: 30000
   });
 }
 
 function useLiveNewsArticles(symbol = null, timeframe = '24h', limit = 20) {
-  const url = symbol 
-    ? `${API_BASE}/api/news/articles?symbol=${symbol}&timeframe=${timeframe}&limit=${limit}`
-    : `${API_BASE}/api/news/articles?timeframe=${timeframe}&limit=${limit}`;
-  
-  return useSimpleFetch(url, {
-    fallback: { articles: [], total: 0 },
-    errorMessage: 'Failed to load news articles'
+  return useNews(limit, {
+    retry: 2,
+    staleTime: 30000
   });
 }
 
 function useLiveTrending(timeframe = '24h', limit = 10) {
-  return useSimpleFetch(`${API_BASE}/api/news/trending?timeframe=${timeframe}&limit=${limit}`, {
-    fallback: { keywords: [], symbols: [] },
-    errorMessage: 'Failed to load trending data'
+  return useNews(limit, {
+    retry: 2,
+    staleTime: 30000
   });
 }
 

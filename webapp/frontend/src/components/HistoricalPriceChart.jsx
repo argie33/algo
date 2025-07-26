@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import { useStockPrices } from '../hooks/useMarketData';
 import {
   Box,
   Card,
@@ -33,12 +33,7 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
   const [period, setPeriod] = useState(defaultPeriod);
   const [timeframe, setTimeframe] = useState('daily');
 
-  const { data: priceData, isLoading, error, refetch } = useSimpleFetch({
-    queryKey: ['historical-prices', symbol, timeframe, period],
-    queryFn: async () => {
-      console.log(`Fetching ${timeframe} prices for ${symbol}, ${period} periods`);
-      return await getStockPrices(symbol, timeframe, period);
-    },
+  const { data: priceData, isLoading, error, refetch } = useStockPrices(symbol, {
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2

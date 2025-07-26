@@ -29,7 +29,7 @@ import {
   Schedule,
   Language
 } from '@mui/icons-material';
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import { useNews } from '../hooks/useTradingData';
 import newsService from '../services/newsService';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -45,8 +45,8 @@ const NewsWidget = ({
   const [selectedCategory, setSelectedCategory] = useState(category || 'market');
 
   // Fetch news data
-  const { data: newsData, isLoading, error, refetch } = useSimpleFetch({
-    queryKey: ['news', symbols, selectedCategory, limit],
+  const { data: newsData, isLoading, error, refetch } = useNews(limit, {
+    enabled: true,
     queryFn: async () => {
       if (selectedCategory === 'market') {
         return newsService.getMarketNews({ limit });

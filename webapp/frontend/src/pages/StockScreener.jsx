@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
+import { useApiData } from '../hooks/useApiData'
 import { useNavigate } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { screenStocks, addWatchlistItem, getWatchlists } from '../services/api'
@@ -176,8 +176,8 @@ function StockScreener() {
   }
 
   // Fetch screener results
-  const { data: screenResults, isLoading, error, refetch } = useSimpleFetch({
-    queryKey: ['stockScreener', filters, page, rowsPerPage, orderBy, order],
+  const { data: screenResults, isLoading, error, refetch } = useApiData('/api/stocks/screen', ['stockScreener', filters, page, rowsPerPage, orderBy, order], {
+    enabled: true,
     queryFn: async () => {
       try {
         const params = buildQueryParams();

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import { useBacktestData } from '../hooks/useApiData';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createComponentLogger } from '../utils/errorLogger';
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor } from '../utils/formatters';
