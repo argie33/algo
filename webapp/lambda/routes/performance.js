@@ -9,9 +9,50 @@ const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const PerformanceMonitoringService = require('../services/performanceMonitoringService');
 const AdvancedPerformanceAnalytics = require('../utils/advancedPerformanceAnalytics');
+const { getDatabase } = require('../utils/database');
+const { createRequestLogger } = require('../utils/logger');
+const { formatResponse } = require('../utils/responseFormatter');
 
 // Initialize service
 const performanceService = new PerformanceMonitoringService();
+const logger = createRequestLogger('performance-routes');
+
+// Enhanced validation schemas from performance-analytics
+const performanceAnalysisSchema = {
+  startDate: {
+    type: 'string',
+    required: true,
+    pattern: /^\d{4}-\d{2}-\d{2}$/,
+    message: 'Start date must be in YYYY-MM-DD format'
+  },
+  endDate: {
+    type: 'string',
+    required: true,
+    pattern: /^\d{4}-\d{2}-\d{2}$/,
+    message: 'End date must be in YYYY-MM-DD format'
+  },
+  format: {
+    type: 'string',
+    required: false,
+    enum: ['basic', 'detailed'],
+    default: 'detailed'
+  },
+  includeBenchmarks: {
+    type: 'boolean',
+    required: false,
+    default: true
+  }
+};
+
+const performanceReportSchema = {
+  ...performanceAnalysisSchema,
+  reportType: {
+    type: 'string',
+    required: false,
+    enum: ['summary', 'detailed', 'executive'],
+    default: 'detailed'
+  }
+};
 
 // Performance Analysis Helper Functions
 
@@ -1387,6 +1428,318 @@ router.get('/factor-analysis/:accountId',
   }
 );
 
+// ============================================================================
+// ENHANCED PERFORMANCE ANALYTICS ENDPOINTS (MERGED FROM performance-analytics.js)
+// ============================================================================
+
+/**
+ * GET /performance/analytics/portfolio
+ * Get comprehensive portfolio performance analysis with database integration
+ * ENHANCED: Advanced metrics calculation with AdvancedPerformanceAnalytics
+ */
+router.get('/analytics/portfolio', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const userId = req.user?.sub || req.user?.userId;
+  const { startDate, endDate, format, includeBenchmarks } = req.query;
+  
+  try {
+    logger.info('Advanced portfolio performance analysis requested', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      period: `${startDate} to ${endDate}`,
+      format
+    });
+    
+    const db = await getDatabase();
+    const analytics = new AdvancedPerformanceAnalytics(db);
+    
+    // Calculate comprehensive performance metrics
+    const performanceMetrics = await analytics.calculatePortfolioPerformance(
+      userId,
+      startDate,
+      endDate,
+      { includeBenchmarks }
+    );
+    
+    // Format response based on requested format
+    const response = format === 'basic' ? 
+      analytics.getBasicMetrics(performanceMetrics) : 
+      performanceMetrics;
+    
+    logger.info('Advanced portfolio performance analysis completed', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      calculationTime: performanceMetrics.metadata?.calculationTime,
+      dataPoints: performanceMetrics.metadata?.dataPoints
+    });
+    
+    res.json(formatResponse(response, 'Portfolio performance analysis completed successfully'));
+    
+  } catch (error) {
+    logger.error('Error in advanced portfolio performance analysis', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json(formatResponse(null, 'Error calculating portfolio performance', error.message));
+  }
+});
+
+/**
+ * GET /performance/analytics/report
+ * Generate comprehensive performance report
+ * ENHANCED: Multiple report types with advanced formatting
+ */
+router.get('/analytics/report', authenticateToken, createValidationMiddleware(performanceReportSchema), async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const userId = req.user?.sub || req.user?.userId;
+  const { startDate, endDate, reportType } = req.query;
+  
+  try {
+    logger.info('Performance report requested', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      period: `${startDate} to ${endDate}`,
+      reportType
+    });
+    
+    const db = await getDatabase();
+    const analytics = new AdvancedPerformanceAnalytics(db);
+    
+    // Generate performance report
+    const report = await analytics.generatePerformanceReport(
+      userId,
+      startDate,
+      endDate,
+      reportType
+    );
+    
+    logger.info('Performance report generated', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      reportId: report.reportId,
+      generationTime: report.generationTime
+    });
+    
+    res.json(formatResponse(report, 'Performance report generated successfully'));
+    
+  } catch (error) {
+    logger.error('Error generating performance report', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json(formatResponse(null, 'Error generating performance report', error.message));
+  }
+});
+
+/**
+ * GET /performance/analytics/risk-metrics
+ * Get comprehensive risk metrics with factor exposure
+ * ENHANCED: Advanced risk calculations with recommendations
+ */
+router.get('/analytics/risk-metrics', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const userId = req.user?.sub || req.user?.userId;
+  const { startDate, endDate } = req.query;
+  
+  try {
+    logger.info('Risk metrics analysis requested', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      period: `${startDate} to ${endDate}`
+    });
+    
+    const db = await getDatabase();
+    const analytics = new AdvancedPerformanceAnalytics(db);
+    
+    // Get portfolio history for risk calculations
+    const portfolioHistory = await analytics.getPortfolioHistory(userId, startDate, endDate);
+    
+    // Calculate risk metrics
+    const riskMetrics = await analytics.calculateRiskMetrics(portfolioHistory);
+    
+    // Calculate factor exposure for additional risk insights
+    const factorExposure = await analytics.calculateFactorExposure(userId, startDate, endDate);
+    
+    const response = {
+      riskMetrics,
+      factorExposure,
+      riskAssessment: {
+        overallRisk: analytics.assessRiskProfile(riskMetrics),
+        riskRecommendations: analytics.generateRecommendations({ riskMetrics, factorExposure })
+      },
+      metadata: {
+        dataPoints: portfolioHistory.length,
+        calculationDate: new Date().toISOString()
+      }
+    };
+    
+    logger.info('Risk metrics analysis completed', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      volatility: riskMetrics.volatility,
+      maxDrawdown: riskMetrics.maxDrawdown
+    });
+    
+    res.json(formatResponse(response, 'Risk metrics analysis completed successfully'));
+    
+  } catch (error) {
+    logger.error('Error in risk metrics analysis', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json(formatResponse(null, 'Error calculating risk metrics', error.message));
+  }
+});
+
+/**
+ * GET /performance/analytics/sector-analysis
+ * Get sector allocation and performance analysis
+ * ENHANCED: Comprehensive sector breakdown with diversification scoring
+ */
+router.get('/analytics/sector-analysis', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const userId = req.user?.sub || req.user?.userId;
+  const { startDate, endDate } = req.query;
+  
+  try {
+    logger.info('Sector analysis requested', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      period: `${startDate} to ${endDate}`
+    });
+    
+    const db = await getDatabase();
+    const analytics = new AdvancedPerformanceAnalytics(db);
+    
+    // Calculate sector analysis
+    const sectorAnalysis = await analytics.calculateSectorAnalysis(userId, startDate, endDate);
+    
+    logger.info('Sector analysis completed', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      sectorCount: sectorAnalysis.sectorCount,
+      diversificationScore: sectorAnalysis.diversificationScore?.diversificationScore
+    });
+    
+    res.json(formatResponse(sectorAnalysis, 'Sector analysis completed successfully'));
+    
+  } catch (error) {
+    logger.error('Error in sector analysis', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json(formatResponse(null, 'Error calculating sector analysis', error.message));
+  }
+});
+
+/**
+ * GET /performance/analytics/factor-exposure
+ * Get factor exposure analysis
+ * ENHANCED: Comprehensive factor analysis with portfolio insights
+ */
+router.get('/analytics/factor-exposure', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const userId = req.user?.sub || req.user?.userId;
+  const { startDate, endDate } = req.query;
+  
+  try {
+    logger.info('Factor exposure analysis requested', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      period: `${startDate} to ${endDate}`
+    });
+    
+    const db = await getDatabase();
+    const analytics = new AdvancedPerformanceAnalytics(db);
+    
+    // Calculate factor exposure
+    const factorExposure = await analytics.calculateFactorExposure(userId, startDate, endDate);
+    
+    logger.info('Factor exposure analysis completed', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      totalHoldings: factorExposure.totalHoldings,
+      totalValue: factorExposure.totalValue
+    });
+    
+    res.json(formatResponse(factorExposure, 'Factor exposure analysis completed successfully'));
+    
+  } catch (error) {
+    logger.error('Error in factor exposure analysis', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json(formatResponse(null, 'Error calculating factor exposure', error.message));
+  }
+});
+
+/**
+ * GET /performance/analytics/benchmarks
+ * Get benchmark comparison analysis
+ * ENHANCED: Advanced benchmark comparison with alpha/beta calculations
+ */
+router.get('/analytics/benchmarks', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const userId = req.user?.sub || req.user?.userId;
+  const { startDate, endDate } = req.query;
+  
+  try {
+    logger.info('Benchmark analysis requested', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      period: `${startDate} to ${endDate}`
+    });
+    
+    const db = await getDatabase();
+    const analytics = new AdvancedPerformanceAnalytics(db);
+    
+    // Get portfolio history for benchmark comparison
+    const portfolioHistory = await analytics.getPortfolioHistory(userId, startDate, endDate);
+    
+    // Calculate benchmark metrics
+    const benchmarkMetrics = await analytics.calculateBenchmarkMetrics(portfolioHistory, startDate, endDate);
+    
+    logger.info('Benchmark analysis completed', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      alpha: benchmarkMetrics.alpha,
+      beta: benchmarkMetrics.beta
+    });
+    
+    res.json(formatResponse(benchmarkMetrics, 'Benchmark analysis completed successfully'));
+    
+  } catch (error) {
+    logger.error('Error in benchmark analysis', {
+      requestId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json(formatResponse(null, 'Error calculating benchmark analysis', error.message));
+  }
+});
+
+// ============================================================================
+// BACKWARD COMPATIBILITY ROUTES 
+// Preserve existing frontend integration
+// ============================================================================
+
 // Performance health check
 router.get('/health', async (req, res) => {
   try {
@@ -1433,6 +1786,26 @@ router.get('/health', async (req, res) => {
         factorAnalysis: {
           status: 'operational',
           supportedFactors: ['market', 'size', 'value', 'momentum', 'quality']
+        },
+        enhancedAnalytics: {
+          status: 'operational',
+          capabilities: [
+            'portfolio-analysis',
+            'risk-metrics',
+            'attribution-analysis', 
+            'sector-analysis',
+            'factor-exposure',
+            'benchmark-comparison',
+            'performance-reporting'
+          ],
+          endpoints: [
+            '/performance/analytics/portfolio',
+            '/performance/analytics/report',
+            '/performance/analytics/risk-metrics',
+            '/performance/analytics/sector-analysis',
+            '/performance/analytics/factor-exposure',
+            '/performance/analytics/benchmarks'
+          ]
         }
       },
       statistics: {

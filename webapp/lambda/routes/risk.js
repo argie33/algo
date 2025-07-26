@@ -851,4 +851,348 @@ router.get('/monitoring/status', async (req, res) => {
   }
 });
 
+// ============================================================================
+// RISK MANAGEMENT ENDPOINTS (consolidated from risk-management.js)
+// ============================================================================
+
+// Additional imports for risk management functionality
+const RiskManager = require('../utils/riskManager');
+const riskManager = new RiskManager();
+
+// Enhanced validation schemas for risk management endpoints
+const riskManagementSchemas = {
+  positionSize: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, trim: true }),
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    direction: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, toLowerCase: true }),
+      validator: (value) => ['buy', 'sell'].includes(value),
+      errorMessage: 'Direction must be buy or sell'
+    },
+    portfolioValue: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 1000 }),
+      validator: (value) => !value || (value >= 1000 && value <= 100000000),
+      errorMessage: 'Portfolio value must be between $1,000 and $100,000,000'
+    },
+    riskPerTrade: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0.001, max: 0.1, defaultValue: 0.02 }),
+      validator: (value) => value >= 0.001 && value <= 0.1,
+      errorMessage: 'Risk per trade must be between 0.1% and 10%'
+    },
+    maxPositionSize: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0.01, max: 0.5, defaultValue: 0.1 }),
+      validator: (value) => value >= 0.01 && value <= 0.5,
+      errorMessage: 'Max position size must be between 1% and 50%'
+    }
+  },
+  
+  stopLoss: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, trim: true }),
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    entryPrice: {
+      required: true,
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0.01 }),
+      validator: (value) => value > 0,
+      errorMessage: 'Entry price must be greater than 0'
+    },
+    direction: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, toLowerCase: true }),
+      validator: (value) => ['buy', 'sell'].includes(value),
+      errorMessage: 'Direction must be buy or sell'
+    }
+  }
+};
+
+// Calculate position size based on risk management
+// POST /api/risk/management/position-size
+router.post('/management/position-size', createValidationMiddleware(riskManagementSchemas.positionSize), async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  try {
+    const userId = req.user.sub;
+    const { symbol, direction, portfolioValue, riskPerTrade = 0.02, maxPositionSize = 0.1 } = req.validated;
+    
+    console.log(`🎯 [${requestId}] Calculating position size`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      symbol: symbol,
+      direction: direction,
+      portfolioValue: portfolioValue,
+      riskPerTrade: riskPerTrade,
+      maxPositionSize: maxPositionSize
+    });
+
+    // Get user's portfolio value if not provided
+    let actualPortfolioValue = portfolioValue;
+    if (!actualPortfolioValue) {
+      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      if (credentials) {
+        const alpacaService = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
+        const account = await alpacaService.getAccount();
+        actualPortfolioValue = parseFloat(account.portfolio_value);
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Portfolio value required when no API credentials available'
+        });
+      }
+    }
+
+    // Calculate position size using risk manager
+    const positionSizing = await riskManager.calculatePositionSize({
+      userId: userId,
+      symbol: symbol,
+      portfolioValue: actualPortfolioValue,
+      riskPerTrade: riskPerTrade,
+      maxPositionSize: maxPositionSize,
+      volatilityAdjustment: true,
+      correlationAdjustment: true
+    });
+
+    // Prepare response data
+    const responseData = {
+      symbol: symbol,
+      direction: direction,
+      portfolioValue: actualPortfolioValue,
+      positionSizing: {
+        recommendedSize: positionSizing.recommendedSize,
+        positionValue: positionSizing.positionValue,
+        riskAmount: positionSizing.riskAmount,
+        maxLoss: positionSizing.maxLoss
+      },
+      riskMetrics: positionSizing.riskMetrics,
+      adjustments: positionSizing.adjustments,
+      limits: positionSizing.limits,
+      recommendation: positionSizing.recommendation,
+      metadata: {
+        processingTime: positionSizing.processingTime,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log(`✅ [${requestId}] Position size calculated`, {
+      symbol: symbol,
+      recommendedSize: positionSizing.recommendedSize,
+      riskScore: positionSizing.riskMetrics?.overallRiskScore,
+      recommendation: positionSizing.recommendation?.recommendation,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.json({
+      success: true,
+      data: responseData,
+      message: 'Position size calculated successfully'
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Position size calculation failed`, {
+      error: error.message,
+      errorStack: error.stack,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate position size',
+      details: error.message
+    });
+  }
+});
+
+// Calculate stop loss and take profit levels
+// POST /api/risk/management/stop-loss
+router.post('/management/stop-loss', createValidationMiddleware(riskManagementSchemas.stopLoss), async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  try {
+    const userId = req.user.sub;
+    const { symbol, entryPrice, direction } = req.validated;
+    
+    console.log(`🛡️ [${requestId}] Calculating stop loss levels`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      symbol: symbol,
+      entryPrice: entryPrice,
+      direction: direction
+    });
+
+    // Calculate stop loss using risk manager
+    const stopLossLevels = await riskManager.calculateStopLoss({
+      userId: userId,
+      symbol: symbol,
+      entryPrice: entryPrice,
+      direction: direction,
+      useVolatilityBased: true,
+      useTechnicalLevels: true
+    });
+
+    const responseData = {
+      symbol: symbol,
+      entryPrice: entryPrice,
+      direction: direction,
+      stopLossLevels: stopLossLevels.levels,
+      recommendation: stopLossLevels.recommendation,
+      riskMetrics: stopLossLevels.riskMetrics,
+      metadata: {
+        processingTime: stopLossLevels.processingTime,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log(`✅ [${requestId}] Stop loss calculated`, {
+      symbol: symbol,
+      recommendedLevel: stopLossLevels.recommendation?.recommendedPrice,
+      riskPercentage: stopLossLevels.recommendation?.riskPercentage,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.json({
+      success: true,
+      data: responseData,
+      message: 'Stop loss levels calculated successfully'
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Stop loss calculation failed`, {
+      error: error.message,
+      errorStack: error.stack,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate stop loss levels',
+      details: error.message
+    });
+  }
+});
+
+// Get portfolio risk analysis
+// GET /api/risk/management/portfolio-analysis
+router.get('/management/portfolio-analysis', async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  try {
+    const userId = req.user.sub;
+    
+    console.log(`📊 [${requestId}] Performing portfolio risk analysis`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown'
+    });
+
+    // Get comprehensive portfolio risk analysis
+    const riskAnalysis = await riskManager.analyzePortfolioRisk(userId);
+
+    const responseData = {
+      overallRisk: riskAnalysis.overallRisk,
+      diversification: riskAnalysis.diversification,
+      correlationMatrix: riskAnalysis.correlationMatrix,
+      sectorExposure: riskAnalysis.sectorExposure,
+      concentrationRisk: riskAnalysis.concentrationRisk,
+      volatilityMetrics: riskAnalysis.volatilityMetrics,
+      recommendations: riskAnalysis.recommendations,
+      metadata: {
+        processingTime: riskAnalysis.processingTime,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log(`✅ [${requestId}] Portfolio risk analysis completed`, {
+      overallRiskScore: riskAnalysis.overallRisk?.score,
+      diversificationScore: riskAnalysis.diversification?.score,
+      recommendationCount: riskAnalysis.recommendations?.length || 0,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.json({
+      success: true,
+      data: responseData,
+      message: 'Portfolio risk analysis completed successfully'
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio risk analysis failed`, {
+      error: error.message,
+      errorStack: error.stack,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to perform portfolio risk analysis',
+      details: error.message
+    });
+  }
+});
+
+// Get risk management settings
+// GET /api/risk/management/settings
+router.get('/management/settings', async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  
+  try {
+    const userId = req.user.sub;
+    
+    console.log(`⚙️ [${requestId}] Fetching risk management settings`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown'
+    });
+
+    // Get user's risk management settings
+    const settings = await riskManager.getUserSettings(userId);
+
+    const responseData = {
+      defaultRiskPerTrade: settings.defaultRiskPerTrade || 0.02,
+      maxPositionSize: settings.maxPositionSize || 0.1,
+      maxDailyRisk: settings.maxDailyRisk || 0.05,
+      stopLossMethod: settings.stopLossMethod || 'volatility',
+      correlationLimit: settings.correlationLimit || 0.7,
+      sectorConcentrationLimit: settings.sectorConcentrationLimit || 0.25,
+      enableRealTimeAlerts: settings.enableRealTimeAlerts || false,
+      alertThresholds: settings.alertThresholds || {
+        portfolioDrawdown: 0.05,
+        positionLoss: 0.02,
+        correlationIncrease: 0.8
+      }
+    };
+
+    console.log(`✅ [${requestId}] Risk management settings retrieved`);
+    
+    res.json({
+      success: true,
+      data: responseData,
+      message: 'Risk management settings retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Failed to fetch risk management settings`, {
+      error: error.message,
+      errorStack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve risk management settings',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

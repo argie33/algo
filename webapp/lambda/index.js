@@ -145,11 +145,15 @@ safeRouteLoader('./routes/user', 'User Management', '/api/user');
 
 // 2. CORE BUSINESS ROUTES - Portfolio and market data
 console.log('📈 Loading core business routes...');
-safeRouteLoader('./routes/portfolio', 'Portfolio', '/api/portfolio');
+safeRouteLoader('./routes/portfolio', 'Portfolio (Consolidated)', '/api/portfolio');
+// NOTE: portfolio-alpaca-integration.js and portfolio-api-keys.js consolidated into portfolio.js
+// Enhanced Alpaca integration now available at /api/portfolio/enhanced/* endpoints
+// API key management now available at /api/portfolio/api-keys/* endpoints
 safeRouteLoader('./routes/dashboard', 'Dashboard', '/api/dashboard');
 safeRouteLoader('./routes/stocks', 'Stocks', '/api/stocks');
-safeRouteLoader('./routes/market', 'Market Data', '/api/market');
-safeRouteLoader('./routes/market-data', 'Market Data Enhanced', '/api/market-data');
+safeRouteLoader('./routes/market', 'Market Data (Consolidated)', '/api/market');
+// NOTE: market-data.js has been consolidated into market.js
+// Real-time data capabilities now available at /api/market/data/* endpoints
 
 // 3. FINANCIAL DATA ROUTES - Analysis and metrics
 console.log('💰 Loading financial data routes...');
@@ -162,11 +166,13 @@ safeRouteLoader('./routes/scoring', 'Scoring System', '/api/scoring');
 
 // 4. TRADING ROUTES - Trading and risk management
 console.log('📊 Loading trading routes...');
-safeRouteLoader('./routes/trading', 'Trading', '/api/trading');
+safeRouteLoader('./routes/trading', 'Trading (Consolidated)', '/api/trading');
+// NOTE: trading-strategies.js has been consolidated into trading.js
+// Strategy management now available at /api/trading/strategies/* endpoints
 safeRouteLoader('./routes/trades', 'Trade History', '/api/trades');
-safeRouteLoader('./routes/trading-strategies', 'Trading Strategies', '/api/trading-strategies');
-safeRouteLoader('./routes/risk', 'Risk Management', '/api/risk');
-safeRouteLoader('./routes/risk-management', 'Risk Management Enhanced', '/api/risk-management');
+safeRouteLoader('./routes/risk', 'Risk Management (Consolidated)', '/api/risk');
+// NOTE: risk-management.js has been consolidated into risk.js
+// Enhanced risk management now available at /api/risk/management/* endpoints
 safeRouteLoader('./routes/backtest', 'Backtesting', '/api/backtest');
 
 // 5. ADVANCED FEATURES - AI, algorithms, optimization
@@ -195,14 +201,17 @@ safeRouteLoader('./routes/crypto-risk', 'Crypto Risk', '/api/crypto/risk');
 
 // 8. PERFORMANCE & MONITORING - System performance
 console.log('⚡ Loading performance routes...');
-safeRouteLoader('./routes/performance', 'Performance', '/api/performance');
-safeRouteLoader('./routes/performance-analytics', 'Performance Analytics', '/api/performance/analytics');
+safeRouteLoader('./routes/performance', 'Performance (Consolidated)', '/api/performance');
+// NOTE: performance-analytics.js has been consolidated into performance.js
+// Advanced analytics now available at /api/performance/analytics/* endpoints
 safeRouteLoader('./routes/hftTrading', 'HFT Trading', '/api/hft');
+safeRouteLoader('./routes/enhancedHftApi', 'Enhanced HFT API', '/api/hft/enhanced');
 
 // 9. CONFIGURATION & SETTINGS - User preferences and system config
 console.log('⚙️ Loading configuration routes...');
-safeRouteLoader('./routes/settings', 'Settings', '/api/settings');
-safeRouteLoader('./routes/settings-api-keys', 'API Keys Management', '/api/settings/api-keys');
+safeRouteLoader('./routes/settings', 'Settings (Consolidated)', '/api/settings');
+// NOTE: settings-api-keys.js was redundant - API keys already managed in settings.js
+// API key management available at /api/settings/api-keys/* endpoints
 safeRouteLoader('./routes/configuration', 'Configuration', '/api/config');
 safeRouteLoader('./routes/user-profile', 'User Profile', '/api/user-profile');
 
@@ -313,22 +322,22 @@ app.get('/api', (req, res) => {
     availableEndpoints: [
       // Critical System Routes
       '/api/health', '/api/auth', '/api/user',
-      // Core Business Routes
-      '/api/portfolio', '/api/dashboard', '/api/stocks', '/api/market', '/api/market-data',
+      // Core Business Routes  
+      '/api/portfolio', '/api/dashboard', '/api/stocks', '/api/market',
       // Financial Data Routes
       '/api/financials', '/api/technical', '/api/metrics', '/api/sectors', '/api/scores', '/api/scoring',
-      // Trading Routes
-      '/api/trading', '/api/trades', '/api/trading-strategies', '/api/risk', '/api/risk-management', '/api/backtest',
+      // Trading Routes (Consolidated)
+      '/api/trading', '/api/trading/strategies/*', '/api/trades', '/api/risk', '/api/risk/management/*', '/api/backtest',
       // Advanced Features
       '/api/ai-assistant', '/api/algorithmic-trading', '/api/portfolio/optimization', '/api/signals', '/api/patterns',
       // Market Data Sources
       '/api/commodities', '/api/economic', '/api/news', '/api/calendar', '/api/sentiment',
       // Crypto Routes
       '/api/crypto', '/api/crypto/portfolio', '/api/crypto/analytics', '/api/crypto/signals', '/api/crypto/risk',
-      // Performance & Monitoring
-      '/api/performance', '/api/performance/analytics', '/api/hft',
-      // Configuration & Settings
-      '/api/settings', '/api/settings/api-keys', '/api/config', '/api/user-profile',
+      // Performance & Monitoring (Consolidated)
+      '/api/performance', '/api/performance/analytics/*', '/api/hft',
+      // Configuration & Settings (Consolidated)
+      '/api/settings', '/api/settings/api-keys/*', '/api/config', '/api/user-profile',
       // Real-time Data
       '/api/live-data', '/api/realtime', '/api/websocket',
       // Admin & Diagnostics

@@ -1,8 +1,148 @@
 const express = require('express');
 const { query } = require('../utils/database');
-// v2.0 - Production ready market routes with SSL fix and cleaned endpoints
+const { authenticateToken } = require('../middleware/auth');
+const apiKeyService = require('../utils/apiKeyService');
+const AlpacaService = require('../utils/alpacaService');
+const { 
+  createValidationMiddleware, 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention,
+  sanitizers
+} = require('../middleware/validation');
+const validator = require('validator');
+// v3.0 - Consolidated market routes with real-time data and database integration
 
 const router = express.Router();
+
+// Enhanced market data validation schemas (merged from market-data.js)
+const marketDataValidationSchemas = {
+  quotes: {
+    symbols: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => {
+        if (typeof value !== 'string') return '';
+        // Split by comma, clean each symbol, and rejoin
+        return value.split(',')
+          .map(s => sanitizers.symbol(s.trim()))
+          .filter(s => s.length > 0)
+          .slice(0, 50) // Limit to 50 symbols max
+          .join(',');
+      },
+      validator: (value) => {
+        if (!value) return false;
+        const symbols = value.split(',');
+        return symbols.length > 0 && 
+               symbols.length <= 50 && 
+               symbols.every(s => /^[A-Z]{1,10}$/.test(s.trim()));
+      },
+      errorMessage: 'Symbols must be a comma-separated list of 1-50 valid stock symbols'
+    }
+  },
+
+  bars: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
+      validator: (value) => !value || ['1Min', '5Min', '15Min', '30Min', '1Hour', '1Day', '1Week', '1Month'].includes(value),
+      errorMessage: 'Timeframe must be one of: 1Min, 5Min, 15Min, 30Min, 1Hour, 1Day, 1Week, 1Month'
+    },
+    start: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'Start date must be in ISO8601 format (YYYY-MM-DDTHH:mm:ssZ)'
+    },
+    end: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'End date must be in ISO8601 format (YYYY-MM-DDTHH:mm:ssZ)'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 1000, defaultValue: 100 }),
+      validator: (value) => !value || (value >= 1 && value <= 1000),
+      errorMessage: 'Limit must be between 1 and 1000'
+    }
+  },
+
+  trades: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    start: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'Start date must be in ISO8601 format'
+    },
+    end: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'End date must be in ISO8601 format'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 1000, defaultValue: 100 }),
+      validator: (value) => !value || (value >= 1 && value <= 1000),
+      errorMessage: 'Limit must be between 1 and 1000'
+    }
+  },
+
+  calendar: {
+    start: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'Start date must be in YYYY-MM-DD format'
+    },
+    end: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'End date must be in YYYY-MM-DD format'
+    }
+  }
+};
+
+// Apply security middleware to authenticated routes
+router.use('/data/quotes', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+router.use('/data/bars', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+router.use('/data/trades', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+router.use('/data/calendar', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+
+// Helper function to get user API key (from market-data.js)
+async function getUserApiKey(userId, provider) {
+  try {
+    const credentials = await apiKeyService.getApiKey(userId, provider);
+    if (!credentials) {
+      return null;
+    }
+    
+    return {
+      apiKey: credentials.keyId,
+      apiSecret: credentials.secretKey,
+      isSandbox: credentials.version === '1.0' // Default to sandbox for v1.0
+    };
+  } catch (error) {
+    console.error(`Failed to get API key for ${provider}:`, error);
+    return null;
+  }
+}
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -26,28 +166,53 @@ async function checkRequiredTables(tableNames) {
   return results;
 }
 
-// Root endpoint for testing
+// Root endpoint for testing - Enhanced with real-time data capabilities
 router.get('/', (req, res) => {
   res.json({
     status: 'ok',
     endpoint: 'market',
-    available_routes: [
-      '/overview',
-      '/sentiment/history',
-      '/sentiment/:symbol',
-      '/momentum/:symbol', 
-      '/positioning/:symbol',
-      '/sectors/performance',
-      '/breadth',
-      '/economic',
-      '/naaim',
-      '/fear-greed',
-      '/indices',
-      '/sectors',
-      '/volatility',
-      '/calendar',
-      '/indicators',
-      '/sentiment'
+    version: '3.0',
+    description: 'Consolidated market data with real-time feeds and analytics',
+    available_routes: {
+      // Database-driven analytics (existing functionality)
+      analytics: [
+        '/overview',
+        '/sentiment/history',
+        '/sentiment/:symbol',
+        '/momentum/:symbol', 
+        '/positioning/:symbol',
+        '/sectors/performance',
+        '/breadth',
+        '/economic',
+        '/naaim',
+        '/fear-greed',
+        '/indices',
+        '/sectors',
+        '/volatility',
+        '/calendar',
+        '/indicators',
+        '/sentiment'
+      ],
+      // Real-time data feeds (from market-data.js)
+      realtime: [
+        '/data/quotes - Real-time quotes for symbols',
+        '/data/bars/:symbol - Historical price bars',
+        '/data/trades/:symbol - Latest trades',
+        '/data/calendar - Market calendar',
+        '/data/status - Market status and trading hours'
+      ],
+      // Utility endpoints
+      utility: [
+        '/health - Comprehensive health check',
+        '/debug - System diagnostics'
+      ]
+    },
+    capabilities: [
+      'Database-driven market analytics',
+      'Real-time market data via Alpaca API',
+      'Comprehensive validation and security',
+      'Paper and live trading support',
+      'Enhanced error handling'
     ],
     timestamp: new Date().toISOString()
   });
@@ -3189,6 +3354,354 @@ router.get('/metrics/:symbol', async (req, res) => {
       message: 'Failed to retrieve market metrics from database',
       symbol: symbol.toUpperCase(),
       details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// ENHANCED REAL-TIME DATA ENDPOINTS (MERGED FROM market-data.js)
+// ============================================================================
+
+// Get real-time quotes for multiple symbols
+router.get('/data/quotes', authenticateToken, createValidationMiddleware(marketDataValidationSchemas.quotes), async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    const { symbols } = req.validated;
+    
+    console.log(`📊 [MARKET] Real-time quotes request for user ${userId}, symbols: ${symbols}`);
+
+    // Get user's API key
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'API credentials not found',
+        message: 'Please add your API credentials in Settings > API Keys'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get quotes for symbols (already validated and sanitized)
+    const symbolsArray = symbols.split(',');
+    const quotes = await alpaca.getMultiQuotes(symbolsArray);
+
+    res.json({
+      success: true,
+      data: quotes,
+      source: 'alpaca',
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      symbolCount: symbolsArray.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Market data quotes error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch quotes',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get historical bars for a symbol
+router.get('/data/bars/:symbol', authenticateToken, createValidationMiddleware(marketDataValidationSchemas.bars), async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    const { symbol, timeframe, start, end, limit } = req.validated;
+    
+    console.log(`📊 [MARKET] Historical bars request for ${symbol}, timeframe: ${timeframe}`);
+
+    // Get user's API key
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'API credentials not found',
+        message: 'Please add your API credentials in Settings > API Keys'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get historical bars
+    const params = {
+      timeframe,
+      limit: parseInt(limit)
+    };
+    
+    if (start) params.start = start;
+    if (end) params.end = end;
+
+    const bars = await alpaca.getBars(symbol.toUpperCase(), params);
+
+    res.json({
+      success: true,
+      data: bars,
+      source: 'alpaca',
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      symbol: symbol.toUpperCase(),
+      timeframe: timeframe || '1Day',
+      dataPoints: bars?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Market data bars error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch bars',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get latest trades for a symbol
+router.get('/data/trades/:symbol', authenticateToken, createValidationMiddleware(marketDataValidationSchemas.trades), async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    const { symbol, limit = 10 } = req.validated;
+    
+    console.log(`📊 [MARKET] Latest trades request for ${symbol}`);
+
+    // Get user's API key
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'API credentials not found',
+        message: 'Please add your API credentials in Settings > API Keys'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get trades
+    const trades = await alpaca.getTrades(symbol.toUpperCase(), { limit: parseInt(limit) });
+
+    res.json({
+      success: true,
+      data: trades,
+      source: 'alpaca',
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      symbol: symbol.toUpperCase(),
+      tradeCount: trades?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Market data trades error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trades',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get market calendar
+router.get('/data/calendar', authenticateToken, createValidationMiddleware(marketDataValidationSchemas.calendar), async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    const { start, end } = req.validated;
+    
+    console.log(`📊 [MARKET] Market calendar request`);
+
+    // Get user's API key
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'API credentials not found',
+        message: 'Please add your API credentials in Settings > API Keys'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get market calendar
+    const calendar = await alpaca.getCalendar(start, end);
+
+    res.json({
+      success: true,
+      data: calendar,
+      source: 'alpaca',
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      dateRange: { start, end },
+      calendarDays: calendar?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Market calendar error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch calendar',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get market status and trading hours
+router.get('/data/status', authenticateToken, async (req, res) => {
+  try {
+    console.log('📈 [MARKET] Market status endpoint called for user:', req.user?.sub);
+    const userId = req.user?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'User authentication required for market status'
+      });
+    }
+    
+    try {
+      // Try to get user's API key
+      const credentials = await getUserApiKey(userId, 'alpaca');
+      
+      if (credentials && credentials.apiKey && credentials.apiSecret) {
+        console.log('✅ Valid API credentials found, fetching real market status...');
+        
+        // Initialize Alpaca service
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+
+        // Get market status from Alpaca
+        const status = await alpaca.getClock();
+
+        return res.json({
+          success: true,
+          data: status,
+          source: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (apiError) {
+      console.warn('⚠️ API error, falling back to basic status:', apiError.message);
+    }
+    
+    // Fallback to basic market status if no API credentials or API error
+    const now = new Date();
+    const easternTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    const hour = easternTime.getHours();
+    const day = easternTime.getDay(); // 0 = Sunday, 6 = Saturday
+    
+    // Basic market hours: Mon-Fri 9:30 AM - 4:00 PM ET
+    const isMarketOpen = (day >= 1 && day <= 5) && (hour >= 9 && hour < 16);
+    
+    res.json({
+      success: true,
+      data: {
+        is_open: isMarketOpen,
+        next_open: 'Check with API credentials for precise times',
+        next_close: 'Check with API credentials for precise times',
+        timestamp: easternTime.toISOString()
+      },
+      source: 'fallback',
+      environment: 'basic',
+      message: 'Add API credentials for real-time market status',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Market status error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch market status',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Enhanced assets endpoint with real-time data
+router.get('/data/assets', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    
+    console.log(`📊 [MARKET] Assets request for user ${userId}`);
+
+    // Get user's API key
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'API credentials not found',
+        message: 'Please add your API credentials in Settings > API Keys'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+
+    // Get tradeable assets
+    const assets = await alpaca.getAssets();
+
+    res.json({
+      success: true,
+      data: assets,
+      source: 'alpaca',
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      assetCount: assets?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Market assets error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch assets',
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

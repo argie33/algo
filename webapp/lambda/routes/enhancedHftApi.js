@@ -688,4 +688,99 @@ router.post('/sync/positions', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/hft/alpaca/connect
+ * Initialize Alpaca HFT Service integration
+ */
+router.post('/alpaca/connect', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const HFTService = require('../services/hftService');
+    const hftService = new HFTService();
+    
+    // Initialize user credentials and Alpaca service
+    const initResult = await hftService.initializeUserCredentials(userId);
+    
+    if (initResult.success) {
+      res.json({
+        success: true,
+        data: {
+          alpacaAccount: initResult.account,
+          message: 'Alpaca HFT Service connected successfully',
+          timestamp: new Date().toISOString()
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: initResult.error
+      });
+    }
+
+  } catch (error) {
+    logger.error('Failed to connect Alpaca HFT Service', {
+      error: error.message,
+      userId: req.user.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to connect Alpaca HFT Service'
+    });
+  }
+});
+
+/**
+ * GET /api/hft/alpaca/status
+ * Get Alpaca integration status
+ */
+router.get('/alpaca/status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get user API credentials to check if available
+    const credSql = `
+      SELECT api_key, is_sandbox, created_at
+      FROM user_api_keys 
+      WHERE user_id = $1 AND provider = 'alpaca'
+    `;
+    const credResult = await query(credSql, [userId]);
+    
+    if (credResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          connected: false,
+          message: 'No Alpaca API credentials configured',
+          configurationRequired: true
+        }
+      });
+    }
+
+    const credentials = credResult.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        connected: true,
+        isPaper: credentials.is_sandbox,
+        configuredAt: credentials.created_at,
+        message: 'Alpaca credentials configured and ready for HFT integration'
+      }
+    });
+
+  } catch (error) {
+    logger.error('Failed to get Alpaca status', {
+      error: error.message,
+      userId: req.user.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get Alpaca status'
+    });
+  }
+});
+
 module.exports = router;

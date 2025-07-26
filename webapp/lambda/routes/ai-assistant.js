@@ -5,6 +5,7 @@ const bedrockAIService = require('../utils/bedrockAIService');
 const conversationStore = require('../utils/conversationStore');
 const aiErrorHandler = require('../utils/aiErrorHandler');
 const aiStreamingService = require('../utils/aiStreamingService');
+const aiAssistantHandler = require('../handlers/aiAssistantHandler');
 
 const router = express.Router();
 
@@ -912,6 +913,20 @@ const initializeWebSocket = (io) => {
     console.log('⚠️ WebSocket not available - streaming disabled');
   }
 };
+
+// ===== ENHANCED AI ASSISTANT ENDPOINTS USING NEW HANDLER =====
+
+// Enhanced Chat endpoint - replaces existing chat functionality
+router.post('/chat/enhanced', aiAssistantHandler.handleChatRequest.bind(aiAssistantHandler));
+
+// Enhanced History endpoints
+router.get('/history/:conversationId?', aiAssistantHandler.handleGetHistory.bind(aiAssistantHandler));
+router.get('/conversations', aiAssistantHandler.handleGetConversations.bind(aiAssistantHandler));
+router.delete('/history/:conversationId?', aiAssistantHandler.handleClearHistory.bind(aiAssistantHandler));
+
+// Enhanced Configuration endpoints
+router.get('/config/enhanced', aiAssistantHandler.handleGetConfig.bind(aiAssistantHandler));
+router.get('/health/enhanced', aiAssistantHandler.handleHealthCheck.bind(aiAssistantHandler));
 
 // Export router and WebSocket initializer
 module.exports = router;

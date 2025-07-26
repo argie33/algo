@@ -1469,4 +1469,605 @@ router.post('/add-to-watchlist', async (req, res) => {
   }
 });
 
+// ============================================================================
+// ENHANCED ALPACA INTEGRATION FEATURES (consolidated from portfolio-alpaca-integration.js)
+// ============================================================================
+
+// Enhanced Holdings with Database Integration
+// GET /api/portfolio/enhanced/holdings
+router.get('/enhanced/holdings', createValidationMiddleware(portfolioValidationSchemas.holdings), async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.sub;
+  const { accountType = 'paper', force = false, includeMetadata = false } = req.query;
+  
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      error: 'User authentication required'
+    });
+  }
+  
+  console.log(`🔄 Enhanced portfolio holdings request for user ${userId}, account: ${accountType}, force: ${force}`);
+  
+  try {
+    // Get API credentials
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'No Alpaca API credentials found',
+        message: 'Please configure your Alpaca API keys in Settings'
+      });
+    }
+
+    // Initialize enhanced services
+    const alpacaService = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      accountType === 'paper' || credentials.isSandbox
+    );
+
+    let holdings = [];
+    let accountInfo = null;
+    let dbSyncInfo = null;
+
+    // Try database first unless force refresh
+    if (!force) {
+      try {
+        const cachedData = await portfolioDb.getPortfolioData(userId, accountType);
+        if (cachedData && cachedData.positions) {
+          console.log(`📦 Using cached portfolio data (${cachedData.positions.length} positions)`);
+          holdings = cachedData.positions;
+          accountInfo = cachedData.account;
+          dbSyncInfo = {
+            lastSync: cachedData.last_updated,
+            source: 'database',
+            cacheAge: Date.now() - new Date(cachedData.last_updated).getTime()
+          };
+        }
+      } catch (dbError) {
+        console.warn('📦 Database cache miss or error:', dbError.message);
+      }
+    }
+
+    // Fetch fresh data if needed
+    if (holdings.length === 0 || force) {
+      console.log('🔄 Fetching fresh portfolio data from Alpaca API');
+      
+      // Get account information
+      accountInfo = await alpacaService.getAccount();
+      
+      // Get positions
+      const positions = await alpacaService.getPositions();
+      
+      // Transform positions to holdings format
+      holdings = positions.map(position => ({
+        symbol: position.symbol,
+        quantity: parseFloat(position.qty),
+        marketValue: parseFloat(position.market_value || 0),
+        costBasis: parseFloat(position.cost_basis || 0),
+        unrealizedPL: parseFloat(position.unrealized_pl || 0),
+        unrealizedPLPercent: parseFloat(position.unrealized_plpc || 0) * 100,
+        currentPrice: parseFloat(position.current_price || 0),
+        averageEntryPrice: parseFloat(position.avg_entry_price || 0),
+        side: position.side,
+        exchange: position.exchange,
+        assetClass: position.asset_class,
+        assetId: position.asset_id,
+        lastUpdated: new Date().toISOString()
+      }));
+
+      // Sync to database
+      try {
+        await portfolioSyncService.syncPortfolioData(userId, {
+          account: accountInfo,
+          positions: holdings,
+          accountType: accountType,
+          timestamp: new Date().toISOString()
+        });
+        
+        dbSyncInfo = {
+          lastSync: new Date().toISOString(),
+          source: 'alpaca_api',
+          synced: true
+        };
+      } catch (syncError) {
+        console.warn('📦 Failed to sync to database:', syncError.message);
+        dbSyncInfo = {
+          source: 'alpaca_api',
+          synced: false,
+          syncError: syncError.message
+        };
+      }
+    }
+
+    // Calculate totals
+    const totalValue = holdings.reduce((sum, holding) => sum + holding.marketValue, 0);
+    const totalPL = holdings.reduce((sum, holding) => sum + holding.unrealizedPL, 0);
+    const totalPLPercent = totalValue > 0 ? (totalPL / (totalValue - totalPL)) * 100 : 0;
+
+    const response = {
+      success: true,
+      data: {
+        holdings,
+        account: accountInfo,
+        summary: {
+          totalPositions: holdings.length,
+          totalValue,
+          totalUnrealizedPL: totalPL,
+          totalUnrealizedPLPercent: totalPLPercent,
+          accountType: accountType
+        },
+        metadata: includeMetadata ? {
+          requestDuration: Date.now() - startTime,
+          sync: dbSyncInfo,
+          apiProvider: 'alpaca',
+          environment: accountType === 'paper' ? 'sandbox' : 'live'
+        } : undefined
+      },
+      message: `Retrieved ${holdings.length} portfolio holdings`
+    };
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('❌ Enhanced portfolio holdings error:', error);
+    const duration = Date.now() - startTime;
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch enhanced portfolio holdings',
+      details: error.message,
+      metadata: {
+        requestDuration: duration,
+        accountType,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
+// Real-time Portfolio Sync
+// POST /api/portfolio/enhanced/sync
+router.post('/enhanced/sync', async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      error: 'User authentication required'
+    });
+  }
+
+  try {
+    const { accountType = 'paper' } = req.body;
+    
+    console.log(`🔄 Manual portfolio sync requested for user ${userId}, account: ${accountType}`);
+    
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'No Alpaca API credentials found'
+      });
+    }
+
+    const alpacaService = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      accountType === 'paper' || credentials.isSandbox
+    );
+
+    // Fetch fresh data
+    const [account, positions] = await Promise.all([
+      alpacaService.getAccount(),
+      alpacaService.getPositions()
+    ]);
+
+    // Transform and sync
+    const holdings = positions.map(position => ({
+      symbol: position.symbol,
+      quantity: parseFloat(position.qty),
+      marketValue: parseFloat(position.market_value || 0),
+      costBasis: parseFloat(position.cost_basis || 0),
+      unrealizedPL: parseFloat(position.unrealized_pl || 0),
+      unrealizedPLPercent: parseFloat(position.unrealized_plpc || 0) * 100,
+      currentPrice: parseFloat(position.current_price || 0),
+      averageEntryPrice: parseFloat(position.avg_entry_price || 0),
+      side: position.side,
+      lastUpdated: new Date().toISOString()
+    }));
+
+    await portfolioSyncService.syncPortfolioData(userId, {
+      account,
+      positions: holdings,
+      accountType,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      data: {
+        syncedPositions: holdings.length,
+        accountType,
+        syncTime: new Date().toISOString()
+      },
+      message: 'Portfolio sync completed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Portfolio sync error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Portfolio sync failed',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// API KEYS MANAGEMENT FEATURES (consolidated from portfolio-api-keys.js)
+// ============================================================================
+
+// AWS Secrets Manager setup for key encryption
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const secretsManagerClient = new SecretsManagerClient({
+  region: process.env.AWS_REGION || 'us-east-1'
+});
+
+// Supported broker providers
+const SUPPORTED_BROKERS = ['alpaca', 'interactive_brokers', 'td_ameritrade', 'e_trade', 'fidelity', 'schwab'];
+
+// API Key validation schemas
+const apiKeyValidationSchemas = {
+  brokerName: {
+    type: 'string',
+    required: true,
+    sanitizer: (value) => sanitizers.string(value, { trim: true, toLowerCase: true }),
+    validator: (value) => typeof value === 'string' && SUPPORTED_BROKERS.includes(value),
+    errorMessage: `Broker name must be one of: ${SUPPORTED_BROKERS.join(', ')}`
+  },
+  apiKey: {
+    type: 'string',
+    required: true,
+    sanitizer: (value) => sanitizers.string(value, { trim: true }),
+    validator: (value) => typeof value === 'string' && value.length >= 8 && value.length <= 200,
+    errorMessage: 'API key must be between 8 and 200 characters'
+  },
+  apiSecret: {
+    type: 'string',
+    required: true,
+    sanitizer: (value) => sanitizers.string(value, { trim: true }),
+    validator: (value) => typeof value === 'string' && value.length >= 8 && value.length <= 500,
+    errorMessage: 'API secret must be between 8 and 500 characters'
+  },
+  sandbox: {
+    type: 'boolean',
+    required: false,
+    sanitizer: (value) => sanitizers.boolean(value, { defaultValue: true }),
+    validator: (value) => typeof value === 'boolean',
+    errorMessage: 'Sandbox must be true or false'
+  }
+};
+
+// Encryption utilities
+const encryptApiKey = async (plaintext) => {
+  try {
+    const secretName = process.env.API_KEY_ENCRYPTION_SECRET_ARN || 'portfolio-api-key-encryption';
+    
+    let encryptionKey;
+    try {
+      const command = new GetSecretValueCommand({ SecretId: secretName });
+      const secretResponse = await secretsManagerClient.send(command);
+      encryptionKey = JSON.parse(secretResponse.SecretString).key;
+    } catch (secretError) {
+      console.warn('⚠️ AWS Secrets Manager not available, using fallback encryption');
+      encryptionKey = process.env.FALLBACK_ENCRYPTION_KEY || 'fallback-key-for-development-only';
+    }
+    
+    const algorithm = 'aes-256-gcm';
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipher(algorithm, encryptionKey);
+    
+    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    const authTag = cipher.getAuthTag();
+    
+    return {
+      encryptedData: encrypted,
+      iv: iv.toString('hex'),
+      authTag: authTag.toString('hex'),
+      algorithm
+    };
+  } catch (error) {
+    console.error('❌ Encryption error:', error);
+    throw new Error('Failed to encrypt API key');
+  }
+};
+
+// API Keys Management Health Check
+// GET /api/portfolio/api-keys/health
+router.get('/api-keys/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'portfolio-api-keys',
+    timestamp: new Date().toISOString(),
+    supportedBrokers: SUPPORTED_BROKERS,
+    features: {
+      encryption: true,
+      awsSecretsManager: true,
+      brokerValidation: true,
+      secureStorage: true
+    }
+  });
+});
+
+// Get All API Keys for Portfolio
+// GET /api/portfolio/api-keys
+router.get('/api-keys', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔑 Fetching API keys for portfolio user: ${userId}`);
+
+    // Get all API keys for supported brokers
+    const apiKeys = [];
+    for (const broker of SUPPORTED_BROKERS) {
+      try {
+        const credentials = await getUserApiKey(userId, broker);
+        if (credentials) {
+          apiKeys.push({
+            broker,
+            configured: true,
+            sandbox: credentials.isSandbox,
+            hasKey: !!credentials.apiKey,
+            hasSecret: !!credentials.apiSecret,
+            keyLength: credentials.apiKey ? credentials.apiKey.length : 0,
+            lastUpdated: new Date().toISOString()
+          });
+        } else {
+          apiKeys.push({
+            broker,
+            configured: false,
+            sandbox: null,
+            hasKey: false,
+            hasSecret: false
+          });
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error checking ${broker} API key:`, error.message);
+        apiKeys.push({
+          broker,
+          configured: false,
+          error: error.message
+        });
+      }
+    }
+
+    const configuredCount = apiKeys.filter(key => key.configured).length;
+
+    res.json({
+      success: true,
+      data: {
+        apiKeys,
+        summary: {
+          total: SUPPORTED_BROKERS.length,
+          configured: configuredCount,
+          unconfigured: SUPPORTED_BROKERS.length - configuredCount
+        }
+      },
+      message: `Retrieved API key status for ${SUPPORTED_BROKERS.length} brokers`
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching portfolio API keys:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch API keys',
+      details: error.message
+    });
+  }
+});
+
+// Set/Update API Keys for Portfolio
+// PUT /api/portfolio/api-keys/:broker
+router.put('/api-keys/:broker', createValidationMiddleware(apiKeyValidationSchemas), async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { broker } = req.params;
+    const { apiKey, apiSecret, sandbox = true } = req.validated;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    if (!SUPPORTED_BROKERS.includes(broker)) {
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported broker: ${broker}`,
+        supportedBrokers: SUPPORTED_BROKERS
+      });
+    }
+
+    console.log(`🔑 Setting ${broker} API key for portfolio user: ${userId}, sandbox: ${sandbox}`);
+
+    // Encrypt the credentials
+    const encryptedKey = await encryptApiKey(apiKey);
+    const encryptedSecret = await encryptApiKey(apiSecret);
+
+    // Store via API key service
+    await apiKeyService.setApiKey(userId, broker, {
+      keyId: apiKey,
+      secretKey: apiSecret,
+      version: sandbox ? '1.0' : '2.0',
+      encrypted: true,
+      encryptedData: {
+        key: encryptedKey,
+        secret: encryptedSecret
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        broker,
+        configured: true,
+        sandbox,
+        timestamp: new Date().toISOString()
+      },
+      message: `${broker} API key configured successfully`
+    });
+
+  } catch (error) {
+    console.error('❌ Error setting portfolio API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to set API key',
+      details: error.message
+    });
+  }
+});
+
+// Delete API Keys for Portfolio
+// DELETE /api/portfolio/api-keys/:broker
+router.delete('/api-keys/:broker', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { broker } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    if (!SUPPORTED_BROKERS.includes(broker)) {
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported broker: ${broker}`,
+        supportedBrokers: SUPPORTED_BROKERS
+      });
+    }
+
+    console.log(`🗑️ Deleting ${broker} API key for portfolio user: ${userId}`);
+
+    // Delete via API key service
+    await apiKeyService.deleteApiKey(userId, broker);
+
+    res.json({
+      success: true,
+      data: {
+        broker,
+        deleted: true,
+        timestamp: new Date().toISOString()
+      },
+      message: `${broker} API key deleted successfully`
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting portfolio API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete API key',
+      details: error.message
+    });
+  }
+});
+
+// Test API Key Connection for Portfolio
+// POST /api/portfolio/api-keys/:broker/test
+router.post('/api-keys/:broker/test', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { broker } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    if (!SUPPORTED_BROKERS.includes(broker)) {
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported broker: ${broker}`,
+        supportedBrokers: SUPPORTED_BROKERS
+      });
+    }
+
+    console.log(`🧪 Testing ${broker} API key connection for portfolio user: ${userId}`);
+
+    const credentials = await getUserApiKey(userId, broker);
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: `No ${broker} API key configured`
+      });
+    }
+
+    let testResult = { connected: false, error: null };
+
+    if (broker === 'alpaca') {
+      try {
+        const alpacaService = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+        
+        const account = await alpacaService.getAccount();
+        testResult = {
+          connected: true,
+          accountId: account.id,
+          accountStatus: account.status,
+          environment: credentials.isSandbox ? 'sandbox' : 'live'
+        };
+      } catch (alpacaError) {
+        testResult = {
+          connected: false,
+          error: alpacaError.message
+        };
+      }
+    } else {
+      // For other brokers, implement specific connection tests
+      testResult = {
+        connected: false,
+        error: `Connection test not implemented for ${broker}`
+      };
+    }
+
+    res.json({
+      success: testResult.connected,
+      data: {
+        broker,
+        test: testResult,
+        timestamp: new Date().toISOString()
+      },
+      message: testResult.connected 
+        ? `${broker} API key connection successful`
+        : `${broker} API key connection failed`
+    });
+
+  } catch (error) {
+    console.error('❌ Error testing portfolio API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test API key',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

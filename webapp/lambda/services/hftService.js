@@ -224,21 +224,30 @@ class HFTService {
         correlationId: this.correlationId
       });
 
-      // Initialize real-time data integrator
-      await this.dataIntegrator.initialize(this.userCredentials);
+      // Initialize WebSocket manager for market data
+      const credentials = {
+        alpaca: {
+          apiKey: this.userCredentials?.keyId,
+          apiSecret: this.userCredentials?.secretKey
+        }
+      };
       
-      // Set up real-time signal listening
-      this.dataIntegrator.on('signal', (signal) => {
-        this.handleRealTimeSignal(signal);
+      const wsResult = await this.webSocketManager.initialize(credentials);
+      if (!wsResult.success) {
+        this.logger.warn('WebSocket manager initialization failed', {
+          error: wsResult.error,
+          correlationId: this.correlationId
+        });
+      }
+
+      // Set up market data event handling
+      this.webSocketManager.on('marketData', (data) => {
+        this.processMarketData(data);
       });
 
-      this.dataIntegrator.on('trade', (trade) => {
-        this.handleRealTimeMarketData(trade);
-      });
-
-      // Subscribe to default symbols for scalping strategy
-      const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY'];
-      await this.dataIntegrator.subscribeToSymbols(defaultSymbols);
+      // Subscribe to default HFT symbols
+      const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY', 'QQQ', 'NVDA'];
+      await this.webSocketManager.subscribeToHFTSymbols(defaultSymbols, 'high');
 
       // Initialize real-time position synchronization
       const positionSyncResult = await this.realTimePositionSync.initialize();
