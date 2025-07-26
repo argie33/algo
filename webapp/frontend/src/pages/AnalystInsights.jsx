@@ -314,7 +314,7 @@ function AnalystInsights() {
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load analyst data: {upgradesError.message}
           <br />
-          <small>This may indicate that analyst data tables are not yet populated or there's a database connectivity issue.</small>
+          <small>This may indicate that analyst data tables are not yet populated or there&apos;s a database connectivity issue.</small>
         </Alert>
       )}
       <Card>

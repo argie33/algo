@@ -727,7 +727,7 @@ const Dashboard = () => {
                     </Typography>
                   </Box>
                   <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Today's P&L</Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Today&apos;s P&L</Typography>
                     <Typography variant="h5" fontWeight="bold" color={safePortfolio.pnl?.daily >= 0 ? 'success.light' : 'error.light'}>
                       ${(safePortfolio.pnl?.daily || 0).toLocaleString()}
                     </Typography>
@@ -772,7 +772,7 @@ const Dashboard = () => {
             </Button>
           }
         >
-          <strong>Demo Mode:</strong> You're viewing sample data with full platform capabilities. Sign in to access your personal portfolio, real-time alerts, and advanced analytics.
+          <strong>Demo Mode:</strong> You&apos;re viewing sample data with full platform capabilities. Sign in to access your personal portfolio, real-time alerts, and advanced analytics.
         </Alert>
       )}
 

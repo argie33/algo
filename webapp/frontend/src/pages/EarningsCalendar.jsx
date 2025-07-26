@@ -3,7 +3,7 @@ import { useEarningsCalendar } from '../hooks/useApiData'
 import { useCalendarEvents } from '../hooks/useTradingData'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
-import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
+import { formatCurrency, formatNumber, formatPercentage, getChangeColor } from '../utils/formatters'
 import { getCalendarEvents, getEarningsEstimates, getEarningsHistory, getEpsRevisions, getEpsTrend, getEarningsMetrics } from '../services/api'
 import {
   Box,
@@ -46,7 +46,8 @@ import {
   Modal,
   Backdrop,
   Fade,
-  LinearProgress
+  LinearProgress,
+  Avatar
 } from '@mui/material'
 import {
   ExpandMore,

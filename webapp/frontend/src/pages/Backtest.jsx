@@ -1259,7 +1259,7 @@ export default function Backtest() {
                   </TableContainer>
                 ) : (
                   <Alert severity="info">
-                    Click "Optimize" to run parameter optimization analysis
+                    Click &quot;Optimize&quot; to run parameter optimization analysis
                   </Alert>
                 )}
               </TabPanel>

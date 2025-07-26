@@ -826,7 +826,7 @@ const EnhancedAIChat = () => {
                   label="Enable Real-time Streaming"
                 />
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
-                  Get responses as they're generated for faster interaction
+                  Get responses as they&apos;re generated for faster interaction
                 </Typography>
               </Box>
 

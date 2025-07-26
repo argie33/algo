@@ -893,7 +893,7 @@ const CommoditiesEnhanced = () => {
             <Typography variant="body2">
               Commercial traders are typically producers and consumers (smart money). 
               Non-commercial traders are speculators and hedge funds. When commercials are net long, 
-              it's generally bullish; when net short, it's bearish.
+              it&apos;s generally bullish; when net short, it&apos;s bearish.
             </Typography>
           </Alert>
         </Grid>
