@@ -20,8 +20,15 @@ class ConfigurationService {
     }
 
     try {
-      // Load from CloudFormation config if available (now async)
-      const cloudFormationConfig = await this.loadCloudFormationConfig();
+      let cloudFormationConfig = {};
+      
+      // Try to load CloudFormation config with fallback
+      try {
+        cloudFormationConfig = await this.loadCloudFormationConfig();
+      } catch (cfError) {
+        console.warn('⚠️ CloudFormation config failed, using fallbacks:', cfError.message);
+        cloudFormationConfig = {};
+      }
       
       // Load from window.__CONFIG__ if available
       const windowConfig = this.loadWindowConfig();
@@ -41,12 +48,13 @@ class ConfigurationService {
       this.validateConfiguration(this.configCache);
       
       this.initialized = true;
+      console.log('✅ Configuration initialized successfully');
       return this.configCache;
       
     } catch (error) {
       console.error('❌ Configuration initialization failed:', error);
       
-      // Instead of fallback, provide detailed error context and fail fast
+      // Provide detailed error context
       const errorContext = {
         error: error.message,
         timestamp: new Date().toISOString(),
@@ -68,7 +76,13 @@ class ConfigurationService {
       };
       
       console.error('🚨 Configuration Error Context:', errorContext);
-      throw new Error(`Configuration initialization failed: ${error.message}. See console for detailed troubleshooting context.`);
+      
+      // Use emergency fallback configuration instead of failing completely
+      console.warn('🚨 Using emergency fallback configuration to prevent app crash');
+      this.configCache = this.getEmergencyFallbackConfig();
+      this.initialized = true;
+      
+      return this.configCache;
     }
   }
 
@@ -100,7 +114,7 @@ class ConfigurationService {
     // Try to fetch from API endpoint with emergency fallback
     try {
       console.log('🔍 Fetching configuration from API...');
-      const apiUrl = this.getApiBaseUrl();
+      const apiUrl = await this.getApiBaseUrl();
       
       // Fetch from new configuration endpoint (no CloudFormation API calls)
       let response = await fetch(`${apiUrl}/api/config`);
@@ -205,9 +219,17 @@ class ConfigurationService {
         }
       }
     } catch (fetchError) {
+      // Get API URL safely for error context
+      let errorUrl;
+      try {
+        errorUrl = `${await this.getApiBaseUrl()}/api/config`;
+      } catch (urlError) {
+        errorUrl = 'URL_RESOLUTION_FAILED';
+      }
+      
       const errorContext = {
         error: fetchError.message,
-        url: `${this.getApiBaseUrlSync()}/api/config`,
+        url: errorUrl,
         timestamp: new Date().toISOString(),
         troubleshooting: {
           networkErrors: fetchError.message.includes('fetch') ? [
@@ -353,6 +375,32 @@ class ConfigurationService {
     };
   }
 
+  /**
+   * Get emergency fallback configuration to prevent app crash
+   */
+  getEmergencyFallbackConfig() {
+    return {
+      api: {
+        baseUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
+      },
+      cognito: {
+        userPoolId: 'us-east-1_EMERGENCY',
+        clientId: 'emergency_client_id',
+        domain: 'emergency-domain'
+      },
+      aws: {
+        region: 'us-east-1'
+      },
+      features: {
+        authentication: false, // Disable auth in emergency mode
+        cognito: false
+      },
+      emergency: true,
+      source: 'emergency_fallback',
+      message: 'Running in emergency mode - some features may be disabled'
+    };
+  }
+
 
   /**
    * Merge configurations with proper priority
@@ -489,6 +537,12 @@ class ConfigurationService {
    */
   async isAuthenticationConfigured() {
     const config = await this.getConfig();
+    
+    // Don't try to configure auth in emergency mode
+    if (config.emergency) {
+      return false;
+    }
+    
     return !!(
       config.features?.authentication &&
       config.cognito?.userPoolId &&
@@ -496,6 +550,14 @@ class ConfigurationService {
       !this.isPlaceholderValue(config.cognito.userPoolId) &&
       !this.isPlaceholderValue(config.cognito.clientId)
     );
+  }
+
+  /**
+   * Check if running in emergency mode
+   */
+  async isEmergencyMode() {
+    const config = await this.getConfig();
+    return config.emergency === true;
   }
 
   /**
