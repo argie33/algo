@@ -14,7 +14,7 @@ if (!React.useState) {
   throw new Error('React hooks not available - React import failed');
 }
 
-// Set React globally in all possible scopes with full hooks
+// CRITICAL FIX: Ensure all React hooks are properly available
 const ReactWithHooks = {
   ...React,
   // Explicitly ensure all hooks are available
@@ -35,24 +35,54 @@ const ReactWithHooks = {
   useInsertionEffect: React.useInsertionEffect || React.useLayoutEffect
 };
 
+// CRITICAL: Verify all hooks are actually functions before proceeding
+const missingHooks = Object.entries(ReactWithHooks)
+  .filter(([name, hook]) => name.startsWith('use') && typeof hook !== 'function')
+  .map(([name]) => name);
+
+if (missingHooks.length > 0) {
+  console.error('❌ CRITICAL: Missing React hooks detected:', missingHooks);
+  throw new Error(`React hooks not available: ${missingHooks.join(', ')}`);
+}
+
+// Set React globally with multiple fallback mechanisms
 if (typeof window !== 'undefined') {
   window.React = ReactWithHooks;
   window.ReactDOM = ReactDOM;
-  // Also set as F for MUI compatibility
+  // CRITICAL: Set F for MUI/bundled library compatibility
   window.F = ReactWithHooks;
+  
+  // Additional protection - ensure F is never undefined
+  Object.defineProperty(window, 'F', {
+    get() { return ReactWithHooks; },
+    set(value) { /* Prevent F from being overwritten */ },
+    configurable: false,
+    enumerable: true
+  });
 }
 
 if (typeof globalThis !== 'undefined') {
   globalThis.React = ReactWithHooks;
   globalThis.ReactDOM = ReactDOM;
-  // Also set as F for MUI compatibility
   globalThis.F = ReactWithHooks;
+  
+  // Protection for globalThis.F
+  try {
+    Object.defineProperty(globalThis, 'F', {
+      get() { return ReactWithHooks; },
+      set(value) { /* Prevent F from being overwritten */ },
+      configurable: false,
+      enumerable: true
+    });
+  } catch (e) {
+    // Fallback if defineProperty fails
+    globalThis.F = ReactWithHooks;
+  }
 }
 
 if (typeof global !== 'undefined') {
   global.React = ReactWithHooks;
   global.ReactDOM = ReactDOM;
-  // Also set as F for MUI compatibility
   global.F = ReactWithHooks;
 }
 
@@ -138,6 +168,41 @@ try {
   console.log('✅ React module preloader initialized successfully');
 } catch (error) {
   console.error('❌ React module preloader failed:', error);
+}
+
+// CRITICAL: Runtime monitoring to prevent F from becoming undefined
+if (typeof window !== 'undefined') {
+  // Monitor F and restore it if it becomes undefined
+  const monitorF = () => {
+    if (typeof window.F === 'undefined' || !window.F.useLayoutEffect) {
+      console.warn('⚠️ CRITICAL: window.F became undefined, restoring...');
+      window.F = ReactWithHooks;
+      
+      // Also ensure React is still available
+      if (typeof window.React === 'undefined' || !window.React.useLayoutEffect) {
+        window.React = ReactWithHooks;
+      }
+    }
+  };
+  
+  // Check every 100ms during initial load
+  const monitorInterval = setInterval(monitorF, 100);
+  
+  // Stop monitoring after 10 seconds
+  setTimeout(() => {
+    clearInterval(monitorInterval);
+    // Do one final check
+    monitorF();
+    console.log('✅ F monitoring completed');
+  }, 10000);
+  
+  // Also monitor on errors
+  window.addEventListener('error', (event) => {
+    if (event.message.includes('useLayoutEffect') || event.message.includes('undefined')) {
+      console.warn('⚠️ CRITICAL: Error detected, checking F...');
+      monitorF();
+    }
+  });
 }
 
 export { ReactWithHooks as React, ReactDOM };

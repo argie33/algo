@@ -218,7 +218,10 @@ export default defineConfig(({ mode }) => {
         define: {
           // Ensure React is available globally for all modules
           'global': 'globalThis',
-          'process.env.NODE_ENV': '"production"'
+          'process.env.NODE_ENV': '"production"',
+          // CRITICAL: Ensure F is available for MUI compatibility
+          'window.F': 'window.React',
+          'globalThis.F': 'globalThis.React'
         }
       },
     },

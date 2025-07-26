@@ -1,5 +1,14 @@
 // CRITICAL: Import React module preloader FIRST to fix useLayoutEffect errors
 import './utils/reactModulePreloader'
+
+// IMMEDIATE FIX: Ensure F is available before any other imports
+if (typeof window !== 'undefined' && typeof window.F === 'undefined') {
+  import('react').then(React => {
+    window.F = React.default || React;
+    console.log('✅ Emergency F restoration completed');
+  });
+}
+
 // Verify React is properly loaded
 import './utils/reactFixVerification'
 
