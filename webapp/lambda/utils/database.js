@@ -51,66 +51,77 @@ async function getDbConfig() {
         !process.env.DB_SECRET_ARN.includes('${') &&
         process.env.DB_SECRET_ARN !== '${DB_SECRET_ARN}') {
       
-      console.log('🔐 Using AWS Secrets Manager for database configuration');
+      console.log('🔐 Attempting AWS Secrets Manager for database configuration');
       const secretArn = process.env.DB_SECRET_ARN;
       
-      const command = new GetSecretValueCommand({ SecretId: secretArn });
-      const response = await secretsManager.send(command);
-      
-      if (!response.SecretString) {
-        throw new Error('Secret value is empty');
-      }
-      
-      let secret;
       try {
-        secret = JSON.parse(response.SecretString);
-      } catch (parseError) {
-        throw new Error(`Invalid secret JSON format: ${parseError.message}`);
+        const command = new GetSecretValueCommand({ SecretId: secretArn });
+        const response = await secretsManager.send(command);
+        
+        if (!response.SecretString) {
+          throw new Error('Secret value is empty');
+        }
+        
+        let secret;
+        try {
+          secret = JSON.parse(response.SecretString);
+        } catch (parseError) {
+          throw new Error(`Invalid secret JSON format: ${parseError.message}`);
+        }
+        
+        // Validate required fields
+        const required = ['username', 'password'];
+        const missing = required.filter(field => !secret[field]);
+        if (missing.length > 0) {
+          throw new Error(`Secret missing required fields: ${missing.join(', ')}`);
+        }
+        
+        // Get host with fallback chain
+        const dbHost = secret.host || secret.endpoint || process.env.DB_ENDPOINT || process.env.DB_HOST;
+        
+        if (!dbHost) {
+          throw new Error('No database host found in secret or environment variables');
+        }
+        
+        // Security: Reject localhost in Lambda environment
+        if (process.env.AWS_LAMBDA_FUNCTION_NAME && ['localhost', '127.0.0.1'].includes(dbHost)) {
+          throw new Error('Invalid database host: localhost not allowed in AWS Lambda');
+        }
+        
+        dbConfig = {
+          host: dbHost,
+          port: parseInt(secret.port) || parseInt(process.env.DB_PORT) || 5432,
+          database: secret.dbname || secret.database || process.env.DB_NAME || 'stocks',
+          user: secret.username || secret.user,
+          password: secret.password,
+          ssl: { rejectUnauthorized: false }
+        };
+        
+        console.log(`✅ Database config loaded from AWS Secrets Manager`);
+        console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
+        console.log(`   📚 Database: ${dbConfig.database}`);
+        console.log(`   👤 User: ${dbConfig.user}`);
+        
+        return dbConfig;
+        
+      } catch (secretError) {
+        console.error(`❌ SECRETS MANAGER ERROR: ${secretError.message}`);
+        console.error(`❌ Error Code: ${secretError.code || 'UNKNOWN'}`);
+        console.error(`❌ Secret ARN: ${secretArn}`);
+        console.error(`❌ Region: ${process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1'}`);
+        
+        // Detailed environment diagnostics
+        console.error('🔍 ENVIRONMENT DIAGNOSTICS:');
+        console.error(`   AWS_LAMBDA_FUNCTION_NAME: ${process.env.AWS_LAMBDA_FUNCTION_NAME || 'NOT_SET'}`);
+        console.error(`   AWS_EXECUTION_ENV: ${process.env.AWS_EXECUTION_ENV || 'NOT_SET'}`);
+        console.error(`   DB_SECRET_ARN: ${process.env.DB_SECRET_ARN ? 'SET' : 'NOT_SET'}`);
+        console.error(`   DB_ENDPOINT: ${process.env.DB_ENDPOINT || 'NOT_SET'}`);
+        console.error(`   DB_NAME: ${process.env.DB_NAME || 'NOT_SET'}`);
+        console.error(`   DB_PORT: ${process.env.DB_PORT || 'NOT_SET'}`);
+        
+        // Throw enhanced error with diagnostics
+        throw new Error(`Secrets Manager access failed: ${secretError.message}. Environment: Lambda=${!!process.env.AWS_LAMBDA_FUNCTION_NAME}, Region=${process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION}, SecretArn=${secretArn.substring(0, 50)}...`);
       }
-      
-      // Validate required fields
-      const required = ['username', 'password', 'host'];
-      const missing = required.filter(field => !secret[field] && !secret[field === 'host' ? 'endpoint' : field]);
-      if (missing.length > 0) {
-        throw new Error(`Secret missing required fields: ${missing.join(', ')}`);
-      }
-      
-      // Get host with fallback chain
-      const dbHost = secret.host || secret.endpoint || process.env.DB_ENDPOINT || process.env.DB_HOST;
-      
-      // Security: Reject localhost in Lambda environment
-      if (process.env.AWS_LAMBDA_FUNCTION_NAME && ['localhost', '127.0.0.1'].includes(dbHost)) {
-        throw new Error('Invalid database host: localhost not allowed in AWS Lambda');
-      }
-      
-      dbConfig = {
-        host: dbHost,
-        port: parseInt(secret.port) || 5432,
-        database: secret.dbname || secret.database || 'financial_dashboard',
-        user: secret.username || secret.user,
-        password: secret.password,
-        ssl: { rejectUnauthorized: false }
-      };
-      
-      console.log(`✅ Database config loaded from AWS Secrets Manager`);
-      console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
-      console.log(`   📚 Database: ${dbConfig.database}`);
-      
-      return dbConfig;
-    }
-
-    // Priority 2: Environment variables (development)
-    if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
-      console.log('🔧 Using direct environment variables');
-      dbConfig = {
-        host: process.env.DB_HOST,
-        port: parseInt(process.env.DB_PORT) || 5432,
-        database: process.env.DB_NAME || 'financial_dashboard',
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
-      };
-      return dbConfig;
     }
     
     // Priority 3: Test/fallback configuration

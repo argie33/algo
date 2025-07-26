@@ -138,8 +138,8 @@ const safeRouteLoader = (routePath, routeName, mountPath) => {
 
 // 1. CRITICAL SYSTEM ROUTES - Must load first
 console.log('📋 Loading critical system routes...');
-safeRouteLoader('./routes/health', 'Health', '/api/health');
-safeRouteLoader('./routes/health', 'Health Direct', '/health');
+safeRouteLoader('./routes/health', 'Health', '/health');
+safeRouteLoader('./routes/diagnostic', 'Diagnostic', '/diagnostic');
 safeRouteLoader('./routes/auth', 'Authentication', '/api/auth');
 safeRouteLoader('./routes/user', 'User Management', '/api/user');
 
