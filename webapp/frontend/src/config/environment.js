@@ -45,11 +45,18 @@ export const AWS_CONFIG = {
   
   // API Gateway Configuration - MUST come from CloudFormation deployment
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 
+    get baseUrl() {
+      // Runtime getter to ensure window config is available
+      return import.meta.env.VITE_API_BASE_URL || 
              window.__CONFIG__?.API?.BASE_URL ||
              window.__CLOUDFORMATION_CONFIG__?.ApiGatewayUrl ||
              (cloudFormationConfig?.api?.baseUrl) ||
-             null, // No fallback - must be configured
+             null; // No fallback - must be configured
+    },
+    set baseUrl(value) {
+      // Allow dynamic updates
+      this._baseUrl = value;
+    },
     version: import.meta.env.VITE_API_VERSION || 'v1',
     timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
     retryAttempts: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS) || 3,
@@ -394,7 +401,7 @@ export const getApiUrl = (endpoint = '') => {
   }
   
   // Fallback to environment configuration
-  const baseUrl = AWS_CONFIG.api.baseUrl.replace(/\/$/, ''); // Remove trailing slash
+  const baseUrl = AWS_CONFIG.api.baseUrl?.replace(/\/$/, '') || ''; // Remove trailing slash, handle null
   const cleanEndpoint = endpoint.replace(/^\//, ''); // Remove leading slash
   
   // Don't add version prefix - AWS API Gateway already includes it in the base URL
@@ -551,9 +558,18 @@ export const logConfig = () => {
   }
 };
 
-// Initialize configuration logging in development
+// Initialize configuration logging in development with proper timing
 if (IS_DEVELOPMENT) {
-  setTimeout(logConfig, 100);
+  // Wait for runtime config to be loaded before validation
+  const checkConfigReady = () => {
+    if (window.__CONFIG__?.API?.BASE_URL || import.meta.env.VITE_API_BASE_URL) {
+      logConfig();
+    } else {
+      // Check again in 100ms if config not ready
+      setTimeout(checkConfigReady, 100);
+    }
+  };
+  setTimeout(checkConfigReady, 100);
 }
 
 export default {
