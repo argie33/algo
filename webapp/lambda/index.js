@@ -14,8 +14,23 @@ app.use(corsWithTimeoutHandling());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Authentication configuration - allow development bypass when Cognito is not configured
-// Check if Cognito is properly configured
+// AWS Production Configuration - This is running in AWS Lambda
+// Force production settings since this is deployed via IaC
+const isRunningInAWS = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV);
+
+if (isRunningInAWS) {
+  // Force production settings for AWS deployment
+  process.env.NODE_ENV = 'production';
+  process.env.ALLOW_DEV_BYPASS = 'false';
+  console.log('🚀 AWS Lambda detected - forcing production authentication mode');
+} else {
+  // Local development configuration
+  process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+  process.env.ALLOW_DEV_BYPASS = process.env.ALLOW_DEV_BYPASS || 'true';
+  console.log('🔧 Local development mode detected');
+}
+
+// Check if Cognito is properly configured (for debugging only)
 const hasCognitoConfig = !!(
   process.env.COGNITO_USER_POOL_ID && 
   process.env.COGNITO_CLIENT_ID
@@ -23,24 +38,8 @@ const hasCognitoConfig = !!(
   process.env.COGNITO_SECRET_ARN
 );
 
-// If Cognito is not configured, enable development bypass for functionality
-if (!process.env.ALLOW_DEV_BYPASS) {
-  if (hasCognitoConfig) {
-    process.env.ALLOW_DEV_BYPASS = 'false'; // Production security when Cognito is configured
-  } else {
-    process.env.ALLOW_DEV_BYPASS = 'true';  // Enable bypass when Cognito is not configured
-    console.log('⚠️ Cognito not configured - enabling development bypass for API functionality');
-  }
-}
-
-// Use NODE_ENV from environment, default based on Cognito configuration
-if (!process.env.NODE_ENV) {
-  if (hasCognitoConfig) {
-    process.env.NODE_ENV = 'production';   // Production when properly configured
-  } else {
-    process.env.NODE_ENV = 'development';  // Development when not configured
-    console.log('⚠️ Setting NODE_ENV=development due to missing Cognito configuration');
-  }
+if (!hasCognitoConfig) {
+  console.warn('⚠️ Cognito environment variables not found - may need to be set via CloudFormation/IaC');
 }
 
 console.log(`🔒 Security Configuration: NODE_ENV=${process.env.NODE_ENV}, ALLOW_DEV_BYPASS=${process.env.ALLOW_DEV_BYPASS}`);
@@ -179,14 +178,34 @@ safeRouteLoader('./routes/calendar', 'Calendar', '/api/calendar');
 
 // Dashboard endpoint is now properly loaded from ./routes/dashboard.js
 
-// Auth status endpoint with development bypass
+// Authentication configuration diagnostic endpoint
 app.get('/api/auth-status', (req, res) => {
-  res.json({
+  const authConfig = {
     success: true,
-    authenticated: true, // Always true in development mode
-    developmentMode: true,
-    message: 'Authentication bypassed for development'
-  });
+    awsLambdaDetected: !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV),
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      ALLOW_DEV_BYPASS: process.env.ALLOW_DEV_BYPASS
+    },
+    cognitoConfiguration: {
+      hasUserPoolId: !!process.env.COGNITO_USER_POOL_ID,
+      hasClientId: !!process.env.COGNITO_CLIENT_ID,
+      hasSecretArn: !!process.env.COGNITO_SECRET_ARN,
+      userPoolId: process.env.COGNITO_USER_POOL_ID ? 'us-east-1_***' : 'NOT_SET',
+      clientId: process.env.COGNITO_CLIENT_ID ? '***configured***' : 'NOT_SET'
+    },
+    requiredLambdaEnvironmentVariables: {
+      COGNITO_USER_POOL_ID: 'us-east-1_ZqooNeQtV (from frontend logs)',
+      COGNITO_CLIENT_ID: '243r98prucoickch12djkahrhk (from frontend logs)',
+      COGNITO_DOMAIN: 'https://financial-dashboard-dev-626216981288.auth.us-east-1.amazoncognito.com'
+    },
+    message: process.env.COGNITO_USER_POOL_ID ? 
+      'Cognito properly configured' : 
+      'MISSING: Lambda needs Cognito environment variables set in IaC deployment'
+  };
+
+  const statusCode = authConfig.cognitoConfiguration.hasUserPoolId ? 200 : 500;
+  res.status(statusCode).json(authConfig);
 });
 
 // Root endpoint

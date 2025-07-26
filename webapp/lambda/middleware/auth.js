@@ -25,32 +25,16 @@ function isDevelopment() {
 }
 
 function allowDevBypass() {
-  // Enable development bypass for development and testing
-  // EMERGENCY FIX: Also allow bypass when Cognito fails to configure
-  const hasBasicDevBypass = isDevelopment() || 
-                           process.env.ALLOW_DEV_BYPASS === 'true' ||
-                           !process.env.AWS_REGION; // No AWS region = local development
+  // Only allow bypass for true local development (never in AWS)
+  const isLocalDevelopment = !process.env.AWS_LAMBDA_FUNCTION_NAME && 
+                            !process.env.AWS_EXECUTION_ENV &&
+                            process.env.NODE_ENV === 'development';
   
-  // If we're not in basic dev mode, check if this is an emergency situation
-  if (!hasBasicDevBypass) {
-    // If no Cognito configuration is available, allow bypass as emergency fallback
-    const hasMinimalCognitoConfig = !!(process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID);
-    if (!hasMinimalCognitoConfig) {
-      console.log('🚨 EMERGENCY: No Cognito config found, enabling bypass for API functionality');
-      return true;
-    }
+  if (isLocalDevelopment) {
+    console.log('🔧 Local development bypass enabled for localhost testing');
   }
   
-  // Log the bypass decision for debugging
-  if (hasBasicDevBypass) {
-    console.log('🔧 Authentication bypass enabled:', {
-      NODE_ENV: process.env.NODE_ENV,
-      ALLOW_DEV_BYPASS: process.env.ALLOW_DEV_BYPASS,
-      AWS_REGION: !!process.env.AWS_REGION
-    });
-  }
-  
-  return hasBasicDevBypass;
+  return isLocalDevelopment;
 }
 
 /**
@@ -398,27 +382,22 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Development fallback for authentication errors
-    // EMERGENCY FIX: Be more permissive when Cognito fails
-    const shouldAllowFallback = allowDevBypass() || 
-      (error.message && error.message.includes('verify')) ||
-      (error.name === 'JwtVerifyError');
-      
-    if (shouldAllowFallback) {
-      console.warn(`🔧 [${requestId}] Authentication failed, using development fallback`);
+    // Only allow development fallback for true local development
+    if (allowDevBypass()) {
+      console.warn(`🔧 [${requestId}] Authentication failed, using local development fallback`);
       console.warn(`🔧 [${requestId}] Error was: ${error.name} - ${error.message}`);
       
       req.user = {
-        sub: 'dev-user-error-fallback',
-        email: 'dev@example.com',
-        username: 'dev-user',
+        sub: 'dev-user-localhost',
+        email: 'dev@localhost.com',
+        username: 'dev-localhost',
         role: 'admin',
         groups: ['admin'],
         clientIp,
         userAgent,
         requestId,
         authenticatedAt: new Date().toISOString(),
-        authMethod: 'dev-error-fallback',
+        authMethod: 'localhost-dev',
         givenName: 'Dev',
         familyName: 'User',
         emailVerified: true,
@@ -426,7 +405,7 @@ const authenticateToken = async (req, res, next) => {
         authError: error.message
       };
       
-      console.log(`✅ [${requestId}] Development error fallback successful`);
+      console.log(`✅ [${requestId}] Local development fallback successful`);
       return next();
     }
 
