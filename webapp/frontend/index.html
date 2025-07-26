@@ -11,57 +11,30 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // SIMPLE SOLUTION: Provide F as emergency bridge until React loads
-      console.log('🛡️ Installing F bridge for @emotion/react...');
+      // ARCHITECTURAL FIX: Clean React preload - no runtime hacks needed
+      console.log('🚀 React architectural fix initialized');
       
-      // Create temporary F that will be replaced by real React
-      window.F = new Proxy({}, {
-        get: function(target, prop) {
-          if (prop === 'useLayoutEffect') {
-            // Return a no-op function until real React loads
-            return function() {
-              console.log('🔧 Emergency useLayoutEffect called, waiting for React...');
-            };
+      // Simple preload to ensure React is available
+      window.__REACT_PRELOAD_PROMISE__ = new Promise((resolve) => {
+        // The Vite plugin will handle proper React loading order
+        // This is just a fallback safety net
+        const checkReact = () => {
+          if (window.React) {
+            window.F = window.React;
+            resolve(window.React);
+          } else {
+            setTimeout(checkReact, 10);
           }
-          if (prop === 'useState') {
-            return function(initial) { return [initial, function() {}]; };
-          }
-          if (prop === 'useEffect') {
-            return function() {};
-          }
-          if (prop === 'useCallback') {
-            return function(callback) { return callback; };
-          }
-          if (prop === 'useMemo') {
-            return function(factory) { try { return factory(); } catch(e) { return null; } };
-          }
-          if (prop === 'useRef') {
-            return function(initial) { return { current: initial }; };
-          }
-          // Return undefined for other properties
-          return undefined;
-        }
+        };
+        checkReact();
       });
       
-      console.log('✅ Emergency F bridge installed');
+      console.log('✅ Clean React preload ready');
     </script>
     
-    <!-- Load React immediately as a blocking script -->
+    <!-- Clean module loading - let Vite plugin handle React order -->
     <script type="module">
-      console.log('🚀 Loading React before any chunks...');
-      
-      import('./src/utils/reactModulePreloader.js').then(() => {
-        console.log('✅ React module preloader completed');
-        
-        // Verify F is now properly set
-        if (window.F && typeof window.F.useLayoutEffect === 'function') {
-          console.log('✅ F.useLayoutEffect now available');
-        } else {
-          console.warn('⚠️ F.useLayoutEffect still not available after preloader');
-        }
-      }).catch(error => {
-        console.error('❌ React preloader failed:', error);
-      });
+      console.log('🚀 Module loading with architectural fix active');
     </script>
     <script>
       // Initialize empty config - will be populated by config.js

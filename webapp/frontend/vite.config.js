@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { reactPreloadPlugin } from './src/utils/reactPreloadPlugin.js'
 
 // https://vitejs.dev/config/ - updated to trigger workflow
 export default defineConfig(({ mode }) => {
@@ -19,7 +20,7 @@ export default defineConfig(({ mode }) => {
   })
 
   return {
-    plugins: [react()],
+    plugins: [react(), reactPreloadPlugin()],
     
     // Test configuration
     test: {
@@ -218,10 +219,7 @@ export default defineConfig(({ mode }) => {
         define: {
           // Ensure React is available globally for all modules
           'global': 'globalThis',
-          'process.env.NODE_ENV': '"production"',
-          // CRITICAL: Ensure F is available for MUI compatibility
-          'window.F': 'window.React',
-          'globalThis.F': 'globalThis.React'
+          'process.env.NODE_ENV': '"production"'
         }
       },
     },
