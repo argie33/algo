@@ -2510,4 +2510,68 @@ async function generatePerformanceAnalytics(userId, provider, timeframe) {
   }
 }
 
+// API Keys Health Endpoint
+router.get('/api-keys/health', async (req, res) => {
+  try {
+    const health = apiKeyService.getServiceHealth();
+    
+    res.json({
+      success: true,
+      data: health,
+      message: 'API Key service health check successful',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Health check failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// API Keys Analytics Endpoint
+router.get('/api-keys/analytics', async (req, res) => {
+  try {
+    const { provider, timeframe = '24h' } = req.query;
+    
+    // Generate mock analytics data for now
+    const analytics = {
+      timeframe,
+      provider: provider || 'all',
+      summary: {
+        averageLatency: Math.floor(Math.random() * 100 + 50),
+        averageUptime: (Math.random() * 5 + 95).toFixed(2),
+        averageDataQuality: (Math.random() * 10 + 90).toFixed(2),
+        totalErrors: Math.floor(Math.random() * 5),
+        peakLatency: Math.floor(Math.random() * 200 + 100),
+        bestLatency: Math.floor(Math.random() * 50 + 30)
+      },
+      trends: {
+        latencyTrend: 'stable',
+        uptimeTrend: 'stable',
+        errorTrend: 'stable'
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json({
+      success: true,
+      data: analytics,
+      message: `Analytics data for ${provider || 'all providers'} (${timeframe})`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Analytics failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Analytics failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

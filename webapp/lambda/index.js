@@ -146,11 +146,8 @@ safeRouteLoader('./routes/technical', 'Technical Analysis', '/api/technical');
 safeRouteLoader('./routes/metrics', 'Metrics', '/api/metrics');
 safeRouteLoader('./routes/sectors', 'Sectors', '/api/sectors');
 
-// API Key Management
-safeRouteLoader('./routes/unified-api-keys', 'Unified API Keys', '/api/api-keys');
-
-// Handle legacy frontend calls to /api-keys (without /api prefix)
-safeRouteLoader('./routes/unified-api-keys', 'Legacy API Keys', '/api-keys');
+// API Key Management - Use settings route which contains api-keys endpoints
+safeRouteLoader('./routes/settings', 'Settings (includes API Keys)', '/api/settings');
 
 // Market Data Routes
 safeRouteLoader('./routes/market', 'Market', '/api/market');
@@ -162,7 +159,7 @@ safeRouteLoader('./routes/economic', 'Economic Data', '/api/economic');
 safeRouteLoader('./routes/configuration', 'Configuration', '/api/config');
 safeRouteLoader('./routes/trades', 'Trades', '/api/trades');
 safeRouteLoader('./routes/user', 'User Management', '/api/user');
-safeRouteLoader('./routes/settings', 'Settings', '/api/settings');
+// Settings route already loaded above with API Keys
 safeRouteLoader('./routes/liveData', 'Live Data', '/api/live-data');
 safeRouteLoader('./routes/adminLiveData', 'Admin Live Data', '/admin/live-data');
 safeRouteLoader('./routes/websocket', 'WebSocket', '/api/websocket');
