@@ -3,6 +3,8 @@ console.log('🚀 Financial Dashboard API Lambda starting - FIXED VERSION...');
 
 const serverless = require('serverless-http');
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const { corsWithTimeoutHandling } = require('./cors-fix');
 
 const app = express();
