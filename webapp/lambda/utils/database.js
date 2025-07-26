@@ -18,7 +18,7 @@ const TIMEOUTS = {
   connection: 8000,     // Database connection establishment
   query: 12000,         // Standard query execution  
   transaction: 18000,   // Complex transactions
-  healthCheck: 5000,    // Health check queries
+  healthCheck: 12000,   // Health check queries (must be > connection timeout)
   secrets: 6000         // AWS Secrets Manager
 };
 
@@ -231,9 +231,37 @@ async function testConnection() {
   
   const client = await pool.connect();
   try {
-    const result = await client.query('SELECT 1 as connected, NOW() as timestamp');
+    // Basic connectivity test
+    const basic = await client.query('SELECT 1 as connected, NOW() as timestamp, current_database() as db_name');
     console.log('✅ Database connection test successful');
-    return result.rows[0];
+    console.log(`   📍 Connected to: ${basic.rows[0].db_name} at ${basic.rows[0].timestamp}`);
+    
+    // Prove we can access actual tables
+    const tables = await client.query(`
+      SELECT table_name, table_type 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name 
+      LIMIT 10
+    `);
+    
+    console.log(`   📊 Found ${tables.rows.length} tables:`, tables.rows.map(r => r.table_name).join(', '));
+    
+    // Try to access stock data if available
+    try {
+      const stockCount = await client.query('SELECT COUNT(*) as count FROM stock_symbols WHERE is_active = true LIMIT 1');
+      console.log(`   📈 Active stocks in database: ${stockCount.rows[0].count}`);
+    } catch (e) {
+      console.log('   ⚠️ stock_symbols table not accessible or empty');
+    }
+    
+    return {
+      connected: true,
+      timestamp: basic.rows[0].timestamp,
+      database: basic.rows[0].db_name,
+      tables: tables.rows.length,
+      verified: true
+    };
   } finally {
     client.release();
   }
