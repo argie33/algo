@@ -241,6 +241,47 @@ router.get('/critical', async (req, res) => {
 });
 
 /**
+ * GET /health/database/quick
+ * Quick database health check
+ */
+router.get('/database/quick', async (req, res) => {
+  try {
+    const startTime = Date.now();
+    const dbHealth = await databaseCircuitBreaker.execute(async () => {
+      return await query('SELECT 1 as healthy, NOW() as timestamp');
+    });
+    
+    const responseTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      status: 'healthy',
+      database: {
+        status: 'connected',
+        responseTime: responseTime,
+        serverTime: dbHealth.rows[0].timestamp,
+        testResult: dbHealth.rows[0].healthy
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Quick database health check failed:', error);
+    
+    res.status(503).json({
+      success: false,
+      status: 'unhealthy',
+      database: {
+        status: 'failed',
+        error: error.message,
+        circuitBreakerState: databaseCircuitBreaker.getStatus().state
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
  * GET /health/database
  * Comprehensive database health check
  */

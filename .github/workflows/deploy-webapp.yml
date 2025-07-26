@@ -1468,13 +1468,239 @@ jobs:
           echo "  CloudFront ID: $CLOUDFRONT_ID"
           echo "  API URL: $API_URL"
           echo "  Website URL: $WEBSITE_URL"
+
+################################################################################
+# 6.5) Deploy AI Assistant Enhanced Infrastructure                             #
+################################################################################
+  deploy_ai_infrastructure:
+    name: Deploy AI Assistant Enhanced Infrastructure
+    needs: [setup, setup-aws-services, deploy_infrastructure]
+    if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
+      AI_STACK_NAME: ${{ needs.setup.outputs.stack_name }}-ai-enhanced
+      MAIN_STACK_NAME: ${{ needs.setup.outputs.stack_name }}
+    outputs:
+      ai_websocket_url: ${{ steps.ai_stack_outputs.outputs.websocket_url }}
+      ai_http_url: ${{ steps.ai_stack_outputs.outputs.http_url }}
+      ai_stack_name: ${{ needs.setup.outputs.stack_name }}-ai-enhanced
+      ai_dashboard_url: ${{ steps.ai_stack_outputs.outputs.dashboard_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}-ai
+
+      - name: Get existing infrastructure details
+        id: existing_infra
+        run: |
+          echo "🔍 Getting existing infrastructure details for AI integration..."
+          
+          # Get database secret ARN from main webapp stack
+          DB_SECRET_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.MAIN_STACK_NAME }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='DatabaseSecretArn' || OutputKey=='ApiKeyEncryptionSecretArn'].OutputValue" \
+            --output text | head -1)
+          
+          # If not found in outputs, use the pattern from deploy_infrastructure
+          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
+            echo "⚠️ Database secret not found in main stack outputs, using standard pattern"
+            DB_SECRET_ARN="arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:stocks-db-credentials-dev"
+          fi
+          
+          # Get database endpoint
+          DB_ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.MAIN_STACK_NAME }}" \
+            --query "Stacks[0].Parameters[?ParameterKey=='DatabaseEndpoint'].ParameterValue" \
+            --output text)
+          
+          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+            echo "⚠️ Database endpoint not found in main stack parameters, using standard pattern"
+            DB_ENDPOINT="stocks-db-dev.cluster-cjmjnpvmvfqg.us-east-1.rds.amazonaws.com"
+          fi
+          
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
+          
+          echo "✅ Infrastructure details retrieved:"
+          echo "  Database Secret ARN: $DB_SECRET_ARN"
+          echo "  Database Endpoint: $DB_ENDPOINT"
+
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          version: 1.141.0
+          use-installer: true
+
+      - name: Check and handle failed AI stack state
+        run: |
+          # Check if AI stack exists and its status
+          AI_STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.AI_STACK_NAME }}" \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+          
+          echo "Current AI stack status: $AI_STACK_STATUS"
+          
+          # Handle different stack states (same logic as main webapp stack)
+          case "$AI_STACK_STATUS" in
+            "STACK_NOT_FOUND")
+              echo "ℹ️ AI stack does not exist. Will create new stack."
+              ;;
+            "CREATE_COMPLETE"|"UPDATE_COMPLETE")
+              echo "ℹ️ AI stack is in healthy state: $AI_STACK_STATUS. Proceeding with deployment."
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED")
+              echo "⚠️ AI stack is in failed state: $AI_STACK_STATUS. Deleting stack to allow re-creation..."
+              aws cloudformation delete-stack --stack-name "${{ env.AI_STACK_NAME }}"
+              echo "⏳ Waiting for AI stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name "${{ env.AI_STACK_NAME }}"
+              echo "✅ AI stack deletion completed"
+              ;;
+            "UPDATE_ROLLBACK_COMPLETE")
+              echo "⚠️ AI stack is in UPDATE_ROLLBACK_COMPLETE state. Proceeding with new deployment."
+              ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ AI stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name "${{ env.AI_STACK_NAME }}"
+              echo "⏳ Waiting for AI stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name "${{ env.AI_STACK_NAME }}"
+              echo "✅ AI stack cleanup completed"
+              ;;
+            *)
+              echo "⚠️ AI stack is in state: $AI_STACK_STATUS. Attempting deployment anyway..."
+              ;;
+          esac
+
+      - name: Deploy AI Enhanced Infrastructure
+        run: |
+          echo "🤖 Deploying AI Assistant Enhanced Infrastructure..."
+          echo "Using AI stack name: ${{ env.AI_STACK_NAME }}"
+          echo "Using environment: ${{ env.ENVIRONMENT_NAME }}"
+          echo "Integrating with main stack: ${{ env.MAIN_STACK_NAME }}"
+          
+          # Validate parameters before deployment
+          if [[ -z "${{ steps.existing_infra.outputs.DB_SECRET_ARN }}" ]]; then
+            echo "❌ Database secret ARN is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.existing_infra.outputs.DB_ENDPOINT }}" ]]; then
+            echo "❌ Database endpoint is empty"
+            exit 1
+          fi
+          
+          # Deploy AI infrastructure using CloudFormation directly (not SAM since it's pre-built)
+          echo "🚀 Starting AI infrastructure deployment..."
+          if ! aws cloudformation deploy \
+            --template-file webapp/infrastructure/cloudformation/ai-assistant-enhanced-infrastructure.yml \
+            --stack-name "${{ env.AI_STACK_NAME }}" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              "Environment=${{ env.ENVIRONMENT_NAME }}" \
+              "ProjectName=stocks-webapp" \
+              "ExistingStackName=${{ env.MAIN_STACK_NAME }}" \
+              "DatabaseSecretArn=${{ steps.existing_infra.outputs.DB_SECRET_ARN }}" \
+              "DatabaseEndpoint=${{ steps.existing_infra.outputs.DB_ENDPOINT }}" \
+              "BedrockModelHaiku=anthropic.claude-3-haiku-20240307-v1:0" \
+              "BedrockModelSonnet=anthropic.claude-3-sonnet-20240229-v1:0" \
+              "ConversationRetentionDays=90" \
+              "WebSocketConnectionTTL=7200" \
+              "RateLimitPerMinute=100" \
+            --no-fail-on-empty-changeset; then
+            
+            echo "❌ AI infrastructure deployment failed. Checking stack status..."
+            AI_DEPLOY_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.AI_STACK_NAME }}" \
+              --query "Stacks[0].StackStatus" \
+              --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "AI stack status after failed deployment: $AI_DEPLOY_STATUS"
+            
+            # If deployment failed and stack is in rollback state, clean it up for next attempt
+            if [[ "$AI_DEPLOY_STATUS" == "ROLLBACK_COMPLETE" || "$AI_DEPLOY_STATUS" == "CREATE_FAILED" ]]; then
+              echo "🧹 Cleaning up failed AI deployment for next attempt..."
+              aws cloudformation delete-stack --stack-name "${{ env.AI_STACK_NAME }}"
+            fi
+            
+            exit 1
+          fi
+          
+          echo "✅ AI infrastructure deployment completed successfully"
+
+      - name: Get AI stack outputs
+        id: ai_stack_outputs
+        run: |
+          echo "🔍 Getting AI infrastructure outputs..."
+          
+          # Get AI stack outputs
+          AI_WEBSOCKET_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.AI_STACK_NAME }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='AIWebSocketApiUrl'].OutputValue" \
+            --output text)
+          
+          AI_HTTP_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.AI_STACK_NAME }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='AIHttpApiUrl'].OutputValue" \
+            --output text)
+          
+          AI_DASHBOARD_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.AI_STACK_NAME }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='AIDashboardUrl'].OutputValue" \
+            --output text)
+          
+          # Set outputs
+          echo "websocket_url=$AI_WEBSOCKET_URL" >> $GITHUB_OUTPUT
+          echo "http_url=$AI_HTTP_URL" >> $GITHUB_OUTPUT
+          echo "dashboard_url=$AI_DASHBOARD_URL" >> $GITHUB_OUTPUT
+          
+          echo "✅ AI infrastructure outputs retrieved successfully:"
+          echo "  WebSocket URL: $AI_WEBSOCKET_URL"
+          echo "  HTTP API URL: $AI_HTTP_URL"
+          echo "  Dashboard URL: $AI_DASHBOARD_URL"
+
+      - name: Validate AI infrastructure deployment
+        run: |
+          echo "🔍 Validating AI infrastructure deployment..."
+          
+          # Test if WebSocket API is accessible
+          WEBSOCKET_URL="${{ steps.ai_stack_outputs.outputs.websocket_url }}"
+          if [[ -n "$WEBSOCKET_URL" && "$WEBSOCKET_URL" != "None" ]]; then
+            echo "✅ WebSocket URL is available: $WEBSOCKET_URL"
+          else
+            echo "❌ WebSocket URL is not available"
+            exit 1
+          fi
+          
+          # Verify secrets are created and accessible
+          AI_CONFIG_SECRET_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.AI_STACK_NAME }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='AIConfigurationSecretArn'].OutputValue" \
+            --output text)
+          
+          if aws secretsmanager get-secret-value --secret-id "$AI_CONFIG_SECRET_ARN" >/dev/null 2>&1; then
+            echo "✅ AI configuration secret is accessible"
+          else
+            echo "❌ AI configuration secret is not accessible"
+            exit 1
+          fi
+          
+          echo "✅ AI infrastructure validation completed successfully"
+
 ################################################################################
 # 7) Build and deploy Frontend                                                 #
 ################################################################################
   deploy_frontend:
     name: Deploy Frontend to S3  
-    needs: [deploy_infrastructure]
-    if: ${{ always() && (needs.deploy_infrastructure.result == 'success' || needs.deploy_infrastructure.result == 'failure') }}
+    needs: [deploy_infrastructure, deploy_ai_infrastructure]
+    if: ${{ always() && (needs.deploy_infrastructure.result == 'success' || needs.deploy_infrastructure.result == 'failure') && (needs.deploy_ai_infrastructure.result == 'success' || needs.deploy_ai_infrastructure.result == 'skipped') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -1517,10 +1743,16 @@ jobs:
           API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
           VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
           STACK_NAME: ${{ needs.deploy_infrastructure.outputs.stack_name }}
+          AI_WEBSOCKET_URL: ${{ needs.deploy_ai_infrastructure.outputs.ai_websocket_url }}
+          AI_HTTP_URL: ${{ needs.deploy_ai_infrastructure.outputs.ai_http_url }}
+          VITE_AI_WEBSOCKET_URL: ${{ needs.deploy_ai_infrastructure.outputs.ai_websocket_url }}
+          VITE_AI_HTTP_URL: ${{ needs.deploy_ai_infrastructure.outputs.ai_http_url }}
         run: |
           echo "🔧 Environment variables for build:"
           echo "API_URL: $API_URL"
           echo "VITE_API_URL: $VITE_API_URL"
+          echo "AI_WEBSOCKET_URL: $AI_WEBSOCKET_URL"
+          echo "AI_HTTP_URL: $AI_HTTP_URL"
           echo "Node environment: $NODE_ENV"
           
           # Verify the API URL is not empty
@@ -1534,8 +1766,25 @@ jobs:
           # Show what's in the .env file for debugging
           echo "📄 Current .env content (if exists):"
           cat .env 2>/dev/null || echo "No .env file found"
-          # Create/update .env file with the API URL
+          
+          # Create/update .env file with the API URL and AI configuration
           echo "VITE_API_URL=$VITE_API_URL" > .env
+          
+          # Add AI configuration if available
+          if [[ -n "$VITE_AI_WEBSOCKET_URL" && "$VITE_AI_WEBSOCKET_URL" != "None" ]]; then
+            echo "VITE_AI_WEBSOCKET_URL=$VITE_AI_WEBSOCKET_URL" >> .env
+            echo "✅ AI WebSocket URL configured: $VITE_AI_WEBSOCKET_URL"
+          else
+            echo "⚠️ AI WebSocket URL not available, AI features will be disabled"
+          fi
+          
+          if [[ -n "$VITE_AI_HTTP_URL" && "$VITE_AI_HTTP_URL" != "None" ]]; then
+            echo "VITE_AI_HTTP_URL=$VITE_AI_HTTP_URL" >> .env
+            echo "✅ AI HTTP URL configured: $VITE_AI_HTTP_URL"
+          else
+            echo "⚠️ AI HTTP URL not available, fallback AI features will be disabled"
+          fi
+          
           echo "📝 Created .env file with:"
           cat .env
           # Fetch real CloudFormation outputs for configuration
