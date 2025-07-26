@@ -48,6 +48,11 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000, // Increased limit for better performance
       rollupOptions: {
         output: {
+          // Add proper globals for React
+          globals: {
+            'react': 'React',
+            'react-dom': 'ReactDOM'
+          },
           // OPTIMIZED CHUNK SPLITTING for massive bundle size reduction
           manualChunks(id) {
             // Create more granular chunks for node_modules
@@ -210,12 +215,20 @@ export default defineConfig(({ mode }) => {
         loader: {
           '.js': 'jsx',
         },
+        define: {
+          // Ensure React is available globally for all modules
+          'global': 'globalThis',
+          'process.env.NODE_ENV': '"production"'
+        }
       },
     },
     // Fix React 18 conflicts - prevent duplicates and ensure single instance
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'src')
+        '@': resolve(__dirname, 'src'),
+        // Force React to resolve to single instance
+        'react': resolve(__dirname, 'node_modules/react'),
+        'react-dom': resolve(__dirname, 'node_modules/react-dom')
       },
       dedupe: ['react', 'react-dom', 'use-sync-external-store', '@emotion/react', '@emotion/styled', 'recharts']
     }

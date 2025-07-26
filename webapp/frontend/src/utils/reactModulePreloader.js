@@ -38,16 +38,22 @@ const ReactWithHooks = {
 if (typeof window !== 'undefined') {
   window.React = ReactWithHooks;
   window.ReactDOM = ReactDOM;
+  // Also set as F for MUI compatibility
+  window.F = ReactWithHooks;
 }
 
 if (typeof globalThis !== 'undefined') {
   globalThis.React = ReactWithHooks;
   globalThis.ReactDOM = ReactDOM;
+  // Also set as F for MUI compatibility
+  globalThis.F = ReactWithHooks;
 }
 
 if (typeof global !== 'undefined') {
   global.React = ReactWithHooks;
   global.ReactDOM = ReactDOM;
+  // Also set as F for MUI compatibility
+  global.F = ReactWithHooks;
 }
 
 // Polyfill for require() calls that might need React

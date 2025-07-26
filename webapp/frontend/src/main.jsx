@@ -1,5 +1,7 @@
 // CRITICAL: Import React module preloader FIRST to fix useLayoutEffect errors
 import './utils/reactModulePreloader'
+// Verify React is properly loaded
+import './utils/reactFixVerification'
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
