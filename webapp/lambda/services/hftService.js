@@ -352,6 +352,191 @@ class HFTService {
   }
 
   /**
+   * Process market data from WebSocket manager (unified entry point)
+   */
+  async processMarketData(data) {
+    try {
+      const { provider, symbol, price, volume, timestamp, type, isHFT } = data;
+      
+      // Update internal market data cache
+      this.marketData.set(symbol, {
+        ...this.marketData.get(symbol),
+        latestPrice: price,
+        latestVolume: volume,
+        lastUpdate: timestamp || Date.now(),
+        provider,
+        type,
+        isHFT
+      });
+
+      // Update position valuations for this symbol
+      if (this.positions.has(symbol)) {
+        this.updatePositionValuation(symbol, price);
+      }
+
+      // Generate trading signals based on market data
+      await this.generateTradingSignals(symbol, data);
+
+      // Trigger position sync for significant price changes
+      await this.handlePriceChangeEvents(symbol, data);
+
+      // Store market data for analysis
+      await this.storeMarketDataPoint(data);
+
+    } catch (error) {
+      this.logger.error('Failed to process market data', {
+        data,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+    }
+  }
+
+  /**
+   * Generate trading signals from market data
+   */
+  async generateTradingSignals(symbol, marketData) {
+    try {
+      const { price, volume, type } = marketData;
+      
+      // Get cached price data for comparison
+      const cached = this.marketData.get(symbol);
+      if (!cached || !cached.latestPrice) return;
+
+      // Simple momentum signal generation
+      const priceChange = price - cached.latestPrice;
+      const changePercent = (priceChange / cached.latestPrice) * 100;
+
+      // Generate signal if change is significant (> 0.5%)
+      if (Math.abs(changePercent) >= 0.5) {
+        const signal = {
+          symbol,
+          type: changePercent > 0 ? 'BUY' : 'SELL',
+          quantity: 100,
+          price,
+          confidence: Math.min(Math.abs(changePercent) * 20, 95),
+          reason: 'momentum',
+          timestamp: Date.now(),
+          source: 'websocket_analysis'
+        };
+
+        // Process the signal through existing signal handling
+        await this.handleRealTimeSignal(signal);
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to generate trading signals', {
+        symbol,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+    }
+  }
+
+  /**
+   * Handle price change events for position sync
+   */
+  async handlePriceChangeEvents(symbol, marketData) {
+    try {
+      const { price } = marketData;
+      const cached = this.marketData.get(symbol);
+      
+      if (!cached || !cached.latestPrice) return;
+
+      const changePercent = ((price - cached.latestPrice) / cached.latestPrice) * 100;
+
+      // Trigger position sync for significant price changes
+      if (Math.abs(changePercent) >= 2.0) { // 2% change
+        // Get users with positions in this symbol
+        const affectedUsers = await this.getUsersWithSymbol(symbol);
+        
+        // Emit significant price change event
+        if (this.realTimePositionSync && this.realTimePositionSync.isActive) {
+          this.realTimePositionSync.emit('significantPriceChange', {
+            symbol,
+            oldPrice: cached.latestPrice,
+            newPrice: price,
+            changePercent,
+            affectedUsers,
+            isCritical: Math.abs(changePercent) >= 5.0
+          });
+        }
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to handle price change events', {
+        symbol,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+    }
+  }
+
+  /**
+   * Store market data point for historical analysis
+   */
+  async storeMarketDataPoint(data) {
+    try {
+      const { symbol, price, volume, timestamp, provider } = data;
+      
+      const sql = `
+        INSERT INTO hft_market_data (
+          symbol, timestamp, price, volume, source, latency_ms
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (symbol, timestamp, source) DO NOTHING
+      `;
+
+      const latency = Date.now() - (timestamp || Date.now());
+      
+      await query(sql, [
+        symbol,
+        new Date(timestamp || Date.now()),
+        price,
+        volume || null,
+        provider,
+        latency
+      ]);
+
+    } catch (error) {
+      // Don't throw - market data storage is non-critical
+      this.logger.error('Failed to store market data', {
+        data,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+    }
+  }
+
+  /**
+   * Get users who have positions or strategies for a symbol
+   */
+  async getUsersWithSymbol(symbol) {
+    try {
+      const sql = `
+        SELECT DISTINCT user_id
+        FROM hft_strategies s
+        WHERE s.enabled = true 
+          AND s.symbols @> $1::jsonb
+        UNION
+        SELECT DISTINCT user_id
+        FROM hft_positions p
+        WHERE p.symbol = $2 AND p.status = 'OPEN'
+      `;
+
+      const result = await query(sql, [JSON.stringify([symbol]), symbol]);
+      return result.rows.map(row => row.user_id);
+
+    } catch (error) {
+      this.logger.error('Failed to get users with symbol', {
+        symbol,
+        error: error.message,
+        correlationId: this.correlationId
+      });
+      return [];
+    }
+  }
+
+  /**
    * Execute trade from real-time signal
    */
   async executeSignalTrade(signal, quantity) {
@@ -585,9 +770,9 @@ class HFTService {
         correlationId: this.correlationId
       });
 
-      // Shutdown real-time data integrator
-      if (this.dataIntegrator) {
-        await this.dataIntegrator.shutdown();
+      // Shutdown WebSocket manager
+      if (this.webSocketManager) {
+        await this.webSocketManager.disconnect();
       }
 
       // Shutdown real-time position sync
@@ -1636,7 +1821,17 @@ class HFTService {
           alpaca: Array.from(this.positions.values()).filter(p => p.source === 'alpaca').length
         }
       },
-      realTimeSync: this.realTimePositionSync ? this.realTimePositionSync.getMetrics() : null
+      realTimeSync: this.realTimePositionSync ? this.realTimePositionSync.getMetrics() : null,
+      webSocket: this.webSocketManager ? this.webSocketManager.getMetrics() : null,
+      marketData: {
+        totalSymbols: this.marketData.size,
+        latestUpdates: Array.from(this.marketData.entries()).map(([symbol, data]) => ({
+          symbol,
+          lastUpdate: data.lastUpdate,
+          provider: data.provider,
+          isHFT: data.isHFT
+        })).slice(0, 10) // Last 10 updates
+      }
     };
   }
 }
