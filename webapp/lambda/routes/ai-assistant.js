@@ -3,6 +3,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../utils/database');
 const bedrockAIService = require('../utils/bedrockAIService');
 const conversationStore = require('../utils/conversationStore');
+const aiErrorHandler = require('../utils/aiErrorHandler');
+const aiStreamingService = require('../utils/aiStreamingService');
 
 const router = express.Router();
 
@@ -82,6 +84,156 @@ const getPortfolioContext = async (userId) => {
   }
 };
 
+// Helper function to get real-time market context
+const getMarketContext = async () => {
+  try {
+    console.log('📊 Fetching real-time market context for AI responses');
+    
+    // Get major indices data
+    const indicesQuery = await query(`
+      SELECT symbol, current_price, change_percent, volume, updated_at
+      FROM stocks 
+      WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'VTI', 'IWM')
+      ORDER BY symbol
+    `);
+    
+    // Get sector performance data
+    const sectorsQuery = await query(`
+      SELECT sector, AVG(change_percent) as avg_change, COUNT(*) as stock_count
+      FROM stocks 
+      WHERE sector IS NOT NULL AND change_percent IS NOT NULL
+      GROUP BY sector 
+      ORDER BY avg_change DESC
+      LIMIT 10
+    `);
+    
+    // Get market sentiment indicators
+    const sentimentQuery = await query(`
+      SELECT indicator_name, value, date, updated_at
+      FROM market_indicators 
+      WHERE indicator_name IN ('VIX', 'FEAR_GREED_INDEX', 'PUT_CALL_RATIO')
+      AND date >= CURRENT_DATE - INTERVAL '7 days'
+      ORDER BY date DESC, updated_at DESC
+    `);
+    
+    // Get recent market news/events
+    const newsQuery = await query(`
+      SELECT title, summary, sentiment_score, published_at
+      FROM market_news 
+      WHERE published_at >= NOW() - INTERVAL '24 hours'
+      ORDER BY published_at DESC
+      LIMIT 5
+    `);
+    
+    // Process indices data
+    const indices = {};
+    indicesQuery.rows.forEach(row => {
+      const indexName = {
+        'SPY': 'sp500',
+        'QQQ': 'nasdaq', 
+        'DIA': 'dow',
+        'VTI': 'total_market',
+        'IWM': 'small_cap'
+      }[row.symbol] || row.symbol.toLowerCase();
+      
+      indices[indexName] = {
+        symbol: row.symbol,
+        price: parseFloat(row.current_price || 0),
+        change: parseFloat(row.change_percent || 0),
+        volume: row.volume,
+        lastUpdate: row.updated_at
+      };
+    });
+    
+    // Process sector data
+    const sectors = {};
+    sectorsQuery.rows.forEach(row => {
+      const sectorKey = row.sector.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      sectors[sectorKey] = {
+        name: row.sector,
+        avgChange: parseFloat(row.avg_change || 0),
+        stockCount: parseInt(row.stock_count),
+        sentiment: parseFloat(row.avg_change || 0) > 1 ? 'positive' : 
+                  parseFloat(row.avg_change || 0) > -1 ? 'neutral' : 'negative'
+      };
+    });
+    
+    // Process sentiment indicators
+    const sentiment = {
+      vix: null,
+      fearGreedIndex: null,
+      putCallRatio: null,
+      overall: 'neutral'
+    };
+    
+    sentimentQuery.rows.forEach(row => {
+      const value = parseFloat(row.value);
+      switch (row.indicator_name) {
+        case 'VIX':
+          sentiment.vix = value;
+          break;
+        case 'FEAR_GREED_INDEX':
+          sentiment.fearGreedIndex = value;
+          break;
+        case 'PUT_CALL_RATIO':
+          sentiment.putCallRatio = value;
+          break;
+      }
+    });
+    
+    // Calculate overall sentiment
+    if (sentiment.fearGreedIndex) {
+      sentiment.overall = sentiment.fearGreedIndex > 70 ? 'greedy' :
+                         sentiment.fearGreedIndex > 30 ? 'neutral' : 'fearful';
+    } else if (sentiment.vix) {
+      sentiment.overall = sentiment.vix > 25 ? 'fearful' :
+                         sentiment.vix < 15 ? 'greedy' : 'neutral';
+    }
+    
+    // Process recent news
+    const recentNews = newsQuery.rows.map(row => ({
+      title: row.title,
+      summary: row.summary,
+      sentiment: row.sentiment_score,
+      publishedAt: row.published_at
+    }));
+    
+    const marketContext = {
+      indices,
+      sectors,
+      sentiment,
+      recentNews,
+      volatility: {
+        vix: sentiment.vix,
+        level: sentiment.vix ? 
+          (sentiment.vix > 25 ? 'high' : sentiment.vix > 15 ? 'moderate' : 'low') : 
+          'unknown'
+      },
+      timestamp: new Date().toISOString(),
+      dataFreshness: {
+        indices: indicesQuery.rows.length > 0,
+        sectors: sectorsQuery.rows.length > 0,
+        sentiment: sentimentQuery.rows.length > 0,
+        news: newsQuery.rows.length > 0
+      }
+    };
+
+    console.log(`✅ Market context retrieved: ${Object.keys(indices).length} indices, ${Object.keys(sectors).length} sectors, ${recentNews.length} news items`);
+    return marketContext;
+  } catch (error) {
+    console.error('Error getting market context:', error);
+    return {
+      indices: {},
+      sectors: {},
+      sentiment: { overall: 'unknown' },
+      recentNews: [],
+      volatility: { level: 'unknown' },
+      timestamp: new Date().toISOString(),
+      error: 'Market data temporarily unavailable'
+    };
+  }
+};
+
 // Helper function to generate AI response using AWS Bedrock
 const generateAIResponse = async (userMessage, userId, context = {}) => {
   console.log('🤖 Processing AI request for user:', userId);
@@ -96,20 +248,38 @@ const generateAIResponse = async (userMessage, userId, context = {}) => {
   // Get recent conversation history for context
   const recentMessages = (await getUserHistory(userId)).slice(-5);
   
+  // Get market context for enhanced AI responses
+  const marketContext = await getMarketContext();
+  
   // Build enhanced context for AI
   const enhancedContext = {
     ...context,
     portfolioContext,
+    marketContext,
     recentMessages,
     userId,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    conversationDepth: recentMessages.length
   };
 
-  // Use Bedrock AI service for intelligent response - let errors bubble up
-  const aiResponse = await bedrockAIService.generateResponse(userMessage, enhancedContext);
-  
-  console.log('✅ AI response generated successfully');
-  return aiResponse;
+  try {
+    // Use Bedrock AI service for intelligent response
+    const aiResponse = await bedrockAIService.generateResponse(userMessage, enhancedContext);
+    
+    console.log('✅ AI response generated successfully');
+    return aiResponse;
+  } catch (error) {
+    console.log('⚠️ AI service error, attempting error recovery:', error.message);
+    
+    // Use error handler for intelligent fallback
+    const fallbackResponse = await aiErrorHandler.handleAIError(error, {
+      ...enhancedContext,
+      userMessage
+    });
+    
+    console.log('🔄 Fallback response generated');
+    return fallbackResponse;
+  }
 };
 
 
@@ -146,39 +316,93 @@ router.post('/chat', async (req, res) => {
       type: 'assistant',
       content: aiResponse.content,
       suggestions: aiResponse.suggestions,
-      context: aiResponse.context
+      context: aiResponse.context,
+      metadata: aiResponse.metadata || {}
     };
     await addToHistory(userId, assistantMessage, conversationId);
 
-    res.json({
+    // Enhanced response with system information
+    const response = {
       success: true,
       message: assistantMessage,
-      conversationId: userId // In production, use proper conversation IDs
-    });
+      conversationId: conversationId,
+      systemInfo: {
+        responseTime: Date.now() - Date.now(), // Will be calculated properly
+        aiService: aiResponse.metadata?.fallbackMode ? 'fallback' : 'bedrock',
+        dataFreshness: {
+          portfolio: !!context.portfolioContext,
+          market: !!context.marketContext,
+          conversation: (await getUserHistory(userId, conversationId)).length
+        },
+        features: {
+          streaming: !!req.headers['x-support-streaming'],
+          voice: AI_CONFIG.features.voiceChat,
+          digitalHuman: AI_CONFIG.features.digitalHuman
+        }
+      }
+    };
+
+    res.json(response);
   } catch (error) {
-    console.error('Error processing AI chat:', error);
+    console.error('💥 Critical error in AI chat processing:', error);
     
-    // Handle BedrockAIServiceError with detailed information
-    if (error.name === 'BedrockAIServiceError') {
-      return res.status(503).json({
+    try {
+      // Use AI error handler for comprehensive error recovery
+      const emergencyResponse = await aiErrorHandler.handleAIError(error, {
+        userId,
+        userMessage: message,
+        context,
+        conversationId
+      });
+      
+      // Add emergency response to history
+      const emergencyMessage = {
+        id: Date.now() + 2,
+        type: 'assistant',
+        content: emergencyResponse.content,
+        suggestions: emergencyResponse.suggestions,
+        context: emergencyResponse.metadata || {},
+        isEmergencyResponse: true
+      };
+      
+      try {
+        await addToHistory(userId, emergencyMessage, conversationId);
+      } catch (historyError) {
+        console.error('Failed to save emergency response to history:', historyError);
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: emergencyMessage,
+        conversationId: conversationId,
+        systemInfo: {
+          emergencyMode: true,
+          errorRecovered: true,
+          originalError: error.message,
+          errorStats: aiErrorHandler.getErrorStats()
+        }
+      });
+      
+    } catch (recoveryError) {
+      console.error('🚨 Emergency response also failed:', recoveryError);
+      
+      // Last resort response
+      return res.status(500).json({
         success: false,
-        error: error.message,
-        errorCode: error.code,
-        details: error.details,
-        actionableSteps: error.actionableSteps,
-        context: error.context
+        error: 'AI service temporarily unavailable. Please try again in a few moments.',
+        details: {
+          errorType: 'SYSTEM_FAILURE',
+          timestamp: new Date().toISOString(),
+          retryAfter: 60
+        },
+        fallbackSuggestions: [
+          'Try again in a minute',
+          'Check your portfolio manually',
+          'View market overview',
+          'Contact support if issue persists'
+        ]
       });
     }
-    
-    // Handle other errors generically
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process message',
-      details: {
-        errorType: error.name || 'UnknownError',
-        timestamp: new Date().toISOString()
-      }
-    });
   }
 });
 
@@ -555,4 +779,140 @@ router.post('/digital-human', async (req, res) => {
   }
 });
 
+// WebSocket streaming endpoint
+router.post('/stream', async (req, res) => {
+  const userId = req.user.sub;
+  const { message, context = {}, socketId } = req.body;
+
+  if (!message || !message.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Message is required for streaming'
+    });
+  }
+
+  if (!socketId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Socket ID required for streaming'
+    });
+  }
+
+  try {
+    const conversationId = req.body.conversationId || 'default';
+    
+    // Add user message to history immediately
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: message.trim(),
+      context: context
+    };
+    await addToHistory(userId, userMessage, conversationId);
+
+    // Start streaming response
+    const streamResponse = await aiStreamingService.streamResponse(
+      userId, 
+      socketId, 
+      message, 
+      {
+        ...context,
+        conversationId,
+        portfolioContext: await getPortfolioContext(userId),
+        marketContext: await getMarketContext(),
+        recentMessages: (await getUserHistory(userId, conversationId)).slice(-5)
+      }
+    );
+
+    // Add streamed response to history
+    const assistantMessage = {
+      id: Date.now() + 1,
+      type: 'assistant',
+      content: streamResponse.content,
+      suggestions: streamResponse.suggestions,
+      context: streamResponse.context,
+      streamed: true
+    };
+    await addToHistory(userId, assistantMessage, conversationId);
+
+    res.json({
+      success: true,
+      streamStarted: true,
+      conversationId: conversationId,
+      estimatedDuration: '2-5 seconds'
+    });
+
+  } catch (error) {
+    console.error('Error starting AI stream:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start streaming response',
+      details: {
+        errorType: error.name || 'StreamingError',
+        message: error.message,
+        fallbackAvailable: true
+      }
+    });
+  }
+});
+
+// Health check endpoint for AI services
+router.get('/health', async (req, res) => {
+  try {
+    // Check all AI service components
+    const healthChecks = {
+      bedrock: await bedrockAIService.healthCheck(),
+      conversationStore: {
+        status: 'healthy',
+        ...conversationStore.getStorageStats()
+      },
+      errorHandler: {
+        status: 'healthy',
+        ...aiErrorHandler.getErrorStats()
+      },
+      streaming: {
+        status: aiStreamingService.getStreamStats().webSocketReady ? 'healthy' : 'limited',
+        ...aiStreamingService.getStreamStats()
+      }
+    };
+
+    const overallHealth = Object.values(healthChecks).every(check => 
+      check.status === 'healthy' || check.status === 'limited'
+    ) ? 'healthy' : 'degraded';
+
+    res.json({
+      success: true,
+      status: overallHealth,
+      timestamp: new Date().toISOString(),
+      services: healthChecks,
+      features: AI_CONFIG.features
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Initialize WebSocket support if available
+const initializeWebSocket = (io) => {
+  if (io) {
+    aiStreamingService.initialize(io);
+    
+    io.on('connection', (socket) => {
+      aiStreamingService.handleConnection(socket);
+    });
+    
+    console.log('✅ AI Assistant WebSocket support initialized');
+  } else {
+    console.log('⚠️ WebSocket not available - streaming disabled');
+  }
+};
+
+// Export router and WebSocket initializer
 module.exports = router;
+module.exports.initializeWebSocket = initializeWebSocket;
