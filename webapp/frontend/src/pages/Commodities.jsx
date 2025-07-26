@@ -289,13 +289,13 @@ function MarketSummaryBar({ summary }) {
           <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
             <Grid container spacing={2}>
               <Grid item xs={4}>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>Today's Gainers</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>Today&apos;s Gainers</Typography>
                 <Typography variant="h6" color="success.light">
                   {performance['1d'].gainers}
                 </Typography>
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>Today's Losers</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>Today&apos;s Losers</Typography>
                 <Typography variant="h6" color="error.light">
                   {performance['1d'].losers}
                 </Typography>
