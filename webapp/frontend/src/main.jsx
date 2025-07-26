@@ -1,6 +1,16 @@
-// ARCHITECTURAL FIX: Clean React imports - no patches needed
-
+// ARCHITECTURAL FIX: Clean React imports - ensure F is set immediately
 import React from 'react'
+
+// CRITICAL: Set F immediately to prevent useLayoutEffect errors
+if (typeof window !== 'undefined') {
+  window.React = React;
+  window.F = React;
+  if (typeof globalThis !== 'undefined') {
+    globalThis.React = React;
+    globalThis.F = React;
+  }
+  console.log('✅ React set as F immediately in main.jsx');
+}
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'

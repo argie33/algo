@@ -13,10 +13,12 @@ export function reactPreloadPlugin() {
          chunk.facadeModuleId?.includes('@emotion'))
       );
 
-      // Find React chunk
+      // Find React chunk (look for React hooks or version)
       const reactChunk = Object.values(bundle).find(chunk =>
         chunk.type === 'chunk' && 
-        (chunk.name === 'vendor-react' || chunk.code?.includes('react/jsx-runtime'))
+        (chunk.code?.includes('useState') || 
+         chunk.code?.includes('18.3') ||
+         chunk.code?.includes('react/jsx-runtime'))
       );
 
       if (emotionChunks.length > 0 && reactChunk) {
@@ -41,14 +43,14 @@ if (typeof window !== 'undefined' && !window.F) {
     createElement: function() { return {}; }
   };
   
-  // Try to load real React asynchronously
-  import('./vendor-react.js').then(module => {
-    if (module.default) {
-      window.React = module.default;
-      window.F = module.default;
-      console.log('✅ Real React loaded and replaced emergency bridge');
-    }
-  }).catch(e => console.warn('Failed to load React chunk:', e));
+  // Try to load real React asynchronously - React is in the same chunk
+  if (typeof React !== 'undefined') {
+    window.React = React;
+    window.F = React;
+    console.log('✅ Real React found and set as F');
+  } else {
+    console.warn('React not available in this chunk');
+  }
 }
 `;
           chunk.code = reactPreload + chunk.code;
@@ -56,14 +58,7 @@ if (typeof window !== 'undefined' && !window.F) {
       }
     },
     
-    // Also modify the HTML to preload React chunk first
-    transformIndexHtml: {
-      enforce: 'pre',
-      transform(html, context) {
-        // Add React chunk preload with high priority
-        const reactPreloadLink = '<link rel="modulepreload" crossorigin href="/assets/vendor-react.js" as="script">';
-        return html.replace('<head>', `<head>\n    ${reactPreloadLink}`);
-      }
-    }
+    // Note: HTML preloading handled by normal chunk loading order
+    // No need to manually inject preload links since React is in emotion chunks
   };
 }
