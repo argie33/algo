@@ -461,7 +461,7 @@ class WebSocketService extends EventEmitter {
     if (!data || typeof data !== 'object') return false;
     
     const required = ['symbol', 'price', 'bid', 'ask', 'volume', 'timestamp'];
-    return required.every(field => data.hasOwnProperty(field));
+    return required.every(field => Object.prototype.hasOwnProperty.call(data, field));
   }
 
   /**

@@ -163,8 +163,8 @@ class ApiUrlResolver {
     
     // Try different health endpoint patterns based on base URL structure
     const healthPaths = hasApiPath 
-      ? ['/health/quick', '/health'] // Use paths without /api prefix
-      : ['/api/health/quick', '/health/quick', '/api/health', '/health']; // Use full paths
+      ? ['/health'] // Use paths without /api prefix
+      : ['/api/health', '/health']; // Use full paths
     
     // Use the first health path (most appropriate)
     return `${cleanUrl}${healthPaths[0]}`;

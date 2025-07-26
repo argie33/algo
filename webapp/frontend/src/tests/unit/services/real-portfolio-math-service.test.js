@@ -377,7 +377,16 @@ describe('📊 Real Portfolio Math Service', () => {
       const mockHistoricalData = {
         'AAPL': [
           { date: '2024-01-01', close: 180.00 },
-          { date: '2024-01-02', close: 185.00 }
+          { date: '2024-01-02', close: 185.00 },
+          { date: '2024-01-03', close: 182.00 },
+          { date: '2024-01-04', close: 188.00 },
+          { date: '2024-01-05', close: 184.00 },
+          { date: '2024-01-08', close: 186.00 },
+          { date: '2024-01-09', close: 189.00 },
+          { date: '2024-01-10', close: 187.00 },
+          { date: '2024-01-11', close: 191.00 },
+          { date: '2024-01-12', close: 190.00 },
+          { date: '2024-01-15', close: 193.00 }
         ]
       };
 
@@ -412,7 +421,16 @@ describe('📊 Real Portfolio Math Service', () => {
       const mockHistoricalData = {
         'AAPL': [
           { date: '2024-01-01', close: 180.00 },
-          { date: '2024-01-02', close: 185.00 }
+          { date: '2024-01-02', close: 185.00 },
+          { date: '2024-01-03', close: 182.00 },
+          { date: '2024-01-04', close: 188.00 },
+          { date: '2024-01-05', close: 184.00 },
+          { date: '2024-01-08', close: 186.00 },
+          { date: '2024-01-09', close: 189.00 },
+          { date: '2024-01-10', close: 187.00 },
+          { date: '2024-01-11', close: 191.00 },
+          { date: '2024-01-12', close: 190.00 },
+          { date: '2024-01-15', close: 193.00 }
         ]
       };
 
@@ -446,7 +464,16 @@ describe('📊 Real Portfolio Math Service', () => {
       const mockHistoricalData = {
         'AAPL': [
           { date: '2024-01-01', close: 180.00 },
-          { date: '2024-01-02', close: 185.00 }
+          { date: '2024-01-02', close: 185.00 },
+          { date: '2024-01-03', close: 182.00 },
+          { date: '2024-01-04', close: 188.00 },
+          { date: '2024-01-05', close: 184.00 },
+          { date: '2024-01-08', close: 186.00 },
+          { date: '2024-01-09', close: 189.00 },
+          { date: '2024-01-10', close: 187.00 },
+          { date: '2024-01-11', close: 191.00 },
+          { date: '2024-01-12', close: 190.00 },
+          { date: '2024-01-15', close: 193.00 }
         ]
       };
 

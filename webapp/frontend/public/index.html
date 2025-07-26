@@ -37,6 +37,31 @@
       };
       document.head.appendChild(script);
     </script>
+  
+    <!-- CloudFormation Configuration Injection -->
+    <script>
+      // Inject real CloudFormation configuration before app loads
+      window.__CLOUDFORMATION_CONFIG__ = {
+  "ApiGatewayUrl": "https://2m14opj30h.execute-api.us-east-1.amazonaws.com",
+  "UserPoolId": "us-east-1_ZqooNeQtV",
+  "UserPoolClientId": "243r98prucoickch12djkahrhk",
+  "UserPoolDomain": null,
+  "Region": "us-east-1",
+  "Environment": "dev",
+  "StackName": "stocks-aws-services-dev",
+  "FetchedAt": "2025-07-26T22:36:18.606Z"
+};
+      
+      console.log('✅ CloudFormation configuration loaded:', {
+        ApiGatewayUrl: window.__CLOUDFORMATION_CONFIG__.ApiGatewayUrl,
+        UserPoolId: window.__CLOUDFORMATION_CONFIG__.UserPoolId ? 
+          window.__CLOUDFORMATION_CONFIG__.UserPoolId.substring(0, 15) + '...' : 'missing',
+        UserPoolClientId: window.__CLOUDFORMATION_CONFIG__.UserPoolClientId ? 
+          window.__CLOUDFORMATION_CONFIG__.UserPoolClientId.substring(0, 8) + '...' : 'missing',
+        Region: window.__CLOUDFORMATION_CONFIG__.Region,
+        Environment: window.__CLOUDFORMATION_CONFIG__.Environment
+      });
+    </script>
   </head>
   <body>
     <div id="root">

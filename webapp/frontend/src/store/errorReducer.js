@@ -122,13 +122,14 @@ export const errorReducer = (state = initialState, action) => {
         lastError: null
       };
 
-    case '@@ERROR/CLEAR_VALIDATION_ERROR':
+    case '@@ERROR/CLEAR_VALIDATION_ERROR': {
       const newValidationErrors = { ...state.validationErrors };
       delete newValidationErrors[action.payload.field];
       return {
         ...state,
         validationErrors: newValidationErrors
       };
+    }
 
     case '@@ERROR/CLEAR_ALL_ERRORS':
       return {

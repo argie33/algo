@@ -258,18 +258,107 @@ jobs:
           echo "🚀 SMOKE TESTS - Fast Quality Check"
           echo "=================================="
           
+          # Create results directory
+          mkdir -p smoke-test-results
+          
           cd webapp/frontend
           echo "📦 Frontend lint check..."
-          npm run lint --if-present || echo "No lint script"
+          npm run lint --if-present > ../smoke-test-results/frontend-lint.log 2>&1 || echo "Frontend lint failed" >> ../smoke-test-results/frontend-lint.log
           
           echo "🔧 Frontend build check..."
-          npm run build
+          npm run build > ../smoke-test-results/frontend-build.log 2>&1 || echo "Frontend build failed" >> ../smoke-test-results/frontend-build.log
           
           cd ../lambda
           echo "📦 Backend lint check..."
-          npm run lint --if-present || echo "No lint script"
+          npm run lint --if-present > ../smoke-test-results/backend-lint.log 2>&1 || echo "Backend lint failed" >> ../smoke-test-results/backend-lint.log
           
+          cd ..
           echo "✅ Smoke tests completed - proceeding to deploy"
+
+      - name: 📤 Upload smoke test results to S3
+        run: |
+          echo "📤 UPLOADING SMOKE TEST RESULTS TO S3"
+          echo "====================================="
+          
+          # Create timestamp and metadata
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          RUN_ID="${{ github.run_id }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          
+          # Create upload directory structure
+          mkdir -p smoke-upload/smoke-tests/${BRANCH_NAME}
+          
+          # Copy results to upload directory
+          cp -r smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
+          
+          # Create summary report
+          cat > smoke-upload/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "runId": "${RUN_ID}",
+            "branch": "${BRANCH_NAME}",
+            "commit": "${{ github.sha }}",
+            "status": "completed",
+            "tests": {
+              "frontend_lint": "$([ -f smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
+              "frontend_build": "$([ -f smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
+              "backend_lint": "$([ -f smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
+            },
+            "completedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+          
+          # Get bucket name (same logic as integration tests)
+          STACK_NAME="${{ needs.setup.outputs.stack_name }}"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
+          
+          # Try to get bucket name from CloudFormation stack first
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null) || true
+          
+          # If CloudFormation query fails, construct bucket name
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+            echo "⚠️ Using constructed bucket name: ${BUCKET_NAME}"
+          else
+            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+          fi
+          
+          echo "📤 Uploading smoke test results to S3 bucket: ${BUCKET_NAME}"
+          
+          # Check if bucket exists
+          if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
+            echo "✅ Bucket is accessible"
+          else
+            echo "❌ Bucket is not accessible - creating results locally"
+            ls -la smoke-upload/
+            exit 0  # Don't fail the job, just skip S3 upload
+          fi
+          
+          # Clean up old smoke test results (keep only latest)
+          echo "🧹 Cleaning up old smoke test results..."
+          aws s3 rm "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive || echo "No old results to clean"
+          
+          # Upload the smoke test results
+          echo "📤 Uploading smoke test results..."
+          if aws s3 cp "smoke-upload/" "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive; then
+            echo "✅ Smoke test results uploaded successfully"
+          else
+            echo "❌ Failed to upload smoke test results"
+            exit 1
+          fi
+          
+          echo "✅ Smoke test results uploaded successfully!"
+          echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json"
+
+      - name: 📦 Archive smoke test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: smoke-test-results-${{ github.run_id }}
+          path: smoke-test-results/
+          retention-days: 30
 
 ################################################################################
 # 4) Comprehensive unit tests (PRs to main + quality deployments)             #

@@ -23,6 +23,15 @@ class PortfolioMathService {
    */
   calculatePortfolioVaR(holdings, historicalData, confidenceLevel = 0.95, timeHorizon = 1) {
     try {
+      // Generate cache key
+      const cacheKey = this.generateCacheKey('varCalculation', holdings, confidenceLevel, timeHorizon);
+      
+      // Check cache first
+      const cachedResult = this.getCachedResult(cacheKey);
+      if (cachedResult) {
+        return cachedResult;
+      }
+      
       console.log('📊 Calculating real portfolio VaR...');
       
       // Extract symbols and calculate portfolio weights
@@ -64,7 +73,7 @@ class PortfolioMathService {
       
       console.log('✅ Portfolio VaR calculated successfully');
       
-      return {
+      const result = {
         vaR: Math.abs(adjustedVaR),
         confidenceLevel,
         timeHorizon,
@@ -76,6 +85,11 @@ class PortfolioMathService {
         method: 'parametric',
         dataPoints: returns.length
       };
+      
+      // Cache the result
+      this.setCachedResult(cacheKey, result);
+      
+      return result;
       
     } catch (error) {
       console.error('❌ VaR calculation failed:', error);
@@ -465,6 +479,14 @@ class PortfolioMathService {
     // In a real implementation, this would use quadratic programming
     // For now, return equal weights as a reasonable approximation
     return weights;
+  }
+
+  /**
+   * Generate cache key for consistent caching
+   */
+  generateCacheKey(operation, holdings, confidenceLevel, timeHorizon) {
+    const holdingsKey = holdings.map(h => `${h.symbol}:${h.quantity}:${h.marketValue}`).join('|');
+    return `${operation}_${holdingsKey}_${confidenceLevel}_${timeHorizon}`;
   }
 
   /**

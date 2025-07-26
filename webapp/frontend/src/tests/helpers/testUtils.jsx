@@ -1,4 +1,5 @@
 import { render } from '@testing-library/react'
+import { vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
@@ -110,7 +111,7 @@ export function createMockApiResponse(data, options = {}) {
 
 // Mock fetch for API testing
 export function mockFetch(responses = {}) {
-  global.fetch = jest.fn((url) => {
+  global.fetch = vi.fn((url) => {
     const response = responses[url] || responses.default
     
     if (!response) {
