@@ -299,18 +299,46 @@ class RealTimeMarketDataService extends EventEmitter {
           try {
             if (dataSource.service.getQuote) {
               data = await dataSource.service.getQuote(symbol);
-            } else if (dataSource.service.getPositions) {
-              // For Alpaca, get positions data
-              const positions = await dataSource.service.getPositions();
-              const position = positions.find(p => p.symbol === symbol);
-              if (position) {
+            } else if (dataSource.service.getLatestPrice) {
+              // Get latest price data for the symbol
+              const priceData = await dataSource.service.getLatestPrice(symbol);
+              if (priceData) {
                 data = {
                   symbol: symbol,
-                  price: position.market_value / position.qty,
-                  qty: position.qty,
-                  market_value: position.market_value,
-                  unrealized_pl: position.unrealized_pl
+                  price: priceData.latestPrice || priceData.close,
+                  bid: priceData.iexBidPrice,
+                  ask: priceData.iexAskPrice,
+                  volume: priceData.volume,
+                  previousClose: priceData.previousClose,
+                  change: priceData.change,
+                  changePercent: priceData.changePercent
                 };
+              }
+            } else if (dataSource.service.getPositions) {
+              // For Alpaca, try to get current market data
+              try {
+                const marketData = await dataSource.service.getLatestTrade(symbol);
+                if (marketData) {
+                  data = {
+                    symbol: symbol,
+                    price: marketData.price,
+                    size: marketData.size,
+                    timestamp: marketData.timestamp
+                  };
+                }
+              } catch (marketError) {
+                // Fallback to position data if market data unavailable
+                const positions = await dataSource.service.getPositions();
+                const position = positions.find(p => p.symbol === symbol);
+                if (position) {
+                  data = {
+                    symbol: symbol,
+                    price: position.market_value / position.qty,
+                    qty: position.qty,
+                    market_value: position.market_value,
+                    unrealized_pl: position.unrealized_pl
+                  };
+                }
               }
             }
             
@@ -344,6 +372,14 @@ class RealTimeMarketDataService extends EventEmitter {
         // Process the data through existing pipeline
         this.processNormalizedData(data);
         dataSource.lastUpdate = new Date();
+        
+        // Also notify HFT services if they're listening
+        this.emit('marketData', {
+          symbol: data.symbol,
+          data: data,
+          provider: provider,
+          timestamp: data.timestamp
+        });
       }
       
     } catch (error) {
@@ -627,6 +663,192 @@ class RealTimeMarketDataService extends EventEmitter {
     };
   }
   
+  /**
+   * Subscribe to real-time data for HFT trading
+   * Provides high-frequency updates for trading strategies
+   */
+  subscribeForHFT(symbols, hftCallback) {
+    if (!Array.isArray(symbols)) {
+      symbols = [symbols];
+    }
+
+    const hftSubscriptions = [];
+    
+    symbols.forEach(symbol => {
+      // Subscribe to the symbol with fastest available providers
+      const providers = ['stocks_alpaca', 'crypto_binance'];
+      const result = this.subscribe([symbol], providers);
+      
+      if (result[symbol]?.success) {
+        // Set up HFT-specific data handler
+        this.on(`data`, (data) => {
+          if (data.symbol === symbol && typeof hftCallback === 'function') {
+            hftCallback({
+              symbol: data.symbol,
+              price: data.price,
+              bid: data.bid,
+              ask: data.ask,
+              volume: data.volume,
+              timestamp: data.timestamp,
+              provider: data.provider,
+              type: 'hft_market_data'
+            });
+          }
+        });
+        
+        hftSubscriptions.push({
+          symbol,
+          providers: result[symbol].providers,
+          hftEnabled: true
+        });
+      }
+    });
+
+    console.log(`📈 HFT subscriptions created for ${hftSubscriptions.length} symbols`);
+    return {
+      success: true,
+      subscriptions: hftSubscriptions,
+      message: `HFT real-time data enabled for ${symbols.length} symbols`
+    };
+  }
+
+  /**
+   * Get market data optimized for HFT execution
+   * Returns immediately available data with execution-relevant metrics
+   */
+  getHFTMarketData(symbol) {
+    const latestData = this.getLastData(symbol);
+    const recentData = this.getRecentData(symbol, 10);
+    
+    if (!latestData) {
+      return {
+        success: false,
+        error: 'No market data available',
+        symbol
+      };
+    }
+
+    // Calculate execution metrics
+    const spread = latestData.ask && latestData.bid ? 
+      (latestData.ask - latestData.bid) : null;
+    const midPrice = latestData.ask && latestData.bid ? 
+      (latestData.ask + latestData.bid) / 2 : latestData.price;
+    
+    // Calculate volatility from recent data
+    let volatility = 0;
+    if (recentData.length > 1) {
+      const prices = recentData.map(d => d.price).filter(p => p);
+      if (prices.length > 1) {
+        const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const variance = prices.reduce((sum, price) => sum + Math.pow(price - mean, 2), 0) / prices.length;
+        volatility = Math.sqrt(variance);
+      }
+    }
+
+    return {
+      success: true,
+      symbol,
+      execution: {
+        price: latestData.price,
+        bid: latestData.bid,
+        ask: latestData.ask,
+        midPrice,
+        spread,
+        volume: latestData.volume,
+        volatility,
+        dataAge: Date.now() - new Date(latestData.timestamp).getTime(),
+        provider: latestData.provider
+      },
+      quality: {
+        dataPoints: recentData.length,
+        lastUpdate: latestData.timestamp,
+        updateFrequency: this.calculateUpdateFrequency(symbol),
+        reliability: this.calculateDataReliability(symbol)
+      },
+      timestamp: Date.now()
+    };
+  }
+
+  /**
+   * Calculate update frequency for a symbol
+   */
+  calculateUpdateFrequency(symbol) {
+    const recentData = this.getRecentData(symbol, 20);
+    if (recentData.length < 2) return 0;
+    
+    const timestamps = recentData.map(d => new Date(d.timestamp).getTime());
+    const intervals = [];
+    
+    for (let i = 1; i < timestamps.length; i++) {
+      intervals.push(timestamps[i] - timestamps[i-1]);
+    }
+    
+    if (intervals.length === 0) return 0;
+    
+    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    return avgInterval > 0 ? 1000 / avgInterval : 0; // Updates per second
+  }
+
+  /**
+   * Calculate data reliability score for a symbol
+   */
+  calculateDataReliability(symbol) {
+    const recentData = this.getRecentData(symbol, 50);
+    if (recentData.length === 0) return 0;
+    
+    // Check for data consistency and freshness
+    const now = Date.now();
+    const freshDataCount = recentData.filter(d => 
+      now - new Date(d.timestamp).getTime() < 60000 // Less than 1 minute old
+    ).length;
+    
+    const reliabilityScore = Math.min(100, (freshDataCount / Math.min(recentData.length, 10)) * 100);
+    return Math.round(reliabilityScore);
+  }
+
+  /**
+   * Start high-frequency mode for specific symbols
+   * Increases update frequency for HFT requirements
+   */
+  enableHighFrequencyMode(symbols) {
+    if (!Array.isArray(symbols)) {
+      symbols = [symbols];
+    }
+
+    const results = {};
+    
+    symbols.forEach(symbol => {
+      // Reduce update interval for HFT symbols
+      const providers = this.activeSubscriptions.get(symbol) || [];
+      
+      providers.forEach(provider => {
+        const updateKey = `${symbol}_${provider}`;
+        
+        // Clear existing timer
+        if (this.updateTimers.has(updateKey)) {
+          clearInterval(this.updateTimers.get(updateKey));
+        }
+        
+        // Set high-frequency timer (1 second for HFT)
+        const hftTimer = setInterval(async () => {
+          await this.fetchRealTimeData(symbol, provider);
+        }, 1000);
+        
+        this.updateTimers.set(updateKey, hftTimer);
+      });
+      
+      results[symbol] = {
+        success: providers.length > 0,
+        hftMode: true,
+        updateInterval: '1 second',
+        providers: providers
+      };
+    });
+
+    console.log(`⚡ High-frequency mode enabled for ${symbols.length} symbols`);
+    return results;
+  }
+
   disconnect() {
     console.log('🔌 Disconnecting real-time market data service');
     

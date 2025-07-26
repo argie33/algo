@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const HFTService = require('../services/hftService');
 const HFTExecutionEngine = require('../services/hftExecutionEngine');
+const RealTimeMarketDataService = require('../services/realTimeMarketDataService');
 const AlpacaService = require('../utils/alpacaService');
 const apiKeyService = require('../utils/apiKeyService');
 const { authenticateToken } = require('../middleware/auth');
@@ -15,6 +16,7 @@ const { sendNotImplemented, sendServiceUnavailable } = require('../utils/standar
 
 const logger = createLogger('financial-platform', 'hft-api');
 const hftService = new HFTService();
+const marketDataService = new RealTimeMarketDataService();
 
 // Middleware for request logging
 router.use((req, res, next) => {
@@ -955,6 +957,252 @@ router.get('/execute/metrics', authenticateToken, async (req, res) => {
       success: false,
       error: 'Failed to get execution metrics',
       details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/hft/market-data/subscribe
+ * Subscribe to real-time market data for HFT trading
+ */
+router.post('/market-data/subscribe', authenticateToken, async (req, res) => {
+  try {
+    const { symbols, enableHFT = true } = req.body;
+    const userId = req.user?.sub;
+
+    if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbols array is required'
+      });
+    }
+
+    logger.info('HFT market data subscription requested', {
+      userId,
+      symbols,
+      enableHFT,
+      correlationId: req.correlationId
+    });
+
+    // Subscribe to market data with HFT optimization
+    let subscriptionResult;
+    
+    if (enableHFT) {
+      // Enable high-frequency mode for HFT trading
+      subscriptionResult = marketDataService.subscribeForHFT(symbols, (marketData) => {
+        // Forward market data to HFT service for strategy processing
+        hftService.processMarketData(marketData);
+      });
+      
+      // Enable high-frequency updates
+      const hftModeResult = marketDataService.enableHighFrequencyMode(symbols);
+      subscriptionResult.hftMode = hftModeResult;
+    } else {
+      // Standard subscription
+      subscriptionResult = marketDataService.subscribe(symbols);
+    }
+
+    res.json({
+      success: subscriptionResult.success,
+      data: {
+        subscriptions: subscriptionResult.subscriptions || subscriptionResult,
+        hftEnabled: enableHFT,
+        symbols: symbols,
+        provider: 'real-time-data-service',
+        updateFrequency: enableHFT ? '1 second' : '5 seconds'
+      },
+      message: enableHFT ? 
+        'HFT real-time data subscriptions enabled' : 
+        'Standard market data subscriptions enabled',
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to subscribe to market data', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to subscribe to market data',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/hft/market-data/status
+ * Get real-time market data service status
+ */
+router.get('/market-data/status', authenticateToken, async (req, res) => {
+  try {
+    const connectionStatus = marketDataService.getConnectionStatus();
+    const healthCheck = await marketDataService.healthCheck();
+
+    res.json({
+      success: true,
+      data: {
+        service: {
+          healthy: healthCheck.healthy,
+          status: healthCheck.status,
+          realTimeMode: connectionStatus.isRealTimeMode
+        },
+        connections: {
+          connectedProviders: connectionStatus.connectedProviders,
+          realDataSources: connectionStatus.realDataSources,
+          totalProviders: connectionStatus.totalProviders
+        },
+        subscriptions: {
+          active: connectionStatus.activeSubscriptions,
+          updateTimers: connectionStatus.activeUpdateTimers
+        },
+        performance: {
+          dataQuality: connectionStatus.dataQuality,
+          wsManagerStatus: connectionStatus.wsManagerStatus
+        }
+      },
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to get market data status', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get market data status',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/hft/market-data/symbols/:symbol
+ * Get HFT-optimized market data for a specific symbol
+ */
+router.get('/market-data/symbols/:symbol', authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { includeRecent = false } = req.query;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbol parameter is required'
+      });
+    }
+
+    // Get HFT-optimized market data
+    const marketData = marketDataService.getHFTMarketData(symbol.toUpperCase());
+    
+    if (!marketData.success) {
+      return res.status(404).json({
+        success: false,
+        error: marketData.error,
+        symbol: symbol.toUpperCase()
+      });
+    }
+
+    const response = {
+      success: true,
+      data: marketData
+    };
+
+    // Include recent data if requested
+    if (includeRecent === 'true') {
+      const recentData = marketDataService.getRecentData(symbol.toUpperCase(), 20);
+      response.data.recent = recentData;
+    }
+
+    res.json(response);
+
+  } catch (error) {
+    logger.error('Failed to get symbol market data', {
+      symbol: req.params.symbol,
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get symbol market data',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/hft/market-data/unsubscribe
+ * Unsubscribe from real-time market data
+ */
+router.post('/market-data/unsubscribe', authenticateToken, async (req, res) => {
+  try {
+    const { symbols, providers = null } = req.body;
+
+    if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symbols array is required'
+      });
+    }
+
+    marketDataService.unsubscribe(symbols, providers);
+
+    logger.info('Market data unsubscription completed', {
+      symbols,
+      providers,
+      correlationId: req.correlationId
+    });
+
+    res.json({
+      success: true,
+      message: `Unsubscribed from ${symbols.length} symbols`,
+      data: {
+        symbols,
+        providers: providers || 'all'
+      },
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    logger.error('Failed to unsubscribe from market data', {
+      error: error.message,
+      correlationId: req.correlationId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to unsubscribe from market data',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/hft/market-data/health
+ * Market data service health check
+ */
+router.get('/market-data/health', async (req, res) => {
+  try {
+    const health = await marketDataService.healthCheck();
+    
+    res.json({
+      success: true,
+      data: {
+        service: 'real-time-market-data',
+        ...health
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: Date.now()
     });
   }
 });
