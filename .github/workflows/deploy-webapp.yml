@@ -274,6 +274,39 @@ jobs:
           
           cd ..
           echo "✅ Smoke tests completed - proceeding to deploy"
+          
+          echo "📊 SMOKE TEST RESULTS SUMMARY"
+          echo "=============================="
+          echo "Frontend Lint: $([ -f webapp/smoke-test-results/frontend-lint.log ] && wc -l < webapp/smoke-test-results/frontend-lint.log | tr -d ' ' && echo ' lines' || echo 'FAILED')"
+          echo "Frontend Build: $([ -f webapp/smoke-test-results/frontend-build.log ] && echo 'SUCCESS' || echo 'FAILED')"
+          echo "Backend Lint: $([ -f webapp/smoke-test-results/backend-lint.log ] && wc -l < webapp/smoke-test-results/backend-lint.log | tr -d ' ' && echo ' lines' || echo 'FAILED')"
+          
+          echo ""
+          echo "📋 FULL FRONTEND LINT LOG:"
+          echo "=========================="
+          if [ -f webapp/smoke-test-results/frontend-lint.log ]; then
+            cat webapp/smoke-test-results/frontend-lint.log
+          else
+            echo "❌ No frontend lint log found"
+          fi
+          
+          echo ""
+          echo "📋 FULL BACKEND LINT LOG:"
+          echo "========================="
+          if [ -f webapp/smoke-test-results/backend-lint.log ]; then
+            cat webapp/smoke-test-results/backend-lint.log
+          else
+            echo "❌ No backend lint log found"
+          fi
+          
+          echo ""
+          echo "📋 FRONTEND BUILD LOG:"
+          echo "====================="
+          if [ -f webapp/smoke-test-results/frontend-build.log ]; then
+            tail -50 webapp/smoke-test-results/frontend-build.log
+          else
+            echo "❌ No frontend build log found"
+          fi
 
       - name: 📤 Upload smoke test results to S3
         run: |
