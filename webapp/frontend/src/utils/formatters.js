@@ -2,11 +2,25 @@ import React from 'react';
 import numeral from 'numeral'
 
 // Format currency values
-export const formatCurrency = (value, decimals = 2) => {
+export const formatCurrency = (value, decimals = 2, short = false) => {
   if (value === null || value === undefined) return 'N/A'
   
   const num = parseFloat(value)
   if (isNaN(num)) return 'N/A'
+  
+  if (short) {
+    if (Math.abs(num) >= 1e12) {
+      return '$' + (num / 1e12).toFixed(1) + 'T'
+    } else if (Math.abs(num) >= 1e9) {
+      return '$' + (num / 1e9).toFixed(1) + 'B'
+    } else if (Math.abs(num) >= 1e6) {
+      return '$' + (num / 1e6).toFixed(1) + 'M'
+    } else if (Math.abs(num) >= 1e3) {
+      return '$' + (num / 1e3).toFixed(1) + 'K'
+    } else {
+      return '$' + num.toFixed(decimals)
+    }
+  }
   
   if (Math.abs(num) >= 1e12) {
     return numeral(num).format('$0.00a').replace('t', 'T')

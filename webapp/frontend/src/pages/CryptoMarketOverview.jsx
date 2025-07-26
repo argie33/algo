@@ -80,36 +80,41 @@ const CryptoMarketOverview = () => {
   const fetchCryptoData = React.useCallback(async () => {
     try {
       setLoading(true)
-      const [marketResponse, fearGreedResponse, moversResponse, trendingResponse] = await Promise.all([
+      const [marketResponse, fearGreedResponse, moversResponse, trendingResponse, overviewResponse] = await Promise.all([
         fetch('/api/crypto/market-metrics'),
         fetch('/api/crypto/fear-greed'),
         fetch('/api/crypto/movers'),
-        fetch('/api/crypto/trending')
+        fetch('/api/crypto/trending'),
+        fetch('/api/crypto/market-overview')
       ])
 
-      const [marketData, fearGreedData, moversData, trendingData] = await Promise.all([
+      const [marketData, fearGreedData, moversData, trendingData, overviewData] = await Promise.all([
         marketResponse.json(),
         fearGreedResponse.json(),
         moversResponse.json(),
-        trendingResponse.json()
+        trendingResponse.json(),
+        overviewResponse.json()
       ])
 
       setMarketData(marketData.data)
       setFearGreedIndex(fearGreedData.data)
       setTopMovers(moversData.data)
-      setTrending(trendingData.data)
+      setTrending(trendingData.data.trending || trendingData.data)
       setLastUpdated(new Date().toISOString())
       
-      // Generate sample chart data (in production, this would come from API)
-      generateChartData()
+      // Fetch real chart data from live APIs
+      await fetchLiveChartData(overviewData.data)
       
       setLoading(false)
       setError(null)
     } catch (err) {
-      setError('Failed to fetch crypto market data')
+      console.error('Failed to fetch crypto market data:', err)
+      setError('Failed to fetch crypto market data. Using fallback data.')
+      // On error, still try to show some data
+      generateFallbackChartData()
       setLoading(false)
     }
-  }, [])
+  }, [selectedTimeframe])
 
   useEffect(() => {
     fetchCryptoData()
@@ -118,13 +123,91 @@ const CryptoMarketOverview = () => {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [autoRefresh, fetchCryptoData])
+  }, [autoRefresh, fetchCryptoData, selectedTimeframe])
 
-  const generateChartData = () => {
-    // Generate sample historical data for charts
+  const fetchLiveChartData = async (overviewData) => {
+    try {
+      // Determine timeframe for historical data
+      const timeframeDays = {
+        '1h': 0.04, // ~1 hour in days
+        '24h': 1,
+        '7d': 7
+      }[selectedTimeframe] || 1
+      
+      // Fetch historical data for BTC and ETH
+      const [btcHistoryResponse, ethHistoryResponse] = await Promise.all([
+        fetch(`/api/crypto/historical/bitcoin?days=${timeframeDays}&interval=${selectedTimeframe === '1h' ? 'hourly' : 'daily'}`),
+        fetch(`/api/crypto/historical/ethereum?days=${timeframeDays}&interval=${selectedTimeframe === '1h' ? 'hourly' : 'daily'}`)
+      ])
+      
+      const [btcHistoryData, ethHistoryData] = await Promise.all([
+        btcHistoryResponse.json(),
+        ethHistoryResponse.json()
+      ])
+      
+      // Process and combine chart data
+      if (btcHistoryData.success && ethHistoryData.success) {
+        const btcPrices = btcHistoryData.data.prices || []
+        const ethPrices = ethHistoryData.data.prices || []
+        
+        // Combine data by timestamp
+        const combinedData = btcPrices.map((btcPoint, index) => {
+          const ethPoint = ethPrices[index] || { price: 0 }
+          return {
+            time: btcPoint.timestamp,
+            btc: btcPoint.price,
+            eth: ethPoint.price,
+            total_market_cap: overviewData?.global?.total_market_cap || 0,
+            volume: overviewData?.global?.total_volume_24h || 0
+          }
+        })
+        
+        setPriceChartData(combinedData)
+      } else {
+        throw new Error('Failed to fetch historical price data')
+      }
+      
+      // Calculate real market cap distribution from live data
+      if (overviewData?.top_cryptocurrencies && overviewData.top_cryptocurrencies.length > 0) {
+        const topCryptos = overviewData.top_cryptocurrencies.slice(0, 10)
+        const totalMarketCap = topCryptos.reduce((sum, crypto) => sum + (crypto.market_cap || 0), 0)
+        
+        const btcData = topCryptos.find(c => c.symbol === 'BTC')
+        const ethData = topCryptos.find(c => c.symbol === 'ETH')
+        const bnbData = topCryptos.find(c => c.symbol === 'BNB')
+        
+        const btcPercentage = btcData ? ((btcData.market_cap / totalMarketCap) * 100) : 0
+        const ethPercentage = ethData ? ((ethData.market_cap / totalMarketCap) * 100) : 0
+        const bnbPercentage = bnbData ? ((bnbData.market_cap / totalMarketCap) * 100) : 0
+        const othersPercentage = 100 - btcPercentage - ethPercentage - bnbPercentage
+        
+        const liveMarketCapData = [
+          { name: 'Bitcoin', value: Math.round(btcPercentage * 10) / 10, color: '#f7931a' },
+          { name: 'Ethereum', value: Math.round(ethPercentage * 10) / 10, color: '#627eea' },
+          { name: 'Binance Coin', value: Math.round(bnbPercentage * 10) / 10, color: '#f0b90b' },
+          { name: 'Others', value: Math.round(othersPercentage * 10) / 10, color: '#8884d8' }
+        ]
+        
+        setMarketCapData(liveMarketCapData)
+      } else {
+        generateFallbackMarketCapData()
+      }
+      
+    } catch (error) {
+      console.error('Failed to fetch live chart data:', error)
+      generateFallbackChartData()
+    }
+  }
+  
+  const generateFallbackChartData = () => {
+    console.log('🔄 Using fallback chart data')
+    // Generate fallback data when live data fails
     const now = new Date()
-    const chartData = Array.from({ length: 24 }, (_, i) => ({
-      time: new Date(now.getTime() - (23 - i) * 60 * 60 * 1000).toISOString(),
+    const hours = selectedTimeframe === '7d' ? 168 : selectedTimeframe === '24h' ? 24 : 1
+    const interval = selectedTimeframe === '7d' ? 60 * 60 * 1000 * 4 : 60 * 60 * 1000 // 4h for 7d, 1h otherwise
+    
+    const chartData = Array.from({ length: hours }, (_, i) => ({
+      time: new Date(now.getTime() - (hours - 1 - i) * interval).toISOString(),
       btc: 45000 + Math.random() * 5000,
       eth: 2800 + Math.random() * 300,
       total_market_cap: 2.1e12 + Math.random() * 2e11,
@@ -132,8 +215,10 @@ const CryptoMarketOverview = () => {
     }))
     
     setPriceChartData(chartData)
-    
-    // Market cap distribution data
+  }
+  
+  const generateFallbackMarketCapData = () => {
+    // Fallback market cap distribution data
     const marketCapData = [
       { name: 'Bitcoin', value: 45, color: '#f7931a' },
       { name: 'Ethereum', value: 18, color: '#627eea' },
@@ -253,45 +338,82 @@ const CryptoMarketOverview = () => {
                 </Button>
               </ButtonGroup>
             </Box>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={priceChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="time" 
-                  tickFormatter={(time) => new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                />
-                <YAxis yAxisId="left" orientation="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <RechartsTooltip 
-                  labelFormatter={(time) => new Date(time).toLocaleString()}
-                  formatter={(value, name) => [
-                    name === 'btc' ? formatCurrency(value) : 
-                    name === 'eth' ? formatCurrency(value) : 
-                    name === 'total_market_cap' ? formatCurrency(value, 0) : 
-                    formatCurrency(value, 0),
-                    name === 'btc' ? 'Bitcoin' : 
-                    name === 'eth' ? 'Ethereum' :
-                    name === 'total_market_cap' ? 'Market Cap' : 'Volume'
-                  ]}
-                />
-                <Line 
-                  yAxisId="left" 
-                  type="monotone" 
-                  dataKey="btc" 
-                  stroke="#f7931a" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line 
-                  yAxisId="left" 
-                  type="monotone" 
-                  dataKey="eth" 
-                  stroke="#627eea" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {priceChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={priceChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="time" 
+                    tickFormatter={(time) => {
+                      const date = new Date(time)
+                      if (selectedTimeframe === '1h') {
+                        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      } else if (selectedTimeframe === '24h') {
+                        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      } else {
+                        return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+                      }
+                    }}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    yAxisId="left" 
+                    orientation="left" 
+                    tickFormatter={(value) => formatCurrency(value, 0, true)}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <RechartsTooltip 
+                    labelFormatter={(time) => new Date(time).toLocaleString()}
+                    formatter={(value, name) => [
+                      name === 'btc' ? formatCurrency(value) : 
+                      name === 'eth' ? formatCurrency(value) : 
+                      name === 'total_market_cap' ? formatCurrency(value, 0) : 
+                      formatCurrency(value, 0),
+                      name === 'btc' ? 'Bitcoin (BTC)' : 
+                      name === 'eth' ? 'Ethereum (ETH)' :
+                      name === 'total_market_cap' ? 'Total Market Cap' : 'Volume'
+                    ]}
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Line 
+                    yAxisId="left" 
+                    type="monotone" 
+                    dataKey="btc" 
+                    stroke="#f7931a" 
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 6, stroke: '#f7931a', strokeWidth: 2, fill: '#fff' }}
+                  />
+                  <Line 
+                    yAxisId="left" 
+                    type="monotone" 
+                    dataKey="eth" 
+                    stroke="#627eea" 
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 6, stroke: '#627eea', strokeWidth: 2, fill: '#fff' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box 
+                display="flex" 
+                justifyContent="center" 
+                alignItems="center" 
+                height={300}
+                flexDirection="column"
+              >
+                <CircularProgress size={40} sx={{ mb: 2 }} />
+                <Typography variant="body2" color="text.secondary">
+                  Loading chart data...
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
         
@@ -464,7 +586,7 @@ const CryptoMarketOverview = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {topMovers.gainers?.slice(0, 10).map((coin, index) => (
+                  {(topMovers.gainers || []).slice(0, 5).map((coin, index) => (
                     <TableRow key={coin.symbol}>
                       <TableCell>
                         <Box display="flex" alignItems="center">
@@ -524,7 +646,7 @@ const CryptoMarketOverview = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {topMovers.losers?.slice(0, 10).map((coin, index) => (
+                  {(topMovers.losers || []).slice(0, 5).map((coin, index) => (
                     <TableRow key={coin.symbol}>
                       <TableCell>
                         <Box display="flex" alignItems="center">
@@ -575,7 +697,7 @@ const CryptoMarketOverview = () => {
               </Typography>
             </Box>
             <Grid container spacing={2}>
-              {trending?.slice(0, 10).map((coin, index) => (
+              {(trending || []).slice(0, 10).map((coin, index) => (
                 <Grid item xs={12} sm={6} md={4} lg={2.4} key={coin.symbol}>
                   <Card 
                     variant="outlined" 

@@ -1,24 +1,49 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
+const enhancedCryptoDataService = require('../services/enhancedCryptoDataService');
+const cryptoErrorHandler = require('../utils/cryptoErrorHandler');
+const CryptoWebSocketManager = require('../services/cryptoWebSocketManager');
+
+// Initialize WebSocket manager
+const wsManager = new CryptoWebSocketManager();
 
 // Root crypto endpoint for health checks
 router.get('/', (req, res) => {
   res.json({
     success: true,
     data: {
-      system: 'Cryptocurrency API',
-      version: '1.0.0',
+      system: 'Enhanced Cryptocurrency API',
+      version: '2.0.0',
       status: 'operational',
+      features: [
+        'Multi-provider data aggregation',
+        'Real-time WebSocket streaming',
+        'Intelligent fallback systems',
+        'Comprehensive error handling',
+        'Live market data integration'
+      ],
       available_endpoints: [
         'GET /crypto/market-metrics - Overall crypto market metrics',
         'GET /crypto/fear-greed - Fear and Greed Index',
         'GET /crypto/movers - Top gainers and losers',
         'GET /crypto/trending - Trending cryptocurrencies',
-        'GET /crypto/assets - List of crypto assets',
+        'GET /crypto/assets - List of crypto assets with pagination',
+        'GET /crypto/prices/:symbol - Real-time price data for specific crypto',
+        'GET /crypto/historical/:symbol - Historical price charts',
+        'GET /crypto/market-overview - Comprehensive market overview',
+        'GET /crypto/portfolio - User crypto portfolio',
+        'GET /crypto/news - Cryptocurrency news',
         'GET /crypto/defi/tvl - DeFi Total Value Locked',
-        'GET /crypto/exchanges - Exchange information'
+        'GET /crypto/exchanges - Exchange information',
+        'WS /crypto/ws - Real-time WebSocket data feed',
+        'GET /crypto/websocket/health - WebSocket manager health',
+        'GET /crypto/websocket/snapshot - Current WebSocket data',
+        'GET /crypto/services/health - Enhanced services health check',
+        'POST /crypto/websocket/start - Start WebSocket manager',
+        'POST /crypto/websocket/stop - Stop WebSocket manager'
       ],
+      websocket_status: wsManager.isActive ? 'active' : 'inactive',
       timestamp: new Date().toISOString()
     }
   });
@@ -64,32 +89,53 @@ router.get('/market-metrics', async (req, res) => {
 // GET /crypto/fear-greed - Get Fear and Greed Index
 router.get('/fear-greed', async (req, res) => {
   try {
-    const result = await query(`
-      SELECT 
-        value,
-        value_classification,
-        timestamp
-      FROM crypto_fear_greed 
-      ORDER BY timestamp DESC 
-      LIMIT 1
-    `);
+    console.log('😨 Fetching Fear and Greed Index');
+    
+    // Use enhanced service with intelligent fallback
+    let fearGreedData;
+    try {
+      fearGreedData = await enhancedCryptoDataService.getFearGreedIndex();
+      fearGreedData.source = 'live_api';
+    } catch (apiError) {
+      console.log('⚠️ Fear & Greed API failed, falling back to database');
+      
+      // Fallback to database
+      const result = await query(`
+        SELECT 
+          value,
+          value_classification,
+          timestamp
+        FROM crypto_fear_greed 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'No Fear and Greed data available'
-      });
+      if (result.rows.length === 0) {
+        throw new Error('No Fear and Greed data available');
+      }
+
+      fearGreedData = {
+        ...result.rows[0],
+        source: 'database_fallback',
+        note: 'Using cached Fear & Greed data'
+      };
     }
 
     res.json({
       success: true,
-      data: result.rows[0]
+      data: fearGreedData
     });
   } catch (error) {
-    console.error('Error fetching Fear and Greed index:', error);
+    console.error('Error fetching Fear and Greed Index:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/fear-greed',
+      dataType: 'sentiment'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch Fear and Greed index'
+      error: errorResponse
     });
   }
 });
@@ -97,51 +143,102 @@ router.get('/fear-greed', async (req, res) => {
 // GET /crypto/movers - Get top gainers and losers
 router.get('/movers', async (req, res) => {
   try {
-    const [gainersResult, losersResult] = await Promise.all([
-      query(`
-        SELECT 
-          symbol,
-          price,
-          price_change_24h,
-          volume_24h,
-          market_cap
-        FROM crypto_movers 
-        WHERE mover_type = 'gainer'
-        AND timestamp = (
-          SELECT MAX(timestamp) FROM crypto_movers WHERE mover_type = 'gainer'
-        )
-        ORDER BY price_change_24h DESC
-        LIMIT 10
-      `),
-      query(`
-        SELECT 
-          symbol,
-          price,
-          price_change_24h,
-          volume_24h,
-          market_cap
-        FROM crypto_movers 
-        WHERE mover_type = 'loser'
-        AND timestamp = (
-          SELECT MAX(timestamp) FROM crypto_movers WHERE mover_type = 'loser'
-        )
-        ORDER BY price_change_24h ASC
-        LIMIT 10
-      `)
-    ]);
+    console.log('📈 Fetching crypto movers (top gainers and losers)');
+    
+    // Try enhanced service first for real-time data
+    let moversData;
+    try {
+      const topCryptos = await enhancedCryptoDataService.getTopCryptocurrencies(100);
+      if (topCryptos.success && topCryptos.data) {
+        // Sort by 24h change to get gainers and losers
+        const sortedByChange = topCryptos.data.sort((a, b) => 
+          (b.price_change_percentage_24h || 0) - (a.price_change_percentage_24h || 0)
+        );
+        
+        moversData = {
+          gainers: sortedByChange.slice(0, 10).map(coin => ({
+            symbol: coin.symbol,
+            name: coin.name,
+            price: coin.current_price,
+            price_change_24h: coin.price_change_percentage_24h,
+            volume_24h: coin.total_volume,
+            market_cap: coin.market_cap,
+            image: coin.image
+          })),
+          losers: sortedByChange.slice(-10).reverse().map(coin => ({
+            symbol: coin.symbol,
+            name: coin.name,
+            price: coin.current_price,
+            price_change_24h: coin.price_change_percentage_24h,
+            volume_24h: coin.total_volume,
+            market_cap: coin.market_cap,
+            image: coin.image
+          })),
+          source: 'live_api'
+        };
+      } else {
+        throw new Error('Enhanced service returned invalid data');
+      }
+    } catch (apiError) {
+      console.log('⚠️ Live API failed, falling back to database');
+      
+      // Fallback to database
+      const [gainersResult, losersResult] = await Promise.all([
+        query(`
+          SELECT 
+            symbol,
+            price,
+            price_change_24h,
+            volume_24h,
+            market_cap
+          FROM crypto_movers 
+          WHERE mover_type = 'gainer'
+          AND timestamp = (
+            SELECT MAX(timestamp) FROM crypto_movers WHERE mover_type = 'gainer'
+          )
+          ORDER BY price_change_24h DESC
+          LIMIT 10
+        `),
+        query(`
+          SELECT 
+            symbol,
+            price,
+            price_change_24h,
+            volume_24h,
+            market_cap
+          FROM crypto_movers 
+          WHERE mover_type = 'loser'
+          AND timestamp = (
+            SELECT MAX(timestamp) FROM crypto_movers WHERE mover_type = 'loser'
+          )
+          ORDER BY price_change_24h ASC
+          LIMIT 10
+        `)
+      ]);
+
+      moversData = {
+        gainers: gainersResult.rows,
+        losers: losersResult.rows,
+        source: 'database_fallback',
+        note: 'Using cached movers data'
+      };
+    }
 
     res.json({
       success: true,
-      data: {
-        gainers: gainersResult.rows,
-        losers: losersResult.rows
-      }
+      data: moversData
     });
   } catch (error) {
     console.error('Error fetching crypto movers:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/movers',
+      dataType: 'market_movers'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch crypto movers'
+      error: errorResponse
     });
   }
 });
@@ -149,30 +246,81 @@ router.get('/movers', async (req, res) => {
 // GET /crypto/trending - Get trending cryptocurrencies
 router.get('/trending', async (req, res) => {
   try {
-    const result = await query(`
-      SELECT 
-        symbol,
-        name,
-        coingecko_id,
-        market_cap_rank,
-        search_score
-      FROM crypto_trending 
-      WHERE timestamp = (
-        SELECT MAX(timestamp) FROM crypto_trending
-      )
-      ORDER BY search_score DESC
-      LIMIT 10
-    `);
+    console.log('🔥 Fetching trending cryptocurrencies');
+    
+    let trendingData;
+    try {
+      // Get top cryptocurrencies by volume and recent price movement
+      const topCryptos = await enhancedCryptoDataService.getTopCryptocurrencies(50);
+      if (topCryptos.success && topCryptos.data) {
+        // Calculate trending score based on volume and price change
+        const trending = topCryptos.data
+          .map(coin => ({
+            symbol: coin.symbol,
+            name: coin.name,
+            coingecko_id: coin.id,
+            market_cap_rank: coin.market_cap_rank,
+            current_price: coin.current_price,
+            price_change_24h: coin.price_change_percentage_24h,
+            total_volume: coin.total_volume,
+            image: coin.image,
+            // Calculate trending score: volume rank + price momentum
+            trending_score: (
+              Math.abs(coin.price_change_percentage_24h || 0) * 0.7 +
+              (coin.total_volume || 0) / 1000000 * 0.3
+            )
+          }))
+          .sort((a, b) => b.trending_score - a.trending_score)
+          .slice(0, 10);
+        
+        trendingData = {
+          trending,
+          source: 'live_api'
+        };
+      } else {
+        throw new Error('Enhanced service returned invalid data');
+      }
+    } catch (apiError) {
+      console.log('⚠️ Live API failed, falling back to database');
+      
+      // Fallback to database
+      const result = await query(`
+        SELECT 
+          symbol,
+          name,
+          coingecko_id,
+          market_cap_rank,
+          search_score
+        FROM crypto_trending 
+        WHERE timestamp = (
+          SELECT MAX(timestamp) FROM crypto_trending
+        )
+        ORDER BY search_score DESC
+        LIMIT 10
+      `);
+
+      trendingData = {
+        trending: result.rows,
+        source: 'database_fallback',
+        note: 'Using cached trending data'
+      };
+    }
 
     res.json({
       success: true,
-      data: result.rows
+      data: trendingData
     });
   } catch (error) {
     console.error('Error fetching trending cryptos:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/trending',
+      dataType: 'trending'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch trending cryptocurrencies'
+      error: errorResponse
     });
   }
 });
@@ -183,31 +331,73 @@ router.get('/prices/:symbol', async (req, res) => {
     const { symbol } = req.params;
     const limit = parseInt(req.query.limit) || 100;
     
-    const result = await query(`
-      SELECT 
-        symbol,
-        timestamp,
-        price,
-        market_cap,
-        volume_24h,
-        price_change_24h,
-        price_change_7d,
-        price_change_30d
-      FROM crypto_prices 
-      WHERE symbol = $1
-      ORDER BY timestamp DESC
-      LIMIT $2
-    `, [symbol.toUpperCase(), limit]);
+    console.log(`💰 Fetching price data for ${symbol}`);
+    
+    let priceData;
+    try {
+      // Check WebSocket manager for real-time data first
+      const realtimeData = wsManager.getSymbolData(symbol.toUpperCase());
+      if (realtimeData && realtimeData.length > 0) {
+        console.log(`📡 Using real-time WebSocket data for ${symbol}`);
+        priceData = {
+          current: realtimeData,
+          source: 'websocket_realtime'
+        };
+      } else {
+        // Fallback to enhanced service API
+        const liveData = await enhancedCryptoDataService.getRealTimePrices([symbol.toLowerCase()]);
+        if (liveData.success && liveData.data.length > 0) {
+          priceData = {
+            current: liveData.data,
+            source: 'live_api'
+          };
+        } else {
+          throw new Error('No live data available');
+        }
+      }
+    } catch (apiError) {
+      console.log(`⚠️ Live data failed for ${symbol}, falling back to database`);
+      
+      // Fallback to database
+      const result = await query(`
+        SELECT 
+          symbol,
+          timestamp,
+          price,
+          market_cap,
+          volume_24h,
+          price_change_24h,
+          price_change_7d,
+          price_change_30d
+        FROM crypto_prices 
+        WHERE symbol = $1
+        ORDER BY timestamp DESC
+        LIMIT $2
+      `, [symbol.toUpperCase(), limit]);
+
+      priceData = {
+        current: result.rows,
+        source: 'database_fallback',
+        note: 'Using cached price data'
+      };
+    }
 
     res.json({
       success: true,
-      data: result.rows
+      data: priceData
     });
   } catch (error) {
     console.error('Error fetching crypto prices:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/prices',
+      dataType: 'prices',
+      symbols: [req.params.symbol]
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch crypto prices'
+      error: errorResponse
     });
   }
 });
@@ -220,58 +410,128 @@ router.get('/assets', async (req, res) => {
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
 
-    let whereClause = 'WHERE is_active = true';
-    let params = [limit, offset];
+    console.log(`📋 Fetching crypto assets (page ${page}, limit ${limit})`);
     
-    if (search) {
-      whereClause += ' AND (symbol ILIKE $3 OR name ILIKE $3)';
-      params.push(`%${search}%`);
+    let assetsData;
+    try {
+      // Use enhanced service for fresh market data
+      const topCryptos = await enhancedCryptoDataService.getTopCryptocurrencies(Math.min(limit * 2, 250));
+      if (topCryptos.success && topCryptos.data) {
+        let filteredAssets = topCryptos.data;
+        
+        // Apply search filter if provided
+        if (search) {
+          const searchLower = search.toLowerCase();
+          filteredAssets = filteredAssets.filter(asset => 
+            asset.symbol.toLowerCase().includes(searchLower) ||
+            asset.name.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        // Apply pagination
+        const paginatedAssets = filteredAssets.slice(offset, offset + limit);
+        
+        assetsData = {
+          assets: paginatedAssets.map(asset => ({
+            symbol: asset.symbol,
+            name: asset.name,
+            coingecko_id: asset.id,
+            current_price: asset.current_price,
+            market_cap: asset.market_cap,
+            market_cap_rank: asset.market_cap_rank,
+            total_volume: asset.total_volume,
+            circulating_supply: asset.circulating_supply,
+            total_supply: asset.total_supply,
+            max_supply: asset.max_supply,
+            price_change_24h: asset.price_change_percentage_24h,
+            image: asset.image,
+            last_updated: asset.last_updated
+          })),
+          pagination: {
+            page,
+            limit,
+            total: filteredAssets.length,
+            pages: Math.ceil(filteredAssets.length / limit)
+          },
+          source: 'live_api'
+        };
+      } else {
+        throw new Error('Enhanced service returned invalid data');
+      }
+    } catch (apiError) {
+      console.log('⚠️ Live API failed, falling back to database');
+      
+      // Fallback to database
+      let whereClause = 'WHERE is_active = true';
+      let params = [limit, offset];
+      
+      if (search) {
+        whereClause += ' AND (symbol ILIKE $3 OR name ILIKE $3)';
+        params.push(`%${search}%`);
+      }
+
+      const result = await query(`
+        SELECT 
+          symbol,
+          name,
+          coingecko_id,
+          contract_address,
+          blockchain,
+          market_cap,
+          circulating_supply,
+          total_supply,
+          max_supply,
+          launch_date,
+          website
+        FROM crypto_assets 
+        ${whereClause}
+        ORDER BY market_cap DESC NULLS LAST
+        LIMIT $1 OFFSET $2
+      `, params);
+
+      // Get total count
+      const countParams = search ? [`%${search}%`] : [];
+      const countWhere = search ? 'WHERE is_active = true AND (symbol ILIKE $1 OR name ILIKE $1)' : 'WHERE is_active = true';
+      
+      const countResult = await query(`
+        SELECT COUNT(*) as total 
+        FROM crypto_assets 
+        ${countWhere}
+      `, countParams);
+
+      assetsData = {
+        assets: result.rows,
+        pagination: {
+          page,
+          limit,
+          total: parseInt(countResult.rows[0].total),
+          pages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+        },
+        source: 'database_fallback',
+        note: 'Using cached assets data'
+      };
     }
-
-    const result = await query(`
-      SELECT 
-        symbol,
-        name,
-        coingecko_id,
-        contract_address,
-        blockchain,
-        market_cap,
-        circulating_supply,
-        total_supply,
-        max_supply,
-        launch_date,
-        website
-      FROM crypto_assets 
-      ${whereClause}
-      ORDER BY market_cap DESC NULLS LAST
-      LIMIT $1 OFFSET $2
-    `, params);
-
-    // Get total count
-    const countParams = search ? [`%${search}%`] : [];
-    const countWhere = search ? 'WHERE is_active = true AND (symbol ILIKE $1 OR name ILIKE $1)' : 'WHERE is_active = true';
-    
-    const countResult = await query(`
-      SELECT COUNT(*) as total 
-      FROM crypto_assets 
-      ${countWhere}
-    `, countParams);
 
     res.json({
       success: true,
-      data: result.rows,
-      pagination: {
-        page,
-        limit,
-        total: parseInt(countResult.rows[0].total),
-        pages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+      data: assetsData.assets,
+      pagination: assetsData.pagination,
+      metadata: {
+        source: assetsData.source,
+        note: assetsData.note
       }
     });
   } catch (error) {
     console.error('Error fetching crypto assets:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/assets',
+      dataType: 'assets'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch crypto assets'
+      error: errorResponse
     });
   }
 });
@@ -370,45 +630,87 @@ router.get('/historical/:symbol', async (req, res) => {
     const days = parseInt(req.query.days) || 30;
     const interval = req.query.interval || 'daily'; // daily, hourly
     
-    // Calculate the date range
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - days);
+    console.log(`📉 Fetching historical data for ${symbol} (${days} days, ${interval})`);
+    
+    let historicalData;
+    try {
+      // Use enhanced service for historical data
+      const historyResult = await enhancedCryptoDataService.getHistoricalData(
+        symbol.toLowerCase(), 
+        days, 
+        interval === 'hourly' ? 'hourly' : 'daily'
+      );
+      
+      if (historyResult.success) {
+        historicalData = {
+          chart_data: historyResult.data,
+          source: 'live_api'
+        };
+      } else {
+        throw new Error('Enhanced service returned invalid historical data');
+      }
+    } catch (apiError) {
+      console.log(`⚠️ Live API failed for ${symbol}, falling back to database`);
+      
+      // Fallback to database
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days);
 
-    const result = await query(`
-      SELECT 
-        symbol,
-        timestamp,
-        price,
-        market_cap,
-        volume_24h,
-        price_change_24h,
-        high_24h,
-        low_24h
-      FROM crypto_historical_prices 
-      WHERE symbol = $1 
-        AND timestamp >= $2 
-        AND timestamp <= $3
-      ORDER BY timestamp ASC
-    `, [symbol.toUpperCase(), startDate, endDate]);
+      const result = await query(`
+        SELECT 
+          symbol,
+          timestamp,
+          price,
+          market_cap,
+          volume_24h,
+          price_change_24h,
+          high_24h,
+          low_24h
+        FROM crypto_historical_prices 
+        WHERE symbol = $1 
+          AND timestamp >= $2 
+          AND timestamp <= $3
+        ORDER BY timestamp ASC
+      `, [symbol.toUpperCase(), startDate, endDate]);
+
+      historicalData = {
+        chart_data: {
+          prices: result.rows.map(row => ({
+            timestamp: row.timestamp,
+            price: row.price,
+            time: new Date(row.timestamp).getTime()
+          }))
+        },
+        source: 'database_fallback',
+        note: 'Using cached historical data'
+      };
+    }
 
     res.json({
       success: true,
-      data: result.rows,
+      data: historicalData.chart_data,
       metadata: {
         symbol: symbol.toUpperCase(),
         days,
         interval,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-        data_points: result.rows.length
+        source: historicalData.source,
+        note: historicalData.note,
+        data_points: historicalData.chart_data.prices?.length || 0
       }
     });
   } catch (error) {
     console.error('Error fetching crypto historical data:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/historical',
+      dataType: 'historical',
+      symbols: [req.params.symbol]
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch crypto historical data'
+      error: errorResponse
     });
   }
 });
@@ -532,63 +834,271 @@ router.get('/news', async (req, res) => {
 // GET /crypto/market-overview - Get comprehensive market overview
 router.get('/market-overview', async (req, res) => {
   try {
-    // Get top cryptocurrencies by market cap
-    const topCryptos = await query(`
-      SELECT 
-        symbol,
-        name,
-        price,
-        market_cap,
-        volume_24h,
-        price_change_24h,
-        price_change_7d,
-        market_cap_rank
-      FROM crypto_prices p
-      JOIN crypto_assets a ON p.symbol = a.symbol
-      WHERE p.timestamp = (
-        SELECT MAX(timestamp) FROM crypto_prices WHERE symbol = p.symbol
-      )
-      ORDER BY market_cap DESC NULLS LAST
-      LIMIT 10
-    `);
+    console.log('🌍 Fetching comprehensive crypto market overview');
+    
+    let overviewData;
+    try {
+      // Use enhanced service for comprehensive market overview
+      const marketOverview = await enhancedCryptoDataService.getMarketOverview();
+      if (marketOverview.success) {
+        overviewData = {
+          ...marketOverview.data,
+          source: 'live_api',
+          warnings: marketOverview.warnings
+        };
+      } else {
+        throw new Error('Enhanced service returned invalid overview data');
+      }
+    } catch (apiError) {
+      console.log('⚠️ Live API failed, falling back to database');
+      
+      // Fallback to database queries
+      const [topCryptos, marketMetrics, fearGreed] = await Promise.allSettled([
+        query(`
+          SELECT 
+            symbol,
+            name,
+            price,
+            market_cap,
+            volume_24h,
+            price_change_24h,
+            price_change_7d,
+            market_cap_rank
+          FROM crypto_prices p
+          JOIN crypto_assets a ON p.symbol = a.symbol
+          WHERE p.timestamp = (
+            SELECT MAX(timestamp) FROM crypto_prices WHERE symbol = p.symbol
+          )
+          ORDER BY market_cap DESC NULLS LAST
+          LIMIT 10
+        `),
+        query(`
+          SELECT 
+            total_market_cap,
+            total_volume_24h,
+            btc_dominance,
+            eth_dominance,
+            market_cap_change_24h
+          FROM crypto_market_metrics 
+          ORDER BY timestamp DESC 
+          LIMIT 1
+        `),
+        query(`
+          SELECT value, value_classification
+          FROM crypto_fear_greed 
+          ORDER BY timestamp DESC 
+          LIMIT 1
+        `)
+      ]);
 
-    // Get market metrics
-    const marketMetrics = await query(`
-      SELECT 
-        total_market_cap,
-        total_volume_24h,
-        btc_dominance,
-        eth_dominance,
-        market_cap_change_24h
-      FROM crypto_market_metrics 
-      ORDER BY timestamp DESC 
-      LIMIT 1
-    `);
-
-    // Get fear & greed index
-    const fearGreed = await query(`
-      SELECT value, value_classification
-      FROM crypto_fear_greed 
-      ORDER BY timestamp DESC 
-      LIMIT 1
-    `);
+      overviewData = {
+        top_cryptocurrencies: topCryptos.status === 'fulfilled' ? topCryptos.value.rows : [],
+        market_metrics: marketMetrics.status === 'fulfilled' ? marketMetrics.value.rows[0] : null,
+        fear_greed_index: fearGreed.status === 'fulfilled' ? fearGreed.value.rows[0] : null,
+        last_updated: new Date().toISOString(),
+        source: 'database_fallback',
+        note: 'Using cached market overview data'
+      };
+    }
 
     res.json({
       success: true,
-      data: {
-        top_cryptocurrencies: topCryptos.rows,
-        market_metrics: marketMetrics.rows[0] || null,
-        fear_greed_index: fearGreed.rows[0] || null,
-        last_updated: new Date().toISOString()
-      }
+      data: overviewData
     });
   } catch (error) {
     console.error('Error fetching crypto market overview:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/market-overview',
+      dataType: 'market_overview'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch crypto market overview'
+      error: errorResponse
     });
   }
 });
+
+// WebSocket endpoint for real-time crypto data
+router.ws('/ws', (ws, req) => {
+  console.log('🌐 New WebSocket client connected to crypto feed');
+  
+  // Add client to WebSocket manager
+  wsManager.addClient(ws);
+  
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      
+      if (data.type === 'subscribe') {
+        // Handle subscription requests
+        console.log('Client subscription:', data.symbols);
+        ws.send(JSON.stringify({
+          type: 'subscription_confirmed',
+          symbols: data.symbols,
+          timestamp: new Date().toISOString()
+        }));
+      } else if (data.type === 'ping') {
+        // Handle ping/pong for connection health
+        ws.send(JSON.stringify({
+          type: 'pong',
+          timestamp: new Date().toISOString()
+        }));
+      }
+    } catch (error) {
+      console.error('WebSocket message error:', error);
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('👋 WebSocket client disconnected from crypto feed');
+    wsManager.removeClient(ws);
+  });
+  
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+    wsManager.removeClient(ws);
+  });
+});
+
+// GET /crypto/websocket/health - WebSocket manager health check
+router.get('/websocket/health', async (req, res) => {
+  try {
+    const health = wsManager.getHealthStatus();
+    
+    res.json({
+      success: true,
+      data: health
+    });
+  } catch (error) {
+    console.error('Error getting WebSocket health:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get WebSocket health status'
+    });
+  }
+});
+
+// GET /crypto/websocket/snapshot - Get current WebSocket data snapshot
+router.get('/websocket/snapshot', async (req, res) => {
+  try {
+    const snapshot = wsManager.getDataSnapshot();
+    
+    res.json({
+      success: true,
+      data: snapshot
+    });
+  } catch (error) {
+    console.error('Error getting WebSocket snapshot:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get WebSocket data snapshot'
+    });
+  }
+});
+
+// GET /crypto/services/health - Enhanced services health check
+router.get('/services/health', async (req, res) => {
+  try {
+    const [dataServiceHealth, wsHealth, errorStats] = await Promise.allSettled([
+      enhancedCryptoDataService.healthCheck(),
+      wsManager.getHealthStatus(),
+      Promise.resolve(cryptoErrorHandler.getHealthStatus())
+    ]);
+    
+    const healthReport = {
+      overall_status: 'healthy',
+      services: {
+        enhanced_data_service: dataServiceHealth.status === 'fulfilled' ? 
+          dataServiceHealth.value : { status: 'unhealthy', error: dataServiceHealth.reason },
+        websocket_manager: wsHealth.status === 'fulfilled' ? 
+          wsHealth.value : { status: 'unhealthy', error: wsHealth.reason },
+        error_handler: errorStats.status === 'fulfilled' ? 
+          errorStats.value : { status: 'unhealthy', error: errorStats.reason }
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    // Determine overall status
+    const serviceStatuses = Object.values(healthReport.services).map(s => s.status);
+    if (serviceStatuses.includes('critical') || serviceStatuses.filter(s => s === 'unhealthy').length > 1) {
+      healthReport.overall_status = 'critical';
+    } else if (serviceStatuses.includes('degraded') || serviceStatuses.includes('unhealthy')) {
+      healthReport.overall_status = 'degraded';
+    }
+    
+    res.json({
+      success: true,
+      data: healthReport
+    });
+  } catch (error) {
+    console.error('Error getting services health:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get services health status'
+    });
+  }
+});
+
+// POST /crypto/websocket/start - Start WebSocket manager
+router.post('/websocket/start', async (req, res) => {
+  try {
+    if (!wsManager.isActive) {
+      await wsManager.start();
+      res.json({
+        success: true,
+        message: 'WebSocket manager started successfully'
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'WebSocket manager already active'
+      });
+    }
+  } catch (error) {
+    console.error('Error starting WebSocket manager:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start WebSocket manager'
+    });
+  }
+});
+
+// POST /crypto/websocket/stop - Stop WebSocket manager
+router.post('/websocket/stop', async (req, res) => {
+  try {
+    if (wsManager.isActive) {
+      await wsManager.stop();
+      res.json({
+        success: true,
+        message: 'WebSocket manager stopped successfully'
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'WebSocket manager already inactive'
+      });
+    }
+  } catch (error) {
+    console.error('Error stopping WebSocket manager:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to stop WebSocket manager'
+    });
+  }
+});
+
+// Auto-start WebSocket manager when routes are loaded
+setTimeout(async () => {
+  try {
+    if (!wsManager.isActive) {
+      console.log('🚀 Auto-starting crypto WebSocket manager...');
+      await wsManager.start();
+    }
+  } catch (error) {
+    console.error('Failed to auto-start WebSocket manager:', error);
+  }
+}, 2000); // Start after 2 seconds to allow server initialization
 
 module.exports = router;
