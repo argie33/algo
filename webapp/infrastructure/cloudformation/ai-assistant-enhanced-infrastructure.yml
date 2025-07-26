@@ -273,12 +273,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-streaming-service'
-      CodeUri: ../../lambda/services/
-      Handler: StreamingService.handler
+      CodeUri: ./
+      Handler: services/StreamingService.handler
       Role: !GetAtt AIEnhancedLambdaRole.Arn
       Timeout: 300
       MemorySize: 2048
-      ReservedConcurrencyLimit: 100
+      ReservedConcurrentExecutions: 100
       Environment:
         Variables:
           WEBSOCKET_API_ENDPOINT: !Sub 'https://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
@@ -298,8 +298,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-bedrock-service'
-      CodeUri: ../../lambda/services/
-      Handler: EnhancedBedrockService.handler
+      CodeUri: ./
+      Handler: services/EnhancedBedrockService.handler
       Role: !GetAtt AIEnhancedLambdaRole.Arn
       Timeout: 120
       MemorySize: 1024
@@ -321,8 +321,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-connection-manager'
-      CodeUri: ../../lambda/handlers/
-      Handler: websocketHandler.handler
+      CodeUri: ./
+      Handler: handlers/websocketHandler.handler
       Role: !GetAtt AIEnhancedLambdaRole.Arn
       Timeout: 30
       MemorySize: 512
@@ -333,25 +333,7 @@ Resources:
           DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
           CONNECTION_TTL: !Ref WebSocketConnectionTTL
           STREAMING_SERVICE_ARN: !GetAtt AIStreamingServiceLambda.Arn
-      Events:
-        ConnectRoute:
-          Type: Api
-          Properties:
-            Path: /$connect
-            Method: ANY
-            RestApiId: !Ref AIWebSocketApi
-        DisconnectRoute:
-          Type: Api
-          Properties:
-            Path: /$disconnect
-            Method: ANY
-            RestApiId: !Ref AIWebSocketApi
-        DefaultRoute:
-          Type: Api
-          Properties:
-            Path: /$default
-            Method: ANY
-            RestApiId: !Ref AIWebSocketApi
+      # Events will be handled through WebSocket routes defined separately
       Tags:
         Environment: !Ref Environment
         Project: !Ref ProjectName
@@ -361,8 +343,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-http-handler'
-      CodeUri: ../../lambda/handlers/
-      Handler: aiAssistantHandler.handler
+      CodeUri: ./
+      Handler: handlers/aiAssistantHandler.handler
       Role: !GetAtt AIEnhancedLambdaRole.Arn
       Timeout: 60
       MemorySize: 1024
