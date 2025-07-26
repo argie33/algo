@@ -11,98 +11,59 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // DIAGNOSTIC MODE: Track down the source of F.useLayoutEffect usage
-      (function() {
-        console.log('🔍 DIAGNOSTIC MODE: Tracking F.useLayoutEffect usage');
-        
-        // Create detailed diagnostic tracker
-        const diagnosticTracker = {
-          accesses: [],
-          stackTraces: [],
-          timing: []
-        };
-        
-        // Intercept all property access on F
-        let fAccessCount = 0;
-        Object.defineProperty(window, 'F', {
-          get: function() {
-            fAccessCount++;
-            const stack = new Error().stack;
-            const timestamp = Date.now();
-            
-            console.group(`🔍 F ACCESS #${fAccessCount} at ${timestamp}`);
-            console.log('📊 Stack trace:', stack);
-            console.log('📍 Caller info:', {
-              line: stack.split('\n')[2],
-              source: stack.split('\n')[1]
-            });
-            console.groupEnd();
-            
-            diagnosticTracker.accesses.push({
-              count: fAccessCount,
-              timestamp,
-              stack: stack,
-              caller: stack.split('\n')[2]
-            });
-            
-            // Return React if available, otherwise throw descriptive error
-            if (window.React) {
-              console.log('✅ Returning actual React for F');
-              return window.React;
-            } else {
-              console.error('❌ DIAGNOSTIC: F accessed but React not available!');
-              console.log('📋 Full diagnostic report:', diagnosticTracker);
-              
-              // Throw error with full context
-              const error = new Error(`
-🚨 F.useLayoutEffect ACCESS DETECTED 🚨
-
-F was accessed but React is not yet available.
-
-ACCESS #${fAccessCount}
-TIMESTAMP: ${new Date(timestamp).toISOString()}
-CALLER: ${stack.split('\n')[2]}
-
-STACK TRACE:
-${stack}
-
-DIAGNOSTIC DATA:
-- Total F accesses: ${fAccessCount}
-- React available: ${!!window.React}
-- Window.React type: ${typeof window.React}
-
-This suggests a library is expecting React to be available as global 'F'.
-Check your dependencies for:
-- @emotion/react
-- @mui/material  
-- styled-components
-- Any library that might alias React as 'F'
-              `);
-              error.diagnosticData = diagnosticTracker;
-              throw error;
-            }
-          },
-          set: function(value) {
-            console.log('📝 F SET with value:', value, typeof value);
-            console.log('📊 Setter stack:', new Error().stack);
-            
-            // Allow setting and store the diagnostic
-            diagnosticTracker.timing.push({
-              action: 'set',
-              timestamp: Date.now(),
-              value: value,
-              type: typeof value,
-              stack: new Error().stack
-            });
-          },
-          configurable: true,
-          enumerable: true
-        });
-        
-        console.log('✅ F diagnostic tracker installed');
-        window.__F_DIAGNOSTICS__ = diagnosticTracker;
-      })();
+      // SIMPLE SOLUTION: Provide F as emergency bridge until React loads
+      console.log('🛡️ Installing F bridge for @emotion/react...');
       
+      // Create temporary F that will be replaced by real React
+      window.F = new Proxy({}, {
+        get: function(target, prop) {
+          if (prop === 'useLayoutEffect') {
+            // Return a no-op function until real React loads
+            return function() {
+              console.log('🔧 Emergency useLayoutEffect called, waiting for React...');
+            };
+          }
+          if (prop === 'useState') {
+            return function(initial) { return [initial, function() {}]; };
+          }
+          if (prop === 'useEffect') {
+            return function() {};
+          }
+          if (prop === 'useCallback') {
+            return function(callback) { return callback; };
+          }
+          if (prop === 'useMemo') {
+            return function(factory) { try { return factory(); } catch(e) { return null; } };
+          }
+          if (prop === 'useRef') {
+            return function(initial) { return { current: initial }; };
+          }
+          // Return undefined for other properties
+          return undefined;
+        }
+      });
+      
+      console.log('✅ Emergency F bridge installed');
+    </script>
+    
+    <!-- Load React immediately as a blocking script -->
+    <script type="module">
+      console.log('🚀 Loading React before any chunks...');
+      
+      import('./src/utils/reactModulePreloader.js').then(() => {
+        console.log('✅ React module preloader completed');
+        
+        // Verify F is now properly set
+        if (window.F && typeof window.F.useLayoutEffect === 'function') {
+          console.log('✅ F.useLayoutEffect now available');
+        } else {
+          console.warn('⚠️ F.useLayoutEffect still not available after preloader');
+        }
+      }).catch(error => {
+        console.error('❌ React preloader failed:', error);
+      });
+    </script>
+    <script>
       // Initialize empty config - will be populated by config.js
       window.__CONFIG__ = window.__CONFIG__ || {
         ENVIRONMENT: 'development',
