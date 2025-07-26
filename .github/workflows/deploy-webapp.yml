@@ -263,14 +263,17 @@ jobs:
           
           cd webapp/frontend
           echo "📦 Frontend lint check..."
-          npm run lint --if-present > ../smoke-test-results/frontend-lint.log 2>&1 || echo "Frontend lint failed" >> ../smoke-test-results/frontend-lint.log
+          # Run lint and show output in logs AND save to file
+          npm run lint --if-present 2>&1 | tee ../smoke-test-results/frontend-lint.log || echo "Frontend lint failed" >> ../smoke-test-results/frontend-lint.log
           
           echo "🔧 Frontend build check..."
-          npm run build > ../smoke-test-results/frontend-build.log 2>&1 || echo "Frontend build failed" >> ../smoke-test-results/frontend-build.log
+          # Run build and show output in logs AND save to file  
+          npm run build 2>&1 | tee ../smoke-test-results/frontend-build.log || echo "Frontend build failed" >> ../smoke-test-results/frontend-build.log
           
           cd ../lambda
           echo "📦 Backend lint check..."
-          npm run lint --if-present > ../smoke-test-results/backend-lint.log 2>&1 || echo "Backend lint failed" >> ../smoke-test-results/backend-lint.log
+          # Run lint and show output in logs AND save to file
+          npm run lint --if-present 2>&1 | tee ../smoke-test-results/backend-lint.log || echo "Backend lint failed" >> ../smoke-test-results/backend-lint.log
           
           cd ..
           echo "✅ Smoke tests completed - proceeding to deploy"
