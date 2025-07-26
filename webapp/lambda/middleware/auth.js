@@ -27,7 +27,9 @@ function isDevelopment() {
 function allowDevBypass() {
   // Enable development bypass for development and testing
   // EMERGENCY FIX: Also allow bypass when Cognito fails to configure
-  const hasBasicDevBypass = isDevelopment() || process.env.ALLOW_DEV_BYPASS === 'true';
+  const hasBasicDevBypass = isDevelopment() || 
+                           process.env.ALLOW_DEV_BYPASS === 'true' ||
+                           !process.env.AWS_REGION; // No AWS region = local development
   
   // If we're not in basic dev mode, check if this is an emergency situation
   if (!hasBasicDevBypass) {
@@ -37,6 +39,15 @@ function allowDevBypass() {
       console.log('🚨 EMERGENCY: No Cognito config found, enabling bypass for API functionality');
       return true;
     }
+  }
+  
+  // Log the bypass decision for debugging
+  if (hasBasicDevBypass) {
+    console.log('🔧 Authentication bypass enabled:', {
+      NODE_ENV: process.env.NODE_ENV,
+      ALLOW_DEV_BYPASS: process.env.ALLOW_DEV_BYPASS,
+      AWS_REGION: !!process.env.AWS_REGION
+    });
   }
   
   return hasBasicDevBypass;

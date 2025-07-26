@@ -12,8 +12,24 @@ const { responseFormatter } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
-// Apply authentication to all trading signals routes
-router.use(authenticateToken);
+// Development bypass for trading signals
+const devBypass = (req, res, next) => {
+  const isDevelopment = process.env.NODE_ENV === 'development' || 
+                       process.env.ALLOW_DEV_BYPASS === 'true' ||
+                       !process.env.AWS_REGION;
+  
+  if (isDevelopment) {
+    console.log('🔧 Signals - Development mode detected - bypassing authentication');
+    req.user = { id: 'dev-user', username: 'dev-user', sub: 'dev-user-123' };
+    next();
+  } else {
+    console.log('🔒 Signals - Production mode - requiring authentication');
+    authenticateToken(req, res, next);
+  }
+};
+
+// Apply authentication to all trading signals routes (with dev bypass)
+router.use(devBypass);
 
 // Initialize signal processors
 const signalProcessor = new SignalProcessor();

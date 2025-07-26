@@ -25,20 +25,24 @@ class DatabaseConnectionManager {
       // Get database configuration
       this.config = await this.getDbConfig();
       
-      // Create connection pool
+      // Create connection pool with enhanced timeout settings
       this.pool = new Pool({
         ...this.config,
-        // Lambda-optimized settings
-        max: 10, // Maximum connections
-        min: 1,  // Minimum connections
-        acquireTimeoutMillis: 15000, // 15 seconds
-        createTimeoutMillis: 20000,  // 20 seconds
-        destroyTimeoutMillis: 5000,  // 5 seconds
-        idleTimeoutMillis: 30000,    // 30 seconds
+        // Lambda-optimized settings with shorter timeouts for faster failures
+        max: 5,  // Reduced maximum connections for Lambda
+        min: 0,  // Allow pool to scale to zero
+        acquireTimeoutMillis: 5000,  // 5 seconds (reduced from 15)
+        createTimeoutMillis: 8000,   // 8 seconds (reduced from 20)
+        destroyTimeoutMillis: 2000,  // 2 seconds (reduced from 5)
+        idleTimeoutMillis: 10000,    // 10 seconds (reduced from 30)
         reapIntervalMillis: 1000,    // 1 second
-        createRetryIntervalMillis: 200, // 200ms
+        createRetryIntervalMillis: 100, // 100ms (reduced from 200)
         keepAlive: true,
-        keepAliveInitialDelayMillis: 10000
+        keepAliveInitialDelayMillis: 5000, // 5 seconds (reduced from 10)
+        // Enhanced timeout settings
+        connectionTimeoutMillis: 5000,  // Connection timeout
+        query_timeout: 10000,           // Query timeout (10 seconds)
+        statement_timeout: 8000         // Statement timeout (8 seconds)
       });
       
       // Test initial connection (skip for stub configuration)

@@ -22,6 +22,17 @@ class ApiKeyService {
     this.isEnabled = true;
     this.parameterPrefix = '/financial-platform/users';
     
+    // ENHANCEMENT: Add caching from UnifiedApiKeyService
+    this.cache = new Map();
+    this.cacheTTL = 5 * 60 * 1000; // 5 minutes
+    this.maxCacheSize = 10000; // Limit memory usage
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    
+    // ENHANCEMENT: Performance monitoring
+    this.lastCleanup = Date.now();
+    this.cleanupInterval = 10 * 60 * 1000; // 10 minutes
+    
     // Circuit breaker state for reliability
     this.circuitBreaker = {
       state: 'CLOSED', // CLOSED, OPEN, HALF_OPEN
@@ -32,6 +43,11 @@ class ApiKeyService {
     
     // Rate limiting storage
     this.rateLimits = new Map();
+    
+    // ENHANCEMENT: Initialize cleanup
+    this._initializeCleanupTasks();
+    
+    console.log('✅ Enhanced API Key Service initialized with caching and performance monitoring');
   }
 
   /**
@@ -64,18 +80,26 @@ class ApiKeyService {
 
   /**
    * Store API key securely using AWS Parameter Store
+   * ENHANCED: Added cache invalidation and standardized parameters
    * @param {string} userId - User ID
    * @param {string} provider - Provider (alpaca, polygon, finnhub)
-   * @param {string} keyId - API key ID
-   * @param {string} secretKey - API secret key
+   * @param {string|Object} keyId - API key ID or credentials object
+   * @param {string} secretKey - API secret key (optional if keyId is object)
    * @returns {Promise<boolean>} Success status
    */
   async storeApiKey(userId, provider, keyId, secretKey) {
+    // ENHANCEMENT: Support both old interface (keyId, secretKey) and new interface (credentials object)
+    let credentials;
+    if (typeof keyId === 'object') {
+      credentials = keyId;
+    } else {
+      credentials = { keyId, secretKey };
+    }
     try {
       console.log(`🔐 Storing API key for user: ${userId}, provider: ${provider}`);
       
       // Validate inputs
-      if (!userId || !provider || !keyId || !secretKey) {
+      if (!userId || !provider || !credentials.keyId || !credentials.secretKey) {
         throw new Error('Missing required parameters: userId, provider, keyId, secretKey');
       }
 
@@ -104,11 +128,12 @@ class ApiKeyService {
       const baseCommand = {
         Name: parameterName,
         Value: JSON.stringify({
-          keyId,
-          secretKey,
+          keyId: credentials.keyId,
+          secretKey: credentials.secretKey,
           provider: provider.toLowerCase(),
           created: new Date().toISOString(),
-          version: '1.0'
+          version: credentials.version || '1.0',
+          isSandbox: credentials.isSandbox || false
         }),
         Type: 'SecureString',
         Description: `API keys for ${provider} - user ${userId}`
@@ -135,6 +160,10 @@ class ApiKeyService {
         });
         await this.ssm.send(command);
       }
+      
+      // ENHANCEMENT: Invalidate cache after successful storage
+      this.invalidateCache(userId, provider);
+      
       console.log(`✅ API key stored successfully for ${provider}`);
       return true;
 
@@ -145,12 +174,14 @@ class ApiKeyService {
   }
 
   /**
-   * Retrieve API key from AWS Parameter Store
+   * Retrieve API key from AWS Parameter Store with caching
+   * ENHANCED: Added caching and standardized responses
    * @param {string} userId - User ID
    * @param {string} provider - Provider (alpaca, polygon, finnhub)
+   * @param {Object} options - Options (force: skip cache)
    * @returns {Promise<Object|null>} API key data or null if not found
    */
-  async getApiKey(userId, provider) {
+  async getApiKey(userId, provider, options = {}) {
     try {
       console.log(`🔍 Retrieving API key for user: ${userId}, provider: ${provider}`);
       
@@ -158,6 +189,25 @@ class ApiKeyService {
       if (!userId || !provider) {
         throw new Error('Missing required parameters: userId, provider');
       }
+
+      // ENHANCEMENT: Auto-cleanup cache if needed
+      this._performCacheCleanup();
+      
+      // ENHANCEMENT: Check cache first (unless force refresh)
+      if (!options.force) {
+        const cacheKey = `${provider}:${userId}`;
+        const cached = this.cache.get(cacheKey);
+        
+        if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+          this.cacheHits++;
+          // Update access time for LRU behavior
+          cached.lastAccess = Date.now();
+          console.log(`✅ Cache hit for user ${userId}/${provider} (${this.cacheHits}/${this.cacheHits + this.cacheMisses})`);
+          return cached.data;
+        }
+      }
+
+      this.cacheMisses++;
 
       // Create parameter name with encoded user ID
       const encodedUserId = this.encodeUserId(userId);
@@ -177,6 +227,11 @@ class ApiKeyService {
       }
 
       const apiKeyData = JSON.parse(response.Parameter.Value);
+      
+      // ENHANCEMENT: Cache the result
+      const cacheKey = `${provider}:${userId}`;
+      this._cacheResult(cacheKey, apiKeyData);
+      
       console.log(`✅ API key retrieved successfully for ${provider}`);
       
       return {
@@ -223,6 +278,10 @@ class ApiKeyService {
       });
 
       await this.ssm.send(command);
+      
+      // ENHANCEMENT: Invalidate cache after successful deletion
+      this.invalidateCache(userId, provider);
+      
       console.log(`✅ API key deleted successfully for ${provider}`);
       return true;
 
@@ -494,6 +553,165 @@ class ApiKeyService {
     this.rateLimits.set(rateLimitKey, userLimits);
     
     return true;
+  }
+
+  // =============================================================================
+  // ENHANCEMENT: Cache Management Methods (from UnifiedApiKeyService)
+  // =============================================================================
+
+  /**
+   * Cache API key result with LRU eviction
+   */
+  _cacheResult(cacheKey, data) {
+    // LRU eviction if cache is full
+    if (this.cache.size >= this.maxCacheSize) {
+      this._evictLRU();
+    }
+    
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+      lastAccess: Date.now()
+    });
+  }
+
+  /**
+   * Evict least recently used cache entry
+   */
+  _evictLRU() {
+    let oldestKey = null;
+    let oldestTime = Date.now();
+    
+    for (const [key, value] of this.cache.entries()) {
+      if (value.lastAccess < oldestTime) {
+        oldestTime = value.lastAccess;
+        oldestKey = key;
+      }
+    }
+    
+    if (oldestKey) {
+      this.cache.delete(oldestKey);
+    }
+  }
+
+  /**
+   * Perform cache cleanup if needed
+   */
+  _performCacheCleanup() {
+    const now = Date.now();
+    if (now - this.lastCleanup > this.cleanupInterval) {
+      this._cleanupExpiredCache();
+      this.lastCleanup = now;
+    }
+  }
+
+  /**
+   * Clean up expired cache entries
+   */
+  _cleanupExpiredCache() {
+    const now = Date.now();
+    let removed = 0;
+    
+    for (const [key, value] of this.cache.entries()) {
+      if (now - value.timestamp > this.cacheTTL) {
+        this.cache.delete(key);
+        removed++;
+      }
+    }
+    
+    if (removed > 0) {
+      console.log(`🧹 Cache cleanup: removed ${removed} expired entries, ${this.cache.size} remaining`);
+    }
+  }
+
+  /**
+   * Invalidate cache for specific user/provider
+   */
+  invalidateCache(userId, provider) {
+    const cacheKey = `${provider}:${userId}`;
+    const deleted = this.cache.delete(cacheKey);
+    if (deleted) {
+      console.log(`🗑️ Invalidated cache for ${userId}/${provider}`);
+    }
+    return deleted;
+  }
+
+  /**
+   * Initialize cleanup tasks
+   */
+  _initializeCleanupTasks() {
+    // Cache cleanup
+    setInterval(() => {
+      this._cleanupExpiredCache();
+    }, this.cleanupInterval);
+    
+    // Rate limit cleanup
+    setInterval(() => {
+      this._cleanupRateLimits();
+    }, 60000); // Every minute
+  }
+
+  /**
+   * Clean up expired rate limits
+   */
+  _cleanupRateLimits() {
+    const now = Date.now();
+    let removed = 0;
+    
+    for (const [key, value] of this.rateLimits.entries()) {
+      if (now > value.resetTime) {
+        this.rateLimits.delete(key);
+        removed++;
+      }
+    }
+    
+    if (removed > 0) {
+      console.log(`🧹 Rate limit cleanup: removed ${removed} expired entries`);
+    }
+  }
+
+  /**
+   * ENHANCEMENT: Get service health and performance metrics
+   */
+  getServiceHealth() {
+    const hitRate = this.cacheHits + this.cacheMisses > 0 ? 
+      (this.cacheHits / (this.cacheHits + this.cacheMisses) * 100).toFixed(2) : 0;
+    
+    return {
+      status: 'healthy',
+      service: 'Enhanced API Key Service',
+      version: '1.1',
+      backend: 'AWS Parameter Store',
+      encryption: 'AWS KMS',
+      cache: {
+        size: this.cache.size,
+        hitRate: `${hitRate}%`,
+        hits: this.cacheHits,
+        misses: this.cacheMisses,
+        maxSize: this.maxCacheSize,
+        ttl: `${this.cacheTTL / 1000}s`
+      },
+      circuitBreaker: {
+        state: this.circuitBreaker.state,
+        failures: this.circuitBreaker.failures
+      },
+      rateLimiting: {
+        activeUsers: this.rateLimits.size
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * ENHANCEMENT: Clear all caches (for testing/debugging)
+   */
+  clearCache() {
+    const size = this.cache.size;
+    this.cache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    console.log(`🧹 Cleared cache: ${size} entries removed`);
+    return size;
   }
 }
 
