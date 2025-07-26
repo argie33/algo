@@ -1009,12 +1009,12 @@ export const updateApiKey = async (apiKeyData) => {
     return response.data;
   }, {
     context: {
-      keyId,
+      keyId: apiKeyData?.id || apiKeyData?.apiKeyId,
       keyName: apiKeyData?.name,
       operation: 'updateApiKey'
     },
-    successMessage: `API key '${apiKeyData?.name || keyId}' updated successfully`,
-    errorMessage: `Failed to update API key '${apiKeyData?.name || keyId}'`,
+    successMessage: `API key '${apiKeyData?.name || apiKeyData?.id}' updated successfully`,
+    errorMessage: `Failed to update API key '${apiKeyData?.name || apiKeyData?.id}'`,
     handleErrors: {
       500: () => {
         console.warn('API key update endpoint not available, simulating success');
@@ -3144,16 +3144,17 @@ export const healthCheck = async (queryParams = '') => {
   let triedRoot = false;
   let healthUrl = `/api/health${queryParams}`;
   let rootUrl = `/${queryParams}`;
+  
+  // Create API instance without auth headers for health checks
+  const healthApi = axios.create({
+    baseURL: currentConfig.baseURL,
+    timeout: 10000,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  
   try {
-    // Create API instance without auth headers for health checks
-    const healthApi = axios.create({
-      baseURL: currentConfig.baseURL,
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
     const response = await healthApi.get(healthUrl);
     console.log('Health check response:', response.data);
     return {

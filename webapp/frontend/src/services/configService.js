@@ -185,7 +185,7 @@ class ConfigService extends StandardService {
    */
   getEnvironmentVariable(key) {
     // Try import.meta.env first (Vite)
-    if (typeof import !== 'undefined' && import.meta?.env?.[key]) {
+    if (typeof import.meta !== 'undefined' && import.meta?.env?.[key]) {
       return import.meta.env[key];
     }
 

@@ -1,27 +1,19 @@
 /**
- * HFT Trading Dashboard - High-Frequency Trading Platform
- * 
- * Features:
- * - AI-Powered Symbol Selection & Strategy Optimization
- * - Real-time Market Microstructure Analysis
- * - 3D Performance Visualization
- * - Voice Command Integration
- * - Predictive Order Flow Analytics
- * - Advanced Risk Management
- * - Live Data Integration with ML
+ * HFT Trading Dashboard - High Frequency Trading Interface
+ * Real-time monitoring, strategy management, and performance analytics
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
-  Grid,
   Card,
   CardContent,
+  CardHeader,
   Typography,
+  Grid,
   Button,
   Switch,
   FormControlLabel,
-  Chip,
   Table,
   TableBody,
   TableCell,
@@ -29,214 +21,223 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  TextField,
+  Chip,
+  LinearProgress,
+  IconButton,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
-  Slider,
+  TextField,
   Alert,
-  Badge,
-  Tooltip,
-  IconButton,
-  Tabs,
-  Tab,
-  LinearProgress,
-  CircularProgress,
   Divider,
-  Avatar,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  useTheme,
-  alpha
+  Tooltip,
+  Badge
 } from '@mui/material';
-
 import {
   PlayArrow,
   Stop,
-  Pause,
-  Speed,
   TrendingUp,
   TrendingDown,
-  Assessment,
-  Psychology,
-  AutoAwesome,
-  Sensors,
+  Speed,
   Timeline,
-  AccountBalance,
-  Security,
-  Bolt,
-  Radar,
+  Assessment,
   MonetizationOn,
-  TrendingFlat,
-  Visibility,
-  VolumeUp,
+  AccountBalance,
   Settings,
   Refresh,
-  Warning,
+  Circle,
   CheckCircle,
-  Error as ErrorIcon,
-  Notifications,
-  FlashOn,
-  DataUsage,
-  CandlestickChart,
-  ShowChart,
-  BarChart,
-  ScatterPlot,
-  Mic,
-  MicOff,
-  Fullscreen,
-  PictureInPicture,
-  ThreeDRotation
+  Warning,
+  Error
 } from '@mui/icons-material';
-
-// Import services
-import adminLiveDataService from '../services/adminLiveDataService';
+import { 
+  Chart as ChartJS, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  LineElement, 
+  Title, 
+  Tooltip as ChartTooltip, 
+  Legend,
+  Filler 
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
 import { hftTradingService } from '../services/hftTradingService';
+import adminLiveDataService from '../services/adminLiveDataService';
 
-// HFT Trading Dashboard Component
-function HFTTrading() {
-  const theme = useTheme();
-  
-  // Core State Management
-  const [activeTab, setActiveTab] = useState(0);
-  const [isSystemActive, setIsSystemActive] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [fullscreenMode, setFullscreenMode] = useState(false);
-  
-  // Live Data Integration
-  const [liveDataFeeds, setLiveDataFeeds] = useState([]);
-  const [selectedSymbols, setSelectedSymbols] = useState(new Set());
-  const [hftEligibleSymbols, setHftEligibleSymbols] = useState(new Set());
-  const [marketData, setMarketData] = useState({});
-  
-  // Strategy & Performance
-  const [activeStrategies, setActiveStrategies] = useState([]);
-  const [strategyPerformance, setStrategyPerformance] = useState({});
-  const [aiRecommendations, setAiRecommendations] = useState([]);
-  const [riskMetrics, setRiskMetrics] = useState({});
-  
-  // Real-time Analytics
-  const [latencyMetrics, setLatencyMetrics] = useState({});
-  const [orderFlowAnalysis, setOrderFlowAnalysis] = useState({});
-  const [marketMicrostructure, setMarketMicrostructure] = useState({});
-  const [predictiveSignals, setPredictiveSignals] = useState([]);
-  
-  // WebSocket & Real-time Updates
-  const wsRef = useRef(null);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler
+);
+
+const HFTTrading = () => {
+  // State management
+  const [isEngineRunning, setIsEngineRunning] = useState(false);
+  const [metrics, setMetrics] = useState({
+    totalTrades: 0,
+    profitableTrades: 0,
+    totalPnL: 0,
+    winRate: 0,
+    dailyPnL: 0,
+    openPositions: 0,
+    signalsGenerated: 0,
+    avgExecutionTime: 0,
+    uptime: 0
+  });
+  const [strategies, setStrategies] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [recentTrades, setRecentTrades] = useState([]);
+  const [performanceData, setPerformanceData] = useState({ labels: [], data: [] });
+  const [selectedStrategy, setSelectedStrategy] = useState('scalping');
+  const [strategyParams, setStrategyParams] = useState({});
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [lastUpdate, setLastUpdate] = useState(null);
-
-  // Initialize HFT System
+  const [marketData, setMarketData] = useState(new Map());
+  const [liveDataFeeds, setLiveDataFeeds] = useState({});
+  const [hftEligibleSymbols, setHftEligibleSymbols] = useState(new Set());
+  
+  // Refs for real-time updates
+  const metricsIntervalRef = useRef();
+  const performanceHistoryRef = useRef([]);
+  
+  // Initialize component
   useEffect(() => {
-    initializeHFTSystem();
+    loadInitialData();
+    setupRealtimeUpdates();
+    
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      clearInterval(metricsIntervalRef.current);
     };
   }, []);
 
-  const initializeHFTSystem = async () => {
+  const loadInitialData = async () => {
     try {
-      // Load live data feeds and HFT configuration
-      const [feeds, strategies, performance] = await Promise.all([
-        adminLiveDataService.getFeedStatus(),
-        hftTradingService.getActiveStrategies(),
-        hftTradingService.getPerformanceMetrics()
-      ]);
-
-      setLiveDataFeeds(feeds.feeds || {});
-      setActiveStrategies(strategies || []);
-      setStrategyPerformance(performance || {});
-
+      // Load strategies
+      const strategiesData = await hftTradingService.getActiveStrategies();
+      setStrategies(strategiesData || []);
+      
+      // Load initial metrics
+      const metricsData = await hftTradingService.getPerformanceMetrics();
+      setMetrics(metricsData || {});
+      setIsEngineRunning(metricsData?.isRunning || false);
+      
+      // Set initial strategy params
+      if (strategiesData && strategiesData.length > 0) {
+        setStrategyParams(strategiesData[0].params || {});
+      }
+      
+      // Check live data connection status and load feeds
+      const liveDataStatus = await adminLiveDataService.getFeedStatus();
+      setConnectionStatus(liveDataStatus.overallStatus?.toLowerCase() || 'disconnected');
+      setLiveDataFeeds(liveDataStatus.feeds || {});
+      
       // Extract HFT eligible symbols
       const eligible = new Set(
-        Object.entries(feeds.feeds || {})
+        Object.entries(liveDataStatus.feeds || {})
           .filter(([_, config]) => config.hftEligible)
           .map(([symbol, _]) => symbol)
       );
       setHftEligibleSymbols(eligible);
-
-      // Initialize WebSocket connection
-      initializeWebSocket();
-
-      // Start AI recommendation engine
-      generateAIRecommendations();
-
+      
     } catch (error) {
-      console.error('Failed to initialize HFT system:', error);
+      console.error('Failed to load initial data:', error);
     }
   };
 
-  const initializeWebSocket = () => {
-    const wsUrl = 'wss://your-websocket-endpoint/hft-stream';
-    wsRef.current = new WebSocket(wsUrl);
-
-    wsRef.current.onopen = () => {
-      setConnectionStatus('connected');
-      console.log('HFT WebSocket connected');
-    };
-
-    wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      handleRealtimeUpdate(data);
-    };
-
-    wsRef.current.onclose = () => {
-      setConnectionStatus('disconnected');
-      // Reconnect after 3 seconds
-      setTimeout(initializeWebSocket, 3000);
-    };
+  const setupRealtimeUpdates = () => {
+    // Update metrics every second
+    metricsIntervalRef.current = setInterval(async () => {
+      try {
+        const currentMetrics = await hftTradingService.getPerformanceMetrics();
+        setMetrics(currentMetrics || {});
+        setPositions(currentMetrics?.activePositions || []);
+        
+        // Update performance chart data
+        updatePerformanceChart(currentMetrics || {});
+        
+        // Check live data status
+        const liveDataStatus = await adminLiveDataService.getFeedStatus();
+        setConnectionStatus(liveDataStatus.overallStatus?.toLowerCase() || 'disconnected');
+      } catch (error) {
+        console.error('Error updating real-time data:', error);
+      }
+    }, 2000); // Update every 2 seconds to avoid overwhelming the API
   };
 
-  const handleRealtimeUpdate = (data) => {
-    setLastUpdate(new Date());
+  const handleMarketData = (data) => {
+    setMarketData(prev => new Map(prev.set(data.symbol, data.data)));
+  };
+
+  const updatePerformanceChart = (currentMetrics) => {
+    const now = new Date();
+    const timeLabel = now.toLocaleTimeString();
     
-    switch (data.type) {
-      case 'MARKET_DATA':
-        setMarketData(prev => ({ ...prev, ...data.payload }));
-        break;
-      case 'STRATEGY_PERFORMANCE':
-        setStrategyPerformance(prev => ({ ...prev, ...data.payload }));
-        break;
-      case 'LATENCY_METRICS':
-        setLatencyMetrics(data.payload);
-        break;
-      case 'ORDER_FLOW':
-        setOrderFlowAnalysis(data.payload);
-        break;
-      case 'PREDICTIVE_SIGNAL':
-        setPredictiveSignals(prev => [...prev.slice(-99), data.payload]);
-        break;
-      case 'RISK_UPDATE':
-        setRiskMetrics(data.payload);
-        break;
+    performanceHistoryRef.current.push({
+      time: timeLabel,
+      pnl: currentMetrics.totalPnL || 0,
+      timestamp: now.getTime()
+    });
+    
+    // Keep only last 50 data points
+    if (performanceHistoryRef.current.length > 50) {
+      performanceHistoryRef.current.shift();
     }
+    
+    setPerformanceData({
+      labels: performanceHistoryRef.current.map(d => d.time),
+      data: performanceHistoryRef.current.map(d => d.pnl)
+    });
   };
 
-  const generateAIRecommendations = async () => {
+  const handleStartEngine = async () => {
     try {
-      const recommendations = await hftTradingService.getAIRecommendations();
-      setAiRecommendations(recommendations || []);
+      const result = await hftTradingService.startSelectedStrategies([selectedStrategy]);
+      if (result.success) {
+        setIsEngineRunning(true);
+        console.log('✅ HFT Engine started successfully');
+      } else {
+        console.error('❌ Failed to start HFT Engine:', result.error);
+      }
     } catch (error) {
-      console.error('Failed to generate AI recommendations:', error);
+      console.error('❌ Error starting HFT Engine:', error);
     }
   };
 
-  // Symbol Selection & Strategy Mapping
-  const handleSymbolSelection = (symbol, selected) => {
-    const newSelection = new Set(selectedSymbols);
-    if (selected) {
-      newSelection.add(symbol);
-    } else {
-      newSelection.delete(symbol);
+  const handleStopEngine = async () => {
+    try {
+      const result = await hftTradingService.stopAllStrategies();
+      if (result.success) {
+        setIsEngineRunning(false);
+        console.log('✅ HFT Engine stopped successfully');
+      } else {
+        console.error('❌ Failed to stop HFT Engine:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ Error stopping HFT Engine:', error);
     }
-    setSelectedSymbols(newSelection);
+  };
+
+  const handleStrategyUpdate = async () => {
+    try {
+      const result = await hftTradingService.updateStrategy(selectedStrategy, {
+        params: strategyParams,
+        enabled: true
+      });
+      
+      if (result.success) {
+        console.log('✅ Strategy updated successfully');
+        const updatedStrategies = await hftTradingService.getActiveStrategies();
+        setStrategies(updatedStrategies || []);
+      }
+    } catch (error) {
+      console.error('❌ Error updating strategy:', error);
+    }
   };
 
   const toggleHFTEligibility = async (symbol) => {
@@ -254,519 +255,576 @@ function HFTTrading() {
     }
   };
 
-  const deployStrategyToSymbols = async (strategyId, symbols) => {
-    try {
-      await hftTradingService.deployStrategy(strategyId, Array.from(symbols));
-      await initializeHFTSystem(); // Refresh data
-    } catch (error) {
-      console.error('Failed to deploy strategy:', error);
-    }
-  };
-
-  // System Control Functions
-  const toggleSystemStatus = async () => {
-    try {
-      if (isSystemActive) {
-        await hftTradingService.stopAllStrategies();
-      } else {
-        await hftTradingService.startSelectedStrategies(Array.from(selectedSymbols));
+  // Chart configuration
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      title: {
+        display: true,
+        text: 'Real-Time P&L Performance',
+        font: { size: 14 }
       }
-      setIsSystemActive(!isSystemActive);
-    } catch (error) {
-      console.error('Failed to toggle system status:', error);
-    }
-  };
-
-  const toggleVoiceCommands = () => {
-    setVoiceEnabled(!voiceEnabled);
-    if (!voiceEnabled) {
-      // Initialize voice recognition
-      startVoiceRecognition();
-    }
-  };
-
-  const startVoiceRecognition = () => {
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new window.webkitSpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event) => {
-        const command = event.results[event.results.length - 1][0].transcript.toLowerCase();
-        processVoiceCommand(command);
-      };
-
-      recognition.start();
-    }
-  };
-
-  const processVoiceCommand = (command) => {
-    if (command.includes('start trading')) {
-      setIsSystemActive(true);
-    } else if (command.includes('stop trading')) {
-      setIsSystemActive(false);
-    } else if (command.includes('show performance')) {
-      setActiveTab(2);
-    } else if (command.includes('select symbol')) {
-      const symbol = command.split('select symbol ')[1]?.toUpperCase();
-      if (symbol) {
-        handleSymbolSelection(symbol, true);
+    },
+    scales: {
+      y: {
+        ticks: { 
+          callback: (value) => `$${value.toFixed(2)}`
+        }
       }
+    },
+    elements: {
+      line: {
+        tension: 0.4
+      }
+    },
+    animation: {
+      duration: 0 // Disable animation for real-time updates
     }
   };
 
-  // Render Functions
-  const renderSystemStatus = () => (
-    <Card elevation={2}>
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">HFT System Status</Typography>
-          <Badge 
-            color={connectionStatus === 'connected' ? 'success' : 'error'} 
-            variant="dot"
-          >
-            <Chip 
-              label={isSystemActive ? 'ACTIVE' : 'STANDBY'} 
-              color={isSystemActive ? 'success' : 'default'}
-              icon={isSystemActive ? <PlayArrow /> : <Stop />}
-            />
-          </Badge>
-        </Box>
+  const chartData = {
+    labels: performanceData.labels,
+    datasets: [
+      {
+        label: 'P&L',
+        data: performanceData.data,
+        borderColor: performanceData.data.length > 0 && performanceData.data[performanceData.data.length - 1] >= 0 
+          ? '#4caf50' : '#f44336',
+        backgroundColor: performanceData.data.length > 0 && performanceData.data[performanceData.data.length - 1] >= 0 
+          ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
+        fill: true,
+        borderWidth: 2,
+        pointRadius: 1,
+        pointHoverRadius: 4
+      }
+    ]
+  };
 
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={isSystemActive}
-                  onChange={toggleSystemStatus}
-                  color="primary"
-                />
-              }
-              label="Trading System"
-            />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={voiceEnabled}
-                  onChange={toggleVoiceCommands}
-                  color="secondary"
-                />
-              }
-              label={
-                <Box display="flex" alignItems="center">
-                  {voiceEnabled ? <Mic /> : <MicOff />}
-                  <Box ml={1}>Voice Commands</Box>
-                </Box>
-              }
-            />
-          </Grid>
-        </Grid>
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'connected': return 'success';
+      case 'connecting': return 'warning';
+      default: return 'error';
+    }
+  };
 
-        <Box mt={2}>
-          <Typography variant="body2" color="textSecondary">
-            Selected Symbols: {selectedSymbols.size} | HFT Eligible: {hftEligibleSymbols.size}
-          </Typography>
-          {lastUpdate && (
-            <Typography variant="caption" color="textSecondary">
-              Last Update: {lastUpdate.toLocaleTimeString()}
-            </Typography>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
-  );
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(value);
+  };
 
-  const renderSmartSymbolSelector = () => (
-    <Card elevation={2}>
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">
-            <AutoAwesome sx={{ mr: 1, verticalAlign: 'middle' }} />
-            AI Symbol Intelligence
-          </Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<Refresh />}
-            onClick={generateAIRecommendations}
-          >
-            Refresh AI
-          </Button>
-        </Box>
+  const formatPercentage = (value) => {
+    return `${value.toFixed(1)}%`;
+  };
 
-        <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Symbol</TableCell>
-                <TableCell>Live Data</TableCell>
-                <TableCell>HFT Eligible</TableCell>
-                <TableCell>AI Score</TableCell>
-                <TableCell>Volatility</TableCell>
-                <TableCell>Volume</TableCell>
-                <TableCell>Latency</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {Object.entries(liveDataFeeds).map(([symbol, config]) => {
-                const aiScore = Math.random() * 100; // Replace with actual AI score
-                const isSelected = selectedSymbols.has(symbol);
-                const isHftEligible = hftEligibleSymbols.has(symbol);
-                
-                return (
-                  <TableRow key={symbol} hover>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main', fontSize: '0.75rem' }}>
-                          {symbol[0]}
-                        </Avatar>
-                        <Typography variant="body2" fontWeight="bold">
-                          {symbol}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={config.status}
-                        color={config.status === 'active' ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={isHftEligible}
-                        onChange={() => toggleHFTEligibility(symbol)}
-                        size="small"
-                        color="secondary"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <LinearProgress
-                          variant="determinate"
-                          value={aiScore}
-                          sx={{ width: 60, mr: 1 }}
-                          color={aiScore > 70 ? 'success' : aiScore > 40 ? 'warning' : 'error'}
-                        />
-                        <Typography variant="caption">
-                          {aiScore.toFixed(0)}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={`${(Math.random() * 5).toFixed(2)}%`}
-                        size="small"
-                        color={Math.random() > 0.5 ? 'success' : 'warning'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {(Math.random() * 1000000).toLocaleString()}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={`${(Math.random() * 10).toFixed(1)}ms`}
-                        size="small"
-                        color={Math.random() > 0.7 ? 'success' : 'warning'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={isSelected}
-                            onChange={(e) => handleSymbolSelection(symbol, e.target.checked)}
-                            size="small"
-                          />
-                        }
-                        label=""
-                      />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
-  );
-
-  const renderStrategyDeployment = () => (
-    <Card elevation={2}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          <Psychology sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Strategy Deployment
-        </Typography>
-
-        <Grid container spacing={2}>
-          {[
-            { name: 'Momentum Scalper', performance: '+2.3%', risk: 'Low', symbols: 5 },
-            { name: 'Mean Reversion', performance: '+1.8%', risk: 'Medium', symbols: 3 },
-            { name: 'Arbitrage Hunter', performance: '+0.9%', risk: 'Very Low', symbols: 12 },
-            { name: 'Volume Breakout', performance: '+3.1%', risk: 'High', symbols: 2 },
-            { name: 'ML Pattern', performance: '+2.7%', risk: 'Medium', symbols: 8 }
-          ].map((strategy, index) => (
-            <Grid item xs={12} md={6} lg={4} key={index}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle1" gutterBottom>
-                    {strategy.name}
-                  </Typography>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2" color="textSecondary">
-                      Performance:
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color={strategy.performance.startsWith('+') ? 'success.main' : 'error.main'}
-                    >
-                      {strategy.performance}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2" color="textSecondary">
-                      Risk Level:
-                    </Typography>
-                    <Chip
-                      label={strategy.risk}
-                      size="small"
-                      color={
-                        strategy.risk === 'Low' || strategy.risk === 'Very Low' ? 'success' :
-                        strategy.risk === 'Medium' ? 'warning' : 'error'
-                      }
-                    />
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" mb={2}>
-                    <Typography variant="body2" color="textSecondary">
-                      Active Symbols:
-                    </Typography>
-                    <Typography variant="body2">
-                      {strategy.symbols}
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    fullWidth
-                    startIcon={<PlayArrow />}
-                    onClick={() => deployStrategyToSymbols(index, selectedSymbols)}
-                    disabled={selectedSymbols.size === 0}
-                  >
-                    Deploy to Selected
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </CardContent>
-    </Card>
-  );
-
-  const renderPerformanceDashboard = () => (
-    <Card elevation={2}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          <Assessment sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Real-time Performance Analytics
-        </Typography>
-
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={3}>
-            <Card variant="outlined">
-              <CardContent sx={{ textAlign: 'center' }}>
-                <MonetizationOn sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
-                <Typography variant="h4" color="success.main">
-                  +$12,847
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Today&apos;s P&L
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card variant="outlined">
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Speed sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-                <Typography variant="h4" color="primary.main">
-                  2.3ms
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Avg Latency
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card variant="outlined">
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Timeline sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
-                <Typography variant="h4" color="warning.main">
-                  1,247
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Trades Today
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card variant="outlined">
-              <CardContent sx={{ textAlign: 'center' }}>
-                <TrendingUp sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
-                <Typography variant="h4" color="info.main">
-                  94.2%
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Win Rate
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* 3D Performance Visualization Placeholder */}
-        <Box mt={3} p={3} bgcolor="grey.50" borderRadius={2} textAlign="center">
-          <ThreeDRotation sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            3D Performance Visualization
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            Interactive 3D charts showing strategy performance across time, symbols, and risk dimensions
-          </Typography>
-          <Button variant="outlined" sx={{ mt: 2 }} startIcon={<Fullscreen />}>
-            Launch 3D View
-          </Button>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-
-  const renderAIInsights = () => (
-    <Card elevation={2}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          <AutoAwesome sx={{ mr: 1, verticalAlign: 'middle' }} />
-          AI Insights & Recommendations
-        </Typography>
-
-        {aiRecommendations.map((rec, index) => (
-          <Alert
-            key={index}
-            severity={rec.priority === 'high' ? 'warning' : 'info'}
-            sx={{ mb: 2 }}
-            action={
-              <Button size="small" onClick={() => console.log('Apply recommendation', rec)}>
-                Apply
-              </Button>
-            }
-          >
-            <Typography variant="subtitle2">{rec.title}</Typography>
-            <Typography variant="body2">{rec.description}</Typography>
-          </Alert>
-        ))}
-
-        {aiRecommendations.length === 0 && (
-          <Box textAlign="center" py={3}>
-            <Psychology sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-            <Typography variant="body1" gutterBottom>
-              AI is analyzing market conditions...
-            </Typography>
-            <CircularProgress size={24} />
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  // Main Tab Navigation
-  const tabs = [
-    { label: 'System Control', icon: <Settings /> },
-    { label: 'Symbol Intelligence', icon: <AutoAwesome /> },
-    { label: 'Strategy Deploy', icon: <Psychology /> },
-    { label: 'Performance', icon: <Assessment /> },
-    { label: 'AI Insights', icon: <Sensors /> }
-  ];
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 0: return renderSystemStatus();
-      case 1: return renderSmartSymbolSelector();
-      case 2: return renderStrategyDeployment();
-      case 3: return renderPerformanceDashboard();
-      case 4: return renderAIInsights();
-      default: return renderSystemStatus();
+  const formatTime = (ms) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
     }
   };
 
   return (
-    <Box sx={{ p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
+    <Box sx={{ p: 3 }}>
       {/* Header */}
       <Box mb={3}>
-        <Typography variant="h4" gutterBottom>
-          <Bolt sx={{ mr: 1, verticalAlign: 'middle', color: 'primary.main' }} />
-          HFT Trading Dashboard
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          AI-Powered High-Frequency Trading with Live Data Integration
-        </Typography>
-      </Box>
-
-      {/* Tab Navigation */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          variant="fullWidth"
-          indicatorColor="primary"
-        >
-          {tabs.map((tab, index) => (
-            <Tab
-              key={index}
-              label={tab.label}
-              icon={tab.icon}
-              iconPosition="start"
-            />
-          ))}
-        </Tabs>
-      </Paper>
-
-      {/* Tab Content */}
-      <Box>
-        {renderTabContent()}
-      </Box>
-
-      {/* Voice Command Status */}
-      {voiceEnabled && (
-        <Box
-          position="fixed"
-          bottom={20}
-          right={20}
-          p={2}
-          bgcolor="primary.main"
-          color="white"
-          borderRadius={2}
-          display="flex"
-          alignItems="center"
-        >
-          <Mic sx={{ mr: 1, animation: 'pulse 2s infinite' }} />
-          <Typography variant="body2">
-            Voice Commands Active
-          </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
+              HFT Trading Dashboard
+            </Typography>
+            <Typography variant="body1" color="textSecondary">
+              High Frequency Trading • Real-time Strategy Execution
+            </Typography>
+          </Box>
+          
+          <Box display="flex" alignItems="center" gap={2}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Circle 
+                color={getStatusColor(connectionStatus)} 
+                sx={{ fontSize: 12 }}
+              />
+              <Typography variant="body2" color={getStatusColor(connectionStatus)}>
+                {connectionStatus.toUpperCase()}
+              </Typography>
+            </Box>
+            
+            {isEngineRunning ? (
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<Stop />}
+                onClick={handleStopEngine}
+                sx={{ fontWeight: 'bold' }}
+              >
+                Stop Engine
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<PlayArrow />}
+                onClick={handleStartEngine}
+                disabled={connectionStatus !== 'connected'}
+                sx={{ fontWeight: 'bold' }}
+              >
+                Start Engine
+              </Button>
+            )}
+          </Box>
         </Box>
-      )}
+      </Box>
+
+      {/* Key Metrics Dashboard */}
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <MonetizationOn color="primary" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="primary">
+                    {formatCurrency(metrics.totalPnL)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Total P&L
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <TrendingUp color="success" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="success.main">
+                    {formatCurrency(metrics.dailyPnL)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Daily P&L
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <Assessment color="secondary" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="secondary">
+                    {metrics.totalTrades}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Total Trades
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <Timeline color="warning" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="warning.main">
+                    {formatPercentage(metrics.winRate || 0)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Win Rate
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <AccountBalance color="info" />
+                <Box ml={1}>
+                  <Typography variant="h4" color="info.main">
+                    {metrics.openPositions}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Open Positions
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={6} sm={4} md={2}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center">
+                <Speed color="action" />
+                <Box ml={1}>
+                  <Typography variant="h4">
+                    {metrics.avgExecutionTime?.toFixed(0) || 0}ms
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    Avg Execution
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={3} mb={3}>
+        {/* Performance Chart */}
+        <Grid item xs={12} lg={8}>
+          <Card>
+            <CardHeader title="Real-Time P&L Performance" />
+            <CardContent>
+              <Box sx={{ height: 300 }}>
+                <Line data={chartData} options={chartOptions} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Strategy Controls */}
+        <Grid item xs={12} lg={4}>
+          <Card>
+            <CardHeader title="Strategy Configuration" />
+            <CardContent>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Active Strategy</InputLabel>
+                  <Select
+                    value={selectedStrategy}
+                    label="Active Strategy"
+                    onChange={(e) => setSelectedStrategy(e.target.value)}
+                  >
+                    {strategies.map((strategy) => (
+                      <MenuItem key={strategy.id || strategy.name} value={strategy.id || strategy.name}>
+                        {(strategy.name || strategy.id || '').charAt(0).toUpperCase() + (strategy.name || strategy.id || '').slice(1)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {selectedStrategy === 'scalping' && (
+                  <>
+                    <TextField
+                      label="Min Spread (%)"
+                      type="number"
+                      inputProps={{ step: 0.001 }}
+                      value={strategyParams.minSpread || 0.001}
+                      onChange={(e) => setStrategyParams(prev => ({ ...prev, minSpread: parseFloat(e.target.value) }))}
+                      fullWidth
+                      size="small"
+                    />
+                    
+                    <TextField
+                      label="Max Spread (%)"
+                      type="number"
+                      inputProps={{ step: 0.001 }}
+                      value={strategyParams.maxSpread || 0.005}
+                      onChange={(e) => setStrategyParams(prev => ({ ...prev, maxSpread: parseFloat(e.target.value) }))}
+                      fullWidth
+                      size="small"
+                    />
+                    
+                    <TextField
+                      label="Volume Threshold"
+                      type="number"
+                      value={strategyParams.volume_threshold || 1000}
+                      onChange={(e) => setStrategyParams(prev => ({ ...prev, volume_threshold: parseInt(e.target.value) }))}
+                      fullWidth
+                      size="small"
+                    />
+                  </>
+                )}
+
+                <Button
+                  variant="contained"
+                  onClick={handleStrategyUpdate}
+                  fullWidth
+                  startIcon={<Settings />}
+                >
+                  Update Strategy
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Live Data Integration Section */}
+      <Grid container spacing={3} mb={3}>
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="Live Data Integration & HFT Symbol Management" />
+            <CardContent>
+              <Box mb={2}>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Manage which symbols are eligible for HFT trading. Only symbols with active live data feeds can be used for high-frequency strategies.
+                </Typography>
+              </Box>
+              
+              <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Symbol</TableCell>
+                      <TableCell>Live Data Status</TableCell>
+                      <TableCell>HFT Eligible</TableCell>
+                      <TableCell>Current Price</TableCell>
+                      <TableCell>Volume</TableCell>
+                      <TableCell>Last Update</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(liveDataFeeds).map(([symbol, config]) => {
+                      const isHftEligible = hftEligibleSymbols.has(symbol);
+                      const marketInfo = marketData.get(symbol);
+                      
+                      return (
+                        <TableRow key={symbol} hover>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">
+                              {symbol}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={config.status}
+                              color={config.status === 'active' ? 'success' : 'default'}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={isHftEligible}
+                                  onChange={() => toggleHFTEligibility(symbol)}
+                                  size="small"
+                                  color="secondary"
+                                  disabled={config.status !== 'active'}
+                                />
+                              }
+                              label=""
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {marketInfo?.price ? formatCurrency(marketInfo.price) : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {marketInfo?.volume ? marketInfo.volume.toLocaleString() : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" color="textSecondary">
+                              {marketInfo?.timestamp ? new Date(marketInfo.timestamp).toLocaleTimeString() : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              
+              <Box mt={2} display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="textSecondary">
+                  Total Symbols: {Object.keys(liveDataFeeds).length} | HFT Eligible: {hftEligibleSymbols.size}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<Refresh />}
+                  onClick={loadInitialData}
+                >
+                  Refresh Live Data
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={3}>
+        {/* Active Positions */}
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardHeader title="Active Positions" />
+            <CardContent>
+              {positions.length > 0 ? (
+                <Box display="flex" flexDirection="column" gap={2}>
+                  {positions.map((position, index) => (
+                    <Paper key={index} elevation={1} sx={{ p: 2 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                        <Box>
+                          <Typography variant="h6">{position.symbol}</Typography>
+                          <Typography variant="body2" color="textSecondary">{position.strategy}</Typography>
+                        </Box>
+                        <Box textAlign="right">
+                          <Chip 
+                            label={position.type} 
+                            color="success" 
+                            size="small" 
+                          />
+                          <Typography variant="body2" color="textSecondary">
+                            {position.quantity} units
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="textSecondary">Entry:</Typography>
+                          <Typography variant="body2">{formatCurrency(position.avgPrice)}</Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="textSecondary">Current:</Typography>
+                          <Typography variant="body2">
+                            {formatCurrency(marketData.get(position.symbol)?.price || position.avgPrice)}
+                          </Typography>
+                        </Grid>
+                        {position.stopLoss && (
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="textSecondary">Stop Loss:</Typography>
+                            <Typography variant="body2" color="error">{formatCurrency(position.stopLoss)}</Typography>
+                          </Grid>
+                        )}
+                        {position.takeProfit && (
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="textSecondary">Take Profit:</Typography>
+                            <Typography variant="body2" color="success.main">{formatCurrency(position.takeProfit)}</Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                      
+                      <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                        Opened: {new Date(position.openTime).toLocaleTimeString()}
+                      </Typography>
+                    </Paper>
+                  ))}
+                </Box>
+              ) : (
+                <Box textAlign="center" py={4}>
+                  <Typography color="textSecondary">
+                    No active positions
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* System Status */}
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardHeader title="System Status" />
+            <CardContent>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Engine Status</Typography>
+                  <Chip 
+                    label={isEngineRunning ? 'RUNNING' : 'STOPPED'} 
+                    color={isEngineRunning ? 'success' : 'error'}
+                    icon={isEngineRunning ? <CheckCircle /> : <Error />}
+                  />
+                </Box>
+                
+                <Divider />
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Uptime</Typography>
+                  <Typography>{formatTime(metrics.uptime || 0)}</Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Signals Generated</Typography>
+                  <Typography>{metrics.signalsGenerated}</Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Orders Executed</Typography>
+                  <Typography>{metrics.ordersExecuted || 0}</Typography>
+                </Box>
+                
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography color="textSecondary">Connection Quality</Typography>
+                  <Chip 
+                    label={connectionStatus === 'connected' ? 'EXCELLENT' : 'POOR'}
+                    color={connectionStatus === 'connected' ? 'success' : 'error'}
+                    size="small"
+                  />
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+                
+                {/* Risk Metrics */}
+                <Typography variant="h6" gutterBottom>Risk Management</Typography>
+                
+                <Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Daily Loss Limit</Typography>
+                    <Typography variant="body2">
+                      {formatCurrency(Math.abs(metrics.dailyPnL || 0))} / {formatCurrency(500)}
+                    </Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min(100, (Math.abs(metrics.dailyPnL || 0) / 500) * 100)}
+                    color="error"
+                  />
+                </Box>
+                
+                <Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Open Positions</Typography>
+                    <Typography variant="body2">{metrics.openPositions} / 5</Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min(100, (metrics.openPositions / 5) * 100)}
+                    color="primary"
+                  />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Box>
   );
-}
+};
 
 export default HFTTrading;

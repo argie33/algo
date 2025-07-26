@@ -424,7 +424,7 @@ class ConfigurationService {
    */
   deepMerge(target, source) {
     for (const key in source) {
-      if (source.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
         if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
           target[key] = target[key] || {};
           this.deepMerge(target[key], source[key]);

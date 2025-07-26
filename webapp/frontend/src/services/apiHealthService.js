@@ -388,7 +388,6 @@ class ApiHealthService {
       // 3. No hardcoded fallback - must be explicitly configured
       throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
     }
-    return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }
 
   /**

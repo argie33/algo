@@ -4,6 +4,7 @@
  * Addresses REQ-010: Error Handling Critical Gaps - Correlation IDs
  */
 
+import React from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 class CorrelationService {

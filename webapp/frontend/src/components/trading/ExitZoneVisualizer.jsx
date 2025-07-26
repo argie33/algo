@@ -225,7 +225,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
             {formatCurrency(currentPrice)}
           </div>
         </div>
-      </div>
+      </Box>
 
       {/* Progress to Next Zone */}
       <div  sx={{ mb: 3 }}>
