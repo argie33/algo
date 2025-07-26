@@ -13,6 +13,8 @@ const validator = require('validator');
 const path = require('path');
 const fs = require('fs');
 
+// Enhanced backtest functionality with comprehensive error handling
+
 // Backtest validation schemas
 const backtestValidationSchemas = {
   runBacktest: {
@@ -144,20 +146,27 @@ router.use(sqlInjectionPrevention);
 router.use(xssPrevention);
 router.use(rateLimitConfigs.heavy); // Heavy rate limiting for resource-intensive operations
 
-// Root backtest endpoint for health checks
+// Enhanced backtest storage for multiple implementations
+const activeBacktests = new Map();
+
+// Root backtest endpoint for health checks with enhanced features
 router.get('/', (req, res) => {
   res.json({
     success: true,
     data: {
-      system: 'Backtesting API',
-      version: '1.0.0',
+      system: 'Enhanced Backtesting API',
+      version: '2.0.0',
       status: 'operational',
+      implementations: ['full_validation', 'simple_fallback'],
+      features: ['strategy_validation', 'multiple_languages', 'template_library', 'real_time_progress'],
       available_endpoints: [
         'POST /backtest/run - Execute backtest with strategy',
         'GET /backtest/symbols - Get available symbols for backtesting',
         'GET /backtest/templates - Get strategy templates',
         'GET /backtest/strategies - Get user strategies',
-        'POST /backtest/validate - Validate strategy code'
+        'POST /backtest/validate - Validate strategy code',
+        'GET /backtest/status/:backtestId - Get backtest status',
+        'GET /backtest/history - Get backtest history'
       ],
       timestamp: new Date().toISOString()
     }
@@ -675,6 +684,166 @@ router.post('/strategies', createValidationMiddleware(backtestValidationSchemas.
   const { name, code, language } = req.validated;
   const strategy = backtestStore.addStrategy({ name, code, language: language || 'javascript' });
   res.json({ strategy });
+});
+
+// Enhanced backtest status tracking from backtest-new.js
+router.get('/status/:backtestId', (req, res) => {
+  try {
+    const { backtestId } = req.params;
+    const backtest = activeBacktests.get(backtestId);
+    
+    if (!backtest) {
+      return res.status(404).json({
+        success: false,
+        error: 'Backtest not found',
+        backtestId
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        backtestId,
+        status: backtest.status,
+        startTime: backtest.startTime,
+        endTime: backtest.endTime || null,
+        config: backtest.config,
+        progress: backtest.progress || null,
+        result: backtest.result || null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get backtest status',
+      message: error.message
+    });
+  }
+});
+
+// Enhanced backtest history endpoint
+router.get('/history', async (req, res) => {
+  try {
+    const userId = req.user?.id || 'demo-user';
+    const { limit = 50, offset = 0 } = req.query;
+
+    // Get from active backtests first
+    const activeBacktestHistory = Array.from(activeBacktests.entries()).map(([id, data]) => ({
+      id,
+      ...data,
+      source: 'active'
+    }));
+
+    // Try to get from database if available
+    let dbBacktestHistory = [];
+    try {
+      const result = await query(
+        `SELECT id, user_id, status, start_time, end_time, config, result 
+         FROM user_backtests 
+         WHERE user_id = $1 
+         ORDER BY start_time DESC 
+         LIMIT $2 OFFSET $3`,
+        [userId, parseInt(limit), parseInt(offset)]
+      );
+      dbBacktestHistory = result.rows.map(row => ({
+        ...row,
+        source: 'database'
+      }));
+    } catch (dbError) {
+      console.warn('Database backtest history unavailable, using active only');
+    }
+
+    // Combine and sort by start time
+    const allBacktests = [...activeBacktestHistory, ...dbBacktestHistory]
+      .sort((a, b) => new Date(b.start_time || b.startTime) - new Date(a.start_time || a.startTime))
+      .slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      data: allBacktests,
+      total: allBacktests.length,
+      has_more: allBacktests.length === parseInt(limit)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get backtest history',
+      message: error.message
+    });
+  }
+});
+
+// Enhanced strategy validation endpoint
+router.post('/validate-strategy', (req, res) => {
+  try {
+    const { strategyCode } = req.body;
+
+    if (!strategyCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Strategy code is required'
+      });
+    }
+
+    const validation = {
+      isValid: true,
+      errors: [],
+      warnings: [],
+      recommendations: []
+    };
+
+    // Enhanced security validation
+    const dangerousPatterns = [
+      { pattern: /require\s*\(/i, message: 'require() calls are not allowed for security' },
+      { pattern: /import\s+/i, message: 'import statements are not allowed' },
+      { pattern: /process\s*\./i, message: 'process object access is forbidden' },
+      { pattern: /eval\s*\(/i, message: 'eval() is prohibited for security' },
+      { pattern: /Function\s*\(/i, message: 'Function constructor is not allowed' },
+      { pattern: /fs\s*\./i, message: 'File system access is forbidden' },
+      { pattern: /child_process/i, message: 'Child process execution is forbidden' }
+    ];
+
+    for (const { pattern, message } of dangerousPatterns) {
+      if (pattern.test(strategyCode)) {
+        validation.errors.push(message);
+        validation.isValid = false;
+      }
+    }
+
+    // Performance warnings
+    const performancePatterns = [
+      { pattern: /for\s*\([^)]*;\s*[^;]*;\s*[^)]*\)\s*\{[^}]*for/i, message: 'Nested loops may impact performance' },
+      { pattern: /while\s*\([^)]*\)\s*\{[^}]*while/i, message: 'Nested while loops may impact performance' }
+    ];
+
+    for (const { pattern, message } of performancePatterns) {
+      if (pattern.test(strategyCode)) {
+        validation.warnings.push(message);
+      }
+    }
+
+    // Best practice recommendations
+    if (!strategyCode.includes('stopLoss') && !strategyCode.includes('stop_loss')) {
+      validation.recommendations.push('Consider adding stop-loss logic for risk management');
+    }
+    if (!strategyCode.includes('takeProfit') && !strategyCode.includes('take_profit')) {
+      validation.recommendations.push('Consider adding take-profit logic to secure gains');
+    }
+    if (!strategyCode.includes('position') && !strategyCode.includes('size')) {
+      validation.recommendations.push('Consider implementing position sizing logic');
+    }
+
+    res.json({
+      success: true,
+      validation
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Strategy validation failed',
+      message: error.message
+    });
+  }
 });
 
 router.get('/strategies/:id', (req, res) => {

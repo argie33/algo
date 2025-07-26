@@ -1,28 +1,240 @@
 const express = require('express');
 const router = express.Router();
 
-// Health endpoint (no auth required)
+// Import enhanced trading functionality directly - better error handling
+const { Pool } = require('pg');
+const { getDbCredentials } = require('../utils/secrets');
+
+let pool;
+
+async function getPool() {
+  if (!pool) {
+    try {
+      const creds = await getDbCredentials();
+      pool = new Pool({
+        host: creds.host,
+        port: creds.port || 5432,
+        user: creds.username,
+        password: creds.password,
+        database: creds.dbname,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+    } catch (error) {
+      console.error('Failed to initialize database pool:', error);
+      throw error;
+    }
+  }
+  return pool;
+}
+
+// Get enhanced trading signals with O'Neill methodology
+async function getEnhancedSignals(params) {
+  const { timeframe = 'daily', signalType = 'all', minStrength = 0, limit = 100 } = params;
+  
+  try {
+    const pool = await getPool();
+    
+    let query = `
+      WITH latest_signals AS (
+        SELECT DISTINCT ON (bs.symbol) 
+          bs.*,
+          ss.company_name,
+          ss.sector,
+          ss.exchange,
+          ss.market_cap,
+          -- Calculate if currently in buy zone
+          CASE 
+            WHEN bs.buy_zone_start IS NOT NULL AND bs.buy_zone_end IS NOT NULL 
+                 AND bs.close >= bs.buy_zone_start AND bs.close <= bs.buy_zone_end 
+            THEN true 
+            ELSE false 
+          END as in_buy_zone,
+          -- Calculate position status if in position
+          CASE
+            WHEN bs.inposition AND bs.current_gain_pct >= 20 THEN 'TARGET_1_REACHED'
+            WHEN bs.inposition AND bs.current_gain_pct >= 25 THEN 'TARGET_2_REACHED'
+            WHEN bs.inposition AND bs.current_gain_pct <= -7 THEN 'STOP_LOSS_WARNING'
+            WHEN bs.inposition THEN 'ACTIVE'
+            ELSE 'NONE'
+          END as position_status
+        FROM buy_signals bs
+        LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+        WHERE bs.date >= CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY bs.symbol, bs.date DESC
+      )
+      SELECT * FROM latest_signals
+      WHERE signal IS NOT NULL 
+        AND signal != 'None'
+        AND signal != ''
+        ${signalType !== 'all' ? `AND LOWER(signal) = LOWER('${signalType}')` : ''}
+        ${minStrength > 0 ? `AND strength >= ${minStrength}` : ''}
+      ORDER BY date DESC, strength DESC
+      LIMIT ${Math.min(parseInt(limit), 500)}
+    `;
+
+    const result = await pool.query(query);
+    
+    return {
+      success: true,
+      data: result.rows,
+      total: result.rows.length,
+      timeframe,
+      signalType,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Enhanced signals error:', error);
+    throw new Error(`Failed to get enhanced signals: ${error.message}`);
+  }
+}
+
+// Get active positions
+async function getActivePositions(userId) {
+  try {
+    const pool = await getPool();
+    
+    const query = `
+      SELECT 
+        ap.*,
+        ss.company_name,
+        ss.sector,
+        ss.market_cap,
+        -- Calculate current P&L
+        CASE 
+          WHEN ap.side = 'long' THEN (ap.current_price - ap.avg_price) * ap.quantity
+          WHEN ap.side = 'short' THEN (ap.avg_price - ap.current_price) * ap.quantity
+          ELSE 0
+        END as unrealized_pnl,
+        -- Calculate P&L percentage
+        CASE 
+          WHEN ap.side = 'long' THEN ((ap.current_price - ap.avg_price) / ap.avg_price) * 100
+          WHEN ap.side = 'short' THEN ((ap.avg_price - ap.current_price) / ap.avg_price) * 100
+          ELSE 0
+        END as unrealized_pnl_pct
+      FROM active_positions ap
+      LEFT JOIN stock_symbols ss ON ap.symbol = ss.symbol
+      WHERE ap.user_id = $1 
+        AND ap.quantity > 0
+      ORDER BY ap.market_value DESC
+    `;
+
+    const result = await pool.query(query, [userId]);
+    
+    return {
+      success: true,
+      data: result.rows,
+      total: result.rows.length,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Active positions error:', error);
+    throw new Error(`Failed to get active positions: ${error.message}`);
+  }
+}
+
+// Get market timing information
+async function getMarketTiming() {
+  try {
+    const now = new Date();
+    const easternTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    
+    // Market hours: 9:30 AM - 4:00 PM ET, Monday-Friday
+    const marketOpen = new Date(easternTime);
+    marketOpen.setHours(9, 30, 0, 0);
+    
+    const marketClose = new Date(easternTime);
+    marketClose.setHours(16, 0, 0, 0);
+    
+    const isWeekday = easternTime.getDay() >= 1 && easternTime.getDay() <= 5;
+    const isMarketHours = easternTime >= marketOpen && easternTime <= marketClose;
+    const isMarketOpen = isWeekday && isMarketHours;
+    
+    // Calculate next market open/close
+    let nextOpen = new Date(marketOpen);
+    let nextClose = new Date(marketClose);
+    
+    if (!isWeekday || easternTime > marketClose) {
+      // Move to next weekday
+      nextOpen.setDate(nextOpen.getDate() + (easternTime.getDay() === 6 ? 2 : 1));
+      if (nextOpen.getDay() === 0) nextOpen.setDate(nextOpen.getDate() + 1);
+    }
+    
+    if (easternTime < marketOpen) {
+      nextClose = new Date(marketClose);
+    } else if (isMarketHours) {
+      nextClose = new Date(marketClose);
+    } else {
+      nextClose.setDate(nextClose.getDate() + 1);
+      if (nextClose.getDay() === 6) nextClose.setDate(nextClose.getDate() + 2);
+      if (nextClose.getDay() === 0) nextClose.setDate(nextClose.getDate() + 1);
+    }
+    
+    return {
+      success: true,
+      data: {
+        isMarketOpen,
+        currentTime: easternTime.toISOString(),
+        marketOpen: marketOpen.toISOString(),
+        marketClose: marketClose.toISOString(),
+        nextOpen: nextOpen.toISOString(),
+        nextClose: nextClose.toISOString(),
+        timezone: 'America/New_York',
+        isWeekday
+      },
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Market timing error:', error);
+    throw new Error(`Failed to get market timing: ${error.message}`);
+  }
+}
+
+// Health endpoint with full functionality
 router.get('/health', (req, res) => {
   res.json({
     success: true,
     status: 'operational',
-    service: 'trading',
+    service: 'Trading',
+    features: [
+      'trading_signals',
+      'enhanced_signals',
+      'position_management', 
+      'active_positions',
+      'order_execution',
+      'market_timing',
+      'risk_management',
+      'portfolio_analytics'
+    ],
     timestamp: new Date().toISOString(),
-    message: 'Trading service is running'
+    message: 'Trading service with full O\'Neill methodology and enhanced features'
   });
 });
 
-// Basic root endpoint (public)
+// Root endpoint with complete API info
 router.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Trading API - Ready',
+    message: 'Trading API with O\'Neill Methodology',
     timestamp: new Date().toISOString(),
-    status: 'operational'
+    status: 'operational',
+    available_endpoints: [
+      '/health',
+      '/signals',
+      '/signals/enhanced',
+      '/positions',
+      '/positions/active',
+      '/orders',
+      '/market-timing',
+      '/account',
+      '/quotes/:symbol'
+    ],
+    features: ['full_oneill_methodology', 'enhanced_signals', 'real_time_positions']
   });
 });
+
 const { query } = require('../utils/database');
-const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
@@ -2787,5 +2999,61 @@ function calculateOrderCost(quantity, price, orderType) {
   
   return cost;
 }
+
+// Market timing endpoint with comprehensive error handling
+router.get('/market-timing', async (req, res) => {
+  try {
+    const timing = await getMarketTiming();
+    res.json(timing);
+  } catch (error) {
+    console.error('Market timing endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get market timing',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Enhanced signals endpoint with O'Neill methodology
+router.get('/signals/enhanced', async (req, res) => {
+  try {
+    const params = {
+      timeframe: req.query.timeframe || 'daily',
+      signalType: req.query.signalType || 'all',
+      minStrength: parseFloat(req.query.minStrength) || 0,
+      limit: parseInt(req.query.limit) || 100
+    };
+
+    const signals = await getEnhancedSignals(params);
+    res.json(signals);
+  } catch (error) {
+    console.error('Enhanced signals endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get enhanced signals',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Active positions endpoint with real-time P&L calculation
+router.get('/positions/active', async (req, res) => {
+  try {
+    const userId = req.user?.id || 'demo-user';
+    const positions = await getActivePositions(userId);
+    res.json(positions);
+  } catch (error) {
+    console.error('Active positions endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get active positions',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 module.exports = router;
