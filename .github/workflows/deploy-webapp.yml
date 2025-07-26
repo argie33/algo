@@ -258,33 +258,30 @@ jobs:
           echo "🚀 SMOKE TESTS - Fast Quality Check"
           echo "=================================="
           
-          # Create results directory
-          mkdir -p smoke-test-results
+          # Create results directory in webapp folder
+          mkdir -p webapp/smoke-test-results
           
           cd webapp/frontend
           echo "📦 Frontend lint check..."
-          npm run lint --if-present > ../../smoke-test-results/frontend-lint.log 2>&1 || echo "Frontend lint failed" >> ../../smoke-test-results/frontend-lint.log
+          npm run lint --if-present > ../smoke-test-results/frontend-lint.log 2>&1 || echo "Frontend lint failed" >> ../smoke-test-results/frontend-lint.log
           
           echo "🔧 Frontend build check..."
-          npm run build > ../../smoke-test-results/frontend-build.log 2>&1 || echo "Frontend build failed" >> ../../smoke-test-results/frontend-build.log
+          npm run build > ../smoke-test-results/frontend-build.log 2>&1 || echo "Frontend build failed" >> ../smoke-test-results/frontend-build.log
           
           cd ../lambda
           echo "📦 Backend lint check..."
-          npm run lint --if-present > ../../smoke-test-results/backend-lint.log 2>&1 || echo "Backend lint failed" >> ../../smoke-test-results/backend-lint.log
+          npm run lint --if-present > ../smoke-test-results/backend-lint.log 2>&1 || echo "Backend lint failed" >> ../smoke-test-results/backend-lint.log
           
           cd ..
           echo "✅ Smoke tests completed - proceeding to deploy"
 
       - name: Configure AWS credentials for S3 upload
-        if: always()
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsTestResultsRole
           aws-region: us-east-1
 
       - name: 📤 Upload smoke test results to S3
-        if: always()
-        continue-on-error: true
         run: |
           echo "📤 UPLOADING SMOKE TEST RESULTS TO S3"
           echo "====================================="
@@ -298,13 +295,7 @@ jobs:
           mkdir -p smoke-upload/smoke-tests/${BRANCH_NAME}
           
           # Copy results to upload directory
-          if [ -d "smoke-test-results" ] && [ "$(ls -A smoke-test-results)" ]; then
-            cp -r smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
-            echo "✅ Copied smoke test results"
-          else
-            echo "⚠️ No smoke test results found - creating placeholder"
-            echo "Smoke tests completed but no result files generated" > smoke-upload/smoke-tests/${BRANCH_NAME}/NO_RESULTS.txt
-          fi
+          cp -r webapp/smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
           
           # Create summary report
           cat > smoke-upload/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json << EOF
@@ -315,52 +306,49 @@ jobs:
             "commit": "${{ github.sha }}",
             "status": "completed",
             "tests": {
-              "frontend_lint": "$([ -f smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
-              "frontend_build": "$([ -f smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
-              "backend_lint": "$([ -f smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
+              "frontend_lint": "$([ -f webapp/smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
+              "frontend_build": "$([ -f webapp/smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
+              "backend_lint": "$([ -f webapp/smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
             },
             "completedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           }
           EOF
           
-          # Get bucket name using the same working pattern as unit tests
+          # Get bucket name (same logic as integration tests)
           STACK_NAME="${{ needs.setup.outputs.stack_name }}"
           AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           
           echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
           
-          # Try to get bucket name from CloudFormation stack first with enhanced error handling
-          set +e
-          AWS_CLI_OUTPUT=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>&1)
-          AWS_CLI_EXIT_CODE=$?
-          set -e
+          # Try to get bucket name from CloudFormation stack first
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null) || true
           
-          if [ ${AWS_CLI_EXIT_CODE} -eq 0 ] && [ -n "$AWS_CLI_OUTPUT" ] && [ "$AWS_CLI_OUTPUT" != "None" ]; then
-            BUCKET_NAME="$AWS_CLI_OUTPUT"
-            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
-          else
+          # If CloudFormation query fails, construct bucket name
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
             BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
-            echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
+            echo "⚠️ Using constructed bucket name: ${BUCKET_NAME}"
+          else
+            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
           fi
           
           echo "📤 Uploading smoke test results to S3 bucket: ${BUCKET_NAME}"
           
-          # Verify AWS credentials
-          echo "🔐 Testing AWS credentials..."
-          aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
-          
           # Check if bucket exists
-          echo "🪣 Checking bucket accessibility..."
           if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
             echo "✅ Bucket is accessible"
           else
-            echo "❌ Bucket is not accessible or does not exist"
-            exit 1
+            echo "❌ Bucket is not accessible - creating results locally"
+            ls -la smoke-upload/
+            exit 0  # Don't fail the job, just skip S3 upload
           fi
+          
+          # Clean up old smoke test results (keep only latest)
+          echo "🧹 Cleaning up old smoke test results..."
+          aws s3 rm "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive || echo "No old results to clean"
           
           # Upload the smoke test results
           echo "📤 Uploading smoke test results..."
-          if aws s3 cp smoke-upload/ "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive; then
+          if aws s3 cp "smoke-upload/" "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive; then
             echo "✅ Smoke test results uploaded successfully"
           else
             echo "❌ Failed to upload smoke test results"
