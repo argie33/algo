@@ -1,3 +1,6 @@
+// CRITICAL: Import React module preloader FIRST to fix useLayoutEffect errors
+import './utils/reactModulePreloader'
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
