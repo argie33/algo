@@ -1,0 +1,780 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Enhanced AI Assistant Infrastructure - Integrated with Existing Financial Dashboard'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Deployment environment'
+  
+  ProjectName:
+    Type: String
+    Default: 'stocks-webapp'
+    Description: 'Project name for resource naming (must match existing stacks)'
+  
+  # Existing infrastructure integration
+  ExistingStackName:
+    Type: String
+    Default: 'stocks-webapp-dev'
+    Description: 'Name of existing webapp CloudFormation stack'
+  
+  DatabaseSecretArn:
+    Type: String
+    Description: 'ARN of existing database secret from main webapp stack'
+  
+  DatabaseEndpoint:
+    Type: String
+    Description: 'Existing database endpoint from main webapp stack'
+  
+  # AI-specific parameters
+  BedrockModelHaiku:
+    Type: String
+    Default: 'anthropic.claude-3-haiku-20240307-v1:0'
+    Description: 'Bedrock Claude 3 Haiku model ID (fast, cost-optimized)'
+  
+  BedrockModelSonnet:
+    Type: String
+    Default: 'anthropic.claude-3-sonnet-20240229-v1:0'
+    Description: 'Bedrock Claude 3 Sonnet model ID (advanced, high-quality)'
+  
+  ConversationRetentionDays:
+    Type: Number
+    Default: 90
+    Description: 'Number of days to retain conversation data'
+  
+  WebSocketConnectionTTL:
+    Type: Number
+    Default: 7200
+    Description: 'WebSocket connection TTL in seconds (2 hours)'
+  
+  RateLimitPerMinute:
+    Type: Number
+    Default: 100
+    Description: 'Rate limit per user per minute'
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, 'prod']
+  IsDevOrStaging: !Not [!Equals [!Ref Environment, 'prod']]
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 60
+    MemorySize: 1024
+    Environment:
+      Variables:
+        NODE_ENV: !Ref Environment
+        AWS_REGION: !Ref AWS::Region
+        ENVIRONMENT: !Ref Environment
+        PROJECT_NAME: !Ref ProjectName
+
+Resources:
+  # ==================== ENHANCED IAM ROLES ====================
+  
+  # Enhanced AI Lambda Execution Role with comprehensive permissions
+  AIEnhancedLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-ai-enhanced-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EnhancedAIAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Bedrock comprehensive permissions
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:GetFoundationModel
+                  - bedrock:ListFoundationModels
+                Resource: 
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelHaiku}'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelSonnet}'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/*claude*'
+              
+              # Secrets Manager for configuration and encryption
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: 
+                  - !Ref AIConfigurationSecret
+                  - !Ref ConversationEncryptionSecret
+                  - !Ref DatabaseSecretArn
+              
+              # Enhanced database permissions
+              - Effect: Allow
+                Action:
+                  - rds-db:connect
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/ai-agent-user'
+              
+              # WebSocket API Gateway permissions
+              - Effect: Allow
+                Action:
+                  - execute-api:ManageConnections
+                  - execute-api:Invoke
+                Resource: 
+                  - !Sub '${AIWebSocketApi}/*/*'
+                  - !Sub '${AIWebSocketApi}/*'
+              
+              # CloudWatch comprehensive logging and metrics
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              
+              # X-Ray tracing for performance monitoring
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: '*'
+              
+              # S3 for conversation analytics and logs (if needed)
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${AIAnalyticsBucket}/*'
+
+  # ==================== SECRETS MANAGEMENT ====================
+  
+  # Enhanced AI Configuration Secret
+  AIConfigurationSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-ai-enhanced-configuration'
+      Description: 'Enhanced AI assistant configuration with multiple models and advanced features'
+      SecretString: !Sub |
+        {
+          "models": {
+            "claude-3-haiku": {
+              "modelId": "${BedrockModelHaiku}",
+              "maxTokens": 2000,
+              "temperature": 0.1,
+              "costPerInputToken": 0.00000025,
+              "costPerOutputToken": 0.00000125,
+              "streamingSupported": true,
+              "useCase": "fast_responses"
+            },
+            "claude-3-sonnet": {
+              "modelId": "${BedrockModelSonnet}",
+              "maxTokens": 2000,
+              "temperature": 0.1,
+              "costPerInputToken": 0.000003,
+              "costPerOutputToken": 0.000015,
+              "streamingSupported": true,
+              "useCase": "complex_analysis"
+            }
+          },
+          "defaultModel": "claude-3-haiku",
+          "environment": "${Environment}",
+          "project": "${ProjectName}",
+          "features": {
+            "streamingEnabled": true,
+            "enhancedContext": true,
+            "portfolioIntegration": true,
+            "marketDataIntegration": true,
+            "conversationAnalytics": true
+          },
+          "limits": {
+            "conversationRetentionDays": ${ConversationRetentionDays},
+            "maxTokensPerRequest": 4000,
+            "rateLimitPerMinute": ${RateLimitPerMinute},
+            "maxConcurrentStreams": 10
+          },
+          "caching": {
+            "enabled": true,
+            "ttlSeconds": 900,
+            "maxCacheSize": 1000
+          }
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Component
+          Value: 'ai-enhanced-assistant'
+
+  # Conversation Encryption Secret
+  ConversationEncryptionSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-conversation-encryption'
+      Description: 'Encryption keys for secure conversation data storage'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm": "AES-256-GCM", "keyRotationDays": 90}'
+        GenerateStringKey: 'encryptionKey'
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ==================== WEBSOCKET API INFRASTRUCTURE ====================
+  
+  # Enhanced WebSocket API for real-time streaming
+  AIWebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-ai-enhanced-websocket'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: '$request.body.action'
+      Description: 'Enhanced WebSocket API for AI assistant real-time streaming with advanced features'
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+        Component: 'ai-enhanced-websocket'
+
+  # WebSocket Stage with advanced configuration
+  AIWebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      StageName: !Ref Environment
+      Description: !Sub 'Enhanced WebSocket stage for ${Environment} with monitoring'
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 1000
+        ThrottlingRateLimit: 500
+        DataTraceEnabled: !If [IsDevOrStaging, true, false]
+        DetailedMetricsEnabled: true
+        LoggingLevel: !If [IsDevOrStaging, 'INFO', 'ERROR']
+      AccessLogSettings:
+        DestinationArn: !GetAtt AIWebSocketAccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","connectionId":"$context.connectionId","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","requestTime":"$context.requestTime","responseTime":"$context.responseTime"}'
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  # ==================== LAMBDA FUNCTIONS ====================
+  
+  # Enhanced Streaming Service Lambda
+  AIStreamingServiceLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-streaming-service'
+      CodeUri: ../../lambda/services/
+      Handler: StreamingService.handler
+      Role: !GetAtt AIEnhancedLambdaRole.Arn
+      Timeout: 300
+      MemorySize: 2048
+      ReservedConcurrencyLimit: 100
+      Environment:
+        Variables:
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+          AI_CONFIG_SECRET_ARN: !Ref AIConfigurationSecret
+          CONVERSATION_SECRET_ARN: !Ref ConversationEncryptionSecret
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          DATABASE_ENDPOINT: !Ref DatabaseEndpoint
+          ANALYTICS_BUCKET: !Ref AIAnalyticsBucket
+      Tracing: Active
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+        Component: 'streaming-service'
+
+  # Enhanced Bedrock Service Lambda
+  AIBedrockServiceLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-bedrock-service'
+      CodeUri: ../../lambda/services/
+      Handler: EnhancedBedrockService.handler
+      Role: !GetAtt AIEnhancedLambdaRole.Arn
+      Timeout: 120
+      MemorySize: 1024
+      Environment:
+        Variables:
+          AI_CONFIG_SECRET_ARN: !Ref AIConfigurationSecret
+          CONVERSATION_SECRET_ARN: !Ref ConversationEncryptionSecret
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          DATABASE_ENDPOINT: !Ref DatabaseEndpoint
+          DEFAULT_MODEL: !Ref BedrockModelHaiku
+      Tracing: Active
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+        Component: 'bedrock-service'
+
+  # WebSocket Connection Manager Lambda
+  AIConnectionManagerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-connection-manager'
+      CodeUri: ../../lambda/handlers/
+      Handler: websocketHandler.handler
+      Role: !GetAtt AIEnhancedLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+          AI_CONFIG_SECRET_ARN: !Ref AIConfigurationSecret
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          CONNECTION_TTL: !Ref WebSocketConnectionTTL
+          STREAMING_SERVICE_ARN: !GetAtt AIStreamingServiceLambda.Arn
+      Events:
+        ConnectRoute:
+          Type: Api
+          Properties:
+            Path: /$connect
+            Method: ANY
+            RestApiId: !Ref AIWebSocketApi
+        DisconnectRoute:
+          Type: Api
+          Properties:
+            Path: /$disconnect
+            Method: ANY
+            RestApiId: !Ref AIWebSocketApi
+        DefaultRoute:
+          Type: Api
+          Properties:
+            Path: /$default
+            Method: ANY
+            RestApiId: !Ref AIWebSocketApi
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  # HTTP API Handler for fallback and configuration
+  AIHttpHandlerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-http-handler'
+      CodeUri: ../../lambda/handlers/
+      Handler: aiAssistantHandler.handler
+      Role: !GetAtt AIEnhancedLambdaRole.Arn
+      Timeout: 60
+      MemorySize: 1024
+      Environment:
+        Variables:
+          AI_CONFIG_SECRET_ARN: !Ref AIConfigurationSecret
+          BEDROCK_SERVICE_ARN: !GetAtt AIBedrockServiceLambda.Arn
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          WEBSOCKET_API_URL: !Sub 'wss://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+      Events:
+        ChatApi:
+          Type: HttpApi
+          Properties:
+            Path: /api/ai/chat
+            Method: POST
+        HealthApi:
+          Type: HttpApi
+          Properties:
+            Path: /api/ai/health
+            Method: GET
+        ConfigApi:
+          Type: HttpApi
+          Properties:
+            Path: /api/ai/config
+            Method: GET
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  # ==================== WEBSOCKET ROUTES ====================
+  
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: '$connect'
+      Target: !Sub 'integrations/${ConnectIntegration}'
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: '$disconnect'
+      Target: !Sub 'integrations/${DisconnectIntegration}'
+
+  DefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: '$default'
+      Target: !Sub 'integrations/${DefaultIntegration}'
+
+  # AI Chat Route
+  AIChatRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: 'ai_chat_request'
+      Target: !Sub 'integrations/${DefaultIntegration}'
+
+  # Stream Control Route
+  StreamControlRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      RouteKey: 'stream_stop'
+      Target: !Sub 'integrations/${DefaultIntegration}'
+
+  # ==================== WEBSOCKET INTEGRATIONS ====================
+  
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIConnectionManagerLambda.Arn}/invocations'
+
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIConnectionManagerLambda.Arn}/invocations'
+
+  DefaultIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AIWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIConnectionManagerLambda.Arn}/invocations'
+
+  # ==================== LAMBDA PERMISSIONS ====================
+  
+  WebSocketLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AIConnectionManagerLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${AIWebSocketApi}/*/*'
+
+  # ==================== STORAGE & ANALYTICS ====================
+  
+  # S3 Bucket for conversation analytics and logs
+  AIAnalyticsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${Environment}-ai-analytics-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: AnalyticsDataLifecycle
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+            ExpirationInDays: !Ref ConversationRetentionDays
+      NotificationConfiguration:
+        CloudWatchConfigurations:
+          - Event: s3:ObjectCreated:*
+            CloudWatchConfiguration:
+              LogGroupName: !Ref AIAnalyticsLogGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ==================== MONITORING & LOGGING ====================
+  
+  # CloudWatch Log Groups
+  AIStreamingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ai-streaming-service'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  AIBedrockLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ai-bedrock-service'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  AIConnectionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ai-connection-manager'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  AIHttpHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ai-http-handler'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  AIWebSocketAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-${Environment}-ai-websocket-access'
+      RetentionInDays: !If [IsProd, 30, 14]
+
+  AIAnalyticsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/ai-analytics/${ProjectName}-${Environment}'
+      RetentionInDays: !If [IsProd, 90, 30]
+
+  # ==================== CLOUDWATCH ALARMS ====================
+  
+  # Streaming Service Alarms
+  StreamingServiceErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ai-streaming-errors'
+      AlarmDescription: 'Monitor AI streaming service errors'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AIStreamingServiceLambda
+      TreatMissingData: notBreaching
+
+  StreamingServiceDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ai-streaming-duration'
+      AlarmDescription: 'Monitor AI streaming service duration'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 60000  # 60 seconds
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AIStreamingServiceLambda
+
+  # Bedrock Service Cost Alarm
+  BedrockCostAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-bedrock-cost'
+      AlarmDescription: 'Monitor Bedrock usage costs'
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      Statistic: Maximum
+      Period: 86400  # 24 hours
+      EvaluationPeriods: 1
+      Threshold: !If [IsProd, 1000, 100]  # $1000 for prod, $100 for dev
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+        - Name: ServiceName
+          Value: AmazonBedrock
+
+  # WebSocket Connection Alarm
+  WebSocketConnectionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-websocket-connections'
+      AlarmDescription: 'Monitor WebSocket connection failures'
+      MetricName: IntegrationError
+      Namespace: AWS/ApiGatewayV2
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref AIWebSocketApi
+
+  # ==================== CLOUDWATCH DASHBOARD ====================
+  
+  AIEnhancedDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}-AI-Enhanced-Assistant'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${AIStreamingServiceLambda}"],
+                  [".", "Errors", ".", "."],
+                  [".", "Duration", ".", "."],
+                  [".", "ConcurrentExecutions", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "AI Streaming Service Metrics",
+                "yAxis": {"left": {"min": 0}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${AIBedrockServiceLambda}"],
+                  [".", "Errors", ".", "."],
+                  [".", "Duration", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "AI Bedrock Service Metrics",
+                "yAxis": {"left": {"min": 0}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/ApiGatewayV2", "Count", "ApiId", "${AIWebSocketApi}"],
+                  [".", "IntegrationLatency", ".", "."],
+                  [".", "IntegrationError", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "WebSocket API Metrics",
+                "yAxis": {"left": {"min": 0}}
+              }
+            },
+            {
+              "type": "log",
+              "x": 12, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "query": "SOURCE '${AIStreamingLogGroup}' | fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 100",
+                "region": "${AWS::Region}",
+                "title": "Recent AI Service Errors",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  # ==================== API ENDPOINTS ====================
+  
+  AIWebSocketApiUrl:
+    Description: 'Enhanced WebSocket API URL for real-time AI communication'
+    Value: !Sub 'wss://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-enhanced-websocket-url'
+
+  AIHttpApiUrl:
+    Description: 'HTTP API URL for AI assistant fallback and configuration'
+    Value: !Sub 'https://${AIHttpHandlerLambda}.lambda-url.${AWS::Region}.on.aws/'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-http-url'
+
+  # ==================== LAMBDA FUNCTIONS ====================
+  
+  AIStreamingServiceArn:
+    Description: 'ARN of enhanced AI streaming service Lambda'
+    Value: !GetAtt AIStreamingServiceLambda.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-streaming-service-arn'
+
+  AIBedrockServiceArn:
+    Description: 'ARN of enhanced Bedrock service Lambda'
+    Value: !GetAtt AIBedrockServiceLambda.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-bedrock-service-arn'
+
+  AIConnectionManagerArn:
+    Description: 'ARN of WebSocket connection manager Lambda'
+    Value: !GetAtt AIConnectionManagerLambda.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-connection-manager-arn'
+
+  # ==================== CONFIGURATION ====================
+  
+  AIConfigurationSecretArn:
+    Description: 'ARN of enhanced AI configuration secret'
+    Value: !Ref AIConfigurationSecret
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-enhanced-config-secret-arn'
+
+  ConversationEncryptionSecretArn:
+    Description: 'ARN of conversation encryption secret'
+    Value: !Ref ConversationEncryptionSecret
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-conversation-encryption-secret-arn'
+
+  # ==================== STORAGE & ANALYTICS ====================
+  
+  AIAnalyticsBucketName:
+    Description: 'S3 bucket name for AI analytics and logs'
+    Value: !Ref AIAnalyticsBucket
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-analytics-bucket-name'
+
+  # ==================== MONITORING ====================
+  
+  AIDashboardUrl:
+    Description: 'CloudWatch Dashboard URL for enhanced AI assistant monitoring'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}-AI-Enhanced-Assistant'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-enhanced-dashboard-url'
+
+  # ==================== IAM ====================
+  
+  AILambdaRoleArn:
+    Description: 'ARN of enhanced AI Lambda execution role'
+    Value: !GetAtt AIEnhancedLambdaRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ai-enhanced-lambda-role-arn'
+
+  # ==================== INTEGRATION INFO ====================
+  
+  IntegrationSummary:
+    Description: 'Integration summary for existing webapp'
+    Value: !Sub |
+      Enhanced AI Assistant successfully integrated with ${ExistingStackName}.
+      
+      Frontend Integration:
+      - WebSocket URL: wss://${AIWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+      - HTTP API: Available via Lambda function URLs
+      - Real-time streaming: Enabled with auto-reconnection
+      
+      Backend Integration:
+      - Database: Integrated with existing ${DatabaseEndpoint}
+      - Secrets: Shared secret management with main webapp
+      - Monitoring: Enhanced CloudWatch dashboards and alarms
+      
+      Next Steps:
+      1. Update frontend config with WebSocket URL
+      2. Deploy enhanced Lambda functions
+      3. Test real-time streaming functionality
+      4. Monitor performance via CloudWatch dashboard
