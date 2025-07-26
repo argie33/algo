@@ -55,6 +55,7 @@ import {
   ScatterChart, Scatter, ComposedChart
 } from 'recharts';
 import { useSimpleFetch } from '../hooks/useSimpleFetch';
+import { useEconomicIndicators } from '../hooks/useEconomicData';
 import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '../services/api';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -122,11 +123,24 @@ function useLiveSectorPerformance() {
 
 // Live top stocks data (already implemented via useTopStocks hook)
 
-// Live economic indicators data hook
+// Enhanced live economic indicators data hook with real-time capabilities
 function useLiveEconomicIndicators() {
-  return useSimpleFetch(`${API_BASE}/api/market/economic`, {
-    fallback: [],
-    errorMessage: 'Failed to load economic indicators'
+  return useSimpleFetch(`${API_BASE}/api/economic/indicators?limit=6`, {
+    fallback: {
+      data: {
+        indicators: [
+          { id: 'GDP', name: 'GDP Growth', value: 2.1, trend: 'up', unit: 'percent' },
+          { id: 'CPI', name: 'Inflation (CPI)', value: 3.2, trend: 'down', unit: 'percent' },
+          { id: 'UNRATE', name: 'Unemployment', value: 3.8, trend: 'stable', unit: 'percent' },
+          { id: 'DFF', name: 'Fed Funds Rate', value: 5.25, trend: 'stable', unit: 'percent' },
+          { id: 'DGS10', name: '10Y Treasury', value: 4.45, trend: 'up', unit: 'percent' },
+          { id: 'VIXCLS', name: 'VIX', value: 18.5, trend: 'down', unit: 'index' }
+        ]
+      }
+    },
+    errorMessage: 'Failed to load economic indicators',
+    retry: 3,
+    staleTime: 5 * 60 * 1000 // 5 minutes
   });
 }
 
@@ -517,37 +531,95 @@ function TopStocksWidget() {
   );
 }
 
+// Enhanced Economic Indicators Widget with better data handling
 function EconomicIndicatorsWidget() {
-  const { data: indicatorsData, loading: isLoading } = useLiveEconomicIndicators();
-  const indicators = indicatorsData?.data || [];
+  const { data: indicatorsData, loading: isLoading, error, refetch } = useLiveEconomicIndicators();
+  const indicators = indicatorsData?.data?.indicators || indicatorsData?.data || [];
   
   const getTrendIcon = (trend) => {
     if (trend === 'up') return <ArrowUpward sx={{ color: 'success.main', fontSize: 16 }} />;
     if (trend === 'down') return <ArrowDownward sx={{ color: 'error.main', fontSize: 16 }} />;
     return <NeutralIcon sx={{ color: 'text.secondary', fontSize: 16 }} />;
   };
+
+  const formatValue = (value, unit) => {
+    if (value === null || value === undefined) return 'N/A';
+    const numValue = Number(value);
+    if (isNaN(numValue)) return 'N/A';
+    
+    if (unit === 'percent') {
+      return `${numValue.toFixed(2)}%`;
+    } else if (unit === 'index') {
+      return numValue.toFixed(1);
+    } else {
+      return numValue.toFixed(2);
+    }
+  };
   
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Public sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Economic Indicators</Typography>
-        </Box>
+    <DataContainer
+      loading={isLoading}
+      error={error}
+      data={indicatorsData}
+      onRetry={refetch}
+      fallbackDataType="economic_indicators"
+      context="economic indicators"
+      showTechnicalDetails={false}
+    >
+      {({ data: containerData, isFallbackData }) => {
+        const displayIndicators = containerData?.data?.indicators || containerData?.data || indicators;
         
-        <Stack spacing={2}>
-          {(indicators || []).map((indicator, idx) => (
-            <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">{indicator.name}</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" fontWeight="bold">{indicator.value}%</Typography>
-                {getTrendIcon(indicator.trend)}
+        return (
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Public sx={{ color: 'primary.main', mr: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>Economic Indicators</Typography>
+                {isFallbackData && (
+                  <Chip 
+                    label="Sample Data" 
+                    color="warning" 
+                    size="small" 
+                    sx={{ ml: 1 }} 
+                  />
+                )}
               </Box>
-            </Box>
-          ))}
-        </Stack>
-      </CardContent>
-    </Card>
+              
+              {isLoading && <LinearProgress sx={{ mb: 2 }} />}
+              
+              <Stack spacing={2}>
+                {(displayIndicators || []).slice(0, 6).map((indicator, idx) => (
+                  <Box key={indicator.id || idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2">{indicator.name}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {formatValue(indicator.value, indicator.unit)}
+                      </Typography>
+                      {getTrendIcon(indicator.trend)}
+                    </Box>
+                  </Box>
+                ))}
+                
+                {(!displayIndicators || displayIndicators.length === 0) && !isLoading && (
+                  <Box sx={{ textAlign: 'center', py: 2 }}>
+                    <Typography color="text.secondary" variant="body2">
+                      No economic indicators available
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+              
+              <Box sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" align="center" display="block">
+                  {isFallbackData ? 'Sample data - live service unavailable' : 
+                   `Last updated: ${new Date().toLocaleTimeString()}`}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        );
+      }}
+    </DataContainer>
   );
 }
 

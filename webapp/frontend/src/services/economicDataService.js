@@ -494,6 +494,194 @@ class EconomicDataService {
     }
   }
 
+  // Enhanced fallback data provider for better UX during API failures
+  async getFallbackData(indicatorKey) {
+    console.log('🛡️ Providing fallback economic data for:', indicatorKey);
+    
+    // Structured fallback data based on typical economic indicator ranges
+    const fallbackIndicators = {
+      gdpGrowth: { value: 2.1, change: 0.2, trend: 'up', unit: 'percent' },
+      cpiYoY: { value: 3.2, change: -0.1, trend: 'down', unit: 'percent' },
+      unemployment: { value: 3.8, change: 0.1, trend: 'up', unit: 'percent' },
+      fedFunds: { value: 5.25, change: 0.0, trend: 'stable', unit: 'percent' },
+      treasury10Y: { value: 4.45, change: 0.05, trend: 'up', unit: 'percent' },
+      treasury2Y: { value: 4.85, change: 0.03, trend: 'up', unit: 'percent' },
+      vix: { value: 18.5, change: -1.2, trend: 'down', unit: 'index' },
+      retailSales: { value: 685.5, change: 2.1, trend: 'up', unit: 'billions' },
+      consumerSentiment: { value: 78.2, change: 1.8, trend: 'up', unit: 'index' },
+      industrialProduction: { value: 102.8, change: 0.4, trend: 'up', unit: 'index' }
+    };
+    
+    if (Array.isArray(indicatorKey)) {
+      // Multiple indicators requested (dashboard data)
+      const result = {};
+      indicatorKey.forEach(key => {
+        result[key] = {
+          ...fallbackIndicators[key] || { value: 'N/A', change: 0, trend: 'stable' },
+          lastUpdated: new Date().toISOString(),
+          source: 'fallback',
+          note: 'Sample data - live service temporarily unavailable'
+        };
+      });
+      return result;
+    } else {
+      // Single indicator requested
+      return {
+        [indicatorKey]: {
+          ...fallbackIndicators[indicatorKey] || { value: 'N/A', change: 0, trend: 'stable' },
+          lastUpdated: new Date().toISOString(),
+          source: 'fallback',
+          note: 'Sample data - live service temporarily unavailable'
+        }
+      };
+    }
+  }
+
+  // Real-time data validation with quality scoring
+  validateDataQuality(data, requiredFields = ['value', 'date']) {
+    if (!data) return { score: 0, issues: ['No data provided'] };
+    
+    const issues = [];
+    let score = 100;
+    
+    // Check required fields
+    requiredFields.forEach(field => {
+      if (!data[field]) {
+        issues.push(`Missing required field: ${field}`);
+        score -= 25;
+      }
+    });
+    
+    // Check data freshness (economic data should be recent)
+    if (data.date) {
+      const dataAge = Date.now() - new Date(data.date).getTime();
+      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days for economic data
+      
+      if (dataAge > maxAge) {
+        issues.push('Data is stale (older than 7 days)');
+        score -= 20;
+      }
+    }
+    
+    // Check value validity
+    if (data.value !== undefined && data.value !== null) {
+      if (isNaN(parseFloat(data.value))) {
+        issues.push('Invalid numeric value');
+        score -= 30;
+      }
+    }
+    
+    // Check for FRED source (preferred)
+    if (data.source === 'fred') {
+      score += 10; // Bonus for official data
+    } else if (data.source === 'estimated') {
+      score -= 15; // Penalty for estimated data
+    }
+    
+    return {
+      score: Math.max(0, score),
+      quality: score >= 90 ? 'excellent' : score >= 70 ? 'good' : score >= 50 ? 'fair' : 'poor',
+      issues,
+      isAcceptable: score >= 50
+    };
+  }
+
+  // Enhanced API health check with detailed diagnostics
+  async checkApiHealth() {
+    const healthCheck = {
+      timestamp: new Date().toISOString(),
+      services: {},
+      overall: 'unknown'
+    };
+    
+    try {
+      // Test FRED API connectivity
+      const fredTest = await this.testFredConnection();
+      healthCheck.services.fred = fredTest;
+      
+      // Test backend economic API
+      const backendTest = await this.testBackendConnection();
+      healthCheck.services.backend = backendTest;
+      
+      // Determine overall health
+      const serviceStatuses = Object.values(healthCheck.services).map(s => s.status);
+      if (serviceStatuses.every(s => s === 'healthy')) {
+        healthCheck.overall = 'healthy';
+      } else if (serviceStatuses.some(s => s === 'healthy')) {
+        healthCheck.overall = 'degraded';
+      } else {
+        healthCheck.overall = 'unhealthy';
+      }
+      
+    } catch (error) {
+      console.error('Health check failed:', error);
+      healthCheck.overall = 'error';
+      healthCheck.error = error.message;
+    }
+    
+    return healthCheck;
+  }
+  
+  async testFredConnection() {
+    try {
+      const testResponse = await fetch(
+        `${this.fredBaseUrl}/series?series_id=DFF&api_key=${this.fredApiKey}&file_type=json&limit=1`,
+        { timeout: 5000 }
+      );
+      
+      if (testResponse.ok) {
+        const data = await testResponse.json();
+        return {
+          status: 'healthy',
+          responseTime: Date.now(),
+          hasData: data.seriess && data.seriess.length > 0
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          error: `HTTP ${testResponse.status}`,
+          message: 'FRED API responded with error'
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unreachable',
+        error: error.message,
+        message: 'Cannot connect to FRED API'
+      };
+    }
+  }
+  
+  async testBackendConnection() {
+    try {
+      const testResponse = await fetch('/api/economic/health', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 5000
+      });
+      
+      if (testResponse.ok) {
+        return {
+          status: 'healthy',
+          responseTime: Date.now(),
+          message: 'Backend economic API is operational'
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          error: `HTTP ${testResponse.status}`,
+          message: 'Backend economic API responded with error'
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unreachable',
+        error: error.message,
+        message: 'Cannot connect to backend economic API'
+      };
+    }
+  }
+
   // Validate live data quality
   validateLiveData(data) {
     if (!data || !data.observations || data.observations.length === 0) {

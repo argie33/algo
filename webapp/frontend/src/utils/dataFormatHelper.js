@@ -268,12 +268,21 @@ export const createFallbackData = (dataType, count = 5) => {
       }));
 
     case 'economic_indicators':
-      return [
-        { name: 'GDP Growth', value: 2.1 + (Math.random() * 2), trend: 'up' },
-        { name: 'Inflation Rate', value: 3.0 + (Math.random() * 2), trend: 'down' },
-        { name: 'Unemployment', value: 3.5 + (Math.random() * 2), trend: 'down' },
-        { name: 'Interest Rate', value: 4.0 + (Math.random() * 2), trend: 'up' }
-      ];
+      return {
+        data: {
+          indicators: [
+            { id: 'GDP', name: 'GDP Growth', value: 2.1 + (Math.random() * 0.5), trend: 'up', unit: 'percent', change: 0.2, changePercent: 5.8 },
+            { id: 'CPI', name: 'Inflation (CPI)', value: 3.2 + (Math.random() * 0.3), trend: 'down', unit: 'percent', change: -0.1, changePercent: -3.0 },
+            { id: 'UNRATE', name: 'Unemployment', value: 3.8 + (Math.random() * 0.2), trend: 'stable', unit: 'percent', change: 0.1, changePercent: 2.7 },
+            { id: 'DFF', name: 'Fed Funds Rate', value: 5.25, trend: 'stable', unit: 'percent', change: 0.0, changePercent: 0.0 },
+            { id: 'DGS10', name: '10Y Treasury', value: 4.45 + (Math.random() * 0.1), trend: 'up', unit: 'percent', change: 0.05, changePercent: 1.1 },
+            { id: 'VIXCLS', name: 'VIX', value: 18.5 + (Math.random() * 2), trend: 'down', unit: 'index', change: -1.2, changePercent: -6.1 }
+          ].slice(0, count)
+        },
+        source: 'fallback',
+        timestamp: Date.now(),
+        lastUpdated: timestamp
+      };
 
     case 'watchlist':
       return Array.from({ length: count }, (_, i) => ({
