@@ -258,55 +258,22 @@ jobs:
           echo "🚀 SMOKE TESTS - Fast Quality Check"
           echo "=================================="
           
-          # Create results directory in webapp folder
-          mkdir -p webapp/smoke-test-results
+          # Create results directory
+          mkdir -p smoke-test-results
           
           cd webapp/frontend
           echo "📦 Frontend lint check..."
-          npm run lint --if-present > ../smoke-test-results/frontend-lint.log 2>&1 || echo "Frontend lint failed" >> ../smoke-test-results/frontend-lint.log
+          npm run lint --if-present > ../../smoke-test-results/frontend-lint.log 2>&1 || echo "Frontend lint failed" >> ../../smoke-test-results/frontend-lint.log
           
           echo "🔧 Frontend build check..."
-          npm run build > ../smoke-test-results/frontend-build.log 2>&1 || echo "Frontend build failed" >> ../smoke-test-results/frontend-build.log
+          npm run build > ../../smoke-test-results/frontend-build.log 2>&1 || echo "Frontend build failed" >> ../../smoke-test-results/frontend-build.log
           
           cd ../lambda
           echo "📦 Backend lint check..."
-          npm run lint --if-present > ../smoke-test-results/backend-lint.log 2>&1 || echo "Backend lint failed" >> ../smoke-test-results/backend-lint.log
+          npm run lint --if-present > ../../smoke-test-results/backend-lint.log 2>&1 || echo "Backend lint failed" >> ../../smoke-test-results/backend-lint.log
           
-          cd ..
+          cd ../..
           echo "✅ Smoke tests completed - proceeding to deploy"
-          
-          echo "📊 SMOKE TEST RESULTS SUMMARY"
-          echo "=============================="
-          echo "Frontend Lint: $([ -f webapp/smoke-test-results/frontend-lint.log ] && wc -l < webapp/smoke-test-results/frontend-lint.log | tr -d ' ' && echo ' lines' || echo 'FAILED')"
-          echo "Frontend Build: $([ -f webapp/smoke-test-results/frontend-build.log ] && echo 'SUCCESS' || echo 'FAILED')"
-          echo "Backend Lint: $([ -f webapp/smoke-test-results/backend-lint.log ] && wc -l < webapp/smoke-test-results/backend-lint.log | tr -d ' ' && echo ' lines' || echo 'FAILED')"
-          
-          echo ""
-          echo "📋 FULL FRONTEND LINT LOG:"
-          echo "=========================="
-          if [ -f webapp/smoke-test-results/frontend-lint.log ]; then
-            cat webapp/smoke-test-results/frontend-lint.log
-          else
-            echo "❌ No frontend lint log found"
-          fi
-          
-          echo ""
-          echo "📋 FULL BACKEND LINT LOG:"
-          echo "========================="
-          if [ -f webapp/smoke-test-results/backend-lint.log ]; then
-            cat webapp/smoke-test-results/backend-lint.log
-          else
-            echo "❌ No backend lint log found"
-          fi
-          
-          echo ""
-          echo "📋 FRONTEND BUILD LOG:"
-          echo "====================="
-          if [ -f webapp/smoke-test-results/frontend-build.log ]; then
-            tail -50 webapp/smoke-test-results/frontend-build.log
-          else
-            echo "❌ No frontend build log found"
-          fi
 
       - name: 📤 Upload smoke test results to S3
         run: |
@@ -322,7 +289,7 @@ jobs:
           mkdir -p smoke-upload/smoke-tests/${BRANCH_NAME}
           
           # Copy results to upload directory
-          cp -r webapp/smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
+          cp -r smoke-test-results/* smoke-upload/smoke-tests/${BRANCH_NAME}/
           
           # Create summary report
           cat > smoke-upload/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json << EOF
@@ -333,9 +300,9 @@ jobs:
             "commit": "${{ github.sha }}",
             "status": "completed",
             "tests": {
-              "frontend_lint": "$([ -f webapp/smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
-              "frontend_build": "$([ -f webapp/smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
-              "backend_lint": "$([ -f webapp/smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
+              "frontend_lint": "$([ -f smoke-test-results/frontend-lint.log ] && echo 'completed' || echo 'skipped')",
+              "frontend_build": "$([ -f smoke-test-results/frontend-build.log ] && echo 'completed' || echo 'skipped')",
+              "backend_lint": "$([ -f smoke-test-results/backend-lint.log ] && echo 'completed' || echo 'skipped')"
             },
             "completedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           }
@@ -360,30 +327,40 @@ jobs:
           
           echo "📤 Uploading smoke test results to S3 bucket: ${BUCKET_NAME}"
           
-          # Check if bucket exists
+          # Check if bucket exists and create if needed
+          echo "🔍 Checking S3 bucket access..."
           if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
-            echo "✅ Bucket is accessible"
+            echo "✅ Bucket ${BUCKET_NAME} is accessible"
+            
+            # Clean up old smoke test results (keep only latest)
+            echo "🧹 Cleaning up old smoke test results..."
+            aws s3 rm "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive || echo "No old results to clean"
+            
+            # Upload the smoke test results
+            echo "📤 Uploading smoke test results to S3..."
+            if aws s3 cp smoke-upload/ "s3://${BUCKET_NAME}/" --recursive; then
+              echo "✅ Smoke test results uploaded successfully!"
+              echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json"
+            else
+              echo "❌ Failed to upload smoke test results to S3"
+              echo "📦 Results will be available as GitHub Actions artifacts instead"
+            fi
           else
-            echo "❌ Bucket is not accessible - creating results locally"
-            ls -la smoke-upload/
-            exit 0  # Don't fail the job, just skip S3 upload
+            echo "❌ Bucket ${BUCKET_NAME} is not accessible"
+            echo "🔧 Attempting to create bucket..."
+            if aws s3 mb "s3://${BUCKET_NAME}" --region us-east-1 2>/dev/null; then
+              echo "✅ Created bucket ${BUCKET_NAME}"
+              # Try upload again
+              aws s3 cp smoke-upload/ "s3://${BUCKET_NAME}/" --recursive && echo "✅ Upload successful after bucket creation"
+            else
+              echo "❌ Could not create or access bucket - results saved locally"
+              echo "📦 Smoke test results will be available as GitHub Actions artifacts"
+            fi
           fi
           
-          # Clean up old smoke test results (keep only latest)
-          echo "🧹 Cleaning up old smoke test results..."
-          aws s3 rm "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive || echo "No old results to clean"
-          
-          # Upload the smoke test results
-          echo "📤 Uploading smoke test results..."
-          if aws s3 cp "smoke-upload/" "s3://${BUCKET_NAME}/smoke-tests/${BRANCH_NAME}/" --recursive; then
-            echo "✅ Smoke test results uploaded successfully"
-          else
-            echo "❌ Failed to upload smoke test results"
-            exit 1
-          fi
-          
-          echo "✅ Smoke test results uploaded successfully!"
-          echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/smoke-tests/${BRANCH_NAME}/smoke-test-summary.json"
+          # Always show local results for debugging
+          echo "📊 Local smoke test results summary:"
+          ls -la smoke-upload/
 
       - name: 📦 Archive smoke test results
         uses: actions/upload-artifact@v4
