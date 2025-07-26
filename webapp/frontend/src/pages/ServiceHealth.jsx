@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import { useServiceHealth } from '../hooks/useApiData';
 import { 
   Box,
   Container,

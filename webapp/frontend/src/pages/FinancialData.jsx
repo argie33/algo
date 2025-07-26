@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
+import { useFinancialData } from '../hooks/useApiData'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,

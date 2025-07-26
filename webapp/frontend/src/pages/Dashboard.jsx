@@ -54,7 +54,25 @@ import {
   AreaChart, Area, BarChart as RechartsBarChart, Bar, Cell, PieChart, Pie, RadialBarChart, RadialBar, 
   ScatterChart, Scatter, ComposedChart
 } from 'recharts';
-import { useSimpleFetch } from '../hooks/useSimpleFetch';
+import { 
+  useMarketOverview, 
+  useMarketSentiment, 
+  useSectorPerformance, 
+  useEconomicIndicators as useEconomicIndicatorsQuery,
+  useStockScores,
+  useStockPrices,
+  useStockMetrics
+} from '../hooks/useMarketData';
+import { 
+  useWatchlist, 
+  usePortfolioActivity, 
+  useUserProfile 
+} from '../hooks/usePortfolioData';
+import { 
+  useTradingSignals, 
+  useCalendarEvents, 
+  useNews 
+} from '../hooks/useTradingData';
 import { useEconomicIndicators } from '../hooks/useEconomicData';
 import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '../services/api';
 import { format } from 'date-fns';
@@ -107,81 +125,44 @@ const generatePortfolioFromMarketData = (priceData, selectedSymbol = DEFAULT_TIC
 
 // Live sentiment data hook
 function useLiveSentiment() {
-  return useSimpleFetch(`${API_BASE}/api/market/sentiment`, {
-    fallback: null,
-    errorMessage: 'Failed to load market sentiment'
-  });
+  return useMarketSentiment();
 }
 
 // Live sector performance data hook
 function useLiveSectorPerformance() {
-  return useSimpleFetch(`${API_BASE}/api/market/sectors/performance`, {
-    fallback: [],
-    errorMessage: 'Failed to load sector performance'
-  });
+  return useSectorPerformance();
 }
 
 // Live top stocks data (already implemented via useTopStocks hook)
 
 // Enhanced live economic indicators data hook with real-time capabilities
 function useLiveEconomicIndicators() {
-  return useSimpleFetch(`${API_BASE}/api/economic/indicators?limit=6`, {
-    fallback: {
-      data: {
-        indicators: [
-          { id: 'GDP', name: 'GDP Growth', value: 2.1, trend: 'up', unit: 'percent' },
-          { id: 'CPI', name: 'Inflation (CPI)', value: 3.2, trend: 'down', unit: 'percent' },
-          { id: 'UNRATE', name: 'Unemployment', value: 3.8, trend: 'stable', unit: 'percent' },
-          { id: 'DFF', name: 'Fed Funds Rate', value: 5.25, trend: 'stable', unit: 'percent' },
-          { id: 'DGS10', name: '10Y Treasury', value: 4.45, trend: 'up', unit: 'percent' },
-          { id: 'VIXCLS', name: 'VIX', value: 18.5, trend: 'down', unit: 'index' }
-        ]
-      }
-    },
-    errorMessage: 'Failed to load economic indicators',
-    retry: 3,
-    staleTime: 5 * 60 * 1000 // 5 minutes
-  });
+  return useEconomicIndicatorsQuery(6);
 }
 
 // Live watchlist data hook
 function useLiveWatchlist() {
-  return useSimpleFetch(`${API_BASE}/api/portfolio/watchlist`, {
-    fallback: [],
-    errorMessage: 'Failed to load watchlist'
-  });
+  return useWatchlist();
 }
 
 // Live activity data hook
 function useLiveActivity() {
-  return useSimpleFetch(`${API_BASE}/api/portfolio/activity`, {
-    fallback: [],
-    errorMessage: 'Failed to load activity'
-  });
+  return usePortfolioActivity();
 }
 
 // Live calendar data hook
 function useLiveCalendar() {
-  return useSimpleFetch(`${API_BASE}/api/calendar/events`, {
-    fallback: [],
-    errorMessage: 'Failed to load economic calendar'
-  });
+  return useCalendarEvents();
 }
 
-// Live trading signals data hook
-function useTradingSignals() {
-  return useSimpleFetch(`${API_BASE}/api/trading/signals/daily?limit=10`, {
-    fallback: [],
-    errorMessage: 'Failed to load trading signals'
-  });
+// Live trading signals data hook - renamed to avoid conflict
+function useLiveTradingSignals() {
+  return useTradingSignals(10);
 }
 
 // Live news data hook
 function useLiveNews() {
-  return useSimpleFetch(`${API_BASE}/api/news?limit=5`, {
-    fallback: [],
-    errorMessage: 'Failed to load market news'
-  });
+  return useNews(5);
 }
 
 const BRAND_NAME = 'ProTrade Analytics';
@@ -195,49 +176,24 @@ const marketSummary = [
   { name: 'Gold', value: 2345.50, change: +12.30, pct: '+0.5%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> }
 ];
 
-// Enhanced data fetching hooks
-function useMarketOverview() {
-  return useSimpleFetch(`${API_BASE}/api/market/overview`, {
-    enabled: true,
-    retry: 3,
-    staleTime: 30000
-  });
-}
+// Enhanced data fetching hooks - using imported useMarketOverview
 
 function useTopStocks() {
-  return useSimpleFetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`, {
-    enabled: true,
-    retry: 3,
-    staleTime: 60 * 60 * 1000
-  });
+  return useStockScores(10, 'composite_score', 'desc');
 }
 
 function usePortfolioData() {
   const { isAuthenticated } = useAuth();
-  const url = isAuthenticated ? `${API_BASE}/api/portfolio/holdings` : null;
-  return useSimpleFetch(url, {
-    enabled: isAuthenticated,
-    retry: 3,
-    staleTime: 30000
-  });
+  return useWatchlist({ enabled: isAuthenticated });
 }
 
 function useUser() {
-  const { data, loading: isLoading, error } = useSimpleFetch(`${API_BASE}/api/user/profile`, {
-    enabled: true,
-    retry: 3,
-    staleTime: 60000
-  });
-  
+  const { data, isLoading, error } = useUserProfile();
   return { data, isLoading, error };
 }
 
 function TechnicalSignalsWidget() {
-  const { data, loading: isLoading, error, refetch, showRoutingAlert } = useSimpleFetch(`${API_BASE}/api/trading/signals/daily?limit=10`, {
-    enabled: true,
-    retry: 3,
-    staleTime: 300000
-  });
+  const { data, isLoading, error, refetch } = useTradingSignals(10, { staleTime: 300000 });
 
   const SignalsTable = ({ data, isFallbackData = false }) => (
     <Card sx={{ height: '100%' }}>
@@ -655,15 +611,11 @@ const Dashboard = () => {
   const { data: marketData } = useMarketOverview();
   const { data: topStocksData } = useTopStocks();
   
-  const { data: priceData, loading: priceLoading } = useSimpleFetch(`${API_BASE}/api/market/prices/${selectedSymbol}`, {
-    enabled: true,
-    retry: 3,
+  const { data: priceData, isLoading: priceLoading } = useStockPrices(selectedSymbol, {
     staleTime: 5 * 60 * 1000
   });
   
-  const { data: metricsData, loading: metricsLoading } = useSimpleFetch(`${API_BASE}/api/market/metrics/${selectedSymbol}`, {
-    enabled: true,
-    retry: 3,
+  const { data: metricsData, isLoading: metricsLoading } = useStockMetrics(selectedSymbol, {
     staleTime: 5 * 60 * 1000
   });
   

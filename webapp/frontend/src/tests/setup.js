@@ -4,11 +4,8 @@
  */
 
 import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
-// import { cleanup } from '@testing-library/react' // Disabled to prevent React issues
+import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom'
-
-// Disable automatic cleanup from RTL
-process.env.RTL_SKIP_AUTO_CLEANUP = 'true'
 
 // Global test setup
 beforeAll(async () => {
@@ -294,17 +291,10 @@ beforeAll(async () => {
   console.log('✅ Test environment setup complete')
 })
 
-// Cleanup after each test - disabled to prevent React concurrent issues
+// Standard RTL cleanup - no custom workarounds
 afterEach(() => {
-  // cleanup() // Disabled - causing React concurrent work conflicts
+  cleanup()
   vi.clearAllMocks()
-  
-  // Manual cleanup approach
-  try {
-    document.body.innerHTML = '';
-  } catch (e) {
-    // Ignore cleanup errors
-  }
 })
 
 // Global teardown

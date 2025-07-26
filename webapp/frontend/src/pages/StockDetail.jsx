@@ -1,6 +1,6 @@
 import React from 'react'
 import { useParams } from 'react-router-dom'
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
+import { useStockDetail } from '../hooks/useApiData'
 import { createComponentLogger } from '../utils/errorLogger'
 import marketIntelligenceService from '../services/marketIntelligenceService'
 import {
