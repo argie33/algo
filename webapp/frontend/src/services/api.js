@@ -280,8 +280,10 @@ const setupInterceptors = (apiInstance) => {
       // Get token from localStorage (try both possible names for backward compatibility)
       let token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
       
-      // DEVELOPMENT FIX: Generate development token if none exists
-      if (!token && (window.location.hostname === 'localhost' || !window.location.hostname.includes('.'))) {
+      // Only generate development tokens for true localhost development
+      const isLocalDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (!token && isLocalDevelopment) {
         // Generate a simple development token
         const devToken = btoa(JSON.stringify({
           sub: 'dev-user-frontend',
@@ -291,7 +293,7 @@ const setupInterceptors = (apiInstance) => {
         }));
         localStorage.setItem('accessToken', devToken);
         token = devToken;
-        console.log('🔧 Generated development authentication token');
+        console.log('🔧 Generated development authentication token for localhost');
       }
       
       if (token) {
@@ -330,11 +332,11 @@ const setupInterceptors = (apiInstance) => {
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         
-        // DEVELOPMENT FIX: Don't redirect to login in development mode
-        const isDevelopment = window.location.hostname === 'localhost' || !window.location.hostname.includes('.');
+        // Only avoid redirects for true localhost development
+        const isLocalDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         
-        if (!isDevelopment) {
-          // Redirect to login if not already there (production only)
+        if (!isLocalDevelopment) {
+          // Redirect to login if not already there (production and CloudFront)
           if (!window.location.pathname.includes('/login')) {
             window.location.href = '/login';
           }

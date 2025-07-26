@@ -408,6 +408,7 @@ Resources:
           # Cognito configuration
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
+          COGNITO_DOMAIN: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
           # API Key and JWT Secret Management
           API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
           JWT_SECRET_ARN: !ImportValue StocksApp-JwtSecretArn
