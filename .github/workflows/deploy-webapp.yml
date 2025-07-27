@@ -15,7 +15,7 @@ on:
       - '*'
     paths:
       - 'webapp/**'
-      - 'template-webapp-lambda.yml'
+      - 'webapp/template-webapp-lambda.yml'
       - '.github/workflows/deploy-webapp.yml'
   workflow_dispatch:
     inputs:
@@ -212,7 +212,7 @@ jobs:
             frontend:
               - 'webapp/frontend/**'
             template:
-              - 'template-webapp-lambda.yml'
+              - 'webapp/template-webapp-lambda.yml'
               - '.github/workflows/deploy-webapp.yml'
       - id: any
         name: Any relevant changes?
@@ -1321,7 +1321,7 @@ jobs:
 
       - name: Build SAM application
         run: |
-          sam build --template template-webapp-lambda.yml
+          sam build --template webapp/template-webapp-lambda.yml
       - name: Check and handle failed stack state
         run: |
           # Check if stack exists and its status

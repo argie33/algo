@@ -28,7 +28,7 @@ on:
       - develop
     paths-ignore:
       - 'webapp/**'
-      - 'template-webapp-lambda.yml'
+      - 'webapp/template-webapp-lambda.yml'
       - '.github/workflows/deploy-webapp.yml'
   pull_request:
     branches:
@@ -37,7 +37,7 @@ on:
       - develop
     paths-ignore:
       - 'webapp/**'
-      - 'template-webapp-lambda.yml'
+      - 'webapp/template-webapp-lambda.yml'
       - '.github/workflows/deploy-webapp.yml'
 
 permissions:
