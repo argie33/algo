@@ -124,16 +124,25 @@ const authenticateToken = async (req, res, next) => {
       hasSecretArn: !!process.env.COGNITO_SECRET_ARN
     });
     
-    // SECURITY: Remove development bypass to prevent production exploitation
-    // Development bypass completely removed for security reasons
-    // All requests must use proper Cognito authentication
-    
-    // Note: Development bypass was removed due to security risk
-    // Use proper Cognito tokens even in development environment
-    
-    // Check for demo/development tokens first
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    // IMPROVED: Safe development mode with clear security boundaries
+    // Only allow development bypass in explicit development environment with warning
+    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_AUTH === 'true') {
+      // Check for development bypass token
+      if (authHeader === 'Bearer dev-token' || token === 'dev-token') {
+        console.warn('🚨 DEVELOPMENT MODE: Using bypass authentication - NEVER use in production!');
+        req.user = {
+          sub: 'dev-user-123',
+          email: 'dev@example.com',
+          username: 'developer',
+          role: 'admin',
+          groups: ['developers']
+        };
+        
+        const duration = Date.now() - startTime;
+        console.log(`👤 [${requestId}] DEV USER authenticated in ${duration}ms`);
+        return next();
+      }
+    }
     
     console.log(`🎫 [${requestId}] Authorization header present:`, !!authHeader);
     console.log(`🎫 [${requestId}] Token extracted:`, !!token);

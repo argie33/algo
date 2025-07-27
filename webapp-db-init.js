@@ -79,53 +79,57 @@ async function ensureTableColumnsExist(client) {
     try {
         log('info', '🔍 Checking and adding missing columns to existing tables...');
         
-        // Check if portfolio_metadata table exists and has last_sync column
-        const portfolioMetadataCheck = await client.query(`
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'portfolio_metadata' 
-            AND column_name = 'last_sync'
-        `);
+        // Define required columns for each table
+        const requiredColumns = {
+            portfolio_holdings: [
+                { name: 'alpaca_asset_id', type: 'VARCHAR(50)' },
+                { name: 'last_sync_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+                { name: 'last_sync', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
+            ],
+            portfolio_metadata: [
+                { name: 'buying_power', type: 'DECIMAL(15,2)' },
+                { name: 'cash', type: 'DECIMAL(15,2)' },
+                { name: 'account_id', type: 'VARCHAR(50)' },
+                { name: 'day_trade_count', type: 'INTEGER DEFAULT 0' },
+                { name: 'sync_status', type: 'VARCHAR(20) DEFAULT \'pending\'' },
+                { name: 'api_provider', type: 'VARCHAR(20) DEFAULT \'alpaca\'' },
+                { name: 'last_sync_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+                { name: 'last_sync', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
+            ]
+        };
         
-        if (portfolioMetadataCheck.rows.length === 0) {
-            // Check if table exists at all
+        // Process each table
+        for (const [tableName, columns] of Object.entries(requiredColumns)) {
+            // Check if table exists
             const tableCheck = await client.query(`
                 SELECT table_name 
                 FROM information_schema.tables 
-                WHERE table_name = 'portfolio_metadata'
-            `);
+                WHERE table_name = $1
+            `, [tableName]);
             
-            if (tableCheck.rows.length > 0) {
-                log('info', '📝 Adding missing last_sync column to portfolio_metadata table');
-                await client.query(`
-                    ALTER TABLE portfolio_metadata 
-                    ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                `);
+            if (tableCheck.rows.length === 0) {
+                log('info', `⚠️ Table ${tableName} does not exist, will be created later`);
+                continue;
             }
-        }
-        
-        // Check if portfolio_holdings table exists and has last_sync column
-        const portfolioHoldingsCheck = await client.query(`
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'portfolio_holdings' 
-            AND column_name = 'last_sync'
-        `);
-        
-        if (portfolioHoldingsCheck.rows.length === 0) {
-            // Check if table exists at all
-            const tableCheck = await client.query(`
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_name = 'portfolio_holdings'
-            `);
             
-            if (tableCheck.rows.length > 0) {
-                log('info', '📝 Adding missing last_sync column to portfolio_holdings table');
-                await client.query(`
-                    ALTER TABLE portfolio_holdings 
-                    ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                `);
+            // Check and add missing columns
+            for (const column of columns) {
+                const columnCheck = await client.query(`
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = $1 AND column_name = $2
+                `, [tableName, column.name]);
+                
+                if (columnCheck.rows.length === 0) {
+                    log('info', `📝 Adding missing column ${column.name} to ${tableName} table`);
+                    await client.query(`
+                        ALTER TABLE ${tableName} 
+                        ADD COLUMN IF NOT EXISTS ${column.name} ${column.type}
+                    `);
+                    log('info', `✅ Successfully added ${column.name} to ${tableName}`);
+                } else {
+                    log('info', `✓ Column ${column.name} already exists in ${tableName}`);
+                }
             }
         }
         
@@ -231,6 +235,8 @@ CREATE TABLE IF NOT EXISTS portfolio_holdings (
     exchange VARCHAR(20),
     broker VARCHAR(50),
     account_type VARCHAR(20) DEFAULT 'paper',
+    alpaca_asset_id VARCHAR(50),
+    last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -249,6 +255,13 @@ CREATE TABLE IF NOT EXISTS portfolio_metadata (
     account_type VARCHAR(20) DEFAULT 'paper',
     broker VARCHAR(50),
     account_status VARCHAR(50),
+    buying_power DECIMAL(15,2),
+    cash DECIMAL(15,2),
+    account_id VARCHAR(50),
+    day_trade_count INTEGER DEFAULT 0,
+    sync_status VARCHAR(20) DEFAULT 'pending',
+    api_provider VARCHAR(20) DEFAULT 'alpaca',
+    last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -915,11 +928,16 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_symbol ON portfolio_holdi
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_market_value ON portfolio_holdings(market_value DESC);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_updated_at ON portfolio_holdings(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_active ON portfolio_holdings(user_id, api_key_id, updated_at DESC) WHERE quantity > 0;
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_alpaca_asset_id ON portfolio_holdings(alpaca_asset_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_last_sync_at ON portfolio_holdings(last_sync_at);
 
 -- Portfolio Metadata indexes - optimized for performance
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_api_key ON portfolio_metadata(user_id, api_key_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_last_sync ON portfolio_metadata(last_sync DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_last_sync_at ON portfolio_metadata(last_sync_at);
+CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_api_provider ON portfolio_metadata(api_provider);
+CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_sync_status ON portfolio_metadata(sync_status);
 
 -- User API Keys indexes - optimized for portfolio queries
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_active ON user_api_keys(user_id, is_active) WHERE is_active = true;

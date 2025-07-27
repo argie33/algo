@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDiagnostics } = require('../utils/database');
+const { applyPortfolioSchemaFix } = require('../utils/applySchemaFix');
 
 /**
  * GET /diagnostic/environment

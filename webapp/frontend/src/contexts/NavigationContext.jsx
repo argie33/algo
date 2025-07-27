@@ -77,7 +77,7 @@ export function NavigationProvider({ children }) {
     dispatch({ type: NAV_ACTIONS.SET_CURRENT_PATH, payload: location.pathname });
   }, [location.pathname]);
 
-  // Handle authentication-based navigation
+  // IMPROVED: Handle authentication-based navigation with better stability
   useEffect(() => {
     if (!isLoading) {
       handleAuthenticationNavigation();
@@ -91,10 +91,12 @@ export function NavigationProvider({ children }) {
       // User is authenticated
       if (state.intendedPath && isProtectedRoute(state.intendedPath)) {
         // Navigate to intended protected route
+        console.log(`🧭 Navigating to intended path: ${state.intendedPath}`);
         navigate(state.intendedPath, { replace: true });
         dispatch({ type: NAV_ACTIONS.CLEAR_INTENDED_PATH });
       } else if (currentPath === '/login' || currentPath === '/welcome') {
-        // Redirect auth pages to dashboard
+        // Only redirect auth pages if we're definitely authenticated
+        console.log(`🧭 Redirecting auth page to dashboard: ${currentPath}`);
         navigate(getDefaultProtectedRoute(), { replace: true });
       }
       // Close auth modal if open
@@ -104,13 +106,15 @@ export function NavigationProvider({ children }) {
     } else {
       // User is not authenticated
       if (isProtectedRoute(currentPath)) {
-        // Store intended path and show auth requirement
+        // IMPROVED: Only store intent and redirect if we're definitely unauthenticated
+        // Don't redirect during loading states to prevent auth flicker
+        console.log(`🔒 Protected route accessed without auth: ${currentPath}`);
         dispatch({ type: NAV_ACTIONS.SET_INTENDED_PATH, payload: currentPath });
         
-        if (isPublicRoute('/')) {
-          // Redirect to public home page
-          navigate('/', { replace: true });
-          // Open auth modal for protected route access
+        // IMPROVED: Don't automatically redirect to home page
+        // Let RouteGuard handle the protection display
+        // Just open the auth modal for protected route access
+        if (!state.authModalOpen) {
           dispatch({ type: NAV_ACTIONS.OPEN_AUTH_MODAL });
         }
       }

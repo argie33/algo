@@ -180,10 +180,16 @@ class SecureSessionStorage {
   }
 
   /**
-   * Store tokens securely
+   * IMPROVED: Store tokens securely with better error handling
    */
   storeTokens(tokens) {
     try {
+      // Validate tokens before storing
+      if (!tokens || (!tokens.accessToken && !tokens.refreshToken)) {
+        console.warn('⚠️ No valid tokens provided for storage');
+        return false;
+      }
+
       // Store access token in sessionStorage (cleared on tab close)
       if (tokens.accessToken) {
         const encryptedAccess = this.encrypt({
@@ -192,6 +198,7 @@ class SecureSessionStorage {
           fingerprint: this.deviceFingerprint
         });
         sessionStorage.setItem(SECURE_SESSION_CONFIG.ACCESS_TOKEN_KEY, JSON.stringify(encryptedAccess));
+        console.log('🔐 Access token stored securely in sessionStorage');
       }
 
       // Store refresh token in localStorage (persists across sessions)
@@ -202,17 +209,19 @@ class SecureSessionStorage {
           fingerprint: this.deviceFingerprint
         });
         localStorage.setItem(SECURE_SESSION_CONFIG.REFRESH_TOKEN_KEY, JSON.stringify(encryptedRefresh));
+        console.log('🔐 Refresh token stored securely in localStorage');
       }
 
-      // Store session metadata
+      // Store session metadata with improved data
       const metadata = {
         userId: tokens.userId,
         username: tokens.username,
         email: tokens.email,
-        loginTime: Date.now(),
+        loginTime: this.sessionMetadata?.loginTime || Date.now(), // Preserve original login time
         deviceFingerprint: this.deviceFingerprint,
-        sessionId: this.generateSessionId(),
-        lastActivity: Date.now()
+        sessionId: this.sessionMetadata?.sessionId || this.generateSessionId(), // Preserve session ID
+        lastActivity: Date.now(),
+        tokenUpdateTime: Date.now() // Track when tokens were last updated
       };
 
       const encryptedMetadata = this.encrypt(metadata);
@@ -220,15 +229,25 @@ class SecureSessionStorage {
 
       this.sessionMetadata = metadata;
 
-      // Broadcast login to other tabs
-      this.broadcastMessage(SECURE_SESSION_CONFIG.SYNC_EVENTS.LOGIN, {
-        sessionId: metadata.sessionId,
-        userId: metadata.userId
-      });
+      // IMPROVED: Only broadcast login for new sessions, not token updates
+      if (!this.sessionMetadata?.loginTime || this.sessionMetadata.loginTime === metadata.loginTime) {
+        this.broadcastMessage(SECURE_SESSION_CONFIG.SYNC_EVENTS.LOGIN, {
+          sessionId: metadata.sessionId,
+          userId: metadata.userId
+        });
+        console.log('📡 Broadcasted login event to other tabs');
+      } else {
+        // Broadcast token refresh instead
+        this.broadcastMessage(SECURE_SESSION_CONFIG.SYNC_EVENTS.REFRESH, {
+          sessionId: metadata.sessionId,
+          timestamp: Date.now()
+        });
+        console.log('📡 Broadcasted token refresh to other tabs');
+      }
 
       return true;
     } catch (error) {
-      console.error('Failed to store tokens securely:', error);
+      console.error('❌ Failed to store tokens securely:', error);
       return false;
     }
   }
@@ -379,9 +398,14 @@ class SecureSessionStorage {
   }
 
   handleCrossTabLogout(data) {
-    // Another tab logged out - clear local session
-    this.clearSession();
-    window.dispatchEvent(new CustomEvent('sessionLogout', { detail: data }));
+    // IMPROVED: More careful cross-tab logout handling
+    // Only clear session if it's from the same user session
+    const currentMetadata = this.getSessionMetadata();
+    if (currentMetadata && currentMetadata.sessionId !== data.sessionId) {
+      console.log('🔄 Cross-tab logout detected, clearing local session');
+      this.clearSession();
+      window.dispatchEvent(new CustomEvent('sessionLogout', { detail: data }));
+    }
   }
 
   handleCrossTabRefresh(data) {

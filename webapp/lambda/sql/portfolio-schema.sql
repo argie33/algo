@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS portfolio_metadata (
     day_trade_count INTEGER DEFAULT 0,
     last_sync_at TIMESTAMP,
     sync_status VARCHAR(20) DEFAULT 'pending',
+    api_provider VARCHAR(20) DEFAULT 'alpaca',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

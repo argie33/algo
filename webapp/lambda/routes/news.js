@@ -726,8 +726,9 @@ router.get('/trending', async (req, res) => {
 
 // GET /api/market/news - Latest market news
 authRouter.get('/', async (req, res) => {
+  const { limit = 5, symbol = null } = req.query;
+  
   try {
-    const { limit = 5, symbol = null } = req.query;
     
     let newsQuery;
     let queryParams;

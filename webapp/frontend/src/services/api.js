@@ -3,6 +3,7 @@ import apiHealthService from './apiHealthService';
 import { enhancedFetch } from '../error/apiErrorHandler';
 import ErrorManager from '../error/ErrorManager';
 import apiWrapper from './apiWrapper';
+import secureSessionStorage from '../utils/secureSessionStorage';
 
 // Get API configuration - exported for ServiceHealth 
 let configLoggedOnce = false;

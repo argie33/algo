@@ -171,27 +171,31 @@ export function AuthProvider({ children }) {
     return delay + Math.random() * 1000; // Add jitter
   };
 
-  // SIMPLIFIED checkAuthState - no navigation logic
+  // IMPROVED checkAuthState - better state management and token consistency
   const checkAuthState = async (forceRetry = false) => {
     const now = Date.now();
     const timeSinceLastRetry = now - state.lastRetryTime;
     const backoffDelay = getBackoffDelay(state.retryCount);
     
-    // Simplified retry logic
+    // Improved retry logic - don't increment retries on successful calls
     if (!forceRetry && state.retryCount >= state.maxRetries) {
       console.warn('🛑 Auth retry limit reached.');
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication service temporarily unavailable.' });
-      return;
+      return { success: false, reason: 'retry_limit' };
     }
     
     if (!forceRetry && timeSinceLastRetry < backoffDelay) {
       console.warn(`🛑 Auth retry backoff active. Wait ${Math.ceil((backoffDelay - timeSinceLastRetry) / 1000)}s`);
-      return;
+      return { success: false, reason: 'backoff' };
     }
     
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
-      dispatch({ type: AUTH_ACTIONS.INCREMENT_RETRY });
+      
+      // Only increment retry on actual attempts, not successful checks
+      if (!forceRetry) {
+        dispatch({ type: AUTH_ACTIONS.INCREMENT_RETRY });
+      }
       
       // Clear any demo/fallback sessions
       localStorage.removeItem('demo-user');
@@ -213,10 +217,49 @@ export function AuthProvider({ children }) {
       if (!FEATURES.authentication.enabled || !FEATURES.authentication.methods.cognito || !isCognitoConfigured()) {
         console.warn('❌ Cognito not configured properly');
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
-        return;
+        return { success: false, reason: 'config' };
       }
       
-      // Try to get current user and session
+      // First check if we have existing valid tokens in secure storage
+      const existingTokens = secureSessionStorage.getTokens();
+      if (existingTokens.accessToken) {
+        console.log('🔄 Found existing tokens, validating...');
+        
+        try {
+          // Try to get current user with existing session
+          const user = await getCurrentUser();
+          if (user) {
+            // Session is still valid, update our state
+            const mfaEnabled = user.userAttributes?.['custom:mfa_enabled'] === 'true' || 
+                               user.userAttributes?.phone_number_verified === 'true' ||
+                               false;
+
+            dispatch({
+              type: AUTH_ACTIONS.LOGIN_SUCCESS,
+              payload: {
+                user: {
+                  username: user.username,
+                  userId: user.userId,
+                  email: user.signInDetails?.loginId || user.username,
+                  firstName: user.userAttributes?.given_name || '',
+                  lastName: user.userAttributes?.family_name || '',
+                  signInDetails: user.signInDetails,
+                  mfaEnabled: mfaEnabled
+                },
+                tokens: existingTokens
+              }
+            });
+            
+            dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
+            console.log('✅ User authenticated with existing session');
+            return { success: true, reason: 'existing_session' };
+          }
+        } catch (error) {
+          console.log('Existing session invalid, getting fresh session...');
+        }
+      }
+      
+      // Try to get fresh session from Cognito
       try {
         const user = await getCurrentUser();
         const session = await fetchAuthSession();
@@ -228,7 +271,7 @@ export function AuthProvider({ children }) {
             refreshToken: session.tokens.refreshToken?.toString()
           };
           
-          // Store tokens securely
+          // FIXED: Use only secureSessionStorage for consistency
           const tokenData = {
             ...tokens,
             userId: user.userId,
@@ -236,7 +279,9 @@ export function AuthProvider({ children }) {
             email: user.signInDetails?.loginId || user.username
           };
           secureSessionStorage.storeTokens(tokenData);
-          localStorage.setItem('accessToken', tokens.accessToken);
+          
+          // REMOVED: localStorage.setItem('accessToken', tokens.accessToken);
+          // This was causing storage inconsistency issues
 
           const mfaEnabled = user.userAttributes?.['custom:mfa_enabled'] === 'true' || 
                              user.userAttributes?.phone_number_verified === 'true' ||
@@ -259,8 +304,8 @@ export function AuthProvider({ children }) {
           });
           
           dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
-          console.log('✅ User authenticated with Cognito');
-          return;
+          console.log('✅ User authenticated with fresh Cognito session');
+          return { success: true, reason: 'fresh_session' };
         }
       } catch (error) {
         console.log('No Cognito session found:', error);
@@ -268,15 +313,18 @@ export function AuthProvider({ children }) {
       
       // No valid session found
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      return { success: false, reason: 'no_session' };
     } catch (error) {
       console.error('Error checking auth state:', error);
       
       if (isRetryableError(error) && state.retryCount < state.maxRetries) {
         console.warn('⚠️ Retryable error encountered:', error.message);
         dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+        return { success: false, reason: 'retryable_error' };
       } else {
         console.error('❌ Authentication error:', error.message);
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        return { success: false, reason: 'auth_error' };
       }
     } finally {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
@@ -291,8 +339,8 @@ export function AuthProvider({ children }) {
 
       console.log('🔐 Signing in with Cognito...');
       
-      // Clear any local state first
-      localStorage.removeItem('accessToken');
+      // Clear any existing tokens first
+      secureSessionStorage.clearSession();
       
       // Try to sign out first if there's already a session
       try {
@@ -447,8 +495,8 @@ export function AuthProvider({ children }) {
     try {
       console.log('🚪 Signing out...');
       
+      // Clear all stored tokens consistently
       secureSessionStorage.clearSession();
-      localStorage.removeItem('accessToken');
       
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       await signOut();
@@ -520,8 +568,6 @@ export function AuthProvider({ children }) {
           email: state.user?.email
         };
         secureSessionStorage.storeTokens(tokenData);
-        
-        localStorage.setItem('accessToken', tokens.accessToken);
         dispatch({ type: AUTH_ACTIONS.UPDATE_TOKENS, payload: tokens });
         return tokens;
       }
