@@ -412,7 +412,7 @@ router.get('/prices/:symbol', async (req, res) => {
 router.get('/assets', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit || req.query.per_page) || 50;
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
 

@@ -207,8 +207,8 @@ router.get('/indicators', async (req, res) => {
 
 // Calculate single indicator
 router.post('/indicator/:indicatorId', async (req, res) => {
+  const { indicatorId } = req.params;
   try {
-    const { indicatorId } = req.params;
     const { data, parameters = {} } = req.body;
     
     if (!data || !Array.isArray(data)) {

@@ -250,7 +250,7 @@ router.post('/unsubscribe', authenticateUser, async (req, res) => {
         console.log(`✅ Removed all subscriptions for user ${userId}`);
       }
       
-      return res.json(responseFormatter.createSuccessResponse({
+      return res.json(success({
         removedAll: true,
         userId,
         remainingActiveSymbols: serviceState.activeSymbols.size
@@ -258,7 +258,7 @@ router.post('/unsubscribe', authenticateUser, async (req, res) => {
     }
 
     if (!symbol || typeof symbol !== 'string') {
-      return res.status(400).json(responseFormatter.createErrorResponse('Valid symbol is required'));
+      return res.status(400).json(error('Valid symbol is required'));
     }
 
     const upperSymbol = symbol.toUpperCase();
@@ -284,7 +284,7 @@ router.post('/unsubscribe', authenticateUser, async (req, res) => {
       console.log(`✅ User ${userId} unsubscribed from ${upperSymbol}`);
     }
 
-    res.json(responseFormatter.createSuccessResponse({
+    res.json(success({
       symbol: upperSymbol,
       userId,
       unsubscribed: true,
@@ -294,7 +294,7 @@ router.post('/unsubscribe', authenticateUser, async (req, res) => {
 
   } catch (error) {
     console.error('Failed to unsubscribe from symbol:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to unsubscribe from symbol'));
+    res.status(500).json(error('Failed to unsubscribe from symbol'));
   }
 });
 
@@ -641,7 +641,7 @@ router.get('/status', authenticateUser, async (req, res) => {
     const { userId } = req.user;
     const userSubscriptions = serviceState.userSubscriptions.get(userId);
     
-    res.json(responseFormatter.createSuccessResponse({
+    res.json(success({
       isRunning: serviceState.isRunning,
       startTime: serviceState.startTime,
       uptime: serviceState.startTime ? Date.now() - serviceState.startTime : 0,
@@ -658,7 +658,7 @@ router.get('/status', authenticateUser, async (req, res) => {
 
   } catch (error) {
     console.error('Failed to get service status:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get service status'));
+    res.status(500).json(error('Failed to get service status'));
   }
 });
 

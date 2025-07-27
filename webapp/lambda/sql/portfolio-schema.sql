@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS portfolio_holdings (
     market_value DECIMAL(15, 2),
     unrealized_pl DECIMAL(15, 2),
     sector VARCHAR(100),
+    alpaca_asset_id VARCHAR(50),
+    last_sync_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, symbol)
@@ -134,6 +136,8 @@ CREATE TABLE IF NOT EXISTS price_alerts (
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_updated_at ON portfolio_holdings(updated_at);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_alpaca_asset_id ON portfolio_holdings(alpaca_asset_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_last_sync_at ON portfolio_holdings(last_sync_at);
 
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_sync_status ON portfolio_metadata(sync_status);

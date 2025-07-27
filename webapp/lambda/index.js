@@ -196,7 +196,8 @@ safeRouteLoader('./routes/sentiment', 'Market Sentiment', '/api/sentiment');
 // 7. CRYPTO ROUTES - Cryptocurrency features
 console.log('₿ Loading cryptocurrency routes...');
 safeRouteLoader('./routes/crypto', 'Crypto Base', '/api/crypto');
-safeRouteLoader('./routes/crypto-portfolio', 'Crypto Portfolio', '/api/crypto/portfolio');
+safeRouteLoader('./routes/crypto-portfolio', 'Crypto Portfolio', '/api/crypto-portfolio');
+safeRouteLoader('./routes/crypto-alerts', 'Crypto Alerts', '/api/crypto-alerts');
 safeRouteLoader('./routes/crypto-analytics', 'Crypto Analytics', '/api/crypto/analytics');
 safeRouteLoader('./routes/crypto-signals', 'Crypto Signals', '/api/crypto/signals');
 safeRouteLoader('./routes/crypto-risk', 'Crypto Risk', '/api/crypto/risk');
@@ -334,7 +335,7 @@ app.get('/api', (req, res) => {
       // Market Data Sources
       '/api/commodities', '/api/economic', '/api/news', '/api/calendar', '/api/sentiment',
       // Crypto Routes
-      '/api/crypto', '/api/crypto/portfolio', '/api/crypto/analytics', '/api/crypto/signals', '/api/crypto/risk',
+      '/api/crypto', '/api/crypto-portfolio', '/api/crypto-alerts', '/api/crypto/analytics', '/api/crypto/signals', '/api/crypto/risk',
       // Performance & Monitoring (Consolidated)
       '/api/performance', '/api/performance/analytics/*', '/api/hft',
       // Configuration & Settings (Consolidated)

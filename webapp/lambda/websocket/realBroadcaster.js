@@ -16,6 +16,9 @@ const MARKET_DATA_TABLE = process.env.MARKET_DATA_TABLE || 'market-data';
 
 // Initialize API Gateway Management API
 let apiGatewayManagementApi;
+const apigateway = new APIGatewayManagementApi({
+  endpoint: process.env.API_GATEWAY_ENDPOINT || 'https://your-api-gateway-endpoint.amazonaws.com/dev'
+});
 
 // Connection management
 const connections = new Map();

@@ -55,15 +55,16 @@ authRouter.use(authenticateToken);
 
 // Get news articles with sentiment analysis
 router.get('/articles', async (req, res) => {
+  const { 
+    symbol, 
+    category, 
+    sentiment, 
+    limit = 50, 
+    offset = 0, 
+    timeframe = '24h' 
+  } = req.query;
+  
   try {
-    const { 
-      symbol, 
-      category, 
-      sentiment, 
-      limit = 50, 
-      offset = 0, 
-      timeframe = '24h' 
-    } = req.query;
     
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -197,9 +198,10 @@ router.get('/articles', async (req, res) => {
 
 // Get sentiment analysis for a specific symbol
 router.get('/sentiment/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  const { timeframe = '24h' } = req.query;
+  
   try {
-    const { symbol } = req.params;
-    const { timeframe = '24h' } = req.query;
     
     const timeframeMap = {
       '1h': '1 hour',
@@ -323,8 +325,9 @@ router.get('/sentiment/:symbol', async (req, res) => {
 
 // Get market sentiment overview
 router.get('/market-sentiment', async (req, res) => {
+  const { timeframe = '24h' } = req.query;
+  
   try {
-    const { timeframe = '24h' } = req.query;
     
     const timeframeMap = {
       '1h': '1 hour',
@@ -460,8 +463,9 @@ router.get('/market-sentiment', async (req, res) => {
 
 // Analyze sentiment for custom text
 router.post('/analyze-sentiment', async (req, res) => {
+  const { text, symbol } = req.body;
+  
   try {
-    const { text, symbol } = req.body;
     
     if (!text) {
       return res.status(400).json({
@@ -623,8 +627,9 @@ router.get('/categories', async (req, res) => {
 
 // Get trending topics
 router.get('/trending', async (req, res) => {
+  const { timeframe = '24h', limit = 10 } = req.query;
+  
   try {
-    const { timeframe = '24h', limit = 10 } = req.query;
     
     const timeframeMap = {
       '1h': '1 hour',

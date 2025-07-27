@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, safeQuery, tablesExist } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const backtestStore = require('../utils/backtestStore');
 const { 
   createValidationMiddleware, 
   rateLimitConfigs, 
@@ -749,12 +750,12 @@ async function getHistoricalData(symbol, startDate, endDate) {
     
     const result = await query(sqlQuery, [symbol, startDate, endDate]);
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      throw new Error(`No data found for symbol ${symbol} between ${startDate} and ${endDate}`);
     }
     return result.rows;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error);
-    return res.status(500).json({ error: 'Database error', details: error.message });
+    throw error;
   }
 }
 
