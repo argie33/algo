@@ -406,7 +406,7 @@ describe('Real AWS Services Integration Tests', function() {
                 });
                 
                 // Should not reach here
-                expect.fail('Expected authentication error');
+                expect.throw new Error('Expected authentication error');
             } catch (error) {
                 if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
                     console.warn('API endpoint not available, skipping test');

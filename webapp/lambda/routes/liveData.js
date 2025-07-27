@@ -428,6 +428,7 @@ router.post('/admin/feeds', authenticateToken, isAdmin, async (req, res) => {
     
     try {
       // Start Alpaca feed if service is available
+      const alpacaService = await getUserAlpacaService(req.user.userId);
       if (alpacaService) {
         await alpacaService.connect();
         
@@ -486,6 +487,7 @@ router.delete('/admin/feeds/:feedId', authenticateToken, isAdmin, async (req, re
     feed.status = 'stopping';
     
     try {
+      const alpacaService = await getUserAlpacaService(req.user.userId);
       if (alpacaService) {
         await alpacaService.unsubscribe(feed.symbols);
       }
@@ -534,6 +536,7 @@ router.post('/admin/feeds/:feedId/symbols', authenticateToken, isAdmin, async (r
     feed.symbols.push(upperSymbol);
     
     // Subscribe to new symbol if service is available
+    const alpacaService = await getUserAlpacaService(req.user.userId);
     if (alpacaService) {
       if (feed.dataTypes.includes('trades')) {
         await alpacaService.subscribeToTrades([upperSymbol]);
@@ -568,6 +571,7 @@ router.get('/admin/symbols/search', authenticateToken, isAdmin, async (req, res)
       return res.status(400).json(error('Search query is required'));
     }
     
+    const alpacaService = await getUserAlpacaService(req.user.userId);
     if (!alpacaService) {
       return res.status(503).json(error('Alpaca service not available - cannot search symbols'));
     }

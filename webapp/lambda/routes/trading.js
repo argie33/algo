@@ -1480,7 +1480,7 @@ router.post('/orders',
     }
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -1706,7 +1706,7 @@ router.get('/orders', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
 
     // Get live status from Alpaca for recent orders
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (credentials) {
       const alpaca = new AlpacaService(
         credentials.apiKey,
@@ -1794,7 +1794,7 @@ router.get('/orders/:orderId', async (req, res) => {
     const order = orderResult.rows[0];
 
     // Get live status from Alpaca
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (credentials) {
       const alpaca = new AlpacaService(
         credentials.apiKey,
@@ -1863,7 +1863,7 @@ router.delete('/orders/:orderId', async (req, res) => {
     }
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -1913,7 +1913,7 @@ router.get('/positions', async (req, res) => {
     const { symbol } = req.query;
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -1999,7 +1999,7 @@ router.delete('/positions/:symbol', async (req, res) => {
     const { percentage = 100 } = req.body;
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -2050,7 +2050,7 @@ router.get('/account', async (req, res) => {
     }
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -2109,7 +2109,7 @@ router.get('/market/hours', async (req, res) => {
     const { date } = req.query;
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -2152,7 +2152,7 @@ router.get('/quotes/:symbol', async (req, res) => {
     const { symbol } = req.params;
 
     // Get user's API credentials
-    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
     if (!credentials) {
       return res.status(401).json({
         success: false,
@@ -2308,7 +2308,7 @@ router.post('/position-sizing',
     // Get account value if not provided
     let totalAccountValue = accountValue;
     if (!totalAccountValue) {
-      const credentials = await getUserApiKey(userId, 'alpaca');
+      const credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
       if (credentials) {
         const alpaca = new AlpacaService(
           credentials.apiKey,
@@ -2429,7 +2429,7 @@ router.get('/history', createValidationMiddleware(tradingValidationSchemas.trade
     
     let credentials;
     try {
-      credentials = await getUserApiKey(userId, 'alpaca');
+      credentials = await unifiedApiKeyService.getAlpacaKey(userId, 'alpaca');
       const credentialsDuration = Date.now() - credentialsStart;
       
       if (!credentials) {

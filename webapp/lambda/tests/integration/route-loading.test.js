@@ -45,7 +45,7 @@ describe('Route Loading Integration Tests', () => {
           expect(response.body.message).not.toContain('Route failed to load');
         }
       } catch (error) {
-        fail(`Settings route failed to load: ${error.message}`);
+        throw new Error(`Settings route failed to load: ${error.message}`);
       }
     });
 
@@ -65,7 +65,7 @@ describe('Route Loading Integration Tests', () => {
           expect(response.body.message).not.toContain('Route failed to load');
         }
       } catch (error) {
-        fail(`Portfolio route failed to load: ${error.message}`);
+        throw new Error(`Portfolio route failed to load: ${error.message}`);
       }
     });
 
@@ -85,7 +85,7 @@ describe('Route Loading Integration Tests', () => {
           expect(response.body.message).not.toContain('Route failed to load');
         }
       } catch (error) {
-        fail(`User route failed to load: ${error.message}`);
+        throw new Error(`User route failed to load: ${error.message}`);
       }
     });
 
@@ -106,7 +106,7 @@ describe('Route Loading Integration Tests', () => {
           expect(response.body.message).not.toContain('Route failed to load');
         }
       } catch (error) {
-        fail(`CloudFormation route failed to load: ${error.message}`);
+        throw new Error(`CloudFormation route failed to load: ${error.message}`);
       }
     });
   });

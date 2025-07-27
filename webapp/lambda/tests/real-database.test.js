@@ -224,7 +224,7 @@ describe('Real Database Operations - NO MOCKS', () => {
     test('Handle invalid SQL queries', async () => {
       try {
         await query('SELECT * FROM nonexistent_table');
-        fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
         expect(error.message).toContain('relation "nonexistent_table" does not exist');
@@ -235,7 +235,7 @@ describe('Real Database Operations - NO MOCKS', () => {
     test('Handle malformed SQL', async () => {
       try {
         await query('INVALID SQL STATEMENT');
-        fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
         console.log('✅ Malformed SQL properly rejected');

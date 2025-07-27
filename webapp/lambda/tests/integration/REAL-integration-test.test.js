@@ -270,7 +270,7 @@ describe('REAL AWS Infrastructure Integration Tests', () => {
     test('API handles invalid routes gracefully', async () => {
       try {
         await axios.get(`${API_BASE_URL}/api/nonexistent-endpoint`);
-        fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
         expect(error.response.status).toBe(404);
         expect(error.response.data).toHaveProperty('error');
@@ -282,7 +282,7 @@ describe('REAL AWS Infrastructure Integration Tests', () => {
         await axios.post(`${API_BASE_URL}/api/auth/login`, {
           invalid: 'data'
         });
-        fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
         expect([400, 422]).toContain(error.response.status);
         expect(error.response.data).toHaveProperty('error');
@@ -292,7 +292,7 @@ describe('REAL AWS Infrastructure Integration Tests', () => {
     test('API returns proper error structure', async () => {
       try {
         await axios.get(`${API_BASE_URL}/api/protected-endpoint`);
-        fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
         const errorData = error.response.data;
         

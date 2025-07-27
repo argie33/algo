@@ -242,7 +242,7 @@ describe('Circuit Breaker Utilities Unit Tests', () => {
       // Next operation should fail immediately with circuit breaker error
       try {
         await dbBreaker.execute(failOperation, 'should-be-blocked');
-        fail('Should have thrown circuit breaker error');
+        throw new Error('Should have thrown circuit breaker error');
       } catch (error) {
         expect(error.message).toContain('Circuit breaker is OPEN');
       }

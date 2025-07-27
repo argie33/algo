@@ -288,6 +288,7 @@ const generateAIResponse = async (userMessage, userId, context = {}) => {
 router.post('/chat', async (req, res) => {
   const userId = req.user.sub;
   const { message, context = {} } = req.body;
+  const conversationId = req.body.conversationId || 'default';
 
   if (!message || !message.trim()) {
     return res.status(400).json({
@@ -297,7 +298,6 @@ router.post('/chat', async (req, res) => {
   }
 
   try {
-    const conversationId = req.body.conversationId || 'default';
     
     // Add user message to history
     const userMessage = {

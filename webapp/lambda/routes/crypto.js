@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
 const enhancedCryptoDataService = require('../services/enhancedCryptoDataService');
+const cryptoPortfolioService = require('../services/cryptoPortfolioService');
 const cryptoErrorHandler = require('../utils/cryptoErrorHandler');
 const CryptoWebSocketManager = require('../services/cryptoWebSocketManager');
 
@@ -32,7 +33,12 @@ router.get('/', (req, res) => {
         'GET /crypto/prices/:symbol - Real-time price data for specific crypto',
         'GET /crypto/historical/:symbol - Historical price charts',
         'GET /crypto/market-overview - Comprehensive market overview',
-        'GET /crypto/portfolio - User crypto portfolio',
+        'GET /crypto/portfolio - Comprehensive user crypto portfolio with analytics',
+        'POST /crypto/portfolio/holdings - Add or update portfolio holding',
+        'DELETE /crypto/portfolio/holdings/:symbol - Remove portfolio holding',
+        'POST /crypto/portfolio/transactions - Record crypto transaction',
+        'GET /crypto/portfolio/transactions - Get transaction history',
+        'GET /crypto/portfolio/allocation - Portfolio allocation analysis',
         'GET /crypto/news - Cryptocurrency news',
         'GET /crypto/defi/tvl - DeFi Total Value Locked',
         'GET /crypto/exchanges - Exchange information',
@@ -715,56 +721,199 @@ router.get('/historical/:symbol', async (req, res) => {
   }
 });
 
-// GET /crypto/portfolio - Get crypto portfolio for user
+// GET /crypto/portfolio - Get comprehensive crypto portfolio for user
 router.get('/portfolio', async (req, res) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.id || req.query.userId || 'demo-user';
+    const includeTransactions = req.query.includeTransactions === 'true';
+    const includePerformance = req.query.includePerformance === 'true';
     
-    const result = await query(`
-      SELECT 
-        p.symbol,
-        p.quantity,
-        p.average_cost,
-        p.current_price,
-        p.market_value,
-        p.total_cost,
-        p.unrealized_pnl,
-        p.unrealized_pnl_percent,
-        p.last_updated,
-        a.name as asset_name,
-        a.blockchain
-      FROM crypto_portfolio p
-      LEFT JOIN crypto_assets a ON p.symbol = a.symbol
-      WHERE p.user_id = $1 
-        AND p.quantity > 0
-      ORDER BY p.market_value DESC
-    `, [userId]);
+    console.log(`📊 Fetching crypto portfolio for user ${userId}`);
+    
+    const portfolioData = await cryptoPortfolioService.getUserPortfolio(userId, {
+      includeTransactions,
+      includePerformance
+    });
 
-    // Calculate portfolio summary
-    const totalValue = result.rows.reduce((sum, holding) => sum + parseFloat(holding.market_value || 0), 0);
-    const totalCost = result.rows.reduce((sum, holding) => sum + parseFloat(holding.total_cost || 0), 0);
-    const totalPnl = totalValue - totalCost;
-    const totalPnlPercent = totalCost > 0 ? ((totalPnl / totalCost) * 100) : 0;
+    res.json(portfolioData);
+  } catch (error) {
+    console.error('Error fetching crypto portfolio:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/portfolio',
+      dataType: 'portfolio',
+      userId: req.user?.id || req.query.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: errorResponse
+    });
+  }
+});
+
+// POST /crypto/portfolio/holdings - Add or update portfolio holding
+router.post('/portfolio/holdings', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.body.userId || 'demo-user';
+    const { symbol, quantity, averageCost, transactionType = 'manual' } = req.body;
+    
+    if (!symbol || quantity === undefined || averageCost === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, quantity, averageCost'
+      });
+    }
+    
+    console.log(`💰 Updating holding for user ${userId}: ${symbol} ${quantity} @ ${averageCost}`);
+    
+    const result = await cryptoPortfolioService.updateHolding(
+      userId, 
+      symbol, 
+      parseFloat(quantity), 
+      parseFloat(averageCost),
+      transactionType
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error updating portfolio holding:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/portfolio/holdings',
+      dataType: 'portfolio_update'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: errorResponse
+    });
+  }
+});
+
+// DELETE /crypto/portfolio/holdings/:symbol - Remove portfolio holding
+router.delete('/portfolio/holdings/:symbol', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.query.userId || 'demo-user';
+    const { symbol } = req.params;
+    
+    console.log(`🗑️ Deleting holding for user ${userId}: ${symbol}`);
+    
+    const result = await cryptoPortfolioService.deleteHolding(userId, symbol);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting portfolio holding:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/portfolio/holdings',
+      dataType: 'portfolio_delete'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: errorResponse
+    });
+  }
+});
+
+// POST /crypto/portfolio/transactions - Record a crypto transaction
+router.post('/portfolio/transactions', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.body.userId || 'demo-user';
+    const { symbol, transactionType, quantity, price, fees = 0, exchange = 'manual', notes = '' } = req.body;
+    
+    if (!symbol || !transactionType || quantity === undefined || price === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, transactionType, quantity, price'
+      });
+    }
+    
+    console.log(`📝 Recording transaction for user ${userId}: ${transactionType} ${quantity} ${symbol} @ ${price}`);
+    
+    const result = await cryptoPortfolioService.recordTransaction(
+      userId, 
+      symbol, 
+      transactionType,
+      parseFloat(quantity), 
+      parseFloat(price),
+      parseFloat(fees),
+      exchange,
+      notes
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error recording transaction:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/portfolio/transactions',
+      dataType: 'transaction_record'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: errorResponse
+    });
+  }
+});
+
+// GET /crypto/portfolio/transactions - Get user's transaction history
+router.get('/portfolio/transactions', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.query.userId || 'demo-user';
+    const limit = parseInt(req.query.limit) || 50;
+    
+    console.log(`📋 Fetching transactions for user ${userId}`);
+    
+    const transactions = await cryptoPortfolioService.getRecentTransactions(userId, limit);
 
     res.json({
       success: true,
-      data: {
-        holdings: result.rows,
-        summary: {
-          total_value: totalValue,
-          total_cost: totalCost,
-          total_pnl: totalPnl,
-          total_pnl_percent: totalPnlPercent,
-          positions_count: result.rows.length,
-          last_updated: new Date().toISOString()
-        }
+      data: transactions,
+      metadata: {
+        count: transactions.length,
+        limit,
+        user_id: userId
       }
     });
   } catch (error) {
-    console.error('Error fetching crypto portfolio:', error);
+    console.error('Error fetching transactions:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/portfolio/transactions',
+      dataType: 'transaction_history'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch crypto portfolio'
+      error: errorResponse
+    });
+  }
+});
+
+// GET /crypto/portfolio/allocation - Get portfolio allocation analysis
+router.get('/portfolio/allocation', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.query.userId || 'demo-user';
+    
+    console.log(`🥧 Fetching portfolio allocation for user ${userId}`);
+    
+    const allocation = await cryptoPortfolioService.getPortfolioAllocation(userId);
+
+    res.json(allocation);
+  } catch (error) {
+    console.error('Error fetching portfolio allocation:', error);
+    
+    const errorResponse = cryptoErrorHandler.handleError(error, {
+      endpoint: '/portfolio/allocation',
+      dataType: 'portfolio_allocation'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: errorResponse
     });
   }
 });

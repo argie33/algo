@@ -80,7 +80,7 @@ describe('Database Circuit Breaker Integration Tests', () => {
       // Next operation should fail immediately
       try {
         await dbCircuitBreaker.execute(persistentFailure, 'should-be-blocked');
-        fail('Should have been blocked by circuit breaker');
+        throw new Error('Should have been blocked by circuit breaker');
       } catch (error) {
         expect(error.message).toContain('Circuit breaker is OPEN');
       }

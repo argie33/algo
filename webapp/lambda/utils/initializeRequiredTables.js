@@ -20,14 +20,30 @@ const REQUIRED_TABLES = [
   'users',
   'user_api_keys', 
   'portfolio_holdings',
-  'portfolio_metadata'
+  'portfolio_metadata',
+  'crypto_assets',
+  'crypto_portfolio',
+  'crypto_transactions',
+  'crypto_alerts'
 ];
 
 // Optional tables that enhance functionality
 const OPTIONAL_TABLES = [
   'market_data',
   'stock_symbols',
-  'symbols'
+  'symbols',
+  'crypto_prices',
+  'crypto_historical_prices',
+  'crypto_market_metrics',
+  'crypto_fear_greed',
+  'crypto_movers',
+  'crypto_trending',
+  'crypto_news',
+  'defi_tvl',
+  'crypto_exchanges',
+  'crypto_watchlists',
+  'crypto_watchlist_items',
+  'crypto_api_keys'
 ];
 
 /**

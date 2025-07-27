@@ -119,7 +119,7 @@ describe('Real Authentication System - NO MOCKS', () => {
         
         try {
           jwt.verify(expiredToken, jwtSecret, { algorithms: ['HS256'] });
-          fail('Should have rejected expired token');
+          throw new Error('Should have rejected expired token');
         } catch (verifyError) {
           expect(verifyError.name).toBe('TokenExpiredError');
           console.log('✅ Expired token properly rejected');
@@ -142,7 +142,7 @@ describe('Real Authentication System - NO MOCKS', () => {
         for (const badToken of malformedTokens) {
           try {
             jwt.verify(badToken, jwtSecret, { algorithms: ['HS256'] });
-            fail(`Should have rejected malformed token: ${badToken}`);
+            throw new Error(`Should have rejected malformed token: ${badToken}`);
           } catch (verifyError) {
             expect(['JsonWebTokenError', 'NotBeforeError', 'TokenExpiredError'])
               .toContain(verifyError.name);
@@ -276,7 +276,7 @@ describe('Real Authentication System - NO MOCKS', () => {
         // Try to verify with wrong secret
         try {
           jwt.verify(validToken, 'wrong-secret', { algorithms: ['HS256'] });
-          fail('Should have rejected token with wrong secret');
+          throw new Error('Should have rejected token with wrong secret');
         } catch (verifyError) {
           expect(verifyError.name).toBe('JsonWebTokenError');
           console.log('✅ Token signature verification working');
@@ -297,7 +297,7 @@ describe('Real Authentication System - NO MOCKS', () => {
         // Try to verify as RS256 (should fail)
         try {
           jwt.verify(hsToken, jwtSecret, { algorithms: ['RS256'] });
-          fail('Should have rejected algorithm mismatch');
+          throw new Error('Should have rejected algorithm mismatch');
         } catch (verifyError) {
           expect(verifyError.name).toBe('JsonWebTokenError');
           console.log('✅ Algorithm tampering protection working');

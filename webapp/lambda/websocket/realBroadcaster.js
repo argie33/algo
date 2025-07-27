@@ -5,7 +5,14 @@
 const AWS = require('aws-sdk');
 const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 const { APIGatewayManagementApi } = AWS;
+
+// DynamoDB configuration
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const CONNECTIONS_TABLE = process.env.CONNECTIONS_TABLE || 'websocket-connections';
+const SUBSCRIPTIONS_TABLE = process.env.SUBSCRIPTIONS_TABLE || 'websocket-subscriptions';
+const MARKET_DATA_TABLE = process.env.MARKET_DATA_TABLE || 'market-data';
 
 // Initialize API Gateway Management API
 let apiGatewayManagementApi;
