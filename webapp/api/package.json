@@ -1,0 +1,60 @@
+{
+  "name": "financial-dashboard-lambda",
+  "version": "1.0.0",
+  "description": "Serverless Lambda function for Financial Data Dashboard API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest",
+    "lint": "eslint . --ext js --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext js --fix",
+    "package": "npm prune --production && zip -r function.zip . -x '*.git*' 'node_modules/.cache/*' 'tests/*' 'coverage/*'",
+    "deploy-package": "npm run package && aws lambda update-function-code --function-name financial-dashboard-api --zip-file fileb://function.zip"
+  },
+  "dependencies": {
+    "@alpacahq/alpaca-trade-api": "^3.0.3",
+    "@aws-sdk/client-cognito-identity-provider": "^3.840.0",
+    "@aws-sdk/client-secrets-manager": "^3.454.0",
+    "@aws-sdk/rds-signer": "^3.454.0",
+    "aws-jwt-verify": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.11.3",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "axios": "^1.6.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "serverless",
+    "lambda",
+    "financial",
+    "dashboard",
+    "api"
+  ],
+  "author": "Financial Dashboard Team",
+  "license": "MIT",
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "*.js",
+      "utils/*.js",
+      "routes/*.js",
+      "middleware/*.js",
+      "!index.js"
+    ]
+  }
+}

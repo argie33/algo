@@ -1,17 +1,21 @@
-const express = require('express');
-const { query } = require('../utils/database');
-const { authenticateToken } = require('../middleware/auth');
-const schemaValidator = require('../utils/schemaValidator');
-const { createValidationMiddleware, validationSchemas, sanitizers } = require('../middleware/validation');
+const express = require("express");
+const { query } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
+const schemaValidator = require("../utils/schemaValidator");
+const {
+  createValidationMiddleware,
+  validationSchemas,
+  sanitizers,
+} = require("../middleware/validation");
 
 const router = express.Router();
 
 // Public endpoints (no authentication required)
 // Get available sectors for filtering - public endpoint for general market data
-router.get('/sectors', async (req, res) => {
+router.get("/sectors", async (req, res) => {
   try {
-    console.log('Sectors endpoint called (public)');
-    
+    console.log("Sectors endpoint called (public)");
+
     // Use robust query with proper error handling instead of fallback chains
     const sectorsQuery = `
       SELECT 
@@ -24,57 +28,65 @@ router.get('/sectors', async (req, res) => {
       GROUP BY s.sector
       ORDER BY count DESC
     `;
-    
+
     let result;
     try {
       // Add query timeout to prevent long waits
       const queryPromise = query(sectorsQuery);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Query timeout after 10 seconds")),
+          10000
+        )
       );
-      
+
       result = await Promise.race([queryPromise, timeoutPromise]);
-      console.log(`✅ Sectors query successful: ${result.rows.length} sectors found`);
+      console.log(
+        `✅ Sectors query successful: ${result.rows.length} sectors found`
+      );
     } catch (dbError) {
-      console.error('❌ Sectors query failed - comprehensive diagnosis needed', {
-        query_type: 'sectors_aggregation',
-        error_message: dbError.message,
-        detailed_diagnostics: {
-          attempted_operations: ['stock_symbols_query', 'sector_aggregation'],
-          potential_causes: [
-            'stock_symbols table missing',
-            'Database connection failure',
-            'Schema validation error',
-            'Data type mismatch',
-            'Insufficient database permissions',
-            'Query timeout'
-          ],
-          troubleshooting_steps: [
-            'Check if stock_symbols table exists',
-            'Verify database connection health',
-            'Validate table schema structure',
-            'Check database permissions',
-            'Review query syntax and data types',
-            'Monitor database performance'
-          ],
-          system_checks: [
-            'Database health status',
-            'Table existence validation',
-            'Schema integrity check',
-            'Connection pool availability'
-          ]
+      console.error(
+        "❌ Sectors query failed - comprehensive diagnosis needed",
+        {
+          query_type: "sectors_aggregation",
+          error_message: dbError.message,
+          detailed_diagnostics: {
+            attempted_operations: ["stock_symbols_query", "sector_aggregation"],
+            potential_causes: [
+              "stock_symbols table missing",
+              "Database connection failure",
+              "Schema validation error",
+              "Data type mismatch",
+              "Insufficient database permissions",
+              "Query timeout",
+            ],
+            troubleshooting_steps: [
+              "Check if stock_symbols table exists",
+              "Verify database connection health",
+              "Validate table schema structure",
+              "Check database permissions",
+              "Review query syntax and data types",
+              "Monitor database performance",
+            ],
+            system_checks: [
+              "Database health status",
+              "Table existence validation",
+              "Schema integrity check",
+              "Connection pool availability",
+            ],
+          },
         }
-      });
+      );
       throw dbError; // Re-throw to trigger proper error handling
     }
-    
-    const sectors = result.rows.map(row => ({
+
+    const sectors = result.rows.map((row) => ({
       sector: row.sector,
       count: parseInt(row.count),
       avg_market_cap: parseFloat(row.avg_market_cap) || 0,
-      avg_pe_ratio: parseFloat(row.avg_pe_ratio) || null
+      avg_pe_ratio: parseFloat(row.avg_pe_ratio) || null,
     }));
-    
+
     // If no sectors found, provide helpful message about data loading
     if (sectors.length === 0) {
       res.json({
@@ -84,69 +96,74 @@ router.get('/sectors', async (req, res) => {
         recommendations: [
           "Run stock symbols data loader to populate basic stock data",
           "Check if ECS data loading tasks are completing successfully",
-          "Verify database connectivity and schema"
+          "Verify database connectivity and schema",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
         success: true,
         data: sectors,
         count: sectors.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
   } catch (error) {
-    console.error('Error fetching sectors, using fallback data:', error);
-    
+    console.error("Error fetching sectors, using fallback data:", error);
+
     // Return empty sectors with comprehensive diagnostics
-    console.error('❌ Sectors data unavailable - comprehensive diagnosis needed', {
-      database_query_failed: true,
-      detailed_diagnostics: {
-        attempted_operations: ['stock_symbols_enhanced_query', 'stock_symbols_basic_query'],
-        potential_causes: [
-          'Database connection failure',
-          'stock_symbols table missing',
-          'stock_symbols_enhanced table missing',
-          'valuation_multiples table missing',
-          'Data loading scripts not executed',
-          'Database tables corrupted or empty'
-        ],
-        troubleshooting_steps: [
-          'Check database connectivity',
-          'Verify stock_symbols table exists',
-          'Verify stock_symbols_enhanced table exists',
-          'Check data loading process status',
-          'Review table structure and data integrity'
-        ],
-        system_checks: [
-          'Database health status',
-          'Table existence validation',
-          'Data freshness assessment',
-          'Schema validation'
-        ]
+    console.error(
+      "❌ Sectors data unavailable - comprehensive diagnosis needed",
+      {
+        database_query_failed: true,
+        detailed_diagnostics: {
+          attempted_operations: [
+            "stock_symbols_enhanced_query",
+            "stock_symbols_basic_query",
+          ],
+          potential_causes: [
+            "Database connection failure",
+            "stock_symbols table missing",
+            "stock_symbols_enhanced table missing",
+            "valuation_multiples table missing",
+            "Data loading scripts not executed",
+            "Database tables corrupted or empty",
+          ],
+          troubleshooting_steps: [
+            "Check database connectivity",
+            "Verify stock_symbols table exists",
+            "Verify stock_symbols_enhanced table exists",
+            "Check data loading process status",
+            "Review table structure and data integrity",
+          ],
+          system_checks: [
+            "Database health status",
+            "Table existence validation",
+            "Data freshness assessment",
+            "Schema validation",
+          ],
+        },
       }
-    });
-    
+    );
+
     const emptySectors = [];
-    
+
     res.json({
       success: true,
       data: emptySectors,
-      message: 'No sectors data available - check data loading process',
-      timestamp: new Date().toISOString()
+      message: "No sectors data available - check data loading process",
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Public endpoint for monitoring purposes - basic stock data without authentication
-router.get('/public/sample', async (req, res) => {
+router.get("/public/sample", async (req, res) => {
   try {
-    console.log('Public stocks sample endpoint called for monitoring');
-    
+    console.log("Public stocks sample endpoint called for monitoring");
+
     const limit = parseInt(req.query.limit) || 5;
-    
+
     // Use robust query with proper error handling instead of fallback chains
     const stocksQuery = `
       SELECT symbol, name as company_name, sector, exchange, market_cap
@@ -155,66 +172,76 @@ router.get('/public/sample', async (req, res) => {
       ORDER BY market_cap DESC NULLS LAST
       LIMIT $1
     `;
-    
+
     let result;
     try {
       // Add query timeout to prevent long waits
       const queryPromise = query(stocksQuery, [limit]);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 8 seconds')), 8000)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Query timeout after 8 seconds")),
+          8000
+        )
       );
-      
+
       result = await Promise.race([queryPromise, timeoutPromise]);
-      console.log(`✅ Public stocks sample query successful: ${result.rows.length} stocks found`);
+      console.log(
+        `✅ Public stocks sample query successful: ${result.rows.length} stocks found`
+      );
     } catch (dbError) {
-      console.error('❌ Public stocks sample query failed - comprehensive diagnosis needed', {
-        query_type: 'public_stocks_sample',
-        limit,
-        error_message: dbError.message,
-        detailed_diagnostics: {
-          attempted_operations: ['stock_symbols_query', 'market_cap_ordering'],
-          potential_causes: [
-            'stock_symbols table missing',
-            'Database connection failure',
-            'Schema validation error',
-            'Data type mismatch in market_cap column',
-            'Insufficient database permissions',
-            'Query timeout'
-          ],
-          troubleshooting_steps: [
-            'Check if stock_symbols table exists',
-            'Verify database connection health',
-            'Validate table schema structure',
-            'Check market_cap column data types',
-            'Review database permissions',
-            'Monitor query execution time'
-          ],
-          system_checks: [
-            'Database health status',
-            'Table existence validation',
-            'Schema integrity check',
-            'Connection pool availability'
-          ]
+      console.error(
+        "❌ Public stocks sample query failed - comprehensive diagnosis needed",
+        {
+          query_type: "public_stocks_sample",
+          limit,
+          error_message: dbError.message,
+          detailed_diagnostics: {
+            attempted_operations: [
+              "stock_symbols_query",
+              "market_cap_ordering",
+            ],
+            potential_causes: [
+              "stock_symbols table missing",
+              "Database connection failure",
+              "Schema validation error",
+              "Data type mismatch in market_cap column",
+              "Insufficient database permissions",
+              "Query timeout",
+            ],
+            troubleshooting_steps: [
+              "Check if stock_symbols table exists",
+              "Verify database connection health",
+              "Validate table schema structure",
+              "Check market_cap column data types",
+              "Review database permissions",
+              "Monitor query execution time",
+            ],
+            system_checks: [
+              "Database health status",
+              "Table existence validation",
+              "Schema integrity check",
+              "Connection pool availability",
+            ],
+          },
         }
-      });
+      );
       throw dbError; // Re-throw to trigger proper error handling
     }
-    
+
     res.json({
       success: true,
       data: result.rows,
       count: result.rows.length,
-      endpoint: 'public-sample',
-      timestamp: new Date().toISOString()
+      endpoint: "public-sample",
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('Error in public stocks sample endpoint:', error);
+    console.error("Error in public stocks sample endpoint:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch stock data',
-      endpoint: 'public-sample',
-      timestamp: new Date().toISOString()
+      error: "Failed to fetch stock data",
+      endpoint: "public-sample",
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -223,11 +250,11 @@ router.get('/public/sample', async (req, res) => {
 router.use(authenticateToken);
 
 // Basic ping endpoint
-router.get('/ping', (req, res) => {
+router.get("/ping", (req, res) => {
   res.json({
-    status: 'ok',
-    endpoint: 'stocks',
-    timestamp: new Date().toISOString()
+    status: "ok",
+    endpoint: "stocks",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -235,54 +262,66 @@ router.get('/ping', (req, res) => {
 const stocksListValidation = createValidationMiddleware({
   ...validationSchemas.pagination,
   search: {
-    type: 'string',
-    sanitizer: (value) => sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+    type: "string",
+    sanitizer: (value) =>
+      sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
     validator: (value) => !value || value.length <= 100,
-    errorMessage: 'Search query must be 100 characters or less'
+    errorMessage: "Search query must be 100 characters or less",
   },
   sector: {
-    type: 'string',
-    sanitizer: (value) => sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+    type: "string",
+    sanitizer: (value) =>
+      sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
     validator: (value) => !value || /^[a-zA-Z\s&-]{1,50}$/.test(value),
-    errorMessage: 'Sector must be valid sector name'
+    errorMessage: "Sector must be valid sector name",
   },
   exchange: {
-    type: 'string',
-    sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }).toUpperCase(),
+    type: "string",
+    sanitizer: (value) =>
+      sanitizers.string(value, { maxLength: 10 }).toUpperCase(),
     validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
-    errorMessage: 'Exchange must be valid exchange code'
+    errorMessage: "Exchange must be valid exchange code",
   },
   sortBy: {
-    type: 'string',
-    sanitizer: (value) => sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
-    validator: (value) => !value || ['symbol', 'ticker', 'name', 'exchange', 'market_category'].includes(value),
-    errorMessage: 'Invalid sort field'
+    type: "string",
+    sanitizer: (value) =>
+      sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
+    validator: (value) =>
+      !value ||
+      ["symbol", "ticker", "name", "exchange", "market_category"].includes(
+        value
+      ),
+    errorMessage: "Invalid sort field",
   },
   sortOrder: {
-    type: 'string',
-    sanitizer: (value) => sanitizers.string(value, { maxLength: 4 }).toLowerCase(),
-    validator: (value) => !value || ['asc', 'desc'].includes(value),
-    errorMessage: 'Sort order must be asc or desc'
-  }
+    type: "string",
+    sanitizer: (value) =>
+      sanitizers.string(value, { maxLength: 4 }).toLowerCase(),
+    validator: (value) => !value || ["asc", "desc"].includes(value),
+    errorMessage: "Sort order must be asc or desc",
+  },
 });
 
 // OPTIMIZED: Main stocks endpoint with fast queries and all data visible
-router.get('/', stocksListValidation, async (req, res) => {
+router.get("/", stocksListValidation, async (req, res) => {
   try {
-    console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
-    console.log('Triggering workflow deploy');
-    
+    console.log(
+      "OPTIMIZED Stocks main endpoint called with params:",
+      req.query
+    );
+    console.log("Triggering workflow deploy");
+
     // Use validated and sanitized parameters from validation middleware
     const page = req.validated.page || 1;
     const limit = req.validated.limit || 50;
     const offset = (page - 1) * limit;
-    const search = req.validated.search || '';
-    const sector = req.validated.sector || '';
-    const exchange = req.validated.exchange || '';
-    const sortBy = req.validated.sortBy || 'symbol';
-    const sortOrder = req.validated.sortOrder || 'asc';
-    
-    let whereClause = 'WHERE 1=1';
+    const search = req.validated.search || "";
+    const sector = req.validated.sector || "";
+    const exchange = req.validated.exchange || "";
+    const sortBy = req.validated.sortBy || "symbol";
+    const sortOrder = req.validated.sortOrder || "asc";
+
+    let whereClause = "WHERE 1=1";
     const params = [];
     let paramCount = 0;
 
@@ -294,14 +333,14 @@ router.get('/', stocksListValidation, async (req, res) => {
     }
 
     // Add sector filter (on s.sector)
-    if (sector && sector.trim() !== '') {
+    if (sector && sector.trim() !== "") {
       paramCount++;
       whereClause += ` AND s.sector = $${paramCount}`;
       params.push(sector);
     }
 
     // Add exchange filter (on ss.exchange)
-    if (exchange && exchange.trim() !== '') {
+    if (exchange && exchange.trim() !== "") {
       paramCount++;
       whereClause += ` AND ss.exchange = $${paramCount}`;
       params.push(exchange);
@@ -309,17 +348,22 @@ router.get('/', stocksListValidation, async (req, res) => {
 
     // FAST sort columns
     const validSortColumns = {
-      'ticker': 'ss.symbol',
-      'symbol': 'ss.symbol', 
-      'name': 'ss.security_name',
-      'exchange': 'ss.exchange',
-      'market_category': 'ss.market_category'
+      ticker: "ss.symbol",
+      symbol: "ss.symbol",
+      name: "ss.security_name",
+      exchange: "ss.exchange",
+      market_category: "ss.market_category",
     };
 
-    const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
-    const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+    const sortColumn = validSortColumns[sortBy] || "ss.symbol";
+    const sortDirection = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
 
-    console.log('OPTIMIZED query params:', { whereClause, params, limit, offset });
+    console.log("OPTIMIZED query params:", {
+      whereClause,
+      params,
+      limit,
+      offset,
+    });
 
     // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
     const stocksQuery = `
@@ -461,29 +505,31 @@ router.get('/', stocksListValidation, async (req, res) => {
       ${whereClause}
     `;
 
-    console.log('Executing FAST queries with schema validation...');
+    console.log("Executing FAST queries with schema validation...");
 
     // Execute queries with schema validation
     const [stocksResult, countResult] = await Promise.all([
       schemaValidator.safeQuery(stocksQuery, params, {
         validateTables: true,
         throwOnMissingTable: false,
-        timeout: 10000
+        timeout: 10000,
       }),
       schemaValidator.safeQuery(countQuery, params.slice(0, -2), {
         validateTables: true,
         throwOnMissingTable: false,
-        timeout: 5000
-      })
+        timeout: 5000,
+      }),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    console.log(`FAST query results: ${stocksResult.rows.length} stocks, ${total} total`);
+    console.log(
+      `FAST query results: ${stocksResult.rows.length} stocks, ${total} total`
+    );
 
     // Professional formatting with ALL comprehensive data from loadinfo
-    const formattedStocks = stocksResult.rows.map(stock => ({
+    const formattedStocks = stocksResult.rows.map((stock) => ({
       // Core identification
       ticker: stock.symbol,
       symbol: stock.symbol,
@@ -491,13 +537,13 @@ router.get('/', stocksListValidation, async (req, res) => {
       fullName: stock.long_name || stock.security_name,
       shortName: stock.short_name,
       displayName: stock.display_name,
-      
-      // Exchange & categorization 
+
+      // Exchange & categorization
       exchange: stock.exchange,
       fullExchangeName: stock.full_exchange_name,
       marketCategory: stock.market_category,
       market: stock.market,
-      
+
       // Business information
       sector: stock.sector,
       sectorDisplay: stock.sector_disp,
@@ -505,7 +551,7 @@ router.get('/', stocksListValidation, async (req, res) => {
       industryDisplay: stock.industry_disp,
       businessSummary: stock.business_summary,
       employeeCount: stock.employee_count,
-      
+
       // Contact information
       website: stock.website_url,
       investorRelationsWebsite: stock.ir_website_url,
@@ -514,14 +560,14 @@ router.get('/', stocksListValidation, async (req, res) => {
         city: stock.city,
         state: stock.state,
         postalCode: stock.postal_code,
-        country: stock.country
+        country: stock.country,
       },
       phoneNumber: stock.phone_number,
-      
+
       // Financial details
       currency: stock.currency,
       quoteType: stock.quote_type,
-      
+
       // Current market data
       price: {
         current: stock.current_price,
@@ -535,14 +581,14 @@ router.get('/', stocksListValidation, async (req, res) => {
         twoHundredDayAverage: stock.two_hundred_day_avg,
         bid: stock.bid_price,
         ask: stock.ask_price,
-        marketState: stock.market_state
+        marketState: stock.market_state,
       },
-      
+
       // Volume data
       volume: stock.volume,
       averageVolume: stock.average_volume,
       marketCap: stock.market_cap,
-      
+
       // Comprehensive financial metrics
       financialMetrics: {
         // Valuation ratios
@@ -552,29 +598,29 @@ router.get('/', stocksListValidation, async (req, res) => {
         priceToBook: stock.price_to_book,
         pegRatio: stock.peg_ratio,
         bookValue: stock.book_value,
-        
+
         // Enterprise metrics
         enterpriseValue: stock.enterprise_value,
         evToRevenue: stock.ev_to_revenue,
         evToEbitda: stock.ev_to_ebitda,
-        
+
         // Financial results
         totalRevenue: stock.total_revenue,
         netIncome: stock.net_income,
         ebitda: stock.ebitda,
         grossProfit: stock.gross_profit,
-        
+
         // Earnings per share
         epsTrailing: stock.eps_trailing,
         epsForward: stock.eps_forward,
         epsCurrent: stock.eps_current_year,
         priceEpsCurrent: stock.price_eps_current_year,
-        
+
         // Growth metrics
         earningsGrowthQuarterly: stock.earnings_q_growth_pct,
         revenueGrowth: stock.revenue_growth_pct,
         earningsGrowth: stock.earnings_growth_pct,
-        
+
         // Cash & debt
         totalCash: stock.total_cash,
         cashPerShare: stock.cash_per_share,
@@ -582,90 +628,91 @@ router.get('/', stocksListValidation, async (req, res) => {
         freeCashflow: stock.free_cashflow,
         totalDebt: stock.total_debt,
         debtToEquity: stock.debt_to_equity,
-        
+
         // Liquidity ratios
         quickRatio: stock.quick_ratio,
         currentRatio: stock.current_ratio,
-        
+
         // Profitability margins
         profitMargin: stock.profit_margin_pct,
         grossMargin: stock.gross_margin_pct,
         ebitdaMargin: stock.ebitda_margin_pct,
         operatingMargin: stock.operating_margin_pct,
-        
+
         // Return metrics
         returnOnAssets: stock.return_on_assets_pct,
         returnOnEquity: stock.return_on_equity_pct,
-        
+
         // Dividend information
         dividendRate: stock.dividend_rate,
         dividendYield: stock.dividend_yield,
         fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
-        payoutRatio: stock.payout_ratio
+        payoutRatio: stock.payout_ratio,
       },
-      
+
       // Analyst estimates and recommendations
       analystData: {
         targetPrices: {
           high: stock.target_high_price,
           low: stock.target_low_price,
           mean: stock.target_mean_price,
-          median: stock.target_median_price
+          median: stock.target_median_price,
         },
         recommendation: {
           key: stock.recommendation_key,
           mean: stock.recommendation_mean,
-          rating: stock.average_analyst_rating
+          rating: stock.average_analyst_rating,
         },
-        analystCount: stock.analyst_opinion_count
+        analystCount: stock.analyst_opinion_count,
       },
-      
+
       // Governance data
       governance: {
         auditRisk: stock.audit_risk,
         boardRisk: stock.board_risk,
         compensationRisk: stock.compensation_risk,
         shareholderRightsRisk: stock.shareholder_rights_risk,
-        overallRisk: stock.overall_risk
+        overallRisk: stock.overall_risk,
       },
-      
+
       // Leadership team summary
       leadership: {
         executiveCount: stock.leadership_count,
         hasLeadershipData: stock.leadership_count > 0,
         // Full leadership data available via /leadership/:ticker endpoint
-        detailsAvailable: true
+        detailsAvailable: true,
       },
-      
+
       // Additional identifiers
       cqsSymbol: stock.cqs_symbol,
       secondarySymbol: stock.secondary_symbol,
-      
+
       // Status & type
       financialStatus: stock.financial_status,
-      isEtf: stock.etf === 'Y',
-      testIssue: stock.test_issue === 'Y',
+      isEtf: stock.etf === "Y",
+      testIssue: stock.test_issue === "Y",
       roundLotSize: stock.round_lot_size,
-      
+
       // Comprehensive data availability indicators
       hasData: true,
-      dataSource: 'comprehensive_loadinfo_query',
+      dataSource: "comprehensive_loadinfo_query",
       hasCompanyProfile: !!stock.long_name,
       hasMarketData: !!stock.current_price,
       hasFinancialMetrics: !!stock.trailing_pe || !!stock.total_revenue,
       hasAnalystData: !!stock.target_mean_price || !!stock.recommendation_key,
       hasGovernanceData: !!stock.overall_risk,
       hasLeadershipData: stock.leadership_count > 0,
-      
+
       // Professional presentation with rich data
       displayData: {
-        primaryExchange: stock.full_exchange_name || stock.exchange || 'Unknown',
-        category: stock.market_category || 'Standard',
-        type: stock.etf === 'Y' ? 'ETF' : 'Stock',
-        tradeable: stock.financial_status !== 'D' && stock.test_issue !== 'Y',
-        sector: stock.sector_disp || stock.sector || 'Unknown',
-        industry: stock.industry_disp || stock.industry || 'Unknown',
-        
+        primaryExchange:
+          stock.full_exchange_name || stock.exchange || "Unknown",
+        category: stock.market_category || "Standard",
+        type: stock.etf === "Y" ? "ETF" : "Stock",
+        tradeable: stock.financial_status !== "D" && stock.test_issue !== "Y",
+        sector: stock.sector_disp || stock.sector || "Unknown",
+        industry: stock.industry_disp || stock.industry || "Unknown",
+
         // Key financial highlights for quick view
         keyMetrics: {
           pe: stock.trailing_pe,
@@ -674,22 +721,26 @@ router.get('/', stocksListValidation, async (req, res) => {
           profitMargin: stock.profit_margin_pct,
           dividendYield: stock.dividend_yield,
           analystRating: stock.recommendation_key,
-          targetPrice: stock.target_mean_price
+          targetPrice: stock.target_mean_price,
         },
-        
+
         // Risk summary
         riskProfile: {
           overall: stock.overall_risk,
-          hasHighRisk: (stock.overall_risk && stock.overall_risk >= 8),
-          hasModerateRisk: (stock.overall_risk && stock.overall_risk >= 5 && stock.overall_risk < 8),
-          hasLowRisk: (stock.overall_risk && stock.overall_risk < 5)
-        }
-      }
+          hasHighRisk: stock.overall_risk && stock.overall_risk >= 8,
+          hasModerateRisk:
+            stock.overall_risk &&
+            stock.overall_risk >= 5 &&
+            stock.overall_risk < 8,
+          hasLowRisk: stock.overall_risk && stock.overall_risk < 5,
+        },
+      },
     }));
 
     res.json({
       success: true,
-      performance: 'COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables',
+      performance:
+        "COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables",
       data: formattedStocks,
       pagination: {
         page,
@@ -697,13 +748,13 @@ router.get('/', stocksListValidation, async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
       filters: {
         search: search || null,
         exchange: exchange || null,
         sortBy,
-        sortOrder
+        sortOrder,
       },
       metadata: {
         totalStocks: total,
@@ -711,47 +762,121 @@ router.get('/', stocksListValidation, async (req, res) => {
         showingRecords: stocksResult.rows.length,
         dataFields: [
           // Basic stock symbol data
-          'symbol', 'security_name', 'exchange', 'market_category',
-          'cqs_symbol', 'financial_status', 'etf', 'round_lot_size', 
-          'test_issue', 'secondary_symbol',
-          
+          "symbol",
+          "security_name",
+          "exchange",
+          "market_category",
+          "cqs_symbol",
+          "financial_status",
+          "etf",
+          "round_lot_size",
+          "test_issue",
+          "secondary_symbol",
+
           // Company profile data
-          'short_name', 'long_name', 'display_name', 'quote_type',
-          'sector', 'sector_disp', 'industry', 'industry_disp',
-          'business_summary', 'employee_count', 'website_url', 
-          'ir_website_url', 'address1', 'city', 'state', 'postal_code',
-          'country', 'phone_number', 'currency', 'market', 'full_exchange_name',
-          
+          "short_name",
+          "long_name",
+          "display_name",
+          "quote_type",
+          "sector",
+          "sector_disp",
+          "industry",
+          "industry_disp",
+          "business_summary",
+          "employee_count",
+          "website_url",
+          "ir_website_url",
+          "address1",
+          "city",
+          "state",
+          "postal_code",
+          "country",
+          "phone_number",
+          "currency",
+          "market",
+          "full_exchange_name",
+
           // Market data
-          'current_price', 'previous_close', 'open_price', 'day_low', 'day_high',
-          'volume', 'average_volume', 'market_cap', 'fifty_two_week_low',
-          'fifty_two_week_high', 'fifty_day_avg', 'two_hundred_day_avg',
-          'bid_price', 'ask_price', 'market_state',
-          
+          "current_price",
+          "previous_close",
+          "open_price",
+          "day_low",
+          "day_high",
+          "volume",
+          "average_volume",
+          "market_cap",
+          "fifty_two_week_low",
+          "fifty_two_week_high",
+          "fifty_day_avg",
+          "two_hundred_day_avg",
+          "bid_price",
+          "ask_price",
+          "market_state",
+
           // Financial metrics
-          'trailing_pe', 'forward_pe', 'price_to_sales_ttm', 'price_to_book',
-          'book_value', 'peg_ratio', 'enterprise_value', 'ev_to_revenue',
-          'ev_to_ebitda', 'total_revenue', 'net_income', 'ebitda', 'gross_profit',
-          'eps_trailing', 'eps_forward', 'eps_current_year', 'earnings_q_growth_pct',
-          'total_cash', 'cash_per_share', 'operating_cashflow', 'free_cashflow',
-          'total_debt', 'debt_to_equity', 'quick_ratio', 'current_ratio',
-          'profit_margin_pct', 'gross_margin_pct', 'ebitda_margin_pct',
-          'operating_margin_pct', 'return_on_assets_pct', 'return_on_equity_pct',
-          'revenue_growth_pct', 'earnings_growth_pct', 'dividend_rate',
-          'dividend_yield', 'five_year_avg_dividend_yield', 'payout_ratio',
-          
+          "trailing_pe",
+          "forward_pe",
+          "price_to_sales_ttm",
+          "price_to_book",
+          "book_value",
+          "peg_ratio",
+          "enterprise_value",
+          "ev_to_revenue",
+          "ev_to_ebitda",
+          "total_revenue",
+          "net_income",
+          "ebitda",
+          "gross_profit",
+          "eps_trailing",
+          "eps_forward",
+          "eps_current_year",
+          "earnings_q_growth_pct",
+          "total_cash",
+          "cash_per_share",
+          "operating_cashflow",
+          "free_cashflow",
+          "total_debt",
+          "debt_to_equity",
+          "quick_ratio",
+          "current_ratio",
+          "profit_margin_pct",
+          "gross_margin_pct",
+          "ebitda_margin_pct",
+          "operating_margin_pct",
+          "return_on_assets_pct",
+          "return_on_equity_pct",
+          "revenue_growth_pct",
+          "earnings_growth_pct",
+          "dividend_rate",
+          "dividend_yield",
+          "five_year_avg_dividend_yield",
+          "payout_ratio",
+
           // Analyst estimates
-          'target_high_price', 'target_low_price', 'target_mean_price',
-          'target_median_price', 'recommendation_key', 'recommendation_mean',
-          'analyst_opinion_count', 'average_analyst_rating',
-          
+          "target_high_price",
+          "target_low_price",
+          "target_mean_price",
+          "target_median_price",
+          "recommendation_key",
+          "recommendation_mean",
+          "analyst_opinion_count",
+          "average_analyst_rating",
+
           // Governance data
-          'audit_risk', 'board_risk', 'compensation_risk', 'shareholder_rights_risk',
-          'overall_risk'
+          "audit_risk",
+          "board_risk",
+          "compensation_risk",
+          "shareholder_rights_risk",
+          "overall_risk",
         ],
         dataSources: [
-          'stock_symbols', 'symbols', 'market_data', 'key_metrics',
-          'analyst_estimates', 'governance_scores', 'leadership_team'
+          "stock_symbols",
+          "symbols",
+          "market_data",
+          "key_metrics",
+          "analyst_estimates",
+          "governance_scores",
+          "leadership_team",
         ],
         comprehensiveData: {
           includesCompanyProfiles: true,
@@ -759,22 +884,23 @@ router.get('/', stocksListValidation, async (req, res) => {
           includesFinancialMetrics: true,
           includesAnalystEstimates: true,
           includesGovernanceScores: true,
-          includesLeadershipTeam: true // Count included, details via /leadership/:ticker
+          includesLeadershipTeam: true, // Count included, details via /leadership/:ticker
         },
         endpoints: {
-          leadershipDetails: '/api/stocks/leadership/:ticker',
-          leadershipSummary: '/api/stocks/leadership'
-        }
+          leadershipDetails: "/api/stocks/leadership/:ticker",
+          leadershipSummary: "/api/stocks/leadership",
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('OPTIMIZED endpoint error:', error);
-    
+    console.error("OPTIMIZED endpoint error:", error);
+
     // If symbols table doesn't exist, fallback to stock_symbols only
-    if (error.message && error.message.includes('does not exist')) {
-      console.log('Symbols table missing, using fallback query with stock_symbols only');
+    if (error.message && error.message.includes("does not exist")) {
+      console.log(
+        "Symbols table missing, using fallback query with stock_symbols only"
+      );
       try {
         const fallbackQuery = `
           SELECT 
@@ -799,20 +925,20 @@ router.get('/', stocksListValidation, async (req, res) => {
           ORDER BY ${sortColumn} ${sortDirection}
           LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
         `;
-        
+
         const fallbackCountQuery = `
           SELECT COUNT(*) as total
           FROM stock_symbols ss
           ${whereClause}
         `;
-        
+
         params.push(limit, offset);
-        
+
         const [stocksResult, countResult] = await Promise.all([
           query(fallbackQuery, params.slice(0, -2).concat([limit, offset])),
-          query(fallbackCountQuery, params.slice(0, -2))
+          query(fallbackCountQuery, params.slice(0, -2)),
         ]);
-        
+
         return res.json({
           success: true,
           data: stocksResult.rows,
@@ -820,58 +946,63 @@ router.get('/', stocksListValidation, async (req, res) => {
             page,
             limit,
             total: parseInt(countResult.rows[0].total),
-            totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+            totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
           },
-          note: 'Using basic stock symbols data. Run stock-symbols loader to enable enhanced data.',
-          timestamp: new Date().toISOString()
+          note: "Using basic stock symbols data. Run stock-symbols loader to enable enhanced data.",
+          timestamp: new Date().toISOString(),
         });
       } catch (fallbackError) {
-        console.error('Fallback query failed:', fallbackError);
+        console.error("Fallback query failed:", fallbackError);
       }
     }
-    
-    res.status(500).json({ 
-      error: 'Optimized query failed',
+
+    res.status(500).json({
+      error: "Optimized query failed",
       details: error.message,
       data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Screen endpoint - MUST come before /:ticker to avoid route collision
-router.get('/screen', async (req, res) => {
+router.get("/screen", async (req, res) => {
   try {
-    console.log('🔍 Stock screening endpoint called with params:', req.query);
-    
+    console.log("🔍 Stock screening endpoint called with params:", req.query);
+
     const {
       sector,
       marketCap,
       priceRange,
       volume,
-      sortBy = 'market_cap',
-      sortOrder = 'DESC',
+      sortBy = "market_cap",
+      sortOrder = "DESC",
       page = 1,
-      limit = 25
+      limit = 25,
     } = req.query;
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build dynamic query based on screening criteria
-    let whereConditions = ['current_price IS NOT NULL', 'market_cap IS NOT NULL'];
+    let whereConditions = [
+      "current_price IS NOT NULL",
+      "market_cap IS NOT NULL",
+    ];
     let queryParams = [];
     let paramIndex = 1;
-    
+
     // Sector filter
-    if (sector && sector !== 'all') {
+    if (sector && sector !== "all") {
       whereConditions.push(`sector = $${paramIndex}`);
       queryParams.push(sector);
       paramIndex++;
     }
-    
+
     // Market cap filter
     if (marketCap) {
-      const [min, max] = marketCap.split('-').map(v => parseFloat(v) * 1000000000); // Convert billions to actual value
+      const [min, max] = marketCap
+        .split("-")
+        .map((v) => parseFloat(v) * 1000000000); // Convert billions to actual value
       if (min) {
         whereConditions.push(`market_cap >= $${paramIndex}`);
         queryParams.push(min);
@@ -883,10 +1014,12 @@ router.get('/screen', async (req, res) => {
         paramIndex++;
       }
     }
-    
+
     // Price range filter
     if (priceRange) {
-      const [minPrice, maxPrice] = priceRange.split('-').map(v => parseFloat(v));
+      const [minPrice, maxPrice] = priceRange
+        .split("-")
+        .map((v) => parseFloat(v));
       if (minPrice) {
         whereConditions.push(`current_price >= $${paramIndex}`);
         queryParams.push(minPrice);
@@ -898,7 +1031,7 @@ router.get('/screen', async (req, res) => {
         paramIndex++;
       }
     }
-    
+
     // Volume filter
     if (volume) {
       const minVolume = parseInt(volume) * 1000000; // Convert millions to actual volume
@@ -906,25 +1039,35 @@ router.get('/screen', async (req, res) => {
       queryParams.push(minVolume);
       paramIndex++;
     }
-    
-    const whereClause = whereConditions.join(' AND ');
-    const validSortColumns = ['market_cap', 'current_price', 'change_percent', 'volume', 'symbol'];
-    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'market_cap';
-    const safeSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
-    
+
+    const whereClause = whereConditions.join(" AND ");
+    const validSortColumns = [
+      "market_cap",
+      "current_price",
+      "change_percent",
+      "volume",
+      "symbol",
+    ];
+    const safeSortBy = validSortColumns.includes(sortBy)
+      ? sortBy
+      : "market_cap";
+    const safeSortOrder = ["ASC", "DESC"].includes(sortOrder.toUpperCase())
+      ? sortOrder.toUpperCase()
+      : "DESC";
+
     console.log(`📊 Screening with conditions: ${whereClause}`);
     console.log(`📊 Query parameters:`, queryParams);
-    
+
     // Get total count for pagination
     const countQuery = `
       SELECT COUNT(*) as total 
       FROM stocks 
       WHERE ${whereClause}
     `;
-    
+
     const countResult = await query(countQuery, queryParams);
     const totalStocks = parseInt(countResult.rows[0]?.total || 0);
-    
+
     // Get the actual stocks
     const stocksQuery = `
       SELECT 
@@ -943,13 +1086,15 @@ router.get('/screen', async (req, res) => {
       ORDER BY ${safeSortBy} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    
+
     queryParams.push(parseInt(limit), offset);
-    
+
     const stocksResult = await query(stocksQuery, queryParams, 10000); // 10 second timeout for complex screening
-    
-    console.log(`✅ Retrieved ${stocksResult.rows.length} stocks out of ${totalStocks} total matching criteria`);
-    
+
+    console.log(
+      `✅ Retrieved ${stocksResult.rows.length} stocks out of ${totalStocks} total matching criteria`
+    );
+
     res.json({
       success: true,
       data: {
@@ -958,43 +1103,43 @@ router.get('/screen', async (req, res) => {
           page: parseInt(page),
           limit: parseInt(limit),
           total: totalStocks,
-          totalPages: Math.ceil(totalStocks / parseInt(limit))
+          totalPages: Math.ceil(totalStocks / parseInt(limit)),
         },
         filters: {
-          sector: sector || 'all',
-          marketCap: marketCap || 'all',
-          priceRange: priceRange || 'all',
-          volume: volume || 'all',
+          sector: sector || "all",
+          marketCap: marketCap || "all",
+          priceRange: priceRange || "all",
+          volume: volume || "all",
           sortBy: safeSortBy,
-          sortOrder: safeSortOrder
-        }
+          sortOrder: safeSortOrder,
+        },
       },
-      data_source: 'real_database',
+      data_source: "real_database",
       query_performance: {
         execution_time_ms: Date.now() - Date.now(),
         conditions_applied: whereConditions.length,
-        total_matching_stocks: totalStocks
+        total_matching_stocks: totalStocks,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Screen endpoint error:', error);
+    console.error("Screen endpoint error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to screen stocks',
-      message: error.message
+      error: "Failed to screen stocks",
+      message: error.message,
     });
   }
 });
 
 // SIMPLIFIED Individual Stock Endpoint - Fast and reliable
-router.get('/:ticker', async (req, res) => {
+router.get("/:ticker", async (req, res) => {
   try {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
-    
+
     console.log(`SIMPLIFIED stock endpoint called for: ${tickerUpper}`);
-    
+
     // SINGLE OPTIMIZED QUERY - Get everything we need in one go
     const stockQuery = `
       SELECT 
@@ -1021,20 +1166,20 @@ router.get('/:ticker', async (req, res) => {
       ) pd ON ss.symbol = pd.symbol
       WHERE ss.symbol = $1
     `;
-    
+
     const result = await query(stockQuery, [tickerUpper]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({
-        error: 'Stock not found',
+        error: "Stock not found",
         symbol: tickerUpper,
         message: `Symbol '${tickerUpper}' not found in database`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     const stock = result.rows[0];
-    
+
     // SIMPLE RESPONSE - Just the essential data
     const response = {
       symbol: tickerUpper,
@@ -1044,17 +1189,19 @@ router.get('/:ticker', async (req, res) => {
         exchange: stock.exchange,
         marketCategory: stock.market_category,
         financialStatus: stock.financial_status,
-        isETF: stock.etf === 't' || stock.etf === true
+        isETF: stock.etf === "t" || stock.etf === true,
       },
-      currentPrice: stock.close ? {
-        date: stock.latest_date,
-        open: parseFloat(stock.open || 0),
-        high: parseFloat(stock.high || 0),
-        low: parseFloat(stock.low || 0),
-        close: parseFloat(stock.close || 0),
-        adjClose: parseFloat(stock.adj_close || stock.close || 0),
-        volume: parseInt(stock.volume || 0)
-      } : null,
+      currentPrice: stock.close
+        ? {
+            date: stock.latest_date,
+            open: parseFloat(stock.open || 0),
+            high: parseFloat(stock.high || 0),
+            low: parseFloat(stock.low || 0),
+            close: parseFloat(stock.close || 0),
+            adjClose: parseFloat(stock.adj_close || stock.close || 0),
+            volume: parseInt(stock.volume || 0),
+          }
+        : null,
       metadata: {
         requestedSymbol: ticker,
         resolvedSymbol: tickerUpper,
@@ -1062,36 +1209,38 @@ router.get('/:ticker', async (req, res) => {
           basicInfo: true,
           priceData: stock.close !== null,
           technicalIndicators: false, // Disabled for speed
-          fundamentals: false // Disabled for speed
+          fundamentals: false, // Disabled for speed
         },
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     };
-    
-    console.log(`✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`);
-    
+
+    console.log(
+      `✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`
+    );
+
     res.json(response);
-    
   } catch (error) {
-    console.error('Error in simplified stock endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch stock data', 
+    console.error("Error in simplified stock endpoint:", error);
+    res.status(500).json({
+      error: "Failed to fetch stock data",
       symbol: req.params.ticker,
       message: error.message,
       data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Get stock price history 
+// Get stock price history
 // In-memory cache for frequently requested price data
 const priceCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 1000; // Limit cache size
 
 // Helper function to get cache key
-const getCacheKey = (symbol, timeframe, limit) => `${symbol}_${timeframe}_${limit}`;
+const getCacheKey = (symbol, timeframe, limit) =>
+  `${symbol}_${timeframe}_${limit}`;
 
 // Helper function to clean expired cache entries
 const cleanCache = () => {
@@ -1104,26 +1253,30 @@ const cleanCache = () => {
 };
 
 // Optimized prices endpoint with caching and performance improvements
-router.get('/:ticker/prices', async (req, res) => {
+router.get("/:ticker/prices", async (req, res) => {
   const startTime = Date.now();
   const { ticker } = req.params;
-  const timeframe = req.query.timeframe || 'daily';
+  const timeframe = req.query.timeframe || "daily";
   const limit = Math.min(parseInt(req.query.limit) || 30, 365); // Increased max to 1 year
-  
+
   const symbol = ticker.toUpperCase();
   const cacheKey = getCacheKey(symbol, timeframe, limit);
-  
-  console.log(`🚀 OPTIMIZED prices endpoint: ${symbol}, timeframe: ${timeframe}, limit: ${limit}`);
-  
+
+  console.log(
+    `🚀 OPTIMIZED prices endpoint: ${symbol}, timeframe: ${timeframe}, limit: ${limit}`
+  );
+
   try {
     // Check cache first
     const cached = priceCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-      console.log(`📦 Cache hit for ${symbol} (${Date.now() - cached.timestamp}ms old)`);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log(
+        `📦 Cache hit for ${symbol} (${Date.now() - cached.timestamp}ms old)`
+      );
       return res.json({
         ...cached.data,
         cached: true,
-        cacheAge: Date.now() - cached.timestamp
+        cacheAge: Date.now() - cached.timestamp,
       });
     }
 
@@ -1134,13 +1287,13 @@ router.get('/:ticker/prices', async (req, res) => {
 
     // Determine table and optimize query based on timeframe
     const tableMap = {
-      daily: 'price_daily',
-      weekly: 'price_weekly', 
-      monthly: 'price_monthly'
+      daily: "price_daily",
+      weekly: "price_weekly",
+      monthly: "price_monthly",
     };
-    
-    const tableName = tableMap[timeframe] || 'price_daily';
-    
+
+    const tableName = tableMap[timeframe] || "price_daily";
+
     // Optimized query - database-level calculations and proper indexing
     const pricesQuery = `
       WITH price_data AS (
@@ -1184,48 +1337,54 @@ router.get('/:ticker/prices', async (req, res) => {
 
     // Execute query with timeout protection
     const queryPromise = query(pricesQuery, [symbol, limit]);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Query timeout - database taking too long')), 15000)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Query timeout - database taking too long")),
+        15000
+      )
     );
 
     const result = await Promise.race([queryPromise, timeoutPromise]);
-    
+
     if (!result.rows || result.rows.length === 0) {
       // Return structured empty response with comprehensive diagnostics
-      console.error(`❌ No historical data found for ${symbol} - comprehensive diagnosis needed`, {
-        symbol,
-        database_query_failed: true,
-        table_existence_check_needed: true,
-        data_loading_status_unknown: true,
-        detailed_diagnostics: {
-          query_attempted: 'historical_price_data_query',
-          potential_causes: [
-            'Symbol not found in price_daily table',
-            'Data loading scripts not executed for this symbol',
-            'Database tables missing or corrupted',
-            'Stock symbol delisted or invalid',
-            'Data sync process failed for historical data'
-          ],
-          troubleshooting_steps: [
-            'Check if symbol exists in stock_symbols table',
-            'Verify price_daily table has data for this symbol',
-            'Check data loading script execution logs',
-            'Validate external data provider connectivity',
-            'Review data sync process status'
-          ],
-          system_checks: [
-            'Database connectivity',
-            'Table existence validation',
-            'Data freshness assessment',
-            'External API availability',
-            'Data loading process health'
-          ]
+      console.error(
+        `❌ No historical data found for ${symbol} - comprehensive diagnosis needed`,
+        {
+          symbol,
+          database_query_failed: true,
+          table_existence_check_needed: true,
+          data_loading_status_unknown: true,
+          detailed_diagnostics: {
+            query_attempted: "historical_price_data_query",
+            potential_causes: [
+              "Symbol not found in price_daily table",
+              "Data loading scripts not executed for this symbol",
+              "Database tables missing or corrupted",
+              "Stock symbol delisted or invalid",
+              "Data sync process failed for historical data",
+            ],
+            troubleshooting_steps: [
+              "Check if symbol exists in stock_symbols table",
+              "Verify price_daily table has data for this symbol",
+              "Check data loading script execution logs",
+              "Validate external data provider connectivity",
+              "Review data sync process status",
+            ],
+            system_checks: [
+              "Database connectivity",
+              "Table existence validation",
+              "Data freshness assessment",
+              "External API availability",
+              "Data loading process health",
+            ],
+          },
         }
-      });
-      
+      );
+
       return res.status(404).json({
         success: false,
-        error: 'Historical data not available',
+        error: "Historical data not available",
         ticker: symbol,
         dataPoints: 0,
         data: [],
@@ -1233,17 +1392,17 @@ router.get('/:ticker/prices', async (req, res) => {
           latestPrice: null,
           latestDate: null,
           periodReturn: null,
-          latestVolume: null
+          latestVolume: null,
         },
-        data_source: 'empty',
-        message: 'No historical data available for this symbol',
+        data_source: "empty",
+        message: "No historical data available for this symbol",
         timestamp: new Date().toISOString(),
-        queryTime: Date.now() - startTime
+        queryTime: Date.now() - startTime,
       });
     }
 
     // Process results efficiently
-    const prices = result.rows.map(row => ({
+    const prices = result.rows.map((row) => ({
       date: row.date,
       open: parseFloat(row.open),
       high: parseFloat(row.high),
@@ -1252,18 +1411,28 @@ router.get('/:ticker/prices', async (req, res) => {
       adjClose: parseFloat(row.adj_close),
       volume: parseInt(row.volume) || 0,
       priceChange: row.price_change ? parseFloat(row.price_change) : null,
-      priceChangePct: row.price_change_pct ? parseFloat(row.price_change_pct) : null
+      priceChangePct: row.price_change_pct
+        ? parseFloat(row.price_change_pct)
+        : null,
     }));
 
     const latest = prices[0];
     const oldest = prices[prices.length - 1];
-    const periodReturn = oldest?.close > 0 ? 
-      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+    const periodReturn =
+      oldest?.close > 0
+        ? ((latest.close - oldest.close) / oldest.close) * 100
+        : 0;
 
     // Calculate additional metrics
-    const volume30Day = prices.slice(0, 30).reduce((sum, p) => sum + p.volume, 0) / Math.min(30, prices.length);
-    const high52Week = Math.max(...prices.slice(0, Math.min(252, prices.length)).map(p => p.high));
-    const low52Week = Math.min(...prices.slice(0, Math.min(252, prices.length)).map(p => p.low));
+    const volume30Day =
+      prices.slice(0, 30).reduce((sum, p) => sum + p.volume, 0) /
+      Math.min(30, prices.length);
+    const high52Week = Math.max(
+      ...prices.slice(0, Math.min(252, prices.length)).map((p) => p.high)
+    );
+    const low52Week = Math.min(
+      ...prices.slice(0, Math.min(252, prices.length)).map((p) => p.low)
+    );
 
     const responseData = {
       success: true,
@@ -1279,25 +1448,26 @@ router.get('/:ticker/prices', async (req, res) => {
         avgVolume30Day: Math.round(volume30Day),
         high52Week: parseFloat(high52Week.toFixed(4)),
         low52Week: parseFloat(low52Week.toFixed(4)),
-        priceRange: `${low52Week.toFixed(2)} - ${high52Week.toFixed(2)}`
+        priceRange: `${low52Week.toFixed(2)} - ${high52Week.toFixed(2)}`,
       },
       cached: false,
       queryTime: Date.now() - startTime,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Cache the response
     priceCache.set(cacheKey, {
       data: responseData,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
-    console.log(`✅ ${symbol} prices fetched: ${prices.length} records in ${Date.now() - startTime}ms`);
+    console.log(
+      `✅ ${symbol} prices fetched: ${prices.length} records in ${Date.now() - startTime}ms`
+    );
     res.json(responseData);
-    
   } catch (error) {
     console.error(`❌ Error fetching ${symbol} prices:`, error);
-    
+
     // Graceful fallback - try to return cached data even if expired
     const cached = priceCache.get(cacheKey);
     if (cached) {
@@ -1307,33 +1477,37 @@ router.get('/:ticker/prices', async (req, res) => {
         cached: true,
         stale: true,
         cacheAge: Date.now() - cached.timestamp,
-        error: 'Live data unavailable, showing cached data'
+        error: "Live data unavailable, showing cached data",
       });
     }
 
     // Final fallback with helpful error response
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Failed to fetch stock prices', 
-      details: error.message.includes('timeout') ? 'Database query timed out' : 'Database error',
+      error: "Failed to fetch stock prices",
+      details: error.message.includes("timeout")
+        ? "Database query timed out"
+        : "Database error",
       ticker: symbol,
       data: [],
       queryTime: Date.now() - startTime,
       timestamp: new Date().toISOString(),
       fallback: true,
-      suggestion: 'Try again with a smaller limit or different timeframe'
+      suggestion: "Try again with a smaller limit or different timeframe",
     });
   }
 });
 
 // Get recent stock price history (alias for /prices with recent in the path)
-router.get('/:ticker/prices/recent', async (req, res) => {
+router.get("/:ticker/prices/recent", async (req, res) => {
   try {
     const { ticker } = req.params;
     const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
-    
-    console.log(`📊 [STOCKS] Recent prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
-    
+
+    console.log(
+      `📊 [STOCKS] Recent prices endpoint called for ticker: ${ticker}, limit: ${limit}`
+    );
+
     const pricesQuery = `
       SELECT date, open, high, low, close, adj_close, volume
       FROM price_daily
@@ -1341,32 +1515,35 @@ router.get('/:ticker/prices/recent', async (req, res) => {
       ORDER BY date DESC
       LIMIT $2
     `;
-    
+
     const result = await query(pricesQuery, [ticker, limit]);
-    
+
     if (result.rows.length === 0) {
       console.log(`📊 [STOCKS] No price data found for ${ticker}`);
       return res.status(404).json({
         success: false,
-        error: 'No price data found',
+        error: "No price data found",
         ticker: ticker.toUpperCase(),
-        message: 'Price data not available for this symbol',
+        message: "Price data not available for this symbol",
         data: [],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Process the data
     const prices = result.rows;
     const latest = prices[0];
     const oldest = prices[prices.length - 1];
 
-    const periodReturn = oldest.close > 0 ? 
-      ((latest.close - oldest.close) / oldest.close * 100) : 0;
+    const periodReturn =
+      oldest.close > 0
+        ? ((latest.close - oldest.close) / oldest.close) * 100
+        : 0;
 
     // Format data for frontend
     const pricesWithChange = prices.map((price, idx) => {
-      let priceChange = null, priceChangePct = null;
+      let priceChange = null,
+        priceChangePct = null;
       if (idx < prices.length - 1) {
         const prev = prices[idx + 1];
         priceChange = price.close - prev.close;
@@ -1381,11 +1558,13 @@ router.get('/:ticker/prices/recent', async (req, res) => {
         adjClose: parseFloat(price.adj_close),
         volume: parseInt(price.volume) || 0,
         priceChange,
-        priceChangePct
+        priceChangePct,
       };
     });
 
-    console.log(`📊 [STOCKS] Successfully returning ${pricesWithChange.length} price records for ${ticker}`);
+    console.log(
+      `📊 [STOCKS] Successfully returning ${pricesWithChange.length} price records for ${ticker}`
+    );
 
     res.json({
       success: true,
@@ -1396,29 +1575,28 @@ router.get('/:ticker/prices/recent', async (req, res) => {
         latestPrice: parseFloat(latest.close),
         latestDate: latest.date,
         periodReturn: parseFloat(periodReturn.toFixed(2)),
-        latestVolume: parseInt(latest.volume) || 0
+        latestVolume: parseInt(latest.volume) || 0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('❌ [STOCKS] Error fetching recent stock prices:', error);
-    res.status(500).json({ 
+    console.error("❌ [STOCKS] Error fetching recent stock prices:", error);
+    res.status(500).json({
       success: false,
-      error: 'Failed to fetch recent stock prices', 
+      error: "Failed to fetch recent stock prices",
       details: error.message,
       data: [], // Always return data as an array for frontend safety
       ticker: req.params.ticker,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get available filters - exchanges instead of sectors
-router.get('/filters/sectors', async (req, res) => {
+router.get("/filters/sectors", async (req, res) => {
   try {
-    console.log('Stock filters/sectors (exchanges) endpoint called');
-    
+    console.log("Stock filters/sectors (exchanges) endpoint called");
+
     const sectorsQuery = `
       SELECT exchange, COUNT(*) as count
       FROM stock_symbols
@@ -1426,35 +1604,34 @@ router.get('/filters/sectors', async (req, res) => {
       GROUP BY exchange
       ORDER BY count DESC, exchange ASC
     `;
-    
+
     const result = await query(sectorsQuery);
-    
+
     res.json({
-      data: result.rows.map(row => ({
+      data: result.rows.map((row) => ({
         name: row.exchange,
         value: row.exchange,
-        count: parseInt(row.count)
+        count: parseInt(row.count),
       })),
       total: result.rows.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('Error fetching stock exchanges:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch stock exchanges', 
+    console.error("Error fetching stock exchanges:", error);
+    res.status(500).json({
+      error: "Failed to fetch stock exchanges",
       details: error.message,
       data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get screening statistics and ranges
-router.get('/screen/stats', async (req, res) => {
+router.get("/screen/stats", async (req, res) => {
   try {
-    console.log('Screen stats endpoint called');
-    
+    console.log("Screen stats endpoint called");
+
     // Use robust query with proper error handling instead of fallback chains
     const statsQuery = `
       SELECT 
@@ -1474,49 +1651,57 @@ router.get('/screen/stats', async (req, res) => {
       FROM stock_symbols s
       WHERE s.is_active = TRUE
     `;
-    
+
     let result;
     try {
       result = await query(statsQuery);
-      console.log(`✅ Screen stats query successful: ${result.rows.length} stats found`);
+      console.log(
+        `✅ Screen stats query successful: ${result.rows.length} stats found`
+      );
     } catch (dbError) {
-      console.error('❌ Screen stats query failed - comprehensive diagnosis needed', {
-        query_type: 'screen_stats',
-        error_message: dbError.message,
-        detailed_diagnostics: {
-          attempted_operations: ['stock_symbols_query', 'statistical_aggregation'],
-          potential_causes: [
-            'stock_symbols table missing',
-            'Database connection failure',
-            'Schema validation error',
-            'Data type mismatch in numeric columns',
-            'Insufficient database permissions',
-            'Statistical function errors',
-            'Query timeout'
-          ],
-          troubleshooting_steps: [
-            'Check if stock_symbols table exists',
-            'Verify database connection health',
-            'Validate table schema structure',
-            'Check numeric column data types',
-            'Review database permissions',
-            'Monitor statistical function execution',
-            'Check query execution time'
-          ],
-          system_checks: [
-            'Database health status',
-            'Table existence validation',
-            'Schema integrity check',
-            'Connection pool availability'
-          ]
+      console.error(
+        "❌ Screen stats query failed - comprehensive diagnosis needed",
+        {
+          query_type: "screen_stats",
+          error_message: dbError.message,
+          detailed_diagnostics: {
+            attempted_operations: [
+              "stock_symbols_query",
+              "statistical_aggregation",
+            ],
+            potential_causes: [
+              "stock_symbols table missing",
+              "Database connection failure",
+              "Schema validation error",
+              "Data type mismatch in numeric columns",
+              "Insufficient database permissions",
+              "Statistical function errors",
+              "Query timeout",
+            ],
+            troubleshooting_steps: [
+              "Check if stock_symbols table exists",
+              "Verify database connection health",
+              "Validate table schema structure",
+              "Check numeric column data types",
+              "Review database permissions",
+              "Monitor statistical function execution",
+              "Check query execution time",
+            ],
+            system_checks: [
+              "Database health status",
+              "Table existence validation",
+              "Schema integrity check",
+              "Connection pool availability",
+            ],
+          },
         }
-      });
+      );
       throw dbError; // Re-throw to trigger proper error handling
     }
-    
+
     if (result && result.rows.length > 0) {
       const stats = result.rows[0];
-      
+
       res.json({
         success: true,
         data: {
@@ -1524,86 +1709,89 @@ router.get('/screen/stats', async (req, res) => {
           ranges: {
             market_cap: {
               min: parseInt(stats.min_market_cap) || 50000000,
-              max: parseInt(stats.max_market_cap) || 3000000000000
+              max: parseInt(stats.max_market_cap) || 3000000000000,
             },
             pe_ratio: {
               min: parseFloat(stats.min_pe_ratio) || 5,
-              max: Math.min(parseFloat(stats.max_pe_ratio) || 100, 100)
+              max: Math.min(parseFloat(stats.max_pe_ratio) || 100, 100),
             },
             price_to_book: {
               min: parseFloat(stats.min_pb_ratio) || 0.1,
-              max: Math.min(parseFloat(stats.max_pb_ratio) || 20, 20)
+              max: Math.min(parseFloat(stats.max_pb_ratio) || 20, 20),
             },
             roe: {
               min: parseFloat(stats.min_roe) || -50,
-              max: Math.min(parseFloat(stats.max_roe) || 100, 100)
+              max: Math.min(parseFloat(stats.max_roe) || 100, 100),
             },
             revenue_growth: {
               min: parseFloat(stats.min_revenue_growth) || -50,
-              max: Math.min(parseFloat(stats.max_revenue_growth) || 200, 200)
+              max: Math.min(parseFloat(stats.max_revenue_growth) || 200, 200),
             },
             analyst_rating: {
               min: parseFloat(stats.min_analyst_rating) || 1,
-              max: parseFloat(stats.max_analyst_rating) || 5
-            }
-          }
+              max: parseFloat(stats.max_analyst_rating) || 5,
+            },
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
       // Return error response with comprehensive diagnostics instead of fallback data
-      console.error(`❌ Database query failed for screener stats - comprehensive diagnosis needed`, {
-        error: error.message,
-        detailed_diagnostics: {
-          query_attempted: 'screener_statistics_query',
-          potential_causes: [
-            'Database connection failure',
-            'Missing required tables for screener functionality',
-            'Database schema corruption',
-            'Data loading scripts not executed',
-            'SQL query syntax errors'
-          ],
-          troubleshooting_steps: [
-            'Check database connectivity',
-            'Verify all screener tables exist',
-            'Validate database schema integrity',
-            'Check data loading script execution',
-            'Review SQL query syntax'
-          ],
-          system_checks: [
-            'Database health status',
-            'Table existence validation',
-            'Schema validation',
-            'Data freshness assessment'
-          ]
+      console.error(
+        `❌ Database query failed for screener stats - comprehensive diagnosis needed`,
+        {
+          error: error.message,
+          detailed_diagnostics: {
+            query_attempted: "screener_statistics_query",
+            potential_causes: [
+              "Database connection failure",
+              "Missing required tables for screener functionality",
+              "Database schema corruption",
+              "Data loading scripts not executed",
+              "SQL query syntax errors",
+            ],
+            troubleshooting_steps: [
+              "Check database connectivity",
+              "Verify all screener tables exist",
+              "Validate database schema integrity",
+              "Check data loading script execution",
+              "Review SQL query syntax",
+            ],
+            system_checks: [
+              "Database health status",
+              "Table existence validation",
+              "Schema validation",
+              "Data freshness assessment",
+            ],
+          },
         }
-      });
-      
+      );
+
       return res.status(503).json({
         success: false,
-        error: 'Screener statistics unavailable',
-        message: 'Unable to retrieve screener statistics due to database issues',
+        error: "Screener statistics unavailable",
+        message:
+          "Unable to retrieve screener statistics due to database issues",
         timestamp: new Date().toISOString(),
-        data_source: 'error'
+        data_source: "error",
       });
     }
-    
   } catch (error) {
-    console.error('Error in screen stats endpoint:', error);
+    console.error("Error in screen stats endpoint:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to retrieve screener statistics',
+      error: "Failed to retrieve screener statistics",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Database initialization endpoint for price_daily table
-router.post('/init-price-data', async (req, res) => {
+router.post("/init-price-data", async (req, res) => {
   try {
-    console.log('Initializing price_daily table...');
-    
+    console.log("Initializing price_daily table...");
+
     // Create price_daily table
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS price_daily (
@@ -1622,62 +1810,62 @@ router.post('/init-price-data', async (req, res) => {
         UNIQUE(symbol, date)
       )
     `;
-    
+
     await query(createTableSQL);
-    console.log('price_daily table created successfully');
-    
+    console.log("price_daily table created successfully");
+
     // Create index for performance
     const createIndexSQL = `
       CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date 
       ON price_daily(symbol, date DESC)
     `;
-    
+
     await query(createIndexSQL);
-    console.log('price_daily index created successfully');
-    
+    console.log("price_daily index created successfully");
+
     // Sample data for testing
     const sampleData = [
       // AAPL last 30 days
-      ['AAPL', '2025-07-02', 190.50, 192.80, 189.20, 191.45, 191.45, 45230000],
-      ['AAPL', '2025-07-01', 188.90, 191.20, 188.40, 190.30, 190.30, 38450000],
-      ['AAPL', '2025-06-30', 189.80, 190.50, 187.60, 189.25, 189.25, 42100000],
-      ['AAPL', '2025-06-29', 187.30, 190.20, 186.80, 189.90, 189.90, 39200000],
-      ['AAPL', '2025-06-28', 185.60, 188.40, 185.10, 187.80, 187.80, 41800000],
-      ['AAPL', '2025-06-27', 186.90, 188.20, 184.70, 186.50, 186.50, 44300000],
-      ['AAPL', '2025-06-26', 184.20, 187.50, 183.90, 186.80, 186.80, 37600000],
-      ['AAPL', '2025-06-25', 182.80, 185.30, 182.40, 184.90, 184.90, 36700000],
-      ['AAPL', '2025-06-24', 181.50, 183.60, 180.90, 182.70, 182.70, 38900000],
-      ['AAPL', '2025-06-23', 180.30, 182.80, 179.80, 181.20, 181.20, 35400000],
-      
+      ["AAPL", "2025-07-02", 190.5, 192.8, 189.2, 191.45, 191.45, 45230000],
+      ["AAPL", "2025-07-01", 188.9, 191.2, 188.4, 190.3, 190.3, 38450000],
+      ["AAPL", "2025-06-30", 189.8, 190.5, 187.6, 189.25, 189.25, 42100000],
+      ["AAPL", "2025-06-29", 187.3, 190.2, 186.8, 189.9, 189.9, 39200000],
+      ["AAPL", "2025-06-28", 185.6, 188.4, 185.1, 187.8, 187.8, 41800000],
+      ["AAPL", "2025-06-27", 186.9, 188.2, 184.7, 186.5, 186.5, 44300000],
+      ["AAPL", "2025-06-26", 184.2, 187.5, 183.9, 186.8, 186.8, 37600000],
+      ["AAPL", "2025-06-25", 182.8, 185.3, 182.4, 184.9, 184.9, 36700000],
+      ["AAPL", "2025-06-24", 181.5, 183.6, 180.9, 182.7, 182.7, 38900000],
+      ["AAPL", "2025-06-23", 180.3, 182.8, 179.8, 181.2, 181.2, 35400000],
+
       // MSFT sample data
-      ['MSFT', '2025-07-02', 335.20, 338.40, 334.50, 337.80, 337.80, 18750000],
-      ['MSFT', '2025-07-01', 332.60, 336.20, 331.90, 334.90, 334.90, 20100000],
-      ['MSFT', '2025-06-30', 330.80, 333.70, 329.40, 332.50, 332.50, 19200000],
-      ['MSFT', '2025-06-29', 328.90, 331.60, 327.80, 330.40, 330.40, 21400000],
-      ['MSFT', '2025-06-28', 326.40, 329.80, 325.70, 328.60, 328.60, 22300000],
-      
+      ["MSFT", "2025-07-02", 335.2, 338.4, 334.5, 337.8, 337.8, 18750000],
+      ["MSFT", "2025-07-01", 332.6, 336.2, 331.9, 334.9, 334.9, 20100000],
+      ["MSFT", "2025-06-30", 330.8, 333.7, 329.4, 332.5, 332.5, 19200000],
+      ["MSFT", "2025-06-29", 328.9, 331.6, 327.8, 330.4, 330.4, 21400000],
+      ["MSFT", "2025-06-28", 326.4, 329.8, 325.7, 328.6, 328.6, 22300000],
+
       // GOOGL sample data
-      ['GOOGL', '2025-07-02', 142.30, 144.70, 141.80, 143.90, 143.90, 23400000],
-      ['GOOGL', '2025-07-01', 140.80, 143.20, 140.40, 142.10, 142.10, 25600000],
-      ['GOOGL', '2025-06-30', 139.60, 141.50, 138.90, 140.70, 140.70, 27800000],
-      ['GOOGL', '2025-06-29', 137.20, 140.30, 136.80, 139.40, 139.40, 29200000],
-      ['GOOGL', '2025-06-28', 135.90, 138.40, 135.20, 137.60, 137.60, 26700000],
-      
+      ["GOOGL", "2025-07-02", 142.3, 144.7, 141.8, 143.9, 143.9, 23400000],
+      ["GOOGL", "2025-07-01", 140.8, 143.2, 140.4, 142.1, 142.1, 25600000],
+      ["GOOGL", "2025-06-30", 139.6, 141.5, 138.9, 140.7, 140.7, 27800000],
+      ["GOOGL", "2025-06-29", 137.2, 140.3, 136.8, 139.4, 139.4, 29200000],
+      ["GOOGL", "2025-06-28", 135.9, 138.4, 135.2, 137.6, 137.6, 26700000],
+
       // TSLA sample data
-      ['TSLA', '2025-07-02', 248.90, 252.40, 246.30, 250.80, 250.80, 35600000],
-      ['TSLA', '2025-07-01', 245.60, 249.70, 244.20, 248.30, 248.30, 38900000],
-      ['TSLA', '2025-06-30', 242.80, 246.90, 241.50, 245.20, 245.20, 41200000],
-      ['TSLA', '2025-06-29', 240.30, 244.60, 239.10, 242.50, 242.50, 43800000],
-      ['TSLA', '2025-06-28', 237.90, 241.80, 236.70, 240.10, 240.10, 42100000],
-      
+      ["TSLA", "2025-07-02", 248.9, 252.4, 246.3, 250.8, 250.8, 35600000],
+      ["TSLA", "2025-07-01", 245.6, 249.7, 244.2, 248.3, 248.3, 38900000],
+      ["TSLA", "2025-06-30", 242.8, 246.9, 241.5, 245.2, 245.2, 41200000],
+      ["TSLA", "2025-06-29", 240.3, 244.6, 239.1, 242.5, 242.5, 43800000],
+      ["TSLA", "2025-06-28", 237.9, 241.8, 236.7, 240.1, 240.1, 42100000],
+
       // NVDA sample data
-      ['NVDA', '2025-07-02', 485.20, 492.80, 483.60, 489.40, 489.40, 55600000],
-      ['NVDA', '2025-07-01', 478.90, 487.30, 477.20, 484.70, 484.70, 58200000],
-      ['NVDA', '2025-06-30', 472.40, 480.60, 471.80, 478.30, 478.30, 62100000],
-      ['NVDA', '2025-06-29', 465.80, 474.20, 464.30, 472.90, 472.90, 67300000],
-      ['NVDA', '2025-06-28', 459.60, 467.50, 458.40, 465.20, 465.20, 59800000]
+      ["NVDA", "2025-07-02", 485.2, 492.8, 483.6, 489.4, 489.4, 55600000],
+      ["NVDA", "2025-07-01", 478.9, 487.3, 477.2, 484.7, 484.7, 58200000],
+      ["NVDA", "2025-06-30", 472.4, 480.6, 471.8, 478.3, 478.3, 62100000],
+      ["NVDA", "2025-06-29", 465.8, 474.2, 464.3, 472.9, 472.9, 67300000],
+      ["NVDA", "2025-06-28", 459.6, 467.5, 458.4, 465.2, 465.2, 59800000],
     ];
-    
+
     // Insert sample data
     let insertedCount = 0;
     for (const row of sampleData) {
@@ -1693,48 +1881,52 @@ router.post('/init-price-data', async (req, res) => {
             adj_close = EXCLUDED.adj_close,
             volume = EXCLUDED.volume
         `;
-        
+
         await query(insertSQL, row);
         insertedCount++;
       } catch (insertError) {
-        console.warn(`Failed to insert row for ${row[0]} ${row[1]}:`, insertError.message);
+        console.warn(
+          `Failed to insert row for ${row[0]} ${row[1]}:`,
+          insertError.message
+        );
       }
     }
-    
+
     console.log(`Sample data inserted: ${insertedCount} rows`);
-    
+
     // Verify data exists
-    const countResult = await query('SELECT COUNT(*) as count FROM price_daily');
+    const countResult = await query(
+      "SELECT COUNT(*) as count FROM price_daily"
+    );
     const totalRows = countResult.rows[0].count;
-    
+
     res.json({
       success: true,
-      message: 'price_daily table initialized successfully',
+      message: "price_daily table initialized successfully",
       details: {
         tableCreated: true,
         indexCreated: true,
         sampleDataInserted: insertedCount,
-        totalRows: parseInt(totalRows)
+        totalRows: parseInt(totalRows),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('Error initializing price_daily table:', error);
+    console.error("Error initializing price_daily table:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to initialize price_daily table',
+      error: "Failed to initialize price_daily table",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Initialize API keys table for secure portfolio import
-router.post('/init-api-keys-table', async (req, res) => {
+router.post("/init-api-keys-table", async (req, res) => {
   try {
-    console.log('Initializing user_api_keys table...');
-    
+    console.log("Initializing user_api_keys table...");
+
     // Create user_api_keys table for secure API key storage
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS user_api_keys (
@@ -1754,23 +1946,23 @@ router.post('/init-api-keys-table', async (req, res) => {
         UNIQUE(user_id, broker_name)
       )
     `;
-    
+
     await query(createTableSQL);
-    console.log('user_api_keys table created successfully');
-    
+    console.log("user_api_keys table created successfully");
+
     // Create indexes for performance and security
     const createIndexes = [
-      'CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)',
-      'CREATE INDEX IF NOT EXISTS idx_user_api_keys_broker ON user_api_keys(broker_name)',
-      'CREATE INDEX IF NOT EXISTS idx_user_api_keys_last_used ON user_api_keys(last_used DESC)'
+      "CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)",
+      "CREATE INDEX IF NOT EXISTS idx_user_api_keys_broker ON user_api_keys(broker_name)",
+      "CREATE INDEX IF NOT EXISTS idx_user_api_keys_last_used ON user_api_keys(last_used DESC)",
     ];
-    
+
     for (const indexSQL of createIndexes) {
       await query(indexSQL);
     }
-    
-    console.log('user_api_keys indexes created successfully');
-    
+
+    console.log("user_api_keys indexes created successfully");
+
     // Verify table exists
     const verifyQuery = `
       SELECT column_name, data_type, is_nullable
@@ -1778,37 +1970,36 @@ router.post('/init-api-keys-table', async (req, res) => {
       WHERE table_name = 'user_api_keys'
       ORDER BY ordinal_position
     `;
-    
+
     const columns = await query(verifyQuery);
-    
+
     res.json({
       success: true,
-      message: 'user_api_keys table initialized successfully',
+      message: "user_api_keys table initialized successfully",
       details: {
         tableCreated: true,
         indexesCreated: true,
-        columns: columns.rows.map(col => ({
+        columns: columns.rows.map((col) => ({
           name: col.column_name,
           type: col.data_type,
-          nullable: col.is_nullable === 'YES'
-        }))
+          nullable: col.is_nullable === "YES",
+        })),
       },
       security: {
-        encryption: 'AES-256-GCM',
-        keyDerivation: 'scrypt',
+        encryption: "AES-256-GCM",
+        keyDerivation: "scrypt",
         userSaltBased: true,
-        noPlaintextLogging: true
+        noPlaintextLogging: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('Error initializing user_api_keys table:', error);
+    console.error("Error initializing user_api_keys table:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to initialize API keys table',
+      error: "Failed to initialize API keys table",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

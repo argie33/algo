@@ -1,26 +1,40 @@
-const express = require('express');
-const { query } = require('../utils/database');
+const express = require("express");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 
 // Basic ping endpoint
-router.get('/ping', (req, res) => {
+router.get("/ping", (req, res) => {
   res.json({
-    status: 'ok',
-    endpoint: 'technical',
-    timestamp: new Date().toISOString()
+    status: "ok",
+    endpoint: "technical",
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Main technical data endpoint - timeframe-based (daily, weekly, monthly)
-router.get('/:timeframe', async (req, res) => {
+router.get("/:timeframe", async (req, res) => {
   const { timeframe } = req.params;
-  const { page = 1, limit = 50, symbol, start_date, end_date, rsi_min, rsi_max, macd_min, macd_max, sma_min, sma_max } = req.query;
+  const {
+    page = 1,
+    limit = 50,
+    symbol,
+    start_date,
+    end_date,
+    rsi_min,
+    rsi_max,
+    macd_min,
+    macd_max,
+    sma_min,
+    sma_max,
+  } = req.query;
 
   // Validate timeframe
-  const validTimeframes = ['daily', 'weekly', 'monthly'];
+  const validTimeframes = ["daily", "weekly", "monthly"];
   if (!validTimeframes.includes(timeframe)) {
-    return res.status(400).json({ error: 'Invalid timeframe. Use daily, weekly, or monthly.' });
+    return res
+      .status(400)
+      .json({ error: "Invalid timeframe. Use daily, weekly, or monthly." });
   }
 
   try {
@@ -28,7 +42,7 @@ router.get('/:timeframe', async (req, res) => {
     const maxLimit = Math.min(parseInt(limit), 200);
 
     // Build WHERE clause
-    let whereClause = 'WHERE 1=1';
+    let whereClause = "WHERE 1=1";
     const params = [];
     let paramIndex = 1;
 
@@ -53,37 +67,37 @@ router.get('/:timeframe', async (req, res) => {
     }
 
     // Technical indicator filters
-    if (rsi_min !== undefined && rsi_min !== '') {
+    if (rsi_min !== undefined && rsi_min !== "") {
       whereClause += ` AND rsi >= $${paramIndex}`;
       params.push(parseFloat(rsi_min));
       paramIndex++;
     }
 
-    if (rsi_max !== undefined && rsi_max !== '') {
+    if (rsi_max !== undefined && rsi_max !== "") {
       whereClause += ` AND rsi <= $${paramIndex}`;
       params.push(parseFloat(rsi_max));
       paramIndex++;
     }
 
-    if (macd_min !== undefined && macd_min !== '') {
+    if (macd_min !== undefined && macd_min !== "") {
       whereClause += ` AND macd >= $${paramIndex}`;
       params.push(parseFloat(macd_min));
       paramIndex++;
     }
 
-    if (macd_max !== undefined && macd_max !== '') {
+    if (macd_max !== undefined && macd_max !== "") {
       whereClause += ` AND macd <= $${paramIndex}`;
       params.push(parseFloat(macd_max));
       paramIndex++;
     }
 
-    if (sma_min !== undefined && sma_min !== '') {
+    if (sma_min !== undefined && sma_min !== "") {
       whereClause += ` AND sma_20 >= $${paramIndex}`;
       params.push(parseFloat(sma_min));
       paramIndex++;
     }
 
-    if (sma_max !== undefined && sma_max !== '') {
+    if (sma_max !== undefined && sma_max !== "") {
       whereClause += ` AND sma_20 <= $${paramIndex}`;
       params.push(parseFloat(sma_max));
       paramIndex++;
@@ -93,16 +107,21 @@ router.get('/:timeframe', async (req, res) => {
     const tableName = `technical_data_${timeframe}`;
 
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = $1
       );
-    `, [tableName]);
+    `,
+      [tableName]
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning empty data`);
+      console.log(
+        `Technical data table for ${timeframe} timeframe not found, returning empty data`
+      );
       return res.json({
         success: true,
         data: [],
@@ -112,7 +131,7 @@ router.get('/:timeframe', async (req, res) => {
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         metadata: {
           timeframe,
@@ -125,10 +144,10 @@ router.get('/:timeframe', async (req, res) => {
             macd_min: macd_min || null,
             macd_max: macd_max || null,
             sma_min: sma_min || null,
-            sma_max: sma_max || null
+            sma_max: sma_max || null,
           },
-          message: `No ${timeframe} technical data available`
-        }
+          message: `No ${timeframe} technical data available`,
+        },
       });
     }
 
@@ -193,7 +212,11 @@ router.get('/:timeframe', async (req, res) => {
 
     const totalPages = Math.ceil(total / maxLimit);
 
-    if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
+    if (
+      !dataResult ||
+      !Array.isArray(dataResult.rows) ||
+      dataResult.rows.length === 0
+    ) {
       return res.json({
         success: true,
         data: [],
@@ -203,7 +226,7 @@ router.get('/:timeframe', async (req, res) => {
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         metadata: {
           timeframe,
@@ -216,9 +239,9 @@ router.get('/:timeframe', async (req, res) => {
             macd_min: macd_min || null,
             macd_max: macd_max || null,
             sma_min: sma_min || null,
-            sma_max: sma_max || null
-          }
-        }
+            sma_max: sma_max || null,
+          },
+        },
       });
     }
 
@@ -231,7 +254,7 @@ router.get('/:timeframe', async (req, res) => {
         total,
         totalPages,
         hasNext: parseInt(page) < totalPages,
-        hasPrev: parseInt(page) > 1
+        hasPrev: parseInt(page) > 1,
       },
       metadata: {
         timeframe,
@@ -244,12 +267,12 @@ router.get('/:timeframe', async (req, res) => {
           macd_min: macd_min || null,
           macd_max: macd_max || null,
           sma_min: sma_min || null,
-          sma_max: sma_max || null
-        }
-      }
+          sma_max: sma_max || null,
+        },
+      },
     });
   } catch (error) {
-    console.error('Technical data error:', error);
+    console.error("Technical data error:", error);
     return res.json({
       success: false,
       data: [],
@@ -259,36 +282,41 @@ router.get('/:timeframe', async (req, res) => {
         total: 0,
         totalPages: 0,
         hasNext: false,
-        hasPrev: false
+        hasPrev: false,
       },
       metadata: {
         timeframe,
-        error: error.message
-      }
+        error: error.message,
+      },
     });
   }
 });
 
 // Technical summary endpoint
-router.get('/:timeframe/summary', async (req, res) => {
+router.get("/:timeframe/summary", async (req, res) => {
   const { timeframe } = req.params;
-  
+
   // console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
 
   try {
     const tableName = `technical_data_${timeframe}`;
 
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = $1
       );
-    `, [tableName]);
+    `,
+      [tableName]
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback summary`);
+      console.log(
+        `Technical data table for ${timeframe} timeframe not found, returning fallback summary`
+      );
       // Return fallback summary data
       return res.json({
         timeframe,
@@ -296,24 +324,26 @@ router.get('/:timeframe/summary', async (req, res) => {
           totalRecords: 1000,
           uniqueSymbols: 50,
           dateRange: {
-            earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            latest: new Date().toISOString().split('T')[0]
+            earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .split("T")[0],
+            latest: new Date().toISOString().split("T")[0],
           },
           averages: {
-            rsi: '45.2',
-            macd: '0.1250',
-            sma20: '150.25',
-            volume: 2500000
-          }
+            rsi: "45.2",
+            macd: "0.1250",
+            sma20: "150.25",
+            volume: 2500000,
+          },
         },
         topSymbols: [
-          { symbol: 'AAPL', recordCount: 252 },
-          { symbol: 'MSFT', recordCount: 252 },
-          { symbol: 'GOOGL', recordCount: 252 },
-          { symbol: 'TSLA', recordCount: 252 },
-          { symbol: 'NVDA', recordCount: 252 }
+          { symbol: "AAPL", recordCount: 252 },
+          { symbol: "MSFT", recordCount: 252 },
+          { symbol: "GOOGL", recordCount: 252 },
+          { symbol: "TSLA", recordCount: 252 },
+          { symbol: "NVDA", recordCount: 252 },
         ],
-        fallback: true
+        fallback: true,
       });
     }
 
@@ -353,22 +383,26 @@ router.get('/:timeframe/summary', async (req, res) => {
         uniqueSymbols: parseInt(summary.unique_symbols),
         dateRange: {
           earliest: summary.earliest_date,
-          latest: summary.latest_date
+          latest: summary.latest_date,
         },
         averages: {
           rsi: summary.avg_rsi ? parseFloat(summary.avg_rsi).toFixed(2) : null,
-          macd: summary.avg_macd ? parseFloat(summary.avg_macd).toFixed(4) : null,
-          sma20: summary.avg_sma_20 ? parseFloat(summary.avg_sma_20).toFixed(2) : null,
-          volume: summary.avg_volume ? parseInt(summary.avg_volume) : null
-        }
+          macd: summary.avg_macd
+            ? parseFloat(summary.avg_macd).toFixed(4)
+            : null,
+          sma20: summary.avg_sma_20
+            ? parseFloat(summary.avg_sma_20).toFixed(2)
+            : null,
+          volume: summary.avg_volume ? parseInt(summary.avg_volume) : null,
+        },
       },
-      topSymbols: topSymbolsResult.rows.map(row => ({
+      topSymbols: topSymbolsResult.rows.map((row) => ({
         symbol: row.symbol,
-        recordCount: parseInt(row.record_count)
-      }))
+        recordCount: parseInt(row.record_count),
+      })),
     });
   } catch (error) {
-    console.error('Error fetching technical summary:', error);
+    console.error("Error fetching technical summary:", error);
     // Return fallback data on error
     res.json({
       timeframe,
@@ -376,66 +410,84 @@ router.get('/:timeframe/summary', async (req, res) => {
         totalRecords: 1000,
         uniqueSymbols: 50,
         dateRange: {
-          earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          latest: new Date().toISOString().split('T')[0]
+          earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0],
+          latest: new Date().toISOString().split("T")[0],
         },
         averages: {
-          rsi: '45.2',
-          macd: '0.1250',
-          sma20: '150.25',
-          volume: 2500000
-        }
+          rsi: "45.2",
+          macd: "0.1250",
+          sma20: "150.25",
+          volume: 2500000,
+        },
       },
       topSymbols: [
-        { symbol: 'AAPL', recordCount: 252 },
-        { symbol: 'MSFT', recordCount: 252 },
-        { symbol: 'GOOGL', recordCount: 252 },
-        { symbol: 'TSLA', recordCount: 252 },
-        { symbol: 'NVDA', recordCount: 252 }
+        { symbol: "AAPL", recordCount: 252 },
+        { symbol: "MSFT", recordCount: 252 },
+        { symbol: "GOOGL", recordCount: 252 },
+        { symbol: "TSLA", recordCount: 252 },
+        { symbol: "NVDA", recordCount: 252 },
       ],
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Root technical endpoint - defaults to daily data
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     // Only fetch the latest technicals for each symbol (overview)
-    const timeframe = req.query.timeframe || 'daily';
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    const timeframe = req.query.timeframe || "daily";
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
-        error: 'Unsupported timeframe',
-        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+        error: "Unsupported timeframe",
+        message: `Supported timeframes: ${validTimeframes.join(", ")}, got: ${timeframe}`,
       });
     }
     const tableName = `technical_data_${timeframe}`;
-    
+
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = $1
       );
-    `, [tableName]);
+    `,
+      [tableName]
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback overview data`);
+      console.log(
+        `Technical data table for ${timeframe} timeframe not found, returning fallback overview data`
+      );
       // Return fallback overview data
       const fallbackData = [];
-      const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'NFLX', 'SPY', 'QQQ'];
-      
+      const symbols = [
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "TSLA",
+        "NVDA",
+        "AMZN",
+        "META",
+        "NFLX",
+        "SPY",
+        "QQQ",
+      ];
+
       for (let i = 0; i < Math.min(50, symbols.length); i++) {
         const symbol = symbols[i];
         const date = new Date();
         date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-        
+
         fallbackData.push({
           symbol,
-          date: date.toISOString().split('T')[0],
+          date: date.toISOString().split("T")[0],
           open: 150 + Math.random() * 50,
           high: 160 + Math.random() * 50,
           low: 140 + Math.random() * 50,
@@ -461,7 +513,7 @@ router.get('/', async (req, res) => {
           obv: 1000000 + Math.random() * 5000000,
           mfi: 20 + Math.random() * 60,
           roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4
+          momentum: -2 + Math.random() * 4,
         });
       }
 
@@ -472,11 +524,11 @@ router.get('/', async (req, res) => {
         metadata: {
           timeframe,
           timestamp: new Date().toISOString(),
-          fallback: true
-        }
+          fallback: true,
+        },
       });
     }
-    
+
     // Subquery to get latest date per symbol
     const latestQuery = `
       SELECT t1.* FROM ${tableName} t1
@@ -496,24 +548,24 @@ router.get('/', async (req, res) => {
       count: result.rows.length,
       metadata: {
         timeframe,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
-    console.error('Error in technical overview endpoint:', error);
+    console.error("Error in technical overview endpoint:", error);
     // Return fallback data on error instead of 500
-    console.log('Error occurred, returning fallback technical overview data');
+    console.log("Error occurred, returning fallback technical overview data");
     const fallbackData = [];
-    const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
-    
+    const symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"];
+
     for (let i = 0; i < 5; i++) {
       const symbol = symbols[i];
       const date = new Date();
       date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-      
+
       fallbackData.push({
         symbol,
-        date: date.toISOString().split('T')[0],
+        date: date.toISOString().split("T")[0],
         open: 150 + Math.random() * 50,
         high: 160 + Math.random() * 50,
         low: 140 + Math.random() * 50,
@@ -539,7 +591,7 @@ router.get('/', async (req, res) => {
         obv: 1000000 + Math.random() * 5000000,
         mfi: 20 + Math.random() * 60,
         roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
+        momentum: -2 + Math.random() * 4,
       });
     }
 
@@ -548,36 +600,41 @@ router.get('/', async (req, res) => {
       data: fallbackData,
       count: fallbackData.length,
       metadata: {
-        timeframe: req.query.timeframe || 'daily',
+        timeframe: req.query.timeframe || "daily",
         timestamp: new Date().toISOString(),
         fallback: true,
-        error: error.message
-      }
+        error: error.message,
+      },
     });
   }
 });
 
 // Get technical data for a specific symbol
-router.get('/data/:symbol', async (req, res) => {
+router.get("/data/:symbol", async (req, res) => {
   const { symbol } = req.params;
   console.log(`📊 [TECHNICAL] Fetching technical data for ${symbol}`);
-  
+
   try {
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'technical_data_daily'
       );
-    `, []);
+    `,
+      []
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found, returning fallback data for ${symbol}`);
+      console.log(
+        `Technical data table not found, returning fallback data for ${symbol}`
+      );
       // Return fallback data
       const fallbackData = {
         symbol: symbol.toUpperCase(),
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split("T")[0],
         open: 150 + Math.random() * 50,
         high: 160 + Math.random() * 50,
         low: 140 + Math.random() * 50,
@@ -603,14 +660,14 @@ router.get('/data/:symbol', async (req, res) => {
         obv: 1000000 + Math.random() * 5000000,
         mfi: 20 + Math.random() * 60,
         roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
+        momentum: -2 + Math.random() * 4,
       };
 
       return res.json({
         success: true,
         data: fallbackData,
         symbol: symbol.toUpperCase(),
-        fallback: true
+        fallback: true,
       });
     }
 
@@ -656,22 +713,27 @@ router.get('/data/:symbol', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: `No technical data found for symbol ${symbol}`
+        error: `No technical data found for symbol ${symbol}`,
       });
     }
 
     res.json({
       success: true,
       data: result.rows[0],
-      symbol: symbol.toUpperCase()
+      symbol: symbol.toUpperCase(),
     });
   } catch (error) {
-    console.error(`❌ [TECHNICAL] Error fetching technical data for ${symbol}:`, error);
+    console.error(
+      `❌ [TECHNICAL] Error fetching technical data for ${symbol}:`,
+      error
+    );
     // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback technical data for ${symbol}`);
+    console.log(
+      `Error occurred, returning fallback technical data for ${symbol}`
+    );
     const fallbackData = {
       symbol: symbol.toUpperCase(),
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
       open: 150 + Math.random() * 50,
       high: 160 + Math.random() * 50,
       low: 140 + Math.random() * 50,
@@ -697,7 +759,7 @@ router.get('/data/:symbol', async (req, res) => {
       obv: 1000000 + Math.random() * 5000000,
       mfi: 20 + Math.random() * 60,
       roc: -5 + Math.random() * 10,
-      momentum: -2 + Math.random() * 4
+      momentum: -2 + Math.random() * 4,
     };
 
     res.json({
@@ -705,37 +767,42 @@ router.get('/data/:symbol', async (req, res) => {
       data: fallbackData,
       symbol: symbol.toUpperCase(),
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Get technical indicators for a specific symbol
-router.get('/indicators/:symbol', async (req, res) => {
+router.get("/indicators/:symbol", async (req, res) => {
   const { symbol } = req.params;
   console.log(`📈 [TECHNICAL] Fetching technical indicators for ${symbol}`);
-  
+
   try {
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'technical_data_daily'
       );
-    `, []);
+    `,
+      []
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found, returning fallback indicators for ${symbol}`);
+      console.log(
+        `Technical data table not found, returning fallback indicators for ${symbol}`
+      );
       // Return fallback indicators data
       const fallbackData = [];
       for (let i = 0; i < 30; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        
+
         fallbackData.push({
           symbol: symbol.toUpperCase(),
-          date: date.toISOString().split('T')[0],
+          date: date.toISOString().split("T")[0],
           rsi: 30 + Math.random() * 40,
           macd: -2 + Math.random() * 4,
           macd_signal: -1 + Math.random() * 2,
@@ -756,7 +823,7 @@ router.get('/indicators/:symbol', async (req, res) => {
           obv: 1000000 + Math.random() * 5000000,
           mfi: 20 + Math.random() * 60,
           roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4
+          momentum: -2 + Math.random() * 4,
         });
       }
 
@@ -765,7 +832,7 @@ router.get('/indicators/:symbol', async (req, res) => {
         data: fallbackData,
         count: fallbackData.length,
         symbol: symbol.toUpperCase(),
-        fallback: true
+        fallback: true,
       });
     }
 
@@ -806,7 +873,7 @@ router.get('/indicators/:symbol', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: `No technical indicators found for symbol ${symbol}`
+        error: `No technical indicators found for symbol ${symbol}`,
       });
     }
 
@@ -814,20 +881,25 @@ router.get('/indicators/:symbol', async (req, res) => {
       success: true,
       data: result.rows,
       count: result.rows.length,
-      symbol: symbol.toUpperCase()
+      symbol: symbol.toUpperCase(),
     });
   } catch (error) {
-    console.error(`❌ [TECHNICAL] Error fetching technical indicators for ${symbol}:`, error);
+    console.error(
+      `❌ [TECHNICAL] Error fetching technical indicators for ${symbol}:`,
+      error
+    );
     // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback technical indicators for ${symbol}`);
+    console.log(
+      `Error occurred, returning fallback technical indicators for ${symbol}`
+    );
     const fallbackData = [];
     for (let i = 0; i < 30; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      
+
       fallbackData.push({
         symbol: symbol.toUpperCase(),
-        date: date.toISOString().split('T')[0],
+        date: date.toISOString().split("T")[0],
         rsi: 30 + Math.random() * 40,
         macd: -2 + Math.random() * 4,
         macd_signal: -1 + Math.random() * 2,
@@ -848,7 +920,7 @@ router.get('/indicators/:symbol', async (req, res) => {
         obv: 1000000 + Math.random() * 5000000,
         mfi: 20 + Math.random() * 60,
         roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
+        momentum: -2 + Math.random() * 4,
       });
     }
 
@@ -858,40 +930,47 @@ router.get('/indicators/:symbol', async (req, res) => {
       count: fallbackData.length,
       symbol: symbol.toUpperCase(),
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Get technical history for a specific symbol
-router.get('/history/:symbol', async (req, res) => {
+router.get("/history/:symbol", async (req, res) => {
   const { symbol } = req.params;
   const { days = 90 } = req.query;
-  console.log(`📊 [TECHNICAL] Fetching technical history for ${symbol} (${days} days)`);
-  
+  console.log(
+    `📊 [TECHNICAL] Fetching technical history for ${symbol} (${days} days)`
+  );
+
   try {
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'technical_data_daily'
       );
-    `, []);
+    `,
+      []
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found, returning fallback history for ${symbol}`);
+      console.log(
+        `Technical data table not found, returning fallback history for ${symbol}`
+      );
       // Return fallback history data
       const fallbackData = [];
       const numDays = Math.min(parseInt(days), 90);
-      
+
       for (let i = 0; i < numDays; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        
+
         fallbackData.push({
           symbol: symbol.toUpperCase(),
-          date: date.toISOString().split('T')[0],
+          date: date.toISOString().split("T")[0],
           open: 150 + Math.random() * 50,
           high: 160 + Math.random() * 50,
           low: 140 + Math.random() * 50,
@@ -917,7 +996,7 @@ router.get('/history/:symbol', async (req, res) => {
           obv: 1000000 + Math.random() * 5000000,
           mfi: 20 + Math.random() * 60,
           roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4
+          momentum: -2 + Math.random() * 4,
         });
       }
 
@@ -927,7 +1006,7 @@ router.get('/history/:symbol', async (req, res) => {
         count: fallbackData.length,
         symbol: symbol.toUpperCase(),
         period_days: numDays,
-        fallback: true
+        fallback: true,
       });
     }
 
@@ -973,7 +1052,7 @@ router.get('/history/:symbol', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: `No technical history found for symbol ${symbol}`
+        error: `No technical history found for symbol ${symbol}`,
       });
     }
 
@@ -982,22 +1061,27 @@ router.get('/history/:symbol', async (req, res) => {
       data: result.rows,
       count: result.rows.length,
       symbol: symbol.toUpperCase(),
-      period_days: days
+      period_days: days,
     });
   } catch (error) {
-    console.error(`❌ [TECHNICAL] Error fetching technical history for ${symbol}:`, error);
+    console.error(
+      `❌ [TECHNICAL] Error fetching technical history for ${symbol}:`,
+      error
+    );
     // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback technical history for ${symbol}`);
+    console.log(
+      `Error occurred, returning fallback technical history for ${symbol}`
+    );
     const fallbackData = [];
     const numDays = Math.min(parseInt(days), 90);
-    
+
     for (let i = 0; i < numDays; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      
+
       fallbackData.push({
         symbol: symbol.toUpperCase(),
-        date: date.toISOString().split('T')[0],
+        date: date.toISOString().split("T")[0],
         open: 150 + Math.random() * 50,
         high: 160 + Math.random() * 50,
         low: 140 + Math.random() * 50,
@@ -1023,7 +1107,7 @@ router.get('/history/:symbol', async (req, res) => {
         obv: 1000000 + Math.random() * 5000000,
         mfi: 20 + Math.random() * 60,
         roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
+        momentum: -2 + Math.random() * 4,
       });
     }
 
@@ -1034,62 +1118,71 @@ router.get('/history/:symbol', async (req, res) => {
       symbol: symbol.toUpperCase(),
       period_days: numDays,
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Get support and resistance levels for a symbol
-router.get('/support-resistance/:symbol', async (req, res) => {
+router.get("/support-resistance/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { timeframe = 'daily' } = req.query;
-    
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    const { timeframe = "daily" } = req.query;
+
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
-        error: 'Unsupported timeframe',
-        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+        error: "Unsupported timeframe",
+        message: `Supported timeframes: ${validTimeframes.join(", ")}, got: ${timeframe}`,
       });
     }
-    
+
     const tableName = `technical_data_${timeframe}`;
-    
+
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = $1
       );
-    `, [tableName]);
+    `,
+      [tableName]
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback support-resistance for ${symbol}`);
+      console.log(
+        `Technical data table for ${timeframe} timeframe not found, returning fallback support-resistance for ${symbol}`
+      );
       // Return fallback support-resistance data
       const currentPrice = 150 + Math.random() * 50;
       const support = currentPrice * 0.9;
       const resistance = currentPrice * 1.1;
-      
+
       return res.json({
         symbol: symbol.toUpperCase(),
         timeframe,
         current_price: currentPrice,
         support_levels: [
-          { level: support, type: 'dynamic', strength: 'strong' },
-          { level: support * 0.95, type: 'bollinger', strength: 'medium' },
-          { level: support * 0.85, type: 'moving_average', strength: 'strong' }
+          { level: support, type: "dynamic", strength: "strong" },
+          { level: support * 0.95, type: "bollinger", strength: "medium" },
+          { level: support * 0.85, type: "moving_average", strength: "strong" },
         ],
         resistance_levels: [
-          { level: resistance, type: 'dynamic', strength: 'strong' },
-          { level: resistance * 1.05, type: 'bollinger', strength: 'medium' },
-          { level: resistance * 1.15, type: 'moving_average', strength: 'medium' }
+          { level: resistance, type: "dynamic", strength: "strong" },
+          { level: resistance * 1.05, type: "bollinger", strength: "medium" },
+          {
+            level: resistance * 1.15,
+            type: "moving_average",
+            strength: "medium",
+          },
         ],
-        last_updated: new Date().toISOString().split('T')[0],
-        fallback: true
+        last_updated: new Date().toISOString().split("T")[0],
+        fallback: true,
       });
     }
-    
+
     // Get recent price data and pivot points
     const query = `
       SELECT 
@@ -1110,83 +1203,98 @@ router.get('/support-resistance/:symbol', async (req, res) => {
       ORDER BY date DESC
       LIMIT 50
     `;
-    
+
     const result = await query(query, [symbol.toUpperCase()]);
-    
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'No technical data found for symbol' });
+      return res
+        .status(404)
+        .json({ error: "No technical data found for symbol" });
     }
-    
+
     // Calculate support and resistance levels
     const latest = result.rows[0];
     const recentData = result.rows.slice(0, 20); // Last 20 periods
-    
-    const highs = recentData.map(d => d.high).filter(h => h !== null);
-    const lows = recentData.map(d => d.low).filter(l => l !== null);
-    
+
+    const highs = recentData.map((d) => d.high).filter((h) => h !== null);
+    const lows = recentData.map((d) => d.low).filter((l) => l !== null);
+
     const resistance = Math.max(...highs);
     const support = Math.min(...lows);
-    
+
     res.json({
       symbol: symbol.toUpperCase(),
       timeframe,
       current_price: latest.close,
       support_levels: [
-        { level: support, type: 'dynamic', strength: 'strong' },
-        { level: latest.bbands_lower, type: 'bollinger', strength: 'medium' },
-        { level: latest.sma_200, type: 'moving_average', strength: 'strong' }
+        { level: support, type: "dynamic", strength: "strong" },
+        { level: latest.bbands_lower, type: "bollinger", strength: "medium" },
+        { level: latest.sma_200, type: "moving_average", strength: "strong" },
       ],
       resistance_levels: [
-        { level: resistance, type: 'dynamic', strength: 'strong' },
-        { level: latest.bbands_upper, type: 'bollinger', strength: 'medium' },
-        { level: latest.sma_50, type: 'moving_average', strength: 'medium' }
+        { level: resistance, type: "dynamic", strength: "strong" },
+        { level: latest.bbands_upper, type: "bollinger", strength: "medium" },
+        { level: latest.sma_50, type: "moving_average", strength: "medium" },
       ],
-      last_updated: latest.date
+      last_updated: latest.date,
     });
   } catch (error) {
-    console.error('Error fetching support resistance levels:', error);
+    console.error("Error fetching support resistance levels:", error);
     // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback support-resistance for ${req.params.symbol}`);
+    console.log(
+      `Error occurred, returning fallback support-resistance for ${req.params.symbol}`
+    );
     const currentPrice = 150 + Math.random() * 50;
     const support = currentPrice * 0.9;
     const resistance = currentPrice * 1.1;
-    
+
     res.json({
       symbol: req.params.symbol.toUpperCase(),
-      timeframe: req.query.timeframe || 'daily',
+      timeframe: req.query.timeframe || "daily",
       current_price: currentPrice,
       support_levels: [
-        { level: support, type: 'dynamic', strength: 'strong' },
-        { level: support * 0.95, type: 'bollinger', strength: 'medium' },
-        { level: support * 0.85, type: 'moving_average', strength: 'strong' }
+        { level: support, type: "dynamic", strength: "strong" },
+        { level: support * 0.95, type: "bollinger", strength: "medium" },
+        { level: support * 0.85, type: "moving_average", strength: "strong" },
       ],
       resistance_levels: [
-        { level: resistance, type: 'dynamic', strength: 'strong' },
-        { level: resistance * 1.05, type: 'bollinger', strength: 'medium' },
-        { level: resistance * 1.15, type: 'moving_average', strength: 'medium' }
+        { level: resistance, type: "dynamic", strength: "strong" },
+        { level: resistance * 1.05, type: "bollinger", strength: "medium" },
+        {
+          level: resistance * 1.15,
+          type: "moving_average",
+          strength: "medium",
+        },
       ],
-      last_updated: new Date().toISOString().split('T')[0],
+      last_updated: new Date().toISOString().split("T")[0],
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Get technical data with filtering and pagination
-router.get('/data', async (req, res) => {
-  const { 
+router.get("/data", async (req, res) => {
+  const {
     symbol,
-    timeframe = 'daily',
+    timeframe = "daily",
     limit = 25,
     page = 1,
     startDate,
     endDate,
-    sortBy = 'date',
-    sortOrder = 'desc'
+    sortBy = "date",
+    sortOrder = "desc",
   } = req.query;
 
   console.log(`📊 [TECHNICAL] Fetching technical data with params:`, {
-    symbol, timeframe, limit, page, startDate, endDate, sortBy, sortOrder
+    symbol,
+    timeframe,
+    limit,
+    page,
+    startDate,
+    endDate,
+    sortBy,
+    sortOrder,
   });
 
   try {
@@ -1194,7 +1302,7 @@ router.get('/data', async (req, res) => {
     const maxLimit = Math.min(parseInt(limit), 200);
 
     // Build WHERE clause
-    let whereClause = 'WHERE 1=1';
+    let whereClause = "WHERE 1=1";
     const params = [];
     let paramIndex = 1;
 
@@ -1219,40 +1327,47 @@ router.get('/data', async (req, res) => {
     }
 
     // Determine table name based on timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid timeframe',
-        message: `Supported timeframes: ${validTimeframes.join(', ')}, got: ${timeframe}`
+        error: "Invalid timeframe",
+        message: `Supported timeframes: ${validTimeframes.join(", ")}, got: ${timeframe}`,
       });
     }
 
     const tableName = `technical_data_${timeframe}`;
 
     // Check if table exists
-    const tableExists = await query(`
+    const tableExists = await query(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = $1
       );
-    `, [tableName]);
+    `,
+      [tableName]
+    );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback filtered data`);
+      console.log(
+        `Technical data table for ${timeframe} timeframe not found, returning fallback filtered data`
+      );
       // Return fallback filtered data
       const fallbackData = [];
-      const symbols = symbol ? [symbol.toUpperCase()] : ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
-      
+      const symbols = symbol
+        ? [symbol.toUpperCase()]
+        : ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"];
+
       for (let i = 0; i < Math.min(maxLimit, 25); i++) {
         const symbol = symbols[i % symbols.length];
         const date = new Date();
         date.setDate(date.getDate() - i);
-        
+
         fallbackData.push({
           symbol,
-          date: date.toISOString().split('T')[0],
+          date: date.toISOString().split("T")[0],
           open: 150 + Math.random() * 50,
           high: 160 + Math.random() * 50,
           low: 140 + Math.random() * 50,
@@ -1294,7 +1409,7 @@ router.get('/data', async (req, res) => {
           pivot_high: 155 + Math.random() * 10,
           pivot_low: 145 + Math.random() * 10,
           pivot_high_triggered: Math.random() > 0.5,
-          pivot_low_triggered: Math.random() > 0.5
+          pivot_low_triggered: Math.random() > 0.5,
         });
       }
 
@@ -1308,19 +1423,19 @@ router.get('/data', async (req, res) => {
           total: fallbackData.length,
           totalPages: 1,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         filters: {
           symbol: symbol || null,
           timeframe,
           startDate: startDate || null,
-          endDate: endDate || null
+          endDate: endDate || null,
         },
         sorting: {
           sortBy: sortBy,
-          sortOrder: sortOrder
+          sortOrder: sortOrder,
         },
-        fallback: true
+        fallback: true,
       });
     }
 
@@ -1335,12 +1450,27 @@ router.get('/data', async (req, res) => {
 
     // Validate sortBy field
     const validSortFields = [
-      'date', 'symbol', 'open', 'high', 'low', 'close', 'volume',
-      'rsi', 'macd', 'macd_signal', 'macd_histogram', 'sma_20', 'sma_50',
-      'ema_12', 'ema_26', 'bollinger_upper', 'bollinger_lower', 'bollinger_middle'
+      "date",
+      "symbol",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "rsi",
+      "macd",
+      "macd_signal",
+      "macd_histogram",
+      "sma_20",
+      "sma_50",
+      "ema_12",
+      "ema_26",
+      "bollinger_upper",
+      "bollinger_lower",
+      "bollinger_middle",
     ];
-    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'date';
-    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : "date";
+    const safeSortOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
 
     // Get technical data
     const dataQuery = `
@@ -1400,9 +1530,15 @@ router.get('/data', async (req, res) => {
 
     const totalPages = Math.ceil(total / maxLimit);
 
-    console.log(`✅ [TECHNICAL] Data query completed: ${dataResult.rows.length} results, total: ${total}`);
+    console.log(
+      `✅ [TECHNICAL] Data query completed: ${dataResult.rows.length} results, total: ${total}`
+    );
 
-    if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
+    if (
+      !dataResult ||
+      !Array.isArray(dataResult.rows) ||
+      dataResult.rows.length === 0
+    ) {
       return res.json({
         success: true,
         data: [],
@@ -1413,18 +1549,18 @@ router.get('/data', async (req, res) => {
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         filters: {
           symbol: symbol || null,
           timeframe,
           startDate: startDate || null,
-          endDate: endDate || null
+          endDate: endDate || null,
         },
         sorting: {
           sortBy: safeSortBy,
-          sortOrder: safeSortOrder
-        }
+          sortOrder: safeSortOrder,
+        },
       });
     }
 
@@ -1438,35 +1574,34 @@ router.get('/data', async (req, res) => {
         total,
         totalPages,
         hasNext: parseInt(page) < totalPages,
-        hasPrev: parseInt(page) > 1
+        hasPrev: parseInt(page) > 1,
       },
       filters: {
         symbol: symbol || null,
         timeframe,
         startDate: startDate || null,
-        endDate: endDate || null
+        endDate: endDate || null,
       },
       sorting: {
         sortBy: safeSortBy,
-        sortOrder: safeSortOrder
-      }
+        sortOrder: safeSortOrder,
+      },
     });
-
   } catch (error) {
-    console.error('❌ [TECHNICAL] Technical data error:', error);
+    console.error("❌ [TECHNICAL] Technical data error:", error);
     // Return fallback data on error instead of 500
-    console.log('Error occurred, returning fallback technical filtered data');
+    console.log("Error occurred, returning fallback technical filtered data");
     const fallbackData = [];
-    const symbols = symbol ? [symbol.toUpperCase()] : ['AAPL', 'MSFT', 'GOOGL'];
-    
+    const symbols = symbol ? [symbol.toUpperCase()] : ["AAPL", "MSFT", "GOOGL"];
+
     for (let i = 0; i < Math.min(parseInt(limit) || 25, 10); i++) {
       const symbol = symbols[i % symbols.length];
       const date = new Date();
       date.setDate(date.getDate() - i);
-      
+
       fallbackData.push({
         symbol,
-        date: date.toISOString().split('T')[0],
+        date: date.toISOString().split("T")[0],
         open: 150 + Math.random() * 50,
         high: 160 + Math.random() * 50,
         low: 140 + Math.random() * 50,
@@ -1508,7 +1643,7 @@ router.get('/data', async (req, res) => {
         pivot_high: 155 + Math.random() * 10,
         pivot_low: 145 + Math.random() * 10,
         pivot_high_triggered: Math.random() > 0.5,
-        pivot_low_triggered: Math.random() > 0.5
+        pivot_low_triggered: Math.random() > 0.5,
       });
     }
 
@@ -1522,35 +1657,37 @@ router.get('/data', async (req, res) => {
         total: fallbackData.length,
         totalPages: 1,
         hasNext: false,
-        hasPrev: false
+        hasPrev: false,
       },
       filters: {
         symbol: symbol || null,
         timeframe,
         startDate: startDate || null,
-        endDate: endDate || null
+        endDate: endDate || null,
       },
       sorting: {
         sortBy: sortBy,
-        sortOrder: sortOrder
+        sortOrder: sortOrder,
       },
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Pattern Recognition Endpoint
-router.get('/patterns/:symbol', async (req, res) => {
+router.get("/patterns/:symbol", async (req, res) => {
   const { symbol } = req.params;
-  const { timeframe = '1D', limit = 10 } = req.query;
-  
-  console.log(`🔍 [PATTERNS] Analyzing patterns for ${symbol} on ${timeframe} timeframe`);
-  
+  const { timeframe = "1D", limit = 10 } = req.query;
+
+  console.log(
+    `🔍 [PATTERNS] Analyzing patterns for ${symbol} on ${timeframe} timeframe`
+  );
+
   try {
     // Define pattern analysis logic
     const patternAnalysis = await analyzePatterns(symbol, timeframe, limit);
-    
+
     res.json({
       success: true,
       symbol: symbol.toUpperCase(),
@@ -1558,14 +1695,17 @@ router.get('/patterns/:symbol', async (req, res) => {
       patterns: patternAnalysis.patterns,
       summary: patternAnalysis.summary,
       confidence_score: patternAnalysis.overallConfidence,
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(`❌ [PATTERNS] Error analyzing patterns for ${symbol}:`, error);
-    
+    console.error(
+      `❌ [PATTERNS] Error analyzing patterns for ${symbol}:`,
+      error
+    );
+
     // Return fallback pattern data
     const fallbackPatterns = generateFallbackPatterns(symbol, timeframe);
-    
+
     res.json({
       success: true,
       symbol: symbol.toUpperCase(),
@@ -1575,7 +1715,7 @@ router.get('/patterns/:symbol', async (req, res) => {
       confidence_score: fallbackPatterns.overallConfidence,
       last_updated: new Date().toISOString(),
       fallback: true,
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -1584,41 +1724,59 @@ router.get('/patterns/:symbol', async (req, res) => {
 async function analyzePatterns(symbol, timeframe, limit) {
   // Get historical price data for pattern analysis
   const priceData = await getPriceDataForPatterns(symbol, timeframe);
-  
+
   const patterns = [];
-  const bullishPatterns = ['double_bottom', 'cup_and_handle', 'bullish_flag', 'ascending_triangle'];
-  const bearishPatterns = ['double_top', 'head_and_shoulders', 'bearish_flag', 'descending_triangle'];
-  
+  const bullishPatterns = [
+    "double_bottom",
+    "cup_and_handle",
+    "bullish_flag",
+    "ascending_triangle",
+  ];
+  const bearishPatterns = [
+    "double_top",
+    "head_and_shoulders",
+    "bearish_flag",
+    "descending_triangle",
+  ];
+
   // Simulate pattern detection with realistic confidence scores
   for (let i = 0; i < Math.min(limit, 8); i++) {
     const isBullish = Math.random() > 0.5;
     const patternTypes = isBullish ? bullishPatterns : bearishPatterns;
-    const patternType = patternTypes[Math.floor(Math.random() * patternTypes.length)];
-    
+    const patternType =
+      patternTypes[Math.floor(Math.random() * patternTypes.length)];
+
     const confidence = 0.6 + Math.random() * 0.35; // 60-95% confidence
     const timeToTarget = Math.floor(Math.random() * 30) + 5; // 5-35 days
-    
+
     patterns.push({
       type: patternType,
-      direction: isBullish ? 'bullish' : 'bearish',
+      direction: isBullish ? "bullish" : "bearish",
       confidence: Math.round(confidence * 100) / 100,
       timeframe: timeframe,
-      detected_at: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      target_price: calculateTargetPrice(priceData.currentPrice, isBullish, confidence),
+      detected_at: new Date(
+        Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+      target_price: calculateTargetPrice(
+        priceData.currentPrice,
+        isBullish,
+        confidence
+      ),
       stop_loss: calculateStopLoss(priceData.currentPrice, isBullish),
       time_to_target: timeToTarget,
       support_levels: priceData.supportLevels,
-      resistance_levels: priceData.resistanceLevels
+      resistance_levels: priceData.resistanceLevels,
     });
   }
-  
+
   // Sort patterns by confidence descending
   patterns.sort((a, b) => b.confidence - a.confidence);
-  
-  const bullishCount = patterns.filter(p => p.direction === 'bullish').length;
-  const bearishCount = patterns.filter(p => p.direction === 'bearish').length;
-  const avgConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length;
-  
+
+  const bullishCount = patterns.filter((p) => p.direction === "bullish").length;
+  const bearishCount = patterns.filter((p) => p.direction === "bearish").length;
+  const avgConfidence =
+    patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length;
+
   return {
     patterns: patterns.slice(0, limit),
     summary: {
@@ -1626,9 +1784,9 @@ async function analyzePatterns(symbol, timeframe, limit) {
       bullish_patterns: bullishCount,
       bearish_patterns: bearishCount,
       average_confidence: Math.round(avgConfidence * 100) / 100,
-      market_sentiment: bullishCount > bearishCount ? 'bullish' : 'bearish'
+      market_sentiment: bullishCount > bearishCount ? "bullish" : "bearish",
     },
-    overallConfidence: Math.round(avgConfidence * 100) / 100
+    overallConfidence: Math.round(avgConfidence * 100) / 100,
   };
 }
 
@@ -1636,7 +1794,7 @@ async function analyzePatterns(symbol, timeframe, limit) {
 async function getPriceDataForPatterns(symbol, timeframe) {
   try {
     // Try to get real price data
-    const tableName = 'technical_data_daily';
+    const tableName = "technical_data_daily";
     const priceQuery = `
       SELECT close, high, low, date
       FROM ${tableName}
@@ -1644,60 +1802,60 @@ async function getPriceDataForPatterns(symbol, timeframe) {
       ORDER BY date DESC
       LIMIT 50
     `;
-    
+
     const result = await query(priceQuery, [symbol.toUpperCase()]);
-    
+
     if (result.rows.length > 0) {
       const latest = result.rows[0];
-      const prices = result.rows.map(row => ({ 
-        close: row.close, 
-        high: row.high, 
-        low: row.low, 
-        date: row.date 
+      const prices = result.rows.map((row) => ({
+        close: row.close,
+        high: row.high,
+        low: row.low,
+        date: row.date,
       }));
-      
+
       return {
         currentPrice: latest.close,
         priceHistory: prices,
         supportLevels: calculateSupport(prices),
-        resistanceLevels: calculateResistance(prices)
+        resistanceLevels: calculateResistance(prices),
       };
     }
   } catch (error) {
-    console.log('Using fallback price data for pattern analysis');
+    console.log("Using fallback price data for pattern analysis");
   }
-  
+
   // Fallback price data
   const currentPrice = 150 + Math.random() * 100;
   return {
     currentPrice,
     priceHistory: generateFallbackPriceHistory(currentPrice),
-    supportLevels: [currentPrice * 0.95, currentPrice * 0.90],
-    resistanceLevels: [currentPrice * 1.05, currentPrice * 1.10]
+    supportLevels: [currentPrice * 0.95, currentPrice * 0.9],
+    resistanceLevels: [currentPrice * 1.05, currentPrice * 1.1],
   };
 }
 
 // Calculate support levels from price history
 function calculateSupport(prices) {
-  const lows = prices.map(p => p.low).filter(l => l !== null);
+  const lows = prices.map((p) => p.low).filter((l) => l !== null);
   const minLow = Math.min(...lows);
   const avgLow = lows.reduce((sum, low) => sum + low, 0) / lows.length;
-  
+
   return [minLow, avgLow * 0.98];
 }
 
 // Calculate resistance levels from price history
 function calculateResistance(prices) {
-  const highs = prices.map(p => p.high).filter(h => h !== null);
+  const highs = prices.map((p) => p.high).filter((h) => h !== null);
   const maxHigh = Math.max(...highs);
   const avgHigh = highs.reduce((sum, high) => sum + high, 0) / highs.length;
-  
+
   return [maxHigh, avgHigh * 1.02];
 }
 
 // Calculate target price based on pattern
 function calculateTargetPrice(currentPrice, isBullish, confidence) {
-  const multiplier = isBullish ? (1 + confidence * 0.1) : (1 - confidence * 0.1);
+  const multiplier = isBullish ? 1 + confidence * 0.1 : 1 - confidence * 0.1;
   return Math.round(currentPrice * multiplier * 100) / 100;
 }
 
@@ -1711,22 +1869,22 @@ function calculateStopLoss(currentPrice, isBullish) {
 function generateFallbackPriceHistory(currentPrice) {
   const history = [];
   let price = currentPrice;
-  
+
   for (let i = 0; i < 30; i++) {
     const change = (Math.random() - 0.5) * 0.05; // ±2.5% daily change
     price = price * (1 + change);
-    
+
     const date = new Date();
     date.setDate(date.getDate() - i);
-    
+
     history.push({
       close: Math.round(price * 100) / 100,
       high: Math.round(price * 1.02 * 100) / 100,
       low: Math.round(price * 0.98 * 100) / 100,
-      date: date.toISOString().split('T')[0]
+      date: date.toISOString().split("T")[0],
     });
   }
-  
+
   return history;
 }
 
@@ -1734,41 +1892,43 @@ function generateFallbackPriceHistory(currentPrice) {
 function generateFallbackPatterns(symbol, timeframe) {
   const patterns = [
     {
-      type: 'bullish_flag',
-      direction: 'bullish',
+      type: "bullish_flag",
+      direction: "bullish",
       confidence: 0.78,
       timeframe: timeframe,
       detected_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      target_price: 165.50,
-      stop_loss: 148.20,
+      target_price: 165.5,
+      stop_loss: 148.2,
       time_to_target: 12,
-      support_levels: [148.20, 152.10],
-      resistance_levels: [162.80, 168.90]
+      support_levels: [148.2, 152.1],
+      resistance_levels: [162.8, 168.9],
     },
     {
-      type: 'ascending_triangle',
-      direction: 'bullish',
+      type: "ascending_triangle",
+      direction: "bullish",
       confidence: 0.65,
       timeframe: timeframe,
       detected_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      target_price: 172.30,
-      stop_loss: 145.60,
+      target_price: 172.3,
+      stop_loss: 145.6,
       time_to_target: 18,
-      support_levels: [145.60, 150.40],
-      resistance_levels: [160.20, 172.30]
-    }
+      support_levels: [145.6, 150.4],
+      resistance_levels: [160.2, 172.3],
+    },
   ];
-  
+
   return {
     patterns,
     summary: {
       total_patterns: patterns.length,
-      bullish_patterns: patterns.filter(p => p.direction === 'bullish').length,
-      bearish_patterns: patterns.filter(p => p.direction === 'bearish').length,
+      bullish_patterns: patterns.filter((p) => p.direction === "bullish")
+        .length,
+      bearish_patterns: patterns.filter((p) => p.direction === "bearish")
+        .length,
       average_confidence: 0.72,
-      market_sentiment: 'bullish'
+      market_sentiment: "bullish",
     },
-    overallConfidence: 0.72
+    overallConfidence: 0.72,
   };
 }
 

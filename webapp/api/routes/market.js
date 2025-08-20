@@ -1277,8 +1277,8 @@ router.get('/volatility', async (req, res) => {
     res.json({
       data: {
         vix: result.rows[0] || null,
-        market_volatility: volatilityResult.rows[0]?.market_volatility || 0,
-        avg_absolute_change: volatilityResult.rows[0]?.avg_absolute_change || 0
+        market_volatility: volatilityResult.rows[0] && volatilityResult.rows[0].market_volatility || 0,
+        avg_absolute_change: volatilityResult.rows[0] && volatilityResult.rows[0].avg_absolute_change || 0
       },
       lastUpdated: result.rows.length > 0 ? result.rows[0].date : null
     });

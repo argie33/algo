@@ -61,9 +61,9 @@ app.get('/api/debug-secret', async (req, res) => {
     
     const debugInfo = {
       secretType: typeof result.SecretString,
-      secretLength: result.SecretString?.length,
-      secretPreview: result.SecretString?.substring(0, 100),
-      first5Chars: JSON.stringify(result.SecretString?.substring(0, 5)),
+      secretLength: result.SecretString && result.SecretString.length,
+      secretPreview: result.SecretString && result.SecretString.substring(0, 100),
+      first5Chars: JSON.stringify(result.SecretString && result.SecretString.substring(0, 5)),
       isString: typeof result.SecretString === 'string',
       isObject: typeof result.SecretString === 'object',
       parseAttempt: null,

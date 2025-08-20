@@ -1,24 +1,26 @@
-const express = require('express');
-const { query } = require('../utils/database');
+const express = require("express");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 
 // Get buy signals
-router.get('/buy', async (req, res) => {
+router.get("/buy", async (req, res) => {
   try {
-    const timeframe = req.query.timeframe || 'daily';
+    const timeframe = req.query.timeframe || "daily";
     const limit = parseInt(req.query.limit) || 25;
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
     // Validate timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+      return res.status(400).json({
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+      });
     }
 
     const tableName = `buy_sell_${timeframe}`;
-    
+
     const buySignalsQuery = `
       SELECT 
         bs.symbol,
@@ -51,52 +53,59 @@ router.get('/buy', async (req, res) => {
 
     const [signalsResult, countResult] = await Promise.all([
       query(buySignalsQuery, [limit, offset]),
-      query(countQuery)
+      query(countQuery),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult || !Array.isArray(signalsResult.rows) || signalsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !signalsResult ||
+      !Array.isArray(signalsResult.rows) ||
+      signalsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       data: signalsResult.rows,
       timeframe,
-      signal_type: 'buy',
+      signal_type: "buy",
       pagination: {
         page,
         limit,
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching buy signals:', error);
-    return res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching buy signals:", error);
+    return res
+      .status(500)
+      .json({ error: "Database error", details: error.message });
   }
 });
 
 // Get sell signals
-router.get('/sell', async (req, res) => {
+router.get("/sell", async (req, res) => {
   try {
-    const timeframe = req.query.timeframe || 'daily';
+    const timeframe = req.query.timeframe || "daily";
     const limit = parseInt(req.query.limit) || 25;
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
     // Validate timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+      return res.status(400).json({
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+      });
     }
 
     const tableName = `buy_sell_${timeframe}`;
-    
+
     const sellSignalsQuery = `
       SELECT 
         bs.symbol,
@@ -129,33 +138,38 @@ router.get('/sell', async (req, res) => {
 
     const [signalsResult, countResult] = await Promise.all([
       query(sellSignalsQuery, [limit, offset]),
-      query(countQuery)
+      query(countQuery),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult || !Array.isArray(signalsResult.rows) || signalsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !signalsResult ||
+      !Array.isArray(signalsResult.rows) ||
+      signalsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       data: signalsResult.rows,
       timeframe,
-      signal_type: 'sell',
+      signal_type: "sell",
       pagination: {
         page,
         limit,
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching sell signals:', error);
-    return res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching sell signals:", error);
+    return res
+      .status(500)
+      .json({ error: "Database error", details: error.message });
   }
 });
 

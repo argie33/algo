@@ -12,8 +12,7 @@ import {
   InputAdornment,
   IconButton,
 } from "@mui/material";
-import {
-  Visibility, VisibilityOff, } from "@mui/icons-material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function ResetPasswordForm({

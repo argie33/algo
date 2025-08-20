@@ -221,8 +221,8 @@ router.get('/summary', async (req, res) => {
  */
 router.get('/holdings', authenticateToken, async (req, res) => {
     try {
-        console.log('💼 Holdings request received for user:', req.user?.sub);
-        const userId = req.user?.sub;
+        console.log('💼 Holdings request received for user:', req.user && req.user.sub);
+        const userId = req.user && req.user.sub;
 
         if (!userId) {
             return res.status(401).json({ error: 'User authentication required' });

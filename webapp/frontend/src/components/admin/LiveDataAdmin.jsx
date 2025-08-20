@@ -34,7 +34,10 @@ import {
   Tab,
 } from "@mui/material";
 import {
-  Settings as SettingsIcon, Refresh as RefreshIcon, Analytics as AnalyticsIcon, } from "@mui/icons-material";
+  Settings as SettingsIcon,
+  Refresh as RefreshIcon,
+  Analytics as AnalyticsIcon,
+} from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 import ProviderMetrics from "./ProviderMetrics";
 import ConnectionMonitor from "./ConnectionMonitor";

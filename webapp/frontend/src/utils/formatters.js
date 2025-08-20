@@ -1,7 +1,5 @@
 import numeral from "numeral";
 
-
-
 // Format currency values
 export const formatCurrency = (value, decimals = 2) => {
   if (value === null || value === undefined) return "N/A";

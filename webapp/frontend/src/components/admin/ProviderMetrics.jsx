@@ -26,7 +26,9 @@ import {
   Alert,
 } from "@mui/material";
 import {
-  Settings as SettingsIcon, Refresh as RefreshIcon, } from "@mui/icons-material";
+  Settings as SettingsIcon,
+  Refresh as RefreshIcon,
+} from "@mui/icons-material";
 
 const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
   const [settingsDialog, setSettingsDialog] = useState({

@@ -24,7 +24,12 @@ import {
   AccordionDetails,
 } from "@mui/material";
 import {
-  Warning as WarningIcon, Error as ErrorIcon, Info as InfoIcon, Refresh as RefreshIcon, Email as EmailIcon, } from "@mui/icons-material";
+  Warning as WarningIcon,
+  Error as ErrorIcon,
+  Info as InfoIcon,
+  Refresh as RefreshIcon,
+  Email as EmailIcon,
+} from "@mui/icons-material";
 
 const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
   const [alerts, setAlerts] = useState(

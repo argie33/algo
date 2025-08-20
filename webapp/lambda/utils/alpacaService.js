@@ -1,11 +1,11 @@
-const Alpaca = require('@alpacahq/alpaca-trade-api');
+const Alpaca = require("@alpacahq/alpaca-trade-api");
 
 /**
  * Alpaca Integration Service
- * 
+ *
  * This service handles all Alpaca API operations for portfolio management.
  * It supports both paper trading (sandbox) and live trading environments.
- * 
+ *
  * Security Features:
  * - API keys are never logged
  * - Supports both paper and live trading modes
@@ -16,14 +16,14 @@ const Alpaca = require('@alpacahq/alpaca-trade-api');
 class AlpacaService {
   constructor(apiKey, apiSecret, isPaper = true) {
     if (!apiKey || !apiSecret) {
-      throw new Error('Alpaca API key and secret are required');
+      throw new Error("Alpaca API key and secret are required");
     }
 
     this.client = new Alpaca({
       key: apiKey,
       secret: apiSecret,
       paper: isPaper,
-      usePolygon: false // Use Alpaca data instead of Polygon
+      usePolygon: false, // Use Alpaca data instead of Polygon
     });
 
     this.isPaper = isPaper;
@@ -38,14 +38,14 @@ class AlpacaService {
   checkRateLimit() {
     const now = Date.now();
     const windowStart = now - this.rateLimitWindow;
-    
+
     // Remove old requests outside the window
-    this.requestTimes = this.requestTimes.filter(time => time > windowStart);
-    
+    this.requestTimes = this.requestTimes.filter((time) => time > windowStart);
+
     if (this.requestTimes.length >= this.maxRequestsPerWindow) {
-      throw new Error('Rate limit exceeded. Please try again in a minute.');
+      throw new Error("Rate limit exceeded. Please try again in a minute.");
     }
-    
+
     this.requestTimes.push(now);
   }
 
@@ -55,9 +55,9 @@ class AlpacaService {
   async getAccount() {
     try {
       this.checkRateLimit();
-      
+
       const account = await this.client.getAccount();
-      
+
       return {
         accountId: account.id,
         status: account.status,
@@ -80,10 +80,10 @@ class AlpacaService {
         transfersBlocked: account.transfers_blocked,
         accountBlocked: account.account_blocked,
         patternDayTrader: account.pattern_day_trader,
-        environment: this.isPaper ? 'paper' : 'live'
+        environment: this.isPaper ? "paper" : "live",
       };
     } catch (error) {
-      console.error('Alpaca account fetch error:', error.message);
+      console.error("Alpaca account fetch error:", error.message);
       throw new Error(`Failed to fetch account information: ${error.message}`);
     }
   }
@@ -94,10 +94,10 @@ class AlpacaService {
   async getPositions() {
     try {
       this.checkRateLimit();
-      
+
       const positions = await this.client.getPositions();
-      
-      return positions.map(position => ({
+
+      return positions.map((position) => ({
         symbol: position.symbol,
         assetId: position.asset_id,
         exchange: position.exchange,
@@ -109,16 +109,18 @@ class AlpacaService {
         unrealizedPL: parseFloat(position.unrealized_pl),
         unrealizedPLPercent: parseFloat(position.unrealized_plpc),
         unrealizedIntradayPL: parseFloat(position.unrealized_intraday_pl),
-        unrealizedIntradayPLPercent: parseFloat(position.unrealized_intraday_plpc),
+        unrealizedIntradayPLPercent: parseFloat(
+          position.unrealized_intraday_plpc
+        ),
         currentPrice: parseFloat(position.current_price),
         lastDayPrice: parseFloat(position.lastday_price),
         changeToday: parseFloat(position.change_today),
         averageEntryPrice: parseFloat(position.avg_entry_price),
         qtyAvailable: parseFloat(position.qty_available),
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       }));
     } catch (error) {
-      console.error('Alpaca positions fetch error:', error.message);
+      console.error("Alpaca positions fetch error:", error.message);
       throw new Error(`Failed to fetch positions: ${error.message}`);
     }
   }
@@ -126,14 +128,14 @@ class AlpacaService {
   /**
    * Get portfolio history
    */
-  async getPortfolioHistory(period = '1M', timeframe = '1Day') {
+  async getPortfolioHistory(period = "1M", timeframe = "1Day") {
     try {
       this.checkRateLimit();
-      
+
       const portfolio = await this.client.getPortfolioHistory({
         period: period,
         timeframe: timeframe,
-        extended_hours: true
+        extended_hours: true,
       });
 
       if (!portfolio.timestamp || !portfolio.equity) {
@@ -145,18 +147,26 @@ class AlpacaService {
       for (let i = 0; i < portfolio.timestamp.length; i++) {
         if (portfolio.equity[i] !== null) {
           history.push({
-            date: new Date(portfolio.timestamp[i] * 1000).toISOString().split('T')[0],
+            date: new Date(portfolio.timestamp[i] * 1000)
+              .toISOString()
+              .split("T")[0],
             equity: parseFloat(portfolio.equity[i]),
-            profitLoss: portfolio.profit_loss ? parseFloat(portfolio.profit_loss[i]) : 0,
-            profitLossPercent: portfolio.profit_loss_pct ? parseFloat(portfolio.profit_loss_pct[i]) : 0,
-            baseValue: portfolio.base_value ? parseFloat(portfolio.base_value) : 0
+            profitLoss: portfolio.profit_loss
+              ? parseFloat(portfolio.profit_loss[i])
+              : 0,
+            profitLossPercent: portfolio.profit_loss_pct
+              ? parseFloat(portfolio.profit_loss_pct[i])
+              : 0,
+            baseValue: portfolio.base_value
+              ? parseFloat(portfolio.base_value)
+              : 0,
           });
         }
       }
 
       return history.sort((a, b) => new Date(a.date) - new Date(b.date));
     } catch (error) {
-      console.error('Alpaca portfolio history fetch error:', error.message);
+      console.error("Alpaca portfolio history fetch error:", error.message);
       throw new Error(`Failed to fetch portfolio history: ${error.message}`);
     }
   }
@@ -167,13 +177,13 @@ class AlpacaService {
   async getActivities(activityTypes = null, pageSize = 50) {
     try {
       this.checkRateLimit();
-      
+
       const activities = await this.client.getActivities({
-        activity_types: activityTypes || 'FILL',
-        page_size: pageSize
+        activity_types: activityTypes || "FILL",
+        page_size: pageSize,
       });
 
-      return activities.map(activity => ({
+      return activities.map((activity) => ({
         id: activity.id,
         activityType: activity.activity_type,
         date: activity.date,
@@ -182,10 +192,10 @@ class AlpacaService {
         qty: activity.qty ? parseFloat(activity.qty) : null,
         price: activity.price ? parseFloat(activity.price) : null,
         side: activity.side,
-        description: activity.description || activity.activity_type
+        description: activity.description || activity.activity_type,
       }));
     } catch (error) {
-      console.error('Alpaca activities fetch error:', error.message);
+      console.error("Alpaca activities fetch error:", error.message);
       throw new Error(`Failed to fetch activities: ${error.message}`);
     }
   }
@@ -196,21 +206,21 @@ class AlpacaService {
   async getMarketCalendar(start = null, end = null) {
     try {
       this.checkRateLimit();
-      
+
       const calendar = await this.client.getCalendar({
         start: start,
-        end: end
+        end: end,
       });
 
-      return calendar.map(day => ({
+      return calendar.map((day) => ({
         date: day.date,
         open: day.open,
         close: day.close,
         sessionOpen: day.session_open,
-        sessionClose: day.session_close
+        sessionClose: day.session_close,
       }));
     } catch (error) {
-      console.error('Alpaca calendar fetch error:', error.message);
+      console.error("Alpaca calendar fetch error:", error.message);
       throw new Error(`Failed to fetch market calendar: ${error.message}`);
     }
   }
@@ -221,18 +231,18 @@ class AlpacaService {
   async getMarketStatus() {
     try {
       this.checkRateLimit();
-      
+
       const clock = await this.client.getClock();
-      
+
       return {
         timestamp: clock.timestamp,
         isOpen: clock.is_open,
         nextOpen: clock.next_open,
         nextClose: clock.next_close,
-        timezone: 'America/New_York'
+        timezone: "America/New_York",
       };
     } catch (error) {
-      console.error('Alpaca market status fetch error:', error.message);
+      console.error("Alpaca market status fetch error:", error.message);
       throw new Error(`Failed to fetch market status: ${error.message}`);
     }
   }
@@ -243,23 +253,23 @@ class AlpacaService {
   async validateCredentials() {
     try {
       this.checkRateLimit();
-      
+
       // Simple test - try to get account info
       const account = await this.client.getAccount();
-      
+
       return {
         valid: true,
         accountId: account.id,
         status: account.status,
-        environment: this.isPaper ? 'paper' : 'live'
+        environment: this.isPaper ? "paper" : "live",
       };
     } catch (error) {
-      console.error('Alpaca credential validation error:', error.message);
-      
+      console.error("Alpaca credential validation error:", error.message);
+
       return {
         valid: false,
         error: error.message,
-        environment: this.isPaper ? 'paper' : 'live'
+        environment: this.isPaper ? "paper" : "live",
       };
     }
   }
@@ -270,9 +280,9 @@ class AlpacaService {
   async getAsset(symbol) {
     try {
       this.checkRateLimit();
-      
+
       const asset = await this.client.getAsset(symbol);
-      
+
       return {
         id: asset.id,
         class: asset.class,
@@ -284,10 +294,10 @@ class AlpacaService {
         marginable: asset.marginable,
         shortable: asset.shortable,
         easyToBorrow: asset.easy_to_borrow,
-        fractionable: asset.fractionable
+        fractionable: asset.fractionable,
       };
     } catch (error) {
-      console.error('Alpaca asset fetch error:', error.message);
+      console.error("Alpaca asset fetch error:", error.message);
       throw new Error(`Failed to fetch asset information: ${error.message}`);
     }
   }
@@ -300,17 +310,28 @@ class AlpacaService {
       const [account, positions, history] = await Promise.all([
         this.getAccount(),
         this.getPositions(),
-        this.getPortfolioHistory('1M', '1Day')
+        this.getPortfolioHistory("1M", "1Day"),
       ]);
 
       // Calculate portfolio metrics
       const totalValue = account.portfolioValue;
-      const totalPnL = positions.reduce((sum, pos) => sum + pos.unrealizedPL, 0);
-      const totalPnLPercent = totalValue > 0 ? (totalPnL / (totalValue - totalPnL)) * 100 : 0;
-      
+      const totalPnL = positions.reduce(
+        (sum, pos) => sum + pos.unrealizedPL,
+        0
+      );
+      const totalPnLPercent =
+        totalValue > 0 ? (totalPnL / (totalValue - totalPnL)) * 100 : 0;
+
       // Calculate day change
-      const dayPnL = positions.reduce((sum, pos) => sum + pos.unrealizedIntradayPL, 0);
-      const dayPnLPercent = positions.reduce((sum, pos) => sum + pos.unrealizedIntradayPLPercent, 0) / positions.length;
+      const dayPnL = positions.reduce(
+        (sum, pos) => sum + pos.unrealizedIntradayPL,
+        0
+      );
+      const dayPnLPercent =
+        positions.reduce(
+          (sum, pos) => sum + pos.unrealizedIntradayPLPercent,
+          0
+        ) / positions.length;
 
       // Sector allocation (simplified - would need additional data for real sectors)
       const sectorAllocation = this.calculateBasicSectorAllocation(positions);
@@ -328,16 +349,16 @@ class AlpacaService {
           dayPnL: dayPnL,
           dayPnLPercent: dayPnLPercent,
           positionsCount: positions.length,
-          buyingPower: account.buyingPower
+          buyingPower: account.buyingPower,
         },
         positions: positions,
         sectorAllocation: sectorAllocation,
         riskMetrics: riskMetrics,
         performance: history.slice(-30), // Last 30 days
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Alpaca portfolio summary error:', error.message);
+      console.error("Alpaca portfolio summary error:", error.message);
       throw new Error(`Failed to generate portfolio summary: ${error.message}`);
     }
   }
@@ -349,25 +370,26 @@ class AlpacaService {
     const sectors = {};
     const totalValue = positions.reduce((sum, pos) => sum + pos.marketValue, 0);
 
-    positions.forEach(position => {
+    positions.forEach((position) => {
       // This is a simplified sector mapping - in production you'd use a more comprehensive service
       const sector = this.getSectorFromSymbol(position.symbol);
-      
+
       if (!sectors[sector]) {
         sectors[sector] = {
           value: 0,
           weight: 0,
-          positions: 0
+          positions: 0,
         };
       }
-      
+
       sectors[sector].value += position.marketValue;
       sectors[sector].positions += 1;
     });
 
     // Calculate weights
-    Object.keys(sectors).forEach(sector => {
-      sectors[sector].weight = totalValue > 0 ? (sectors[sector].value / totalValue) * 100 : 0;
+    Object.keys(sectors).forEach((sector) => {
+      sectors[sector].weight =
+        totalValue > 0 ? (sectors[sector].value / totalValue) * 100 : 0;
     });
 
     return sectors;
@@ -377,15 +399,46 @@ class AlpacaService {
    * Simplified sector mapping (in production, use a proper sector classification service)
    */
   getSectorFromSymbol(symbol) {
-    const techStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'CRM', 'ORCL', 'ADBE'];
-    const financialStocks = ['JPM', 'BAC', 'WFC', 'GS', 'MS', 'C', 'AXP', 'BLK', 'SCHW'];
-    const healthcareStocks = ['JNJ', 'PFE', 'UNH', 'ABBV', 'MRK', 'TMO', 'DHR', 'BMY', 'LLY'];
-    
-    if (techStocks.includes(symbol)) return 'Technology';
-    if (financialStocks.includes(symbol)) return 'Financials';
-    if (healthcareStocks.includes(symbol)) return 'Healthcare';
-    
-    return 'Other';
+    const techStocks = [
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "TSLA",
+      "META",
+      "NVDA",
+      "CRM",
+      "ORCL",
+      "ADBE",
+    ];
+    const financialStocks = [
+      "JPM",
+      "BAC",
+      "WFC",
+      "GS",
+      "MS",
+      "C",
+      "AXP",
+      "BLK",
+      "SCHW",
+    ];
+    const healthcareStocks = [
+      "JNJ",
+      "PFE",
+      "UNH",
+      "ABBV",
+      "MRK",
+      "TMO",
+      "DHR",
+      "BMY",
+      "LLY",
+    ];
+
+    if (techStocks.includes(symbol)) return "Technology";
+    if (financialStocks.includes(symbol)) return "Financials";
+    if (healthcareStocks.includes(symbol)) return "Healthcare";
+
+    return "Other";
   }
 
   /**
@@ -394,17 +447,19 @@ class AlpacaService {
   async getLatestQuote(symbol) {
     try {
       this.checkRateLimit();
-      
+
       console.log(`📊 Fetching latest quote for ${symbol} from Alpaca`);
       const quote = await this.client.getLatestQuote(symbol);
-      
+
       if (!quote) {
         console.warn(`⚠️ No quote data returned for ${symbol}`);
         return null;
       }
-      
-      console.log(`✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`);
-      
+
+      console.log(
+        `✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`
+      );
+
       return {
         symbol: symbol,
         bidPrice: parseFloat(quote.BidPrice),
@@ -413,15 +468,15 @@ class AlpacaService {
         askSize: parseInt(quote.AskSize),
         timestamp: quote.Timestamp || new Date().toISOString(),
         conditions: quote.Conditions || [],
-        exchange: quote.Exchange || 'UNKNOWN'
+        exchange: quote.Exchange || "UNKNOWN",
       };
     } catch (error) {
       console.error(`❌ Alpaca quote fetch error for ${symbol}:`, {
         error: error.message,
         statusCode: error.status,
-        errorCode: error.code
+        errorCode: error.code,
       });
-      
+
       // Don't throw - return null to let calling code handle gracefully
       return null;
     }
@@ -433,32 +488,34 @@ class AlpacaService {
   async getLatestTrade(symbol) {
     try {
       this.checkRateLimit();
-      
+
       console.log(`📊 Fetching latest trade for ${symbol} from Alpaca`);
       const trade = await this.client.getLatestTrade(symbol);
-      
+
       if (!trade) {
         console.warn(`⚠️ No trade data returned for ${symbol}`);
         return null;
       }
-      
-      console.log(`✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`);
-      
+
+      console.log(
+        `✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`
+      );
+
       return {
         symbol: symbol,
         price: parseFloat(trade.Price),
         size: parseInt(trade.Size),
         timestamp: trade.Timestamp || new Date().toISOString(),
         conditions: trade.Conditions || [],
-        exchange: trade.Exchange || 'UNKNOWN'
+        exchange: trade.Exchange || "UNKNOWN",
       };
     } catch (error) {
       console.error(`❌ Alpaca trade fetch error for ${symbol}:`, {
         error: error.message,
         statusCode: error.status,
-        errorCode: error.code
+        errorCode: error.code,
       });
-      
+
       // Don't throw - return null to let calling code handle gracefully
       return null;
     }
@@ -470,20 +527,20 @@ class AlpacaService {
   async getBars(symbol, options = {}) {
     try {
       this.checkRateLimit();
-      
+
       const {
-        timeframe = '1Min',
+        timeframe = "1Min",
         start = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
         end = new Date().toISOString(),
-        limit = 100
+        limit = 100,
       } = options;
-      
+
       console.log(`📊 Fetching bars for ${symbol} from Alpaca`, {
         timeframe,
-        start: start.split('T')[0],
-        limit
+        start: start.split("T")[0],
+        limit,
       });
-      
+
       const bars = await this.client.getBars(symbol, {
         timeframe: timeframe,
         start: start,
@@ -491,17 +548,17 @@ class AlpacaService {
         limit: limit,
         asof: null,
         feed: null,
-        page_token: null
+        page_token: null,
       });
-      
+
       if (!bars || !bars.bars || bars.bars.length === 0) {
         console.warn(`⚠️ No bars data returned for ${symbol}`);
         return [];
       }
-      
+
       console.log(`✅ Bars fetched for ${symbol}: ${bars.bars.length} bars`);
-      
-      return bars.bars.map(bar => ({
+
+      return bars.bars.map((bar) => ({
         symbol: symbol,
         timestamp: bar.Timestamp,
         open: parseFloat(bar.OpenPrice),
@@ -510,16 +567,16 @@ class AlpacaService {
         close: parseFloat(bar.ClosePrice),
         volume: parseInt(bar.Volume),
         tradeCount: parseInt(bar.TradeCount) || 0,
-        vwap: parseFloat(bar.VWAP) || null
+        vwap: parseFloat(bar.VWAP) || null,
       }));
     } catch (error) {
       console.error(`❌ Alpaca bars fetch error for ${symbol}:`, {
         error: error.message,
         statusCode: error.status,
         errorCode: error.code,
-        options
+        options,
       });
-      
+
       // Don't throw - return empty array to let calling code handle gracefully
       return [];
     }
@@ -531,34 +588,36 @@ class AlpacaService {
   async getMarketClock() {
     try {
       this.checkRateLimit();
-      
-      console.log('📊 Fetching market clock from Alpaca');
+
+      console.log("📊 Fetching market clock from Alpaca");
       const clock = await this.client.getClock();
-      
-      console.log(`✅ Market clock fetched: ${clock.is_open ? 'OPEN' : 'CLOSED'}`);
-      
+
+      console.log(
+        `✅ Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`
+      );
+
       return {
         timestamp: clock.timestamp,
         isOpen: clock.is_open,
         nextOpen: clock.next_open,
         nextClose: clock.next_close,
-        timezone: 'America/New_York'
+        timezone: "America/New_York",
       };
     } catch (error) {
-      console.error('❌ Alpaca market clock fetch error:', {
+      console.error("❌ Alpaca market clock fetch error:", {
         error: error.message,
         statusCode: error.status,
-        errorCode: error.code
+        errorCode: error.code,
       });
-      
+
       // Return fallback data
       return {
         timestamp: new Date().toISOString(),
         isOpen: false,
         nextOpen: null,
         nextClose: null,
-        timezone: 'America/New_York',
-        error: 'Failed to fetch market status'
+        timezone: "America/New_York",
+        error: "Failed to fetch market status",
       };
     }
   }
@@ -572,27 +631,30 @@ class AlpacaService {
         volatility: 0,
         sharpeRatio: 0,
         maxDrawdown: 0,
-        beta: 1
+        beta: 1,
       };
     }
 
     // Calculate daily returns
     const returns = [];
     for (let i = 1; i < history.length; i++) {
-      const dailyReturn = (history[i].equity - history[i-1].equity) / history[i-1].equity;
+      const dailyReturn =
+        (history[i].equity - history[i - 1].equity) / history[i - 1].equity;
       returns.push(dailyReturn);
     }
 
     // Calculate volatility (standard deviation of returns)
     const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const variance =
+      returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+      returns.length;
     const volatility = Math.sqrt(variance) * Math.sqrt(252); // Annualized
 
     // Calculate max drawdown
     let maxDrawdown = 0;
     let peak = history[0].equity;
-    
-    history.forEach(day => {
+
+    history.forEach((day) => {
       if (day.equity > peak) {
         peak = day.equity;
       }
@@ -604,7 +666,7 @@ class AlpacaService {
 
     // Simplified Sharpe ratio (assuming risk-free rate of 3%)
     const riskFreeRate = 0.03;
-    const excessReturn = (avgReturn * 252) - riskFreeRate;
+    const excessReturn = avgReturn * 252 - riskFreeRate;
     const sharpeRatio = volatility > 0 ? excessReturn / volatility : 0;
 
     return {
@@ -613,7 +675,7 @@ class AlpacaService {
       maxDrawdown: maxDrawdown,
       beta: 1, // Simplified - would need market data for real beta calculation
       averageDailyReturn: avgReturn,
-      annualizedReturn: avgReturn * 252
+      annualizedReturn: avgReturn * 252,
     };
   }
 }

@@ -1,15 +1,15 @@
-const express = require('express');
-const { query } = require('../utils/database');
+const express = require("express");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 
 // Get analyst upgrades/downgrades
-router.get('/upgrades', async (req, res) => {
+router.get("/upgrades", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
-      const upgradesQuery = `
+    const upgradesQuery = `
       SELECT 
         aud.symbol,
         cp.short_name AS company_name,
@@ -32,20 +32,24 @@ router.get('/upgrades', async (req, res) => {
 
     const [upgradesResult, countResult] = await Promise.all([
       query(upgradesQuery, [limit, offset]),
-      query(countQuery)
+      query(countQuery),
     ]);
 
     if (!upgradesResult || !Array.isArray(upgradesResult.rows)) {
-      throw new Error('No rows returned from analyst_upgrade_downgrade query');
+      throw new Error("No rows returned from analyst_upgrade_downgrade query");
     }
-    if (!countResult || !Array.isArray(countResult.rows) || countResult.rows.length === 0) {
-      throw new Error('No count returned from analyst_upgrade_downgrade query');
+    if (
+      !countResult ||
+      !Array.isArray(countResult.rows) ||
+      countResult.rows.length === 0
+    ) {
+      throw new Error("No count returned from analyst_upgrade_downgrade query");
     }
 
     // Map company_name to company for frontend compatibility
-    const mappedRows = upgradesResult.rows.map(row => ({
+    const mappedRows = upgradesResult.rows.map((row) => ({
       ...row,
-      company: row.company_name
+      company: row.company_name,
     }));
 
     const total = parseInt(countResult.rows[0].total);
@@ -59,21 +63,20 @@ router.get('/upgrades', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching analyst upgrades:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch analyst upgrades',
-      message: error.message 
+    console.error("Error fetching analyst upgrades:", error);
+    res.status(500).json({
+      error: "Failed to fetch analyst upgrades",
+      message: error.message,
     });
   }
 });
 
 // Get recommendations for specific stock
-router.get('/:ticker/recommendations', async (req, res) => {
+router.get("/:ticker/recommendations", async (req, res) => {
   try {
     const { ticker } = req.params;
 
@@ -96,17 +99,16 @@ router.get('/:ticker/recommendations', async (req, res) => {
 
     res.json({
       ticker: ticker.toUpperCase(),
-      recommendations: result.rows
+      recommendations: result.rows,
     });
-
   } catch (error) {
-    console.error('Error fetching recommendations:', error);
-    res.status(500).json({ error: 'Failed to fetch recommendations' });
+    console.error("Error fetching recommendations:", error);
+    res.status(500).json({ error: "Failed to fetch recommendations" });
   }
 });
 
 // Get earnings estimates
-router.get('/:ticker/earnings-estimates', async (req, res) => {
+router.get("/:ticker/earnings-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
@@ -128,17 +130,16 @@ router.get('/:ticker/earnings-estimates', async (req, res) => {
 
     res.json({
       ticker: ticker.toUpperCase(),
-      estimates: result.rows
+      estimates: result.rows,
     });
-
   } catch (error) {
-    console.error('Error fetching earnings estimates:', error);
-    res.status(500).json({ error: 'Failed to fetch earnings estimates' });
+    console.error("Error fetching earnings estimates:", error);
+    res.status(500).json({ error: "Failed to fetch earnings estimates" });
   }
 });
 
 // Get revenue estimates
-router.get('/:ticker/revenue-estimates', async (req, res) => {
+router.get("/:ticker/revenue-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
@@ -159,17 +160,16 @@ router.get('/:ticker/revenue-estimates', async (req, res) => {
 
     res.json({
       ticker: ticker.toUpperCase(),
-      estimates: result.rows
+      estimates: result.rows,
     });
-
   } catch (error) {
-    console.error('Error fetching revenue estimates:', error);
-    res.status(500).json({ error: 'Failed to fetch revenue estimates' });
+    console.error("Error fetching revenue estimates:", error);
+    res.status(500).json({ error: "Failed to fetch revenue estimates" });
   }
 });
 
 // Get earnings history
-router.get('/:ticker/earnings-history', async (req, res) => {
+router.get("/:ticker/earnings-history", async (req, res) => {
   try {
     const { ticker } = req.params;
 
@@ -191,20 +191,19 @@ router.get('/:ticker/earnings-history', async (req, res) => {
 
     res.json({
       ticker: ticker.toUpperCase(),
-      history: result.rows
+      history: result.rows,
     });
-
   } catch (error) {
-    console.error('Error fetching earnings history:', error);
-    res.status(500).json({ error: 'Failed to fetch earnings history' });
+    console.error("Error fetching earnings history:", error);
+    res.status(500).json({ error: "Failed to fetch earnings history" });
   }
 });
 
 // Get EPS revisions for a ticker
-router.get('/:ticker/eps-revisions', async (req, res) => {
+router.get("/:ticker/eps-revisions", async (req, res) => {
   try {
     const { ticker } = req.params;
-    
+
     const revisionsQuery = `
       SELECT 
         symbol,
@@ -225,34 +224,33 @@ router.get('/:ticker/eps-revisions', async (req, res) => {
           ELSE 5
         END
     `;
-    
+
     const result = await query(revisionsQuery, [ticker]);
-    
+
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-    
   } catch (error) {
-    console.error('EPS revisions fetch error:', error);
+    console.error("EPS revisions fetch error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch EPS revisions',
-      message: error.message
+      error: "Failed to fetch EPS revisions",
+      message: error.message,
     });
   }
 });
 
 // Get EPS trend for a ticker
-router.get('/:ticker/eps-trend', async (req, res) => {
+router.get("/:ticker/eps-trend", async (req, res) => {
   try {
     const { ticker } = req.params;
-    
+
     const trendQuery = `
       SELECT 
         symbol,
@@ -274,34 +272,33 @@ router.get('/:ticker/eps-trend', async (req, res) => {
           ELSE 5
         END
     `;
-    
+
     const result = await query(trendQuery, [ticker]);
-    
+
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
-        timestamp: new Date().toISOString()
-      }  
+        timestamp: new Date().toISOString(),
+      },
     });
-    
   } catch (error) {
-    console.error('EPS trend fetch error:', error);
+    console.error("EPS trend fetch error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch EPS trend',
-      message: error.message
+      error: "Failed to fetch EPS trend",
+      message: error.message,
     });
   }
 });
 
 // Get growth estimates for a ticker
-router.get('/:ticker/growth-estimates', async (req, res) => {
+router.get("/:ticker/growth-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
-    
+
     const growthQuery = `
       SELECT 
         symbol,
@@ -321,34 +318,33 @@ router.get('/:ticker/growth-estimates', async (req, res) => {
           ELSE 6
         END
     `;
-    
+
     const result = await query(growthQuery, [ticker]);
-    
+
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-    
   } catch (error) {
-    console.error('Growth estimates fetch error:', error);
+    console.error("Growth estimates fetch error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch growth estimates',
-      message: error.message
+      error: "Failed to fetch growth estimates",
+      message: error.message,
     });
   }
 });
 
 // Get analyst recommendations for a ticker
-router.get('/:ticker/recommendations', async (req, res) => {
+router.get("/:ticker/recommendations", async (req, res) => {
   try {
     const { ticker } = req.params;
-    
+
     const recommendationsQuery = `
       SELECT 
         symbol,
@@ -365,34 +361,33 @@ router.get('/:ticker/recommendations', async (req, res) => {
       ORDER BY collected_date DESC, period
       LIMIT 10
     `;
-    
+
     const result = await query(recommendationsQuery, [ticker]);
-    
+
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-    
   } catch (error) {
-    console.error('Analyst recommendations fetch error:', error);
+    console.error("Analyst recommendations fetch error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch analyst recommendations',
-      message: error.message
+      error: "Failed to fetch analyst recommendations",
+      message: error.message,
     });
   }
 });
 
 // Get comprehensive analyst overview for a ticker
-router.get('/:ticker/overview', async (req, res) => {
+router.get("/:ticker/overview", async (req, res) => {
   try {
     const { ticker } = req.params;
-    
+
     // Get all analyst data in parallel
     const [
       earningsEstimates,
@@ -401,17 +396,38 @@ router.get('/:ticker/overview', async (req, res) => {
       epsRevisions,
       epsTrend,
       growthEstimates,
-      recommendations
+      recommendations,
     ] = await Promise.all([
-      query(`SELECT * FROM earnings_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
-      query(`SELECT * FROM revenue_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
-      query(`SELECT * FROM earnings_history WHERE UPPER(symbol) = UPPER($1) ORDER BY quarter DESC LIMIT 20`, [ticker]),
-      query(`SELECT * FROM eps_revisions WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
-      query(`SELECT * FROM eps_trend WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
-      query(`SELECT * FROM growth_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`, [ticker]),
-      query(`SELECT * FROM analyst_recommendations WHERE UPPER(symbol) = UPPER($1) ORDER BY collected_date DESC LIMIT 10`, [ticker])
+      query(
+        `SELECT * FROM earnings_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        [ticker]
+      ),
+      query(
+        `SELECT * FROM revenue_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        [ticker]
+      ),
+      query(
+        `SELECT * FROM earnings_history WHERE UPPER(symbol) = UPPER($1) ORDER BY quarter DESC LIMIT 20`,
+        [ticker]
+      ),
+      query(
+        `SELECT * FROM eps_revisions WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        [ticker]
+      ),
+      query(
+        `SELECT * FROM eps_trend WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        [ticker]
+      ),
+      query(
+        `SELECT * FROM growth_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        [ticker]
+      ),
+      query(
+        `SELECT * FROM analyst_recommendations WHERE UPPER(symbol) = UPPER($1) ORDER BY collected_date DESC LIMIT 10`,
+        [ticker]
+      ),
     ]);
-    
+
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
@@ -422,28 +438,27 @@ router.get('/:ticker/overview', async (req, res) => {
         eps_revisions: epsRevisions.rows,
         eps_trend: epsTrend.rows,
         growth_estimates: growthEstimates.rows,
-        recommendations: recommendations.rows
+        recommendations: recommendations.rows,
       },
       metadata: {
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-    
   } catch (error) {
-    console.error('Analyst overview fetch error:', error);
+    console.error("Analyst overview fetch error:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch analyst overview',
-      message: error.message
+      error: "Failed to fetch analyst overview",
+      message: error.message,
     });
   }
 });
 
 // Get recent analyst actions (upgrades/downgrades) for the most recent day
-router.get('/recent-actions', async (req, res) => {
+router.get("/recent-actions", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    
+
     // Get the most recent date with analyst actions
     const recentDateQuery = `
       SELECT DISTINCT date 
@@ -451,9 +466,9 @@ router.get('/recent-actions', async (req, res) => {
       ORDER BY date DESC 
       LIMIT 1
     `;
-    
+
     const recentDateResult = await query(recentDateQuery);
-    
+
     if (!recentDateResult.rows || recentDateResult.rows.length === 0) {
       return res.json({
         data: [],
@@ -461,14 +476,14 @@ router.get('/recent-actions', async (req, res) => {
           date: null,
           total_actions: 0,
           upgrades: 0,
-          downgrades: 0
+          downgrades: 0,
         },
-        message: 'No analyst actions found'
+        message: "No analyst actions found",
       });
     }
-    
+
     const mostRecentDate = recentDateResult.rows[0].date;
-    
+
     // Get all actions for the most recent date
     const recentActionsQuery = `
       SELECT 
@@ -491,15 +506,24 @@ router.get('/recent-actions', async (req, res) => {
       ORDER BY aud.date DESC, aud.symbol ASC
       LIMIT $2
     `;
-    
-    const actionsResult = await query(recentActionsQuery, [mostRecentDate, limit]);
-    
+
+    const actionsResult = await query(recentActionsQuery, [
+      mostRecentDate,
+      limit,
+    ]);
+
     // Count action types
     const actions = actionsResult.rows || [];
-    const upgrades = actions.filter(action => action.action_type === 'upgrade');
-    const downgrades = actions.filter(action => action.action_type === 'downgrade');
-    const neutrals = actions.filter(action => action.action_type === 'neutral');
-    
+    const upgrades = actions.filter(
+      (action) => action.action_type === "upgrade"
+    );
+    const downgrades = actions.filter(
+      (action) => action.action_type === "downgrade"
+    );
+    const neutrals = actions.filter(
+      (action) => action.action_type === "neutral"
+    );
+
     res.json({
       data: actions,
       summary: {
@@ -507,18 +531,17 @@ router.get('/recent-actions', async (req, res) => {
         total_actions: actions.length,
         upgrades: upgrades.length,
         downgrades: downgrades.length,
-        neutrals: neutrals.length
+        neutrals: neutrals.length,
       },
       metadata: {
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-    
   } catch (error) {
-    console.error('Error fetching recent analyst actions:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch recent analyst actions',
-      message: error.message 
+    console.error("Error fetching recent analyst actions:", error);
+    res.status(500).json({
+      error: "Failed to fetch recent analyst actions",
+      message: error.message,
     });
   }
 });

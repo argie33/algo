@@ -1,25 +1,25 @@
-const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
-const { query } = require('../utils/database');
-const { FactorScoringEngine } = require('../utils/factorScoring');
+const express = require("express");
+const { authenticateToken } = require("../middleware/auth");
+const { query } = require("../utils/database");
+const { FactorScoringEngine } = require("../utils/factorScoring");
 
 const router = express.Router();
 
 // Root screener endpoint for health checks
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({
     success: true,
     data: {
-      system: 'Stock Screener API',
-      version: '1.0.0',
-      status: 'operational',
+      system: "Stock Screener API",
+      version: "1.0.0",
+      status: "operational",
       available_endpoints: [
-        'GET /screener/screen - Main stock screening with filters',
-        'GET /screener/templates - Pre-built screening templates',
-        'GET /screener/factors - Available screening factors'
+        "GET /screener/screen - Main stock screening with filters",
+        "GET /screener/templates - Pre-built screening templates",
+        "GET /screener/factors - Available screening factors",
       ],
-      timestamp: new Date().toISOString()
-    }
+      timestamp: new Date().toISOString(),
+    },
   });
 });
 
@@ -30,14 +30,14 @@ router.use(authenticateToken);
 const factorEngine = new FactorScoringEngine();
 
 // Main stock screening endpoint
-router.get('/screen', async (req, res) => {
+router.get("/screen", async (req, res) => {
   try {
     const filters = req.query;
     const page = parseInt(filters.page) || 1;
     const limit = Math.min(parseInt(filters.limit) || 50, 500);
     const offset = (page - 1) * limit;
 
-    console.log('Stock screening with filters:', filters);
+    console.log("Stock screening with filters:", filters);
 
     // Build WHERE clause dynamically
     const whereConditions = [];
@@ -223,39 +223,39 @@ router.get('/screen', async (req, res) => {
     }
 
     // Build WHERE clause
-    let whereClause = '';
+    let whereClause = "";
     if (whereConditions.length > 0) {
-      whereClause = 'WHERE ' + whereConditions.join(' AND ');
+      whereClause = "WHERE " + whereConditions.join(" AND ");
     }
 
     // Build ORDER BY clause
-    let orderBy = 'ORDER BY s.market_cap DESC';
+    let orderBy = "ORDER BY s.market_cap DESC";
     if (filters.sortBy) {
       const sortField = filters.sortBy;
-      const sortOrder = filters.sortOrder === 'desc' ? 'DESC' : 'ASC';
-      
+      const sortOrder = filters.sortOrder === "desc" ? "DESC" : "ASC";
+
       // Map frontend sort fields to database fields
       const fieldMap = {
-        'symbol': 's.symbol',
-        'companyName': 'ss.company_name',
-        'price': 'sd.close',
-        'marketCap': 's.market_cap',
-        'peRatio': 's.pe_ratio',
-        'pegRatio': 's.peg_ratio',
-        'pbRatio': 's.pb_ratio',
-        'roe': 's.roe',
-        'roa': 's.roa',
-        'netMargin': 's.net_margin',
-        'revenueGrowth': 's.revenue_growth',
-        'earningsGrowth': 's.earnings_growth',
-        'dividendYield': 's.dividend_yield',
-        'factorScore': 's.factor_score',
-        'volume': 'sd.volume',
-        'rsi': 'td.rsi',
-        'beta': 's.beta'
+        symbol: "s.symbol",
+        companyName: "ss.company_name",
+        price: "sd.close",
+        marketCap: "s.market_cap",
+        peRatio: "s.pe_ratio",
+        pegRatio: "s.peg_ratio",
+        pbRatio: "s.pb_ratio",
+        roe: "s.roe",
+        roa: "s.roa",
+        netMargin: "s.net_margin",
+        revenueGrowth: "s.revenue_growth",
+        earningsGrowth: "s.earnings_growth",
+        dividendYield: "s.dividend_yield",
+        factorScore: "s.factor_score",
+        volume: "sd.volume",
+        rsi: "td.rsi",
+        beta: "s.beta",
       };
 
-      const dbField = fieldMap[sortField] || 's.market_cap';
+      const dbField = fieldMap[sortField] || "s.market_cap";
       orderBy = `ORDER BY ${dbField} ${sortOrder}`;
     }
 
@@ -341,7 +341,7 @@ router.get('/screen', async (req, res) => {
     // Execute queries
     const [results, countResult] = await Promise.all([
       query(mainQuery, params),
-      query(countQuery, params.slice(0, -2)) // Remove limit and offset from count query
+      query(countQuery, params.slice(0, -2)), // Remove limit and offset from count query
     ]);
 
     const stocks = results.rows;
@@ -358,16 +358,21 @@ router.get('/screen', async (req, res) => {
             stock.risk_level = scoreData.riskLevel;
             stock.recommendation = scoreData.recommendation;
           } catch (error) {
-            console.error(`Error calculating factor score for ${stock.symbol}:`, error);
+            console.error(
+              `Error calculating factor score for ${stock.symbol}:`,
+              error
+            );
             stock.factor_score = 50;
-            stock.factor_grade = 'C';
-            stock.risk_level = 'Medium';
-            stock.recommendation = 'Hold';
+            stock.factor_grade = "C";
+            stock.risk_level = "Medium";
+            stock.recommendation = "Hold";
           }
         } else {
           stock.factor_grade = factorEngine.getGrade(stock.factor_score);
           stock.risk_level = factorEngine.getRiskLevel(stock);
-          stock.recommendation = factorEngine.getRecommendation(stock.factor_score);
+          stock.recommendation = factorEngine.getRecommendation(
+            stock.factor_score
+          );
         }
 
         return stock;
@@ -383,27 +388,26 @@ router.get('/screen', async (req, res) => {
           limit,
           totalCount,
           totalPages: Math.ceil(totalCount / limit),
-          hasMore: offset + limit < totalCount
+          hasMore: offset + limit < totalCount,
         },
         filters: {
           applied: whereConditions.length,
-          total: Object.keys(filters).length
-        }
-      }
+          total: Object.keys(filters).length,
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Stock screening error:', error);
+    console.error("Stock screening error:", error);
     res.status(500).json({
       success: false,
-      error: 'Stock screening failed',
-      message: error.message
+      error: "Stock screening failed",
+      message: error.message,
     });
   }
 });
 
 // Get available filter options
-router.get('/filters', async (req, res) => {
+router.get("/filters", async (req, res) => {
   try {
     // Get sectors
     const sectorsResult = await query(`
@@ -454,231 +458,225 @@ router.get('/filters', async (req, res) => {
     res.json({
       success: true,
       data: {
-        sectors: sectorsResult.rows.map(row => row.sector),
-        exchanges: exchangesResult.rows.map(row => row.exchange),
+        sectors: sectorsResult.rows.map((row) => row.sector),
+        exchanges: exchangesResult.rows.map((row) => row.exchange),
         ranges: {
           marketCap: marketCapResult.rows[0],
-          price: priceResult.rows[0]
-        }
-      }
+          price: priceResult.rows[0],
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching filter options:', error);
+    console.error("Error fetching filter options:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch filter options',
-      message: error.message
+      error: "Failed to fetch filter options",
+      message: error.message,
     });
   }
 });
 
-
 // Get preset screens
-router.get('/presets', (req, res) => {
+router.get("/presets", (req, res) => {
   const presets = [
     {
-      id: 'value_stocks',
-      name: 'Value Stocks',
-      description: 'Low P/E, P/B ratios with decent profitability',
+      id: "value_stocks",
+      name: "Value Stocks",
+      description: "Low P/E, P/B ratios with decent profitability",
       filters: {
         peRatioMax: 15,
         pbRatioMax: 1.5,
         roeMin: 10,
         debtToEquityMax: 0.5,
-        marketCapMin: 1000000000
-      }
+        marketCapMin: 1000000000,
+      },
     },
     {
-      id: 'growth_stocks',
-      name: 'Growth Stocks',
-      description: 'High revenue and earnings growth',
+      id: "growth_stocks",
+      name: "Growth Stocks",
+      description: "High revenue and earnings growth",
       filters: {
         revenueGrowthMin: 15,
         earningsGrowthMin: 20,
         pegRatioMax: 2,
-        marketCapMin: 2000000000
-      }
+        marketCapMin: 2000000000,
+      },
     },
     {
-      id: 'dividend_stocks',
-      name: 'Dividend Stocks',
-      description: 'High dividend yield with sustainable payout',
+      id: "dividend_stocks",
+      name: "Dividend Stocks",
+      description: "High dividend yield with sustainable payout",
       filters: {
         dividendYieldMin: 3,
         payoutRatioMax: 60,
         debtToEquityMax: 0.8,
-        marketCapMin: 5000000000
-      }
+        marketCapMin: 5000000000,
+      },
     },
     {
-      id: 'momentum_stocks',
-      name: 'Momentum Stocks',
-      description: 'Strong price momentum and technical indicators',
+      id: "momentum_stocks",
+      name: "Momentum Stocks",
+      description: "Strong price momentum and technical indicators",
       filters: {
         priceMomentum3mMin: 5,
         priceMomentum12mMin: 10,
         rsiMin: 50,
         rsiMax: 80,
-        volumeMin: 500000
-      }
+        volumeMin: 500000,
+      },
     },
     {
-      id: 'quality_stocks',
-      name: 'Quality Stocks',
-      description: 'High-quality companies with strong fundamentals',
+      id: "quality_stocks",
+      name: "Quality Stocks",
+      description: "High-quality companies with strong fundamentals",
       filters: {
         roeMin: 15,
         roaMin: 8,
         netMarginMin: 10,
         debtToEquityMax: 0.3,
         currentRatioMin: 1.5,
-        factorScoreMin: 70
-      }
+        factorScoreMin: 70,
+      },
     },
     {
-      id: 'small_cap_growth',
-      name: 'Small Cap Growth',
-      description: 'Small cap stocks with high growth potential',
+      id: "small_cap_growth",
+      name: "Small Cap Growth",
+      description: "Small cap stocks with high growth potential",
       filters: {
         marketCapMin: 300000000,
         marketCapMax: 2000000000,
         revenueGrowthMin: 20,
         earningsGrowthMin: 25,
-        pegRatioMax: 1.5
-      }
-    }
+        pegRatioMax: 1.5,
+      },
+    },
   ];
 
   res.json({
     success: true,
-    data: presets
+    data: presets,
   });
 });
 
 // Templates endpoint (alias for presets)
-router.get('/templates', (req, res) => {
+router.get("/templates", (req, res) => {
   const templates = [
     {
-      id: 'value_stocks',
-      name: 'Value Stocks Template',
-      description: 'Low P/E, P/B ratios with decent profitability',
+      id: "value_stocks",
+      name: "Value Stocks Template",
+      description: "Low P/E, P/B ratios with decent profitability",
       filters: {
         peRatioMax: 15,
         pbRatioMax: 1.5,
         roeMin: 10,
         debtToEquityMax: 0.5,
-        marketCapMin: 1000000000
-      }
+        marketCapMin: 1000000000,
+      },
     },
     {
-      id: 'growth_stocks',
-      name: 'Growth Stocks Template',
-      description: 'High revenue and earnings growth',
+      id: "growth_stocks",
+      name: "Growth Stocks Template",
+      description: "High revenue and earnings growth",
       filters: {
         revenueGrowthMin: 15,
         earningsGrowthMin: 20,
         pegRatioMax: 2,
-        marketCapMin: 2000000000
-      }
+        marketCapMin: 2000000000,
+      },
     },
     {
-      id: 'dividend_stocks',
-      name: 'Dividend Stocks Template',
-      description: 'High dividend yield with sustainable payout',
+      id: "dividend_stocks",
+      name: "Dividend Stocks Template",
+      description: "High dividend yield with sustainable payout",
       filters: {
         dividendYieldMin: 3,
         payoutRatioMax: 60,
         debtToEquityMax: 0.8,
-        marketCapMin: 5000000000
-      }
+        marketCapMin: 5000000000,
+      },
     },
     {
-      id: 'momentum_stocks',
-      name: 'Momentum Stocks Template',
-      description: 'Strong price momentum and technical indicators',
+      id: "momentum_stocks",
+      name: "Momentum Stocks Template",
+      description: "Strong price momentum and technical indicators",
       filters: {
         priceMomentum3mMin: 5,
         priceMomentum12mMin: 10,
         rsiMin: 50,
         rsiMax: 80,
-        volumeMin: 500000
-      }
+        volumeMin: 500000,
+      },
     },
     {
-      id: 'quality_stocks',
-      name: 'Quality Stocks Template',
-      description: 'High-quality companies with strong fundamentals',
+      id: "quality_stocks",
+      name: "Quality Stocks Template",
+      description: "High-quality companies with strong fundamentals",
       filters: {
         roeMin: 15,
         roaMin: 8,
         netMarginMin: 10,
         debtToEquityMax: 0.3,
         currentRatioMin: 1.5,
-        factorScoreMin: 70
-      }
+        factorScoreMin: 70,
+      },
     },
     {
-      id: 'small_cap_growth',
-      name: 'Small Cap Growth Template',
-      description: 'Small cap stocks with high growth potential',
+      id: "small_cap_growth",
+      name: "Small Cap Growth Template",
+      description: "Small cap stocks with high growth potential",
       filters: {
         marketCapMin: 300000000,
         marketCapMax: 2000000000,
         revenueGrowthMin: 20,
         earningsGrowthMin: 25,
-        pegRatioMax: 1.5
-      }
-    }
+        pegRatioMax: 1.5,
+      },
+    },
   ];
 
   res.json({
     success: true,
-    data: templates
+    data: templates,
   });
 });
 
 // Growth stocks endpoint (specific growth filter)
-router.get('/growth', (req, res) => {
+router.get("/growth", (req, res) => {
   res.json({
     success: true,
     data: {
-      id: 'growth_stocks',
-      name: 'Growth Stocks',
-      description: 'High revenue and earnings growth stocks',
+      id: "growth_stocks",
+      name: "Growth Stocks",
+      description: "High revenue and earnings growth stocks",
       filters: {
         revenueGrowthMin: 15,
         earningsGrowthMin: 20,
         pegRatioMax: 2,
-        marketCapMin: 2000000000
+        marketCapMin: 2000000000,
       },
       criteria: {
-        revenueGrowth: 'minimum 15%',
-        earningsGrowth: 'minimum 20%',
-        pegRatio: 'maximum 2.0',
-        marketCap: 'minimum $2B'
-      }
-    }
+        revenueGrowth: "minimum 15%",
+        earningsGrowth: "minimum 20%",
+        pegRatio: "maximum 2.0",
+        marketCap: "minimum $2B",
+      },
+    },
   });
 });
 
 // Screener results endpoint
-router.get('/results', async (req, res) => {
+router.get("/results", async (req, res) => {
   try {
-    console.log('📊 Screener results endpoint called');
-    const { 
-      limit = 20, 
-      offset = 0,
-      filters = '{}' 
-    } = req.query;
+    console.log("📊 Screener results endpoint called");
+    const { limit = 20, offset = 0, filters = "{}" } = req.query;
 
     // Mock screener results for ServiceHealth testing
     const mockResults = [
       {
-        symbol: 'AAPL',
-        company_name: 'Apple Inc.',
-        sector: 'Technology',
-        price: 175.50,
+        symbol: "AAPL",
+        company_name: "Apple Inc.",
+        sector: "Technology",
+        price: 175.5,
         market_cap: 2750000000000,
         pe_ratio: 28.5,
         peg_ratio: 1.8,
@@ -689,13 +687,13 @@ router.get('/results', async (req, res) => {
         earnings_growth: 0.12,
         dividend_yield: 0.005,
         factor_score: 85,
-        factor_grade: 'A',
-        recommendation: 'Buy'
+        factor_grade: "A",
+        recommendation: "Buy",
       },
       {
-        symbol: 'MSFT',
-        company_name: 'Microsoft Corporation',
-        sector: 'Technology',
+        symbol: "MSFT",
+        company_name: "Microsoft Corporation",
+        sector: "Technology",
         price: 310.25,
         market_cap: 2300000000000,
         pe_ratio: 32.1,
@@ -707,13 +705,13 @@ router.get('/results', async (req, res) => {
         earnings_growth: 0.15,
         dividend_yield: 0.007,
         factor_score: 82,
-        factor_grade: 'A',
-        recommendation: 'Buy'
+        factor_grade: "A",
+        recommendation: "Buy",
       },
       {
-        symbol: 'GOOGL',
-        company_name: 'Alphabet Inc.',
-        sector: 'Technology',
+        symbol: "GOOGL",
+        company_name: "Alphabet Inc.",
+        sector: "Technology",
         price: 125.75,
         market_cap: 1570000000000,
         pe_ratio: 24.8,
@@ -723,16 +721,16 @@ router.get('/results', async (req, res) => {
         roa: 0.14,
         revenue_growth: 0.07,
         earnings_growth: 0.09,
-        dividend_yield: 0.000,
+        dividend_yield: 0.0,
         factor_score: 78,
-        factor_grade: 'B+',
-        recommendation: 'Buy'
-      }
+        factor_grade: "B+",
+        recommendation: "Buy",
+      },
     ];
 
     // Apply pagination
     const paginatedResults = mockResults.slice(
-      parseInt(offset), 
+      parseInt(offset),
       parseInt(offset) + parseInt(limit)
     );
 
@@ -744,56 +742,55 @@ router.get('/results', async (req, res) => {
           total: mockResults.length,
           limit: parseInt(limit),
           offset: parseInt(offset),
-          hasMore: parseInt(offset) + parseInt(limit) < mockResults.length
+          hasMore: parseInt(offset) + parseInt(limit) < mockResults.length,
         },
         filters: {
           applied: 0,
-          total: 0
+          total: 0,
         },
-        source: 'mock_data'
-      }
+        source: "mock_data",
+      },
     });
-
   } catch (error) {
-    console.error('❌ Error in screener results:', error);
+    console.error("❌ Error in screener results:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch screener results',
-      details: error.message
+      error: "Failed to fetch screener results",
+      details: error.message,
     });
   }
 });
 
 // Apply preset screen
-router.post('/presets/:presetId/apply', (req, res) => {
+router.post("/presets/:presetId/apply", (req, res) => {
   const { presetId } = req.params;
-  
+
   const presets = {
     value_stocks: {
       peRatioMax: 15,
       pbRatioMax: 1.5,
       roeMin: 10,
       debtToEquityMax: 0.5,
-      marketCapMin: 1000000000
+      marketCapMin: 1000000000,
     },
     growth_stocks: {
       revenueGrowthMin: 15,
       earningsGrowthMin: 20,
       pegRatioMax: 2,
-      marketCapMin: 2000000000
+      marketCapMin: 2000000000,
     },
     dividend_stocks: {
       dividendYieldMin: 3,
       payoutRatioMax: 60,
       debtToEquityMax: 0.8,
-      marketCapMin: 5000000000
+      marketCapMin: 5000000000,
     },
     momentum_stocks: {
       priceMomentum3mMin: 5,
       priceMomentum12mMin: 10,
       rsiMin: 50,
       rsiMax: 80,
-      volumeMin: 500000
+      volumeMin: 500000,
     },
     quality_stocks: {
       roeMin: 15,
@@ -801,22 +798,22 @@ router.post('/presets/:presetId/apply', (req, res) => {
       netMarginMin: 10,
       debtToEquityMax: 0.3,
       currentRatioMin: 1.5,
-      factorScoreMin: 70
+      factorScoreMin: 70,
     },
     small_cap_growth: {
       marketCapMin: 300000000,
       marketCapMax: 2000000000,
       revenueGrowthMin: 20,
       earningsGrowthMin: 25,
-      pegRatioMax: 1.5
-    }
+      pegRatioMax: 1.5,
+    },
   };
 
   const preset = presets[presetId];
   if (!preset) {
     return res.status(404).json({
       success: false,
-      error: 'Preset not found'
+      error: "Preset not found",
     });
   }
 
@@ -824,13 +821,13 @@ router.post('/presets/:presetId/apply', (req, res) => {
     success: true,
     data: {
       presetId,
-      filters: preset
-    }
+      filters: preset,
+    },
   });
 });
 
 // Save custom screen
-router.post('/screens/save', async (req, res) => {
+router.post("/screens/save", async (req, res) => {
   try {
     const userId = req.user.sub;
     const { name, description, filters } = req.body;
@@ -838,101 +835,112 @@ router.post('/screens/save', async (req, res) => {
     if (!name || !filters) {
       return res.status(400).json({
         success: false,
-        error: 'Name and filters are required'
+        error: "Name and filters are required",
       });
     }
 
-    const result = await query(`
+    const result = await query(
+      `
       INSERT INTO saved_screens (user_id, name, description, filters, created_at)
       VALUES ($1, $2, $3, $4, NOW())
       RETURNING *
-    `, [userId, name, description, JSON.stringify(filters)]);
+    `,
+      [userId, name, description, JSON.stringify(filters)]
+    );
 
     res.json({
       success: true,
-      data: result.rows[0]
+      data: result.rows[0],
     });
-
   } catch (error) {
-    console.error('Error saving screen:', error);
+    console.error("Error saving screen:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to save screen',
-      message: error.message
+      error: "Failed to save screen",
+      message: error.message,
     });
   }
 });
 
 // Get saved screens
-router.get('/screens', async (req, res) => {
+router.get("/screens", async (req, res) => {
   try {
-    console.log('📋 Fetching saved screens for user:', req.user?.sub);
+    console.log("📋 Fetching saved screens for user:", req.user?.sub);
     const userId = req.user?.sub;
 
     if (!userId) {
-      console.error('❌ No user ID found in request');
+      console.error("❌ No user ID found in request");
       return res.status(401).json({
         success: false,
-        error: 'User authentication required'
+        error: "User authentication required",
       });
     }
 
     // Try to fetch from database first
     try {
-      const result = await query(`
+      const result = await query(
+        `
         SELECT *
         FROM saved_screens
         WHERE user_id = $1
         ORDER BY created_at DESC
-      `, [userId]);
+      `,
+        [userId]
+      );
 
-      const screens = result.rows.map(screen => ({
+      const screens = result.rows.map((screen) => ({
         ...screen,
-        filters: typeof screen.filters === 'string' ? JSON.parse(screen.filters) : screen.filters
+        filters:
+          typeof screen.filters === "string"
+            ? JSON.parse(screen.filters)
+            : screen.filters,
       }));
 
-      console.log(`✅ Found ${screens.length} saved screens for user ${userId}`);
+      console.log(
+        `✅ Found ${screens.length} saved screens for user ${userId}`
+      );
 
       res.json({
         success: true,
-        data: screens
+        data: screens,
       });
-
     } catch (dbError) {
-      console.log('⚠️ Database query failed for saved screens, returning empty array:', dbError.message);
-      
+      console.log(
+        "⚠️ Database query failed for saved screens, returning empty array:",
+        dbError.message
+      );
+
       // Return empty array if database fails
       res.json({
         success: true,
         data: [],
-        note: 'Database unavailable - returning empty screens list'
+        note: "Database unavailable - returning empty screens list",
       });
     }
-
   } catch (error) {
-    console.error('❌ Error fetching saved screens:', error);
+    console.error("❌ Error fetching saved screens:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch saved screens',
-      message: error.message
+      error: "Failed to fetch saved screens",
+      message: error.message,
     });
   }
 });
 
 // Export screen results
-router.post('/export', async (req, res) => {
+router.post("/export", async (req, res) => {
   try {
-    const { symbols, format = 'csv' } = req.body;
+    const { symbols, format = "csv" } = req.body;
 
     if (!symbols || symbols.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'No symbols provided for export'
+        error: "No symbols provided for export",
       });
     }
 
     // Get detailed data for symbols
-    const symbolsStr = symbols.map(s => `'${s}'`).join(',');
+    const symbolsStr = symbols.map((s) => `'${s}'`).join(",");
     const result = await query(`
       SELECT 
         s.symbol,
@@ -959,10 +967,24 @@ router.post('/export', async (req, res) => {
       ORDER BY s.market_cap DESC
     `);
 
-    if (format === 'csv') {
+    if (format === "csv") {
       // Generate CSV
-      const headers = ['Symbol', 'Company', 'Sector', 'Price', 'Market Cap', 'P/E', 'P/B', 'ROE', 'ROA', 'Revenue Growth', 'Earnings Growth', 'Dividend Yield', 'Factor Score'];
-      const rows = result.rows.map(row => [
+      const headers = [
+        "Symbol",
+        "Company",
+        "Sector",
+        "Price",
+        "Market Cap",
+        "P/E",
+        "P/B",
+        "ROE",
+        "ROA",
+        "Revenue Growth",
+        "Earnings Growth",
+        "Dividend Yield",
+        "Factor Score",
+      ];
+      const rows = result.rows.map((row) => [
         row.symbol,
         row.company_name,
         row.sector,
@@ -975,14 +997,16 @@ router.post('/export', async (req, res) => {
         row.revenue_growth,
         row.earnings_growth,
         row.dividend_yield,
-        row.factor_score
+        row.factor_score,
       ]);
 
-      const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+      const csvContent = [headers, ...rows]
+        .map((row) => row.join(","))
+        .join("\n");
 
       res.set({
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename=stock_screen_${new Date().toISOString().split('T')[0]}.csv`
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename=stock_screen_${new Date().toISOString().split("T")[0]}.csv`,
       });
       res.send(csvContent);
     } else {
@@ -990,79 +1014,84 @@ router.post('/export', async (req, res) => {
       res.json({
         success: true,
         data: result.rows,
-        exportedAt: new Date().toISOString()
+        exportedAt: new Date().toISOString(),
       });
     }
-
   } catch (error) {
-    console.error('Error exporting screen results:', error);
+    console.error("Error exporting screen results:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to export screen results',
-      message: error.message
+      error: "Failed to export screen results",
+      message: error.message,
     });
   }
 });
 
 // Get user watchlists (alias for saved screens)
-router.get('/watchlists', async (req, res) => {
+router.get("/watchlists", async (req, res) => {
   try {
-    console.log('🔍 Watchlists endpoint called');
-    console.log('🔍 Request headers authorization:', req.headers.authorization ? 'Present' : 'Missing');
-    console.log('🔍 Request user object:', req.user);
-    console.log('🔍 User ID from req.user:', req.user?.sub);
-    
+    console.log("🔍 Watchlists endpoint called");
+    console.log(
+      "🔍 Request headers authorization:",
+      req.headers.authorization ? "Present" : "Missing"
+    );
+    console.log("🔍 Request user object:", req.user);
+    console.log("🔍 User ID from req.user:", req.user?.sub);
+
     const userId = req.user?.sub;
 
     if (!userId) {
-      console.error('❌ No user ID found in watchlists request');
-      console.error('❌ Auth header:', req.headers.authorization);
-      console.error('❌ User object:', req.user);
-      
+      console.error("❌ No user ID found in watchlists request");
+      console.error("❌ Auth header:", req.headers.authorization);
+      console.error("❌ User object:", req.user);
+
       // Instead of returning 401, let's provide a helpful fallback
-      console.log('🔄 Providing fallback watchlists for unauthenticated request');
-      
+      console.log(
+        "🔄 Providing fallback watchlists for unauthenticated request"
+      );
+
       const fallbackWatchlists = [
         {
-          id: 'guest-1',
-          name: 'Growth Stocks Demo',
-          description: 'Sample growth stocks watchlist',
+          id: "guest-1",
+          name: "Growth Stocks Demo",
+          description: "Sample growth stocks watchlist",
           filters: {
             marketCapMin: 1000000000,
             revenueGrowthMin: 15,
-            earningsGrowthMin: 20
+            earningsGrowthMin: 20,
           },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          type: 'demo'
+          type: "demo",
         },
         {
-          id: 'guest-2',
-          name: 'Value Picks Demo',
-          description: 'Sample value stocks watchlist',
+          id: "guest-2",
+          name: "Value Picks Demo",
+          description: "Sample value stocks watchlist",
           filters: {
             peRatioMax: 15,
             pbRatioMax: 1.5,
-            roeMin: 10
+            roeMin: 10,
           },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          type: 'demo'
-        }
+          type: "demo",
+        },
       ];
 
       return res.json({
         success: true,
         data: fallbackWatchlists,
-        note: 'Demo watchlists - please log in for personal watchlists',
+        note: "Demo watchlists - please log in for personal watchlists",
         authenticated: false,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Try to get saved screens from database
     try {
-      const result = await query(`
+      const result = await query(
+        `
         SELECT 
           id,
           name,
@@ -1073,16 +1102,21 @@ router.get('/watchlists', async (req, res) => {
         FROM saved_screens
         WHERE user_id = $1
         ORDER BY created_at DESC
-      `, [userId]);
+      `,
+        [userId]
+      );
 
-      const watchlists = result.rows.map(screen => ({
+      const watchlists = result.rows.map((screen) => ({
         id: screen.id,
         name: screen.name,
         description: screen.description,
-        filters: typeof screen.filters === 'string' ? JSON.parse(screen.filters) : screen.filters,
+        filters:
+          typeof screen.filters === "string"
+            ? JSON.parse(screen.filters)
+            : screen.filters,
         createdAt: screen.created_at,
         updatedAt: screen.updated_at,
-        type: 'screen'
+        type: "screen",
       }));
 
       res.json({
@@ -1090,67 +1124,68 @@ router.get('/watchlists', async (req, res) => {
         data: watchlists,
         authenticated: true,
         userId: userId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (dbError) {
-      console.log('Database query failed for watchlists, using fallback:', dbError.message);
-      
+      console.log(
+        "Database query failed for watchlists, using fallback:",
+        dbError.message
+      );
+
       // Return mock watchlists if database fails
       const fallbackWatchlists = [
         {
-          id: 'sample-1',
-          name: 'My Growth Stocks',
-          description: 'High growth potential stocks',
+          id: "sample-1",
+          name: "My Growth Stocks",
+          description: "High growth potential stocks",
           filters: {
             marketCapMin: 1000000000,
             revenueGrowthMin: 15,
-            earningsGrowthMin: 20
+            earningsGrowthMin: 20,
           },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          type: 'screen'
+          type: "screen",
         },
         {
-          id: 'sample-2',
-          name: 'Value Picks',
-          description: 'Undervalued stocks with strong fundamentals',
+          id: "sample-2",
+          name: "Value Picks",
+          description: "Undervalued stocks with strong fundamentals",
           filters: {
             peRatioMax: 15,
             pbRatioMax: 1.5,
-            roeMin: 10
+            roeMin: 10,
           },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          type: 'screen'
-        }
+          type: "screen",
+        },
       ];
 
       res.json({
         success: true,
         data: fallbackWatchlists,
-        note: 'Using sample watchlists - database connectivity issue',
+        note: "Using sample watchlists - database connectivity issue",
         authenticated: true,
         userId: userId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-
   } catch (error) {
-    console.error('Error in watchlists endpoint:', error);
-    
+    console.error("Error in watchlists endpoint:", error);
+
     // Final fallback - return empty array
     res.json({
       success: true,
       data: [],
-      note: 'No watchlists available',
-      timestamp: new Date().toISOString()
+      note: "No watchlists available",
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Create new watchlist
-router.post('/watchlists', async (req, res) => {
+router.post("/watchlists", async (req, res) => {
   try {
     const userId = req.user.sub;
     const { name, description, symbols = [] } = req.body;
@@ -1158,19 +1193,22 @@ router.post('/watchlists', async (req, res) => {
     if (!name) {
       return res.status(400).json({
         success: false,
-        error: 'Watchlist name is required'
+        error: "Watchlist name is required",
       });
     }
 
     try {
       // Try to save to database
       const filters = { symbols }; // Store symbols as filters for compatibility
-      
-      const result = await query(`
+
+      const result = await query(
+        `
         INSERT INTO saved_screens (user_id, name, description, filters, created_at, updated_at)
         VALUES ($1, $2, $3, $4, NOW(), NOW())
         RETURNING *
-      `, [userId, name, description, JSON.stringify(filters)]);
+      `,
+        [userId, name, description, JSON.stringify(filters)]
+      );
 
       const watchlist = {
         id: result.rows[0].id,
@@ -1179,18 +1217,20 @@ router.post('/watchlists', async (req, res) => {
         filters: JSON.parse(result.rows[0].filters),
         createdAt: result.rows[0].created_at,
         updatedAt: result.rows[0].updated_at,
-        type: 'watchlist'
+        type: "watchlist",
       };
 
       res.json({
         success: true,
         data: watchlist,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (dbError) {
-      console.log('Database save failed for watchlist, returning mock response:', dbError.message);
-      
+      console.log(
+        "Database save failed for watchlist, returning mock response:",
+        dbError.message
+      );
+
       // Return mock success response
       const mockWatchlist = {
         id: `mock-${Date.now()}`,
@@ -1199,23 +1239,22 @@ router.post('/watchlists', async (req, res) => {
         filters: { symbols },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        type: 'watchlist'
+        type: "watchlist",
       };
 
       res.json({
         success: true,
         data: mockWatchlist,
-        note: 'Watchlist created in memory only - database connectivity issue',
-        timestamp: new Date().toISOString()
+        note: "Watchlist created in memory only - database connectivity issue",
+        timestamp: new Date().toISOString(),
       });
     }
-
   } catch (error) {
-    console.error('Error creating watchlist:', error);
+    console.error("Error creating watchlist:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create watchlist',
-      message: error.message
+      error: "Failed to create watchlist",
+      message: error.message,
     });
   }
 });

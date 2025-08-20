@@ -1,33 +1,33 @@
-const express = require('express');
-const { query } = require('../utils/database');
+const express = require("express");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 
 // Basic ping endpoint
-router.get('/ping', (req, res) => {
+router.get("/ping", (req, res) => {
   res.json({
-    status: 'ok',
-    endpoint: 'metrics',
-    timestamp: new Date().toISOString()
+    status: "ok",
+    endpoint: "metrics",
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Get comprehensive metrics for all stocks with filtering and pagination
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    console.log('Metrics endpoint called with params:', req.query);
-    
+    console.log("Metrics endpoint called with params:", req.query);
+
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
-    const search = req.query.search || '';
-    const sector = req.query.sector || '';
+    const search = req.query.search || "";
+    const sector = req.query.sector || "";
     const minMetric = parseFloat(req.query.minMetric) || 0;
     const maxMetric = parseFloat(req.query.maxMetric) || 1;
-    const sortBy = req.query.sortBy || 'composite_metric';
-    const sortOrder = req.query.sortOrder || 'desc';
-    
-    let whereClause = 'WHERE 1=1';
+    const sortBy = req.query.sortBy || "composite_metric";
+    const sortOrder = req.query.sortOrder || "desc";
+
+    let whereClause = "WHERE 1=1";
     const params = [];
     let paramCount = 0;
 
@@ -39,7 +39,7 @@ router.get('/', async (req, res) => {
     }
 
     // Add sector filter
-    if (sector && sector.trim() !== '') {
+    if (sector && sector.trim() !== "") {
       paramCount++;
       whereClause += ` AND cp.sector = $${paramCount}`;
       params.push(sector);
@@ -60,13 +60,19 @@ router.get('/', async (req, res) => {
 
     // Validate sort column to prevent SQL injection
     const validSortColumns = [
-      'symbol', 'quality_metric', 'value_metric', 'composite_metric',
-      'market_cap', 'sector'
+      "symbol",
+      "quality_metric",
+      "value_metric",
+      "composite_metric",
+      "market_cap",
+      "sector",
     ];
-    
-    const safeSort = validSortColumns.includes(sortBy) ? sortBy : 'quality_metric';
-    const safeOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-    
+
+    const safeSort = validSortColumns.includes(sortBy)
+      ? sortBy
+      : "quality_metric";
+    const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
+
     // Main query to get stocks with metrics
     const stocksQuery = `
       SELECT 
@@ -137,9 +143,11 @@ router.get('/', async (req, res) => {
       LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
       ${whereClause}
       AND (qm.quality_metric IS NOT NULL OR vm.value_metric IS NOT NULL)
-      ORDER BY ${safeSort === 'composite_metric' ? 
-        'CASE WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL THEN (qm.quality_metric * 0.6 + vm.value_metric * 0.4) WHEN qm.quality_metric IS NOT NULL THEN qm.quality_metric WHEN vm.value_metric IS NOT NULL THEN vm.value_metric ELSE NULL END' 
-        : safeSort} ${safeOrder}
+      ORDER BY ${
+        safeSort === "composite_metric"
+          ? "CASE WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL THEN (qm.quality_metric * 0.6 + vm.value_metric * 0.4) WHEN qm.quality_metric IS NOT NULL THEN qm.quality_metric WHEN vm.value_metric IS NOT NULL THEN vm.value_metric ELSE NULL END"
+          : safeSort
+      } ${safeOrder}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
@@ -173,7 +181,7 @@ router.get('/', async (req, res) => {
     const totalStocks = parseInt(countResult.rows[0].total);
 
     // Format the response
-    const stocks = stocksResult.rows.map(row => ({
+    const stocks = stocksResult.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -182,14 +190,14 @@ router.get('/', async (req, res) => {
       currentPrice: row.current_price,
       pe: row.trailing_pe,
       pb: row.price_to_book,
-      
+
       metrics: {
         composite: parseFloat(row.composite_metric) || 0,
         quality: parseFloat(row.quality_metric) || 0,
         value: parseFloat(row.value_metric) || 0,
-        growth: parseFloat(row.growth_composite_score) || 0
+        growth: parseFloat(row.growth_composite_score) || 0,
       },
-      
+
       qualityBreakdown: {
         overall: parseFloat(row.quality_metric) || 0,
         earningsQuality: parseFloat(row.earnings_quality_metric) || 0,
@@ -197,32 +205,32 @@ router.get('/', async (req, res) => {
         profitability: parseFloat(row.profitability_metric) || 0,
         management: parseFloat(row.management_metric) || 0,
         piotrosiScore: parseInt(row.piotroski_f_score) || 0,
-        altmanZScore: parseFloat(row.altman_z_score) || 0
+        altmanZScore: parseFloat(row.altman_z_score) || 0,
       },
-      
+
       valueBreakdown: {
         overall: parseFloat(row.value_metric) || 0,
         multiples: parseFloat(row.multiples_metric) || 0,
         intrinsicValue: parseFloat(row.intrinsic_value_metric) || 0,
         relativeValue: parseFloat(row.relative_value_metric) || 0,
         dcfValue: parseFloat(row.dcf_intrinsic_value) || 0,
-        marginOfSafety: parseFloat(row.dcf_margin_of_safety) || 0
+        marginOfSafety: parseFloat(row.dcf_margin_of_safety) || 0,
       },
-      
+
       growthBreakdown: {
         overall: parseFloat(row.growth_composite_score) || 0,
         revenue: parseFloat(row.revenue_growth_score) || 0,
         earnings: parseFloat(row.earnings_growth_score) || 0,
         fundamental: parseFloat(row.fundamental_growth_score) || 0,
         marketExpansion: parseFloat(row.market_expansion_score) || 0,
-        percentileRank: parseInt(row.growth_percentile_rank) || 50
+        percentileRank: parseInt(row.growth_percentile_rank) || 50,
       },
-      
+
       metadata: {
         confidence: parseFloat(row.quality_confidence) || 0,
         metricDate: row.metric_date,
-        lastUpdated: row.last_updated
-      }
+        lastUpdated: row.last_updated,
+      },
     }));
 
     res.json({
@@ -233,7 +241,7 @@ router.get('/', async (req, res) => {
         totalItems: totalStocks,
         itemsPerPage: limit,
         hasNext: offset + limit < totalStocks,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
       filters: {
         search,
@@ -241,31 +249,42 @@ router.get('/', async (req, res) => {
         minMetric,
         maxMetric,
         sortBy: safeSort,
-        sortOrder: safeOrder
+        sortOrder: safeOrder,
       },
       summary: {
-        averageComposite: stocks.length > 0 ? 
-          (stocks.reduce((sum, s) => sum + s.metrics.composite, 0) / stocks.length).toFixed(4) : 0,
+        averageComposite:
+          stocks.length > 0
+            ? (
+                stocks.reduce((sum, s) => sum + s.metrics.composite, 0) /
+                stocks.length
+              ).toFixed(4)
+            : 0,
         topPerformer: stocks.length > 0 ? stocks[0] : null,
-        metricRange: stocks.length > 0 ? {
-          min: Math.min(...stocks.map(s => s.metrics.composite)).toFixed(4),
-          max: Math.max(...stocks.map(s => s.metrics.composite)).toFixed(4)
-        } : null
-      }
+        metricRange:
+          stocks.length > 0
+            ? {
+                min: Math.min(
+                  ...stocks.map((s) => s.metrics.composite)
+                ).toFixed(4),
+                max: Math.max(
+                  ...stocks.map((s) => s.metrics.composite)
+                ).toFixed(4),
+              }
+            : null,
+      },
     });
-
   } catch (error) {
-    console.error('Error in metrics endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch metrics',
+    console.error("Error in metrics endpoint:", error);
+    res.status(500).json({
+      error: "Failed to fetch metrics",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get detailed metrics for a specific stock
-router.get('/:symbol', async (req, res) => {
+router.get("/:symbol", async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     console.log(`Getting detailed metrics for ${symbol}`);
@@ -310,9 +329,9 @@ router.get('/:symbol', async (req, res) => {
 
     if (metricsResult.rows.length === 0) {
       return res.status(404).json({
-        error: 'Symbol not found or no metrics available',
+        error: "Symbol not found or no metrics available",
         symbol,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -333,7 +352,10 @@ router.get('/:symbol', async (req, res) => {
       AND qm.quality_metric IS NOT NULL
     `;
 
-    const sectorResult = await query(sectorQuery, [latestMetric.sector, latestMetric.date]);
+    const sectorResult = await query(sectorQuery, [
+      latestMetric.sector,
+      latestMetric.date,
+    ]);
     const sectorBenchmark = sectorResult.rows[0];
 
     // Format comprehensive response
@@ -342,7 +364,7 @@ router.get('/:symbol', async (req, res) => {
       companyName: latestMetric.company_name,
       sector: latestMetric.sector,
       industry: latestMetric.industry,
-      
+
       currentData: {
         marketCap: latestMetric.market_cap,
         currentPrice: latestMetric.current_price,
@@ -352,40 +374,46 @@ router.get('/:symbol', async (req, res) => {
         roe: latestMetric.return_on_equity,
         roa: latestMetric.return_on_assets,
         debtToEquity: latestMetric.debt_to_equity,
-        freeCashFlow: latestMetric.free_cash_flow
+        freeCashFlow: latestMetric.free_cash_flow,
       },
-      
+
       metrics: {
-        composite: ((parseFloat(latestMetric.quality_metric) || 0) * 0.6 + (parseFloat(latestMetric.value_metric) || 0) * 0.4),
+        composite:
+          (parseFloat(latestMetric.quality_metric) || 0) * 0.6 +
+          (parseFloat(latestMetric.value_metric) || 0) * 0.4,
         quality: parseFloat(latestMetric.quality_metric) || 0,
-        value: parseFloat(latestMetric.value_metric) || 0
+        value: parseFloat(latestMetric.value_metric) || 0,
       },
-      
+
       detailedBreakdown: {
         quality: {
           overall: parseFloat(latestMetric.quality_metric) || 0,
           components: {
-            earningsQuality: parseFloat(latestMetric.earnings_quality_metric) || 0,
+            earningsQuality:
+              parseFloat(latestMetric.earnings_quality_metric) || 0,
             balanceSheet: parseFloat(latestMetric.balance_sheet_metric) || 0,
             profitability: parseFloat(latestMetric.profitability_metric) || 0,
-            management: parseFloat(latestMetric.management_metric) || 0
+            management: parseFloat(latestMetric.management_metric) || 0,
           },
           scores: {
             piotrosiScore: parseInt(latestMetric.piotroski_f_score) || 0,
             altmanZScore: parseFloat(latestMetric.altman_z_score) || 0,
             accrualRatio: parseFloat(latestMetric.accruals_ratio) || 0,
-            cashConversionRatio: parseFloat(latestMetric.cash_conversion_ratio) || 0,
-            shareholderYield: parseFloat(latestMetric.shareholder_yield) || 0
+            cashConversionRatio:
+              parseFloat(latestMetric.cash_conversion_ratio) || 0,
+            shareholderYield: parseFloat(latestMetric.shareholder_yield) || 0,
           },
-          description: "Measures financial statement quality, balance sheet strength, profitability metrics, and management effectiveness using academic research models (Piotroski F-Score, Altman Z-Score)"
+          description:
+            "Measures financial statement quality, balance sheet strength, profitability metrics, and management effectiveness using academic research models (Piotroski F-Score, Altman Z-Score)",
         },
-        
+
         value: {
           overall: parseFloat(latestMetric.value_metric) || 0,
           components: {
             multiples: parseFloat(latestMetric.multiples_metric) || 0,
-            intrinsicValue: parseFloat(latestMetric.intrinsic_value_metric) || 0,
-            relativeValue: parseFloat(latestMetric.relative_value_metric) || 0
+            intrinsicValue:
+              parseFloat(latestMetric.intrinsic_value_metric) || 0,
+            relativeValue: parseFloat(latestMetric.relative_value_metric) || 0,
           },
           valuations: {
             dcfValue: parseFloat(latestMetric.dcf_intrinsic_value) || 0,
@@ -394,62 +422,68 @@ router.get('/:symbol', async (req, res) => {
             rimValue: parseFloat(latestMetric.rim_value) || 0,
             currentPE: parseFloat(latestMetric.current_pe) || 0,
             currentPB: parseFloat(latestMetric.current_pb) || 0,
-            currentEVEBITDA: parseFloat(latestMetric.current_ev_ebitda) || 0
+            currentEVEBITDA: parseFloat(latestMetric.current_ev_ebitda) || 0,
           },
-          description: "Analyzes traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value analysis, and peer group relative valuation"
-        }
+          description:
+            "Analyzes traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value analysis, and peer group relative valuation",
+        },
       },
-      
+
       sectorComparison: {
         sectorName: latestMetric.sector,
         peerCount: parseInt(sectorBenchmark.peer_count) || 0,
         benchmarks: {
           quality: parseFloat(sectorBenchmark.avg_quality) || 0,
-          value: parseFloat(sectorBenchmark.avg_value) || 0
+          value: parseFloat(sectorBenchmark.avg_value) || 0,
         },
         relativeTo: {
-          quality: (parseFloat(latestMetric.quality_metric) || 0) - (parseFloat(sectorBenchmark.avg_quality) || 0),
-          value: (parseFloat(latestMetric.value_metric) || 0) - (parseFloat(sectorBenchmark.avg_value) || 0)
-        }
+          quality:
+            (parseFloat(latestMetric.quality_metric) || 0) -
+            (parseFloat(sectorBenchmark.avg_quality) || 0),
+          value:
+            (parseFloat(latestMetric.value_metric) || 0) -
+            (parseFloat(sectorBenchmark.avg_value) || 0),
+        },
       },
-      
-      historicalTrend: historicalMetrics.map(row => ({
+
+      historicalTrend: historicalMetrics.map((row) => ({
         date: row.date,
-        composite: ((parseFloat(row.quality_metric) || 0) * 0.6 + (parseFloat(row.value_metric) || 0) * 0.4),
+        composite:
+          (parseFloat(row.quality_metric) || 0) * 0.6 +
+          (parseFloat(row.value_metric) || 0) * 0.4,
         quality: parseFloat(row.quality_metric) || 0,
-        value: parseFloat(row.value_metric) || 0
+        value: parseFloat(row.value_metric) || 0,
       })),
-      
+
       metadata: {
         metricDate: latestMetric.date,
         confidence: parseFloat(latestMetric.confidence_score) || 0,
         completeness: parseFloat(latestMetric.data_completeness) || 0,
-        marketCapTier: latestMetric.market_cap_tier || 'unknown',
-        lastUpdated: latestMetric.updated_at
+        marketCapTier: latestMetric.market_cap_tier || "unknown",
+        lastUpdated: latestMetric.updated_at,
       },
-      
+
       interpretation: generateMetricInterpretation(latestMetric),
-      
-      timestamp: new Date().toISOString()
+
+      timestamp: new Date().toISOString(),
     };
 
     res.json(response);
-
   } catch (error) {
-    console.error('Error getting detailed metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch detailed metrics',
+    console.error("Error getting detailed metrics:", error);
+    res.status(500).json({
+      error: "Failed to fetch detailed metrics",
       message: error.message,
       symbol: req.params.symbol,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get sector analysis and rankings
-router.get('/sectors/analysis', async (req, res) => {
+router.get("/sectors/analysis", async (req, res) => {
   try {
-    console.log('Getting sector analysis for metrics');
+    console.log("Getting sector analysis for metrics");
 
     const sectorQuery = `
       SELECT 
@@ -477,20 +511,20 @@ router.get('/sectors/analysis', async (req, res) => {
 
     const sectorResult = await query(sectorQuery);
 
-    const sectors = sectorResult.rows.map(row => ({
+    const sectors = sectorResult.rows.map((row) => ({
       sector: row.sector,
       stockCount: parseInt(row.stock_count),
       averageMetrics: {
         composite: parseFloat(row.avg_composite || 0).toFixed(4),
         quality: parseFloat(row.avg_quality).toFixed(4),
-        value: parseFloat(row.avg_value || 0).toFixed(4)
+        value: parseFloat(row.avg_value || 0).toFixed(4),
       },
       metricRange: {
         min: parseFloat(row.min_quality).toFixed(4),
         max: parseFloat(row.max_quality).toFixed(4),
-        volatility: parseFloat(row.quality_volatility).toFixed(4)
+        volatility: parseFloat(row.quality_volatility).toFixed(4),
       },
-      lastUpdated: row.last_updated
+      lastUpdated: row.last_updated,
     }));
 
     res.json({
@@ -498,53 +532,63 @@ router.get('/sectors/analysis', async (req, res) => {
       summary: {
         totalSectors: sectors.length,
         bestPerforming: sectors[0],
-        mostVolatile: sectors.reduce((prev, current) => 
-          parseFloat(prev.metricRange.volatility) > parseFloat(current.metricRange.volatility) ? prev : current
+        mostVolatile: sectors.reduce((prev, current) =>
+          parseFloat(prev.metricRange.volatility) >
+          parseFloat(current.metricRange.volatility)
+            ? prev
+            : current
         ),
-        averageQuality: (sectors.reduce((sum, s) => sum + parseFloat(s.averageMetrics.quality), 0) / sectors.length).toFixed(4)
+        averageQuality: (
+          sectors.reduce(
+            (sum, s) => sum + parseFloat(s.averageMetrics.quality),
+            0
+          ) / sectors.length
+        ).toFixed(4),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Error in sector analysis:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch sector analysis',
+    console.error("Error in sector analysis:", error);
+    res.status(500).json({
+      error: "Failed to fetch sector analysis",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get top performing stocks by metric category
-router.get('/top/:category', async (req, res) => {
+router.get("/top/:category", async (req, res) => {
   try {
     const category = req.params.category.toLowerCase();
     const limit = Math.min(parseInt(req.query.limit) || 25, 100);
-    
-    const validCategories = ['composite', 'quality', 'value'];
+
+    const validCategories = ["composite", "quality", "value"];
     if (!validCategories.includes(category)) {
       return res.status(400).json({
-        error: 'Invalid category',
+        error: "Invalid category",
         validCategories,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     let metricColumn, joinClause, orderClause;
-    
-    if (category === 'quality') {
-      metricColumn = 'qm.quality_metric as category_metric';
-      joinClause = 'INNER JOIN quality_metrics qm ON ss.symbol = qm.symbol';
-      orderClause = 'qm.quality_metric DESC';
-    } else if (category === 'value') {
-      metricColumn = 'vm.value_metric as category_metric';
-      joinClause = 'INNER JOIN value_metrics vm ON ss.symbol = vm.symbol';
-      orderClause = 'vm.value_metric DESC';
-    } else { // composite
-      metricColumn = '(qm.quality_metric * 0.6 + vm.value_metric * 0.4) as category_metric';
-      joinClause = 'INNER JOIN quality_metrics qm ON ss.symbol = qm.symbol INNER JOIN value_metrics vm ON ss.symbol = vm.symbol AND qm.date = vm.date';
-      orderClause = '(qm.quality_metric * 0.6 + vm.value_metric * 0.4) DESC';
+
+    if (category === "quality") {
+      metricColumn = "qm.quality_metric as category_metric";
+      joinClause = "INNER JOIN quality_metrics qm ON ss.symbol = qm.symbol";
+      orderClause = "qm.quality_metric DESC";
+    } else if (category === "value") {
+      metricColumn = "vm.value_metric as category_metric";
+      joinClause = "INNER JOIN value_metrics vm ON ss.symbol = vm.symbol";
+      orderClause = "vm.value_metric DESC";
+    } else {
+      // composite
+      metricColumn =
+        "(qm.quality_metric * 0.6 + vm.value_metric * 0.4) as category_metric";
+      joinClause =
+        "INNER JOIN quality_metrics qm ON ss.symbol = qm.symbol INNER JOIN value_metrics vm ON ss.symbol = vm.symbol AND qm.date = vm.date";
+      orderClause = "(qm.quality_metric * 0.6 + vm.value_metric * 0.4) DESC";
     }
 
     const topStocksQuery = `
@@ -565,8 +609,8 @@ router.get('/top/:category', async (req, res) => {
       WHERE qm.date = (
         SELECT MAX(date) FROM quality_metrics qm2 WHERE qm2.symbol = ss.symbol
       )
-      ${category === 'value' ? 'AND vm.date = (SELECT MAX(date) FROM value_metrics vm2 WHERE vm2.symbol = ss.symbol)' : ''}
-      ${category === 'composite' ? 'AND vm.date = (SELECT MAX(date) FROM value_metrics vm2 WHERE vm2.symbol = ss.symbol)' : ''}
+      ${category === "value" ? "AND vm.date = (SELECT MAX(date) FROM value_metrics vm2 WHERE vm2.symbol = ss.symbol)" : ""}
+      ${category === "composite" ? "AND vm.date = (SELECT MAX(date) FROM value_metrics vm2 WHERE vm2.symbol = ss.symbol)" : ""}
       AND qm.confidence_score >= 0.7
       ORDER BY ${orderClause}
       LIMIT $1
@@ -574,7 +618,7 @@ router.get('/top/:category', async (req, res) => {
 
     const result = await query(topStocksQuery, [limit]);
 
-    const topStocks = result.rows.map(row => ({
+    const topStocks = result.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -584,7 +628,7 @@ router.get('/top/:category', async (req, res) => {
       valueMetric: parseFloat(row.value_metric || 0),
       categoryMetric: parseFloat(row.category_metric),
       confidence: parseFloat(row.confidence_score),
-      lastUpdated: row.updated_at
+      lastUpdated: row.updated_at,
     }));
 
     res.json({
@@ -592,20 +636,28 @@ router.get('/top/:category', async (req, res) => {
       topStocks,
       summary: {
         count: topStocks.length,
-        averageMetric: topStocks.length > 0 ? 
-          (topStocks.reduce((sum, s) => sum + s.categoryMetric, 0) / topStocks.length).toFixed(4) : 0,
-        highestMetric: topStocks.length > 0 ? topStocks[0].categoryMetric.toFixed(4) : 0,
-        lowestMetric: topStocks.length > 0 ? topStocks[topStocks.length - 1].categoryMetric.toFixed(4) : 0
+        averageMetric:
+          topStocks.length > 0
+            ? (
+                topStocks.reduce((sum, s) => sum + s.categoryMetric, 0) /
+                topStocks.length
+              ).toFixed(4)
+            : 0,
+        highestMetric:
+          topStocks.length > 0 ? topStocks[0].categoryMetric.toFixed(4) : 0,
+        lowestMetric:
+          topStocks.length > 0
+            ? topStocks[topStocks.length - 1].categoryMetric.toFixed(4)
+            : 0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Error getting top stocks:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch top stocks',
+    console.error("Error getting top stocks:", error);
+    res.status(500).json({
+      error: "Failed to fetch top stocks",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -613,53 +665,73 @@ router.get('/top/:category', async (req, res) => {
 function generateMetricInterpretation(metricData) {
   const quality = parseFloat(metricData.quality_metric) || 0;
   const value = parseFloat(metricData.value_metric) || 0;
-  const composite = (quality * 0.6 + value * 0.4);
-  
+  const composite = quality * 0.6 + value * 0.4;
+
   let interpretation = {
-    overall: '',
+    overall: "",
     strengths: [],
     concerns: [],
-    recommendation: ''
+    recommendation: "",
   };
-  
+
   // Overall assessment (0-1 scale)
   if (composite >= 0.8) {
-    interpretation.overall = 'Exceptional investment opportunity with strong fundamentals across multiple factors';
+    interpretation.overall =
+      "Exceptional investment opportunity with strong fundamentals across multiple factors";
   } else if (composite >= 0.7) {
-    interpretation.overall = 'Strong investment candidate with solid fundamentals';
+    interpretation.overall =
+      "Strong investment candidate with solid fundamentals";
   } else if (composite >= 0.6) {
-    interpretation.overall = 'Reasonable investment option with mixed signals';
+    interpretation.overall = "Reasonable investment option with mixed signals";
   } else if (composite >= 0.5) {
-    interpretation.overall = 'Below-average investment profile with some concerns';
+    interpretation.overall =
+      "Below-average investment profile with some concerns";
   } else {
-    interpretation.overall = 'Poor investment profile with significant risks';
+    interpretation.overall = "Poor investment profile with significant risks";
   }
-  
+
   // Identify strengths
-  if (quality >= 0.75) interpretation.strengths.push('High-quality financial statements and management');
-  if (value >= 0.75) interpretation.strengths.push('Attractive valuation with margin of safety');
-  if (metricData.piotroski_f_score >= 7) interpretation.strengths.push('Strong Piotroski F-Score indicating financial strength');
-  if (metricData.altman_z_score >= 3.0) interpretation.strengths.push('Low bankruptcy risk per Altman Z-Score');
-  
+  if (quality >= 0.75)
+    interpretation.strengths.push(
+      "High-quality financial statements and management"
+    );
+  if (value >= 0.75)
+    interpretation.strengths.push("Attractive valuation with margin of safety");
+  if (metricData.piotroski_f_score >= 7)
+    interpretation.strengths.push(
+      "Strong Piotroski F-Score indicating financial strength"
+    );
+  if (metricData.altman_z_score >= 3.0)
+    interpretation.strengths.push("Low bankruptcy risk per Altman Z-Score");
+
   // Identify concerns
-  if (quality <= 0.40) interpretation.concerns.push('Weak financial quality and balance sheet concerns');
-  if (value <= 0.40) interpretation.concerns.push('Overvalued relative to fundamentals');
-  if (metricData.piotroski_f_score <= 3) interpretation.concerns.push('Low Piotroski F-Score indicates financial weakness');
-  if (metricData.altman_z_score <= 1.8) interpretation.concerns.push('High bankruptcy risk per Altman Z-Score');
-  
+  if (quality <= 0.4)
+    interpretation.concerns.push(
+      "Weak financial quality and balance sheet concerns"
+    );
+  if (value <= 0.4)
+    interpretation.concerns.push("Overvalued relative to fundamentals");
+  if (metricData.piotroski_f_score <= 3)
+    interpretation.concerns.push(
+      "Low Piotroski F-Score indicates financial weakness"
+    );
+  if (metricData.altman_z_score <= 1.8)
+    interpretation.concerns.push("High bankruptcy risk per Altman Z-Score");
+
   // Investment recommendation
   if (composite >= 0.8 && quality >= 0.7) {
-    interpretation.recommendation = 'BUY - Strong fundamentals with attractive risk-adjusted returns';
+    interpretation.recommendation =
+      "BUY - Strong fundamentals with attractive risk-adjusted returns";
   } else if (composite >= 0.7) {
-    interpretation.recommendation = 'BUY - Solid investment opportunity';
+    interpretation.recommendation = "BUY - Solid investment opportunity";
   } else if (composite >= 0.6) {
-    interpretation.recommendation = 'HOLD - Monitor for improvements';
+    interpretation.recommendation = "HOLD - Monitor for improvements";
   } else if (composite >= 0.5) {
-    interpretation.recommendation = 'WEAK HOLD - Consider reducing position';
+    interpretation.recommendation = "WEAK HOLD - Consider reducing position";
   } else {
-    interpretation.recommendation = 'SELL - Poor fundamentals warrant exit';
+    interpretation.recommendation = "SELL - Poor fundamentals warrant exit";
   }
-  
+
   return interpretation;
 }
 

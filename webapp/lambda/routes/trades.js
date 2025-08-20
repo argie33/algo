@@ -1,31 +1,35 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 // Health endpoint (no auth required)
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.json({
     success: true,
-    status: 'operational',
-    service: 'trades',
+    status: "operational",
+    service: "trades",
     timestamp: new Date().toISOString(),
-    message: 'Trade History service is running'
+    message: "Trade History service is running",
   });
 });
 
 // Basic root endpoint (public)
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({
     success: true,
-    message: 'Trade History API - Ready',
+    message: "Trade History API - Ready",
     timestamp: new Date().toISOString(),
-    status: 'operational'
+    status: "operational",
   });
 });
-const { authenticateToken } = require('../middleware/auth');
-const { query, transaction } = require('../utils/database');
-const TradeAnalyticsService = require('../services/tradeAnalyticsService');
-const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
-const AlpacaService = require('../utils/alpacaService');
+const { authenticateToken } = require("../middleware/auth");
+const { query, transaction } = require("../utils/database");
+const TradeAnalyticsService = require("../services/tradeAnalyticsService");
+const {
+  getUserApiKey,
+  validateUserAuthentication,
+  sendApiKeyError,
+} = require("../utils/userApiKeyHelper");
+const AlpacaService = require("../utils/alpacaService");
 
 // Initialize trade analytics service
 let tradeAnalyticsService;
@@ -39,22 +43,25 @@ let tradeAnalyticsService;
  * @route GET /api/trades/import/status
  * @desc Get trade import status for user
  */
-router.get('/import/status', authenticateToken, async (req, res) => {
+router.get("/import/status", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req); // Fixed: use req.user.sub instead of req.user.id
-    console.log('Getting trade import status for user:', userId);
-    
+    console.log("Getting trade import status for user:", userId);
+
     try {
       // Get broker configurations
-      const result = await query(`
+      const result = await query(
+        `
         SELECT bc.*, uak.provider, uak.is_active as key_active
         FROM broker_api_configs bc
         JOIN user_api_keys uak ON bc.user_id = uak.user_id AND bc.broker = uak.provider
         WHERE bc.user_id = $1
         ORDER BY bc.updated_at DESC
-      `, [userId]);
+      `,
+        [userId]
+      );
 
-      const brokerStatus = result.rows.map(row => ({
+      const brokerStatus = result.rows.map((row) => ({
         broker: row.broker,
         provider: row.provider,
         isActive: row.is_active,
@@ -63,46 +70,55 @@ router.get('/import/status', authenticateToken, async (req, res) => {
         lastSyncStatus: row.last_sync_status,
         lastSyncError: row.last_sync_error,
         lastImportDate: row.last_import_date,
-        totalTradesImported: row.total_trades_imported || 0
+        totalTradesImported: row.total_trades_imported || 0,
       }));
 
       res.json({
         success: true,
         brokerStatus,
         totalBrokers: brokerStatus.length,
-        activeBrokers: brokerStatus.filter(b => b.isActive && b.keyActive).length
+        activeBrokers: brokerStatus.filter((b) => b.isActive && b.keyActive)
+          .length,
       });
-      
     } catch (dbError) {
-      console.log('Database query failed, returning mock import status:', dbError.message);
-      
+      console.log(
+        "Database query failed, returning mock import status:",
+        dbError.message
+      );
+
       // Return empty broker status with comprehensive diagnostics
-      console.error('❌ Broker status unavailable - comprehensive diagnosis needed', {
-        database_query_failed: true,
-        detailed_diagnostics: {
-          attempted_operations: ['broker_api_configs_query', 'user_api_keys_join'],
-          potential_causes: [
-            'Database connection failure',
-            'broker_api_configs table missing',
-            'user_api_keys table missing',
-            'Data sync process failed',
-            'User authentication issues'
-          ],
-          troubleshooting_steps: [
-            'Check database connectivity',
-            'Verify broker_api_configs table exists',
-            'Verify user_api_keys table exists',
-            'Check data sync process status',
-            'Review user authentication flow'
-          ],
-          system_checks: [
-            'Database health status',
-            'Table existence validation',
-            'Data sync service availability',
-            'Authentication service health'
-          ]
+      console.error(
+        "❌ Broker status unavailable - comprehensive diagnosis needed",
+        {
+          database_query_failed: true,
+          detailed_diagnostics: {
+            attempted_operations: [
+              "broker_api_configs_query",
+              "user_api_keys_join",
+            ],
+            potential_causes: [
+              "Database connection failure",
+              "broker_api_configs table missing",
+              "user_api_keys table missing",
+              "Data sync process failed",
+              "User authentication issues",
+            ],
+            troubleshooting_steps: [
+              "Check database connectivity",
+              "Verify broker_api_configs table exists",
+              "Verify user_api_keys table exists",
+              "Check data sync process status",
+              "Review user authentication flow",
+            ],
+            system_checks: [
+              "Database health status",
+              "Table existence validation",
+              "Data sync service availability",
+              "Authentication service health",
+            ],
+          },
         }
-      });
+      );
 
       const emptyBrokerStatus = [];
 
@@ -111,18 +127,18 @@ router.get('/import/status', authenticateToken, async (req, res) => {
         brokerStatus: emptyBrokerStatus,
         totalBrokers: 0,
         activeBrokers: 0,
-        message: 'No broker configurations found - configure your broker API keys in settings'
+        message:
+          "No broker configurations found - configure your broker API keys in settings",
       });
     }
-    
   } catch (error) {
-    console.error('Error fetching import status:', error);
+    console.error("Error fetching import status:", error);
     res.json({
       success: true,
       brokerStatus: [],
       totalBrokers: 0,
       activeBrokers: 0,
-      note: 'Unable to fetch import status'
+      note: "Unable to fetch import status",
     });
   }
 });
@@ -131,33 +147,47 @@ router.get('/import/status', authenticateToken, async (req, res) => {
  * @route POST /api/trades/import/alpaca
  * @desc Import trades from Alpaca using stored API keys
  */
-router.post('/import/alpaca', authenticateToken, async (req, res) => {
+router.post("/import/alpaca", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     const { startDate, endDate, forceRefresh = false } = req.body;
-    
+
     console.log(`🔄 [TRADES] Import requested for user: ${userId}`);
-    
+
     // Get user's Alpaca API credentials using standardized helper
-    const credentials = await getUserApiKey(userId, 'alpaca');
-    
+    const credentials = await getUserApiKey(userId, "alpaca");
+
     if (!credentials) {
-      return sendApiKeyError(res, 'alpaca', userId, 'No active Alpaca API keys found');
+      return sendApiKeyError(
+        res,
+        "alpaca",
+        userId,
+        "No active Alpaca API keys found"
+      );
     }
-    
-    console.log(`✅ [TRADES] Found Alpaca credentials (sandbox: ${credentials.isSandbox})`);
+
+    console.log(
+      `✅ [TRADES] Found Alpaca credentials (sandbox: ${credentials.isSandbox})`
+    );
     const { apiKey, apiSecret } = credentials;
 
     // Check if import is already in progress
-    const configResult = await query(`
+    const configResult = await query(
+      `
       SELECT last_sync_status FROM broker_api_configs 
       WHERE user_id = $1 AND broker = 'alpaca'
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    if (configResult.rows.length > 0 && configResult.rows[0].last_sync_status === 'in_progress') {
+    if (
+      configResult.rows.length > 0 &&
+      configResult.rows[0].last_sync_status === "in_progress"
+    ) {
       return res.status(409).json({
         success: false,
-        error: 'Trade import already in progress. Please wait for it to complete.'
+        error:
+          "Trade import already in progress. Please wait for it to complete.",
       });
     }
 
@@ -168,25 +198,24 @@ router.post('/import/alpaca', authenticateToken, async (req, res) => {
 
     // Start import process
     const importResult = await tradeAnalyticsService.importAlpacaTrades(
-      userId, 
-      apiKey, 
-      apiSecret, 
-      credentials.isSandbox, 
-      startDate, 
+      userId,
+      apiKey,
+      apiSecret,
+      credentials.isSandbox,
+      startDate,
       endDate
     );
 
     res.json({
       success: true,
-      message: 'Trade import completed successfully',
-      data: importResult
+      message: "Trade import completed successfully",
+      data: importResult,
     });
-
   } catch (error) {
-    console.error('Error importing Alpaca trades:', error);
+    console.error("Error importing Alpaca trades:", error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to import trades from Alpaca'
+      error: error.message || "Failed to import trades from Alpaca",
     });
   }
 });
@@ -195,27 +224,26 @@ router.post('/import/alpaca', authenticateToken, async (req, res) => {
  * @route GET /api/trades/summary
  * @desc Get comprehensive trade analysis summary
  */
-router.get('/summary', authenticateToken, async (req, res) => {
+router.get("/summary", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     // Database queries will use the query function directly
-    
+
     if (!tradeAnalyticsService) {
       tradeAnalyticsService = new TradeAnalyticsService();
     }
 
     const summary = await tradeAnalyticsService.getTradeAnalysisSummary(userId);
-    
+
     res.json({
       success: true,
-      data: summary
+      data: summary,
     });
-
   } catch (error) {
-    console.error('Error fetching trade summary:', error);
+    console.error("Error fetching trade summary:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch trade summary'
+      error: "Failed to fetch trade summary",
     });
   }
 });
@@ -224,21 +252,22 @@ router.get('/summary', authenticateToken, async (req, res) => {
  * @route GET /api/trades/positions
  * @desc Get position history with analytics
  */
-router.get('/positions', authenticateToken, async (req, res) => {
+router.get("/positions", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
-    const { status = 'all', limit = 50, offset = 0 } = req.query;
+    const { status = "all", limit = 50, offset = 0 } = req.query;
     // Database queries will use the query function directly
-    
-    let statusFilter = '';
+
+    let statusFilter = "";
     let params = [userId, parseInt(limit), parseInt(offset)];
-    
-    if (status !== 'all') {
-      statusFilter = 'AND ph.status = $4';
+
+    if (status !== "all") {
+      statusFilter = "AND ph.status = $4";
       params.push(status);
     }
 
-    const result = await query(`
+    const result = await query(
+      `
       SELECT 
         ph.*,
         ta.entry_signal_quality,
@@ -255,14 +284,19 @@ router.get('/positions', authenticateToken, async (req, res) => {
       WHERE ph.user_id = $1 ${statusFilter}
       ORDER BY ph.opened_at DESC
       LIMIT $2 OFFSET $3
-    `, params);
+    `,
+      params
+    );
 
     // Get total count
-    const countResult = await query(`
+    const countResult = await query(
+      `
       SELECT COUNT(*) as total 
       FROM position_history 
-      WHERE user_id = $1 ${status !== 'all' ? `AND status = '${status}'` : ''}
-    `, [userId]);
+      WHERE user_id = $1 ${status !== "all" ? `AND status = '${status}'` : ""}
+    `,
+      [userId]
+    );
 
     res.json({
       success: true,
@@ -272,16 +306,17 @@ router.get('/positions', authenticateToken, async (req, res) => {
           total: parseInt(countResult.rows[0].total),
           limit: parseInt(limit),
           offset: parseInt(offset),
-          hasMore: parseInt(offset) + parseInt(limit) < parseInt(countResult.rows[0].total)
-        }
-      }
+          hasMore:
+            parseInt(offset) + parseInt(limit) <
+            parseInt(countResult.rows[0].total),
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching positions:', error);
+    console.error("Error fetching positions:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch positions'
+      error: "Failed to fetch positions",
     });
   }
 });
@@ -290,14 +325,15 @@ router.get('/positions', authenticateToken, async (req, res) => {
  * @route GET /api/trades/analytics/:positionId
  * @desc Get detailed analytics for a specific position
  */
-router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
+router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     const positionId = parseInt(req.params.positionId);
     // Database queries will use the query function directly
-    
+
     // Get position with full analytics
-    const result = await query(`
+    const result = await query(
+      `
       SELECT 
         ph.*,
         ta.*,
@@ -309,24 +345,34 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
       LEFT JOIN symbols s ON ph.symbol = s.symbol
       WHERE ph.id = $1 AND ph.user_id = $2
-    `, [positionId, userId]);
+    `,
+      [positionId, userId]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Position not found'
+        error: "Position not found",
       });
     }
 
     const position = result.rows[0];
 
     // Get related executions
-    const executionsResult = await query(`
+    const executionsResult = await query(
+      `
       SELECT * FROM trade_executions 
       WHERE user_id = $1 AND symbol = $2 
       AND execution_time BETWEEN $3 AND $4
       ORDER BY execution_time
-    `, [userId, position.symbol, position.opened_at, position.closed_at || new Date()]);
+    `,
+      [
+        userId,
+        position.symbol,
+        position.opened_at,
+        position.closed_at || new Date(),
+      ]
+    );
 
     res.json({
       success: true,
@@ -341,16 +387,15 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
           entryQuality: position.entry_signal_quality,
           exitQuality: position.exit_signal_quality,
           emotionalState: position.emotional_state_score,
-          disciplineScore: position.discipline_score
-        }
-      }
+          disciplineScore: position.discipline_score,
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching position analytics:', error);
+    console.error("Error fetching position analytics:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch position analytics'
+      error: "Failed to fetch position analytics",
     });
   }
 });
@@ -359,31 +404,33 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
  * @route GET /api/trades/insights
  * @desc Get AI-generated trade insights and recommendations
  */
-router.get('/insights', authenticateToken, async (req, res) => {
+router.get("/insights", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     const { limit = 10 } = req.query;
     // Database queries will use the query function directly
-    
+
     if (!tradeAnalyticsService) {
       tradeAnalyticsService = new TradeAnalyticsService();
     }
 
-    const insights = await tradeAnalyticsService.getTradeInsights(userId, parseInt(limit));
-    
+    const insights = await tradeAnalyticsService.getTradeInsights(
+      userId,
+      parseInt(limit)
+    );
+
     res.json({
       success: true,
       data: {
         insights,
-        total: insights.length
-      }
+        total: insights.length,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching trade insights:', error);
+    console.error("Error fetching trade insights:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch trade insights'
+      error: "Failed to fetch trade insights",
     });
   }
 });
@@ -392,33 +439,42 @@ router.get('/insights', authenticateToken, async (req, res) => {
  * @route GET /api/trades/performance
  * @desc Get performance metrics and benchmarks
  */
-router.get('/performance', authenticateToken, async (req, res) => {
+router.get("/performance", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
-    const { timeframe = '3M' } = req.query;
+    const { timeframe = "3M" } = req.query;
     // Database queries will use the query function directly
-    
+
     // Get performance benchmarks
-    const benchmarkResult = await query(`
+    const benchmarkResult = await query(
+      `
       SELECT * FROM performance_benchmarks 
       WHERE user_id = $1 
       ORDER BY benchmark_date DESC
       LIMIT 90
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     // Get portfolio summary
-    const portfolioResult = await query(`
+    const portfolioResult = await query(
+      `
       SELECT * FROM portfolio_summary 
       WHERE user_id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     // Get performance attribution
-    const attributionResult = await query(`
+    const attributionResult = await query(
+      `
       SELECT * FROM performance_attribution 
       WHERE user_id = $1 
       ORDER BY closed_at DESC
       LIMIT 50
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     res.json({
       success: true,
@@ -426,15 +482,14 @@ router.get('/performance', authenticateToken, async (req, res) => {
         benchmarks: benchmarkResult.rows,
         portfolio: portfolioResult.rows[0] || null,
         attribution: attributionResult.rows,
-        timeframe
-      }
+        timeframe,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching performance data:', error);
+    console.error("Error fetching performance data:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch performance data'
+      error: "Failed to fetch performance data",
     });
   }
 });
@@ -443,49 +498,55 @@ router.get('/performance', authenticateToken, async (req, res) => {
  * @route GET /api/trades/history
  * @desc Get paginated trade history using real broker API integration
  */
-router.get('/history', authenticateToken, async (req, res) => {
+router.get("/history", authenticateToken, async (req, res) => {
   try {
-    console.log('📈 Trade history request received for user:', req.user?.sub);
+    console.log("📈 Trade history request received for user:", req.user?.sub);
     const userId = req.user?.sub;
-    const { 
-      symbol, 
-      startDate, 
-      endDate, 
-      tradeType, 
-      status = 'all',
-      sortBy = 'execution_time',
-      sortOrder = 'desc',
-      limit = 50, 
-      offset = 0 
+    const {
+      symbol,
+      startDate,
+      endDate,
+      tradeType,
+      status = "all",
+      sortBy = "execution_time",
+      sortOrder = "desc",
+      limit = 50,
+      offset = 0,
     } = req.query;
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: 'User authentication required'
+        error: "User authentication required",
       });
     }
 
     // Use real broker API integration
-    const AlpacaService = require('../utils/alpacaService');
-    
+    const AlpacaService = require("../utils/alpacaService");
+
     try {
       // Try to get real broker trade data
-      console.log('🔑 Retrieving API credentials for Alpaca...');
-      const credentials = await getUserApiKey(userId, 'alpaca');
-      
+      console.log("🔑 Retrieving API credentials for Alpaca...");
+      const credentials = await getUserApiKey(userId, "alpaca");
+
       if (credentials && credentials.apiKey && credentials.apiSecret) {
-        console.log('✅ Valid Alpaca credentials found, fetching real trade history...');
-        const alpaca = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
-        
+        console.log(
+          "✅ Valid Alpaca credentials found, fetching real trade history..."
+        );
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+
         // Get orders and activities from Alpaca
         const [orders, portfolioHistory] = await Promise.all([
-          alpaca.getOrders({ status: 'all', limit: 500 }),
-          alpaca.getPortfolioHistory('1Y')
+          alpaca.getOrders({ status: "all", limit: 500 }),
+          alpaca.getPortfolioHistory("1Y"),
         ]);
-        
+
         // Transform orders to trade history format
-        let trades = orders.map(order => ({
+        let trades = orders.map((order) => ({
           id: order.id,
           symbol: order.symbol,
           side: order.side, // 'buy' or 'sell'
@@ -501,46 +562,58 @@ router.get('/history', authenticateToken, async (req, res) => {
           return_percentage: 0,
           holding_period_days: 0,
           commission: 0, // Alpaca is commission-free
-          source: 'alpaca_api'
+          source: "alpaca_api",
         }));
-        
+
         // Apply filters
         if (symbol) {
-          trades = trades.filter(trade => trade.symbol.toUpperCase() === symbol.toUpperCase());
+          trades = trades.filter(
+            (trade) => trade.symbol.toUpperCase() === symbol.toUpperCase()
+          );
         }
-        
+
         if (startDate) {
-          trades = trades.filter(trade => new Date(trade.execution_time) >= new Date(startDate));
+          trades = trades.filter(
+            (trade) => new Date(trade.execution_time) >= new Date(startDate)
+          );
         }
-        
+
         if (endDate) {
-          trades = trades.filter(trade => new Date(trade.execution_time) <= new Date(endDate));
+          trades = trades.filter(
+            (trade) => new Date(trade.execution_time) <= new Date(endDate)
+          );
         }
-        
-        if (tradeType && tradeType !== 'all') {
-          trades = trades.filter(trade => trade.side === tradeType.toLowerCase());
+
+        if (tradeType && tradeType !== "all") {
+          trades = trades.filter(
+            (trade) => trade.side === tradeType.toLowerCase()
+          );
         }
-        
-        if (status !== 'all') {
-          trades = trades.filter(trade => trade.status === status);
+
+        if (status !== "all") {
+          trades = trades.filter((trade) => trade.status === status);
         }
-        
+
         // Sort trades
         trades.sort((a, b) => {
           const aVal = a[sortBy] || a.execution_time;
           const bVal = b[sortBy] || b.execution_time;
-          const compareResult = sortOrder === 'desc' ? 
-            new Date(bVal) - new Date(aVal) : 
-            new Date(aVal) - new Date(bVal);
+          const compareResult =
+            sortOrder === "desc"
+              ? new Date(bVal) - new Date(aVal)
+              : new Date(aVal) - new Date(bVal);
           return compareResult;
         });
-        
+
         // Apply pagination
         const total = trades.length;
-        const paginatedTrades = trades.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
-        
+        const paginatedTrades = trades.slice(
+          parseInt(offset),
+          parseInt(offset) + parseInt(limit)
+        );
+
         console.log(`✅ Retrieved ${total} trades from Alpaca API`);
-        
+
         return res.json({
           success: true,
           data: {
@@ -549,72 +622,75 @@ router.get('/history', authenticateToken, async (req, res) => {
               total,
               limit: parseInt(limit),
               offset: parseInt(offset),
-              hasMore: parseInt(offset) + parseInt(limit) < total
+              hasMore: parseInt(offset) + parseInt(limit) < total,
             },
-            source: 'alpaca_api'
-          }
+            source: "alpaca_api",
+          },
         });
       }
     } catch (apiError) {
-      console.log('⚠️ Broker API failed, falling back to mock data:', apiError.message);
+      console.log(
+        "⚠️ Broker API failed, falling back to mock data:",
+        apiError.message
+      );
     }
-    
+
     // Fallback to mock trade history data
-    console.log('📝 Using mock trade history data');
+    console.log("📝 Using mock trade history data");
     const mockTrades = [
       {
-        id: 'mock-1',
-        symbol: 'AAPL',
-        side: 'buy',
+        id: "mock-1",
+        symbol: "AAPL",
+        side: "buy",
         quantity: 100,
-        price: 150.00,
+        price: 150.0,
         execution_time: new Date(Date.now() - 86400000 * 7).toISOString(), // 7 days ago
-        order_type: 'market',
-        status: 'filled',
+        order_type: "market",
+        status: "filled",
         filled_qty: 100,
         gross_pnl: 2500,
         net_pnl: 2500,
         return_percentage: 16.67,
         holding_period_days: 7,
         commission: 0,
-        source: 'mock_data'
+        source: "mock_data",
       },
       {
-        id: 'mock-2',
-        symbol: 'MSFT',
-        side: 'buy',
+        id: "mock-2",
+        symbol: "MSFT",
+        side: "buy",
         quantity: 50,
-        price: 280.00,
+        price: 280.0,
         execution_time: new Date(Date.now() - 86400000 * 14).toISOString(), // 14 days ago
-        order_type: 'limit',
-        status: 'filled',
+        order_type: "limit",
+        status: "filled",
         filled_qty: 50,
         gross_pnl: 1512,
         net_pnl: 1512,
         return_percentage: 10.8,
         holding_period_days: 14,
         commission: 0,
-        source: 'mock_data'
+        source: "mock_data",
       },
       {
-        id: 'mock-3',
-        symbol: 'TSLA',
-        side: 'sell',
+        id: "mock-3",
+        symbol: "TSLA",
+        side: "sell",
         quantity: 25,
-        price: 220.00,
+        price: 220.0,
         execution_time: new Date(Date.now() - 86400000 * 21).toISOString(), // 21 days ago
-        order_type: 'market',
-        status: 'filled',
+        order_type: "market",
+        status: "filled",
         filled_qty: 25,
         gross_pnl: -500,
         net_pnl: -500,
         return_percentage: -8.33,
         holding_period_days: 30,
         commission: 0,
-        source: 'mock_data'
-      }
+        source: "mock_data",
+      },
     ];
-    
+
     res.json({
       success: true,
       data: {
@@ -623,18 +699,17 @@ router.get('/history', authenticateToken, async (req, res) => {
           total: mockTrades.length,
           limit: parseInt(limit),
           offset: parseInt(offset),
-          hasMore: false
+          hasMore: false,
         },
-        source: 'mock_data'
-      }
+        source: "mock_data",
+      },
     });
-    
   } catch (error) {
-    console.error('❌ Error fetching trade history:', error);
+    console.error("❌ Error fetching trade history:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch trade history',
-      details: error.message
+      error: "Failed to fetch trade history",
+      details: error.message,
     });
   }
 });
@@ -643,86 +718,110 @@ router.get('/history', authenticateToken, async (req, res) => {
  * @route GET /api/trades/analytics/overview
  * @desc Get trade analytics overview with key metrics
  */
-router.get('/analytics/overview', authenticateToken, async (req, res) => {
+router.get("/analytics/overview", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required',
-        message: 'User must be authenticated to access trade analytics'
+        error: "Authentication required",
+        message: "User must be authenticated to access trade analytics",
       });
-    } 
-    const { timeframe = '3M' } = req.query;
-    
-    console.log(`📊 Trade analytics requested for user ${userId}, timeframe: ${timeframe}`);
-    
+    }
+    const { timeframe = "3M" } = req.query;
+
+    console.log(
+      `📊 Trade analytics requested for user ${userId}, timeframe: ${timeframe}`
+    );
+
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
-    switch(timeframe) {
-      case '1M': startDate.setMonth(endDate.getMonth() - 1); break;
-      case '3M': startDate.setMonth(endDate.getMonth() - 3); break;
-      case '6M': startDate.setMonth(endDate.getMonth() - 6); break;
-      case '1Y': startDate.setFullYear(endDate.getFullYear() - 1); break;
-      case 'YTD': startDate.setMonth(0, 1); break;
-      default: startDate.setMonth(endDate.getMonth() - 3);
+    switch (timeframe) {
+      case "1M":
+        startDate.setMonth(endDate.getMonth() - 1);
+        break;
+      case "3M":
+        startDate.setMonth(endDate.getMonth() - 3);
+        break;
+      case "6M":
+        startDate.setMonth(endDate.getMonth() - 6);
+        break;
+      case "1Y":
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      case "YTD":
+        startDate.setMonth(0, 1);
+        break;
+      default:
+        startDate.setMonth(endDate.getMonth() - 3);
     }
-    
+
     // First, try to get live trade data from connected brokers
     let liveTradeData = null;
     try {
       // Get user's active API keys to fetch live trade data
-      const apiKeysResult = await query(`
+      const apiKeysResult = await query(
+        `
         SELECT provider, encrypted_api_key, key_iv, key_auth_tag, 
                encrypted_api_secret, secret_iv, secret_auth_tag, user_salt, is_sandbox
         FROM user_api_keys 
         WHERE user_id = $1 AND is_active = true
-      `, [userId]);
-      
+      `,
+        [userId]
+      );
+
       if (apiKeysResult.rows.length > 0) {
-        console.log(`🔑 Found ${apiKeysResult.rows.length} active API keys for analytics`);
-        
+        console.log(
+          `🔑 Found ${apiKeysResult.rows.length} active API keys for analytics`
+        );
+
         for (const keyData of apiKeysResult.rows) {
-          if (keyData.provider === 'alpaca') {
+          if (keyData.provider === "alpaca") {
             try {
               // Get live activities/trades from Alpaca
-              const credentials = await getUserApiKey(userId, 'alpaca');
-              
+              const credentials = await getUserApiKey(userId, "alpaca");
+
               if (credentials) {
                 const alpaca = new AlpacaService(
                   credentials.apiKey,
                   credentials.apiSecret,
                   credentials.isSandbox
                 );
-                
+
                 const activities = await alpaca.getActivities({
-                  activityType: 'FILL',
-                  date: startDate.toISOString().split('T')[0],
-                  until: endDate.toISOString().split('T')[0]
+                  activityType: "FILL",
+                  date: startDate.toISOString().split("T")[0],
+                  until: endDate.toISOString().split("T")[0],
                 });
-                
+
                 liveTradeData = activities;
-                console.log(`📈 Retrieved ${activities.length} live trade activities from Alpaca`);
+                console.log(
+                  `📈 Retrieved ${activities.length} live trade activities from Alpaca`
+                );
                 break;
               }
             } catch (apiError) {
-              console.warn(`Failed to fetch live data from ${keyData.provider}:`, apiError.message);
+              console.warn(
+                `Failed to fetch live data from ${keyData.provider}:`,
+                apiError.message
+              );
             }
           }
         }
       }
     } catch (error) {
-      console.warn('Failed to fetch live trade data:', error.message);
+      console.warn("Failed to fetch live trade data:", error.message);
     }
-    
+
     // Get stored trade analytics from database with comprehensive error handling
     let dbMetrics = null;
     let sectorBreakdown = [];
-    
+
     try {
       // Try to get trade metrics from stored data first
-      const metricsResult = await query(`
+      const metricsResult = await query(
+        `
         SELECT 
           COUNT(*) as total_trades,
           COUNT(CASE WHEN ph.net_pnl > 0 THEN 1 END) as winning_trades,
@@ -741,15 +840,21 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
-      `, [userId, startDate, endDate], 10000);
-      
+      `,
+        [userId, startDate, endDate],
+        10000
+      );
+
       if (metricsResult.rows.length > 0) {
         dbMetrics = metricsResult.rows[0];
-        console.log(`📊 Found ${dbMetrics.total_trades} stored trades for analytics`);
+        console.log(
+          `📊 Found ${dbMetrics.total_trades} stored trades for analytics`
+        );
       }
-      
+
       // Get sector breakdown from stored data
-      const sectorResult = await query(`
+      const sectorResult = await query(
+        `
         SELECT 
           COALESCE(s.sector, 'Unknown') as sector,
           COUNT(*) as trade_count,
@@ -763,22 +868,30 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
           AND ph.opened_at <= $3
         GROUP BY COALESCE(s.sector, 'Unknown')
         ORDER BY sector_pnl DESC
-      `, [userId, startDate, endDate], 10000);
-      
+      `,
+        [userId, startDate, endDate],
+        10000
+      );
+
       sectorBreakdown = sectorResult.rows;
-      
     } catch (dbError) {
-      console.warn('Database query failed, checking for tables:', dbError.message);
-      
+      console.warn(
+        "Database query failed, checking for tables:",
+        dbError.message
+      );
+
       // Check if tables exist and create fallback
       try {
-        await query('SELECT 1 FROM position_history LIMIT 1', [], 5000);
+        await query("SELECT 1 FROM position_history LIMIT 1", [], 5000);
       } catch (tableError) {
-        console.warn('Trade tables may not exist yet, using imported portfolio data');
-        
+        console.warn(
+          "Trade tables may not exist yet, using imported portfolio data"
+        );
+
         // Try to get analytics from portfolio holdings instead
         try {
-          const holdingsResult = await query(`
+          const holdingsResult = await query(
+            `
             SELECT 
               COUNT(*) as total_positions,
               SUM(CASE WHEN unrealized_pl > 0 THEN 1 ELSE 0 END) as winning_positions,
@@ -791,8 +904,11 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
               SUM(market_value) as total_volume
             FROM portfolio_holdings 
             WHERE user_id = $1 AND quantity > 0
-          `, [userId], 5000);
-          
+          `,
+            [userId],
+            5000
+          );
+
           if (holdingsResult.rows.length > 0) {
             const holdings = holdingsResult.rows[0];
             dbMetrics = {
@@ -805,49 +921,62 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
               best_trade: holdings.best_position,
               worst_trade: holdings.worst_position,
               avg_holding_period: 0, // Not available from holdings
-              total_volume: holdings.total_volume
+              total_volume: holdings.total_volume,
             };
-            console.log(`📈 Using portfolio holdings for analytics (${holdings.total_positions} positions)`);
+            console.log(
+              `📈 Using portfolio holdings for analytics (${holdings.total_positions} positions)`
+            );
           }
         } catch (holdingsError) {
-          console.warn('Portfolio holdings query also failed:', holdingsError.message);
+          console.warn(
+            "Portfolio holdings query also failed:",
+            holdingsError.message
+          );
         }
       }
     }
-    
+
     // Process live trade data if available
     let liveMetrics = null;
     if (liveTradeData && liveTradeData.length > 0) {
-      console.log(`🔄 Processing ${liveTradeData.length} live trade activities`);
-      
-      const buys = liveTradeData.filter(t => t.side === 'buy');
-      const sells = liveTradeData.filter(t => t.side === 'sell');
-      const totalVolume = liveTradeData.reduce((sum, t) => sum + (parseFloat(t.qty) * parseFloat(t.price)), 0);
-      
+      console.log(
+        `🔄 Processing ${liveTradeData.length} live trade activities`
+      );
+
+      const buys = liveTradeData.filter((t) => t.side === "buy");
+      const sells = liveTradeData.filter((t) => t.side === "sell");
+      const totalVolume = liveTradeData.reduce(
+        (sum, t) => sum + parseFloat(t.qty) * parseFloat(t.price),
+        0
+      );
+
       // Calculate P&L from matched buy/sell pairs
       const symbolGroups = {};
-      liveTradeData.forEach(trade => {
+      liveTradeData.forEach((trade) => {
         if (!symbolGroups[trade.symbol]) symbolGroups[trade.symbol] = [];
         symbolGroups[trade.symbol].push(trade);
       });
-      
+
       let totalPnL = 0;
       let completedTrades = 0;
       let winningTrades = 0;
-      
-      Object.values(symbolGroups).forEach(trades => {
-        const sortedTrades = trades.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      Object.values(symbolGroups).forEach((trades) => {
+        const sortedTrades = trades.sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        );
         let position = 0;
         let costBasis = 0;
-        
-        sortedTrades.forEach(trade => {
+
+        sortedTrades.forEach((trade) => {
           const qty = parseFloat(trade.qty);
           const price = parseFloat(trade.price);
-          
-          if (trade.side === 'buy') {
-            costBasis = ((costBasis * position) + (price * qty)) / (position + qty);
+
+          if (trade.side === "buy") {
+            costBasis = (costBasis * position + price * qty) / (position + qty);
             position += qty;
-          } else { // sell
+          } else {
+            // sell
             if (position > 0) {
               const pnl = (price - costBasis) * Math.min(qty, position);
               totalPnL += pnl;
@@ -858,41 +987,54 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
           }
         });
       });
-      
+
       liveMetrics = {
         totalTrades: completedTrades,
         winningTrades: winningTrades,
         losingTrades: completedTrades - winningTrades,
         totalPnL: totalPnL,
         totalVolume: totalVolume,
-        rawActivities: liveTradeData.length
+        rawActivities: liveTradeData.length,
       };
     }
-    
+
     // Combine or prioritize metrics (live data takes precedence)
-    const metrics = liveMetrics || dbMetrics || {
-      total_trades: 0,
-      winning_trades: 0,
-      losing_trades: 0,
-      total_pnl: 0,
-      avg_pnl: 0,
-      avg_roi: 0,
-      best_trade: 0,
-      worst_trade: 0,
-      avg_holding_period: 0,
-      total_volume: 0
-    };
-    
+    const metrics = liveMetrics ||
+      dbMetrics || {
+        total_trades: 0,
+        winning_trades: 0,
+        losing_trades: 0,
+        total_pnl: 0,
+        avg_pnl: 0,
+        avg_roi: 0,
+        best_trade: 0,
+        worst_trade: 0,
+        avg_holding_period: 0,
+        total_volume: 0,
+      };
+
     // Calculate derived metrics
-    const totalTrades = liveMetrics ? liveMetrics.totalTrades : parseInt(metrics.total_trades || 0);
-    const winningTrades = liveMetrics ? liveMetrics.winningTrades : parseInt(metrics.winning_trades || 0);
-    const losingTrades = liveMetrics ? liveMetrics.losingTrades : parseInt(metrics.losing_trades || 0);
-    const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
-    const totalPnL = liveMetrics ? liveMetrics.totalPnL : parseFloat(metrics.total_pnl || 0);
-    const profitFactor = losingTrades > 0 && totalPnL < 0 ? 
-      Math.abs(winningTrades * (totalPnL / totalTrades)) / Math.abs(losingTrades * (totalPnL / totalTrades)) : 
-      (totalPnL > 0 ? Math.abs(totalPnL / Math.max(losingTrades, 1)) : null);
-    
+    const totalTrades = liveMetrics
+      ? liveMetrics.totalTrades
+      : parseInt(metrics.total_trades || 0);
+    const winningTrades = liveMetrics
+      ? liveMetrics.winningTrades
+      : parseInt(metrics.winning_trades || 0);
+    const losingTrades = liveMetrics
+      ? liveMetrics.losingTrades
+      : parseInt(metrics.losing_trades || 0);
+    const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+    const totalPnL = liveMetrics
+      ? liveMetrics.totalPnL
+      : parseFloat(metrics.total_pnl || 0);
+    const profitFactor =
+      losingTrades > 0 && totalPnL < 0
+        ? Math.abs(winningTrades * (totalPnL / totalTrades)) /
+          Math.abs(losingTrades * (totalPnL / totalTrades))
+        : totalPnL > 0
+          ? Math.abs(totalPnL / Math.max(losingTrades, 1))
+          : null;
+
     const responseData = {
       success: true,
       data: {
@@ -902,50 +1044,57 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
           losingTrades: losingTrades,
           winRate: parseFloat(winRate.toFixed(2)),
           totalPnl: parseFloat(totalPnL.toFixed(2)),
-          avgPnl: totalTrades > 0 ? parseFloat((totalPnL / totalTrades).toFixed(2)) : 0,
-          avgRoi: parseFloat((metrics.avg_roi || 0)),
+          avgPnl:
+            totalTrades > 0
+              ? parseFloat((totalPnL / totalTrades).toFixed(2))
+              : 0,
+          avgRoi: parseFloat(metrics.avg_roi || 0),
           bestTrade: parseFloat(metrics.best_trade || 0),
           worstTrade: parseFloat(metrics.worst_trade || 0),
           avgHoldingPeriod: parseFloat(metrics.avg_holding_period || 0),
-          totalVolume: liveMetrics ? liveMetrics.totalVolume : parseFloat(metrics.total_volume || 0),
-          profitFactor: profitFactor
+          totalVolume: liveMetrics
+            ? liveMetrics.totalVolume
+            : parseFloat(metrics.total_volume || 0),
+          profitFactor: profitFactor,
         },
         sectorBreakdown: sectorBreakdown,
         timeframe: timeframe,
-        dataSource: liveMetrics ? 'live_api' : (dbMetrics ? 'database' : 'none'),
+        dataSource: liveMetrics ? "live_api" : dbMetrics ? "database" : "none",
         metadata: {
           liveActivities: liveMetrics ? liveMetrics.rawActivities : 0,
           dbRecords: dbMetrics ? parseInt(dbMetrics.total_trades) : 0,
           hasLiveData: !!liveMetrics,
-          hasStoredData: !!dbMetrics
-        }
-      }
+          hasStoredData: !!dbMetrics,
+        },
+      },
     };
-    
-    console.log(`✅ Analytics complete - ${totalTrades} trades, ${winRate.toFixed(1)}% win rate, $${totalPnL.toFixed(2)} P&L`);
+
+    console.log(
+      `✅ Analytics complete - ${totalTrades} trades, ${winRate.toFixed(1)}% win rate, $${totalPnL.toFixed(2)} P&L`
+    );
     res.json(responseData);
-    
   } catch (error) {
-    console.error('Error fetching analytics overview:', {
+    console.error("Error fetching analytics overview:", {
       message: error.message,
       stack: error.stack,
-      userId: req.user?.sub || req.user?.userId || 'unknown',
-      timeframe: req.query.timeframe || '3M',
-      requestId: req.requestId || 'unknown'
+      userId: req.user?.sub || req.user?.userId || "unknown",
+      timeframe: req.query.timeframe || "3M",
+      requestId: req.requestId || "unknown",
     });
-    
+
     // Return detailed error structure with proper HTTP status
     try {
       res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        message: 'Failed to fetch analytics overview',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        error: "Internal server error",
+        message: "Failed to fetch analytics overview",
+        details:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
         timestamp: new Date().toISOString(),
-        requestId: req.requestId || 'unknown'
+        requestId: req.requestId || "unknown",
       });
     } catch (fallbackError) {
-      console.error('Fallback error handler triggered:', fallbackError);
+      console.error("Fallback error handler triggered:", fallbackError);
       // Last resort fallback response
       res.status(200).json({
         success: true,
@@ -961,15 +1110,16 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
             bestTrade: 0,
             worstTrade: 0,
             avgHoldingPeriod: 0,
-            totalVolume: 0
+            totalVolume: 0,
           },
           chartData: [],
           pnlBySymbol: [],
           tradingPatterns: [],
-          dataSource: 'none'
+          dataSource: "none",
         },
-        message: 'No trade data available. Please import your portfolio data from your broker first.',
-        timestamp: new Date().toISOString()
+        message:
+          "No trade data available. Please import your portfolio data from your broker first.",
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -979,27 +1129,28 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
  * @route GET /api/trades/export
  * @desc Export trade data in various formats
  */
-router.get('/export', authenticateToken, async (req, res) => {
+router.get("/export", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
-    const { format = 'csv', startDate, endDate } = req.query;
+    const { format = "csv", startDate, endDate } = req.query;
     // Database queries will use the query function directly
-    
-    let whereClause = 'WHERE te.user_id = $1';
+
+    let whereClause = "WHERE te.user_id = $1";
     let params = [userId];
     let paramCount = 1;
-    
+
     if (startDate) {
       whereClause += ` AND te.execution_time >= $${++paramCount}`;
       params.push(startDate);
     }
-    
+
     if (endDate) {
       whereClause += ` AND te.execution_time <= $${++paramCount}`;
       params.push(endDate);
     }
-    
-    const result = await query(`
+
+    const result = await query(
+      `
       SELECT 
         te.execution_time,
         te.symbol,
@@ -1024,18 +1175,31 @@ router.get('/export', authenticateToken, async (req, res) => {
       LEFT JOIN symbols s ON te.symbol = s.symbol
       ${whereClause}
       ORDER BY te.execution_time DESC
-    `, params);
-    
-    if (format === 'csv') {
+    `,
+      params
+    );
+
+    if (format === "csv") {
       // Convert to CSV
       const csvHeaders = [
-        'Date', 'Symbol', 'Side', 'Quantity', 'Price', 'Commission',
-        'Gross PnL', 'Net PnL', 'Return %',
-        'Holding Period (Days)', 'Pattern Type', 'Pattern Confidence',
-        'Risk/Reward Ratio', 'Sector', 'Industry'
+        "Date",
+        "Symbol",
+        "Side",
+        "Quantity",
+        "Price",
+        "Commission",
+        "Gross PnL",
+        "Net PnL",
+        "Return %",
+        "Holding Period (Days)",
+        "Pattern Type",
+        "Pattern Confidence",
+        "Risk/Reward Ratio",
+        "Sector",
+        "Industry",
       ];
-      
-      const csvData = result.rows.map(row => [
+
+      const csvData = result.rows.map((row) => [
         row.execution_time,
         row.symbol,
         row.side,
@@ -1050,27 +1214,31 @@ router.get('/export', authenticateToken, async (req, res) => {
         row.pattern_confidence,
         row.risk_reward_ratio,
         row.sector,
-        row.industry
+        row.industry,
       ]);
-      
-      const csv = [csvHeaders, ...csvData].map(row => row.join(',')).join('\n');
-      
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=trade_history_${new Date().toISOString().split('T')[0]}.csv`);
+
+      const csv = [csvHeaders, ...csvData]
+        .map((row) => row.join(","))
+        .join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=trade_history_${new Date().toISOString().split("T")[0]}.csv`
+      );
       res.send(csv);
     } else {
       // Return JSON
       res.json({
         success: true,
-        data: result.rows
+        data: result.rows,
       });
     }
-    
   } catch (error) {
-    console.error('Error exporting trade data:', error);
+    console.error("Error exporting trade data:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to export trade data'
+      error: "Failed to export trade data",
     });
   }
 });
@@ -1079,40 +1247,53 @@ router.get('/export', authenticateToken, async (req, res) => {
  * @route DELETE /api/trades/data
  * @desc Delete all trade data for user (for testing/reset)
  */
-router.delete('/data', authenticateToken, async (req, res) => {
+router.delete("/data", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     const { confirm } = req.body;
-    
-    if (confirm !== 'DELETE_ALL_TRADE_DATA') {
+
+    if (confirm !== "DELETE_ALL_TRADE_DATA") {
       return res.status(400).json({
         success: false,
-        error: 'Confirmation required. Send { "confirm": "DELETE_ALL_TRADE_DATA" }'
+        error:
+          'Confirmation required. Send { "confirm": "DELETE_ALL_TRADE_DATA" }',
       });
     }
 
     // Database queries will use the query function directly
-    
+
     // Delete all trade-related data for user using transaction
     await transaction(async (client) => {
-      await client.query('DELETE FROM trade_analytics WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM position_history WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM trade_executions WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM trade_insights WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM performance_benchmarks WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM broker_api_configs WHERE user_id = $1', [userId]);
-    });
-      
-    res.json({
-      success: true,
-      message: 'All trade data deleted successfully'
+      await client.query("DELETE FROM trade_analytics WHERE user_id = $1", [
+        userId,
+      ]);
+      await client.query("DELETE FROM position_history WHERE user_id = $1", [
+        userId,
+      ]);
+      await client.query("DELETE FROM trade_executions WHERE user_id = $1", [
+        userId,
+      ]);
+      await client.query("DELETE FROM trade_insights WHERE user_id = $1", [
+        userId,
+      ]);
+      await client.query(
+        "DELETE FROM performance_benchmarks WHERE user_id = $1",
+        [userId]
+      );
+      await client.query("DELETE FROM broker_api_configs WHERE user_id = $1", [
+        userId,
+      ]);
     });
 
+    res.json({
+      success: true,
+      message: "All trade data deleted successfully",
+    });
   } catch (error) {
-    console.error('Error deleting trade data:', error);
+    console.error("Error deleting trade data:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete trade data'
+      error: "Failed to delete trade data",
     });
   }
 });

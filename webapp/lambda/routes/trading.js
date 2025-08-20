@@ -1,27 +1,27 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 // Health endpoint (no auth required)
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.json({
     success: true,
-    status: 'operational',
-    service: 'trading',
+    status: "operational",
+    service: "trading",
     timestamp: new Date().toISOString(),
-    message: 'Trading service is running'
+    message: "Trading service is running",
   });
 });
 
 // Basic root endpoint (public)
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({
     success: true,
-    message: 'Trading API - Ready',
+    message: "Trading API - Ready",
     timestamp: new Date().toISOString(),
-    status: 'operational'
+    status: "operational",
   });
 });
-const { query } = require('../utils/database');
+const { query } = require("../utils/database");
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -46,75 +46,89 @@ async function checkRequiredTables(tableNames) {
 }
 
 // Debug endpoint to check trading tables status
-router.get('/debug', async (req, res) => {
-  console.log('[TRADING] Debug endpoint called');
-  
+router.get("/debug", async (req, res) => {
+  console.log("[TRADING] Debug endpoint called");
+
   try {
     // Check all trading tables
     const requiredTables = [
-      'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-      'market_data', 'company_profile', 'swing_trader'
+      "buy_sell_daily",
+      "buy_sell_weekly",
+      "buy_sell_monthly",
+      "market_data",
+      "company_profile",
+      "swing_trader",
     ];
-    
+
     const tableStatus = await checkRequiredTables(requiredTables);
-    
+
     // Get record counts for existing tables
     const recordCounts = {};
     for (const [tableName, exists] of Object.entries(tableStatus)) {
       if (exists) {
         try {
-          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const countResult = await query(
+            `SELECT COUNT(*) as count FROM ${tableName}`
+          );
           recordCounts[tableName] = parseInt(countResult.rows[0].count);
         } catch (error) {
           recordCounts[tableName] = { error: error.message };
         }
       } else {
-        recordCounts[tableName] = 'Table does not exist';
+        recordCounts[tableName] = "Table does not exist";
       }
     }
 
     res.json({
-      status: 'ok',
+      status: "ok",
       timestamp: new Date().toISOString(),
       tables: tableStatus,
       recordCounts: recordCounts,
-      endpoint: 'trading'
+      endpoint: "trading",
     });
   } catch (error) {
-    console.error('[TRADING] Error in debug endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to check trading tables', 
+    console.error("[TRADING] Error in debug endpoint:", error);
+    res.status(500).json({
+      error: "Failed to check trading tables",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get buy/sell signals by timeframe
-router.get('/signals/:timeframe', async (req, res) => {
-  console.log('[TRADING] Received request for /signals/:timeframe', {
+router.get("/signals/:timeframe", async (req, res) => {
+  console.log("[TRADING] Received request for /signals/:timeframe", {
     params: req.params,
     query: req.query,
     path: req.path,
     method: req.method,
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
   });
   try {
     const { timeframe } = req.params;
-    const { limit = 100, page = 1, symbol, signal_type, latest_only } = req.query;
+    const {
+      limit = 100,
+      page = 1,
+      symbol,
+      signal_type,
+      latest_only,
+    } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const pageSize = Math.max(1, parseInt(limit));
     const offset = (pageNum - 1) * pageSize;
 
     // Validate timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      console.warn('[TRADING] Invalid timeframe:', timeframe);
-      return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
+      console.warn("[TRADING] Invalid timeframe:", timeframe);
+      return res.status(400).json({
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+      });
     }
 
     const tableName = `buy_sell_${timeframe}`;
-    
+
     // Defensive: Check if table exists before querying
     const tableExistsResult = await query(
       `SELECT EXISTS (
@@ -126,38 +140,38 @@ router.get('/signals/:timeframe', async (req, res) => {
     );
     if (!tableExistsResult.rows[0].exists) {
       console.error(`[TRADING] Table does not exist: ${tableName}`);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: `Table ${tableName} does not exist in the database.`,
-        details: `Expected table ${tableName} for trading signals. Please check your database schema.`
+        details: `Expected table ${tableName} for trading signals. Please check your database schema.`,
       });
     }
 
     // Build WHERE clause
-    let whereClause = '';
+    let whereClause = "";
     const queryParams = [];
     let paramCount = 0;
 
     const conditions = [];
-    
+
     if (symbol) {
       paramCount++;
       conditions.push(`symbol = $${paramCount}`);
       queryParams.push(symbol.toUpperCase());
     }
-    
-    if (signal_type === 'buy') {
+
+    if (signal_type === "buy") {
       conditions.push("signal = 'Buy'");
-    } else if (signal_type === 'sell') {
+    } else if (signal_type === "sell") {
       conditions.push("signal = 'Sell'");
     }
 
     if (conditions.length > 0) {
-      whereClause = 'WHERE ' + conditions.join(' AND ');
+      whereClause = "WHERE " + conditions.join(" AND ");
     }
 
     // Build the main query - handle latest_only with window function
     let sqlQuery;
-    if (latest_only === 'true') {
+    if (latest_only === "true") {
       sqlQuery = `
         WITH ranked_signals AS (
           SELECT 
@@ -226,7 +240,7 @@ router.get('/signals/:timeframe', async (req, res) => {
 
     // Count query for pagination
     let countQuery;
-    if (latest_only === 'true') {
+    if (latest_only === "true") {
       countQuery = `
         WITH ranked_signals AS (
           SELECT bs.symbol,
@@ -248,20 +262,28 @@ router.get('/signals/:timeframe', async (req, res) => {
 
     queryParams.push(pageSize, offset);
 
-    console.log('[TRADING] Executing SQL:', sqlQuery, 'Params:', queryParams);
-    console.log('[TRADING] Executing count SQL:', countQuery, 'Params:', queryParams.slice(0, paramCount));
+    console.log("[TRADING] Executing SQL:", sqlQuery, "Params:", queryParams);
+    console.log(
+      "[TRADING] Executing count SQL:",
+      countQuery,
+      "Params:",
+      queryParams.slice(0, paramCount)
+    );
 
     const [result, countResult] = await Promise.all([
       query(sqlQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
+      query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / pageSize);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.warn('[TRADING] No data found for query:', { timeframe, params: req.query });
-      return res.status(200).json({ 
+      console.warn("[TRADING] No data found for query:", {
+        timeframe,
+        params: req.query,
+      });
+      return res.status(200).json({
         success: true,
         data: [],
         timeframe,
@@ -272,17 +294,23 @@ router.get('/signals/:timeframe', async (req, res) => {
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         metadata: {
-          signal_type: signal_type || 'all',
+          signal_type: signal_type || "all",
           symbol: symbol || null,
-          message: 'No trading signals found for the specified criteria'
-        }
+          message: "No trading signals found for the specified criteria",
+        },
       });
     }
 
-    console.log('[TRADING] Query returned', result.rows.length, 'rows out of', total, 'total');
+    console.log(
+      "[TRADING] Query returned",
+      result.rows.length,
+      "rows out of",
+      total,
+      "total"
+    );
 
     res.json({
       success: true,
@@ -295,36 +323,35 @@ router.get('/signals/:timeframe', async (req, res) => {
         total,
         totalPages,
         hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
+        hasPrev: pageNum > 1,
       },
       metadata: {
-        signal_type: signal_type || 'all',
-        symbol: symbol || null
-      }
+        signal_type: signal_type || "all",
+        symbol: symbol || null,
+      },
     });
-
   } catch (error) {
-    console.error('[TRADING] Error fetching trading signals:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch trading signals',
+    console.error("[TRADING] Error fetching trading signals:", error);
+    res.status(500).json({
+      error: "Failed to fetch trading signals",
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
   }
 });
 
 // Get signals summary
-router.get('/summary/:timeframe', async (req, res) => {
+router.get("/summary/:timeframe", async (req, res) => {
   try {
     const { timeframe } = req.params;
-    
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
+
+    const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({ error: 'Invalid timeframe' });
+      return res.status(400).json({ error: "Invalid timeframe" });
     }
 
     const tableName = `buy_sell_${timeframe}`;
-      const sqlQuery = `
+    const sqlQuery = `
       SELECT 
         COUNT(*) as total_signals,
         COUNT(CASE WHEN signal = 'Buy' THEN 1 END) as buy_signals,
@@ -339,26 +366,26 @@ router.get('/summary/:timeframe', async (req, res) => {
     const result = await query(sqlQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       success: true,
       data: result.rows[0],
       timeframe,
-      period: 'last_30_days'
+      period: "last_30_days",
     });
-
   } catch (error) {
-    console.error('Error fetching signals summary:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch signals summary',
-      message: error.message 
-    });  }
+    console.error("Error fetching signals summary:", error);
+    res.status(500).json({
+      error: "Failed to fetch signals summary",
+      message: error.message,
+    });
+  }
 });
 
 // Get swing trading signals
-router.get('/swing-signals', async (req, res) => {
+router.get("/swing-signals", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
@@ -400,14 +427,18 @@ router.get('/swing-signals', async (req, res) => {
 
     const [swingResult, countResult] = await Promise.all([
       query(swingQuery, [limit, offset]),
-      query(countQuery)
+      query(countQuery),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!swingResult || !Array.isArray(swingResult.rows) || swingResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !swingResult ||
+      !Array.isArray(swingResult.rows) ||
+      swingResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -418,25 +449,24 @@ router.get('/swing-signals', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching swing signals:', error);
-    res.status(500).json({ error: 'Failed to fetch swing signals' });
+    console.error("Error fetching swing signals:", error);
+    res.status(500).json({ error: "Failed to fetch swing signals" });
   }
 });
 
 // Get technical indicators for a stock
-router.get('/:ticker/technicals', async (req, res) => {
+router.get("/:ticker/technicals", async (req, res) => {
   try {
     const { ticker } = req.params;
-    const timeframe = req.query.timeframe || 'daily'; // daily, weekly, monthly
+    const timeframe = req.query.timeframe || "daily"; // daily, weekly, monthly
 
-    let tableName = 'latest_technicals_daily';
-    if (timeframe === 'weekly') tableName = 'latest_technicals_weekly';
-    if (timeframe === 'monthly') tableName = 'latest_technicals_monthly';
+    let tableName = "latest_technicals_daily";
+    if (timeframe === "weekly") tableName = "latest_technicals_weekly";
+    if (timeframe === "monthly") tableName = "latest_technicals_monthly";
 
     const techQuery = `
       SELECT 
@@ -464,23 +494,22 @@ router.get('/:ticker/technicals', async (req, res) => {
     const result = await query(techQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       ticker: ticker.toUpperCase(),
       timeframe,
-      data: result.rows[0]
+      data: result.rows[0],
     });
-
   } catch (error) {
-    console.error('Error fetching technical indicators:', error);
-    res.status(500).json({ error: 'Failed to fetch technical indicators' });
+    console.error("Error fetching technical indicators:", error);
+    res.status(500).json({ error: "Failed to fetch technical indicators" });
   }
 });
 
 // Get performance summary of recent signals
-router.get('/performance', async (req, res) => {
+router.get("/performance", async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
 
@@ -518,18 +547,17 @@ router.get('/performance', async (req, res) => {
     const result = await query(performanceQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       period_days: days,
       performance: result.rows,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Error fetching performance data:', error);
-    res.status(500).json({ error: 'Failed to fetch performance data' });
+    console.error("Error fetching performance data:", error);
+    res.status(500).json({ error: "Failed to fetch performance data" });
   }
 });
 

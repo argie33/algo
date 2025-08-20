@@ -3,13 +3,13 @@
  * Provides comprehensive input validation and sanitization
  */
 
-const { validationError } = require('../utils/responseFormatter');
+const { validationError } = require("../utils/responseFormatter");
 
 /**
  * Sanitize string input
  */
 function sanitizeString(value, maxLength = 100) {
-  if (typeof value !== 'string') return '';
+  if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
 }
 
@@ -55,7 +55,7 @@ function isValidEmail(email) {
  * Validate stock symbol
  */
 function isValidSymbol(symbol) {
-  if (typeof symbol !== 'string') return false;
+  if (typeof symbol !== "string") return false;
   return /^[A-Z]{1,10}$/.test(symbol.toUpperCase());
 }
 
@@ -74,164 +74,195 @@ const validationSchemas = {
   // Stock symbol validation
   symbol: {
     required: true,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => {
-      if (typeof value !== 'string') return '';
-      return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (typeof value !== "string") return "";
+      return value
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
     },
     validator: (value) => /^[A-Z]{1,10}$/.test(value),
-    errorMessage: 'Symbol must be 1-10 uppercase letters'
+    errorMessage: "Symbol must be 1-10 uppercase letters",
   },
 
   // Multiple symbols (comma-separated)
   symbols: {
     required: true,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => {
-      if (typeof value !== 'string') return '';
-      return value.split(',')
-        .map(s => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''))
-        .filter(s => s.length > 0)
+      if (typeof value !== "string") return "";
+      return value
+        .split(",")
+        .map((s) =>
+          s
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "")
+        )
+        .filter((s) => s.length > 0)
         .slice(0, 50) // Limit to 50 symbols
-        .join(',');
+        .join(",");
     },
     validator: (value) => {
       if (!value) return false;
-      const symbols = value.split(',');
-      return symbols.length > 0 && 
-             symbols.length <= 50 && 
-             symbols.every(s => /^[A-Z]{1,10}$/.test(s.trim()));
+      const symbols = value.split(",");
+      return (
+        symbols.length > 0 &&
+        symbols.length <= 50 &&
+        symbols.every((s) => /^[A-Z]{1,10}$/.test(s.trim()))
+      );
     },
-    errorMessage: 'Symbols must be comma-separated list of 1-50 valid stock symbols'
+    errorMessage:
+      "Symbols must be comma-separated list of 1-50 valid stock symbols",
   },
 
   // Pagination limit
   limit: {
     required: false,
-    type: 'number',
+    type: "number",
     sanitizer: (value) => sanitizeInteger(value, 1, 1000),
     validator: (value) => value >= 1 && value <= 1000,
-    errorMessage: 'Limit must be between 1 and 1000',
-    default: 50
+    errorMessage: "Limit must be between 1 and 1000",
+    default: 50,
   },
 
   // Pagination offset
   offset: {
     required: false,
-    type: 'number',
+    type: "number",
     sanitizer: (value) => sanitizeInteger(value, 0),
     validator: (value) => value >= 0,
-    errorMessage: 'Offset must be non-negative',
-    default: 0
+    errorMessage: "Offset must be non-negative",
+    default: 0,
   },
 
   // Date validation
   date: {
     required: false,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => {
       if (!value) return null;
       const date = new Date(value);
-      return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+      return isNaN(date.getTime()) ? null : date.toISOString().split("T")[0];
     },
     validator: (value) => !value || isValidDate(value),
-    errorMessage: 'Date must be in valid format (YYYY-MM-DD)'
+    errorMessage: "Date must be in valid format (YYYY-MM-DD)",
   },
 
   // Price range validation
   priceMin: {
     required: false,
-    type: 'number',
+    type: "number",
     sanitizer: (value) => sanitizeNumber(value, 0),
     validator: (value) => value >= 0,
-    errorMessage: 'Minimum price must be non-negative'
+    errorMessage: "Minimum price must be non-negative",
   },
 
   priceMax: {
     required: false,
-    type: 'number',
+    type: "number",
     sanitizer: (value) => sanitizeNumber(value, 0),
     validator: (value) => value >= 0,
-    errorMessage: 'Maximum price must be non-negative'
+    errorMessage: "Maximum price must be non-negative",
   },
 
   // Market cap validation
   marketCapMin: {
     required: false,
-    type: 'number',
+    type: "number",
     sanitizer: (value) => sanitizeNumber(value, 0),
     validator: (value) => value >= 0,
-    errorMessage: 'Minimum market cap must be non-negative'
+    errorMessage: "Minimum market cap must be non-negative",
   },
 
   marketCapMax: {
     required: false,
-    type: 'number',
+    type: "number",
     sanitizer: (value) => sanitizeNumber(value, 0),
     validator: (value) => value >= 0,
-    errorMessage: 'Maximum market cap must be non-negative'
+    errorMessage: "Maximum market cap must be non-negative",
   },
 
   // Sector validation
   sector: {
     required: false,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => sanitizeString(value, 50),
     validator: (value) => !value || value.length <= 50,
-    errorMessage: 'Sector must be 50 characters or less'
+    errorMessage: "Sector must be 50 characters or less",
   },
 
   // Industry validation
   industry: {
     required: false,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => sanitizeString(value, 100),
     validator: (value) => !value || value.length <= 100,
-    errorMessage: 'Industry must be 100 characters or less'
+    errorMessage: "Industry must be 100 characters or less",
   },
 
   // Sort field validation
   sortBy: {
     required: false,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => sanitizeString(value, 50),
     validator: (value) => {
       if (!value) return true;
       const validSortFields = [
-        'symbol', 'price', 'marketCap', 'volume', 'change', 'changePercent',
-        'pe', 'eps', 'dividend', 'beta', 'rsi', 'ma50', 'ma200'
+        "symbol",
+        "price",
+        "marketCap",
+        "volume",
+        "change",
+        "changePercent",
+        "pe",
+        "eps",
+        "dividend",
+        "beta",
+        "rsi",
+        "ma50",
+        "ma200",
       ];
       return validSortFields.includes(value);
     },
-    errorMessage: 'Invalid sort field'
+    errorMessage: "Invalid sort field",
   },
 
   // Sort order validation
   sortOrder: {
     required: false,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => {
-      if (typeof value !== 'string') return 'asc';
-      return value.toLowerCase() === 'desc' ? 'desc' : 'asc';
+      if (typeof value !== "string") return "asc";
+      return value.toLowerCase() === "desc" ? "desc" : "asc";
     },
-    validator: (value) => ['asc', 'desc'].includes(value),
+    validator: (value) => ["asc", "desc"].includes(value),
     errorMessage: 'Sort order must be "asc" or "desc"',
-    default: 'asc'
+    default: "asc",
   },
 
   // Timeframe validation
   timeframe: {
     required: false,
-    type: 'string',
+    type: "string",
     sanitizer: (value) => sanitizeString(value, 10),
     validator: (value) => {
       if (!value) return true;
-      const validTimeframes = ['1Min', '5Min', '15Min', '1Hour', '1Day', '1Week', '1Month'];
+      const validTimeframes = [
+        "1Min",
+        "5Min",
+        "15Min",
+        "1Hour",
+        "1Day",
+        "1Week",
+        "1Month",
+      ];
       return validTimeframes.includes(value);
     },
-    errorMessage: 'Invalid timeframe',
-    default: '1Day'
-  }
+    errorMessage: "Invalid timeframe",
+    default: "1Day",
+  },
 };
 
 /**
@@ -244,20 +275,24 @@ function createValidationMiddleware(fieldSchemas) {
 
     // Process each field in the schema
     for (const [fieldName, schema] of Object.entries(fieldSchemas)) {
-      let value = req.query[fieldName] || req.body[fieldName] || req.params[fieldName];
+      let value =
+        req.query[fieldName] || req.body[fieldName] || req.params[fieldName];
 
       // Check required fields
-      if (schema.required && (value === undefined || value === null || value === '')) {
+      if (
+        schema.required &&
+        (value === undefined || value === null || value === "")
+      ) {
         errors.push({
           field: fieldName,
           message: schema.errorMessage || `${fieldName} is required`,
-          code: 'REQUIRED_FIELD_MISSING'
+          code: "REQUIRED_FIELD_MISSING",
         });
         continue;
       }
 
       // Apply default value if not provided
-      if (value === undefined || value === null || value === '') {
+      if (value === undefined || value === null || value === "") {
         if (schema.default !== undefined) {
           value = schema.default;
         } else if (!schema.required) {
@@ -266,18 +301,18 @@ function createValidationMiddleware(fieldSchemas) {
       }
 
       // Sanitize the value
-      if (schema.sanitizer && typeof schema.sanitizer === 'function') {
+      if (schema.sanitizer && typeof schema.sanitizer === "function") {
         value = schema.sanitizer(value);
       }
 
       // Validate the sanitized value
-      if (schema.validator && typeof schema.validator === 'function') {
+      if (schema.validator && typeof schema.validator === "function") {
         if (!schema.validator(value)) {
           errors.push({
             field: fieldName,
             message: schema.errorMessage || `Invalid ${fieldName}`,
-            code: 'VALIDATION_FAILED',
-            value: value
+            code: "VALIDATION_FAILED",
+            value: value,
           });
           continue;
         }
@@ -313,7 +348,7 @@ function validateBody(schema) {
         errors.push({
           field: fieldName,
           message: `${fieldName} is required`,
-          code: 'REQUIRED_FIELD_MISSING'
+          code: "REQUIRED_FIELD_MISSING",
         });
         continue;
       }
@@ -325,11 +360,14 @@ function validateBody(schema) {
           validatedData[fieldName] = value;
         }
 
-        if (fieldSchema.validator && !fieldSchema.validator(validatedData[fieldName])) {
+        if (
+          fieldSchema.validator &&
+          !fieldSchema.validator(validatedData[fieldName])
+        ) {
           errors.push({
             field: fieldName,
             message: fieldSchema.errorMessage || `Invalid ${fieldName}`,
-            code: 'VALIDATION_FAILED'
+            code: "VALIDATION_FAILED",
           });
         }
       }
@@ -355,16 +393,19 @@ function validateQuery(schema) {
     for (const [fieldName, fieldSchema] of Object.entries(schema)) {
       let value = req.query[fieldName];
 
-      if (fieldSchema.required && (value === undefined || value === null || value === '')) {
+      if (
+        fieldSchema.required &&
+        (value === undefined || value === null || value === "")
+      ) {
         errors.push({
           field: fieldName,
           message: `${fieldName} is required`,
-          code: 'REQUIRED_FIELD_MISSING'
+          code: "REQUIRED_FIELD_MISSING",
         });
         continue;
       }
 
-      if (value !== undefined && value !== null && value !== '') {
+      if (value !== undefined && value !== null && value !== "") {
         if (fieldSchema.sanitizer) {
           value = fieldSchema.sanitizer(value);
         }
@@ -373,8 +414,8 @@ function validateQuery(schema) {
           errors.push({
             field: fieldName,
             message: fieldSchema.errorMessage || `Invalid ${fieldName}`,
-            code: 'VALIDATION_FAILED',
-            value: value
+            code: "VALIDATION_FAILED",
+            value: value,
           });
           continue;
         }
@@ -401,23 +442,23 @@ const commonValidations = {
   // Pagination validation
   pagination: createValidationMiddleware({
     limit: validationSchemas.limit,
-    offset: validationSchemas.offset
+    offset: validationSchemas.offset,
   }),
 
   // Stock symbol validation
   symbolParam: createValidationMiddleware({
-    symbol: validationSchemas.symbol
+    symbol: validationSchemas.symbol,
   }),
 
   // Multiple symbols validation
   symbolsParam: createValidationMiddleware({
-    symbols: validationSchemas.symbols
+    symbols: validationSchemas.symbols,
   }),
 
   // Date range validation
   dateRange: createValidationMiddleware({
     startDate: validationSchemas.date,
-    endDate: validationSchemas.date
+    endDate: validationSchemas.date,
   }),
 
   // Screening filters validation
@@ -431,8 +472,8 @@ const commonValidations = {
     sortBy: validationSchemas.sortBy,
     sortOrder: validationSchemas.sortOrder,
     limit: validationSchemas.limit,
-    offset: validationSchemas.offset
-  })
+    offset: validationSchemas.offset,
+  }),
 };
 
 module.exports = {
@@ -447,5 +488,5 @@ module.exports = {
   sanitizeArray,
   isValidEmail,
   isValidSymbol,
-  isValidDate
+  isValidDate,
 };

@@ -1,24 +1,24 @@
-const express = require('express');
-const { query, initializeDatabase } = require('../utils/database');
-const { authenticateToken, optionalAuth } = require('../middleware/auth');
+const express = require("express");
+const { query, initializeDatabase } = require("../utils/database");
+const { authenticateToken, optionalAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
 // Initialize database on module load
-initializeDatabase().catch(err => {
-    console.error('Failed to initialize database in dashboard routes:', err);
+initializeDatabase().catch((err) => {
+  console.error("Failed to initialize database in dashboard routes:", err);
 });
 
 /**
  * GET /api/dashboard/summary
  * Get comprehensive dashboard summary data
  */
-router.get('/summary', async (req, res) => {
-    try {
-        console.log('📊 Dashboard summary request received');
-        
-        // Get market overview data (major indices)
-        const marketQuery = `
+router.get("/summary", async (req, res) => {
+  try {
+    console.log("📊 Dashboard summary request received");
+
+    // Get market overview data (major indices)
+    const marketQuery = `
             SELECT 
                 symbol,
                 close_price,
@@ -32,9 +32,9 @@ router.get('/summary', async (req, res) => {
             WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX', 'SPY', 'QQQ', 'IWM', 'DIA')
             ORDER BY symbol
         `;
-        
-        // Get top gainers
-        const gainersQuery = `
+
+    // Get top gainers
+    const gainersQuery = `
             SELECT 
                 symbol,
                 close_price,
@@ -49,9 +49,9 @@ router.get('/summary', async (req, res) => {
             ORDER BY change_percent DESC
             LIMIT 10
         `;
-        
-        // Get top losers
-        const losersQuery = `
+
+    // Get top losers
+    const losersQuery = `
             SELECT 
                 symbol,
                 close_price,
@@ -66,9 +66,9 @@ router.get('/summary', async (req, res) => {
             ORDER BY change_percent ASC
             LIMIT 10
         `;
-        
-        // Get sector performance
-        const sectorQuery = `
+
+    // Get sector performance
+    const sectorQuery = `
             SELECT 
                 sector,
                 COUNT(*) as stock_count,
@@ -84,9 +84,9 @@ router.get('/summary', async (req, res) => {
             ORDER BY avg_change DESC
             LIMIT 10
         `;
-        
-        // Get recent earnings
-        const earningsQuery = `
+
+    // Get recent earnings
+    const earningsQuery = `
             SELECT 
                 symbol,
                 actual_eps,
@@ -99,9 +99,9 @@ router.get('/summary', async (req, res) => {
             ORDER BY report_date DESC
             LIMIT 15
         `;
-        
-        // Get market sentiment
-        const sentimentQuery = `
+
+    // Get market sentiment
+    const sentimentQuery = `
             SELECT 
                 fear_greed_value,
                 fear_greed_classification,
@@ -111,9 +111,9 @@ router.get('/summary', async (req, res) => {
             ORDER BY updated_at DESC 
             LIMIT 1
         `;
-        
-        // Get trading volume leaders
-        const volumeQuery = `
+
+    // Get trading volume leaders
+    const volumeQuery = `
             SELECT 
                 symbol,
                 close_price,
@@ -125,9 +125,9 @@ router.get('/summary', async (req, res) => {
             ORDER BY volume DESC
             LIMIT 10
         `;
-        
-        // Get market breadth
-        const breadthQuery = `
+
+    // Get market breadth
+    const breadthQuery = `
             SELECT 
                 COUNT(*) as total_stocks,
                 COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
@@ -138,97 +138,142 @@ router.get('/summary', async (req, res) => {
             FROM latest_price_daily
             WHERE change_percent IS NOT NULL
         `;
-        
-        console.log('🔍 Executing comprehensive dashboard queries...');
-        
-        const [
-            marketResult, 
-            gainersResult, 
-            losersResult, 
-            sectorResult, 
-            earningsResult, 
-            sentimentResult,
-            volumeResult,
-            breadthResult
-        ] = await Promise.all([
-            query(marketQuery),
-            query(gainersQuery),
-            query(losersQuery),
-            query(sectorQuery),
-            query(earningsQuery),
-            query(sentimentQuery),
-            query(volumeQuery),
-            query(breadthQuery)
-        ]);
-        
-        console.log(`✅ Dashboard queries completed: ${marketResult.rowCount} market, ${gainersResult.rowCount} gainers, ${losersResult.rowCount} losers, ${sectorResult.rowCount} sectors, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment, ${volumeResult.rowCount} volume, ${breadthResult.rowCount} breadth`);
-        
-        const summary = {
-            market_overview: marketResult.rows,
-            top_gainers: gainersResult.rows,
-            top_losers: losersResult.rows,
-            sector_performance: sectorResult.rows,
-            recent_earnings: earningsResult.rows,
-            market_sentiment: sentimentResult.rows[0] || null,
-            volume_leaders: volumeResult.rows,
-            market_breadth: breadthResult.rows[0] || null,
-            timestamp: new Date().toISOString()
-        };
-        
-        console.log('📤 Sending comprehensive dashboard summary response');
-        if (!marketResult || !Array.isArray(marketResult.rows) || marketResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market overview' });
-        }
-        if (!gainersResult || !Array.isArray(gainersResult.rows) || gainersResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for top gainers' });
-        }
-        if (!losersResult || !Array.isArray(losersResult.rows) || losersResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for top losers' });
-        }
-        if (!sectorResult || !Array.isArray(sectorResult.rows) || sectorResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for sector performance' });
-        }
-        if (!earningsResult || !Array.isArray(earningsResult.rows) || earningsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for recent earnings' });
-        }
-        if (!sentimentResult || !Array.isArray(sentimentResult.rows) || sentimentResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market sentiment' });
-        }
-        if (!volumeResult || !Array.isArray(volumeResult.rows) || volumeResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for volume leaders' });
-        }
-        if (!breadthResult || !Array.isArray(breadthResult.rows) || breadthResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market breadth' });
-        }
-        res.json({
-            success: true,
-            data: summary
-        });
-        
-    } catch (error) {
-        console.error('❌ Dashboard summary error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch dashboard summary',
-            details: error.message
-        });
+
+    console.log("🔍 Executing comprehensive dashboard queries...");
+
+    const [
+      marketResult,
+      gainersResult,
+      losersResult,
+      sectorResult,
+      earningsResult,
+      sentimentResult,
+      volumeResult,
+      breadthResult,
+    ] = await Promise.all([
+      query(marketQuery),
+      query(gainersQuery),
+      query(losersQuery),
+      query(sectorQuery),
+      query(earningsQuery),
+      query(sentimentQuery),
+      query(volumeQuery),
+      query(breadthQuery),
+    ]);
+
+    console.log(
+      `✅ Dashboard queries completed: ${marketResult.rowCount} market, ${gainersResult.rowCount} gainers, ${losersResult.rowCount} losers, ${sectorResult.rowCount} sectors, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment, ${volumeResult.rowCount} volume, ${breadthResult.rowCount} breadth`
+    );
+
+    const summary = {
+      market_overview: marketResult.rows,
+      top_gainers: gainersResult.rows,
+      top_losers: losersResult.rows,
+      sector_performance: sectorResult.rows,
+      recent_earnings: earningsResult.rows,
+      market_sentiment: sentimentResult.rows[0] || null,
+      volume_leaders: volumeResult.rows,
+      market_breadth: breadthResult.rows[0] || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log("📤 Sending comprehensive dashboard summary response");
+    if (
+      !marketResult ||
+      !Array.isArray(marketResult.rows) ||
+      marketResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for market overview" });
     }
+    if (
+      !gainersResult ||
+      !Array.isArray(gainersResult.rows) ||
+      gainersResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for top gainers" });
+    }
+    if (
+      !losersResult ||
+      !Array.isArray(losersResult.rows) ||
+      losersResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for top losers" });
+    }
+    if (
+      !sectorResult ||
+      !Array.isArray(sectorResult.rows) ||
+      sectorResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for sector performance" });
+    }
+    if (
+      !earningsResult ||
+      !Array.isArray(earningsResult.rows) ||
+      earningsResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for recent earnings" });
+    }
+    if (
+      !sentimentResult ||
+      !Array.isArray(sentimentResult.rows) ||
+      sentimentResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for market sentiment" });
+    }
+    if (
+      !volumeResult ||
+      !Array.isArray(volumeResult.rows) ||
+      volumeResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for volume leaders" });
+    }
+    if (
+      !breadthResult ||
+      !Array.isArray(breadthResult.rows) ||
+      breadthResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for market breadth" });
+    }
+    res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    console.error("❌ Dashboard summary error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dashboard summary",
+      details: error.message,
+    });
+  }
 });
 
 /**
  * GET /api/dashboard/holdings
  * Get portfolio holdings data with more details
  */
-router.get('/holdings', authenticateToken, async (req, res) => {
-    try {
-        console.log('💼 Holdings request received for user:', req.user?.sub);
-        const userId = req.user?.sub;
+router.get("/holdings", authenticateToken, async (req, res) => {
+  try {
+    console.log("💼 Holdings request received for user:", req.user?.sub);
+    const userId = req.user?.sub;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'User authentication required' });
-        }
-        
-        const holdingsQuery = `
+    if (!userId) {
+      return res.status(401).json({ error: "User authentication required" });
+    }
+
+    const holdingsQuery = `
             SELECT 
                 symbol,
                 shares,
@@ -245,9 +290,9 @@ router.get('/holdings', authenticateToken, async (req, res) => {
             WHERE ph.user_id = $1
             ORDER BY total_value DESC
         `;
-        
-        // Get portfolio summary
-        const summaryQuery = `
+
+    // Get portfolio summary
+    const summaryQuery = `
             SELECT 
                 COUNT(*) as total_positions,
                 SUM(total_value) as total_portfolio_value,
@@ -257,54 +302,65 @@ router.get('/holdings', authenticateToken, async (req, res) => {
             FROM portfolio_holdings
             WHERE user_id = $1
         `;
-        
-        console.log('🔍 Executing holdings queries...');
-        const [holdingsResult, summaryResult] = await Promise.all([
-            query(holdingsQuery, [userId]),
-            query(summaryQuery, [userId])
-        ]);
-        
-        console.log(`✅ Holdings queries completed: ${holdingsResult.rowCount} holdings found`);
-        
-        if (!holdingsResult || !Array.isArray(holdingsResult.rows) || holdingsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for holdings' });
-        }
-        if (!summaryResult || !Array.isArray(summaryResult.rows) || summaryResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for portfolio summary' });
-        }
-        res.json({
-            success: true,
-            data: {
-                holdings: holdingsResult.rows,
-                summary: summaryResult.rows[0] || null,
-                count: holdingsResult.rowCount
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Holdings error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch holdings',
-            details: error.message
-        });
+
+    console.log("🔍 Executing holdings queries...");
+    const [holdingsResult, summaryResult] = await Promise.all([
+      query(holdingsQuery, [userId]),
+      query(summaryQuery, [userId]),
+    ]);
+
+    console.log(
+      `✅ Holdings queries completed: ${holdingsResult.rowCount} holdings found`
+    );
+
+    if (
+      !holdingsResult ||
+      !Array.isArray(holdingsResult.rows) ||
+      holdingsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for holdings" });
     }
+    if (
+      !summaryResult ||
+      !Array.isArray(summaryResult.rows) ||
+      summaryResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for portfolio summary" });
+    }
+    res.json({
+      success: true,
+      data: {
+        holdings: holdingsResult.rows,
+        summary: summaryResult.rows[0] || null,
+        count: holdingsResult.rowCount,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Holdings error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch holdings",
+      details: error.message,
+    });
+  }
 });
 
 /**
  * GET /api/dashboard/performance
  * Get portfolio performance data with charts
  */
-router.get('/performance', authenticateToken, async (req, res) => {
-    try {
-        console.log('📈 Performance request received for user:', req.user?.sub);
-        const userId = req.user?.sub;
+router.get("/performance", authenticateToken, async (req, res) => {
+  try {
+    console.log("📈 Performance request received for user:", req.user?.sub);
+    const userId = req.user?.sub;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'User authentication required' });
-        }
-        
-        const performanceQuery = `
+    if (!userId) {
+      return res.status(401).json({ error: "User authentication required" });
+    }
+
+    const performanceQuery = `
             SELECT 
                 date,
                 total_value,
@@ -316,9 +372,9 @@ router.get('/performance', authenticateToken, async (req, res) => {
             WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date ASC
         `;
-        
-        // Get performance metrics
-        const metricsQuery = `
+
+    // Get performance metrics
+    const metricsQuery = `
             SELECT 
                 AVG(daily_return) as avg_daily_return,
                 STDDEV(daily_return) as volatility,
@@ -328,54 +384,65 @@ router.get('/performance', authenticateToken, async (req, res) => {
             FROM portfolio_performance 
             WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '30 days'
         `;
-        
-        console.log('🔍 Executing performance queries...');
-        const [performanceResult, metricsResult] = await Promise.all([
-            query(performanceQuery, [userId]),
-            query(metricsQuery, [userId])
-        ]);
-        
-        console.log(`✅ Performance queries completed: ${performanceResult.rowCount} data points`);
-        
-        if (!performanceResult || !Array.isArray(performanceResult.rows) || performanceResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for performance' });
-        }
-        if (!metricsResult || !Array.isArray(metricsResult.rows) || metricsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for performance metrics' });
-        }
-        res.json({
-            success: true,
-            data: {
-                performance: performanceResult.rows,
-                metrics: metricsResult.rows[0] || null,
-                count: performanceResult.rowCount
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Performance error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch performance data',
-            details: error.message
-        });
+
+    console.log("🔍 Executing performance queries...");
+    const [performanceResult, metricsResult] = await Promise.all([
+      query(performanceQuery, [userId]),
+      query(metricsQuery, [userId]),
+    ]);
+
+    console.log(
+      `✅ Performance queries completed: ${performanceResult.rowCount} data points`
+    );
+
+    if (
+      !performanceResult ||
+      !Array.isArray(performanceResult.rows) ||
+      performanceResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for performance" });
     }
+    if (
+      !metricsResult ||
+      !Array.isArray(metricsResult.rows) ||
+      metricsResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for performance metrics" });
+    }
+    res.json({
+      success: true,
+      data: {
+        performance: performanceResult.rows,
+        metrics: metricsResult.rows[0] || null,
+        count: performanceResult.rowCount,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Performance error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch performance data",
+      details: error.message,
+    });
+  }
 });
 
 /**
  * GET /api/dashboard/alerts
  * Get trading alerts and signals with more details
  */
-router.get('/alerts', authenticateToken, async (req, res) => {
-    try {
-        console.log('🚨 Alerts request received for user:', req.user?.sub);
-        const userId = req.user?.sub;
+router.get("/alerts", authenticateToken, async (req, res) => {
+  try {
+    console.log("🚨 Alerts request received for user:", req.user?.sub);
+    const userId = req.user?.sub;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'User authentication required' });
-        }
-        
-        const alertsQuery = `
+    if (!userId) {
+      return res.status(401).json({ error: "User authentication required" });
+    }
+
+    const alertsQuery = `
             SELECT 
                 symbol,
                 alert_type,
@@ -391,9 +458,9 @@ router.get('/alerts', authenticateToken, async (req, res) => {
             ORDER BY priority DESC, created_at DESC
             LIMIT 25
         `;
-        
-        // Get alert summary
-        const alertSummaryQuery = `
+
+    // Get alert summary
+    const alertSummaryQuery = `
             SELECT 
                 alert_type,
                 COUNT(*) as count,
@@ -402,50 +469,59 @@ router.get('/alerts', authenticateToken, async (req, res) => {
             WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days'
             GROUP BY alert_type
         `;
-        
-        console.log('🔍 Executing alerts queries...');
-        const [alertsResult, summaryResult] = await Promise.all([
-            query(alertsQuery, [userId]),
-            query(alertSummaryQuery, [userId])
-        ]);
-        
-        console.log(`✅ Alerts queries completed: ${alertsResult.rowCount} alerts found`);
-        
-        if (!alertsResult || !Array.isArray(alertsResult.rows) || alertsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for alerts' });
-        }
-        if (!summaryResult || !Array.isArray(summaryResult.rows) || summaryResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for alert summary' });
-        }
-        res.json({
-            success: true,
-            data: {
-                alerts: alertsResult.rows,
-                summary: summaryResult.rows,
-                count: alertsResult.rowCount
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Alerts error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch alerts',
-            details: error.message
-        });
+
+    console.log("🔍 Executing alerts queries...");
+    const [alertsResult, summaryResult] = await Promise.all([
+      query(alertsQuery, [userId]),
+      query(alertSummaryQuery, [userId]),
+    ]);
+
+    console.log(
+      `✅ Alerts queries completed: ${alertsResult.rowCount} alerts found`
+    );
+
+    if (
+      !alertsResult ||
+      !Array.isArray(alertsResult.rows) ||
+      alertsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for alerts" });
     }
+    if (
+      !summaryResult ||
+      !Array.isArray(summaryResult.rows) ||
+      summaryResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for alert summary" });
+    }
+    res.json({
+      success: true,
+      data: {
+        alerts: alertsResult.rows,
+        summary: summaryResult.rows,
+        count: alertsResult.rowCount,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Alerts error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch alerts",
+      details: error.message,
+    });
+  }
 });
 
 /**
  * GET /api/dashboard/market-data
  * Get additional market data for dashboard
  */
-router.get('/market-data', async (req, res) => {
-    try {
-        console.log('📊 Market data request received');
-        
-        // Get economic indicators
-        const econQuery = `
+router.get("/market-data", async (req, res) => {
+  try {
+    console.log("📊 Market data request received");
+
+    // Get economic indicators
+    const econQuery = `
             SELECT 
                 indicator_name,
                 value,
@@ -456,9 +532,9 @@ router.get('/market-data', async (req, res) => {
             ORDER BY date DESC, indicator_name
             LIMIT 20
         `;
-        
-        // Get sector rotation
-        const sectorRotationQuery = `
+
+    // Get sector rotation
+    const sectorRotationQuery = `
             SELECT 
                 sector,
                 AVG(change_percent) as avg_change,
@@ -471,9 +547,9 @@ router.get('/market-data', async (req, res) => {
             GROUP BY sector
             ORDER BY avg_change DESC
         `;
-        
-        // Get market internals
-        const internalsQuery = `
+
+    // Get market internals
+    const internalsQuery = `
             SELECT 
                 'advancing' as type,
                 COUNT(*) as count
@@ -492,125 +568,153 @@ router.get('/market-data', async (req, res) => {
             FROM latest_price_daily 
             WHERE change_percent = 0
         `;
-        
-        console.log('🔍 Executing market data queries...');
-        const [econResult, sectorResult, internalsResult] = await Promise.all([
-            query(econQuery),
-            query(sectorRotationQuery),
-            query(internalsQuery)
-        ]);
-        
-        console.log(`✅ Market data queries completed: ${econResult.rowCount} econ, ${sectorResult.rowCount} sectors, ${internalsResult.rowCount} internals`);
-        
-        if (!econResult || !Array.isArray(econResult.rows) || econResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for economic indicators' });
-        }
-        if (!sectorResult || !Array.isArray(sectorResult.rows) || sectorResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for sector rotation' });
-        }
-        if (!internalsResult || !Array.isArray(internalsResult.rows) || internalsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'No data found for market internals' });
-        }
-        res.json({
-            success: true,
-            data: {
-                economic_indicators: econResult.rows,
-                sector_rotation: sectorResult.rows,
-                market_internals: internalsResult.rows,
-                timestamp: new Date().toISOString()
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Market data error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch market data',
-            details: error.message
-        });
+
+    console.log("🔍 Executing market data queries...");
+    const [econResult, sectorResult, internalsResult] = await Promise.all([
+      query(econQuery),
+      query(sectorRotationQuery),
+      query(internalsQuery),
+    ]);
+
+    console.log(
+      `✅ Market data queries completed: ${econResult.rowCount} econ, ${sectorResult.rowCount} sectors, ${internalsResult.rowCount} internals`
+    );
+
+    if (
+      !econResult ||
+      !Array.isArray(econResult.rows) ||
+      econResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for economic indicators" });
     }
+    if (
+      !sectorResult ||
+      !Array.isArray(sectorResult.rows) ||
+      sectorResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for sector rotation" });
+    }
+    if (
+      !internalsResult ||
+      !Array.isArray(internalsResult.rows) ||
+      internalsResult.rows.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "No data found for market internals" });
+    }
+    res.json({
+      success: true,
+      data: {
+        economic_indicators: econResult.rows,
+        sector_rotation: sectorResult.rows,
+        market_internals: internalsResult.rows,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Market data error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market data",
+      details: error.message,
+    });
+  }
 });
 
 /**
  * GET /api/dashboard/debug
  * Debug endpoint to test database connectivity and data availability
  */
-router.get('/debug', async (req, res) => {
+router.get("/debug", async (req, res) => {
+  try {
+    console.log("🔧 Dashboard debug request received");
+
+    const debugData = {
+      timestamp: new Date().toISOString(),
+      database_status: "checking...",
+      table_counts: {},
+      sample_data: {},
+    };
+
+    // Check database connectivity
     try {
-        console.log('🔧 Dashboard debug request received');
-        
-        const debugData = {
-            timestamp: new Date().toISOString(),
-            database_status: 'checking...',
-            table_counts: {},
-            sample_data: {}
-        };
-        
-        // Check database connectivity
-        try {
-            await query('SELECT NOW() as db_time');
-            debugData.database_status = 'connected';
-        } catch (dbError) {
-            debugData.database_status = `error: ${dbError.message}`;
-        }
-        
-        // Get table counts
-        const tables = [
-            'latest_price_daily',
-            'earnings_history', 
-            'fear_greed',
-            'portfolio_holdings',
-            'portfolio_performance',
-            'trading_alerts',
-            'economic_data',
-            'stocks',
-            'technical_data_daily'
-        ];
-        
-        for (const table of tables) {
-            try {
-                const countResult = await query(`SELECT COUNT(*) as count FROM ${table}`);
-                debugData.table_counts[table] = countResult.rows[0].count;
-            } catch (error) {
-                debugData.table_counts[table] = `error: ${error.message}`;
-            }
-        }
-        
-        // Get sample data
-        try {
-            const sampleResult = await query(`
+      await query("SELECT NOW() as db_time");
+      debugData.database_status = "connected";
+    } catch (dbError) {
+      debugData.database_status = `error: ${dbError.message}`;
+    }
+
+    // Get table counts
+    const tables = [
+      "latest_price_daily",
+      "earnings_history",
+      "fear_greed",
+      "portfolio_holdings",
+      "portfolio_performance",
+      "trading_alerts",
+      "economic_data",
+      "stocks",
+      "technical_data_daily",
+    ];
+
+    for (const table of tables) {
+      try {
+        const countResult = await query(
+          `SELECT COUNT(*) as count FROM ${table}`
+        );
+        debugData.table_counts[table] = countResult.rows[0].count;
+      } catch (error) {
+        debugData.table_counts[table] = `error: ${error.message}`;
+      }
+    }
+
+    // Get sample data
+    try {
+      const sampleResult = await query(`
                 SELECT 
                     (SELECT COUNT(*) FROM latest_price_daily) as price_count,
                     (SELECT COUNT(*) FROM earnings_history) as earnings_count,
                     (SELECT COUNT(*) FROM fear_greed) as sentiment_count,
                     (SELECT COUNT(*) FROM stocks) as stocks_count
             `);
-            debugData.sample_data = sampleResult.rows[0];
-        } catch (error) {
-            debugData.sample_data = `error: ${error.message}`;
-        }
-        
-        console.log('🔧 Debug data collected:', debugData);
-        
-        if (!debugData || !Array.isArray(debugData.table_counts) || Object.keys(debugData.table_counts).length === 0) {
-            return res.status(404).json({ error: 'No table counts found' });
-        }
-        if (!debugData || !Array.isArray(debugData.sample_data) || Object.keys(debugData.sample_data).length === 0) {
-            return res.status(404).json({ error: 'No sample data found' });
-        }
-        res.json({
-            success: true,
-            data: debugData
-        });
-        
+      debugData.sample_data = sampleResult.rows[0];
     } catch (error) {
-        console.error('❌ Debug error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Debug endpoint failed',
-            details: error.message
-        });
+      debugData.sample_data = `error: ${error.message}`;
     }
+
+    console.log("🔧 Debug data collected:", debugData);
+
+    if (
+      !debugData ||
+      !Array.isArray(debugData.table_counts) ||
+      Object.keys(debugData.table_counts).length === 0
+    ) {
+      return res.status(404).json({ error: "No table counts found" });
+    }
+    if (
+      !debugData ||
+      !Array.isArray(debugData.sample_data) ||
+      Object.keys(debugData.sample_data).length === 0
+    ) {
+      return res.status(404).json({ error: "No sample data found" });
+    }
+    res.json({
+      success: true,
+      data: debugData,
+    });
+  } catch (error) {
+    console.error("❌ Debug error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Debug endpoint failed",
+      details: error.message,
+    });
+  }
 });
 
 module.exports = router;

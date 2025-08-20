@@ -1,30 +1,30 @@
-const { app } = require('./index');
+const { app } = require("./index");
 
 // Test the health endpoint directly
 const testHealth = async () => {
   const req = {
-    method: 'GET',
-    path: '/health',
-    query: { quick: 'true' },
-    headers: {}
+    method: "GET",
+    path: "/health",
+    query: { quick: "true" },
+    headers: {},
   };
-  
+
   const res = {
     status: (code) => {
-      console.log('Status:', code);
+      console.log("Status:", code);
       return res;
     },
     json: (data) => {
-      console.log('Response:', JSON.stringify(data, null, 2));
+      console.log("Response:", JSON.stringify(data, null, 2));
       return res;
-    }
+    },
   };
-  
+
   try {
     await app._router.handle(req, res, () => {});
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error:", error);
   }
 };
 
-testHealth(); 
+testHealth();

@@ -29,7 +29,9 @@ import {
   InputLabel,
 } from "@mui/material";
 import {
-  Close as CloseIcon, Refresh as RefreshIcon, } from "@mui/icons-material";
+  Close as CloseIcon,
+  Refresh as RefreshIcon,
+} from "@mui/icons-material";
 
 const ConnectionMonitor = ({
   connectionsData,

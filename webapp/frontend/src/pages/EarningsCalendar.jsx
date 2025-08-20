@@ -40,10 +40,7 @@ import {
   AttachMoney,
   ShowChart,
 } from "@mui/icons-material";
-import {
-  formatCurrency,
-  formatPercentage,
-} from "../utils/formatters";
+import { formatCurrency, formatPercentage } from "../utils/formatters";
 
 // Create component-specific logger
 const logger = createComponentLogger("EarningsCalendar");

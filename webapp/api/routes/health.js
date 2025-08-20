@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
     // Initialize database if not already done
     try {
       getPool(); // This will throw if not initialized
-    } catch (initError) {
+    } catch (_initError) {
       console.log('Database not initialized, initializing now...');
       try {
         await initializeDatabase();
@@ -100,8 +100,8 @@ router.get('/', async (req, res) => {
     // Additional: test a real table if DB connection works
     try {
       await query('SELECT COUNT(*) FROM stock_symbols');
-    } catch (tableError) {
-      console.error('Table query failed:', tableError);
+    } catch (_tableError) {
+      console.error('Table query failed:', _tableError);
       return res.status(503).json({
         status: 'unhealthy',
         healthy: false,
@@ -110,8 +110,8 @@ router.get('/', async (req, res) => {
         environment: process.env.NODE_ENV || 'development',
         database: {
           status: 'connected_but_table_error',
-          error: tableError.message,
-          stack: tableError.stack,
+          error: _tableError.message,
+          stack: _tableError.stack,
           lastAttempt: new Date().toISOString(),
           tables: {}
         },
@@ -199,8 +199,8 @@ router.get('/', async (req, res) => {
           tables[tableName] = 'not_found';
         }
       });
-    } catch (tableError) {
-      tables = { error: tableError.message };
+    } catch (_tableError) {
+      tables = { error: _tableError.message };
     }
     
     // Filter to only keep naaim table if it exists
@@ -250,7 +250,7 @@ router.get('/database', async (req, res) => {
     // Ensure database pool is initialized before running any queries
     try {
       getPool(); // Throws if not initialized
-    } catch (initError) {
+    } catch (_initError) {
       console.log('Database not initialized, initializing now...');
       try {
         await initializeDatabase();
@@ -392,9 +392,9 @@ router.get('/debug-secret', async (req, res) => {
     
     const debugInfo = {
       secretType: typeof result.SecretString,
-      secretLength: result.SecretString?.length,
-      secretPreview: result.SecretString?.substring(0, 100),
-      first5Chars: JSON.stringify(result.SecretString?.substring(0, 5)),
+      secretLength: result.SecretString && result.SecretString.length,
+      secretPreview: result.SecretString && result.SecretString.substring(0, 100),
+      first5Chars: JSON.stringify(result.SecretString && result.SecretString.substring(0, 5)),
       isString: typeof result.SecretString === 'string',
       isObject: typeof result.SecretString === 'object',
       parseAttempt: null,
@@ -438,7 +438,7 @@ router.get('/database/diagnostics', async (req, res) => {
   try {
     try {
       getPool(); // Throws if not initialized
-    } catch (initError) {
+    } catch (_initError) {
       console.log('Diagnostics: DB not initialized, initializing now...');
       try {
         await initializeDatabase();
@@ -536,15 +536,15 @@ router.get('/database/diagnostics', async (req, res) => {
         diagnostics.database.host = hostInfo.rows[0].host || 'localhost';
         diagnostics.database.port = hostInfo.rows[0].port || 5432;
       }
-    } catch (e) {
-      diagnostics.errors.push({ step: 'host', error: e.message });
+    } catch (_e) {
+      diagnostics.errors.push({ step: 'host', error: _e.message });
     }
     // Schemas
     try {
       const schemas = await query("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT LIKE 'pg_%' AND schema_name != 'information_schema'");
       diagnostics.database.schemas = schemas.rows.map(r => r.schema_name);
-    } catch (e) {
-      diagnostics.errors.push({ step: 'schemas', error: e.message });
+    } catch (_e) {
+      diagnostics.errors.push({ step: 'schemas', error: _e.message });
     }
     // Table info and record counts
     let tables = [], tableStart = Date.now();
@@ -577,12 +577,12 @@ router.get('/database/diagnostics', async (req, res) => {
               const tsRes = await query(`SELECT MAX(${col}) as last_update FROM ${table.table_name}`);
               lastUpdate = tsRes.rows[0].last_update;
             }
-          } catch (e) { /* ignore */ }
+          } catch (_e) { /* ignore */ }
           table.last_update = lastUpdate;
           if (recordCount > 0) tablesWithData++;
-        } catch (e) {
+        } catch (_e) {
           table.record_count = null;
-          diagnostics.tables.errors.push({ table: table.table_name, error: e.message });
+          diagnostics.tables.errors.push({ table: table.table_name, error: _e.message });
         }
       }
       diagnostics.tables.withData = tablesWithData;
@@ -595,8 +595,8 @@ router.get('/database/diagnostics', async (req, res) => {
         overallStatus = 'degraded';
         diagnostics.recommendations.push('Some tables are empty. Review loader jobs and data sources.');
       }
-    } catch (e) {
-      diagnostics.errors.push({ step: 'tables', error: e.message });
+    } catch (_e) {
+      diagnostics.errors.push({ step: 'tables', error: _e.message });
       overallStatus = 'degraded';
       diagnostics.recommendations.push('Failed to fetch table info. Check DB permissions and schema.');
     }
@@ -638,8 +638,8 @@ router.get('/db-test', async (req, res) => {
   try {
     const result = await query('SELECT 1 as ok');
     res.json({ ok: true, result: result.rows });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+  } catch (_e) {
+    res.status(500).json({ ok: false, error: _e.message });
   }
 });
 
@@ -650,7 +650,7 @@ router.post('/update-status', async (req, res) => {
     // Ensure database pool is initialized
     try {
       getPool();
-    } catch (initError) {
+    } catch (_initError) {
       console.log('Health update: DB not initialized, initializing now...');
       try {
         await initializeDatabase();
@@ -668,7 +668,7 @@ router.post('/update-status', async (req, res) => {
     // Check if health_status table exists, create if not
     try {
       await query('SELECT 1 FROM health_status LIMIT 1');
-    } catch (tableError) {
+    } catch (_tableError) {
       console.log('Health_status table does not exist, creating it...');
       try {
         // Create the health_status table with all 52 tables
@@ -877,7 +877,7 @@ router.post('/update-status', async (req, res) => {
                         break;
                       }
                     }
-                  } catch (tsError) {
+                  } catch (_tsError) {
                     // Continue to next column
                   }
                 }
@@ -986,7 +986,7 @@ router.get('/status-summary', async (req, res) => {
     // Ensure database is initialized
     try {
       getPool();
-    } catch (initError) {
+    } catch (_initError) {
       await initializeDatabase();
     }
 

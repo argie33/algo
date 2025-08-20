@@ -31,8 +31,7 @@ import {
   AccordionSummary,
   AccordionDetails,
 } from "@mui/material";
-import {
-  } from "@mui/icons-material";
+import {} from "@mui/icons-material";
 
 const CostOptimizer = ({ costData, onOptimize, onApplyRecommendation }) => {
   const [optimizationMode, setOptimizationMode] = useState("balanced");

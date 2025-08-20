@@ -37,10 +37,10 @@ router.get('/status', async (req, res) => {
       components: {
         liveDataManager: {
           status: 'operational',
-          totalConnections: dashboardStatus.global?.totalConnections || 0,
-          totalSymbols: dashboardStatus.global?.totalSymbols || 0,
-          dailyCost: dashboardStatus.global?.dailyCost || 0,
-          performance: dashboardStatus.global?.performance || {}
+          totalConnections: dashboardStatus.global && dashboardStatus.global.totalConnections || 0,
+          totalSymbols: dashboardStatus.global && dashboardStatus.global.totalSymbols || 0,
+          dailyCost: dashboardStatus.global && dashboardStatus.global.dailyCost || 0,
+          performance: dashboardStatus.global && dashboardStatus.global.performance || {}
         },
         realTimeService: {
           status: 'operational',

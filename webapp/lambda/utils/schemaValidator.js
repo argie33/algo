@@ -3,315 +3,340 @@
  * Provides comprehensive validation for database operations and schema integrity
  */
 
-const { query } = require('./database');
-const logger = require('./logger');
+const { query } = require("./database");
+const logger = require("./logger");
 
 /**
  * Schema definitions for database tables
  */
 const tableSchemas = {
   stocks: {
-    required: ['symbol', 'name'],
+    required: ["symbol", "name"],
     columns: {
-      symbol: { type: 'VARCHAR', maxLength: 10, unique: true },
-      name: { type: 'VARCHAR', maxLength: 200 },
-      sector: { type: 'VARCHAR', maxLength: 100 },
-      industry: { type: 'VARCHAR', maxLength: 100 },
-      market_cap: { type: 'BIGINT', min: 0 },
-      price: { type: 'DECIMAL', precision: 10, scale: 2, min: 0 },
-      volume: { type: 'BIGINT', min: 0 },
-      pe_ratio: { type: 'DECIMAL', precision: 8, scale: 2 },
-      eps: { type: 'DECIMAL', precision: 8, scale: 2 },
-      dividend_yield: { type: 'DECIMAL', precision: 5, scale: 4 },
-      beta: { type: 'DECIMAL', precision: 6, scale: 3 },
-      exchange: { type: 'VARCHAR', maxLength: 20 },
-      country: { type: 'VARCHAR', maxLength: 50 },
-      currency: { type: 'VARCHAR', maxLength: 3 },
-      is_active: { type: 'BOOLEAN', default: true },
-      last_updated: { type: 'TIMESTAMP' }
-    }
+      symbol: { type: "VARCHAR", maxLength: 10, unique: true },
+      name: { type: "VARCHAR", maxLength: 200 },
+      sector: { type: "VARCHAR", maxLength: 100 },
+      industry: { type: "VARCHAR", maxLength: 100 },
+      market_cap: { type: "BIGINT", min: 0 },
+      price: { type: "DECIMAL", precision: 10, scale: 2, min: 0 },
+      volume: { type: "BIGINT", min: 0 },
+      pe_ratio: { type: "DECIMAL", precision: 8, scale: 2 },
+      eps: { type: "DECIMAL", precision: 8, scale: 2 },
+      dividend_yield: { type: "DECIMAL", precision: 5, scale: 4 },
+      beta: { type: "DECIMAL", precision: 6, scale: 3 },
+      exchange: { type: "VARCHAR", maxLength: 20 },
+      country: { type: "VARCHAR", maxLength: 50 },
+      currency: { type: "VARCHAR", maxLength: 3 },
+      is_active: { type: "BOOLEAN", default: true },
+      last_updated: { type: "TIMESTAMP" },
+    },
   },
-  
+
   stock_prices: {
-    required: ['symbol', 'date', 'close'],
+    required: ["symbol", "date", "close"],
     columns: {
-      symbol: { type: 'VARCHAR', maxLength: 10 },
-      date: { type: 'DATE' },
-      open: { type: 'DECIMAL', precision: 10, scale: 2, min: 0 },
-      high: { type: 'DECIMAL', precision: 10, scale: 2, min: 0 },
-      low: { type: 'DECIMAL', precision: 10, scale: 2, min: 0 },
-      close: { type: 'DECIMAL', precision: 10, scale: 2, min: 0 },
-      volume: { type: 'BIGINT', min: 0 },
-      adjusted_close: { type: 'DECIMAL', precision: 10, scale: 2, min: 0 }
+      symbol: { type: "VARCHAR", maxLength: 10 },
+      date: { type: "DATE" },
+      open: { type: "DECIMAL", precision: 10, scale: 2, min: 0 },
+      high: { type: "DECIMAL", precision: 10, scale: 2, min: 0 },
+      low: { type: "DECIMAL", precision: 10, scale: 2, min: 0 },
+      close: { type: "DECIMAL", precision: 10, scale: 2, min: 0 },
+      volume: { type: "BIGINT", min: 0 },
+      adjusted_close: { type: "DECIMAL", precision: 10, scale: 2, min: 0 },
     },
-    indexes: ['symbol', 'date'],
-    primaryKey: ['symbol', 'date']
+    indexes: ["symbol", "date"],
+    primaryKey: ["symbol", "date"],
   },
-  
+
   user_api_keys: {
-    required: ['user_id', 'provider', 'encrypted_data'],
+    required: ["user_id", "provider", "encrypted_data"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      provider: { type: 'VARCHAR', maxLength: 50 },
-      encrypted_data: { type: 'TEXT' },
-      user_salt: { type: 'VARCHAR', maxLength: 100 },
-      created_at: { type: 'TIMESTAMP', default: 'NOW()' },
-      updated_at: { type: 'TIMESTAMP', default: 'NOW()' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      provider: { type: "VARCHAR", maxLength: 50 },
+      encrypted_data: { type: "TEXT" },
+      user_salt: { type: "VARCHAR", maxLength: 100 },
+      created_at: { type: "TIMESTAMP", default: "NOW()" },
+      updated_at: { type: "TIMESTAMP", default: "NOW()" },
     },
-    indexes: ['user_id', 'provider'],
-    primaryKey: ['user_id', 'provider']
+    indexes: ["user_id", "provider"],
+    primaryKey: ["user_id", "provider"],
   },
-  
+
   watchlists: {
-    required: ['user_id', 'name'],
+    required: ["user_id", "name"],
     columns: {
-      id: { type: 'SERIAL', primaryKey: true },
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      name: { type: 'VARCHAR', maxLength: 100 },
-      description: { type: 'TEXT' },
-      is_public: { type: 'BOOLEAN', default: false },
-      created_at: { type: 'TIMESTAMP', default: 'NOW()' },
-      updated_at: { type: 'TIMESTAMP', default: 'NOW()' }
+      id: { type: "SERIAL", primaryKey: true },
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      name: { type: "VARCHAR", maxLength: 100 },
+      description: { type: "TEXT" },
+      is_public: { type: "BOOLEAN", default: false },
+      created_at: { type: "TIMESTAMP", default: "NOW()" },
+      updated_at: { type: "TIMESTAMP", default: "NOW()" },
     },
-    indexes: ['user_id']
+    indexes: ["user_id"],
   },
-  
+
   watchlist_items: {
-    required: ['watchlist_id', 'symbol'],
+    required: ["watchlist_id", "symbol"],
     columns: {
-      id: { type: 'SERIAL', primaryKey: true },
-      watchlist_id: { type: 'INTEGER' },
-      symbol: { type: 'VARCHAR', maxLength: 10 },
-      added_at: { type: 'TIMESTAMP', default: 'NOW()' },
-      notes: { type: 'TEXT' }
+      id: { type: "SERIAL", primaryKey: true },
+      watchlist_id: { type: "INTEGER" },
+      symbol: { type: "VARCHAR", maxLength: 10 },
+      added_at: { type: "TIMESTAMP", default: "NOW()" },
+      notes: { type: "TEXT" },
     },
-    indexes: ['watchlist_id', 'symbol'],
+    indexes: ["watchlist_id", "symbol"],
     foreignKeys: {
-      watchlist_id: { table: 'watchlists', column: 'id' }
-    }
+      watchlist_id: { table: "watchlists", column: "id" },
+    },
   },
-  
+
   technical_indicators: {
-    required: ['symbol', 'date'],
+    required: ["symbol", "date"],
     columns: {
-      symbol: { type: 'VARCHAR', maxLength: 10 },
-      date: { type: 'DATE' },
-      sma_20: { type: 'DECIMAL', precision: 10, scale: 2 },
-      sma_50: { type: 'DECIMAL', precision: 10, scale: 2 },
-      sma_200: { type: 'DECIMAL', precision: 10, scale: 2 },
-      ema_12: { type: 'DECIMAL', precision: 10, scale: 2 },
-      ema_26: { type: 'DECIMAL', precision: 10, scale: 2 },
-      macd: { type: 'DECIMAL', precision: 10, scale: 4 },
-      macd_signal: { type: 'DECIMAL', precision: 10, scale: 4 },
-      macd_histogram: { type: 'DECIMAL', precision: 10, scale: 4 },
-      rsi: { type: 'DECIMAL', precision: 5, scale: 2 },
-      bollinger_upper: { type: 'DECIMAL', precision: 10, scale: 2 },
-      bollinger_middle: { type: 'DECIMAL', precision: 10, scale: 2 },
-      bollinger_lower: { type: 'DECIMAL', precision: 10, scale: 2 },
-      stochastic_k: { type: 'DECIMAL', precision: 5, scale: 2 },
-      stochastic_d: { type: 'DECIMAL', precision: 5, scale: 2 },
-      williams_r: { type: 'DECIMAL', precision: 6, scale: 2 },
-      atr: { type: 'DECIMAL', precision: 10, scale: 4 },
-      obv: { type: 'BIGINT' }
+      symbol: { type: "VARCHAR", maxLength: 10 },
+      date: { type: "DATE" },
+      sma_20: { type: "DECIMAL", precision: 10, scale: 2 },
+      sma_50: { type: "DECIMAL", precision: 10, scale: 2 },
+      sma_200: { type: "DECIMAL", precision: 10, scale: 2 },
+      ema_12: { type: "DECIMAL", precision: 10, scale: 2 },
+      ema_26: { type: "DECIMAL", precision: 10, scale: 2 },
+      macd: { type: "DECIMAL", precision: 10, scale: 4 },
+      macd_signal: { type: "DECIMAL", precision: 10, scale: 4 },
+      macd_histogram: { type: "DECIMAL", precision: 10, scale: 4 },
+      rsi: { type: "DECIMAL", precision: 5, scale: 2 },
+      bollinger_upper: { type: "DECIMAL", precision: 10, scale: 2 },
+      bollinger_middle: { type: "DECIMAL", precision: 10, scale: 2 },
+      bollinger_lower: { type: "DECIMAL", precision: 10, scale: 2 },
+      stochastic_k: { type: "DECIMAL", precision: 5, scale: 2 },
+      stochastic_d: { type: "DECIMAL", precision: 5, scale: 2 },
+      williams_r: { type: "DECIMAL", precision: 6, scale: 2 },
+      atr: { type: "DECIMAL", precision: 10, scale: 4 },
+      obv: { type: "BIGINT" },
     },
-    indexes: ['symbol', 'date'],
-    primaryKey: ['symbol', 'date']
+    indexes: ["symbol", "date"],
+    primaryKey: ["symbol", "date"],
   },
-  
+
   earnings_reports: {
-    required: ['symbol', 'report_date'],
+    required: ["symbol", "report_date"],
     columns: {
-      symbol: { type: 'VARCHAR', maxLength: 10 },
-      report_date: { type: 'DATE' },
-      quarter: { type: 'INTEGER', min: 1, max: 4 },
-      year: { type: 'INTEGER', min: 1900 },
-      revenue: { type: 'BIGINT' },
-      net_income: { type: 'BIGINT' },
-      eps_reported: { type: 'DECIMAL', precision: 8, scale: 2 },
-      eps_estimate: { type: 'DECIMAL', precision: 8, scale: 2 },
-      surprise_percent: { type: 'DECIMAL', precision: 6, scale: 2 }
+      symbol: { type: "VARCHAR", maxLength: 10 },
+      report_date: { type: "DATE" },
+      quarter: { type: "INTEGER", min: 1, max: 4 },
+      year: { type: "INTEGER", min: 1900 },
+      revenue: { type: "BIGINT" },
+      net_income: { type: "BIGINT" },
+      eps_reported: { type: "DECIMAL", precision: 8, scale: 2 },
+      eps_estimate: { type: "DECIMAL", precision: 8, scale: 2 },
+      surprise_percent: { type: "DECIMAL", precision: 6, scale: 2 },
     },
-    indexes: ['symbol', 'report_date'],
-    primaryKey: ['symbol', 'report_date']
+    indexes: ["symbol", "report_date"],
+    primaryKey: ["symbol", "report_date"],
   },
-  
+
   stock_symbols_enhanced: {
-    required: ['symbol', 'company_name'],
+    required: ["symbol", "company_name"],
     columns: {
-      symbol: { type: 'VARCHAR', maxLength: 20, unique: true },
-      company_name: { type: 'VARCHAR', maxLength: 200 },
-      exchange: { type: 'VARCHAR', maxLength: 50 },
-      sector: { type: 'VARCHAR', maxLength: 100 },
-      industry: { type: 'VARCHAR', maxLength: 150 },
-      market_cap: { type: 'BIGINT' },
-      market_cap_tier: { type: 'VARCHAR', maxLength: 20 },
-      country: { type: 'VARCHAR', maxLength: 50, default: 'US' },
-      currency: { type: 'VARCHAR', maxLength: 10, default: 'USD' },
-      beta: { type: 'DECIMAL', precision: 10, scale: 4 },
-      volatility_30d: { type: 'DECIMAL', precision: 10, scale: 4 },
-      avg_volume_30d: { type: 'BIGINT' },
-      price_to_earnings: { type: 'DECIMAL', precision: 10, scale: 4 },
-      price_to_book: { type: 'DECIMAL', precision: 10, scale: 4 },
-      dividend_yield: { type: 'DECIMAL', precision: 10, scale: 4 },
-      is_active: { type: 'BOOLEAN', default: true },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      symbol: { type: "VARCHAR", maxLength: 20, unique: true },
+      company_name: { type: "VARCHAR", maxLength: 200 },
+      exchange: { type: "VARCHAR", maxLength: 50 },
+      sector: { type: "VARCHAR", maxLength: 100 },
+      industry: { type: "VARCHAR", maxLength: 150 },
+      market_cap: { type: "BIGINT" },
+      market_cap_tier: { type: "VARCHAR", maxLength: 20 },
+      country: { type: "VARCHAR", maxLength: 50, default: "US" },
+      currency: { type: "VARCHAR", maxLength: 10, default: "USD" },
+      beta: { type: "DECIMAL", precision: 10, scale: 4 },
+      volatility_30d: { type: "DECIMAL", precision: 10, scale: 4 },
+      avg_volume_30d: { type: "BIGINT" },
+      price_to_earnings: { type: "DECIMAL", precision: 10, scale: 4 },
+      price_to_book: { type: "DECIMAL", precision: 10, scale: 4 },
+      dividend_yield: { type: "DECIMAL", precision: 10, scale: 4 },
+      is_active: { type: "BOOLEAN", default: true },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['symbol', 'sector', 'market_cap_tier']
+    indexes: ["symbol", "sector", "market_cap_tier"],
   },
-  
+
   price_daily: {
-    required: ['symbol', 'date'],
+    required: ["symbol", "date"],
     columns: {
-      symbol: { type: 'VARCHAR', maxLength: 20 },
-      date: { type: 'DATE' },
-      open_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      high_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      low_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      close_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      adj_close_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      volume: { type: 'BIGINT' },
-      change_amount: { type: 'DECIMAL', precision: 12, scale: 4 },
-      change_percent: { type: 'DECIMAL', precision: 10, scale: 4 },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      symbol: { type: "VARCHAR", maxLength: 20 },
+      date: { type: "DATE" },
+      open_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      high_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      low_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      close_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      adj_close_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      volume: { type: "BIGINT" },
+      change_amount: { type: "DECIMAL", precision: 12, scale: 4 },
+      change_percent: { type: "DECIMAL", precision: 10, scale: 4 },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['symbol', 'date'],
-    primaryKey: ['symbol', 'date']
+    indexes: ["symbol", "date"],
+    primaryKey: ["symbol", "date"],
   },
-  
+
   user_api_keys: {
-    required: ['user_id', 'broker_name', 'encrypted_api_key'],
+    required: ["user_id", "broker_name", "encrypted_api_key"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      broker_name: { type: 'VARCHAR', maxLength: 50 },
-      encrypted_api_key: { type: 'TEXT' },
-      encrypted_api_secret: { type: 'TEXT' },
-      key_iv: { type: 'VARCHAR', maxLength: 32 },
-      key_auth_tag: { type: 'VARCHAR', maxLength: 32 },
-      secret_iv: { type: 'VARCHAR', maxLength: 32 },
-      secret_auth_tag: { type: 'VARCHAR', maxLength: 32 },
-      is_sandbox: { type: 'BOOLEAN', default: true },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      last_used: { type: 'TIMESTAMP' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      broker_name: { type: "VARCHAR", maxLength: 50 },
+      encrypted_api_key: { type: "TEXT" },
+      encrypted_api_secret: { type: "TEXT" },
+      key_iv: { type: "VARCHAR", maxLength: 32 },
+      key_auth_tag: { type: "VARCHAR", maxLength: 32 },
+      secret_iv: { type: "VARCHAR", maxLength: 32 },
+      secret_auth_tag: { type: "VARCHAR", maxLength: 32 },
+      is_sandbox: { type: "BOOLEAN", default: true },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      last_used: { type: "TIMESTAMP" },
     },
-    indexes: ['user_id', 'broker_name'],
-    primaryKey: ['user_id', 'broker_name']
+    indexes: ["user_id", "broker_name"],
+    primaryKey: ["user_id", "broker_name"],
   },
-  
+
   portfolio_metadata: {
-    required: ['user_id', 'broker'],
+    required: ["user_id", "broker"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      broker: { type: 'VARCHAR', maxLength: 50 },
-      total_value: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      total_cash: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      total_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      total_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      day_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      day_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      positions_count: { type: 'INTEGER', default: 0 },
-      buying_power: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      account_status: { type: 'VARCHAR', maxLength: 50, default: 'active' },
-      environment: { type: 'VARCHAR', maxLength: 20, default: 'live' },
-      imported_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      last_sync: { type: 'TIMESTAMP' },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      broker: { type: "VARCHAR", maxLength: 50 },
+      total_value: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      total_cash: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      total_pnl: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      total_pnl_percent: {
+        type: "DECIMAL",
+        precision: 10,
+        scale: 4,
+        default: 0,
+      },
+      day_pnl: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      day_pnl_percent: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      positions_count: { type: "INTEGER", default: 0 },
+      buying_power: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      account_status: { type: "VARCHAR", maxLength: 50, default: "active" },
+      environment: { type: "VARCHAR", maxLength: 20, default: "live" },
+      imported_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      last_sync: { type: "TIMESTAMP" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['user_id', 'broker'],
-    primaryKey: ['user_id', 'broker']
+    indexes: ["user_id", "broker"],
+    primaryKey: ["user_id", "broker"],
   },
-  
+
   portfolio_holdings: {
-    required: ['user_id', 'symbol', 'broker'],
+    required: ["user_id", "symbol", "broker"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      symbol: { type: 'VARCHAR', maxLength: 20 },
-      quantity: { type: 'DECIMAL', precision: 15, scale: 6 },
-      market_value: { type: 'DECIMAL', precision: 15, scale: 2 },
-      cost_basis: { type: 'DECIMAL', precision: 15, scale: 2 },
-      pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      weight: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      sector: { type: 'VARCHAR', maxLength: 100 },
-      current_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      average_entry_price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      day_change: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      day_change_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      exchange: { type: 'VARCHAR', maxLength: 50 },
-      asset_class: { type: 'VARCHAR', maxLength: 50, default: 'equity' },
-      broker: { type: 'VARCHAR', maxLength: 50 },
-      last_updated: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      symbol: { type: "VARCHAR", maxLength: 20 },
+      quantity: { type: "DECIMAL", precision: 15, scale: 6 },
+      market_value: { type: "DECIMAL", precision: 15, scale: 2 },
+      cost_basis: { type: "DECIMAL", precision: 15, scale: 2 },
+      pnl: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      pnl_percent: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      weight: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      sector: { type: "VARCHAR", maxLength: 100 },
+      current_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      average_entry_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      day_change: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      day_change_percent: {
+        type: "DECIMAL",
+        precision: 10,
+        scale: 4,
+        default: 0,
+      },
+      exchange: { type: "VARCHAR", maxLength: 50 },
+      asset_class: { type: "VARCHAR", maxLength: 50, default: "equity" },
+      broker: { type: "VARCHAR", maxLength: 50 },
+      last_updated: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['user_id', 'symbol', 'broker'],
-    primaryKey: ['user_id', 'symbol', 'broker']
+    indexes: ["user_id", "symbol", "broker"],
+    primaryKey: ["user_id", "symbol", "broker"],
   },
-  
+
   portfolio_performance: {
-    required: ['user_id', 'date', 'broker'],
+    required: ["user_id", "date", "broker"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      date: { type: 'DATE' },
-      total_value: { type: 'DECIMAL', precision: 15, scale: 2 },
-      daily_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      daily_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      total_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
-      total_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      benchmark_return: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      alpha: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      beta: { type: 'DECIMAL', precision: 10, scale: 4, default: 1 },
-      sharpe_ratio: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      max_drawdown: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      volatility: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
-      broker: { type: 'VARCHAR', maxLength: 50 },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      date: { type: "DATE" },
+      total_value: { type: "DECIMAL", precision: 15, scale: 2 },
+      daily_pnl: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      daily_pnl_percent: {
+        type: "DECIMAL",
+        precision: 10,
+        scale: 4,
+        default: 0,
+      },
+      total_pnl: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
+      total_pnl_percent: {
+        type: "DECIMAL",
+        precision: 10,
+        scale: 4,
+        default: 0,
+      },
+      benchmark_return: {
+        type: "DECIMAL",
+        precision: 10,
+        scale: 4,
+        default: 0,
+      },
+      alpha: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      beta: { type: "DECIMAL", precision: 10, scale: 4, default: 1 },
+      sharpe_ratio: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      max_drawdown: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      volatility: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
+      broker: { type: "VARCHAR", maxLength: 50 },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['user_id', 'date', 'broker'],
-    primaryKey: ['user_id', 'date', 'broker']
+    indexes: ["user_id", "date", "broker"],
+    primaryKey: ["user_id", "date", "broker"],
   },
-  
+
   portfolio_transactions: {
-    required: ['user_id', 'symbol', 'broker'],
+    required: ["user_id", "symbol", "broker"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      external_id: { type: 'VARCHAR', maxLength: 100 },
-      symbol: { type: 'VARCHAR', maxLength: 20 },
-      transaction_type: { type: 'VARCHAR', maxLength: 50 },
-      side: { type: 'VARCHAR', maxLength: 10 },
-      quantity: { type: 'DECIMAL', precision: 15, scale: 6 },
-      price: { type: 'DECIMAL', precision: 12, scale: 4 },
-      amount: { type: 'DECIMAL', precision: 15, scale: 2 },
-      transaction_date: { type: 'TIMESTAMP' },
-      description: { type: 'TEXT' },
-      broker: { type: 'VARCHAR', maxLength: 50 },
-      status: { type: 'VARCHAR', maxLength: 20, default: 'completed' },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      external_id: { type: "VARCHAR", maxLength: 100 },
+      symbol: { type: "VARCHAR", maxLength: 20 },
+      transaction_type: { type: "VARCHAR", maxLength: 50 },
+      side: { type: "VARCHAR", maxLength: 10 },
+      quantity: { type: "DECIMAL", precision: 15, scale: 6 },
+      price: { type: "DECIMAL", precision: 12, scale: 4 },
+      amount: { type: "DECIMAL", precision: 15, scale: 2 },
+      transaction_date: { type: "TIMESTAMP" },
+      description: { type: "TEXT" },
+      broker: { type: "VARCHAR", maxLength: 50 },
+      status: { type: "VARCHAR", maxLength: 20, default: "completed" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['user_id', 'symbol', 'external_id'],
-    primaryKey: ['user_id', 'external_id', 'broker']
+    indexes: ["user_id", "symbol", "external_id"],
+    primaryKey: ["user_id", "external_id", "broker"],
   },
-  
+
   trading_alerts: {
-    required: ['user_id', 'symbol'],
+    required: ["user_id", "symbol"],
     columns: {
-      user_id: { type: 'VARCHAR', maxLength: 50 },
-      symbol: { type: 'VARCHAR', maxLength: 20 },
-      alert_type: { type: 'VARCHAR', maxLength: 50 },
-      condition_type: { type: 'VARCHAR', maxLength: 20 },
-      target_value: { type: 'DECIMAL', precision: 12, scale: 4 },
-      current_value: { type: 'DECIMAL', precision: 12, scale: 4 },
-      is_active: { type: 'BOOLEAN', default: true },
-      is_triggered: { type: 'BOOLEAN', default: false },
-      triggered_at: { type: 'TIMESTAMP' },
-      message: { type: 'TEXT' },
-      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
-      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+      user_id: { type: "VARCHAR", maxLength: 50 },
+      symbol: { type: "VARCHAR", maxLength: 20 },
+      alert_type: { type: "VARCHAR", maxLength: 50 },
+      condition_type: { type: "VARCHAR", maxLength: 20 },
+      target_value: { type: "DECIMAL", precision: 12, scale: 4 },
+      current_value: { type: "DECIMAL", precision: 12, scale: 4 },
+      is_active: { type: "BOOLEAN", default: true },
+      is_triggered: { type: "BOOLEAN", default: false },
+      triggered_at: { type: "TIMESTAMP" },
+      message: { type: "TEXT" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
-    indexes: ['user_id', 'symbol', 'is_active']
-  }
+    indexes: ["user_id", "symbol", "is_active"],
+  },
 };
 
 class SchemaValidator {
@@ -337,7 +362,7 @@ class SchemaValidator {
         errors.push({
           field: requiredField,
           message: `Required field '${requiredField}' is missing`,
-          code: 'REQUIRED_FIELD_MISSING'
+          code: "REQUIRED_FIELD_MISSING",
         });
       }
     }
@@ -349,7 +374,7 @@ class SchemaValidator {
         errors.push({
           field: fieldName,
           message: `Unknown field '${fieldName}' for table '${tableName}'`,
-          code: 'UNKNOWN_FIELD'
+          code: "UNKNOWN_FIELD",
         });
         continue;
       }
@@ -358,14 +383,17 @@ class SchemaValidator {
       errors.push(...fieldErrors);
 
       if (fieldErrors.length === 0) {
-        validatedData[fieldName] = this.sanitizeFieldValue(fieldValue, columnDef);
+        validatedData[fieldName] = this.sanitizeFieldValue(
+          fieldValue,
+          columnDef
+        );
       }
     }
 
     return {
       valid: errors.length === 0,
       errors: errors,
-      data: validatedData
+      data: validatedData,
     };
   }
 
@@ -382,29 +410,29 @@ class SchemaValidator {
 
     // Type validation
     switch (columnDef.type) {
-      case 'VARCHAR':
-        if (typeof value !== 'string') {
+      case "VARCHAR":
+        if (typeof value !== "string") {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a string`,
-            code: 'INVALID_TYPE'
+            code: "INVALID_TYPE",
           });
         } else if (columnDef.maxLength && value.length > columnDef.maxLength) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' exceeds maximum length of ${columnDef.maxLength}`,
-            code: 'EXCEEDS_MAX_LENGTH'
+            code: "EXCEEDS_MAX_LENGTH",
           });
         }
         break;
 
-      case 'INTEGER':
-      case 'SERIAL':
+      case "INTEGER":
+      case "SERIAL":
         if (!Number.isInteger(Number(value))) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be an integer`,
-            code: 'INVALID_TYPE'
+            code: "INVALID_TYPE",
           });
         } else {
           const numValue = Number(value);
@@ -412,41 +440,44 @@ class SchemaValidator {
             errors.push({
               field: fieldName,
               message: `Field '${fieldName}' must be at least ${columnDef.min}`,
-              code: 'BELOW_MINIMUM'
+              code: "BELOW_MINIMUM",
             });
           }
           if (columnDef.max !== undefined && numValue > columnDef.max) {
             errors.push({
               field: fieldName,
               message: `Field '${fieldName}' must be at most ${columnDef.max}`,
-              code: 'ABOVE_MAXIMUM'
+              code: "ABOVE_MAXIMUM",
             });
           }
         }
         break;
 
-      case 'BIGINT':
+      case "BIGINT":
         if (!Number.isInteger(Number(value))) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a big integer`,
-            code: 'INVALID_TYPE'
+            code: "INVALID_TYPE",
           });
-        } else if (columnDef.min !== undefined && Number(value) < columnDef.min) {
+        } else if (
+          columnDef.min !== undefined &&
+          Number(value) < columnDef.min
+        ) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be at least ${columnDef.min}`,
-            code: 'BELOW_MINIMUM'
+            code: "BELOW_MINIMUM",
           });
         }
         break;
 
-      case 'DECIMAL':
+      case "DECIMAL":
         if (isNaN(Number(value))) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a number`,
-            code: 'INVALID_TYPE'
+            code: "INVALID_TYPE",
           });
         } else {
           const numValue = Number(value);
@@ -454,55 +485,61 @@ class SchemaValidator {
             errors.push({
               field: fieldName,
               message: `Field '${fieldName}' must be at least ${columnDef.min}`,
-              code: 'BELOW_MINIMUM'
+              code: "BELOW_MINIMUM",
             });
           }
           if (columnDef.max !== undefined && numValue > columnDef.max) {
             errors.push({
               field: fieldName,
               message: `Field '${fieldName}' must be at most ${columnDef.max}`,
-              code: 'ABOVE_MAXIMUM'
+              code: "ABOVE_MAXIMUM",
             });
           }
         }
         break;
 
-      case 'BOOLEAN':
-        if (typeof value !== 'boolean' && value !== 'true' && value !== 'false' && value !== 1 && value !== 0) {
+      case "BOOLEAN":
+        if (
+          typeof value !== "boolean" &&
+          value !== "true" &&
+          value !== "false" &&
+          value !== 1 &&
+          value !== 0
+        ) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a boolean`,
-            code: 'INVALID_TYPE'
+            code: "INVALID_TYPE",
           });
         }
         break;
 
-      case 'DATE':
+      case "DATE":
         if (isNaN(Date.parse(value))) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a valid date`,
-            code: 'INVALID_DATE'
+            code: "INVALID_DATE",
           });
         }
         break;
 
-      case 'TIMESTAMP':
+      case "TIMESTAMP":
         if (isNaN(Date.parse(value))) {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a valid timestamp`,
-            code: 'INVALID_TIMESTAMP'
+            code: "INVALID_TIMESTAMP",
           });
         }
         break;
 
-      case 'TEXT':
-        if (typeof value !== 'string') {
+      case "TEXT":
+        if (typeof value !== "string") {
           errors.push({
             field: fieldName,
             message: `Field '${fieldName}' must be a string`,
-            code: 'INVALID_TYPE'
+            code: "INVALID_TYPE",
           });
         }
         break;
@@ -520,26 +557,26 @@ class SchemaValidator {
     }
 
     switch (columnDef.type) {
-      case 'VARCHAR':
-      case 'TEXT':
+      case "VARCHAR":
+      case "TEXT":
         return String(value).trim();
 
-      case 'INTEGER':
-      case 'SERIAL':
-      case 'BIGINT':
+      case "INTEGER":
+      case "SERIAL":
+      case "BIGINT":
         return Number(value);
 
-      case 'DECIMAL':
+      case "DECIMAL":
         return parseFloat(value);
 
-      case 'BOOLEAN':
-        if (typeof value === 'boolean') return value;
-        if (value === 'true' || value === 1) return true;
-        if (value === 'false' || value === 0) return false;
+      case "BOOLEAN":
+        if (typeof value === "boolean") return value;
+        if (value === "true" || value === 1) return true;
+        if (value === "false" || value === 0) return false;
         return Boolean(value);
 
-      case 'DATE':
-      case 'TIMESTAMP':
+      case "DATE":
+      case "TIMESTAMP":
         return new Date(value).toISOString();
 
       default:
@@ -558,30 +595,36 @@ class SchemaValidator {
       }
 
       // Check if table exists
-      const tableExists = await query(`
+      const tableExists = await query(
+        `
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
           AND table_name = $1
         )
-      `, [tableName]);
+      `,
+        [tableName]
+      );
 
       if (!tableExists.rows[0].exists) {
         return {
           valid: false,
-          errors: [`Table '${tableName}' does not exist`]
+          errors: [`Table '${tableName}' does not exist`],
         };
       }
 
       // Get actual table structure
-      const columns = await query(`
+      const columns = await query(
+        `
         SELECT column_name, data_type, is_nullable, column_default
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = $1
         ORDER BY ordinal_position
-      `, [tableName]);
+      `,
+        [tableName]
+      );
 
-      const actualColumns = new Set(columns.rows.map(col => col.column_name));
+      const actualColumns = new Set(columns.rows.map((col) => col.column_name));
       const expectedColumns = new Set(Object.keys(schema.columns));
 
       const errors = [];
@@ -589,14 +632,18 @@ class SchemaValidator {
       // Check for missing columns
       for (const expectedCol of expectedColumns) {
         if (!actualColumns.has(expectedCol)) {
-          errors.push(`Missing column '${expectedCol}' in table '${tableName}'`);
+          errors.push(
+            `Missing column '${expectedCol}' in table '${tableName}'`
+          );
         }
       }
 
       // Check for extra columns (warning only)
       for (const actualCol of actualColumns) {
-        if (!expectedColumns.has(actualCol) && actualCol !== 'id') {
-          logger.warn(`Extra column '${actualCol}' found in table '${tableName}'`);
+        if (!expectedColumns.has(actualCol) && actualCol !== "id") {
+          logger.warn(
+            `Extra column '${actualCol}' found in table '${tableName}'`
+          );
         }
       }
 
@@ -604,14 +651,13 @@ class SchemaValidator {
         valid: errors.length === 0,
         errors: errors,
         actualColumns: Array.from(actualColumns),
-        expectedColumns: Array.from(expectedColumns)
+        expectedColumns: Array.from(expectedColumns),
       };
-
     } catch (error) {
-      logger.error('Schema validation error', { error, tableName });
+      logger.error("Schema validation error", { error, tableName });
       return {
         valid: false,
-        errors: [`Schema validation failed: ${error.message}`]
+        errors: [`Schema validation failed: ${error.message}`],
       };
     }
   }
@@ -634,7 +680,7 @@ class SchemaValidator {
       } catch (error) {
         results[tableName] = {
           valid: false,
-          errors: [error.message]
+          errors: [error.message],
         };
         overallErrors.push(`Table '${tableName}': ${error.message}`);
       }
@@ -644,7 +690,7 @@ class SchemaValidator {
       valid: overallErrors.length === 0,
       errors: overallErrors,
       tableResults: results,
-      checkedAt: new Date().toISOString()
+      checkedAt: new Date().toISOString(),
     };
   }
 
@@ -663,24 +709,24 @@ class SchemaValidator {
     for (const [columnName, columnDef] of Object.entries(schema.columns)) {
       let definition = `  ${columnName} ${columnDef.type}`;
 
-      if (columnDef.type === 'VARCHAR' && columnDef.maxLength) {
+      if (columnDef.type === "VARCHAR" && columnDef.maxLength) {
         definition += `(${columnDef.maxLength})`;
       }
 
-      if (columnDef.type === 'DECIMAL' && columnDef.precision) {
-        definition += `(${columnDef.precision}${columnDef.scale ? ',' + columnDef.scale : ''})`;
+      if (columnDef.type === "DECIMAL" && columnDef.precision) {
+        definition += `(${columnDef.precision}${columnDef.scale ? "," + columnDef.scale : ""})`;
       }
 
       if (columnDef.primaryKey) {
-        definition += ' PRIMARY KEY';
+        definition += " PRIMARY KEY";
       }
 
-      if (!columnDef.nullable && columnDef.type !== 'SERIAL') {
-        definition += ' NOT NULL';
+      if (!columnDef.nullable && columnDef.type !== "SERIAL") {
+        definition += " NOT NULL";
       }
 
       if (columnDef.unique) {
-        definition += ' UNIQUE';
+        definition += " UNIQUE";
       }
 
       if (columnDef.default) {
@@ -690,20 +736,20 @@ class SchemaValidator {
       columnDefinitions.push(definition);
     }
 
-    sql += columnDefinitions.join(',\n');
+    sql += columnDefinitions.join(",\n");
 
     // Add primary key constraint if defined
     if (schema.primaryKey && Array.isArray(schema.primaryKey)) {
-      sql += `,\n  PRIMARY KEY (${schema.primaryKey.join(', ')})`;
+      sql += `,\n  PRIMARY KEY (${schema.primaryKey.join(", ")})`;
     }
 
-    sql += '\n);';
+    sql += "\n);";
 
     // Add indexes
     if (schema.indexes) {
       for (const index of schema.indexes) {
-        const indexColumns = Array.isArray(index) ? index.join(', ') : index;
-        sql += `\n\nCREATE INDEX IF NOT EXISTS idx_${tableName}_${indexColumns.replace(/[^a-zA-Z0-9]/g, '_')} ON ${tableName} (${indexColumns});`;
+        const indexColumns = Array.isArray(index) ? index.join(", ") : index;
+        sql += `\n\nCREATE INDEX IF NOT EXISTS idx_${tableName}_${indexColumns.replace(/[^a-zA-Z0-9]/g, "_")} ON ${tableName} (${indexColumns});`;
       }
     }
 
@@ -729,11 +775,14 @@ class SchemaValidator {
 const schemaValidator = new SchemaValidator();
 
 module.exports = {
-  validateData: (tableName, data) => schemaValidator.validateData(tableName, data),
-  validateTableStructure: (tableName) => schemaValidator.validateTableStructure(tableName),
+  validateData: (tableName, data) =>
+    schemaValidator.validateData(tableName, data),
+  validateTableStructure: (tableName) =>
+    schemaValidator.validateTableStructure(tableName),
   validateDatabaseIntegrity: () => schemaValidator.validateDatabaseIntegrity(),
-  generateCreateTableSQL: (tableName) => schemaValidator.generateCreateTableSQL(tableName),
+  generateCreateTableSQL: (tableName) =>
+    schemaValidator.generateCreateTableSQL(tableName),
   getTableSchema: (tableName) => schemaValidator.getTableSchema(tableName),
   listTables: () => schemaValidator.listTables(),
-  schemas: tableSchemas
+  schemas: tableSchemas,
 };

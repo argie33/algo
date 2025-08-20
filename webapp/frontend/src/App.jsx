@@ -22,7 +22,14 @@ import {
   Divider,
 } from "@mui/material";
 import {
-  Menu as MenuIcon, Dashboard as DashboardIcon, PlayArrow, Settings as SettingsIcon, ExpandLess, ExpandMore, Stars, } from "@mui/icons-material";
+  Menu as MenuIcon,
+  Dashboard as DashboardIcon,
+  PlayArrow,
+  Settings as SettingsIcon,
+  ExpandLess,
+  ExpandMore,
+  Stars,
+} from "@mui/icons-material";
 
 // All real page imports
 import Dashboard from "./pages/Dashboard";

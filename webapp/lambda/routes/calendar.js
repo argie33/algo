@@ -1,34 +1,34 @@
-const express = require('express');
-const { query } = require('../utils/database');
+const express = require("express");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 
 // Health endpoint (no auth required)
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.json({
     success: true,
-    status: 'operational',
-    service: 'economic-calendar',
+    status: "operational",
+    service: "economic-calendar",
     timestamp: new Date().toISOString(),
-    message: 'Economic Calendar service is running'
+    message: "Economic Calendar service is running",
   });
 });
 
 // Basic root endpoint (public)
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({
     success: true,
-    message: 'Economic Calendar API - Ready',
+    message: "Economic Calendar API - Ready",
     timestamp: new Date().toISOString(),
-    status: 'operational'
+    status: "operational",
   });
 });
 
 // Debug endpoint to check calendar table status
-router.get('/debug', async (req, res) => {
+router.get("/debug", async (req, res) => {
   try {
-    console.log('Calendar debug endpoint called');
-    
+    console.log("Calendar debug endpoint called");
+
     // Check if table exists
     const tableExistsQuery = `
       SELECT EXISTS (
@@ -37,16 +37,16 @@ router.get('/debug', async (req, res) => {
         AND table_name = 'calendar_events'
       );
     `;
-    
+
     const tableExists = await query(tableExistsQuery);
-    console.log('Table exists check:', tableExists.rows[0]);
-    
+    console.log("Table exists check:", tableExists.rows[0]);
+
     if (tableExists.rows[0].exists) {
       // Count total records
       const countQuery = `SELECT COUNT(*) as total FROM calendar_events`;
       const countResult = await query(countQuery);
-      console.log('Total calendar events:', countResult.rows[0]);
-      
+      console.log("Total calendar events:", countResult.rows[0]);
+
       // Get sample records
       const sampleQuery = `
         SELECT symbol, event_type, start_date, title, fetched_at
@@ -55,37 +55,36 @@ router.get('/debug', async (req, res) => {
         LIMIT 5
       `;
       const sampleResult = await query(sampleQuery);
-      console.log('Sample records:', sampleResult.rows);
-      
+      console.log("Sample records:", sampleResult.rows);
+
       res.json({
         tableExists: true,
         totalRecords: parseInt(countResult.rows[0].total),
         sampleRecords: sampleResult.rows,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
         tableExists: false,
-        message: 'calendar_events table does not exist',
-        timestamp: new Date().toISOString()
+        message: "calendar_events table does not exist",
+        timestamp: new Date().toISOString(),
       });
     }
-    
   } catch (error) {
-    console.error('Error in calendar debug:', error);
-    res.status(500).json({ 
-      error: 'Debug check failed', 
+    console.error("Error in calendar debug:", error);
+    res.status(500).json({
+      error: "Debug check failed",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Simple test endpoint that returns raw data
-router.get('/test', async (req, res) => {
+router.get("/test", async (req, res) => {
   try {
-    console.log('Calendar test endpoint called');
-    
+    console.log("Calendar test endpoint called");
+
     const testQuery = `
       SELECT 
         symbol,
@@ -97,59 +96,58 @@ router.get('/test', async (req, res) => {
       ORDER BY start_date ASC
       LIMIT 10
     `;
-    
+
     const result = await query(testQuery);
-    
+
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
-    
+
     res.json({
       success: true,
       count: result.rows.length,
       data: result.rows,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('Error in calendar test:', error);
-    res.status(500).json({ 
-      error: 'Test failed', 
+    console.error("Error in calendar test:", error);
+    res.status(500).json({
+      error: "Test failed",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get calendar events (earnings, dividends, splits, etc.)
-router.get('/events', async (req, res) => {
+router.get("/events", async (req, res) => {
   try {
-    console.log('Calendar events endpoint called with params:', req.query);
-    
+    console.log("Calendar events endpoint called with params:", req.query);
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
-    const timeFilter = req.query.type || 'upcoming';
+    const timeFilter = req.query.type || "upcoming";
 
-    let whereClause = 'WHERE 1=1';
-    const params = [];    // Apply time filters (convert CURRENT_DATE to timestamp for proper comparison)
+    let whereClause = "WHERE 1=1";
+    const params = []; // Apply time filters (convert CURRENT_DATE to timestamp for proper comparison)
     switch (timeFilter) {
-      case 'this_week':
+      case "this_week":
         whereClause += ` AND start_date >= CURRENT_DATE::timestamp AND start_date < (CURRENT_DATE + INTERVAL '7 days')::timestamp`;
         break;
-      case 'next_week':
+      case "next_week":
         whereClause += ` AND start_date >= (CURRENT_DATE + INTERVAL '7 days')::timestamp AND start_date < (CURRENT_DATE + INTERVAL '14 days')::timestamp`;
         break;
-      case 'this_month':
+      case "this_month":
         whereClause += ` AND start_date >= CURRENT_DATE::timestamp AND start_date < (CURRENT_DATE + INTERVAL '30 days')::timestamp`;
         break;
-      case 'upcoming':
+      case "upcoming":
       default:
         whereClause += ` AND start_date >= CURRENT_DATE::timestamp`;
         break;
     }
 
-    console.log('Using whereClause:', whereClause);
+    console.log("Using whereClause:", whereClause);
 
     const eventsQuery = `
       SELECT 
@@ -170,20 +168,30 @@ router.get('/events', async (req, res) => {
       SELECT COUNT(*) as total
       FROM calendar_events ce
       ${whereClause}
-    `;    console.log('Executing queries with limit:', limit, 'offset:', offset);
+    `;
+    console.log("Executing queries with limit:", limit, "offset:", offset);
 
     const [eventsResult, countResult] = await Promise.all([
       query(eventsQuery, [limit, offset]),
-      query(countQuery, [])
+      query(countQuery, []),
     ]);
 
-    console.log('Query results - events:', eventsResult.rows.length, 'total:', countResult.rows[0].total);
+    console.log(
+      "Query results - events:",
+      eventsResult.rows.length,
+      "total:",
+      countResult.rows[0].total
+    );
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!eventsResult || !Array.isArray(eventsResult.rows) || eventsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !eventsResult ||
+      !Array.isArray(eventsResult.rows) ||
+      eventsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -194,27 +202,27 @@ router.get('/events', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
       summary: {
         upcoming_events: total,
         this_week: 0, // Would need separate query
-        filter: timeFilter
-      }
+        filter: timeFilter,
+      },
     });
   } catch (error) {
-    console.error('Error fetching calendar events:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Failed to fetch calendar events', 
+    console.error("Error fetching calendar events:", error);
+    console.error("Error stack:", error.stack);
+    res.status(500).json({
+      error: "Failed to fetch calendar events",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get earnings calendar summary
-router.get('/summary', async (req, res) => {
+router.get("/summary", async (req, res) => {
   try {
     const summaryQuery = `
       SELECT 
@@ -229,22 +237,21 @@ router.get('/summary', async (req, res) => {
     const result = await query(summaryQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       summary: result.rows[0],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Error fetching calendar summary:', error);
-    res.status(500).json({ error: 'Failed to fetch calendar summary' });
+    console.error("Error fetching calendar summary:", error);
+    res.status(500).json({ error: "Failed to fetch calendar summary" });
   }
 });
 
 // Get earnings estimates for all companies
-router.get('/earnings-estimates', async (req, res) => {
+router.get("/earnings-estimates", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
@@ -288,7 +295,7 @@ router.get('/earnings-estimates', async (req, res) => {
     const [estimatesResult, countResult, summaryResult] = await Promise.all([
       query(estimatesQuery, [limit, offset]),
       query(countQuery),
-      query(summaryQuery)
+      query(summaryQuery),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
@@ -296,25 +303,30 @@ router.get('/earnings-estimates', async (req, res) => {
 
     // Group data by symbol
     const grouped = {};
-    estimatesResult.rows.forEach(row => {
-      if (!grouped[row.symbol]) grouped[row.symbol] = { company_name: row.company_name, estimates: [] };
+    estimatesResult.rows.forEach((row) => {
+      if (!grouped[row.symbol])
+        grouped[row.symbol] = { company_name: row.company_name, estimates: [] };
       grouped[row.symbol].estimates.push(row);
     });
 
     // Attach summary insights
     const insights = {};
-    summaryResult.rows.forEach(row => {
+    summaryResult.rows.forEach((row) => {
       insights[row.symbol] = {
         count: row.count,
         avg_growth: row.avg_growth,
         avg_estimate: row.avg_estimate,
         max_estimate: row.max_estimate,
-        min_estimate: row.min_estimate
+        min_estimate: row.min_estimate,
       };
     });
 
-    if (!estimatesResult || !Array.isArray(estimatesResult.rows) || estimatesResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !estimatesResult ||
+      !Array.isArray(estimatesResult.rows) ||
+      estimatesResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -325,19 +337,18 @@ router.get('/earnings-estimates', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
-      insights
+      insights,
     });
-
   } catch (error) {
-    console.error('Error fetching earnings estimates:', error);
-    res.status(500).json({ error: 'Failed to fetch earnings estimates' });
+    console.error("Error fetching earnings estimates:", error);
+    res.status(500).json({ error: "Failed to fetch earnings estimates" });
   }
 });
 
 // Get earnings history for all companies
-router.get('/earnings-history', async (req, res) => {
+router.get("/earnings-history", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
@@ -383,7 +394,7 @@ router.get('/earnings-history', async (req, res) => {
     const [historyResult, countResult, summaryResult] = await Promise.all([
       query(historyQuery, [limit, offset]),
       query(countQuery),
-      query(summaryQuery)
+      query(summaryQuery),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
@@ -391,14 +402,15 @@ router.get('/earnings-history', async (req, res) => {
 
     // Group data by symbol
     const grouped = {};
-    historyResult.rows.forEach(row => {
-      if (!grouped[row.symbol]) grouped[row.symbol] = { company_name: row.company_name, history: [] };
+    historyResult.rows.forEach((row) => {
+      if (!grouped[row.symbol])
+        grouped[row.symbol] = { company_name: row.company_name, history: [] };
       grouped[row.symbol].history.push(row);
     });
 
     // Attach summary insights
     const insights = {};
-    summaryResult.rows.forEach(row => {
+    summaryResult.rows.forEach((row) => {
       insights[row.symbol] = {
         count: row.count,
         avg_surprise: row.avg_surprise,
@@ -407,12 +419,16 @@ router.get('/earnings-history', async (req, res) => {
         max_estimate: row.max_estimate,
         min_estimate: row.min_estimate,
         positive_surprises: row.positive_surprises,
-        negative_surprises: row.negative_surprises
+        negative_surprises: row.negative_surprises,
       };
     });
 
-    if (!historyResult || !Array.isArray(historyResult.rows) || historyResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !historyResult ||
+      !Array.isArray(historyResult.rows) ||
+      historyResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -423,19 +439,18 @@ router.get('/earnings-history', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
-      insights
+      insights,
     });
-
   } catch (error) {
-    console.error('Error fetching earnings history:', error);
-    res.status(500).json({ error: 'Failed to fetch earnings history' });
+    console.error("Error fetching earnings history:", error);
+    res.status(500).json({ error: "Failed to fetch earnings history" });
   }
 });
 
 // Get earnings metrics for all companies
-router.get('/earnings-metrics', async (req, res) => {
+router.get("/earnings-metrics", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
@@ -491,7 +506,7 @@ router.get('/earnings-metrics', async (req, res) => {
     const [metricsResult, countResult, summaryResult] = await Promise.all([
       query(metricsQuery, [limit, offset]),
       query(countQuery),
-      query(summaryQuery)
+      query(summaryQuery),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
@@ -499,14 +514,15 @@ router.get('/earnings-metrics', async (req, res) => {
 
     // Group data by symbol
     const grouped = {};
-    metricsResult.rows.forEach(row => {
-      if (!grouped[row.symbol]) grouped[row.symbol] = { company_name: row.company_name, metrics: [] };
+    metricsResult.rows.forEach((row) => {
+      if (!grouped[row.symbol])
+        grouped[row.symbol] = { company_name: row.company_name, metrics: [] };
       grouped[row.symbol].metrics.push(row);
     });
 
     // Attach summary insights
     const insights = {};
-    summaryResult.rows.forEach(row => {
+    summaryResult.rows.forEach((row) => {
       insights[row.symbol] = {
         count: row.count,
         avg_growth_1q: row.avg_growth_1q,
@@ -515,12 +531,16 @@ router.get('/earnings-metrics', async (req, res) => {
         avg_growth_8q: row.avg_growth_8q,
         max_annual_growth_1y: row.max_annual_growth_1y,
         max_annual_growth_3y: row.max_annual_growth_3y,
-        max_annual_growth_5y: row.max_annual_growth_5y
+        max_annual_growth_5y: row.max_annual_growth_5y,
       };
     });
 
-    if (!metricsResult || !Array.isArray(metricsResult.rows) || metricsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !metricsResult ||
+      !Array.isArray(metricsResult.rows) ||
+      metricsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -531,18 +551,24 @@ router.get('/earnings-metrics', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       },
-      insights
+      insights,
     });
-
   } catch (error) {
-    console.error('Error fetching earnings metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch earnings metrics',
+    console.error("Error fetching earnings metrics:", error);
+    res.status(500).json({
+      error: "Failed to fetch earnings metrics",
       data: {}, // Always return data as an object for frontend safety
-      pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
-      insights: {}
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false,
+      },
+      insights: {},
     });
   }
 });

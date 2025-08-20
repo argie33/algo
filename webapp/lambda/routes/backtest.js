@@ -1,10 +1,10 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { query } = require('../utils/database');
-const { execFile } = require('child_process');
-const backtestStore = require('../utils/backtestStore');
-const path = require('path');
-const fs = require('fs');
+const { query } = require("../utils/database");
+const { execFile } = require("child_process");
+const backtestStore = require("../utils/backtestStore");
+const path = require("path");
+const fs = require("fs");
 
 // Backtesting engine class
 class BacktestEngine {
@@ -17,12 +17,14 @@ class BacktestEngine {
       startDate: config.startDate,
       endDate: config.endDate,
       symbols: config.symbols || [],
-      ...config
+      ...config,
     };
-    
+
     this.positions = new Map();
     this.trades = [];
-    this.equity = [{ date: config.startDate, value: this.config.initialCapital }];
+    this.equity = [
+      { date: config.startDate, value: this.config.initialCapital },
+    ];
     this.cash = this.config.initialCapital;
     this.currentDate = null;
     this.metrics = {};
@@ -45,17 +47,20 @@ class BacktestEngine {
       parseFloat: parseFloat,
       parseInt: parseInt,
       isNaN: isNaN,
-      isFinite: isFinite
+      isFinite: isFinite,
     };
 
     try {
       // Execute strategy in isolated context
-      const func = new Function('context', `
+      const func = new Function(
+        "context",
+        `
         with(context) {
           ${strategyCode}
         }
-      `);
-      
+      `
+      );
+
       await func(context);
     } catch (error) {
       throw new Error(`Strategy execution error: ${error.message}`);
@@ -65,11 +70,12 @@ class BacktestEngine {
   // Buy position
   buy(symbol, quantity, price = null, stopLoss = null, takeProfit = null) {
     if (!price) {
-      throw new Error('Price is required for buy orders');
+      throw new Error("Price is required for buy orders");
     }
 
-    const totalCost = quantity * price * (1 + this.config.commission + this.config.slippage);
-    
+    const totalCost =
+      quantity * price * (1 + this.config.commission + this.config.slippage);
+
     if (totalCost > this.cash) {
       return false; // Insufficient funds
     }
@@ -78,14 +84,17 @@ class BacktestEngine {
     if (existingPosition) {
       // Add to existing position
       const newQuantity = existingPosition.quantity + quantity;
-      const newAvgPrice = ((existingPosition.quantity * existingPosition.avgPrice) + (quantity * price)) / newQuantity;
-      
+      const newAvgPrice =
+        (existingPosition.quantity * existingPosition.avgPrice +
+          quantity * price) /
+        newQuantity;
+
       this.positions.set(symbol, {
         ...existingPosition,
         quantity: newQuantity,
         avgPrice: newAvgPrice,
         stopLoss: stopLoss || existingPosition.stopLoss,
-        takeProfit: takeProfit || existingPosition.takeProfit
+        takeProfit: takeProfit || existingPosition.takeProfit,
       });
     } else {
       this.positions.set(symbol, {
@@ -94,20 +103,20 @@ class BacktestEngine {
         avgPrice: price,
         entryDate: this.currentDate,
         stopLoss,
-        takeProfit
+        takeProfit,
       });
     }
 
     this.cash -= totalCost;
-    
+
     this.trades.push({
       date: this.currentDate,
       symbol,
-      action: 'BUY',
+      action: "BUY",
       quantity,
       price,
       commission: quantity * price * this.config.commission,
-      slippage: quantity * price * this.config.slippage
+      slippage: quantity * price * this.config.slippage,
     });
 
     return true;
@@ -116,33 +125,36 @@ class BacktestEngine {
   // Sell position (now supports stop-loss/take-profit logic)
   sell(symbol, quantity, price = null, reason = null) {
     if (!price) {
-      throw new Error('Price is required for sell orders');
+      throw new Error("Price is required for sell orders");
     }
     const position = this.positions.get(symbol);
     if (!position || position.quantity < quantity) {
       return false; // No position or insufficient quantity
     }
-    const revenue = quantity * price * (1 - this.config.commission - this.config.slippage);
+    const revenue =
+      quantity * price * (1 - this.config.commission - this.config.slippage);
     this.cash += revenue;
-    let realizedPnL = (price - position.avgPrice) * quantity - (quantity * price * (this.config.commission + this.config.slippage));
+    let realizedPnL =
+      (price - position.avgPrice) * quantity -
+      quantity * price * (this.config.commission + this.config.slippage);
     if (position.quantity === quantity) {
       this.positions.delete(symbol);
     } else {
       this.positions.set(symbol, {
         ...position,
-        quantity: position.quantity - quantity
+        quantity: position.quantity - quantity,
       });
     }
     this.trades.push({
       date: this.currentDate,
       symbol,
-      action: 'SELL',
+      action: "SELL",
       quantity,
       price,
       commission: quantity * price * this.config.commission,
       slippage: quantity * price * this.config.slippage,
       pnl: realizedPnL,
-      reason: reason || undefined
+      reason: reason || undefined,
     });
     return true;
   }
@@ -156,8 +168,10 @@ class BacktestEngine {
       if (price) {
         // Check stop-loss/take-profit
         let reason = null;
-        if (position.stopLoss && price <= position.stopLoss) reason = 'stop-loss';
-        if (position.takeProfit && price >= position.takeProfit) reason = 'take-profit';
+        if (position.stopLoss && price <= position.stopLoss)
+          reason = "stop-loss";
+        if (position.takeProfit && price >= position.takeProfit)
+          reason = "take-profit";
         this.sell(symbol, position.quantity, price, reason);
       }
     }
@@ -183,7 +197,7 @@ class BacktestEngine {
       date: this.currentDate,
       value: totalValue,
       cash: this.cash,
-      positions: openPositions
+      positions: openPositions,
     });
   }
 
@@ -194,27 +208,31 @@ class BacktestEngine {
     }
 
     const returns = [];
-    const values = this.equity.map(e => e.value);
-    
+    const values = this.equity.map((e) => e.value);
+
     for (let i = 1; i < values.length; i++) {
-      const dailyReturn = (values[i] - values[i-1]) / values[i-1];
+      const dailyReturn = (values[i] - values[i - 1]) / values[i - 1];
       returns.push(dailyReturn);
     }
 
     const totalReturn = (values[values.length - 1] - values[0]) / values[0];
-    const annualizedReturn = Math.pow(1 + totalReturn, 252 / returns.length) - 1;
-    
+    const annualizedReturn =
+      Math.pow(1 + totalReturn, 252 / returns.length) - 1;
+
     const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const variance =
+      returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+      returns.length;
     const volatility = Math.sqrt(variance) * Math.sqrt(252);
-    
-    const sharpeRatio = volatility !== 0 ? (annualizedReturn - 0.02) / volatility : 0; // Assuming 2% risk-free rate
-    
+
+    const sharpeRatio =
+      volatility !== 0 ? (annualizedReturn - 0.02) / volatility : 0; // Assuming 2% risk-free rate
+
     // Calculate max drawdown
     let maxDrawdown = 0;
     let peak = values[0];
     const drawdowns = [];
-    
+
     for (let i = 1; i < values.length; i++) {
       if (values[i] > peak) {
         peak = values[i];
@@ -225,14 +243,19 @@ class BacktestEngine {
     }
 
     // Win rate calculation
-    const winningTrades = this.trades.filter(t => t.pnl && t.pnl > 0).length;
-    const losingTrades = this.trades.filter(t => t.pnl && t.pnl < 0).length;
+    const winningTrades = this.trades.filter((t) => t.pnl && t.pnl > 0).length;
+    const losingTrades = this.trades.filter((t) => t.pnl && t.pnl < 0).length;
     const totalTrades = winningTrades + losingTrades;
     const winRate = totalTrades > 0 ? winningTrades / totalTrades : 0;
 
     // Profit factor
-    const grossProfit = this.trades.reduce((sum, t) => sum + Math.max(t.pnl || 0, 0), 0);
-    const grossLoss = Math.abs(this.trades.reduce((sum, t) => sum + Math.min(t.pnl || 0, 0), 0));
+    const grossProfit = this.trades.reduce(
+      (sum, t) => sum + Math.max(t.pnl || 0, 0),
+      0
+    );
+    const grossLoss = Math.abs(
+      this.trades.reduce((sum, t) => sum + Math.min(t.pnl || 0, 0), 0)
+    );
     const profitFactor = grossLoss !== 0 ? grossProfit / grossLoss : 0;
 
     return {
@@ -249,7 +272,7 @@ class BacktestEngine {
       grossProfit,
       grossLoss,
       finalValue: values[values.length - 1],
-      startValue: values[0]
+      startValue: values[0],
     };
   }
 }
@@ -260,27 +283,29 @@ class BacktestEngine {
 // Users should write their strategies in JavaScript using these helpers.
 
 // Run backtest endpoint
-router.post('/run', async (req, res) => {
+router.post("/run", async (req, res) => {
   try {
     const {
       strategy,
       config = {},
       symbols = [],
       startDate,
-      endDate
+      endDate,
     } = req.body;
 
     // Validate input
     if (!strategy) {
-      return res.status(400).json({ error: 'Strategy code is required' });
+      return res.status(400).json({ error: "Strategy code is required" });
     }
 
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'Start date and end date are required' });
+      return res
+        .status(400)
+        .json({ error: "Start date and end date are required" });
     }
 
     if (symbols.length === 0) {
-      return res.status(400).json({ error: 'At least one symbol is required' });
+      return res.status(400).json({ error: "At least one symbol is required" });
     }
 
     // Initialize backtest engine
@@ -288,19 +313,19 @@ router.post('/run', async (req, res) => {
       ...config,
       symbols,
       startDate,
-      endDate
+      endDate,
     };
-    
+
     const engine = new BacktestEngine(backtestConfig);
 
     // Get historical data for all symbols
-    const dataPromises = symbols.map(symbol => 
+    const dataPromises = symbols.map((symbol) =>
       getHistoricalData(symbol, startDate, endDate)
     );
-    
+
     const symbolData = await Promise.all(dataPromises);
     const marketData = {};
-    
+
     // Organize data by symbol
     symbols.forEach((symbol, index) => {
       marketData[symbol] = symbolData[index];
@@ -308,22 +333,22 @@ router.post('/run', async (req, res) => {
 
     // Get all unique dates and sort them
     const allDates = new Set();
-    Object.values(marketData).forEach(data => {
-      data.forEach(row => allDates.add(row.date));
+    Object.values(marketData).forEach((data) => {
+      data.forEach((row) => allDates.add(row.date));
     });
-    
+
     const sortedDates = Array.from(allDates).sort();
 
     // Run backtest day by day
     for (const date of sortedDates) {
       engine.currentDate = date;
-      
+
       // Prepare current day data
       const currentData = {};
       const currentPrices = {};
-      
-      symbols.forEach(symbol => {
-        const dayData = marketData[symbol].find(d => d.date === date);
+
+      symbols.forEach((symbol) => {
+        const dayData = marketData[symbol].find((d) => d.date === date);
         if (dayData) {
           currentData[symbol] = dayData;
           currentPrices[symbol] = dayData.close;
@@ -334,10 +359,10 @@ router.post('/run', async (req, res) => {
       try {
         await engine.executeStrategy(strategy, currentData);
       } catch (error) {
-        return res.status(400).json({ 
-          error: 'Strategy execution failed',
+        return res.status(400).json({
+          error: "Strategy execution failed",
           details: error.message,
-          date: date
+          date: date,
         });
       }
 
@@ -355,59 +380,69 @@ router.post('/run', async (req, res) => {
       metrics,
       equity: engine.equity,
       trades: engine.trades,
-      finalPositions: Array.from(engine.positions.entries()).map(([symbol, position]) => ({
-        symbol,
-        ...position
-      }))
+      finalPositions: Array.from(engine.positions.entries()).map(
+        ([symbol, position]) => ({
+          symbol,
+          ...position,
+        })
+      ),
     });
-
   } catch (error) {
-    console.error('Backtest error:', error);
-    res.status(500).json({ 
-      error: 'Backtest execution failed',
-      details: error.message 
+    console.error("Backtest error:", error);
+    res.status(500).json({
+      error: "Backtest execution failed",
+      details: error.message,
     });
   }
 });
 
 // Run Python strategy endpoint (sandboxed)
-router.post('/run-python', async (req, res) => {
+router.post("/run-python", async (req, res) => {
   const { strategy, input } = req.body;
   if (!strategy) {
-    return res.status(400).json({ error: 'Python strategy code is required' });
+    return res.status(400).json({ error: "Python strategy code is required" });
   }
   // Write code to temp file
   const tempFile = path.join(__dirname, `temp_strategy_${Date.now()}.py`);
-  require('fs').writeFileSync(tempFile, strategy);
+  require("fs").writeFileSync(tempFile, strategy);
   // Run with timeout and resource limits
-  execFile('python', [tempFile], { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
-    require('fs').unlinkSync(tempFile);
-    if (err) {
-      return res.status(400).json({ error: 'Python execution failed', details: stderr || err.message });
+  execFile(
+    "python",
+    [tempFile],
+    { timeout: 5000, maxBuffer: 1024 * 1024 },
+    (err, stdout, stderr) => {
+      require("fs").unlinkSync(tempFile);
+      if (err) {
+        return res.status(400).json({
+          error: "Python execution failed",
+          details: stderr || err.message,
+        });
+      }
+      res.json({ success: true, output: stdout, error: stderr });
     }
-    res.json({ success: true, output: stdout, error: stderr });
-  });
+  );
 });
 
 // User strategy management endpoints
-router.get('/strategies', (req, res) => {
+router.get("/strategies", (req, res) => {
   res.json({ strategies: backtestStore.loadStrategies() });
 });
 
-router.post('/strategies', (req, res) => {
+router.post("/strategies", (req, res) => {
   const { name, code, language } = req.body;
-  if (!name || !code) return res.status(400).json({ error: 'Name and code required' });
+  if (!name || !code)
+    return res.status(400).json({ error: "Name and code required" });
   const strategy = backtestStore.addStrategy({ name, code, language });
   res.json({ strategy });
 });
 
-router.get('/strategies/:id', (req, res) => {
+router.get("/strategies/:id", (req, res) => {
   const strategy = backtestStore.getStrategy(req.params.id);
-  if (!strategy) return res.status(404).json({ error: 'Not found' });
+  if (!strategy) return res.status(404).json({ error: "Not found" });
   res.json({ strategy });
 });
 
-router.delete('/strategies/:id', (req, res) => {
+router.delete("/strategies/:id", (req, res) => {
   backtestStore.deleteStrategy(req.params.id);
   res.json({ success: true });
 });
@@ -430,23 +465,25 @@ async function getHistoricalData(symbol, startDate, endDate) {
         AND date <= $3
       ORDER BY date ASC
     `;
-    
+
     const result = await query(sqlQuery, [symbol, startDate, endDate]);
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
     return result.rows;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error);
-    return res.status(500).json({ error: 'Database error', details: error.message });
+    return res
+      .status(500)
+      .json({ error: "Database error", details: error.message });
   }
 }
 
 // Get available symbols endpoint
-router.get('/symbols', async (req, res) => {
+router.get("/symbols", async (req, res) => {
   try {
-    const { search = '', limit = 100 } = req.query;
-    
+    const { search = "", limit = 100 } = req.query;
+
     const sqlQuery = `
       SELECT DISTINCT symbol, short_name
       FROM company_profiles 
@@ -454,31 +491,30 @@ router.get('/symbols', async (req, res) => {
       ORDER BY symbol
       LIMIT $2
     `;
-    
+
     const result = await query(sqlQuery, [`%${search}%`, limit]);
-    
+
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
-    
+
     res.json({
-      symbols: result.rows
+      symbols: result.rows,
     });
-    
   } catch (error) {
-    console.error('Error fetching symbols:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching symbols:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get strategy templates endpoint
-router.get('/templates', async (req, res) => {
+router.get("/templates", async (req, res) => {
   try {
     const templates = [
       {
-        id: 'buy_and_hold',
-        name: 'Buy and Hold',
-        description: 'Simple buy and hold strategy',
+        id: "buy_and_hold",
+        name: "Buy and Hold",
+        description: "Simple buy and hold strategy",
         code: `// Buy and Hold Strategy
 // Buy on first day and hold
 
@@ -494,12 +530,13 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
       log(\`Bought \${quantity} shares of \${symbol} at $\${price}\`);
     }
   }
-}`
+}`,
       },
       {
-        id: 'moving_average_crossover',
-        name: 'Moving Average Crossover',
-        description: 'Buy when short MA crosses above long MA, sell when it crosses below',
+        id: "moving_average_crossover",
+        name: "Moving Average Crossover",
+        description:
+          "Buy when short MA crosses above long MA, sell when it crosses below",
         code: `// Moving Average Crossover Strategy
 // Requires historical data for MA calculation
 
@@ -530,12 +567,12 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
       }
     }
   }
-}`
+}`,
       },
       {
-        id: 'rsi_strategy',
-        name: 'RSI Mean Reversion',
-        description: 'Buy when RSI < 30, sell when RSI > 70',
+        id: "rsi_strategy",
+        name: "RSI Mean Reversion",
+        description: "Buy when RSI < 30, sell when RSI > 70",
         code: `// RSI Mean Reversion Strategy
 // Buy oversold, sell overbought
 
@@ -580,42 +617,40 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
       log(\`RSI Sell: \${symbol} at $\${price}, RSI: \${rsi.toFixed(2)}\`);
     }
   }
-}`
-      }
+}`,
+      },
     ];
-    
+
     res.json({ templates });
-    
   } catch (error) {
-    console.error('Error fetching templates:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching templates:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Validate strategy code endpoint
-router.post('/validate', async (req, res) => {
+router.post("/validate", async (req, res) => {
   try {
     const { strategy } = req.body;
-    
+
     if (!strategy) {
-      return res.status(400).json({ error: 'Strategy code is required' });
+      return res.status(400).json({ error: "Strategy code is required" });
     }
 
     // Basic syntax validation
     try {
-      new Function('context', `with(context) { ${strategy} }`);
-      res.json({ valid: true, message: 'Strategy code is valid' });
+      new Function("context", `with(context) { ${strategy} }`);
+      res.json({ valid: true, message: "Strategy code is valid" });
     } catch (error) {
-      res.json({ 
-        valid: false, 
+      res.json({
+        valid: false,
         error: error.message,
-        type: 'syntax_error'
+        type: "syntax_error",
       });
     }
-    
   } catch (error) {
-    console.error('Validation error:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Validation error:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 

@@ -7,11 +7,7 @@ import {
   Tooltip,
   IconButton,
 } from "@mui/material";
-import {
-  Download,
-  Fullscreen,
-  Refresh,
-} from "@mui/icons-material";
+import { Download, Fullscreen, Refresh } from "@mui/icons-material";
 import {
   LineChart,
   Line,

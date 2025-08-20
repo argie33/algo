@@ -26,8 +26,7 @@ import {
   TableSortLabel,
   TablePagination,
 } from "@mui/material";
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Treemap, } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Treemap } from "recharts";
 import {
   Add,
   Delete,

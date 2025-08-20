@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "test": "jest",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\"",
     "package": "npm prune --production && zip -r function.zip . -x '*.git*' 'node_modules/.cache/*' 'tests/*' 'coverage/*'",
     "deploy-package": "npm run package && aws lambda update-function-code --function-name financial-dashboard-api --zip-file fileb://function.zip"
   },
@@ -27,6 +29,7 @@
   "devDependencies": {
     "axios": "^1.6.0",
     "jest": "^29.7.0",
+    "prettier": "^3.6.2",
     "supertest": "^6.3.3"
   },
   "engines": {

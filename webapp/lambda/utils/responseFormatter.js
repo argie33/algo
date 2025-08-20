@@ -15,9 +15,9 @@ const success = (data, statusCode = 200, meta = {}) => {
       success: true,
       data,
       timestamp: new Date().toISOString(),
-      ...meta
+      ...meta,
     },
-    statusCode
+    statusCode,
   };
 };
 
@@ -34,9 +34,9 @@ const error = (message, statusCode = 400, details = {}) => {
       success: false,
       error: message,
       timestamp: new Date().toISOString(),
-      ...details
+      ...details,
     },
-    statusCode
+    statusCode,
   };
 };
 
@@ -54,11 +54,13 @@ const paginated = (data, pagination, meta = {}) => {
       page: pagination.page || 1,
       limit: pagination.limit || 50,
       total: pagination.total || data.length,
-      totalPages: pagination.totalPages || Math.ceil((pagination.total || data.length) / (pagination.limit || 50)),
+      totalPages:
+        pagination.totalPages ||
+        Math.ceil((pagination.total || data.length) / (pagination.limit || 50)),
       hasNext: pagination.hasNext || false,
-      hasPrev: pagination.hasPrev || false
+      hasPrev: pagination.hasPrev || false,
     },
-    ...meta
+    ...meta,
   });
 };
 
@@ -68,9 +70,9 @@ const paginated = (data, pagination, meta = {}) => {
  * @returns {Object} Formatted validation error response
  */
 const validationError = (errors) => {
-  return error('Validation failed', 422, {
+  return error("Validation failed", 422, {
     errors: Array.isArray(errors) ? errors : [errors],
-    type: 'validation_error'
+    type: "validation_error",
   });
 };
 
@@ -79,9 +81,9 @@ const validationError = (errors) => {
  * @param {string} resource - Resource name that was not found
  * @returns {Object} Formatted not found response
  */
-const notFound = (resource = 'Resource') => {
+const notFound = (resource = "Resource") => {
   return error(`${resource} not found`, 404, {
-    type: 'not_found_error'
+    type: "not_found_error",
   });
 };
 
@@ -90,9 +92,9 @@ const notFound = (resource = 'Resource') => {
  * @param {string} message - Custom unauthorized message
  * @returns {Object} Formatted unauthorized response
  */
-const unauthorized = (message = 'Unauthorized access') => {
+const unauthorized = (message = "Unauthorized access") => {
   return error(message, 401, {
-    type: 'unauthorized_error'
+    type: "unauthorized_error",
   });
 };
 
@@ -101,9 +103,9 @@ const unauthorized = (message = 'Unauthorized access') => {
  * @param {string} message - Custom forbidden message
  * @returns {Object} Formatted forbidden response
  */
-const forbidden = (message = 'Access forbidden') => {
+const forbidden = (message = "Access forbidden") => {
   return error(message, 403, {
-    type: 'forbidden_error'
+    type: "forbidden_error",
   });
 };
 
@@ -113,10 +115,10 @@ const forbidden = (message = 'Access forbidden') => {
  * @param {Object} details - Error details
  * @returns {Object} Formatted server error response
  */
-const serverError = (message = 'Internal server error', details = {}) => {
+const serverError = (message = "Internal server error", details = {}) => {
   return error(message, 500, {
-    type: 'server_error',
-    ...details
+    type: "server_error",
+    ...details,
   });
 };
 
@@ -128,5 +130,5 @@ module.exports = {
   notFound,
   unauthorized,
   forbidden,
-  serverError
+  serverError,
 };

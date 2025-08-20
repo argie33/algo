@@ -9,33 +9,28 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Encryption utilities
-const ALGORITHM = 'aes-256-gcm';
+// const ALGORITHM = 'aes-256-gcm'; // Not used, keeping for reference
 
 function encryptApiKey(apiKey, userSalt) {
   const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
   const key = crypto.scryptSync(secretKey, userSalt, 32);
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipherGCM(ALGORITHM, key, iv);
-  cipher.setAAD(Buffer.from(userSalt));
+  const cipher = crypto.createCipher('aes-256-cbc', key.toString('hex').substring(0, 32));
   
   let encrypted = cipher.update(apiKey, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag();
   
   return {
     encrypted: encrypted,
     iv: iv.toString('hex'),
-    authTag: authTag.toString('hex')
+    authTag: '' // Empty for CBC mode
   };
 }
 
 function decryptApiKey(encryptedData, userSalt) {
   const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
   const key = crypto.scryptSync(secretKey, userSalt, 32);
-  const iv = Buffer.from(encryptedData.iv, 'hex');
-  const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
-  decipher.setAAD(Buffer.from(userSalt));
-  decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+  const decipher = crypto.createDecipher('aes-256-cbc', key.toString('hex').substring(0, 32));
   
   let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
@@ -408,9 +403,16 @@ router.post('/preferences', async (req, res) => {
     const preferences = req.body;
     
     // Validate preferences
+    const allowedRiskTolerances = ['conservative', 'moderate', 'aggressive'];
+    const allowedInvestmentStyles = ['growth', 'value', 'balanced'];
+    
     const validPreferences = {
-      riskTolerance: preferences.riskTolerance || 'moderate',
-      investmentStyle: preferences.investmentStyle || 'growth',
+      riskTolerance: allowedRiskTolerances.includes(preferences.riskTolerance) 
+        ? preferences.riskTolerance 
+        : 'moderate',
+      investmentStyle: allowedInvestmentStyles.includes(preferences.investmentStyle) 
+        ? preferences.investmentStyle 
+        : 'growth',
       notifications: preferences.notifications !== false,
       autoRefresh: preferences.autoRefresh !== false
     };

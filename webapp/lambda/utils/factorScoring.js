@@ -3,89 +3,89 @@
  * Provides comprehensive scoring and ranking algorithms for stock selection
  */
 
-const logger = require('./logger');
+const logger = require("./logger");
 
 /**
  * Factor definitions and weights
  */
 const FACTOR_DEFINITIONS = {
   value: {
-    name: 'Value',
-    description: 'Price relative to fundamental metrics',
+    name: "Value",
+    description: "Price relative to fundamental metrics",
     weight: 0.2,
     factors: {
       pe_ratio: { weight: 0.3, inverse: true },
       pb_ratio: { weight: 0.2, inverse: true },
       ps_ratio: { weight: 0.2, inverse: true },
       price_to_cash_flow: { weight: 0.15, inverse: true },
-      enterprise_value_ebitda: { weight: 0.15, inverse: true }
-    }
+      enterprise_value_ebitda: { weight: 0.15, inverse: true },
+    },
   },
-  
+
   growth: {
-    name: 'Growth',
-    description: 'Revenue and earnings growth metrics',
+    name: "Growth",
+    description: "Revenue and earnings growth metrics",
     weight: 0.25,
     factors: {
       revenue_growth_1y: { weight: 0.25 },
       revenue_growth_3y: { weight: 0.2 },
       earnings_growth_1y: { weight: 0.25 },
       earnings_growth_3y: { weight: 0.2 },
-      eps_growth_estimate: { weight: 0.1 }
-    }
+      eps_growth_estimate: { weight: 0.1 },
+    },
   },
-  
+
   profitability: {
-    name: 'Profitability',
-    description: 'Company efficiency and profit margins',
+    name: "Profitability",
+    description: "Company efficiency and profit margins",
     weight: 0.2,
     factors: {
       roe: { weight: 0.3 },
       roa: { weight: 0.25 },
       gross_margin: { weight: 0.2 },
       operating_margin: { weight: 0.15 },
-      net_margin: { weight: 0.1 }
-    }
+      net_margin: { weight: 0.1 },
+    },
   },
-  
+
   financial_health: {
-    name: 'Financial Health',
-    description: 'Balance sheet strength and stability',
+    name: "Financial Health",
+    description: "Balance sheet strength and stability",
     weight: 0.15,
     factors: {
       debt_to_equity: { weight: 0.3, inverse: true },
       current_ratio: { weight: 0.25 },
       quick_ratio: { weight: 0.2 },
       interest_coverage: { weight: 0.15 },
-      free_cash_flow_yield: { weight: 0.1 }
-    }
+      free_cash_flow_yield: { weight: 0.1 },
+    },
   },
-  
+
   momentum: {
-    name: 'Momentum',
-    description: 'Price and earnings momentum indicators',
+    name: "Momentum",
+    description: "Price and earnings momentum indicators",
     weight: 0.1,
     factors: {
       price_momentum_3m: { weight: 0.3 },
       price_momentum_6m: { weight: 0.25 },
       price_momentum_12m: { weight: 0.2 },
       earnings_revision_trend: { weight: 0.15 },
-      relative_strength: { weight: 0.1 }
-    }
+      relative_strength: { weight: 0.1 },
+    },
   },
-  
+
   quality: {
-    name: 'Quality',
-    description: 'Business quality and competitive advantages',
+    name: "Quality",
+    description: "Business quality and competitive advantages",
     weight: 0.1,
     factors: {
       revenue_stability: { weight: 0.25 },
       earnings_stability: { weight: 0.25 },
       dividend_consistency: { weight: 0.2 },
       market_share_trend: { weight: 0.15 },
-      management_efficiency: { weight: 0.15 }
-    }
-  }
+      management_efficiency: { weight: 0.15 },
+    },
+  },
 };
 
 class FactorScoringEngine {
@@ -106,11 +106,11 @@ class FactorScoringEngine {
       // Calculate score for each factor category
       for (const [categoryName, categoryDef] of Object.entries(this.factors)) {
         const categoryScore = this.calculateCategoryScore(
-          stockData, 
-          categoryDef, 
+          stockData,
+          categoryDef,
           universeData
         );
-        
+
         if (categoryScore !== null) {
           scores[categoryName] = categoryScore;
           totalScore += categoryScore * categoryDef.weight;
@@ -125,13 +125,12 @@ class FactorScoringEngine {
         compositeScore: Math.round(finalScore * 100) / 100,
         categoryScores: scores,
         rank: null, // Will be set during universe ranking
-        percentile: null // Will be set during universe ranking
+        percentile: null, // Will be set during universe ranking
       };
-
     } catch (error) {
-      logger.error('Composite score calculation error', { 
-        error, 
-        symbol: stockData.symbol 
+      logger.error("Composite score calculation error", {
+        error,
+        symbol: stockData.symbol,
       });
       return null;
     }
@@ -147,23 +146,23 @@ class FactorScoringEngine {
 
     for (const [factorName, factorDef] of Object.entries(categoryDef.factors)) {
       const rawValue = stockData[factorName];
-      
+
       if (rawValue !== null && rawValue !== undefined && !isNaN(rawValue)) {
         let normalizedScore;
-        
+
         if (universeData && universeData.length > 1) {
           // Percentile-based scoring using universe data
           normalizedScore = this.calculatePercentileScore(
-            rawValue, 
-            factorName, 
-            universeData, 
+            rawValue,
+            factorName,
+            universeData,
             factorDef.inverse
           );
         } else {
           // Absolute scoring when no universe data available
           normalizedScore = this.calculateAbsoluteScore(
-            rawValue, 
-            factorName, 
+            rawValue,
+            factorName,
             factorDef.inverse
           );
         }
@@ -177,7 +176,9 @@ class FactorScoringEngine {
     }
 
     // Return null if we don't have enough valid factors
-    return validFactors > 0 && totalWeight > 0 ? categoryScore / totalWeight : null;
+    return validFactors > 0 && totalWeight > 0
+      ? categoryScore / totalWeight
+      : null;
   }
 
   /**
@@ -187,8 +188,8 @@ class FactorScoringEngine {
     try {
       // Extract values for this factor from universe
       const factorValues = universeData
-        .map(stock => stock[factorName])
-        .filter(val => val !== null && val !== undefined && !isNaN(val))
+        .map((stock) => stock[factorName])
+        .filter((val) => val !== null && val !== undefined && !isNaN(val))
         .sort((a, b) => a - b);
 
       if (factorValues.length < 2) {
@@ -196,7 +197,7 @@ class FactorScoringEngine {
       }
 
       // Find percentile rank
-      const rank = factorValues.findIndex(val => val >= value);
+      const rank = factorValues.findIndex((val) => val >= value);
       let percentile = rank / factorValues.length;
 
       // Invert percentile for inverse factors (lower is better)
@@ -206,12 +207,11 @@ class FactorScoringEngine {
 
       // Convert to 0-100 score
       return Math.max(0, Math.min(100, percentile * 100));
-
     } catch (error) {
-      logger.warn('Percentile score calculation error', { 
-        error, 
-        factorName, 
-        value 
+      logger.warn("Percentile score calculation error", {
+        error,
+        factorName,
+        value,
       });
       return this.calculateAbsoluteScore(value, factorName, inverse);
     }
@@ -222,7 +222,7 @@ class FactorScoringEngine {
    */
   calculateAbsoluteScore(value, factorName, inverse = false) {
     const scoringRanges = this.getFactorScoringRanges(factorName);
-    
+
     if (!scoringRanges) {
       // Default linear scoring for unknown factors
       return this.linearScore(value, inverse);
@@ -251,9 +251,9 @@ class FactorScoringEngine {
         { min: 20, max: 25, score: 60 },
         { min: 25, max: 30, score: 50 },
         { min: 30, max: 40, score: 40 },
-        { min: 40, max: null, score: 20 }
+        { min: 40, max: null, score: 20 },
       ],
-      
+
       revenue_growth_1y: [
         { min: 0.3, max: null, score: 100 }, // 30%+ growth
         { min: 0.2, max: 0.3, score: 90 },
@@ -263,9 +263,9 @@ class FactorScoringEngine {
         { min: 0, max: 0.05, score: 50 },
         { min: -0.05, max: 0, score: 40 },
         { min: -0.1, max: -0.05, score: 30 },
-        { min: null, max: -0.1, score: 10 }
+        { min: null, max: -0.1, score: 10 },
       ],
-      
+
       roe: [
         { min: 0.25, max: null, score: 100 }, // 25%+ ROE
         { min: 0.2, max: 0.25, score: 90 },
@@ -273,17 +273,17 @@ class FactorScoringEngine {
         { min: 0.1, max: 0.15, score: 70 },
         { min: 0.05, max: 0.1, score: 60 },
         { min: 0, max: 0.05, score: 40 },
-        { min: null, max: 0, score: 10 }
+        { min: null, max: 0, score: 10 },
       ],
-      
+
       debt_to_equity: [
         { min: 0, max: 0.3, score: 100 },
         { min: 0.3, max: 0.5, score: 80 },
         { min: 0.5, max: 0.7, score: 60 },
         { min: 0.7, max: 1.0, score: 40 },
         { min: 1.0, max: 1.5, score: 20 },
-        { min: 1.5, max: null, score: 10 }
-      ]
+        { min: 1.5, max: null, score: 10 },
+      ],
     };
 
     return ranges[factorName] || null;
@@ -303,8 +303,8 @@ class FactorScoringEngine {
    */
   scoreUniverse(stockData, customWeights = null) {
     try {
-      logger.info('Starting universe scoring', { 
-        stockCount: stockData.length 
+      logger.info("Starting universe scoring", {
+        stockCount: stockData.length,
       });
 
       if (customWeights) {
@@ -312,33 +312,41 @@ class FactorScoringEngine {
       }
 
       // Calculate scores for all stocks
-      const scoredStocks = stockData.map(stock => {
-        const score = this.calculateCompositeScore(stock, stockData);
-        return {
-          ...stock,
-          factorScore: score
-        };
-      }).filter(stock => stock.factorScore !== null);
+      const scoredStocks = stockData
+        .map((stock) => {
+          const score = this.calculateCompositeScore(stock, stockData);
+          return {
+            ...stock,
+            factorScore: score,
+          };
+        })
+        .filter((stock) => stock.factorScore !== null);
 
       // Sort by composite score
-      scoredStocks.sort((a, b) => b.factorScore.compositeScore - a.factorScore.compositeScore);
+      scoredStocks.sort(
+        (a, b) => b.factorScore.compositeScore - a.factorScore.compositeScore
+      );
 
       // Assign ranks and percentiles
       scoredStocks.forEach((stock, index) => {
         stock.factorScore.rank = index + 1;
-        stock.factorScore.percentile = ((scoredStocks.length - index) / scoredStocks.length) * 100;
+        stock.factorScore.percentile =
+          ((scoredStocks.length - index) / scoredStocks.length) * 100;
       });
 
-      logger.info('Universe scoring completed', {
+      logger.info("Universe scoring completed", {
         scoredStocks: scoredStocks.length,
         topScore: scoredStocks[0]?.factorScore?.compositeScore,
-        averageScore: scoredStocks.reduce((sum, s) => sum + s.factorScore.compositeScore, 0) / scoredStocks.length
+        averageScore:
+          scoredStocks.reduce(
+            (sum, s) => sum + s.factorScore.compositeScore,
+            0
+          ) / scoredStocks.length,
       });
 
       return scoredStocks;
-
     } catch (error) {
-      logger.error('Universe scoring error', { error });
+      logger.error("Universe scoring error", { error });
       throw error;
     }
   }
@@ -354,7 +362,10 @@ class FactorScoringEngine {
     }
 
     // Normalize weights to sum to 1
-    const totalWeight = Object.values(this.factors).reduce((sum, cat) => sum + cat.weight, 0);
+    const totalWeight = Object.values(this.factors).reduce(
+      (sum, cat) => sum + cat.weight,
+      0
+    );
     if (totalWeight > 0) {
       for (const category of Object.values(this.factors)) {
         category.weight = category.weight / totalWeight;
@@ -371,18 +382,24 @@ class FactorScoringEngine {
     for (const [categoryName, categoryDef] of Object.entries(this.factors)) {
       const categoryExplanations = [];
 
-      for (const [factorName, factorDef] of Object.entries(categoryDef.factors)) {
+      for (const [factorName, factorDef] of Object.entries(
+        categoryDef.factors
+      )) {
         const value = stockData[factorName];
-        
+
         if (value !== null && value !== undefined) {
-          const score = this.calculateAbsoluteScore(value, factorName, factorDef.inverse);
-          
+          const score = this.calculateAbsoluteScore(
+            value,
+            factorName,
+            factorDef.inverse
+          );
+
           categoryExplanations.push({
             factor: factorName,
             value: value,
             score: Math.round(score),
             weight: factorDef.weight,
-            interpretation: this.interpretFactorScore(factorName, value, score)
+            interpretation: this.interpretFactorScore(factorName, value, score),
           });
         }
       }
@@ -391,7 +408,7 @@ class FactorScoringEngine {
         name: categoryDef.name,
         description: categoryDef.description,
         weight: categoryDef.weight,
-        factors: categoryExplanations
+        factors: categoryExplanations,
       };
     }
 
@@ -402,12 +419,12 @@ class FactorScoringEngine {
    * Interpret factor score with human-readable description
    */
   interpretFactorScore(factorName, value, score) {
-    if (score >= 80) return 'Excellent';
-    if (score >= 70) return 'Good';
-    if (score >= 60) return 'Above Average';
-    if (score >= 40) return 'Average';
-    if (score >= 30) return 'Below Average';
-    return 'Poor';
+    if (score >= 80) return "Excellent";
+    if (score >= 70) return "Good";
+    if (score >= 60) return "Above Average";
+    if (score >= 40) return "Average";
+    if (score >= 30) return "Below Average";
+    return "Poor";
   }
 
   /**
@@ -420,12 +437,12 @@ class FactorScoringEngine {
   /**
    * Create custom scoring profile
    */
-  createCustomProfile(name, categoryWeights, description = '') {
+  createCustomProfile(name, categoryWeights, description = "") {
     return {
       name: name,
       description: description,
       weights: categoryWeights,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     };
   }
 
@@ -433,17 +450,23 @@ class FactorScoringEngine {
    * Screen stocks using factor scores
    */
   screenByFactors(scoredStocks, criteria) {
-    return scoredStocks.filter(stock => {
+    return scoredStocks.filter((stock) => {
       const score = stock.factorScore;
-      
+
       if (!score) return false;
 
       // Overall score filter
-      if (criteria.minCompositeScore && score.compositeScore < criteria.minCompositeScore) {
+      if (
+        criteria.minCompositeScore &&
+        score.compositeScore < criteria.minCompositeScore
+      ) {
         return false;
       }
 
-      if (criteria.maxCompositeScore && score.compositeScore > criteria.maxCompositeScore) {
+      if (
+        criteria.maxCompositeScore &&
+        score.compositeScore > criteria.maxCompositeScore
+      ) {
         return false;
       }
 
@@ -454,8 +477,13 @@ class FactorScoringEngine {
 
       // Category score filters
       if (criteria.categoryFilters) {
-        for (const [category, minScore] of Object.entries(criteria.categoryFilters)) {
-          if (score.categoryScores[category] && score.categoryScores[category] < minScore) {
+        for (const [category, minScore] of Object.entries(
+          criteria.categoryFilters
+        )) {
+          if (
+            score.categoryScores[category] &&
+            score.categoryScores[category] < minScore
+          ) {
             return false;
           }
         }
@@ -471,17 +499,16 @@ const factorScoringEngine = new FactorScoringEngine();
 
 module.exports = {
   FactorScoringEngine,
-  calculateCompositeScore: (stockData, universeData) => 
+  calculateCompositeScore: (stockData, universeData) =>
     factorScoringEngine.calculateCompositeScore(stockData, universeData),
-  scoreUniverse: (stockData, customWeights) => 
+  scoreUniverse: (stockData, customWeights) =>
     factorScoringEngine.scoreUniverse(stockData, customWeights),
-  getFactorExplanations: (stockData) => 
+  getFactorExplanations: (stockData) =>
     factorScoringEngine.getFactorExplanations(stockData),
-  getFactorDefinitions: () => 
-    factorScoringEngine.getFactorDefinitions(),
-  createCustomProfile: (name, weights, description) => 
+  getFactorDefinitions: () => factorScoringEngine.getFactorDefinitions(),
+  createCustomProfile: (name, weights, description) =>
     factorScoringEngine.createCustomProfile(name, weights, description),
-  screenByFactors: (scoredStocks, criteria) => 
+  screenByFactors: (scoredStocks, criteria) =>
     factorScoringEngine.screenByFactors(scoredStocks, criteria),
-  FACTOR_DEFINITIONS
+  FACTOR_DEFINITIONS,
 };

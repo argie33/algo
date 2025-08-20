@@ -1,27 +1,27 @@
-const express = require('express');
-const { query } = require('../utils/database');
-const { authenticateToken } = require('../middleware/auth');
+const express = require("express");
+const { query } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
 // Health endpoint (no auth required)
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.json({
     success: true,
-    status: 'operational',
-    service: 'sectors',
+    status: "operational",
+    service: "sectors",
     timestamp: new Date().toISOString(),
-    message: 'Sectors service is running'
+    message: "Sectors service is running",
   });
 });
 
 // Basic root endpoint (public)
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({
     success: true,
-    message: 'Sectors API - Ready',
+    message: "Sectors API - Ready",
     timestamp: new Date().toISOString(),
-    status: 'operational'
+    status: "operational",
   });
 });
 
@@ -33,23 +33,25 @@ router.use(authenticateToken);
  * Comprehensive sector analysis using live data from company_profile, price tables, and technical tables
  * Updated: 2025-07-08 - Trigger original webapp deployment
  */
-router.get('/analysis', async (req, res) => {
-    try {
-        console.log('📊 Fetching comprehensive sector analysis from live tables...');
-        
-        const { timeframe = 'daily' } = req.query;
-        
-        // Validate timeframe
-        const validTimeframes = ['daily', 'weekly', 'monthly'];
-        if (!validTimeframes.includes(timeframe)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid timeframe. Must be daily, weekly, or monthly.'
-            });
-        }
-        
-        // Get sector analysis with current prices, momentum, and performance metrics
-        const sectorAnalysisQuery = `
+router.get("/analysis", async (req, res) => {
+  try {
+    console.log(
+      "📊 Fetching comprehensive sector analysis from live tables..."
+    );
+
+    const { timeframe = "daily" } = req.query;
+
+    // Validate timeframe
+    const validTimeframes = ["daily", "weekly", "monthly"];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid timeframe. Must be daily, weekly, or monthly.",
+      });
+    }
+
+    // Get sector analysis with current prices, momentum, and performance metrics
+    const sectorAnalysisQuery = `
             WITH latest_prices AS (
                 SELECT DISTINCT ON (symbol) 
                     symbol,
@@ -220,95 +222,113 @@ router.get('/analysis', async (req, res) => {
                 ss.total_dollar_volume, ss.performance_rank
             ORDER BY ss.avg_monthly_change DESC
         `;
-        
-        const sectorData = await query(sectorAnalysisQuery);
-        
-        console.log(`✅ Found ${sectorData.rows.length} sectors with live data`);
-        
-        // Calculate summary statistics
-        const totalSectors = sectorData.rows.length;
-        const totalStocks = sectorData.rows.reduce((sum, row) => sum + parseInt(row.priced_stocks || 0), 0);
-        const avgMarketReturn = sectorData.rows.reduce((sum, row) => sum + parseFloat(row.avg_monthly_change || 0), 0) / totalSectors;
-        
-        // Identify sector trends
-        const bullishSectors = sectorData.rows.filter(row => parseFloat(row.avg_monthly_change || 0) > 0).length;
-        const bearishSectors = sectorData.rows.filter(row => parseFloat(row.avg_monthly_change || 0) < 0).length;
-        
-        const response = {
-            success: true,
-            data: {
-                timeframe,
-                summary: {
-                    total_sectors: totalSectors,
-                    total_stocks_analyzed: totalStocks,
-                    avg_market_return: avgMarketReturn.toFixed(2),
-                    bullish_sectors: bullishSectors,
-                    bearish_sectors: bearishSectors,
-                    neutral_sectors: totalSectors - bullishSectors - bearishSectors
-                },
-                sectors: sectorData.rows.map(row => ({
-                    sector: row.sector,
-                    industry: row.industry,
-                    metrics: {
-                        stock_count: parseInt(row.stock_count),
-                        priced_stocks: parseInt(row.priced_stocks),
-                        avg_price: parseFloat(row.avg_price || 0).toFixed(2),
-                        performance: {
-                            daily_change: parseFloat(row.avg_daily_change || 0).toFixed(2),
-                            weekly_change: parseFloat(row.avg_weekly_change || 0).toFixed(2),
-                            monthly_change: parseFloat(row.avg_monthly_change || 0).toFixed(2),
-                            performance_rank: parseInt(row.performance_rank)
-                        },
-                        technicals: {
-                            avg_rsi: parseFloat(row.avg_rsi || 0).toFixed(2),
-                            avg_momentum: parseFloat(row.avg_momentum || 0).toFixed(2),
-                            avg_macd: parseFloat(row.avg_macd || 0).toFixed(4),
-                            trend_distribution: {
-                                bullish: parseInt(row.bullish_stocks || 0),
-                                bearish: parseInt(row.bearish_stocks || 0),
-                                neutral: parseInt(row.neutral_stocks || 0)
-                            }
-                        },
-                        momentum: {
-                            jt_momentum_12_1: parseFloat(row.avg_jt_momentum || 0).toFixed(4),
-                            momentum_3m: parseFloat(row.avg_momentum_3m || 0).toFixed(4),
-                            momentum_6m: parseFloat(row.avg_momentum_6m || 0).toFixed(4),
-                            risk_adjusted: parseFloat(row.avg_risk_adj_momentum || 0).toFixed(4),
-                            momentum_strength: parseFloat(row.avg_momentum_strength || 0).toFixed(2),
-                            volume_weighted: parseFloat(row.avg_volume_momentum || 0).toFixed(4)
-                        },
-                        volume: {
-                            avg_volume: parseInt(row.avg_volume || 0),
-                            total_dollar_volume: parseFloat(row.total_dollar_volume || 0)
-                        }
-                    },
-                    top_performers: row.top_performers || [],
-                    bottom_performers: row.bottom_performers || []
-                }))
+
+    const sectorData = await query(sectorAnalysisQuery);
+
+    console.log(`✅ Found ${sectorData.rows.length} sectors with live data`);
+
+    // Calculate summary statistics
+    const totalSectors = sectorData.rows.length;
+    const totalStocks = sectorData.rows.reduce(
+      (sum, row) => sum + parseInt(row.priced_stocks || 0),
+      0
+    );
+    const avgMarketReturn =
+      sectorData.rows.reduce(
+        (sum, row) => sum + parseFloat(row.avg_monthly_change || 0),
+        0
+      ) / totalSectors;
+
+    // Identify sector trends
+    const bullishSectors = sectorData.rows.filter(
+      (row) => parseFloat(row.avg_monthly_change || 0) > 0
+    ).length;
+    const bearishSectors = sectorData.rows.filter(
+      (row) => parseFloat(row.avg_monthly_change || 0) < 0
+    ).length;
+
+    const response = {
+      success: true,
+      data: {
+        timeframe,
+        summary: {
+          total_sectors: totalSectors,
+          total_stocks_analyzed: totalStocks,
+          avg_market_return: avgMarketReturn.toFixed(2),
+          bullish_sectors: bullishSectors,
+          bearish_sectors: bearishSectors,
+          neutral_sectors: totalSectors - bullishSectors - bearishSectors,
+        },
+        sectors: sectorData.rows.map((row) => ({
+          sector: row.sector,
+          industry: row.industry,
+          metrics: {
+            stock_count: parseInt(row.stock_count),
+            priced_stocks: parseInt(row.priced_stocks),
+            avg_price: parseFloat(row.avg_price || 0).toFixed(2),
+            performance: {
+              daily_change: parseFloat(row.avg_daily_change || 0).toFixed(2),
+              weekly_change: parseFloat(row.avg_weekly_change || 0).toFixed(2),
+              monthly_change: parseFloat(row.avg_monthly_change || 0).toFixed(
+                2
+              ),
+              performance_rank: parseInt(row.performance_rank),
             },
-            timestamp: new Date().toISOString()
-        };
-        
-        res.json(response);
-        
-    } catch (error) {
-        console.error('❌ Error in sector analysis:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Failed to fetch sector analysis'
-        });
-    }
+            technicals: {
+              avg_rsi: parseFloat(row.avg_rsi || 0).toFixed(2),
+              avg_momentum: parseFloat(row.avg_momentum || 0).toFixed(2),
+              avg_macd: parseFloat(row.avg_macd || 0).toFixed(4),
+              trend_distribution: {
+                bullish: parseInt(row.bullish_stocks || 0),
+                bearish: parseInt(row.bearish_stocks || 0),
+                neutral: parseInt(row.neutral_stocks || 0),
+              },
+            },
+            momentum: {
+              jt_momentum_12_1: parseFloat(row.avg_jt_momentum || 0).toFixed(4),
+              momentum_3m: parseFloat(row.avg_momentum_3m || 0).toFixed(4),
+              momentum_6m: parseFloat(row.avg_momentum_6m || 0).toFixed(4),
+              risk_adjusted: parseFloat(row.avg_risk_adj_momentum || 0).toFixed(
+                4
+              ),
+              momentum_strength: parseFloat(
+                row.avg_momentum_strength || 0
+              ).toFixed(2),
+              volume_weighted: parseFloat(row.avg_volume_momentum || 0).toFixed(
+                4
+              ),
+            },
+            volume: {
+              avg_volume: parseInt(row.avg_volume || 0),
+              total_dollar_volume: parseFloat(row.total_dollar_volume || 0),
+            },
+          },
+          top_performers: row.top_performers || [],
+          bottom_performers: row.bottom_performers || [],
+        })),
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("❌ Error in sector analysis:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch sector analysis",
+    });
+  }
 });
 
 /**
  * GET /sectors/list
  * Get list of all available sectors and industries
  */
-router.get('/list', async (req, res) => {
-    try {
-        console.log('📋 Fetching sector and industry list...');
-        
-        const sectorsQuery = `
+router.get("/list", async (req, res) => {
+  try {
+    console.log("📋 Fetching sector and industry list...");
+
+    const sectorsQuery = `
             SELECT 
                 sector,
                 industry,
@@ -325,70 +345,77 @@ router.get('/list', async (req, res) => {
             GROUP BY sector, industry
             ORDER BY sector, industry
         `;
-        
-        const result = await query(sectorsQuery);
-        
-        // Group by sector
-        const sectorMap = {};
-        result.rows.forEach(row => {
-            if (!sectorMap[row.sector]) {
-                sectorMap[row.sector] = {
-                    sector: row.sector,
-                    industries: [],
-                    total_companies: 0,
-                    active_companies: 0
-                };
-            }
-            
-            sectorMap[row.sector].industries.push({
-                industry: row.industry,
-                company_count: parseInt(row.company_count),
-                active_companies: parseInt(row.active_companies)
-            });
-            
-            sectorMap[row.sector].total_companies += parseInt(row.company_count);
-            sectorMap[row.sector].active_companies += parseInt(row.active_companies);
-        });
-        
-        const sectors = Object.values(sectorMap);
-        
-        console.log(`✅ Found ${sectors.length} sectors with ${result.rows.length} industries`);
-        
-        res.json({
-            success: true,
-            data: {
-                sectors,
-                summary: {
-                    total_sectors: sectors.length,
-                    total_industries: result.rows.length,
-                    total_companies: sectors.reduce((sum, s) => sum + s.total_companies, 0),
-                    active_companies: sectors.reduce((sum, s) => sum + s.active_companies, 0)
-                }
-            },
-            timestamp: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching sector list:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Failed to fetch sector list'
-        });
-    }
+
+    const result = await query(sectorsQuery);
+
+    // Group by sector
+    const sectorMap = {};
+    result.rows.forEach((row) => {
+      if (!sectorMap[row.sector]) {
+        sectorMap[row.sector] = {
+          sector: row.sector,
+          industries: [],
+          total_companies: 0,
+          active_companies: 0,
+        };
+      }
+
+      sectorMap[row.sector].industries.push({
+        industry: row.industry,
+        company_count: parseInt(row.company_count),
+        active_companies: parseInt(row.active_companies),
+      });
+
+      sectorMap[row.sector].total_companies += parseInt(row.company_count);
+      sectorMap[row.sector].active_companies += parseInt(row.active_companies);
+    });
+
+    const sectors = Object.values(sectorMap);
+
+    console.log(
+      `✅ Found ${sectors.length} sectors with ${result.rows.length} industries`
+    );
+
+    res.json({
+      success: true,
+      data: {
+        sectors,
+        summary: {
+          total_sectors: sectors.length,
+          total_industries: result.rows.length,
+          total_companies: sectors.reduce(
+            (sum, s) => sum + s.total_companies,
+            0
+          ),
+          active_companies: sectors.reduce(
+            (sum, s) => sum + s.active_companies,
+            0
+          ),
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching sector list:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch sector list",
+    });
+  }
 });
 
 /**
  * GET /sectors/:sector/details
  * Get detailed analysis for a specific sector
  */
-router.get('/:sector/details', async (req, res) => {
-    try {
-        const { sector } = req.params;
-        const { limit = 50 } = req.query;
-        
-        console.log(`📊 Fetching detailed analysis for sector: ${sector}`);
-        
-        const sectorDetailQuery = `
+router.get("/:sector/details", async (req, res) => {
+  try {
+    const { sector } = req.params;
+    const { limit = 50 } = req.query;
+
+    console.log(`📊 Fetching detailed analysis for sector: ${sector}`);
+
+    const sectorDetailQuery = `
             WITH latest_data AS (
                 SELECT DISTINCT ON (s.ticker)
                     s.ticker,
@@ -457,102 +484,127 @@ router.get('/:sector/details', async (req, res) => {
             ORDER BY monthly_change DESC NULLS LAST
             LIMIT $2
         `;
-        
-        const result = await query(sectorDetailQuery, [sector, limit]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: `Sector '${sector}' not found or has no current price data`
-            });
-        }
-        
-        // Calculate sector statistics
-        const stocks = result.rows;
-        const avgReturn = stocks.reduce((sum, stock) => sum + (parseFloat(stock.monthly_change) || 0), 0) / stocks.length;
-        const totalVolume = stocks.reduce((sum, stock) => sum + (parseInt(stock.volume) || 0), 0);
-        const avgMomentum = stocks.reduce((sum, stock) => sum + (parseFloat(stock.jt_momentum_12_1) || 0), 0) / stocks.length;
-        
-        // Trend distribution
-        const trendCounts = stocks.reduce((counts, stock) => {
-            counts[stock.trend] = (counts[stock.trend] || 0) + 1;
-            return counts;
-        }, {});
-        
-        // Industry breakdown
-        const industryBreakdown = stocks.reduce((industries, stock) => {
-            if (!industries[stock.industry]) {
-                industries[stock.industry] = {
-                    industry: stock.industry,
-                    count: 0,
-                    avg_return: 0,
-                    stocks: []
-                };
-            }
-            industries[stock.industry].count += 1;
-            industries[stock.industry].stocks.push(stock.ticker);
-            return industries;
-        }, {});
-        
-        // Calculate industry averages
-        Object.values(industryBreakdown).forEach(industry => {
-            const industryStocks = stocks.filter(s => s.industry === industry.industry);
-            industry.avg_return = industryStocks.reduce((sum, s) => sum + (parseFloat(s.monthly_change) || 0), 0) / industryStocks.length;
-        });
-        
-        console.log(`✅ Found ${stocks.length} stocks in ${sector} sector`);
-        
-        res.json({
-            success: true,
-            data: {
-                sector,
-                summary: {
-                    stock_count: stocks.length,
-                    avg_monthly_return: avgReturn.toFixed(2),
-                    total_volume: totalVolume,
-                    avg_jt_momentum: avgMomentum.toFixed(4),
-                    trend_distribution: trendCounts,
-                    industry_count: Object.keys(industryBreakdown).length
-                },
-                industries: Object.values(industryBreakdown).sort((a, b) => b.avg_return - a.avg_return),
-                stocks: stocks.map(stock => ({
-                    symbol: stock.ticker,
-                    name: stock.short_name,
-                    industry: stock.industry,
-                    current_price: parseFloat(stock.current_price || 0).toFixed(2),
-                    volume: parseInt(stock.volume || 0),
-                    performance: {
-                        daily_change: parseFloat(stock.daily_change || 0).toFixed(2),
-                        weekly_change: parseFloat(stock.weekly_change || 0).toFixed(2),
-                        monthly_change: parseFloat(stock.monthly_change || 0).toFixed(2)
-                    },
-                    technicals: {
-                        rsi: parseFloat(stock.rsi || 0).toFixed(2),
-                        momentum: parseFloat(stock.momentum || 0).toFixed(2),
-                        macd: parseFloat(stock.macd || 0).toFixed(4),
-                        trend: stock.trend,
-                        rsi_signal: stock.rsi_signal,
-                        macd_signal: stock.macd_signal_type
-                    },
-                    momentum: {
-                        jt_momentum_12_1: parseFloat(stock.jt_momentum_12_1 || 0).toFixed(4),
-                        momentum_3m: parseFloat(stock.momentum_3m || 0).toFixed(4),
-                        momentum_6m: parseFloat(stock.momentum_6m || 0).toFixed(4),
-                        risk_adjusted: parseFloat(stock.risk_adjusted_momentum || 0).toFixed(4),
-                        strength: parseFloat(stock.momentum_strength || 0).toFixed(2)
-                    }
-                }))
-            },
-            timestamp: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error(`❌ Error fetching details for sector ${req.params.sector}:`, error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Failed to fetch sector details'
-        });
+
+    const result = await query(sectorDetailQuery, [sector, limit]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `Sector '${sector}' not found or has no current price data`,
+      });
     }
+
+    // Calculate sector statistics
+    const stocks = result.rows;
+    const avgReturn =
+      stocks.reduce(
+        (sum, stock) => sum + (parseFloat(stock.monthly_change) || 0),
+        0
+      ) / stocks.length;
+    const totalVolume = stocks.reduce(
+      (sum, stock) => sum + (parseInt(stock.volume) || 0),
+      0
+    );
+    const avgMomentum =
+      stocks.reduce(
+        (sum, stock) => sum + (parseFloat(stock.jt_momentum_12_1) || 0),
+        0
+      ) / stocks.length;
+
+    // Trend distribution
+    const trendCounts = stocks.reduce((counts, stock) => {
+      counts[stock.trend] = (counts[stock.trend] || 0) + 1;
+      return counts;
+    }, {});
+
+    // Industry breakdown
+    const industryBreakdown = stocks.reduce((industries, stock) => {
+      if (!industries[stock.industry]) {
+        industries[stock.industry] = {
+          industry: stock.industry,
+          count: 0,
+          avg_return: 0,
+          stocks: [],
+        };
+      }
+      industries[stock.industry].count += 1;
+      industries[stock.industry].stocks.push(stock.ticker);
+      return industries;
+    }, {});
+
+    // Calculate industry averages
+    Object.values(industryBreakdown).forEach((industry) => {
+      const industryStocks = stocks.filter(
+        (s) => s.industry === industry.industry
+      );
+      industry.avg_return =
+        industryStocks.reduce(
+          (sum, s) => sum + (parseFloat(s.monthly_change) || 0),
+          0
+        ) / industryStocks.length;
+    });
+
+    console.log(`✅ Found ${stocks.length} stocks in ${sector} sector`);
+
+    res.json({
+      success: true,
+      data: {
+        sector,
+        summary: {
+          stock_count: stocks.length,
+          avg_monthly_return: avgReturn.toFixed(2),
+          total_volume: totalVolume,
+          avg_jt_momentum: avgMomentum.toFixed(4),
+          trend_distribution: trendCounts,
+          industry_count: Object.keys(industryBreakdown).length,
+        },
+        industries: Object.values(industryBreakdown).sort(
+          (a, b) => b.avg_return - a.avg_return
+        ),
+        stocks: stocks.map((stock) => ({
+          symbol: stock.ticker,
+          name: stock.short_name,
+          industry: stock.industry,
+          current_price: parseFloat(stock.current_price || 0).toFixed(2),
+          volume: parseInt(stock.volume || 0),
+          performance: {
+            daily_change: parseFloat(stock.daily_change || 0).toFixed(2),
+            weekly_change: parseFloat(stock.weekly_change || 0).toFixed(2),
+            monthly_change: parseFloat(stock.monthly_change || 0).toFixed(2),
+          },
+          technicals: {
+            rsi: parseFloat(stock.rsi || 0).toFixed(2),
+            momentum: parseFloat(stock.momentum || 0).toFixed(2),
+            macd: parseFloat(stock.macd || 0).toFixed(4),
+            trend: stock.trend,
+            rsi_signal: stock.rsi_signal,
+            macd_signal: stock.macd_signal_type,
+          },
+          momentum: {
+            jt_momentum_12_1: parseFloat(stock.jt_momentum_12_1 || 0).toFixed(
+              4
+            ),
+            momentum_3m: parseFloat(stock.momentum_3m || 0).toFixed(4),
+            momentum_6m: parseFloat(stock.momentum_6m || 0).toFixed(4),
+            risk_adjusted: parseFloat(
+              stock.risk_adjusted_momentum || 0
+            ).toFixed(4),
+            strength: parseFloat(stock.momentum_strength || 0).toFixed(2),
+          },
+        })),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      `❌ Error fetching details for sector ${req.params.sector}:`,
+      error
+    );
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch sector details",
+    });
+  }
 });
 
 module.exports = router;

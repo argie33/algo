@@ -18,7 +18,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
     logger.info('Processing admin dashboard request', {
       correlationId,
-      userId: req.user?.sub
+      userId: req.user && req.user.sub
     });
 
     // Get comprehensive dashboard status from liveDataManager

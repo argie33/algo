@@ -1,17 +1,17 @@
-const express = require('express');
-const { query } = require('../utils/database');
+const express = require("express");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 
 // Get EPS revisions data
-router.get('/eps-revisions', async (req, res) => {
+router.get("/eps-revisions", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
 
-    let whereClause = '';
+    let whereClause = "";
     const queryParams = [];
     let paramCount = 0;
 
@@ -46,14 +46,18 @@ router.get('/eps-revisions', async (req, res) => {
 
     const [revisionsResult, countResult] = await Promise.all([
       query(revisionsQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
+      query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!revisionsResult || !Array.isArray(revisionsResult.rows) || revisionsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !revisionsResult ||
+      !Array.isArray(revisionsResult.rows) ||
+      revisionsResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -64,25 +68,24 @@ router.get('/eps-revisions', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching EPS revisions:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching EPS revisions:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get EPS trend data
-router.get('/eps-trend', async (req, res) => {
+router.get("/eps-trend", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
 
-    let whereClause = '';
+    let whereClause = "";
     const queryParams = [];
     let paramCount = 0;
 
@@ -118,14 +121,18 @@ router.get('/eps-trend', async (req, res) => {
 
     const [trendResult, countResult] = await Promise.all([
       query(trendQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
+      query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!trendResult || !Array.isArray(trendResult.rows) || trendResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !trendResult ||
+      !Array.isArray(trendResult.rows) ||
+      trendResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -136,25 +143,24 @@ router.get('/eps-trend', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching EPS trend:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching EPS trend:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get growth estimates data
-router.get('/growth-estimates', async (req, res) => {
+router.get("/growth-estimates", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
 
-    let whereClause = '';
+    let whereClause = "";
     const queryParams = [];
     let paramCount = 0;
 
@@ -188,14 +194,18 @@ router.get('/growth-estimates', async (req, res) => {
 
     const [growthResult, countResult] = await Promise.all([
       query(growthQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
+      query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!growthResult || !Array.isArray(growthResult.rows) || growthResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !growthResult ||
+      !Array.isArray(growthResult.rows) ||
+      growthResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -206,25 +216,24 @@ router.get('/growth-estimates', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching growth estimates:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching growth estimates:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get economic data
-router.get('/economic', async (req, res) => {
+router.get("/economic", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
     const series = req.query.series;
 
-    let whereClause = '';
+    let whereClause = "";
     const queryParams = [];
     let paramCount = 0;
 
@@ -257,14 +266,18 @@ router.get('/economic', async (req, res) => {
 
     const [economicResult, countResult] = await Promise.all([
       query(economicQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
+      query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (!economicResult || !Array.isArray(economicResult.rows) || economicResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      !economicResult ||
+      !Array.isArray(economicResult.rows) ||
+      economicResult.rows.length === 0
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
@@ -275,54 +288,52 @@ router.get('/economic', async (req, res) => {
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching economic data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching economic data:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get economic data (for DataValidation page - matches frontend expectation)
-router.get('/economic/data', async (req, res) => {
+router.get("/economic/data", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     console.log(`Economic data endpoint called with limit: ${limit}`);
-    
+
     const economicQuery = `
       SELECT series_id, date, value
       FROM economic_data 
       ORDER BY date DESC, series_id ASC
       LIMIT $1
     `;
-    
+
     const result = await query(economicQuery, [limit]);
-    
+
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
-    
+
     res.json({
       data: result.rows,
       count: result.rows.length,
       limit: limit,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error('Error fetching economic data:', error);
-    res.status(500).json({ 
-      error: 'Database error',
+    console.error("Error fetching economic data:", error);
+    res.status(500).json({
+      error: "Database error",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Get NAAIM exposure data
-router.get('/naaim', async (req, res) => {
+router.get("/naaim", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
     const naaimQuery = `
@@ -339,24 +350,24 @@ router.get('/naaim', async (req, res) => {
     const result = await query(naaimQuery, [limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       data: result.rows,
-      count: result.rows.length
+      count: result.rows.length,
     });
-
   } catch (error) {
-    console.error('Error fetching NAAIM data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching NAAIM data:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get Fear & Greed Index data
-router.get('/fear-greed', async (req, res) => {
+router.get("/fear-greed", async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;    const fearGreedQuery = `
+    const limit = parseInt(req.query.limit) || 50;
+    const fearGreedQuery = `
       SELECT 
         date,
         index_value,
@@ -370,22 +381,21 @@ router.get('/fear-greed', async (req, res) => {
     const result = await query(fearGreedQuery, [limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       data: result.rows,
-      count: result.rows.length
+      count: result.rows.length,
     });
-
   } catch (error) {
-    console.error('Error fetching Fear & Greed data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching Fear & Greed data:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get data validation summary
-router.get('/validation-summary', async (req, res) => {
+router.get("/validation-summary", async (req, res) => {
   try {
     const summaryQuery = `
       SELECT 
@@ -453,36 +463,35 @@ router.get('/validation-summary', async (req, res) => {
     const result = await query(summaryQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       summary: result.rows,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Error fetching validation summary:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching validation summary:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get all financial data for a symbol across all statement types
-router.get('/financials/:symbol', async (req, res) => {
+router.get("/financials/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const limit = parseInt(req.query.limit) || 10;
 
     // Query all financial statement types
     const queries = [
-      { name: 'TTM Income Statement', table: 'ttm_income_stmt' },
-      { name: 'TTM Cash Flow', table: 'ttm_cashflow' },
-      { name: 'Annual Income Statement', table: 'income_stmt' },
-      { name: 'Annual Cash Flow', table: 'cash_flow' },
-      { name: 'Balance Sheet', table: 'balance_sheet' },
-      { name: 'Quarterly Income Statement', table: 'quarterly_income_stmt' },
-      { name: 'Quarterly Cash Flow', table: 'quarterly_cashflow' },
-      { name: 'Quarterly Balance Sheet', table: 'quarterly_balance_sheet' }
+      { name: "TTM Income Statement", table: "ttm_income_stmt" },
+      { name: "TTM Cash Flow", table: "ttm_cashflow" },
+      { name: "Annual Income Statement", table: "income_stmt" },
+      { name: "Annual Cash Flow", table: "cash_flow" },
+      { name: "Balance Sheet", table: "balance_sheet" },
+      { name: "Quarterly Income Statement", table: "quarterly_income_stmt" },
+      { name: "Quarterly Cash Flow", table: "quarterly_cashflow" },
+      { name: "Quarterly Balance Sheet", table: "quarterly_balance_sheet" },
     ];
 
     const results = {};
@@ -496,17 +505,20 @@ router.get('/financials/:symbol', async (req, res) => {
           ORDER BY date DESC, item_name
           LIMIT $2
         `;
-        
-        const result = await query(financialQuery, [symbol.toUpperCase(), limit * 50]); // Get more items per date
-        
+
+        const result = await query(financialQuery, [
+          symbol.toUpperCase(),
+          limit * 50,
+        ]); // Get more items per date
+
         // Transform the data by date
         const transformedData = {};
-        result.rows.forEach(row => {
+        result.rows.forEach((row) => {
           const dateKey = row.date;
           if (!transformedData[dateKey]) {
             transformedData[dateKey] = {
               date: row.date,
-              items: {}
+              items: {},
             };
           }
           transformedData[dateKey].items[row.item_name] = row.value;
@@ -515,35 +527,39 @@ router.get('/financials/:symbol', async (req, res) => {
         results[name] = Object.values(transformedData)
           .sort((a, b) => new Date(b.date) - new Date(a.date))
           .slice(0, limit);
-
       } catch (tableError) {
         console.warn(`Table ${table} not accessible:`, tableError.message);
         results[name] = [];
       }
     }
 
-    if (Object.values(results).every(tableData => tableData.length === 0)) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (Object.values(results).every((tableData) => tableData.length === 0)) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       symbol: symbol.toUpperCase(),
       data: results,
-      limit
+      limit,
     });
-
   } catch (error) {
-    console.error('Error fetching comprehensive financial data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching comprehensive financial data:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
 // Get all available financial metrics (item names) across all tables
-router.get('/financial-metrics', async (req, res) => {
+router.get("/financial-metrics", async (req, res) => {
   try {
     const tables = [
-      'ttm_income_stmt', 'ttm_cashflow', 'income_stmt', 'cash_flow', 
-      'balance_sheet', 'quarterly_income_stmt', 'quarterly_cashflow', 'quarterly_balance_sheet'
+      "ttm_income_stmt",
+      "ttm_cashflow",
+      "income_stmt",
+      "cash_flow",
+      "balance_sheet",
+      "quarterly_income_stmt",
+      "quarterly_cashflow",
+      "quarterly_balance_sheet",
     ];
 
     const metrics = {};
@@ -556,29 +572,29 @@ router.get('/financial-metrics', async (req, res) => {
           GROUP BY item_name
           ORDER BY item_name
         `;
-        
+
         const result = await query(metricsQuery);
         metrics[table] = result.rows;
-
       } catch (tableError) {
         console.warn(`Table ${table} not accessible:`, tableError.message);
         metrics[table] = [];
       }
     }
 
-    if (Object.values(metrics).every(tableMetrics => tableMetrics.length === 0)) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (
+      Object.values(metrics).every((tableMetrics) => tableMetrics.length === 0)
+    ) {
+      return res.status(404).json({ error: "No data found for this query" });
     }
 
     res.json({
       metrics,
       tables: tables,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Error fetching financial metrics:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.error("Error fetching financial metrics:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 });
 
