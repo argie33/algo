@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createComponentLogger } from "../utils/errorLogger";
 import {
   Box,
   Card,
@@ -65,7 +64,7 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 
-const CHART_COLORS = [
+const _CHART_COLORS = [
   "#0088FE",
   "#00C49F",
   "#FFBB28",
@@ -77,7 +76,7 @@ const CHART_COLORS = [
 ];
 
 // Advanced color schemes for different visualizations
-const colorSchemes = {
+const _colorSchemes = {
   primary: [
     "#6366f1",
     "#8b5cf6",
@@ -1501,7 +1500,7 @@ function MarketOverview() {
                         />
                         <YAxis />
                         <Tooltip
-                          formatter={(value, name) => [
+                          formatter={(value, _name) => [
                             `${value.toFixed(2)}%`,
                             "Performance",
                           ]}
@@ -2012,7 +2011,7 @@ function MarketOverview() {
                               }}
                             />
                             <Tooltip
-                              formatter={(value, name, props) => [
+                              formatter={(value, _name, _props) => [
                                 `${value.toFixed(1)}%`,
                                 "Average Return",
                               ]}

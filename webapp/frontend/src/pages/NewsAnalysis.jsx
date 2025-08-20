@@ -51,9 +51,8 @@ import {
   Schedule,
   Warning,
   Info,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import { formatDistanceToNow, format } from "date-fns";
 import { formatPercentage } from "../utils/formatters";
 import {

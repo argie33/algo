@@ -80,13 +80,13 @@ import dataCache from "../services/dataCache";
 import MarketStatusBar from "../components/MarketStatusBar";
 
 // Logo import with fallback
-let logoSrc = null;
+let _logoSrc = null;
 try {
   // Use dynamic import for assets in Vite
-  logoSrc = new URL("../assets/logo.png", import.meta.url).href;
+  _logoSrc = new URL("../assets/logo.png", import.meta.url).href;
 } catch (e) {
   console.warn("Logo not found, using fallback avatar");
-  logoSrc = null;
+  _logoSrc = null;
 }
 
 // Get API configuration
@@ -978,7 +978,7 @@ const Dashboard = () => {
                     </Box>
                     <Box textAlign="center">
                       <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                        Today's P&L
+                        Today&apos;s P&L
                       </Typography>
                       <Typography
                         variant="h5"
@@ -1054,7 +1054,7 @@ const Dashboard = () => {
               </Button>
             }
           >
-            <strong>Demo Mode:</strong> You're viewing sample data with full
+            <strong>Demo Mode:</strong> You&apos;re viewing sample data with full
             platform capabilities. Sign in to access your personal portfolio,
             real-time alerts, and advanced analytics.
           </Alert>

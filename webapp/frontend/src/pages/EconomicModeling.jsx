@@ -46,9 +46,8 @@ import {
   Factory,
   Store,
   Construction,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import {
   Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, ReferenceLine, } from "recharts";
 

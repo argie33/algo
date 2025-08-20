@@ -2,7 +2,7 @@ import React from "react";
 import { Tabs as MuiTabs, Tab, Box } from "@mui/material";
 
 export const Tabs = React.forwardRef(
-  ({ className, value, onValueChange, children, ...props }, ref) => {
+  ({ className, value: _value, onValueChange: _onValueChange, children, ...props }, ref) => {
     return (
       <div ref={ref} className={className} {...props}>
         {children}
@@ -22,11 +22,11 @@ export const TabsList = React.forwardRef(
 TabsList.displayName = "TabsList";
 
 export const TabsTrigger = React.forwardRef(
-  ({ className, value, children, ...props }, ref) => (
+  ({ className, value: _value, children, ...props }, ref) => (
     <Tab
       ref={ref}
       className={className}
-      value={value}
+      value={_value}
       label={children}
       {...props}
     />

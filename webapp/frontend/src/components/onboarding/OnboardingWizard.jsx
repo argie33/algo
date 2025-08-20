@@ -91,7 +91,7 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);

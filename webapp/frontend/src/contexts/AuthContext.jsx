@@ -129,7 +129,7 @@ export function AuthProvider({ children }) {
 
       // Set session manager callbacks
       sessionManager.setCallbacks({
-        onTokenRefresh: (result) => {
+        onTokenRefresh: (_result) => {
           console.log("🔄 Tokens refreshed automatically");
         },
         onSessionWarning: (warningData) => {
