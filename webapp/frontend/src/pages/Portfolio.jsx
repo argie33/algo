@@ -465,69 +465,6 @@ const Portfolio = () => {
   //   return null;
   // }
 
-  // Advanced portfolio metrics calculations
-  const portfolioMetrics = useMemo(() => {
-    const { holdings } = portfolioData;
-    const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
-    const totalCost = holdings.reduce(
-      (sum, h) => sum + h.avgCost * h.shares,
-      0
-    );
-    const totalGainLoss = totalValue - totalCost;
-    const totalGainLossPercent = ((totalValue - totalCost) / totalCost) * 100;
-
-    // Calculate risk metrics
-    const volatility = calculatePortfolioVolatility(holdings);
-    const sharpeRatio = calculateSharpeRatio(totalGainLossPercent, volatility);
-    const beta = calculatePortfolioBeta(holdings);
-    const var95 = calculateVaR(holdings, 0.95);
-    const maxDrawdown = calculateMaxDrawdown(portfolioData.performanceHistory);
-
-    return {
-      totalValue,
-      totalCost,
-      totalGainLoss,
-      totalGainLossPercent,
-      volatility,
-      sharpeRatio,
-      beta,
-      var95,
-      maxDrawdown,
-      treynorRatio: totalGainLossPercent / beta,
-      informationRatio: calculateInformationRatio(
-        portfolioData.performanceHistory
-      ),
-      calmarRatio: totalGainLossPercent / Math.abs(maxDrawdown),
-    };
-  }, [portfolioData]);
-
-  // Factor analysis calculations
-  const factorAnalysis = useMemo(() => {
-    return calculateFactorExposure(portfolioData.holdings);
-  }, [portfolioData.holdings]);
-
-  // Sector and geographic diversification
-  const diversificationMetrics = useMemo(() => {
-    return {
-      sectorConcentration: calculateConcentrationRisk(
-        portfolioData.sectorAllocation
-      ),
-      geographicDiversification: calculateGeographicDiversification(
-        portfolioData.holdings
-      ),
-      marketCapExposure: calculateMarketCapExposure(portfolioData.holdings),
-      concentrationRisk: calculateHerfindahlIndex(portfolioData.holdings),
-    };
-  }, [portfolioData]);
-
-  // AI-powered insights
-  const aiInsights = useMemo(() => {
-    return generateAIInsights(
-      portfolioMetrics,
-      factorAnalysis,
-      diversificationMetrics
-    );
-  }, [portfolioMetrics, factorAnalysis, diversificationMetrics]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -1125,6 +1062,35 @@ const Portfolio = () => {
       .reduce((sum, h) => sum + h.allocation, 0);
 
     return techWeight > 50 ? 0.8 : 0.4; // High risk if >50% in tech
+  };
+
+  const generateRiskAnalysis = (optimizedAllocation) => {
+    return {
+      riskScore: 0.6,
+      concentrationRisk: "Medium",
+      diversificationScore: 0.7,
+      volatilityRisk: "Low"
+    };
+  };
+
+  const generateImplementationPlan = (recommendations) => {
+    return {
+      phase1: {
+        title: "Immediate Actions",
+        timeframe: "1-2 weeks",
+        actions: recommendations.slice(0, 2)
+      },
+      phase2: {
+        title: "Medium Term",
+        timeframe: "1-3 months", 
+        actions: recommendations.slice(2)
+      }
+    };
+  };
+
+  const calculateExpectedReturn = (holdings) => {
+    const returns = holdings.map(h => h.expectedReturn || 0.08);
+    return returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
   };
 
   // Rendering functions for optimization results
@@ -1859,7 +1825,7 @@ const Portfolio = () => {
                             (entry, index) => (
                               <Cell
                                 key={`cell-${index}`}
-                                fill={COLORS[index % COLORS.length]}
+                                fill={CHART_COLORS[index % CHART_COLORS.length]}
                               />
                             )
                           )}
