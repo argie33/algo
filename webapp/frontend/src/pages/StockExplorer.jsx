@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
-  formatCurrency, formatNumber, getChangeColor, } from "../utils/formatters";
+  formatCurrency, formatNumber, formatPercent, getChangeColor, } from "../utils/formatters";
 import { screenStocks, getStockPriceHistory } from "../services/api";
 import {
   Box,

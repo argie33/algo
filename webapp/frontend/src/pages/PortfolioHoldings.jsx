@@ -34,9 +34,8 @@ import {
   Upload,
   Sync,
   FilterList,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import {
   getPortfolioData,
   addHolding,

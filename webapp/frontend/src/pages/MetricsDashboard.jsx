@@ -56,7 +56,7 @@ const MetricsDashboard = () => {
   const [sortOrder, _setSortOrder] = useState("desc");
 
   // Pagination
-  const [page, setPage] = useState(1);
+  const [page, _setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
@@ -232,7 +232,7 @@ const MetricsDashboard = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {stocks.map((stock, index) => (
+          {stocks.map((stock, _index) => (
             <TableRow key={stock.symbol} hover>
               <TableCell>
                 <Typography

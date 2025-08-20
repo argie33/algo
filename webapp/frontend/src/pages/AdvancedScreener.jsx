@@ -58,6 +58,7 @@ import { getApiConfig, screenStocks } from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
+  formatPercent,
   formatNumber,
 } from "../utils/formatters";
 

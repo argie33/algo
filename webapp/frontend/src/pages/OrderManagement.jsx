@@ -175,6 +175,7 @@ const OrderManagement = () => {
     }
   };
 
+  const fetchAccount = async () => {
     try {
       const response = await fetch("/api/account", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -199,6 +200,7 @@ const OrderManagement = () => {
     }
   };
 
+  const fetchHoldings = async () => {
     try {
       const response = await fetch("/api/portfolio/holdings", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -213,6 +215,7 @@ const OrderManagement = () => {
     }
   };
 
+  const fetchWatchlist = async () => {
     try {
       const response = await fetch("/api/watchlist", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -227,6 +230,7 @@ const OrderManagement = () => {
     }
   };
 
+  const fetchOrderUpdates = async () => {
     try {
       const response = await fetch("/api/orders/updates", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -247,6 +251,7 @@ const OrderManagement = () => {
     }
   };
 
+  const fetchQuotes = async () => {
     try {
       const symbols = [
         ...new Set([...watchlist, ...orders.map((o) => o.symbol)]),

@@ -48,7 +48,7 @@ import {
   ShowChart,
   HorizontalRule,
 } from "@mui/icons-material";
-import { formatCurrency, formatPercentage } from "../utils/formatters";
+import { formatCurrency, formatPercentage, formatPercent } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import { createLogger } from "../utils/apiService.jsx";

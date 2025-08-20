@@ -64,7 +64,7 @@ import {
 } from "@mui/icons-material";;
 import {
   PieChart, Pie, Cell, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Line, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, ScatterChart, Scatter, } from "recharts";
-import { formatPercentage, formatNumber } from "../utils/formatters";
+import { formatPercentage, formatPercent, formatNumber } from "../utils/formatters";
 
 function TabPanel({ children, value, index, ...other }) {
   return (

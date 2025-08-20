@@ -34,6 +34,7 @@ import api from "../utils/apiService.jsx";
 import {
   formatCurrency,
   formatPercentage,
+  formatPercent,
   formatNumber,
 } from "../utils/formatters";
 

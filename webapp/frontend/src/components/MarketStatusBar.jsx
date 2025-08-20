@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Box, Typography, Chip, Paper, Divider } from "@mui/material";
 import { Circle, TrendingUp, TrendingDown } from "@mui/icons-material";
 import dataCache from "../services/dataCache";
-import { formatPercentage, formatNumber } from "../utils/formatters";
+import { formatPercentage, formatPercent, formatNumber } from "../utils/formatters";
 
 const MarketStatusBar = () => {
   const [marketStatus, setMarketStatus] = useState({

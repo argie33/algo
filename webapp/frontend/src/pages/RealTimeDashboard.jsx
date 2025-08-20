@@ -62,6 +62,7 @@ import {
 import {
   formatCurrency,
   formatPercentage,
+  formatPercent,
   formatNumber,
 } from "../utils/formatters";
 import { useAuth } from "../contexts/AuthContext";

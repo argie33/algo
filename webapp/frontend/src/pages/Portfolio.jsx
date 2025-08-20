@@ -59,7 +59,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as Tooltip,
+  Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -112,6 +112,7 @@ import {
 import {
   formatCurrency,
   formatPercentage,
+  formatPercent,
   formatNumber,
 } from "../utils/formatters";
 

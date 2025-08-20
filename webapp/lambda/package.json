@@ -13,6 +13,7 @@
     "test:quality": "npm run format:check && eslint *.js routes/*.js utils/*.js",
     "test:security": "npm audit --audit-level=high && jest tests/security/",
     "test:performance": "jest tests/performance/",
+    "test:component": "echo 'Backend has no component tests - components are frontend-only'",
     "test:all": "npm run test:dep && npm run test:quality && npm run test:unit && npm run test:integration && npm run test:security && npm run test:performance && npm run test:e2e",
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,json,md}\"",

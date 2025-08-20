@@ -54,7 +54,7 @@ import {
   Tooltip
 } from "@mui/icons-material";
 import { formatDistanceToNow, format } from "date-fns";
-import { formatPercentage } from "../utils/formatters";
+import { formatPercentage, formatPercent } from "../utils/formatters";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, } from "recharts";
 
@@ -1152,7 +1152,8 @@ const NewsAnalysis = () => {
   );
 };
 
-// ⚠️ MOCK DATA - Replace with real API when available
+// ⚠️ MOCK DATA - Replace with real API when available  
+const mockNewsData = {
   isMockData: true,
   sentiment: {
     overall: "Bullish",

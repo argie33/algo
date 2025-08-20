@@ -999,6 +999,7 @@ const PatternRecognition = () => {
 };
 
 // Robust logging for troubleshooting
+const logger = {
   info: (message, data) => {
     console.log(`[PatternRecognition] ${message}`, data);
   },
