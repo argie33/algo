@@ -2,7 +2,7 @@ const express = require('express');
 const { query } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
-const { createValidationMiddleware, validationSchemas, sanitizers } = require('../middleware/validation');
+const { createValidationMiddleware, validationSchemas /*, sanitizers */ } = require('../middleware/validation');
 
 const router = express.Router();
 

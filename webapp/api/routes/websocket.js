@@ -2,13 +2,13 @@ const express = require('express');
 const { success, error } = require('../utils/responseFormatter');
 
 // Import dependencies with error handling
-let jwt, apiKeyService, alpacaService, validationMiddleware;
+let jwt, apiKeyService, alpacaService; //, validationMiddleware;
 try {
   jwt = require('aws-jwt-verify');
   apiKeyService = require('../utils/apiKeyServiceResilient');
   alpacaService = require('../utils/alpacaService');
-  const validation = require('../middleware/validation');
-  validationMiddleware = validation.createValidationMiddleware;
+  // const validation = require('../middleware/validation');
+  // validationMiddleware = validation.createValidationMiddleware;
 } catch (loadError) {
   console.warn('Some websocket dependencies not available:', loadError.message);
 }
@@ -46,6 +46,7 @@ router.get('/status', (req, res) => {
 });
 
 // Validation schemas for websocket endpoints
+/*
 const websocketValidationSchemas = {
   stream: {
     symbols: {
@@ -71,6 +72,7 @@ const websocketValidationSchemas = {
     }
   }
 };
+*/
 
 // Real-time data endpoints for authenticated Alpaca data
 // Simplified approach using HTTP polling instead of WebSocket for Lambda compatibility
@@ -796,7 +798,7 @@ router.get('/status', (req, res) => {
   const now = Date.now();
   const cacheDetails = {};
   
-  for (const [key, value] of realtimeDataCache.entries()) {
+  for (const [key /*, value */] of realtimeDataCache.entries()) {
     const symbol = key.split(':')[1];
     const lastUpdate = lastUpdateTime.get(symbol) || 0;
     cacheDetails[symbol] = {
@@ -826,7 +828,7 @@ setInterval(() => {
   const now = Date.now();
   const expiredKeys = [];
   
-  for (const [key, data] of realtimeDataCache.entries()) {
+  for (const [key /*, data */] of realtimeDataCache.entries()) {
     const symbol = key.split(':')[1];
     const lastUpdate = lastUpdateTime.get(symbol) || 0;
     

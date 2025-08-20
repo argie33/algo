@@ -129,7 +129,7 @@ class ApiKeyServiceResilient {
    */
   decryptApiKey(encryptedData, userSalt) {
     try {
-      const { encrypted, iv, authTag, algorithm } = encryptedData;
+      const { encrypted /*, iv */, authTag, algorithm } = encryptedData;
       const key = crypto.scryptSync(this.encryptionKey, userSalt, 32);
       
       const decipher = crypto.createDecipher(algorithm, key);

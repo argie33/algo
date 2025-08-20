@@ -144,7 +144,7 @@ class SchemaValidator {
   /**
    * Validate data against table schema
    */
-  validateData(tableName, data) {
+  validateData(tableName, _data) {
     const schema = this.schemas[tableName];
     if (!schema) {
       throw new Error(`No schema defined for table: ${tableName}`);
@@ -155,7 +155,7 @@ class SchemaValidator {
 
     // Check required fields
     for (const requiredField of schema.required) {
-      if (data[requiredField] === undefined || data[requiredField] === null) {
+      if (_data[requiredField] === undefined || _data[requiredField] === null) {
         errors.push({
           field: requiredField,
           message: `Required field '${requiredField}' is missing`,
@@ -165,7 +165,7 @@ class SchemaValidator {
     }
 
     // Validate each field
-    for (const [fieldName, fieldValue] of Object.entries(data)) {
+    for (const [fieldName, fieldValue] of Object.entries(_data)) {
       const columnDef = schema.columns[fieldName];
       if (!columnDef) {
         errors.push({

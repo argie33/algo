@@ -1,7 +1,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../utils/database');
-const FactorScoringEngine = require('../utils/factorScoring');
+const { FactorScoringEngine } = require('../utils/factorScoring');
 
 const router = express.Router();
 
@@ -668,8 +668,8 @@ router.get('/results', async (req, res) => {
     console.log('📊 Screener results endpoint called');
     const { 
       limit = 20, 
-      offset = 0,
-      filters = '{}' 
+      offset = 0
+      //, filters = '{}' 
     } = req.query;
 
     // Mock screener results for ServiceHealth testing

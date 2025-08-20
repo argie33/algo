@@ -748,6 +748,52 @@ router.get('/', stocksListValidation, async (req, res) => {
     if (error.message && error.message.includes('does not exist')) {
       console.log('Symbols table missing, using fallback query with stock_symbols only');
       try {
+        // Redeclare variables for fallback scope
+        const page = req.validated.page || 1;
+        const limit = req.validated.limit || 50;
+        const offset = (page - 1) * limit;
+        const search = req.validated.search || '';
+        const sector = req.validated.sector || '';
+        const exchange = req.validated.exchange || '';
+        const sortBy = req.validated.sortBy || 'symbol';
+        const sortOrder = req.validated.sortOrder || 'asc';
+        
+        let whereClause = 'WHERE 1=1';
+        const params = [];
+        let paramCount = 0;
+
+        // Add search filter
+        if (search) {
+          paramCount++;
+          whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+          params.push(`%${search}%`);
+        }
+
+        // Add sector filter
+        if (sector && sector.trim() !== '') {
+          paramCount++;
+          whereClause += ` AND ss.sector = $${paramCount}`;
+          params.push(sector);
+        }
+
+        // Add exchange filter
+        if (exchange && exchange.trim() !== '') {
+          paramCount++;
+          whereClause += ` AND ss.exchange = $${paramCount}`;
+          params.push(exchange);
+        }
+
+        // Sort columns
+        const validSortColumns = {
+          'ticker': 'ss.symbol',
+          'symbol': 'ss.symbol', 
+          'name': 'ss.security_name',
+          'exchange': 'ss.exchange',
+          'market_category': 'ss.market_category'
+        };
+
+        const sortColumn = validSortColumns[sortBy] || 'ss.symbol';
+        const sortDirection = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
         const fallbackQuery = `
           SELECT 
             ss.symbol,
@@ -1525,7 +1571,7 @@ router.get('/screen/stats', async (req, res) => {
     } else {
       // Return error response with comprehensive diagnostics instead of fallback data
       console.error(`❌ Database query failed for screener stats - comprehensive diagnosis needed`, {
-        error: error.message,
+        error: 'No data returned',
         detailed_diagnostics: {
           query_attempted: 'screener_statistics_query',
           potential_causes: [
