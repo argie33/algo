@@ -421,46 +421,6 @@ function ServiceHealth() {
     []
   );
 
-  // Test all endpoints
-  const testAllEndpoints = useCallback(async () => {
-    setTestingInProgress(true);
-    const results = {};
-
-    for (const endpoint of endpoints) {
-      const startTime = Date.now();
-      try {
-        console.log(`Testing endpoint: ${endpoint.name}`);
-        const response = await endpoint.fn();
-        const responseTime = Date.now() - startTime;
-
-        results[endpoint.name] = {
-          status: "success",
-          responseTime: responseTime,
-          critical: endpoint.critical,
-          data: response?.data || response,
-          error: null,
-        };
-      } catch (error) {
-        const responseTime = Date.now() - startTime;
-        console.error(`Endpoint ${endpoint.name} failed:`, error);
-
-        results[endpoint.name] = {
-          status: "error",
-          responseTime: responseTime,
-          critical: endpoint.critical,
-          data: null,
-          error: error.message || "Unknown error",
-          details:
-            error.response?.data ||
-            error.response?.status ||
-            "No additional details",
-        };
-      }
-    }
-    setTestResults(results);
-    setTestingInProgress(false);
-  }, [endpoints]);
-
   // Health check query - simplified
   const {
     data: healthData,
@@ -524,12 +484,7 @@ function ServiceHealth() {
     setEnvironmentInfo(env);
   }, [apiConfig, diagnosticInfo, currentBaseURL]);
 
-  // Safe data extraction
-  const safeHealthData = isObject(healthData) ? healthData : {};
-  const safeDbHealth = isObject(dbHealth) ? dbHealth : {};
-  const safeTestResults = isObject(testResults) ? testResults : {};
-  const safeEnvironmentInfo = isObject(environmentInfo) ? environmentInfo : {};
-  const safeDiagnosticInfo = isObject(diagnosticInfo) ? diagnosticInfo : {};
+  // Safe data extraction (all safe variables already defined above)
 
   const getStatusIcon = (status) => {
     switch (status) {

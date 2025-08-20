@@ -221,7 +221,7 @@ const Settings = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setApiKeys(data.apiKeys || []);
+        _setApiKeys(data.apiKeys || []);
       } else {
         console.error(
           "API keys endpoint returned non-OK status:",
@@ -231,7 +231,7 @@ const Settings = () => {
       }
     } catch (error) {
       console.error("Error loading API keys:", error);
-      setApiKeys([]); // Set empty array and let user see there's no data
+      _setApiKeys([]); // Set empty array and let user see there's no data
       throw error; // Re-throw so parent catch can handle it
     }
   };
@@ -385,7 +385,7 @@ const Settings = () => {
       setLoading(true);
 
       const response = await fetch(
-        `${apiUrl}/api/portfolio/import/${brokerName}`,
+        `${apiUrl}/api/portfolio/import/${newApiKey.brokerName}`,
         {
           method: "POST",
           headers: {
