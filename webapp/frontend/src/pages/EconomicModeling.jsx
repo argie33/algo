@@ -171,6 +171,7 @@ const EconomicModeling = () => {
     }
   };
 
+  const formatDuration = (months) => {
     if (months < 12) return `${months} months`;
     return `${Math.round(months / 12)} years`;
   };
