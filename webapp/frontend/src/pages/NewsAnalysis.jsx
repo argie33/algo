@@ -54,7 +54,7 @@ import {
   Tooltip
 } from "@mui/icons-material";
 import { formatDistanceToNow, format } from "date-fns";
-import { formatPercentage, formatPercent } from "../utils/formatters";
+import { formatPercentage } from "../utils/formatters";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, } from "recharts";
 

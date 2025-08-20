@@ -32,7 +32,7 @@ import {
   InputAdornment,
 } from "@mui/material";
 import {
-  Search, TrendingUp, TrendingDown, Timeline, Refresh, } from "@mui/icons-material";
+  Search, TrendingUp, TrendingDown, Timeline, Refresh, BarChart, FilterList, AccessTime, ErrorOutline } from "@mui/icons-material";
 import { formatCurrency } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 
@@ -273,7 +273,7 @@ const PatternRecognition = () => {
       return <TrendingUp color="success" fontSize="small" />;
     if (bias === "bearish")
       return <TrendingDown color="error" fontSize="small" />;
-    return <BarChart3 color="primary" fontSize="small" />;
+    return <BarChart color="primary" fontSize="small" />;
   };
 
   const patterns = patternsData?.data || [];
@@ -376,7 +376,7 @@ const PatternRecognition = () => {
                 variant="contained"
                 onClick={refetch}
                 disabled={isLoading}
-                startIcon={<Filter />}
+                startIcon={<FilterList />}
               >
                 Scan Market
               </Button>
@@ -438,7 +438,7 @@ const PatternRecognition = () => {
           />
           <Tab label="Bullish Signals" icon={<TrendingUp />} />
           <Tab label="Bearish Signals" icon={<TrendingDown />} />
-          <Tab label="Pattern Analytics" icon={<BarChart3 />} />
+          <Tab label="Pattern Analytics" icon={<BarChart />} />
         </Tabs>
       </Box>
 
@@ -563,7 +563,7 @@ const PatternRecognition = () => {
 
                       {/* Detection Time */}
                       <Box display="flex" alignItems="center" gap={0.5}>
-                        <Clock fontSize="small" color="action" />
+                        <AccessTime fontSize="small" color="action" />
                         <Typography variant="caption" color="text.secondary">
                           Detected{" "}
                           {pattern.detected_at
@@ -581,7 +581,7 @@ const PatternRecognition = () => {
           {!isLoading && patterns.length === 0 && (
             <Card>
               <CardContent sx={{ textAlign: "center", py: 8 }}>
-                <AlertCircle
+                <ErrorOutline
                   sx={{ fontSize: 64, color: "text.secondary", mb: 2 }}
                 />
                 <Typography variant="h6" gutterBottom>
@@ -884,7 +884,7 @@ const PatternRecognition = () => {
           <Card>
             <CardHeader
               title="Pattern Performance Statistics"
-              avatar={<BarChart3 color="primary" />}
+              avatar={<BarChart color="primary" />}
             />
             <CardContent>
               <Alert severity="info" sx={{ mb: 3 }}>

@@ -55,6 +55,8 @@ import {
   Download,
   ShowChart,
   Error,
+  BarChart,
+  FilterList,
 } from "@mui/icons-material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -175,7 +177,7 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchAccount = async () => {
+  const fetchAccountInfo = async () => {
     try {
       const response = await fetch("/api/account", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -200,7 +202,7 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchHoldings = async () => {
+  const fetchPositions = async () => {
     try {
       const response = await fetch("/api/portfolio/holdings", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -251,7 +253,7 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchQuotes = async () => {
+  const fetchMarketData = async () => {
     try {
       const symbols = [
         ...new Set([...watchlist, ...orders.map((o) => o.symbol)]),
@@ -369,6 +371,7 @@ const OrderManagement = () => {
     }
   };
 
+  const modifyOrder = async (orderId, modifications) => {
     try {
       const response = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
@@ -387,6 +390,7 @@ const OrderManagement = () => {
     }
   };
 
+  const getOrderPreview = async (orderData) => {
     try {
       const response = await fetch("/api/orders/preview", {
         method: "POST",
@@ -428,6 +432,7 @@ const OrderManagement = () => {
     }
   };
 
+  const validateOrder = (orderData) => {
     if (!orderData.symbol)
       return { valid: false, message: "Symbol is required" };
     if (!orderData.quantity || parseFloat(orderData.quantity) <= 0)
