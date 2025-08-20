@@ -258,6 +258,7 @@ function StockExplorer() {
     setSearchParams({});
   };
 
+  const handleRequestSort = (event, column) => {
     const isAsc = orderBy === column && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
     setOrderBy(column);
@@ -366,6 +367,18 @@ function StockExplorer() {
     ).length;
   };
 
+  // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
+  let stocksList = [];
+  if (stocksData) {
+    if (Array.isArray(stocksData.data)) {
+      stocksList = stocksData.data;
+    } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
+      stocksList = stocksData.data.data;
+    } else if (Array.isArray(stocksData)) {
+      stocksList = stocksData;
+    }
+  }
+
   const renderRangeFilter = (
     label,
     minKey,
@@ -428,18 +441,6 @@ function StockExplorer() {
       </Box>
     );
   };
-
-  // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
-  let stocksList = [];
-  if (stocksData) {
-    if (Array.isArray(stocksData.data)) {
-      stocksList = stocksData.data;
-    } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
-      stocksList = stocksData.data.data;
-    } else if (Array.isArray(stocksData)) {
-      stocksList = stocksData;
-    }
-  }
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
