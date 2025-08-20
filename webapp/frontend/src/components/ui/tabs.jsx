@@ -35,7 +35,7 @@ export const TabsTrigger = React.forwardRef(
 TabsTrigger.displayName = "TabsTrigger";
 
 export const TabsContent = React.forwardRef(
-  ({ className, value, children, ...props }, ref) => (
+  ({ className, value: _value, children, ...props }, ref) => (
     <Box ref={ref} className={className} {...props}>
       {children}
     </Box>

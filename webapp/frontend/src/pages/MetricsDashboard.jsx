@@ -53,7 +53,7 @@ const MetricsDashboard = () => {
   const [minMetric, setMinMetric] = useState(0);
   const [maxMetric, setMaxMetric] = useState(1);
   const [sortBy, setSortBy] = useState("composite_metric");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [sortOrder, _setSortOrder] = useState("desc");
 
   // Pagination
   const [page, setPage] = useState(1);
