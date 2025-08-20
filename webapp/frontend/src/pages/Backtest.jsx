@@ -56,7 +56,6 @@ import {
   Add, 
   FolderOpen, 
   Person,
-  Save,
   ContentCopy as ContentCopyIcon,
   FileDownload as FileDownloadIcon,
   Download
@@ -205,7 +204,7 @@ export default function Backtest() {
   const [validateMsg, setValidateMsg] = useState("");
   const [activeTab, setActiveTab] = useState("equity");
   const [isRunning, setIsRunning] = useState(false);
-  const [customMetricTab, setCustomMetricTab] = useState(null);
+  const [_customMetricTab, _setCustomMetricTab] = useState(null);
 
   // Enhanced strategy management
   const [strategyDialogOpen, setStrategyDialogOpen] = useState(false);
@@ -215,8 +214,8 @@ export default function Backtest() {
     code: "",
     isPublic: false,
   });
-  const [selectedStrategy, setSelectedStrategy] = useState(null);
-  const [strategyTags, setStrategyTags] = useState([]);
+  const [_selectedStrategy, setSelectedStrategy] = useState(null);
+  const [_strategyTags, _setStrategyTags] = useState([]);
   const [strategyFilter, setStrategyFilter] = useState("all"); // 'all', 'mine', 'public', 'favorites'
 
   // Parameter sweep state
@@ -563,7 +562,7 @@ export default function Backtest() {
   };
 
   const handleStrategyChange = (id) => {
-    const strat = Array.isArray(strategies)
+    const _strat = Array.isArray(strategies)
       ? strategies.find((s) => s.id === id)
       : null;
     handleChange("strategy", id);
@@ -759,7 +758,7 @@ export default function Backtest() {
   };
 
   // --- BATCH RUN LOGIC ---
-  const handleRunBatch = async (paramGrid) => {
+  const _handleRunBatch = async (paramGrid) => {
     setBatchQueue(
       paramGrid.map((p) => ({
         params: p,
@@ -816,7 +815,7 @@ export default function Backtest() {
   };
 
   // --- STRATEGY VERSIONING LOGIC ---
-  const saveStrategyVersion = (id, code) => {
+  const _saveStrategyVersion = (id, code) => {
     setStrategyHistory((h) => ({
       ...h,
       [id]: [...(h[id] || []), { code, date: new Date().toISOString() }],
@@ -898,7 +897,7 @@ export default function Backtest() {
           <Tooltip title="Save current strategy" arrow>
             <Button
               variant="outlined"
-              startIcon={<Save />}
+              startIcon={<SaveIcon />}
               onClick={() => {
                 setNewStrategy({
                   name: "",
@@ -1369,7 +1368,7 @@ export default function Backtest() {
             <Tab label="Summary" value="summary" />
             {result?.metrics?.custom &&
               Object.keys(result.metrics.custom).length > 0 &&
-              Object.keys(result.metrics.custom).map((k, i) => (
+              Object.keys(result.metrics.custom).map((k, _i) => (
                 <Tab key={k} label={`Metric: ${k}`} value={`custom_${k}`} />
               ))}
           </Tabs>
@@ -1914,7 +1913,7 @@ export default function Backtest() {
           subheader="Manage and version your trading strategies"
           action={
             <Badge badgeContent={savedStrategies.length} color="primary">
-              <Button variant="outlined" startIcon={<Save />} size="small">
+              <Button variant="outlined" startIcon={<SaveIcon />} size="small">
                 Strategies
               </Button>
             </Badge>
