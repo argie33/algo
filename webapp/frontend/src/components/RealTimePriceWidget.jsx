@@ -7,11 +7,7 @@ import {
   Skeleton,
   Alert,
 } from "@mui/material";
-import {
-  TrendingUp,
-  TrendingDown,
-  TrendingFlat,
-} from "@mui/icons-material";
+import { TrendingUp, TrendingDown, TrendingFlat } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 import dataCache from "../services/dataCache";
 

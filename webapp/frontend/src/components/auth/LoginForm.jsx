@@ -15,7 +15,11 @@ import {
   Checkbox,
   FormControlLabel,
 } from "@mui/material";
-import { Visibility, VisibilityOff, Login as LoginIcon } from "@mui/icons-material";
+import {
+  Visibility,
+  VisibilityOff,
+  Login as LoginIcon,
+} from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {

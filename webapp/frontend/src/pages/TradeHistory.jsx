@@ -51,7 +51,7 @@ import {
   MonetizationOn,
   SwapHoriz,
   Insights,
-  Tooltip
+  Tooltip,
 } from "@mui/icons-material";
 import {
   Line,
@@ -725,9 +725,7 @@ const TradeHistory = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip
-                        formatter={(value) => formatCurrency(value)}
-                      />
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
                       <Bar dataKey="pnl" fill="#8884d8" />
                       <Line
                         type="monotone"

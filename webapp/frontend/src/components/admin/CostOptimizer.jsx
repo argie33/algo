@@ -32,15 +32,13 @@ import {
   AccordionDetails,
 } from "@mui/material";
 import {
-  Optimize as OptimizeIcon,
   TrendingDown as TrendingDownIcon,
   ExpandMore as ExpandMoreIcon,
   Check as CheckIcon,
   Warning as WarningIcon,
   Compare as CompareIcon,
-  ,
-  Tune
-} from "@mui/icons-material";;
+  Tune,
+} from "@mui/icons-material";
 
 const CostOptimizer = ({ costData, onOptimize, onApplyRecommendation }) => {
   const [optimizationMode, setOptimizationMode] = useState("balanced");

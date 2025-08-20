@@ -17,7 +17,7 @@ import {
 import {
   Visibility,
   VisibilityOff,
-  PersonAdd as RegisterIcon
+  PersonAdd as RegisterIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 

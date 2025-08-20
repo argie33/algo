@@ -40,11 +40,9 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   NetworkCheck as NetworkIcon,
-  MonetizationOn as CostIcon,
   Speed as SpeedIcon,
-  ,
-  AttachMoney
-} from "@mui/icons-material";;
+  AttachMoney,
+} from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 import ProviderMetrics from "./ProviderMetrics";
 import ConnectionMonitor from "./ConnectionMonitor";

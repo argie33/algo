@@ -50,10 +50,7 @@ import {
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
-import {
-  ErrorDisplay,
-  LoadingDisplay,
-} from "../components/ui/ErrorBoundary";
+import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import { createLogger } from "../utils/apiService.jsx";
 
 // Use standardized logger
@@ -231,6 +228,21 @@ function TradingSignals() {
     refetchInterval: 600000, // Refresh every 10 minutes
     onError: (err) => logger.queryError("tradingPerformance", err),
   });
+
+  // Early return for loading state
+  const isLoading = signalsLoading || performanceLoading;
+  if (isLoading && !signalsData) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <LoadingDisplay
+          message="Loading trading signals and performance data..."
+          fullPage={true}
+          size="large"
+        />
+      </Container>
+    );
+  }
+
   // Helper function to check if signal is recent (within last 7 days)
   const isRecentSignal = (signalDate) => {
     if (!signalDate) return false;
@@ -295,25 +307,6 @@ function TradingSignals() {
           }}
         />
       </Badge>
-    );
-  };
-
-    const colors = {
-      TARGET_HIT: "#10B981",
-      STOP_LOSS_HIT: "#DC2626",
-      ACTIVE: "#3B82F6",
-    };
-
-    return (
-      <Chip
-        label={status.replace("_", " ")}
-        size="small"
-        sx={{
-          backgroundColor: colors[status] || "#6B7280",
-          color: "white",
-          fontWeight: "medium",
-        }}
-      />
     );
   };
 
