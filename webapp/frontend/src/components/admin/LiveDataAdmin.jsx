@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Grid,
@@ -62,7 +62,7 @@ const LiveDataAdmin = () => {
   const intervalRef = useRef(null);
 
   // Fetch dashboard data from liveDataAdmin
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const response = await fetch("/api/liveDataAdmin/dashboard", {
         headers: {
@@ -84,7 +84,7 @@ const LiveDataAdmin = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.token]);
 
   // Auto-refresh functionality
   useEffect(() => {
@@ -99,7 +99,7 @@ const LiveDataAdmin = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [autoRefresh]);
+  }, [autoRefresh, fetchDashboardData]);
 
   // Status color mapping
   const getStatusColor = (status) => {

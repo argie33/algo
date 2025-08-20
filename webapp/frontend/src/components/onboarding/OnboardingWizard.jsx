@@ -248,7 +248,7 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
       </Typography>
 
       <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-        What you'll get:
+        What you&apos;ll get:
       </Typography>
 
       <List>
@@ -498,7 +498,7 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
       </Typography>
 
       <Typography variant="body2" color="text.secondary" paragraph>
-        Here's what you can do with your new financial platform:
+        Here&apos;s what you can do with your new financial platform:
       </Typography>
 
       <List>
