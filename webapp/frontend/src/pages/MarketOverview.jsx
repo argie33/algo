@@ -173,16 +173,16 @@ const GradientCard = ({ children, gradient, ...props }) => {
   );
 };
 
-const MetricCard = ({
+const _MetricCard = ({
   title,
   value,
   subtitle,
   icon,
   trend,
-  color = "primary",
+  color: _color = "primary",
   gradient,
 }) => {
-  const theme = useTheme();
+  const _theme = useTheme();
   const isPositive = trend > 0;
 
   return (
@@ -311,7 +311,7 @@ const TabPanel = ({ children, value, index, ...other }) => (
   </div>
 );
 
-const DataTable = ({ title, columns, data }) => (
+const _DataTable = ({ title, columns, data }) => (
   <Card>
     <CardContent>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
@@ -437,8 +437,8 @@ const fetchResearchIndicators = async () => {
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0);
   const [timeframe, setTimeframe] = useState("1D");
-  const [viewMode, setViewMode] = useState("cards");
-  const [selectedSector, setSelectedSector] = useState("all");
+  const [_viewMode, _setViewMode] = useState("cards");
+  const [_selectedSector, _setSelectedSector] = useState("all");
   const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
 
