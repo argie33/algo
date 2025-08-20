@@ -43,9 +43,8 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import {
   XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart, } from "recharts";
 
@@ -122,6 +121,7 @@ const SECTORS = [
 ];
 
 // Market categories that actually exist in the backend data
+const MARKET_CATEGORIES = [
   "Q",
   "G",
   "S",
@@ -272,6 +272,7 @@ function StockExplorer() {
     setPage(0);
   };
 
+  const handleStockClick = (symbol) => {
     navigate(`/stocks/${symbol}`);
   };
 
@@ -368,6 +369,7 @@ function StockExplorer() {
     ).length;
   };
 
+  const renderRangeFilter = (
     label,
     minKey,
     maxKey,

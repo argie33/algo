@@ -47,9 +47,8 @@ import {
   Fullscreen,
   FullscreenExit,
   Equalizer,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 
 import {
   getMarketOverview,
@@ -66,6 +65,7 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 
+const CHART_COLORS = [
   "#0088FE",
   "#00C49F",
   "#FFBB28",
@@ -174,6 +174,7 @@ const GradientCard = ({ children, gradient, ...props }) => {
   );
 };
 
+const MetricCard = ({
   title,
   value,
   subtitle,
@@ -311,6 +312,7 @@ const TabPanel = ({ children, value, index, ...other }) => (
   </div>
 );
 
+const DataTable = ({ title, columns, data }) => (
   <Card>
     <CardContent>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
