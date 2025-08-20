@@ -496,6 +496,7 @@ const AdvancedScreener = () => {
     }
   };
 
+  const loadUserScreens = async () => {
     try {
       // Mock saved screens for now - would integrate with backend later
       setSavedScreens([
@@ -516,6 +517,7 @@ const AdvancedScreener = () => {
     }
   };
 
+  const loadSectors = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/stocks/sectors`);
       if (response.ok) {
@@ -527,6 +529,7 @@ const AdvancedScreener = () => {
     }
   };
 
+  const loadScreenStats = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/stocks/screen/stats`);
       if (response.ok) {

@@ -56,15 +56,13 @@ import {
   Psychology as PsychologyIcon,
   Public,
   LocalFireDepartment,
-  Bolt,
-  ,
-  Tooltip
-} from "@mui/icons-material";;
+  Bolt
+} from "@mui/icons-material";
 import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as Tooltip,
+  Tooltip as ChartTooltip,
   ResponsiveContainer,
   Bar,
   Cell,
@@ -626,7 +624,7 @@ function SectorPerformanceWidget() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
+            <ChartTooltip formatter={(value) => `${value.toFixed(2)}%`} />
             <Bar dataKey="performance" fill="#8884d8">
               {sectors.map((entry, index) => (
                 <Cell
@@ -1306,7 +1304,7 @@ const Dashboard = () => {
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <ChartTooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
