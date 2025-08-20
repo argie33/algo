@@ -45,7 +45,7 @@ import {
 } from "../services/api";
 
 const PortfolioHoldings = () => {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

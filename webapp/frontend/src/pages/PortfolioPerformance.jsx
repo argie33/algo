@@ -30,7 +30,7 @@ import {
   ListItemIcon,
 } from "@mui/material";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, BarChart, Bar, ComposedChart, PieChart, Pie, Cell, } from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, BarChart, Bar, ComposedChart, PieChart, Pie, Cell, Tooltip, } from "recharts";
 import {
   TrendingUp,
   Analytics,
@@ -48,7 +48,7 @@ import {
 } from "../services/api";
 
 const PortfolioPerformance = () => {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

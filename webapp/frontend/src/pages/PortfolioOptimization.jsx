@@ -45,7 +45,7 @@ import {
   DialogActions,
 } from "@mui/material";
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, } from "recharts";
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, } from "recharts";
 import {
   TrendingUp,
   Analytics,
@@ -67,7 +67,7 @@ import {
 } from "../services/api";
 
 const PortfolioOptimization = () => {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -629,7 +629,7 @@ const PortfolioOptimization = () => {
             />
             <CardContent>
               <Stepper activeStep={activeStep} orientation="vertical">
-                {optimizationSteps.map((step, index) => (
+                {optimizationSteps.map((step, _index) => (
                   <Step key={step.label}>
                     <StepLabel
                       optional={

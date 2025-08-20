@@ -327,7 +327,7 @@ describe('Dashboard Component - Trading Overview', () => {
       });
 
       // Should indicate alert was triggered (visual highlight, badge, etc.)
-      const alertIndicator = screen.queryByText(/alert/i) || 
+      const _alertIndicator = screen.queryByText(/alert/i) || 
                            screen.queryByText(/triggered/i) ||
                            screen.queryByTestId('alert-badge');
       // Note: This documents the requirement for alert visualization

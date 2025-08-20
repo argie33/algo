@@ -648,7 +648,7 @@ function FinancialData() {
                 <XAxis dataKey="year" />
                 <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
                 <Tooltip
-                  formatter={(value, name) => [
+                  formatter={(value, _name) => [
                     formatCurrency(value, 0),
                     "Value",
                   ]}
