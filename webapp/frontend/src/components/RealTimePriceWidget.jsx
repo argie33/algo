@@ -104,7 +104,7 @@ const RealTimePriceWidget = ({
         clearInterval(updateIntervalRef.current);
       }
     };
-  }, [symbol]);
+  }, [symbol, fetchPriceData]);
 
   if (loading) {
     return (
