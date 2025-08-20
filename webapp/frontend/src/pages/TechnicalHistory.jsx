@@ -663,7 +663,7 @@ function PriceHistory() {
                   onChange={handleTabChange}
                   variant="scrollable"
                 >
-                  {Object.keys(columnCategories).map((category, index) => (
+                  {Object.keys(columnCategories).map((category, _index) => (
                     <Tab
                       key={category}
                       label={

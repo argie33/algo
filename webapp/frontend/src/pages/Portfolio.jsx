@@ -412,6 +412,7 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
+  const generateRiskMetrics = (holdings) => {
     return {
       isMockData: true,
       var95: Math.round(
@@ -595,6 +596,7 @@ const Portfolio = () => {
   };
 
   // Load available API connections
+  const loadAvailableConnections = async () => {
     try {
       const response = await getApiKeys();
       const connections = response?.apiKeys || [];
@@ -715,6 +717,7 @@ const Portfolio = () => {
     };
   };
 
+  const generateRiskAssessment = (holdings) => {
     const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
     const weights = holdings.map((h) => h.marketValue / totalValue);
 
@@ -736,6 +739,7 @@ const Portfolio = () => {
     };
   };
 
+  const optimizePortfolio = (method, currentHoldings) => {
     switch (method) {
       case "enhanced_sharpe":
         return optimizeEnhancedSharpe(currentHoldings);
@@ -754,6 +758,7 @@ const Portfolio = () => {
     }
   };
 
+  const optimizeEnhancedSharpe = (holdings) => {
     // Enhanced Sharpe ratio optimization with multiple factors
     const baseOptimization = holdings.map((holding) => {
       const qualityScore = holding.factorScores?.quality || 50;

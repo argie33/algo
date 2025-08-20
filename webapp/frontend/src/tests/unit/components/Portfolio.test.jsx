@@ -263,7 +263,7 @@ describe('Portfolio Component - User Interface', () => {
       });
 
       // Should have some way to sort or filter (search box, sort buttons, etc.)
-      const sortControls = screen.queryByText(/sort/i) || 
+      const _sortControls = screen.queryByText(/sort/i) || 
                           screen.queryByPlaceholderText(/search/i) ||
                           screen.queryByRole('button');
       // Note: This might not exist yet, but test documents the requirement
@@ -295,7 +295,7 @@ describe('Portfolio Component - User Interface', () => {
       });
 
       // Should indicate when data was last updated
-      const timestamp = screen.queryByText(/updated/i) || 
+      const _timestamp = screen.queryByText(/updated/i) || 
                        screen.queryByText(/ago/i) ||
                        screen.queryByText(/last/i);
       // Note: Timestamp display is a good UX feature to test for

@@ -314,6 +314,7 @@ const Settings = () => {
     }
   };
 
+  const deleteApiKey = async (brokerName) => {
     try {
       const response = await fetch(
         `${apiUrl}/api/portfolio/api-keys/${brokerName}`,
@@ -337,6 +338,7 @@ const Settings = () => {
     }
   };
 
+  const testConnection = async (brokerName) => {
     try {
       setLoading(true);
 
@@ -378,6 +380,7 @@ const Settings = () => {
     }
   };
 
+  const saveSettings = async () => {
     try {
       setLoading(true);
 

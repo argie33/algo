@@ -305,7 +305,7 @@ describe('Settings Component - Trading Configuration', () => {
 
         // Should indicate saving or show success message
         await waitFor(() => {
-          const feedback = screen.queryByText(/saved/i) || 
+          const _feedback = screen.queryByText(/saved/i) || 
                           screen.queryByText(/updated/i) ||
                           screen.queryByText(/success/i);
           // Note: This might not exist yet but documents the requirement
@@ -380,7 +380,7 @@ describe('Settings Component - Trading Configuration', () => {
       );
 
       // Should have data export option
-      const exportOption = screen.queryByText(/export/i) || 
+      const _exportOption = screen.queryByText(/export/i) || 
                           screen.queryByText(/download/i) ||
                           screen.queryByText(/data/i);
 
@@ -460,7 +460,7 @@ describe('Settings Component - Trading Configuration', () => {
 
         // Should show validation errors for required fields
         await waitFor(() => {
-          const errors = screen.queryAllByText(/required/i) ||
+          const _errors = screen.queryAllByText(/required/i) ||
                         screen.queryAllByText(/invalid/i);
           // Should have appropriate validation
         });
@@ -508,7 +508,7 @@ describe('Settings Component - Trading Configuration', () => {
 
         // Should show loading, success, or error state
         await waitFor(() => {
-          const feedback = screen.queryByText(/loading/i) ||
+          const _feedback = screen.queryByText(/loading/i) ||
                           screen.queryByText(/saved/i) ||
                           screen.queryByText(/success/i) ||
                           screen.queryByText(/error/i);

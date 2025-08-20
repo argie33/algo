@@ -50,7 +50,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -977,7 +977,7 @@ const ScoresDashboard = () => {
                       />
                       <XAxis dataKey="date" />
                       <YAxis domain={[0, 100]} />
-                      <Tooltip />
+                      <RechartsTooltip />
                       <Legend />
                       <Line
                         type="monotone"
@@ -1153,7 +1153,7 @@ const ScoresDashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="symbol" />
                   <YAxis domain={[0, 100]} />
-                  <Tooltip />
+                  <RechartsTooltip />
                   <Legend />
                   <Bar dataKey="quality" fill={scoreCategories[0].color} />
                   <Bar dataKey="growth" fill={scoreCategories[1].color} />

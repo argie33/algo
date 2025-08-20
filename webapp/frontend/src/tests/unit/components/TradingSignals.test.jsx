@@ -29,7 +29,7 @@ vi.mock('@mui/material', async () => {
 
 // Mock chart components
 vi.mock('react-chartjs-2', () => ({
-  Line: ({ data }) => <div data-testid="line-chart">Chart with {data?.datasets?.length || 0} datasets</div>,
+  Line: ({ data: _data }) => <div data-testid="line-chart">Chart with {_data?.datasets?.length || 0} datasets</div>,
   Bar: ({ data }) => <div data-testid="bar-chart">Bar chart</div>
 }));
 

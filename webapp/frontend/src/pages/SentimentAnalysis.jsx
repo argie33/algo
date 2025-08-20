@@ -59,9 +59,8 @@ import {
   Speed,
   TrendingFlat,
   Lightbulb,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import {
   PieChart, Pie, Cell, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Line, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, ScatterChart, Scatter, } from "recharts";
 import { formatPercentage, formatPercent, formatNumber } from "../utils/formatters";

@@ -201,7 +201,7 @@ describe('WelcomeBanner Component', () => {
 
         await waitFor(() => {
           // Should show more details or expand animation
-          const expandedContent = screen.queryByText(/learn more/i) ||
+          const _expandedContent = screen.queryByText(/learn more/i) ||
                                   screen.queryByText(/details/i) ||
                                   parentCard.querySelector('[data-expanded="true"]');
           
@@ -340,7 +340,7 @@ describe('WelcomeBanner Component', () => {
       );
 
       // Should have proper banner role
-      const banner = screen.getByRole('banner') ||
+      const _banner = screen.getByRole('banner') ||
                     screen.queryByRole('region') ||
                     document.querySelector('[role="banner"]');
 
@@ -363,7 +363,7 @@ describe('WelcomeBanner Component', () => {
         </TestWrapper>
       );
 
-      const banner = document.querySelector('[data-high-contrast="true"]') ||
+      const _banner = document.querySelector('[data-high-contrast="true"]') ||
                     document.querySelector('.high-contrast');
 
       // Should apply high contrast styling when enabled
@@ -426,7 +426,7 @@ describe('WelcomeBanner Component', () => {
 
       // Heavy content should load after initial render
       await waitFor(() => {
-        const lazyContent = screen.queryByTestId('lazy-content') ||
+        const _lazyContent = screen.queryByTestId('lazy-content') ||
                            screen.queryByText(/advanced features/i);
         
         // Note: This documents the requirement for lazy loading

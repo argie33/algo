@@ -484,7 +484,7 @@ describe('Dashboard Component - Trading Overview', () => {
       );
 
       // Should indicate real-time connection status
-      const connectionStatus = screen.queryByText(/connected/i) ||
+      const _connectionStatus = screen.queryByText(/connected/i) ||
                               screen.queryByText(/live/i) ||
                               screen.queryByText(/offline/i) ||
                               screen.queryByTestId('connection-status');
