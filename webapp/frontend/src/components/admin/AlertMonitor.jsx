@@ -29,6 +29,13 @@ import {
   Info as InfoIcon,
   Refresh as RefreshIcon,
   Email as EmailIcon,
+  CheckCircle as CheckCircleIcon,
+  TestIcon,
+  Settings as SettingsIcon,
+  ExpandMore as ExpandMoreIcon,
+  Close as CloseIcon,
+  Slack as SlackIcon,
+  Webhook as WebhookIcon,
 } from "@mui/icons-material";
 
 const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {

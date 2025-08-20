@@ -461,6 +461,19 @@ function TechnicalAnalysis() {
       )}
     </Box>
   );
+}
+
+const TechnicalAnalysis = () => {
+  // Move all the component logic here - this is likely the issue
+  if (!technicalData?.data) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Alert severity="info">
+          No technical analysis data available. Please check your API connection.
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

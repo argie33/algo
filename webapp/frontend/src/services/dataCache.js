@@ -146,9 +146,9 @@ class DataCacheService {
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
 
-    for (const [key, value] of this.cache.entries()) {
+    for (const [cacheKey, value] of this.cache.entries()) {
       if (now - value.timestamp > maxAge) {
-        this.cache.delete(key);
+        this.cache.delete(cacheKey);
       }
     }
   }
@@ -211,7 +211,7 @@ class DataCacheService {
       apiCallCounts: {},
     };
 
-    for (const [key, value] of this.cache.entries()) {
+    for (const [cacheKey, value] of this.cache.entries()) {
       const age = Date.now() - value.timestamp;
       stats.cacheEntries.push({
         endpoint: value.endpoint,

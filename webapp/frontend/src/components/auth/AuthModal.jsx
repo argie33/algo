@@ -27,7 +27,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
   const [username, setUsername] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleRegistrationSuccess = (registeredUsername, nextStep) => {
+  const handleRegistrationSuccess = (registeredUsername, _nextStep) => {
     setUsername(registeredUsername);
     setSuccessMessage(
       "Registration successful! Please check your email for a verification code."

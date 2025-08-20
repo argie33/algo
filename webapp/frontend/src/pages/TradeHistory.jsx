@@ -148,6 +148,7 @@ const TradeHistory = () => {
     }
   };
 
+  const fetchAnalytics = async () => {
     try {
       const response = await fetch("/api/trades/analytics/overview", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -161,6 +162,7 @@ const TradeHistory = () => {
     }
   };
 
+  const fetchInsights = async () => {
     try {
       const response = await fetch("/api/trades/insights", {
         headers: { Authorization: `Bearer ${user.token}` },

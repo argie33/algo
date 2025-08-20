@@ -358,6 +358,7 @@ const Portfolio = () => {
   }; */
 
   // ⚠️ MOCK DATA - Replace with real API when available
+  const generateMockHistory = () => {
     const history = [];
     const baseValue = 100000;
     let currentValue = baseValue;
@@ -384,6 +385,7 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
+  const generateSectorAllocation = (holdings) => {
     const sectors = {};
     holdings.forEach((holding) => {
       const sector = holding.sector || "Other";

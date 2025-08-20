@@ -37,6 +37,11 @@ import {
   Settings as SettingsIcon,
   Refresh as RefreshIcon,
   Analytics as AnalyticsIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  NetworkCheck as NetworkIcon,
+  MonetizationOn as CostIcon,
+  Speed as SpeedIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 import ProviderMetrics from "./ProviderMetrics";

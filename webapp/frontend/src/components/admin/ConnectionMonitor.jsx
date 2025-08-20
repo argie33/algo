@@ -31,6 +31,10 @@ import {
 import {
   Close as CloseIcon,
   Refresh as RefreshIcon,
+  Check as CheckIcon,
+  Error as ErrorIcon,
+  NetworkCheck as NetworkIcon,
+  Add as AddIcon,
 } from "@mui/icons-material";
 
 const ConnectionMonitor = ({

@@ -782,6 +782,7 @@ const Dashboard = () => {
   const safeCalendar = mockCalendar;
   const safeSignals = mockSignals;
 
+  const chartData = priceData?.data
     ? priceData.data
         .map((p) => ({
           date: p.date || p.timestamp,
@@ -790,6 +791,7 @@ const Dashboard = () => {
         .reverse()
     : [];
 
+  const metricsDisplay = metricsData?.data
     ? [
         { label: "Beta", value: metricsData.data.beta ?? "N/A" },
         {

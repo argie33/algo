@@ -112,6 +112,7 @@ const MetricsDashboard = () => {
     }
   };
 
+  const fetchSectorAnalysis = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/metrics/sectors/analysis`);
       if (!response.ok)
@@ -125,6 +126,7 @@ const MetricsDashboard = () => {
     }
   };
 
+  const fetchTopStocks = async () => {
     try {
       const categories = ["composite", "quality", "value"];
       const promises = categories.map((category) =>

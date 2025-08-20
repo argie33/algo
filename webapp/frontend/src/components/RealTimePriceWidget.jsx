@@ -17,20 +17,13 @@ import dataCache from "../services/dataCache";
 
 const RealTimePriceWidget = ({
   symbol,
-  showChart = false,
+  _showChart = false,
   compact = false,
 }) => {
   const [priceData, setPriceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isStale, setIsStale] = useState(false);
   const updateIntervalRef = useRef(null);
-
-  // Simulate price movements for development
-    const volatility = 0.002; // 0.2% volatility
-    const trend = Math.random() > 0.5 ? 1 : -1;
-    const change = basePrice * volatility * trend * Math.random();
-    return basePrice + change;
-  };
 
   const fetchPriceData = async () => {
     try {

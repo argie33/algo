@@ -1,4 +1,4 @@
-function ProtectedRoute({ children, requireAuth = false, fallback = null }) {
+function ProtectedRoute({ children, requireAuth = false, _fallback = null }) {
   // Authentication disabled - all routes are now public
   return children;
 }

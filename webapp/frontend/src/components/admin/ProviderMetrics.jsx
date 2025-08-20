@@ -28,6 +28,12 @@ import {
 import {
   Settings as SettingsIcon,
   Refresh as RefreshIcon,
+  Check as CheckIcon,
+  Warning as WarningIcon,
+  Error as ErrorIcon,
+  Stop as StopIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
 } from "@mui/icons-material";
 
 const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
