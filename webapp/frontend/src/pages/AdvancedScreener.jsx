@@ -478,6 +478,7 @@ const AdvancedScreener = () => {
     }
   };
 
+  const loadUserWatchlists = async () => {
     try {
       const headers = { "Content-Type": "application/json" };
       if (user?.token) {
