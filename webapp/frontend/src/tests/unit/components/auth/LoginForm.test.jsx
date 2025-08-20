@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import LoginForm from '../../../../components/auth/LoginForm.jsx';
@@ -13,14 +13,16 @@ import LoginForm from '../../../../components/auth/LoginForm.jsx';
 const mockLogin = vi.fn();
 const mockClearError = vi.fn();
 
+const mockUseAuth = vi.fn(() => ({
+  login: mockLogin,
+  isLoading: false,
+  error: null,
+  clearError: mockClearError,
+  user: null
+}));
+
 vi.mock('../../../../contexts/AuthContext.jsx', () => ({
-  useAuth: () => ({
-    login: mockLogin,
-    isLoading: false,
-    error: null,
-    clearError: mockClearError,
-    user: null
-  })
+  useAuth: mockUseAuth
 }));
 
 // Wrapper component for router context
@@ -107,7 +109,7 @@ describe('LoginForm Component', () => {
       const user = userEvent.setup();
 
       // Mock auth context with error
-      vi.mocked(useAuth).mockReturnValue({
+      mockUseAuth.mockReturnValue({
         login: mockLogin,
         isLoading: false,
         error: 'Invalid credentials',
@@ -249,7 +251,7 @@ describe('LoginForm Component', () => {
   describe('Loading States', () => {
     it('should show loading state during authentication', () => {
       // Mock loading state
-      vi.mocked(useAuth).mockReturnValue({
+      mockUseAuth.mockReturnValue({
         login: mockLogin,
         isLoading: true,
         error: null,
@@ -269,7 +271,7 @@ describe('LoginForm Component', () => {
 
     it('should disable form during loading', () => {
       // Mock loading state
-      vi.mocked(useAuth).mockReturnValue({
+      mockUseAuth.mockReturnValue({
         login: mockLogin,
         isLoading: true,
         error: null,
@@ -292,7 +294,7 @@ describe('LoginForm Component', () => {
   describe('Error Handling', () => {
     it('should display authentication errors', () => {
       // Mock error state
-      vi.mocked(useAuth).mockReturnValue({
+      mockUseAuth.mockReturnValue({
         login: mockLogin,
         isLoading: false,
         error: 'Invalid username or password',

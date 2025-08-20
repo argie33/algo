@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
-import { formatPercentage as formatPercent } from "../utils/formatters";
 import {
   Box,
   Container,
@@ -303,7 +302,7 @@ function AnalystInsights() {
           <br />
           <small>
             This may indicate that analyst data tables are not yet populated or
-            there's a database connectivity issue.
+            there&apos;s a database connectivity issue.
           </small>
         </Alert>
       )}

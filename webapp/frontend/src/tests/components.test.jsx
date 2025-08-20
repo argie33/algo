@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
-import { ThemeProvider } from "@mui/material/styles";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Dashboard from "../pages/Dashboard";
 

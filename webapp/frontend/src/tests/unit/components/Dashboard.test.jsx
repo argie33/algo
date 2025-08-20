@@ -26,8 +26,8 @@ vi.mock('../../../services/api.js', () => ({
 
 // Mock chart components to avoid canvas issues in tests
 vi.mock('react-chartjs-2', () => ({
-  Line: ({ data }) => <div data-testid="market-chart">Market Chart with {data?.datasets?.length || 0} datasets</div>,
-  Bar: ({ data }) => <div data-testid="performance-chart">Performance Chart</div>
+  Line: ({ data: _data }) => <div data-testid="market-chart">Market Chart with {_data?.datasets?.length || 0} datasets</div>,
+  Bar: ({ data: _data }) => <div data-testid="performance-chart">Performance Chart</div>
 }));
 
 // Mock WebSocket for real-time data

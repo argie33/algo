@@ -497,27 +497,6 @@ const AdvancedScreener = () => {
     }
   };
 
-  const loadUserScreens = async () => {
-    try {
-      // Mock saved screens for now - would integrate with backend later
-      setSavedScreens([
-        { id: 1, name: "High Quality Growth", criteria: screenCriteria },
-        {
-          id: 2,
-          name: "Value Opportunities",
-          criteria: { ...screenCriteria, value: [70, 100] },
-        },
-        {
-          id: 3,
-          name: "Momentum Plays",
-          criteria: { ...screenCriteria, momentum: [80, 100] },
-        },
-      ]);
-    } catch (error) {
-      console.error("Failed to load saved screens:", error);
-    }
-  };
-
   const loadSectors = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/stocks/sectors`);
@@ -702,6 +681,7 @@ const AdvancedScreener = () => {
   };
 
   // Enhanced action handlers
+  const handleSort = (key) => {
     setSortConfig((prevSort) => ({
       key,
       direction:
@@ -709,6 +689,7 @@ const AdvancedScreener = () => {
     }));
   };
 
+  const handleStockSelect = (symbol, selected) => {
     if (selected) {
       setSelectedStocks((prev) => [...prev, symbol]);
     } else {
@@ -716,6 +697,7 @@ const AdvancedScreener = () => {
     }
   };
 
+  const handleToggleBookmark = async (symbol) => {
     try {
       if (isAuthenticated) {
         // Update bookmark on server
@@ -807,6 +789,7 @@ const AdvancedScreener = () => {
     URL.revokeObjectURL(url);
   };
 
+  const resetCriteria = () => {
     setScreenCriteria({
       quality: [0, 100],
       growth: [0, 100],

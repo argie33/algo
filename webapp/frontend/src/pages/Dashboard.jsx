@@ -56,7 +56,8 @@ import {
   Psychology as PsychologyIcon,
   Public,
   LocalFireDepartment,
-  Bolt
+  Bolt,
+  HorizontalRule
 } from "@mui/icons-material";
 import {
   XAxis,
@@ -65,6 +66,7 @@ import {
   Tooltip as ChartTooltip,
   ResponsiveContainer,
   Bar,
+  BarChart,
   Cell,
   PieChart,
   Pie,
@@ -620,7 +622,7 @@ function SectorPerformanceWidget() {
         </Box>
 
         <ResponsiveContainer width="100%" height={200}>
-          <RechartsBarChart data={sectors}>
+          <BarChart data={sectors}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
@@ -633,7 +635,7 @@ function SectorPerformanceWidget() {
                 />
               ))}
             </Bar>
-          </RechartsBarChart>
+          </BarChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
@@ -708,7 +710,7 @@ function EconomicIndicatorsWidget() {
       return <ArrowUpward sx={{ color: "success.main", fontSize: 16 }} />;
     if (trend === "down")
       return <ArrowDownward sx={{ color: "error.main", fontSize: 16 }} />;
-    return <NeutralIcon sx={{ color: "text.secondary", fontSize: 16 }} />;
+    return <HorizontalRule sx={{ color: "text.secondary", fontSize: 16 }} />;
   };
 
   return (

@@ -30,6 +30,9 @@ export const formatPercentage = (value, decimals = 2) => {
   return numeral(num / 100).format(`0.${"0".repeat(decimals)}%`);
 };
 
+// Alias for formatPercentage
+export const formatPercent = formatPercentage;
+
 // Format large numbers with abbreviations
 export const formatNumber = (value, decimals = 2) => {
   if (value === null || value === undefined) return "N/A";

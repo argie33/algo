@@ -553,7 +553,7 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
           </Typography>
           <Typography variant="body2">
             Start by exploring the Dashboard and Stock Analysis pages. Use the
-            search function to analyze your current holdings or stocks you're
+            search function to analyze your current holdings or stocks you&apos;re
             interested in.
           </Typography>
         </CardContent>
@@ -570,14 +570,14 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
       </Typography>
 
       <Typography variant="body1" paragraph>
-        You're all set up and ready to start your journey to smarter investing.
+        You&apos;re all set up and ready to start your journey to smarter investing.
         Your personalized dashboard is waiting for you.
       </Typography>
 
       <Card sx={{ mt: 3, backgroundColor: "background.default" }}>
         <CardContent>
           <Typography variant="subtitle1" gutterBottom>
-            What's Next?
+            What&apos;s Next?
           </Typography>
           <List dense>
             <ListItem>

@@ -70,6 +70,8 @@ import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
 import SentimentAnalysis from "./pages/SentimentAnalysis";
+import NewsAnalysis from "./pages/NewsAnalysis";
+import PatternRecognition from "./pages/PatternRecognition";
 import AdvancedScreener from "./pages/AdvancedScreener";
 import EconomicModeling from "./pages/EconomicModeling";
 import Settings from "./pages/Settings";
@@ -685,24 +687,8 @@ function App() {
             {/* Missing pages - Coming Soon */}
             <Route path="/sectors" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
-            <Route
-              path="/sentiment/social"
-              element={
-                <ComingSoon
-                  pageName="Social Media Sentiment"
-                  description="Real-time social media sentiment analysis for stocks."
-                />
-              }
-            />
-            <Route
-              path="/sentiment/news"
-              element={
-                <ComingSoon
-                  pageName="News Sentiment"
-                  description="AI-powered news sentiment analysis and impact predictions."
-                />
-              }
-            />
+            <Route path="/sentiment/social" element={<SentimentAnalysis />} />
+            <Route path="/sentiment/news" element={<NewsAnalysis />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route
               path="/research/commentary"
@@ -731,15 +717,7 @@ function App() {
                 />
               }
             />
-            <Route
-              path="/tools/patterns"
-              element={
-                <ComingSoon
-                  pageName="Pattern Recognition"
-                  description="Advanced pattern recognition and technical analysis tools."
-                />
-              }
-            />
+            <Route path="/tools/patterns" element={<PatternRecognition />} />
             <Route
               path="/tools/ai"
               element={

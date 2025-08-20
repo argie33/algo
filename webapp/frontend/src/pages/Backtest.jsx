@@ -736,6 +736,7 @@ export default function Backtest() {
   };
 
   // --- BATCH RUN LOGIC ---
+  const handleRunBatch = async (paramGrid) => {
     setBatchQueue(
       paramGrid.map((p) => ({
         params: p,
@@ -792,6 +793,7 @@ export default function Backtest() {
   };
 
   // --- STRATEGY VERSIONING LOGIC ---
+  const saveStrategyVersion = (id, code) => {
     setStrategyHistory((h) => ({
       ...h,
       [id]: [...(h[id] || []), { code, date: new Date().toISOString() }],

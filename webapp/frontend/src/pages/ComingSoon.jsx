@@ -29,7 +29,7 @@ function ComingSoon({
         </Typography>
 
         <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-          We're working hard to bring you this feature. Please check back later!
+          We&apos;re working hard to bring you this feature. Please check back later!
         </Typography>
 
         <Button variant="contained" onClick={() => navigate("/")} size="large">

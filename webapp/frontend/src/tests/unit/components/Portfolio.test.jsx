@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen, waitFor, mockApiResponses, createMockUser } from '../../test-utils.jsx';
+import { renderWithProviders, screen, waitFor, createMockUser } from '../../test-utils.jsx';
 import Portfolio from '../../../pages/Portfolio.jsx';
 
 // Mock the AuthContext
