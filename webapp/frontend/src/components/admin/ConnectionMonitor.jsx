@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -27,8 +27,8 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
-} from '@mui/material';
+  InputLabel,
+} from "@mui/material";
 import {
   Close as CloseIcon,
   Refresh as RefreshIcon,
@@ -40,16 +40,20 @@ import {
   NetworkCheck as NetworkIcon,
   Error as ErrorIcon,
   CheckCircle as CheckIcon,
-  Warning as WarningIcon
-} from '@mui/icons-material';
+  Warning as WarningIcon,
+} from "@mui/icons-material";
 
-const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) => {
+const ConnectionMonitor = ({
+  connectionsData,
+  onConnectionAction,
+  onRefresh,
+}) => {
   const [connections, setConnections] = useState(connectionsData || []);
   const [createDialog, setCreateDialog] = useState(false);
   const [newConnection, setNewConnection] = useState({
-    provider: '',
-    symbols: '',
-    autoReconnect: true
+    provider: "",
+    symbols: "",
+    autoReconnect: true,
   });
 
   useEffect(() => {
@@ -58,84 +62,104 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
 
   const getConnectionStatusColor = (status) => {
     switch (status) {
-      case 'connected': return 'success';
-      case 'connecting': return 'warning';
-      case 'disconnected': return 'error';
-      case 'reconnecting': return 'warning';
-      default: return 'default';
+      case "connected":
+        return "success";
+      case "connecting":
+        return "warning";
+      case "disconnected":
+        return "error";
+      case "reconnecting":
+        return "warning";
+      default:
+        return "default";
     }
   };
 
   const getConnectionStatusIcon = (status) => {
     switch (status) {
-      case 'connected': return <CheckIcon color="success" />;
-      case 'connecting': return <RefreshIcon color="warning" />;
-      case 'disconnected': return <ErrorIcon color="error" />;
-      case 'reconnecting': return <RefreshIcon color="warning" />;
-      default: return <NetworkIcon />;
+      case "connected":
+        return <CheckIcon color="success" />;
+      case "connecting":
+        return <RefreshIcon color="warning" />;
+      case "disconnected":
+        return <ErrorIcon color="error" />;
+      case "reconnecting":
+        return <RefreshIcon color="warning" />;
+      default:
+        return <NetworkIcon />;
     }
   };
 
   const handleCreateConnection = async () => {
     try {
-      const symbols = newConnection.symbols.split(',').map(s => s.trim().toUpperCase());
+      const symbols = newConnection.symbols
+        .split(",")
+        .map((s) => s.trim().toUpperCase());
       const connectionData = {
         provider: newConnection.provider,
         symbols,
-        autoReconnect: newConnection.autoReconnect
+        autoReconnect: newConnection.autoReconnect,
       };
 
       // API call to create connection
-      const response = await fetch('/api/liveDataAdmin/connections', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+      const response = await fetch("/api/liveDataAdmin/connections", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(connectionData)
+        body: JSON.stringify(connectionData),
       });
 
       if (response.ok) {
         const result = await response.json();
-        setConnections(prev => [...prev, {
-          id: result.connectionId,
-          provider: newConnection.provider,
-          symbols,
-          status: 'connecting',
-          created: new Date(),
-          lastActivity: new Date(),
-          metrics: {
-            messagesReceived: 0,
-            bytesReceived: 0,
-            errors: 0,
-            latency: []
-          }
-        }]);
+        setConnections((prev) => [
+          ...prev,
+          {
+            id: result.connectionId,
+            provider: newConnection.provider,
+            symbols,
+            status: "connecting",
+            created: new Date(),
+            lastActivity: new Date(),
+            metrics: {
+              messagesReceived: 0,
+              bytesReceived: 0,
+              errors: 0,
+              latency: [],
+            },
+          },
+        ]);
         setCreateDialog(false);
-        setNewConnection({ provider: '', symbols: '', autoReconnect: true });
-        onConnectionAction?.('create', connectionData);
+        setNewConnection({ provider: "", symbols: "", autoReconnect: true });
+        onConnectionAction?.("create", connectionData);
       }
     } catch (error) {
-      console.error('Failed to create connection:', error);
+      console.error("Failed to create connection:", error);
     }
   };
 
   const handleCloseConnection = async (connectionId) => {
     try {
       // API call to close connection
-      const response = await fetch(`/api/liveDataAdmin/connections/${connectionId}`, {
-        method: 'DELETE',
-        headers: { 
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+      const response = await fetch(
+        `/api/liveDataAdmin/connections/${connectionId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
         }
-      });
+      );
 
       if (response.ok) {
-        setConnections(prev => prev.filter(conn => conn.id !== connectionId));
-        onConnectionAction?.('close', connectionId);
+        setConnections((prev) =>
+          prev.filter((conn) => conn.id !== connectionId)
+        );
+        onConnectionAction?.("close", connectionId);
       }
     } catch (error) {
-      console.error('Failed to close connection:', error);
+      console.error("Failed to close connection:", error);
     }
   };
 
@@ -152,11 +176,11 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
   };
 
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   return (
@@ -164,7 +188,12 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
       {/* Connection Overview */}
       <Card elevation={2} sx={{ mb: 3 }}>
         <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={2}
+          >
             <Typography variant="h6" fontWeight="bold">
               Live Connection Monitor
             </Typography>
@@ -192,7 +221,7 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
             <Grid item xs={12} sm={3}>
               <Box textAlign="center">
                 <Typography variant="h4" color="primary">
-                  {connections.filter(c => c.status === 'connected').length}
+                  {connections.filter((c) => c.status === "connected").length}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   Active Connections
@@ -202,7 +231,10 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
             <Grid item xs={12} sm={3}>
               <Box textAlign="center">
                 <Typography variant="h4" color="info.main">
-                  {connections.reduce((sum, c) => sum + (c.symbols?.length || 0), 0)}
+                  {connections.reduce(
+                    (sum, c) => sum + (c.symbols?.length || 0),
+                    0
+                  )}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   Total Symbols
@@ -212,7 +244,12 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
             <Grid item xs={12} sm={3}>
               <Box textAlign="center">
                 <Typography variant="h4" color="success.main">
-                  {connections.reduce((sum, c) => sum + (c.metrics?.messagesReceived || 0), 0).toLocaleString()}
+                  {connections
+                    .reduce(
+                      (sum, c) => sum + (c.metrics?.messagesReceived || 0),
+                      0
+                    )
+                    .toLocaleString()}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   Messages Received
@@ -222,7 +259,12 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
             <Grid item xs={12} sm={3}>
               <Box textAlign="center">
                 <Typography variant="h4" color="warning.main">
-                  {formatBytes(connections.reduce((sum, c) => sum + (c.metrics?.bytesReceived || 0), 0))}
+                  {formatBytes(
+                    connections.reduce(
+                      (sum, c) => sum + (c.metrics?.bytesReceived || 0),
+                      0
+                    )
+                  )}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   Data Transferred
@@ -242,7 +284,8 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
 
           {connections.length === 0 ? (
             <Alert severity="info">
-              No active connections. Create a new connection to start monitoring live data feeds.
+              No active connections. Create a new connection to start monitoring
+              live data feeds.
             </Alert>
           ) : (
             <TableContainer>
@@ -267,10 +310,11 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                       <TableCell>
                         <Box>
                           <Typography variant="body2" fontWeight="medium">
-                            {connection.id.split('-')[0]}...
+                            {connection.id.split("-")[0]}...
                           </Typography>
                           <Typography variant="caption" color="textSecondary">
-                            Created: {new Date(connection.created).toLocaleTimeString()}
+                            Created:{" "}
+                            {new Date(connection.created).toLocaleTimeString()}
                           </Typography>
                         </Box>
                       </TableCell>
@@ -290,12 +334,16 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                         </Box>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title={connection.symbols?.join(', ') || 'No symbols'}>
+                        <Tooltip
+                          title={connection.symbols?.join(", ") || "No symbols"}
+                        >
                           <span>{connection.symbols?.length || 0}</span>
                         </Tooltip>
                       </TableCell>
                       <TableCell align="right">
-                        {(connection.metrics?.messagesReceived || 0).toLocaleString()}
+                        {(
+                          connection.metrics?.messagesReceived || 0
+                        ).toLocaleString()}
                       </TableCell>
                       <TableCell align="right">
                         {formatBytes(connection.metrics?.bytesReceived || 0)}
@@ -303,7 +351,11 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                       <TableCell align="right">
                         <Typography
                           variant="body2"
-                          color={(connection.metrics?.errors || 0) > 0 ? 'error' : 'textPrimary'}
+                          color={
+                            (connection.metrics?.errors || 0) > 0
+                              ? "error"
+                              : "textPrimary"
+                          }
                         >
                           {connection.metrics?.errors || 0}
                         </Typography>
@@ -312,10 +364,9 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                         {formatDuration(connection.created)}
                       </TableCell>
                       <TableCell align="right">
-                        {connection.metrics?.latency?.length > 0 ? 
-                          `${(connection.metrics.latency.reduce((a, b) => a + b, 0) / connection.metrics.latency.length).toFixed(0)}ms` : 
-                          'N/A'
-                        }
+                        {connection.metrics?.latency?.length > 0
+                          ? `${(connection.metrics.latency.reduce((a, b) => a + b, 0) / connection.metrics.latency.length).toFixed(0)}ms`
+                          : "N/A"}
                       </TableCell>
                       <TableCell align="center">
                         <Tooltip title="Close Connection">
@@ -354,7 +405,12 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                   <Select
                     value={newConnection.provider}
                     label="Data Provider"
-                    onChange={(e) => setNewConnection(prev => ({ ...prev, provider: e.target.value }))}
+                    onChange={(e) =>
+                      setNewConnection((prev) => ({
+                        ...prev,
+                        provider: e.target.value,
+                      }))
+                    }
                   >
                     <MenuItem value="alpaca">Alpaca Markets</MenuItem>
                     <MenuItem value="polygon">Polygon.io</MenuItem>
@@ -368,7 +424,12 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                   label="Symbols (comma-separated)"
                   placeholder="AAPL, MSFT, GOOGL, TSLA"
                   value={newConnection.symbols}
-                  onChange={(e) => setNewConnection(prev => ({ ...prev, symbols: e.target.value }))}
+                  onChange={(e) =>
+                    setNewConnection((prev) => ({
+                      ...prev,
+                      symbols: e.target.value,
+                    }))
+                  }
                   helperText="Enter stock symbols separated by commas"
                 />
               </Grid>
@@ -377,7 +438,12 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
                   control={
                     <Switch
                       checked={newConnection.autoReconnect}
-                      onChange={(e) => setNewConnection(prev => ({ ...prev, autoReconnect: e.target.checked }))}
+                      onChange={(e) =>
+                        setNewConnection((prev) => ({
+                          ...prev,
+                          autoReconnect: e.target.checked,
+                        }))
+                      }
                     />
                   }
                   label="Auto-reconnect on disconnect"
@@ -385,7 +451,8 @@ const ConnectionMonitor = ({ connectionsData, onConnectionAction, onRefresh }) =
               </Grid>
               <Grid item xs={12}>
                 <Alert severity="info">
-                  This will create a new WebSocket connection to stream real-time data for the specified symbols.
+                  This will create a new WebSocket connection to stream
+                  real-time data for the specified symbols.
                 </Alert>
               </Grid>
             </Grid>

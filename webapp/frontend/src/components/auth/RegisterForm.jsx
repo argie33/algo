@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Card,
@@ -12,55 +12,59 @@ import {
   InputAdornment,
   IconButton,
   Divider,
-  Grid
-} from '@mui/material';
-import { Visibility, VisibilityOff, PersonAdd as RegisterIcon } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+  Grid,
+} from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  PersonAdd as RegisterIcon,
+} from "@mui/icons-material";
+import { useAuth } from "../../contexts/AuthContext";
 
 function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    firstName: '',
-    lastName: ''
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    firstName: "",
+    lastName: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [localError, setLocalError] = useState('');
+  const [localError, setLocalError] = useState("");
 
   const { register, isLoading, error, clearError } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     // Clear errors when user starts typing
     if (error) clearError();
-    if (localError) setLocalError('');
+    if (localError) setLocalError("");
   };
 
   const validateForm = () => {
     if (!formData.username || !formData.email || !formData.password) {
-      setLocalError('Please fill in all required fields');
+      setLocalError("Please fill in all required fields");
       return false;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setLocalError('Passwords do not match');
+      setLocalError("Passwords do not match");
       return false;
     }
 
     if (formData.password.length < 8) {
-      setLocalError('Password must be at least 8 characters long');
+      setLocalError("Password must be at least 8 characters long");
       return false;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      setLocalError('Please enter a valid email address');
+      setLocalError("Please enter a valid email address");
       return false;
     }
 
@@ -69,7 +73,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
+    setLocalError("");
 
     if (!validateForm()) {
       return;
@@ -82,7 +86,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       formData.firstName,
       formData.lastName
     );
-    
+
     if (result.success) {
       onRegistrationSuccess?.(formData.username, result.nextStep);
     } else if (result.error) {
@@ -93,16 +97,21 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
+    <Card sx={{ maxWidth: 500, mx: "auto", mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <RegisterIcon sx={{ mr: 1, color: 'primary.main' }} />
+          <RegisterIcon sx={{ mr: 1, color: "primary.main" }} />
           <Typography variant="h4" component="h1" color="primary">
             Sign Up
           </Typography>
         </Box>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <Typography
+          variant="body1"
+          color="text.secondary"
+          align="center"
+          mb={3}
+        >
           Create your Financial Dashboard account
         </Typography>
 
@@ -174,7 +183,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             id="password"
             name="password"
             label="Password"
-            type={showPassword ? 'text' : 'password'}
+            type={showPassword ? "text" : "password"}
             value={formData.password}
             onChange={handleChange}
             margin="normal"
@@ -194,7 +203,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              )
+              ),
             }}
           />
 
@@ -203,7 +212,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             id="confirmPassword"
             name="confirmPassword"
             label="Confirm Password"
-            type={showConfirmPassword ? 'text' : 'password'}
+            type={showConfirmPassword ? "text" : "password"}
             value={formData.confirmPassword}
             onChange={handleChange}
             margin="normal"
@@ -222,7 +231,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              )
+              ),
             }}
           />
 
@@ -232,23 +241,25 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <RegisterIcon />}
+            startIcon={
+              isLoading ? <CircularProgress size={20} /> : <RegisterIcon />
+            }
           >
-            {isLoading ? 'Creating Account...' : 'Create Account'}
+            {isLoading ? "Creating Account..." : "Create Account"}
           </Button>
 
           <Divider sx={{ my: 2 }} />
 
           <Box textAlign="center">
             <Typography variant="body2" color="text.secondary">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <Link
                 component="button"
                 type="button"
                 variant="body2"
                 onClick={onSwitchToLogin}
                 disabled={isLoading}
-                sx={{ fontWeight: 'medium' }}
+                sx={{ fontWeight: "medium" }}
               >
                 Sign in here
               </Link>

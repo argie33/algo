@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Grid,
@@ -23,8 +23,8 @@ import {
   Alert,
   MenuItem,
   LinearProgress,
-  Tooltip
-} from '@mui/material';
+  Tooltip,
+} from "@mui/material";
 import {
   Add,
   Edit,
@@ -34,21 +34,21 @@ import {
   AccountBalanceWallet,
   Assessment,
   PieChart,
-  Refresh
-} from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Pie } from 'react-chartjs-2';
+  Refresh,
+} from "@mui/icons-material";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   ArcElement,
   Tooltip as ChartTooltip,
-  Legend
-} from 'chart.js';
+  Legend,
+} from "chart.js";
 
-import { LoadingDisplay } from '../components/LoadingDisplay';
-import ErrorBoundary from '../components/ErrorBoundary';
-import apiService from '../utils/apiService.jsx';
-import { useAuth } from '../contexts/AuthContext';
+import { LoadingDisplay } from "../components/LoadingDisplay";
+import ErrorBoundary from "../components/ErrorBoundary";
+import apiService from "../utils/apiService.jsx";
+import { useAuth } from "../contexts/AuthContext";
 
 // Register Chart.js components
 ChartJS.register(ArcElement, ChartTooltip, Legend);
@@ -58,57 +58,62 @@ function CryptoPortfolio() {
   const [editingPosition, setEditingPosition] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [newPosition, setNewPosition] = useState({
-    symbol: '',
-    quantity: '',
-    purchase_price: '',
-    purchase_date: new Date().toISOString().split('T')[0]
+    symbol: "",
+    quantity: "",
+    purchase_price: "",
+    purchase_date: new Date().toISOString().split("T")[0],
   });
 
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
-  console.log('💼 [CRYPTO-PORTFOLIO] Rendering crypto portfolio page');
+  console.log("💼 [CRYPTO-PORTFOLIO] Rendering crypto portfolio page");
 
   // Fetch portfolio data
-  const { 
-    data: portfolioData, 
-    isLoading: portfolioLoading, 
+  const {
+    data: portfolioData,
+    isLoading: portfolioLoading,
     error: portfolioError,
-    refetch: refetchPortfolio 
+    refetch: refetchPortfolio,
   } = useQuery({
-    queryKey: ['cryptoPortfolio', refreshKey],
-    queryFn: () => apiService.get('/crypto/portfolio'),
+    queryKey: ["cryptoPortfolio", refreshKey],
+    queryFn: () => apiService.get("/crypto/portfolio"),
     refetchInterval: 60000, // Refresh every minute
     staleTime: 50000,
     cacheTime: 120000,
-    enabled: isAuthenticated
+    enabled: isAuthenticated,
   });
 
   // Add position mutation
   const addPositionMutation = useMutation({
-    mutationFn: (positionData) => apiService.post('/crypto/portfolio/add', positionData),
+    mutationFn: (positionData) =>
+      apiService.post("/crypto/portfolio/add", positionData),
     onSuccess: () => {
-      queryClient.invalidateQueries(['cryptoPortfolio']);
+      queryClient.invalidateQueries(["cryptoPortfolio"]);
       setAddPositionOpen(false);
       resetNewPosition();
-      console.log('✅ [CRYPTO-PORTFOLIO] Position added successfully');
+      console.log("✅ [CRYPTO-PORTFOLIO] Position added successfully");
     },
     onError: (error) => {
-      console.error('❌ [CRYPTO-PORTFOLIO] Failed to add position:', error);
-    }
+      console.error("❌ [CRYPTO-PORTFOLIO] Failed to add position:", error);
+    },
   });
 
   const resetNewPosition = () => {
     setNewPosition({
-      symbol: '',
-      quantity: '',
-      purchase_price: '',
-      purchase_date: new Date().toISOString().split('T')[0]
+      symbol: "",
+      quantity: "",
+      purchase_price: "",
+      purchase_date: new Date().toISOString().split("T")[0],
     });
   };
 
   const handleAddPosition = () => {
-    if (!newPosition.symbol || !newPosition.quantity || !newPosition.purchase_price) {
+    if (
+      !newPosition.symbol ||
+      !newPosition.quantity ||
+      !newPosition.purchase_price
+    ) {
       return;
     }
 
@@ -116,22 +121,22 @@ function CryptoPortfolio() {
       symbol: newPosition.symbol.toUpperCase(),
       quantity: parseFloat(newPosition.quantity),
       purchase_price: parseFloat(newPosition.purchase_price),
-      purchase_date: newPosition.purchase_date
+      purchase_date: newPosition.purchase_date,
     };
 
-    console.log('➕ [CRYPTO-PORTFOLIO] Adding new position:', positionData);
+    console.log("➕ [CRYPTO-PORTFOLIO] Adding new position:", positionData);
     addPositionMutation.mutate(positionData);
   };
 
   const handleRefresh = () => {
-    console.log('🔄 [CRYPTO-PORTFOLIO] Manual refresh triggered');
-    setRefreshKey(prev => prev + 1);
+    console.log("🔄 [CRYPTO-PORTFOLIO] Manual refresh triggered");
+    setRefreshKey((prev) => prev + 1);
     refetchPortfolio();
   };
 
   const formatCurrency = (value, decimals = 2) => {
-    if (!value && value !== 0) return 'N/A';
-    
+    if (!value && value !== 0) return "N/A";
+
     if (Math.abs(value) >= 1000000000) {
       return `$${(value / 1000000000).toFixed(1)}B`;
     } else if (Math.abs(value) >= 1000000) {
@@ -144,26 +149,38 @@ function CryptoPortfolio() {
   };
 
   const formatPercentage = (value, showSign = true) => {
-    if (!value && value !== 0) return 'N/A';
+    if (!value && value !== 0) return "N/A";
     const formatted = `${Math.abs(value).toFixed(2)}%`;
     if (!showSign) return formatted;
     return value >= 0 ? `+${formatted}` : `-${formatted}`;
   };
 
   const getPercentageColor = (value) => {
-    if (!value && value !== 0) return 'text.secondary';
-    return value >= 0 ? 'success.main' : 'error.main';
+    if (!value && value !== 0) return "text.secondary";
+    return value >= 0 ? "success.main" : "error.main";
   };
 
   const getPercentageIcon = (value) => {
     if (!value && value !== 0) return null;
-    return value >= 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />;
+    return value >= 0 ? (
+      <TrendingUp fontSize="small" />
+    ) : (
+      <TrendingDown fontSize="small" />
+    );
   };
 
   const generateChartColors = (count) => {
     const colors = [
-      '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-      '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+      "#FF6384",
+      "#36A2EB",
+      "#FFCE56",
+      "#4BC0C0",
+      "#9966FF",
+      "#FF9F40",
+      "#FF6384",
+      "#C9CBCF",
+      "#4BC0C0",
+      "#FF6384",
     ];
     return colors.slice(0, count);
   };
@@ -178,7 +195,9 @@ function CryptoPortfolio() {
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Total Value</Typography>
+              <Typography variant="h6" gutterBottom>
+                Total Value
+              </Typography>
               <Typography variant="h4" color="primary">
                 {formatCurrency(summary.total_value)}
               </Typography>
@@ -192,7 +211,9 @@ function CryptoPortfolio() {
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Total Cost</Typography>
+              <Typography variant="h6" gutterBottom>
+                Total Cost
+              </Typography>
               <Typography variant="h4">
                 {formatCurrency(summary.total_cost)}
               </Typography>
@@ -206,19 +227,21 @@ function CryptoPortfolio() {
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>P&L</Typography>
+              <Typography variant="h6" gutterBottom>
+                P&L
+              </Typography>
               <Box display="flex" alignItems="center">
                 {getPercentageIcon(summary.total_pnl)}
-                <Typography 
-                  variant="h4" 
+                <Typography
+                  variant="h4"
                   color={getPercentageColor(summary.total_pnl)}
                   sx={{ ml: 0.5 }}
                 >
                   {formatCurrency(summary.total_pnl)}
                 </Typography>
               </Box>
-              <Typography 
-                variant="body2" 
+              <Typography
+                variant="body2"
                 color={getPercentageColor(summary.total_pnl_percentage)}
               >
                 {formatPercentage(summary.total_pnl_percentage)}
@@ -230,7 +253,9 @@ function CryptoPortfolio() {
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Positions</Typography>
+              <Typography variant="h6" gutterBottom>
+                Positions
+              </Typography>
               <Typography variant="h4" color="primary">
                 {summary.positions_count}
               </Typography>
@@ -245,17 +270,23 @@ function CryptoPortfolio() {
   };
 
   const renderAllocationChart = () => {
-    if (!portfolioData?.data?.positions || portfolioData.data.positions.length === 0) return null;
+    if (
+      !portfolioData?.data?.positions ||
+      portfolioData.data.positions.length === 0
+    )
+      return null;
 
     const positions = portfolioData.data.positions;
     const chartData = {
-      labels: positions.map(pos => pos.symbol),
-      datasets: [{
-        data: positions.map(pos => pos.allocation_percentage),
-        backgroundColor: generateChartColors(positions.length),
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
+      labels: positions.map((pos) => pos.symbol),
+      datasets: [
+        {
+          data: positions.map((pos) => pos.allocation_percentage),
+          backgroundColor: generateChartColors(positions.length),
+          borderWidth: 2,
+          borderColor: "#fff",
+        },
+      ],
     };
 
     const chartOptions = {
@@ -263,21 +294,21 @@ function CryptoPortfolio() {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          position: 'right',
+          position: "right",
           labels: {
             usePointStyle: true,
-            padding: 20
-          }
+            padding: 20,
+          },
         },
         tooltip: {
           callbacks: {
             label: (context) => {
               const position = positions[context.dataIndex];
               return `${position.symbol}: ${position.allocation_percentage}% (${formatCurrency(position.current_value)})`;
-            }
-          }
-        }
-      }
+            },
+          },
+        },
+      },
     };
 
     return (
@@ -286,7 +317,7 @@ function CryptoPortfolio() {
           <Typography variant="h6" gutterBottom>
             Portfolio Allocation
           </Typography>
-          <Box sx={{ height: 300, position: 'relative' }}>
+          <Box sx={{ height: 300, position: "relative" }}>
             <Pie data={chartData} options={chartOptions} />
           </Box>
         </CardContent>
@@ -295,12 +326,16 @@ function CryptoPortfolio() {
   };
 
   const renderPositionsTable = () => {
-    if (!portfolioData?.data?.positions || portfolioData.data.positions.length === 0) {
+    if (
+      !portfolioData?.data?.positions ||
+      portfolioData.data.positions.length === 0
+    ) {
       return (
         <Card>
           <CardContent>
             <Alert severity="info">
-              No cryptocurrency positions found. Add your first position to get started!
+              No cryptocurrency positions found. Add your first position to get
+              started!
             </Alert>
           </CardContent>
         </Card>
@@ -334,7 +369,8 @@ function CryptoPortfolio() {
                       {position.symbol}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Purchased: {new Date(position.purchase_date).toLocaleDateString()}
+                      Purchased:{" "}
+                      {new Date(position.purchase_date).toLocaleDateString()}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -359,34 +395,46 @@ function CryptoPortfolio() {
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end">
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="flex-end"
+                  >
                     {getPercentageIcon(position.pnl)}
-                    <Typography 
-                      variant="body2" 
+                    <Typography
+                      variant="body2"
                       color={getPercentageColor(position.pnl)}
-                      sx={{ ml: 0.5, fontWeight: 'medium' }}
+                      sx={{ ml: 0.5, fontWeight: "medium" }}
                     >
                       {formatCurrency(position.pnl)}
                     </Typography>
                   </Box>
                 </TableCell>
                 <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end">
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="flex-end"
+                  >
                     {getPercentageIcon(position.pnl_percentage)}
-                    <Typography 
-                      variant="body2" 
+                    <Typography
+                      variant="body2"
                       color={getPercentageColor(position.pnl_percentage)}
-                      sx={{ ml: 0.5, fontWeight: 'medium' }}
+                      sx={{ ml: 0.5, fontWeight: "medium" }}
                     >
                       {formatPercentage(position.pnl_percentage)}
                     </Typography>
                   </Box>
                 </TableCell>
                 <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end">
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={position.allocation_percentage} 
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="flex-end"
+                  >
+                    <LinearProgress
+                      variant="determinate"
+                      value={position.allocation_percentage}
                       sx={{ width: 60, mr: 1 }}
                     />
                     <Typography variant="body2">
@@ -396,7 +444,10 @@ function CryptoPortfolio() {
                 </TableCell>
                 <TableCell align="center">
                   <Tooltip title="Edit Position">
-                    <IconButton size="small" onClick={() => setEditingPosition(position)}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setEditingPosition(position)}
+                    >
                       <Edit fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -439,13 +490,20 @@ function CryptoPortfolio() {
   }
 
   return (
-    <ErrorBoundary fallback={<Alert severity="error">Failed to load crypto portfolio</Alert>}>
-      <Box sx={{ width: '100%', p: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+    <ErrorBoundary
+      fallback={<Alert severity="error">Failed to load crypto portfolio</Alert>}
+    >
+      <Box sx={{ width: "100%", p: 3 }}>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
           <Typography variant="h4" component="h1">
             Crypto Portfolio
           </Typography>
-          
+
           <Box display="flex" gap={2}>
             <Button
               variant="outlined"
@@ -480,8 +538,8 @@ function CryptoPortfolio() {
         </Grid>
 
         {/* Add Position Dialog */}
-        <Dialog 
-          open={addPositionOpen} 
+        <Dialog
+          open={addPositionOpen}
           onClose={() => setAddPositionOpen(false)}
           maxWidth="sm"
           fullWidth
@@ -496,47 +554,78 @@ function CryptoPortfolio() {
                     fullWidth
                     label="Cryptocurrency"
                     value={newPosition.symbol}
-                    onChange={(e) => setNewPosition(prev => ({ ...prev, symbol: e.target.value }))}
+                    onChange={(e) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        symbol: e.target.value,
+                      }))
+                    }
                   >
-                    {['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC', 'DOT', 'LINK', 'UNI', 'AAVE', 'CRV'].map(symbol => (
+                    {[
+                      "BTC",
+                      "ETH",
+                      "SOL",
+                      "AVAX",
+                      "MATIC",
+                      "DOT",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "CRV",
+                    ].map((symbol) => (
                       <MenuItem key={symbol} value={symbol}>
                         {symbol}
                       </MenuItem>
                     ))}
                   </TextField>
                 </Grid>
-                
+
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Quantity"
                     type="number"
                     value={newPosition.quantity}
-                    onChange={(e) => setNewPosition(prev => ({ ...prev, quantity: e.target.value }))}
+                    onChange={(e) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        quantity: e.target.value,
+                      }))
+                    }
                     placeholder="0.00"
                     inputProps={{ step: "0.000001", min: "0" }}
                   />
                 </Grid>
-                
+
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Purchase Price (USD)"
                     type="number"
                     value={newPosition.purchase_price}
-                    onChange={(e) => setNewPosition(prev => ({ ...prev, purchase_price: e.target.value }))}
+                    onChange={(e) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        purchase_price: e.target.value,
+                      }))
+                    }
                     placeholder="0.00"
                     inputProps={{ step: "0.01", min: "0" }}
                   />
                 </Grid>
-                
+
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="Purchase Date"
                     type="date"
                     value={newPosition.purchase_date}
-                    onChange={(e) => setNewPosition(prev => ({ ...prev, purchase_date: e.target.value }))}
+                    onChange={(e) =>
+                      setNewPosition((prev) => ({
+                        ...prev,
+                        purchase_date: e.target.value,
+                      }))
+                    }
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
@@ -544,15 +633,18 @@ function CryptoPortfolio() {
             </Box>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setAddPositionOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
+            <Button onClick={() => setAddPositionOpen(false)}>Cancel</Button>
+            <Button
               onClick={handleAddPosition}
               variant="contained"
-              disabled={addPositionMutation.isLoading || !newPosition.symbol || !newPosition.quantity || !newPosition.purchase_price}
+              disabled={
+                addPositionMutation.isLoading ||
+                !newPosition.symbol ||
+                !newPosition.quantity ||
+                !newPosition.purchase_price
+              }
             >
-              {addPositionMutation.isLoading ? 'Adding...' : 'Add Position'}
+              {addPositionMutation.isLoading ? "Adding..." : "Add Position"}
             </Button>
           </DialogActions>
         </Dialog>

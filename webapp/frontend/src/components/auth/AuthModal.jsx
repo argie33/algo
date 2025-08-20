@@ -1,75 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
   Box,
   IconButton,
   Typography,
-  Alert
-} from '@mui/material';
-import { Close } from '@mui/icons-material';
-import LoginForm from './LoginForm';
-import RegisterForm from './RegisterForm';
-import ConfirmationForm from './ConfirmationForm';
-import ForgotPasswordForm from './ForgotPasswordForm';
-import ResetPasswordForm from './ResetPasswordForm';
+  Alert,
+} from "@mui/material";
+import { Close } from "@mui/icons-material";
+import LoginForm from "./LoginForm";
+import RegisterForm from "./RegisterForm";
+import ConfirmationForm from "./ConfirmationForm";
+import ForgotPasswordForm from "./ForgotPasswordForm";
+import ResetPasswordForm from "./ResetPasswordForm";
 
 const AUTH_MODES = {
-  LOGIN: 'login',
-  REGISTER: 'register',
-  CONFIRM: 'confirm',
-  FORGOT_PASSWORD: 'forgot_password',
-  RESET_PASSWORD: 'reset_password'
+  LOGIN: "login",
+  REGISTER: "register",
+  CONFIRM: "confirm",
+  FORGOT_PASSWORD: "forgot_password",
+  RESET_PASSWORD: "reset_password",
 };
 
 function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
   const [mode, setMode] = useState(initialMode);
-  const [username, setUsername] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [username, setUsername] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleRegistrationSuccess = (registeredUsername, nextStep) => {
     setUsername(registeredUsername);
-    setSuccessMessage('Registration successful! Please check your email for a verification code.');
+    setSuccessMessage(
+      "Registration successful! Please check your email for a verification code."
+    );
     setMode(AUTH_MODES.CONFIRM);
   };
 
   const handleConfirmationSuccess = () => {
-    setSuccessMessage('Account confirmed! You can now sign in.');
+    setSuccessMessage("Account confirmed! You can now sign in.");
     setMode(AUTH_MODES.LOGIN);
   };
 
   const handleForgotPasswordSuccess = (resetUsername) => {
     setUsername(resetUsername);
-    setSuccessMessage('Password reset code sent! Please check your email.');
+    setSuccessMessage("Password reset code sent! Please check your email.");
     setMode(AUTH_MODES.RESET_PASSWORD);
   };
 
   const handlePasswordResetSuccess = () => {
-    setSuccessMessage('Password reset successful! You can now sign in with your new password.');
+    setSuccessMessage(
+      "Password reset successful! You can now sign in with your new password."
+    );
     setMode(AUTH_MODES.LOGIN);
   };
 
   const handleClose = () => {
     setMode(initialMode);
-    setUsername('');
-    setSuccessMessage('');
+    setUsername("");
+    setSuccessMessage("");
     onClose();
   };
 
   const getTitle = () => {
     switch (mode) {
       case AUTH_MODES.LOGIN:
-        return 'Sign In';
+        return "Sign In";
       case AUTH_MODES.REGISTER:
-        return 'Create Account';
+        return "Create Account";
       case AUTH_MODES.CONFIRM:
-        return 'Verify Account';
+        return "Verify Account";
       case AUTH_MODES.FORGOT_PASSWORD:
-        return 'Reset Password';
+        return "Reset Password";
       case AUTH_MODES.RESET_PASSWORD:
-        return 'Set New Password';
+        return "Set New Password";
       default:
-        return 'Authentication';
+        return "Authentication";
     }
   };
 
@@ -80,7 +84,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
       maxWidth="sm"
       fullWidth
       PaperProps={{
-        sx: { borderRadius: 2 }
+        sx: { borderRadius: 2 },
       }}
     >
       <Box
@@ -94,11 +98,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         <Typography variant="h6" component="h2">
           {getTitle()}
         </Typography>
-        <IconButton
-          onClick={handleClose}
-          size="small"
-          aria-label="close"
-        >
+        <IconButton onClick={handleClose} size="small" aria-label="close">
           <Close />
         </IconButton>
       </Box>
@@ -113,11 +113,11 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         {mode === AUTH_MODES.LOGIN && (
           <LoginForm
             onSwitchToRegister={() => {
-              setSuccessMessage('');
+              setSuccessMessage("");
               setMode(AUTH_MODES.REGISTER);
             }}
             onSwitchToForgotPassword={() => {
-              setSuccessMessage('');
+              setSuccessMessage("");
               setMode(AUTH_MODES.FORGOT_PASSWORD);
             }}
           />
@@ -126,7 +126,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         {mode === AUTH_MODES.REGISTER && (
           <RegisterForm
             onSwitchToLogin={() => {
-              setSuccessMessage('');
+              setSuccessMessage("");
               setMode(AUTH_MODES.LOGIN);
             }}
             onRegistrationSuccess={handleRegistrationSuccess}
@@ -138,7 +138,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
             username={username}
             onConfirmationSuccess={handleConfirmationSuccess}
             onSwitchToLogin={() => {
-              setSuccessMessage('');
+              setSuccessMessage("");
               setMode(AUTH_MODES.LOGIN);
             }}
           />
@@ -148,7 +148,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
           <ForgotPasswordForm
             onForgotPasswordSuccess={handleForgotPasswordSuccess}
             onSwitchToLogin={() => {
-              setSuccessMessage('');
+              setSuccessMessage("");
               setMode(AUTH_MODES.LOGIN);
             }}
           />
@@ -159,7 +159,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
             username={username}
             onPasswordResetSuccess={handlePasswordResetSuccess}
             onSwitchToLogin={() => {
-              setSuccessMessage('');
+              setSuccessMessage("");
               setMode(AUTH_MODES.LOGIN);
             }}
           />

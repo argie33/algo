@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Alert,
   AlertTitle,
@@ -9,63 +9,64 @@ import {
   Typography,
   Collapse,
   IconButton,
-  Paper
-} from '@mui/material';
+  Paper,
+} from "@mui/material";
 import {
   Refresh,
   ErrorOutline,
   ExpandMore,
   ExpandLess,
   BugReport,
-  Home
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+  Home,
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 
 // Standardized Error Display Component
-export const ErrorDisplay = ({ 
-  error, 
-  title = "Something went wrong", 
-  onRetry, 
+export const ErrorDisplay = ({
+  error,
+  title = "Something went wrong",
+  onRetry,
   showDetails = true,
   severity = "error",
-  fullPage = false 
+  fullPage = false,
 }) => {
   const [showErrorDetails, setShowErrorDetails] = React.useState(false);
   const navigate = useNavigate();
 
-  const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+  const errorMessage =
+    error?.message || error?.toString() || "Unknown error occurred";
   const errorStack = error?.stack;
   const errorContext = error?.context || {};
 
   const logger = {
     error: (message, error, context) => {
-      console.error(`[ErrorDisplay] ${message}`, { 
-        error: error?.message || error, 
+      console.error(`[ErrorDisplay] ${message}`, {
+        error: error?.message || error,
         stack: error?.stack,
-        context 
+        context,
       });
-    }
+    },
   };
 
   React.useEffect(() => {
-    logger.error('Error displayed to user', error, { 
-      title, 
-      severity, 
+    logger.error("Error displayed to user", error, {
+      title,
+      severity,
       fullPage,
-      errorContext 
+      errorContext,
     });
   }, [error, title, severity, fullPage]);
 
   const ErrorContent = () => (
     <>
-      <Alert 
-        severity={severity} 
+      <Alert
+        severity={severity}
         sx={{ mb: showErrorDetails ? 2 : 0 }}
         action={
           <Box display="flex" gap={1}>
             {showDetails && (
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={() => setShowErrorDetails(!showErrorDetails)}
                 aria-label="Toggle error details"
               >
@@ -87,16 +88,14 @@ export const ErrorDisplay = ({
         }
       >
         <AlertTitle>{title}</AlertTitle>
-        <Typography variant="body2">
-          {errorMessage}
-        </Typography>
-        
+        <Typography variant="body2">{errorMessage}</Typography>
+
         {fullPage && (
-          <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+          <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
             <Button
               size="small"
               startIcon={<Home />}
-              onClick={() => navigate('/')}
+              onClick={() => navigate("/")}
               variant="outlined"
             >
               Go Home
@@ -118,17 +117,23 @@ export const ErrorDisplay = ({
 
       {showDetails && (
         <Collapse in={showErrorDetails}>
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: "grey.50" }}>
             <Typography variant="subtitle2" gutterBottom>
-              <BugReport fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+              <BugReport
+                fontSize="small"
+                sx={{ mr: 1, verticalAlign: "middle" }}
+              />
               Error Details
             </Typography>
-            
+
             <Box sx={{ mb: 2 }}>
               <Typography variant="caption" color="text.secondary">
                 Message:
               </Typography>
-              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+              <Typography
+                variant="body2"
+                sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+              >
                 {errorMessage}
               </Typography>
             </Box>
@@ -138,7 +143,10 @@ export const ErrorDisplay = ({
                 <Typography variant="caption" color="text.secondary">
                   Context:
                 </Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+                >
                   {JSON.stringify(errorContext, null, 2)}
                 </Typography>
               </Box>
@@ -149,14 +157,14 @@ export const ErrorDisplay = ({
                 <Typography variant="caption" color="text.secondary">
                   Stack Trace:
                 </Typography>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    fontFamily: 'monospace', 
-                    fontSize: '0.65rem',
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily: "monospace",
+                    fontSize: "0.65rem",
                     maxHeight: 200,
-                    overflow: 'auto',
-                    whiteSpace: 'pre-wrap'
+                    overflow: "auto",
+                    whiteSpace: "pre-wrap",
                   }}
                 >
                   {errorStack}
@@ -164,7 +172,11 @@ export const ErrorDisplay = ({
               </Box>
             )}
 
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mt: 1, display: "block" }}
+            >
               Timestamp: {new Date().toISOString()}
             </Typography>
           </Paper>
@@ -175,10 +187,10 @@ export const ErrorDisplay = ({
 
   if (fullPage) {
     return (
-      <Box 
-        display="flex" 
-        justifyContent="center" 
-        alignItems="center" 
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
         minHeight="60vh"
         p={3}
       >
@@ -193,15 +205,15 @@ export const ErrorDisplay = ({
 };
 
 // Standardized Loading Component
-export const LoadingDisplay = ({ 
-  message = "Loading...", 
+export const LoadingDisplay = ({
+  message = "Loading...",
   fullPage = false,
-  size = "medium" 
+  size = "medium",
 }) => {
   const sizeMap = {
     small: 40,
     medium: 60,
-    large: 80
+    large: 80,
   };
 
   const LoadingContent = () => (
@@ -210,15 +222,15 @@ export const LoadingDisplay = ({
         sx={{
           width: sizeMap[size],
           height: sizeMap[size],
-          border: '4px solid',
-          borderColor: 'primary.light',
-          borderTopColor: 'primary.main',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-          '@keyframes spin': {
-            '0%': { transform: 'rotate(0deg)' },
-            '100%': { transform: 'rotate(360deg)' }
-          }
+          border: "4px solid",
+          borderColor: "primary.light",
+          borderTopColor: "primary.main",
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite",
+          "@keyframes spin": {
+            "0%": { transform: "rotate(0deg)" },
+            "100%": { transform: "rotate(360deg)" },
+          },
         }}
       />
       <Typography variant="h6" color="text.secondary">
@@ -229,10 +241,10 @@ export const LoadingDisplay = ({
 
   if (fullPage) {
     return (
-      <Box 
-        display="flex" 
-        justifyContent="center" 
-        alignItems="center" 
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
         minHeight="60vh"
       >
         <LoadingContent />
@@ -241,7 +253,7 @@ export const LoadingDisplay = ({
   }
 
   return (
-    <Box sx={{ py: 4, textAlign: 'center' }}>
+    <Box sx={{ py: 4, textAlign: "center" }}>
       <LoadingContent />
     </Box>
   );
@@ -251,17 +263,17 @@ export const LoadingDisplay = ({
 export const useStandardizedError = () => {
   const logger = {
     error: (message, error, context) => {
-      console.error(`[useStandardizedError] ${message}`, { 
-        error: error?.message || error, 
+      console.error(`[useStandardizedError] ${message}`, {
+        error: error?.message || error,
         stack: error?.stack,
-        context 
+        context,
       });
-    }
+    },
   };
 
   const handleApiError = (error, context = {}) => {
-    logger.error('API Error occurred', error, context);
-    
+    logger.error("API Error occurred", error, context);
+
     // Enhance error with context for better debugging
     const enhancedError = {
       ...error,
@@ -269,8 +281,8 @@ export const useStandardizedError = () => {
         ...context,
         timestamp: new Date().toISOString(),
         userAgent: navigator.userAgent,
-        url: window.location.href
-      }
+        url: window.location.href,
+      },
     };
 
     return enhancedError;
@@ -279,14 +291,17 @@ export const useStandardizedError = () => {
   const formatApiError = (error) => {
     if (error?.response?.status) {
       const status = error.response.status;
-      if (status === 401) return "Authentication required. Please log in again.";
-      if (status === 403) return "You don't have permission to access this resource.";
+      if (status === 401)
+        return "Authentication required. Please log in again.";
+      if (status === 403)
+        return "You don't have permission to access this resource.";
       if (status === 404) return "The requested resource was not found.";
       if (status === 500) return "Server error. Please try again later.";
-      if (status >= 500) return "Service temporarily unavailable. Please try again.";
+      if (status >= 500)
+        return "Service temporarily unavailable. Please try again.";
     }
-    
-    if (error?.message?.includes('fetch')) {
+
+    if (error?.message?.includes("fetch")) {
       return "Network error. Please check your connection and try again.";
     }
 
@@ -295,7 +310,7 @@ export const useStandardizedError = () => {
 
   return {
     handleApiError,
-    formatApiError
+    formatApiError,
   };
 };
 

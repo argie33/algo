@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { createComponentLogger } from '../utils/errorLogger';
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { createComponentLogger } from "../utils/errorLogger";
 import {
   Box,
   Container,
@@ -28,8 +28,8 @@ import {
   Avatar,
   LinearProgress,
   TextField,
-  Button
-} from '@mui/material';
+  Button,
+} from "@mui/material";
 import {
   EventNote,
   TrendingUp,
@@ -39,131 +39,164 @@ import {
   Event,
   Schedule,
   AttachMoney,
-  ShowChart
-} from '@mui/icons-material';
-import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+  ShowChart,
+} from "@mui/icons-material";
+import {
+  formatCurrency,
+  formatPercentage,
+  formatNumber,
+} from "../utils/formatters";
 
 // Create component-specific logger
-const logger = createComponentLogger('EarningsCalendar');
+const logger = createComponentLogger("EarningsCalendar");
 
 function EarningsCalendar() {
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [timeFilter, setTimeFilter] = useState('upcoming');
+  const [timeFilter, setTimeFilter] = useState("upcoming");
 
   // EPS Revisions state
-  const [epsSymbol, setEpsSymbol] = useState('AAPL');
-  const [epsInput, setEpsInput] = useState('AAPL');
+  const [epsSymbol, setEpsSymbol] = useState("AAPL");
+  const [epsInput, setEpsInput] = useState("AAPL");
 
-  const API_BASE = import.meta.env.VITE_API_URL || '';
+  const API_BASE = import.meta.env.VITE_API_URL || "";
 
   // Fetch calendar events
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
-    queryKey: ['calendarEvents', timeFilter, page, rowsPerPage],
+  const {
+    data: calendarData,
+    isLoading: calendarLoading,
+    error: calendarError,
+  } = useQuery({
+    queryKey: ["calendarEvents", timeFilter, page, rowsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams({
         type: timeFilter,
         page: page + 1,
-        limit: rowsPerPage
+        limit: rowsPerPage,
       });
       const response = await fetch(`${API_BASE}/calendar/events?${params}`);
       if (!response.ok) {
         const text = await response.text();
-        logger.error('Calendar events fetch failed', { status: response.status, text });
-        throw new Error(`Failed to fetch calendar data: ${response.status} ${text}`);
+        logger.error("Calendar events fetch failed", {
+          status: response.status,
+          text,
+        });
+        throw new Error(
+          `Failed to fetch calendar data: ${response.status} ${text}`
+        );
       }
       return response.json();
     },
     enabled: activeTab === 0,
-    refetchInterval: 300000 // Refresh every 5 minutes
+    refetchInterval: 300000, // Refresh every 5 minutes
   });
 
   // Fetch earnings estimates
   const { data: estimatesData, isLoading: estimatesLoading } = useQuery({
-    queryKey: ['earningsEstimates', page, rowsPerPage],
+    queryKey: ["earningsEstimates", page, rowsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page + 1,
-        limit: rowsPerPage
+        limit: rowsPerPage,
       });
-      const response = await fetch(`${API_BASE}/calendar/earnings-estimates?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch estimates data');
+      const response = await fetch(
+        `${API_BASE}/calendar/earnings-estimates?${params}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch estimates data");
       return response.json();
     },
     enabled: activeTab === 1,
-    refetchInterval: 300000
+    refetchInterval: 300000,
   });
 
   // Fetch earnings history
   const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['earningsHistory', page, rowsPerPage],
+    queryKey: ["earningsHistory", page, rowsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page + 1,
-        limit: rowsPerPage
+        limit: rowsPerPage,
       });
-      const response = await fetch(`${API_BASE}/calendar/earnings-history?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch history data');
+      const response = await fetch(
+        `${API_BASE}/calendar/earnings-history?${params}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch history data");
       return response.json();
     },
     enabled: activeTab === 2,
-    refetchInterval: 600000 // Refresh every 10 minutes
+    refetchInterval: 600000, // Refresh every 10 minutes
   });
 
   // EPS Revisions fetch
-  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useQuery({
-    queryKey: ['epsRevisions', epsSymbol],
+  const {
+    data: epsRevisionsData,
+    isLoading: epsRevisionsLoading,
+    error: epsRevisionsError,
+    refetch: refetchEps,
+  } = useQuery({
+    queryKey: ["epsRevisions", epsSymbol],
     queryFn: async () => {
       const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch EPS revisions');
+      if (!response.ok) throw new Error("Failed to fetch EPS revisions");
       return response.json();
     },
     enabled: activeTab === 3 && !!epsSymbol,
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   // EPS Trend fetch
-  const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useQuery({
-    queryKey: ['epsTrend', epsSymbol],
+  const {
+    data: epsTrendData,
+    isLoading: epsTrendLoading,
+    error: epsTrendError,
+    refetch: refetchEpsTrend,
+  } = useQuery({
+    queryKey: ["epsTrend", epsSymbol],
     queryFn: async () => {
       const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-trend`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch EPS trend');
+      if (!response.ok) throw new Error("Failed to fetch EPS trend");
       return response.json();
     },
     enabled: activeTab === 4 && !!epsSymbol,
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   // Earnings Metrics fetch
-  const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useQuery({
-    queryKey: ['earningsMetrics', epsSymbol, page, rowsPerPage],
+  const {
+    data: earningsMetricsData,
+    isLoading: earningsMetricsLoading,
+    error: earningsMetricsError,
+    refetch: refetchEarningsMetrics,
+  } = useQuery({
+    queryKey: ["earningsMetrics", epsSymbol, page, rowsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page + 1,
-        limit: rowsPerPage
+        limit: rowsPerPage,
       });
       const url = `${API_BASE}/calendar/earnings-metrics?${params}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch earnings metrics');
+      if (!response.ok) throw new Error("Failed to fetch earnings metrics");
       return response.json();
     },
     enabled: activeTab === 5 && !!epsSymbol,
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   const getEventTypeChip = (eventType) => {
     const typeConfig = {
-      'earnings': { color: '#3B82F6', icon: <ShowChart />, label: 'Earnings' },
-      'dividend': { color: '#10B981', icon: <AttachMoney />, label: 'Dividend' },
-      'split': { color: '#8B5CF6', icon: <Analytics />, label: 'Stock Split' },
-      'meeting': { color: '#F59E0B', icon: <EventNote />, label: 'Meeting' }
+      earnings: { color: "#3B82F6", icon: <ShowChart />, label: "Earnings" },
+      dividend: { color: "#10B981", icon: <AttachMoney />, label: "Dividend" },
+      split: { color: "#8B5CF6", icon: <Analytics />, label: "Stock Split" },
+      meeting: { color: "#F59E0B", icon: <EventNote />, label: "Meeting" },
     };
 
-    const config = typeConfig[eventType?.toLowerCase()] || typeConfig['earnings'];
-    
+    const config =
+      typeConfig[eventType?.toLowerCase()] || typeConfig["earnings"];
+
     return (
       <Chip
         label={config.label}
@@ -171,22 +204,22 @@ function EarningsCalendar() {
         icon={config.icon}
         sx={{
           backgroundColor: config.color,
-          color: 'white',
-          fontWeight: 'medium',
-          '& .MuiChip-icon': {
-            color: 'white'
-          }
+          color: "white",
+          fontWeight: "medium",
+          "& .MuiChip-icon": {
+            color: "white",
+          },
         }}
       />
     );
   };
 
   const getSurpriseColor = (surprise) => {
-    if (surprise > 5) return 'success.main';
-    if (surprise > 0) return 'success.light';
-    if (surprise < -5) return 'error.main';
-    if (surprise < 0) return 'error.light';
-    return 'grey.500';
+    if (surprise > 5) return "success.main";
+    if (surprise > 0) return "success.light";
+    if (surprise < -5) return "error.main";
+    if (surprise < 0) return "error.light";
+    return "grey.500";
   };
 
   const getSurpriseIcon = (surprise) => {
@@ -199,7 +232,7 @@ function EarningsCalendar() {
     <TableContainer component={Paper} elevation={0}>
       <Table>
         <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+          <TableRow sx={{ backgroundColor: "grey.50" }}>
             <TableCell>Symbol</TableCell>
             <TableCell>Event Type</TableCell>
             <TableCell>Date</TableCell>
@@ -215,9 +248,7 @@ function EarningsCalendar() {
                   {event.symbol}
                 </Typography>
               </TableCell>
-              <TableCell>
-                {getEventTypeChip(event.event_type)}
-              </TableCell>
+              <TableCell>{getEventTypeChip(event.event_type)}</TableCell>
               <TableCell>
                 <Typography variant="body2">
                   {new Date(event.start_date).toLocaleDateString()}
@@ -230,7 +261,11 @@ function EarningsCalendar() {
               </TableCell>
               <TableCell>
                 <Typography variant="body2" color="text.secondary">
-                  {Math.ceil((new Date(event.start_date) - new Date()) / (1000 * 60 * 60 * 24))} days
+                  {Math.ceil(
+                    (new Date(event.start_date) - new Date()) /
+                      (1000 * 60 * 60 * 24)
+                  )}{" "}
+                  days
                 </Typography>
               </TableCell>
             </TableRow>
@@ -244,7 +279,7 @@ function EarningsCalendar() {
     <TableContainer component={Paper} elevation={0}>
       <Table>
         <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+          <TableRow sx={{ backgroundColor: "grey.50" }}>
             <TableCell>Symbol</TableCell>
             <TableCell>Company</TableCell>
             <TableCell>Period</TableCell>
@@ -256,41 +291,67 @@ function EarningsCalendar() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {Object.entries(estimatesData?.data || {}).map(([symbol, group]) => (
+          {Object.entries(estimatesData?.data || {}).map(([symbol, group]) =>
             group.estimates.map((estimate, index) => (
               <TableRow key={`${symbol}-${estimate.period}-${index}`} hover>
                 <TableCell>
-                  <Typography variant="body2" fontWeight="bold">{symbol}</Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    {symbol}
+                  </Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">{group.company_name}</Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip label={estimate.period} size="small" variant="outlined" />
+                  <Chip
+                    label={estimate.period}
+                    size="small"
+                    variant="outlined"
+                  />
                 </TableCell>
                 <TableCell align="right">
                   <Typography variant="body2" fontWeight="bold">
                     {formatCurrency(estimate.avg_estimate)}
                   </Typography>
                 </TableCell>
-                <TableCell align="right">{formatCurrency(estimate.low_estimate)}</TableCell>
-                <TableCell align="right">{formatCurrency(estimate.high_estimate)}</TableCell>
                 <TableCell align="right">
-                  <Typography variant="body2">{estimate.number_of_analysts}</Typography>
+                  {formatCurrency(estimate.low_estimate)}
                 </TableCell>
                 <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                    <Avatar sx={{ bgcolor: getSurpriseColor(estimate.growth), width: 24, height: 24 }}>
+                  {formatCurrency(estimate.high_estimate)}
+                </TableCell>
+                <TableCell align="right">
+                  <Typography variant="body2">
+                    {estimate.number_of_analysts}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="flex-end"
+                    gap={1}
+                  >
+                    <Avatar
+                      sx={{
+                        bgcolor: getSurpriseColor(estimate.growth),
+                        width: 24,
+                        height: 24,
+                      }}
+                    >
                       {getSurpriseIcon(estimate.growth)}
                     </Avatar>
-                    <Typography variant="body2" sx={{ color: getSurpriseColor(estimate.growth) }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getSurpriseColor(estimate.growth) }}
+                    >
                       {formatPercentage(estimate.growth / 100)}
                     </Typography>
                   </Box>
                 </TableCell>
               </TableRow>
             ))
-          ))}
+          )}
         </TableBody>
       </Table>
     </TableContainer>
@@ -300,7 +361,7 @@ function EarningsCalendar() {
     <TableContainer component={Paper} elevation={0}>
       <Table>
         <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
+          <TableRow sx={{ backgroundColor: "grey.50" }}>
             <TableCell>Symbol</TableCell>
             <TableCell>Company</TableCell>
             <TableCell>Quarter</TableCell>
@@ -311,7 +372,7 @@ function EarningsCalendar() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {Object.entries(historyData?.data || {}).map(([symbol, group]) => (
+          {Object.entries(historyData?.data || {}).map(([symbol, group]) =>
             group.history.map((history, index) => (
               <TableRow key={`${symbol}-${history.quarter}-${index}`} hover>
                 <TableCell>
@@ -336,24 +397,36 @@ function EarningsCalendar() {
                   {formatCurrency(history.eps_estimate)}
                 </TableCell>
                 <TableCell align="right">
-                  <Typography 
+                  <Typography
                     variant="body2"
-                    sx={{ color: history.eps_difference >= 0 ? 'success.main' : 'error.main' }}
+                    sx={{
+                      color:
+                        history.eps_difference >= 0
+                          ? "success.main"
+                          : "error.main",
+                    }}
                   >
                     {formatCurrency(history.eps_difference)}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                    <Avatar sx={{ 
-                      bgcolor: getSurpriseColor(history.surprise_percent), 
-                      width: 24, 
-                      height: 24 
-                    }}>
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="flex-end"
+                    gap={1}
+                  >
+                    <Avatar
+                      sx={{
+                        bgcolor: getSurpriseColor(history.surprise_percent),
+                        width: 24,
+                        height: 24,
+                      }}
+                    >
                       {getSurpriseIcon(history.surprise_percent)}
                     </Avatar>
-                    <Typography 
-                      variant="body2" 
+                    <Typography
+                      variant="body2"
                       sx={{ color: getSurpriseColor(history.surprise_percent) }}
                     >
                       {formatPercentage(history.surprise_percent / 100)}
@@ -362,7 +435,7 @@ function EarningsCalendar() {
                 </TableCell>
               </TableRow>
             ))
-          ))}
+          )}
         </TableBody>
       </Table>
     </TableContainer>
@@ -373,9 +446,11 @@ function EarningsCalendar() {
       <CardContent>
         <Box display="flex" alignItems="center" mb={1}>
           {icon}
-          <Typography variant="h6" ml={1}>{title}</Typography>
+          <Typography variant="h6" ml={1}>
+            {title}
+          </Typography>
         </Box>
-        <Typography variant="h4" sx={{ color, fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ color, fontWeight: "bold" }}>
           {value}
         </Typography>
         <Typography variant="body2" color="text.secondary">
@@ -385,12 +460,23 @@ function EarningsCalendar() {
     </Card>
   );
 
-  const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading) || (activeTab === 3 && epsRevisionsLoading) || (activeTab === 4 && epsTrendLoading) || (activeTab === 5 && earningsMetricsLoading);
+  const isLoading =
+    calendarLoading ||
+    (activeTab === 1 && estimatesLoading) ||
+    (activeTab === 2 && historyLoading) ||
+    (activeTab === 3 && epsRevisionsLoading) ||
+    (activeTab === 4 && epsTrendLoading) ||
+    (activeTab === 5 && earningsMetricsLoading);
 
   if (isLoading && !calendarData && !estimatesData && !historyData) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="400px"
+        >
           <CircularProgress />
         </Box>
       </Container>
@@ -452,7 +538,10 @@ function EarningsCalendar() {
 
       {/* Tabs */}
       <Box mb={3}>
-        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+        <Tabs
+          value={activeTab}
+          onChange={(e, newValue) => setActiveTab(newValue)}
+        >
           <Tab label="Calendar Events" icon={<Schedule />} />
           <Tab label="Earnings Estimates" icon={<ShowChart />} />
           <Tab label="Earnings History" icon={<Analytics />} />
@@ -492,12 +581,12 @@ function EarningsCalendar() {
           {activeTab === 0 && (
             <>
               <Typography variant="h6" gutterBottom>
-                Earnings Calendar - {timeFilter.replace('_', ' ').toUpperCase()}
+                Earnings Calendar - {timeFilter.replace("_", " ").toUpperCase()}
               </Typography>
               <CalendarEventsTable />
             </>
           )}
-          
+
           {activeTab === 1 && (
             <>
               <Typography variant="h6" gutterBottom>
@@ -525,7 +614,7 @@ function EarningsCalendar() {
                 <TextField
                   label="Symbol"
                   value={epsInput}
-                  onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                  onChange={(e) => setEpsInput(e.target.value.toUpperCase())}
                   size="small"
                   sx={{ width: 120 }}
                   inputProps={{ maxLength: 8 }}
@@ -542,9 +631,13 @@ function EarningsCalendar() {
                 </Button>
               </Box>
               {epsRevisionsLoading ? (
-                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+                <Box display="flex" justifyContent="center" my={3}>
+                  <CircularProgress size={28} />
+                </Box>
               ) : epsRevisionsError ? (
-                <Alert severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</Alert>
+                <Alert severity="error">
+                  Failed to load EPS revisions: {epsRevisionsError.message}
+                </Alert>
               ) : epsRevisionsData?.data?.length ? (
                 <TableContainer component={Paper} sx={{ mt: 2 }}>
                   <Table size="small">
@@ -562,11 +655,23 @@ function EarningsCalendar() {
                       {epsRevisionsData.data.map((row, idx) => (
                         <TableRow key={row.period + idx}>
                           <TableCell>{row.period}</TableCell>
-                          <TableCell align="right">{row.up_last7days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.up_last30days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.down_last7days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.down_last30days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
+                          <TableCell align="right">
+                            {row.up_last7days ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.up_last30days ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.down_last7days ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.down_last30days ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.fetched_at
+                              ? new Date(row.fetched_at).toLocaleString()
+                              : "-"}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -588,7 +693,7 @@ function EarningsCalendar() {
                 <TextField
                   label="Symbol"
                   value={epsInput}
-                  onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                  onChange={(e) => setEpsInput(e.target.value.toUpperCase())}
                   size="small"
                   sx={{ width: 120 }}
                   inputProps={{ maxLength: 8 }}
@@ -605,9 +710,13 @@ function EarningsCalendar() {
                 </Button>
               </Box>
               {epsTrendLoading ? (
-                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+                <Box display="flex" justifyContent="center" my={3}>
+                  <CircularProgress size={28} />
+                </Box>
               ) : epsTrendError ? (
-                <Alert severity="error">Failed to load EPS trend: {epsTrendError.message}</Alert>
+                <Alert severity="error">
+                  Failed to load EPS trend: {epsTrendError.message}
+                </Alert>
               ) : epsTrendData?.data?.length ? (
                 <TableContainer component={Paper} sx={{ mt: 2 }}>
                   <Table size="small">
@@ -626,12 +735,26 @@ function EarningsCalendar() {
                       {epsTrendData.data.map((row, idx) => (
                         <TableRow key={row.period + idx}>
                           <TableCell>{row.period}</TableCell>
-                          <TableCell align="right">{row.current ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days7ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days30ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days60ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days90ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
+                          <TableCell align="right">
+                            {row.current ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.days7ago ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.days30ago ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.days60ago ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.days90ago ?? "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {row.fetched_at
+                              ? new Date(row.fetched_at).toLocaleString()
+                              : "-"}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -653,7 +776,7 @@ function EarningsCalendar() {
                 <TextField
                   label="Symbol"
                   value={epsInput}
-                  onChange={e => setEpsInput(e.target.value.toUpperCase())}
+                  onChange={(e) => setEpsInput(e.target.value.toUpperCase())}
                   size="small"
                   sx={{ width: 120 }}
                   inputProps={{ maxLength: 8 }}
@@ -670,9 +793,14 @@ function EarningsCalendar() {
                 </Button>
               </Box>
               {earningsMetricsLoading ? (
-                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+                <Box display="flex" justifyContent="center" my={3}>
+                  <CircularProgress size={28} />
+                </Box>
               ) : earningsMetricsError ? (
-                <Alert severity="error">Failed to load earnings metrics: {earningsMetricsError.message}</Alert>
+                <Alert severity="error">
+                  Failed to load earnings metrics:{" "}
+                  {earningsMetricsError.message}
+                </Alert>
               ) : (
                 <TableContainer component={Paper} sx={{ mt: 2 }}>
                   <Table size="small">
@@ -696,31 +824,69 @@ function EarningsCalendar() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {Array.isArray(earningsMetricsData?.data?.[epsSymbol]?.metrics) && earningsMetricsData.data[epsSymbol].metrics.length > 0 ? (
-                        earningsMetricsData.data[epsSymbol].metrics.map((row, idx) => (
-                          <TableRow key={row.report_date + idx}>
-                            <TableCell>{row.report_date}</TableCell>
-                            <TableCell align="right">{row.eps_growth_1q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_growth_2q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_growth_4q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_growth_8q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_acceleration_qtrs ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_surprise_last_q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimate_revision_1m ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimate_revision_3m ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimate_revision_6m ?? '-'}</TableCell>
-                            <TableCell align="right">{row.annual_eps_growth_1y ?? '-'}</TableCell>
-                            <TableCell align="right">{row.annual_eps_growth_3y ?? '-'}</TableCell>
-                            <TableCell align="right">{row.annual_eps_growth_5y ?? '-'}</TableCell>
-                            <TableCell align="right">{row.consecutive_eps_growth_years ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimated_change_this_year ?? '-'}</TableCell>
-                          </TableRow>
-                        ))
+                      {Array.isArray(
+                        earningsMetricsData?.data?.[epsSymbol]?.metrics
+                      ) &&
+                      earningsMetricsData.data[epsSymbol].metrics.length > 0 ? (
+                        earningsMetricsData.data[epsSymbol].metrics.map(
+                          (row, idx) => (
+                            <TableRow key={row.report_date + idx}>
+                              <TableCell>{row.report_date}</TableCell>
+                              <TableCell align="right">
+                                {row.eps_growth_1q ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_growth_2q ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_growth_4q ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_growth_8q ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_acceleration_qtrs ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_surprise_last_q ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_estimate_revision_1m ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_estimate_revision_3m ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_estimate_revision_6m ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.annual_eps_growth_1y ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.annual_eps_growth_3y ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.annual_eps_growth_5y ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.consecutive_eps_growth_years ?? "-"}
+                              </TableCell>
+                              <TableCell align="right">
+                                {row.eps_estimated_change_this_year ?? "-"}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )
                       ) : (
                         <TableRow>
                           <TableCell colSpan={15} align="center">
-                            <Typography variant="body2" color="text.secondary" mt={2}>
-                              No earnings metrics data found for <b>{epsSymbol}</b>.
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              mt={2}
+                            >
+                              No earnings metrics data found for{" "}
+                              <b>{epsSymbol}</b>.
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -731,16 +897,21 @@ function EarningsCalendar() {
               )}
             </>
           )}
-          
+
           <TablePagination
             component="div"
             count={
-              activeTab === 0 ? (calendarData?.pagination?.total || 0) :
-              activeTab === 1 ? (estimatesData?.pagination?.total || 0) :
-              activeTab === 2 ? (historyData?.pagination?.total || 0) :
-              activeTab === 3 ? (epsRevisionsData?.pagination?.total || 0) :
-              activeTab === 4 ? (epsTrendData?.pagination?.total || 0) :
-              (earningsMetricsData?.pagination?.total || 0)
+              activeTab === 0
+                ? calendarData?.pagination?.total || 0
+                : activeTab === 1
+                  ? estimatesData?.pagination?.total || 0
+                  : activeTab === 2
+                    ? historyData?.pagination?.total || 0
+                    : activeTab === 3
+                      ? epsRevisionsData?.pagination?.total || 0
+                      : activeTab === 4
+                        ? epsTrendData?.pagination?.total || 0
+                        : earningsMetricsData?.pagination?.total || 0
             }
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}

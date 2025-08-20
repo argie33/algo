@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Card,
@@ -7,16 +7,16 @@ import {
   Skeleton,
   Tooltip,
   IconButton,
-  Chip
-} from '@mui/material';
+  Chip,
+} from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
   InfoOutlined,
   Download,
   Fullscreen,
-  Refresh
-} from '@mui/icons-material';
+  Refresh,
+} from "@mui/icons-material";
 import {
   LineChart,
   Line,
@@ -32,35 +32,35 @@ import {
   PieChart,
   Pie,
   Cell,
-  ComposedChart
-} from 'recharts';
-import { format } from 'date-fns';
+  ComposedChart,
+} from "recharts";
+import { format } from "date-fns";
 
 const CHART_COLORS = {
-  primary: '#1976d2',
-  secondary: '#dc004e',
-  success: '#4caf50',
-  warning: '#ff9800',
-  error: '#f44336',
-  info: '#2196f3',
-  neutral: '#9e9e9e'
+  primary: "#1976d2",
+  secondary: "#dc004e",
+  success: "#4caf50",
+  warning: "#ff9800",
+  error: "#f44336",
+  info: "#2196f3",
+  neutral: "#9e9e9e",
 };
 
 const ProfessionalChart = ({
   title,
   subtitle,
   data = [],
-  type = 'line',
+  type = "line",
   height = 300,
   loading = false,
   error = null,
   showLegend = true,
   showGrid = true,
   showTooltip = true,
-  color = 'primary',
-  dataKey = 'value',
-  xAxisDataKey = 'date',
-  yAxisDomain = ['auto', 'auto'],
+  color = "primary",
+  dataKey = "value",
+  xAxisDataKey = "date",
+  yAxisDomain = ["auto", "auto"],
   formatYAxis = (value) => value,
   formatTooltip = (value) => value,
   actions = [],
@@ -73,7 +73,14 @@ const ProfessionalChart = ({
   const renderChart = () => {
     if (loading) {
       return (
-        <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box
+          sx={{
+            height,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <Skeleton variant="rectangular" width="100%" height={height - 60} />
         </Box>
       );
@@ -81,7 +88,14 @@ const ProfessionalChart = ({
 
     if (error) {
       return (
-        <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box
+          sx={{
+            height,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <Typography color="error" variant="body2">
             {error}
           </Typography>
@@ -91,7 +105,14 @@ const ProfessionalChart = ({
 
     if (!data || data.length === 0) {
       return (
-        <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box
+          sx={{
+            height,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <Typography color="text.secondary" variant="body2">
             No data available
           </Typography>
@@ -102,88 +123,98 @@ const ProfessionalChart = ({
     const chartColor = CHART_COLORS[color] || color;
 
     switch (type) {
-      case 'area':
+      case "area":
         return (
           <ResponsiveContainer width="100%" height={height - 60}>
-            <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-              <XAxis 
-                dataKey={xAxisDataKey} 
+            <AreaChart
+              data={data}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              {showGrid && (
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              )}
+              <XAxis
+                dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => {
-                  if (typeof value === 'string' && value.includes('-')) {
-                    return format(new Date(value), 'MMM dd');
+                  if (typeof value === "string" && value.includes("-")) {
+                    return format(new Date(value), "MMM dd");
                   }
                   return value;
                 }}
               />
-              <YAxis 
-                tick={{ fontSize: 12 }} 
+              <YAxis
+                tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip 
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
-                    if (typeof label === 'string' && label.includes('-')) {
-                      return format(new Date(label), 'MMM dd, yyyy');
+                    if (typeof label === "string" && label.includes("-")) {
+                      return format(new Date(label), "MMM dd, yyyy");
                     }
                     return label;
                   }}
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 />
               )}
-              <Area 
-                type="monotone" 
-                dataKey={dataKey} 
-                stroke={chartColor} 
-                fill={chartColor + '20'} 
+              <Area
+                type="monotone"
+                dataKey={dataKey}
+                stroke={chartColor}
+                fill={chartColor + "20"}
                 strokeWidth={2}
               />
             </AreaChart>
           </ResponsiveContainer>
         );
 
-      case 'bar':
+      case "bar":
         return (
           <ResponsiveContainer width="100%" height={height - 60}>
-            <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-              <XAxis 
-                dataKey={xAxisDataKey} 
+            <BarChart
+              data={data}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              {showGrid && (
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              )}
+              <XAxis
+                dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => {
-                  if (typeof value === 'string' && value.includes('-')) {
-                    return format(new Date(value), 'MMM dd');
+                  if (typeof value === "string" && value.includes("-")) {
+                    return format(new Date(value), "MMM dd");
                   }
                   return value;
                 }}
               />
-              <YAxis 
-                tick={{ fontSize: 12 }} 
+              <YAxis
+                tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip 
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
-                    if (typeof label === 'string' && label.includes('-')) {
-                      return format(new Date(label), 'MMM dd, yyyy');
+                    if (typeof label === "string" && label.includes("-")) {
+                      return format(new Date(label), "MMM dd, yyyy");
                     }
                     return label;
                   }}
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 />
               )}
@@ -192,7 +223,7 @@ const ProfessionalChart = ({
           </ResponsiveContainer>
         );
 
-      case 'pie':
+      case "pie":
         return (
           <ResponsiveContainer width="100%" height={height - 60}>
             <PieChart>
@@ -201,23 +232,28 @@ const ProfessionalChart = ({
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey={dataKey}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color || CHART_COLORS.primary} />
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.color || CHART_COLORS.primary}
+                  />
                 ))}
               </Pie>
               {showTooltip && (
-                <RechartsTooltip 
+                <RechartsTooltip
                   formatter={formatTooltip}
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 />
               )}
@@ -225,45 +261,55 @@ const ProfessionalChart = ({
           </ResponsiveContainer>
         );
 
-      case 'composed':
+      case "composed":
         return (
           <ResponsiveContainer width="100%" height={height - 60}>
-            <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-              <XAxis 
-                dataKey={xAxisDataKey} 
+            <ComposedChart
+              data={data}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              {showGrid && (
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              )}
+              <XAxis
+                dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => {
-                  if (typeof value === 'string' && value.includes('-')) {
-                    return format(new Date(value), 'MMM dd');
+                  if (typeof value === "string" && value.includes("-")) {
+                    return format(new Date(value), "MMM dd");
                   }
                   return value;
                 }}
               />
-              <YAxis 
-                tick={{ fontSize: 12 }} 
+              <YAxis
+                tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip 
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
-                    if (typeof label === 'string' && label.includes('-')) {
-                      return format(new Date(label), 'MMM dd, yyyy');
+                    if (typeof label === "string" && label.includes("-")) {
+                      return format(new Date(label), "MMM dd, yyyy");
                     }
                     return label;
                   }}
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 />
               )}
               <Bar dataKey="volume" fill="#8884d8" opacity={0.3} />
-              <Line type="monotone" dataKey={dataKey} stroke={chartColor} strokeWidth={2} />
+              <Line
+                type="monotone"
+                dataKey={dataKey}
+                stroke={chartColor}
+                strokeWidth={2}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         );
@@ -271,47 +317,57 @@ const ProfessionalChart = ({
       default: // line chart
         return (
           <ResponsiveContainer width="100%" height={height - 60}>
-            <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-              <XAxis 
-                dataKey={xAxisDataKey} 
+            <LineChart
+              data={data}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              {showGrid && (
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              )}
+              <XAxis
+                dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => {
-                  if (typeof value === 'string' && value.includes('-')) {
-                    return format(new Date(value), 'MMM dd');
+                  if (typeof value === "string" && value.includes("-")) {
+                    return format(new Date(value), "MMM dd");
                   }
                   return value;
                 }}
               />
-              <YAxis 
-                tick={{ fontSize: 12 }} 
+              <YAxis
+                tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip 
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
-                    if (typeof label === 'string' && label.includes('-')) {
-                      return format(new Date(label), 'MMM dd, yyyy');
+                    if (typeof label === "string" && label.includes("-")) {
+                      return format(new Date(label), "MMM dd, yyyy");
                     }
                     return label;
                   }}
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 />
               )}
-              <Line 
-                type="monotone" 
-                dataKey={dataKey} 
-                stroke={chartColor} 
-                strokeWidth={2} 
+              <Line
+                type="monotone"
+                dataKey={dataKey}
+                stroke={chartColor}
+                strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, stroke: chartColor, strokeWidth: 2, fill: '#fff' }}
+                activeDot={{
+                  r: 4,
+                  stroke: chartColor,
+                  strokeWidth: 2,
+                  fill: "#fff",
+                }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -322,7 +378,14 @@ const ProfessionalChart = ({
   return (
     <Card elevation={2} className={className} {...props}>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
           <Box>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               {title}
@@ -333,7 +396,7 @@ const ProfessionalChart = ({
               </Typography>
             )}
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {onRefresh && (
               <Tooltip title="Refresh">
                 <IconButton size="small" onClick={onRefresh}>
@@ -370,4 +433,4 @@ const ProfessionalChart = ({
   );
 };
 
-export default ProfessionalChart; 
+export default ProfessionalChart;

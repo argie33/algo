@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -33,8 +33,8 @@ import {
   LinearProgress,
   Accordion,
   AccordionSummary,
-  AccordionDetails
-} from '@mui/material';
+  AccordionDetails,
+} from "@mui/material";
 import {
   Warning as WarningIcon,
   Error as ErrorIcon,
@@ -51,24 +51,26 @@ import {
   Link as WebhookIcon,
   ExpandMore as ExpandMoreIcon,
   Close as CloseIcon,
-  Schedule as ScheduleIcon
-} from '@mui/icons-material';
+  Schedule as ScheduleIcon,
+} from "@mui/icons-material";
 
 const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
-  const [alerts, setAlerts] = useState(alertData || { active: [], summary: {}, recent: [] });
+  const [alerts, setAlerts] = useState(
+    alertData || { active: [], summary: {}, recent: [] }
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [testingNotifications, setTestingNotifications] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     thresholds: {
       latency: { warning: 100, critical: 200 },
       errorRate: { warning: 0.02, critical: 0.05 },
-      costDaily: { warning: 40, critical: 50 }
+      costDaily: { warning: 40, critical: 50 },
     },
     notifications: {
       email: { enabled: false, recipients: [] },
-      slack: { enabled: false, webhook: '', channel: '#alerts' },
-      webhook: { enabled: false, url: '' }
-    }
+      slack: { enabled: false, webhook: "", channel: "#alerts" },
+      webhook: { enabled: false, url: "" },
+    },
   });
 
   useEffect(() => {
@@ -77,11 +79,11 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
 
   const getSeverityIcon = (severity) => {
     switch (severity) {
-      case 'critical':
+      case "critical":
         return <ErrorIcon color="error" />;
-      case 'warning':
+      case "warning":
         return <WarningIcon color="warning" />;
-      case 'info':
+      case "info":
         return <InfoIcon color="info" />;
       default:
         return <CheckCircleIcon color="success" />;
@@ -90,10 +92,14 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
 
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'critical': return 'error';
-      case 'warning': return 'warning';
-      case 'info': return 'info';
-      default: return 'default';
+      case "critical":
+        return "error";
+      case "warning":
+        return "warning";
+      case "info":
+        return "info";
+      default:
+        return "default";
     }
   };
 
@@ -107,26 +113,26 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
     if (days > 0) return `${days}d ago`;
     if (hours > 0) return `${hours}h ago`;
     if (minutes > 0) return `${minutes}m ago`;
-    return 'Just now';
+    return "Just now";
   };
 
   const handleTestNotifications = async () => {
     setTestingNotifications(true);
     try {
       // Mock API call to test notifications
-      const response = await fetch('/api/liveDataAdmin/alerts/test', {
-        method: 'POST',
+      const response = await fetch("/api/liveDataAdmin/alerts/test", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
       });
 
       if (response.ok) {
-        console.log('Test notifications sent successfully');
+        console.log("Test notifications sent successfully");
       }
     } catch (error) {
-      console.error('Failed to test notifications:', error);
+      console.error("Failed to test notifications:", error);
     } finally {
       setTestingNotifications(false);
     }
@@ -135,13 +141,13 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
   const handleConfigSave = async () => {
     try {
       // Mock API call to save configuration
-      const response = await fetch('/api/liveDataAdmin/alerts/configure', {
-        method: 'POST',
+      const response = await fetch("/api/liveDataAdmin/alerts/configure", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(alertConfig)
+        body: JSON.stringify(alertConfig),
       });
 
       if (response.ok) {
@@ -149,24 +155,24 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
         setSettingsOpen(false);
       }
     } catch (error) {
-      console.error('Failed to save alert configuration:', error);
+      console.error("Failed to save alert configuration:", error);
     }
   };
 
   const handleForceHealthCheck = async () => {
     try {
-      const response = await fetch('/api/liveDataAdmin/alerts/health-check', {
-        method: 'POST',
+      const response = await fetch("/api/liveDataAdmin/alerts/health-check", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
 
       if (response.ok) {
         onRefresh?.();
       }
     } catch (error) {
-      console.error('Failed to force health check:', error);
+      console.error("Failed to force health check:", error);
     }
   };
 
@@ -175,7 +181,12 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
       {/* Alert Overview */}
       <Card elevation={2} sx={{ mb: 3 }}>
         <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={2}
+          >
             <Typography variant="h6" fontWeight="bold">
               Alert Monitor & Health Status
             </Typography>
@@ -219,9 +230,17 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
           {/* Alert Summary Cards */}
           <Grid container spacing={3}>
             <Grid item xs={12} sm={3}>
-              <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
-                <Badge badgeContent={alerts.summary?.critical || 0} color="error">
-                  <ErrorIcon fontSize="large" sx={{ color: 'white' }} />
+              <Box
+                textAlign="center"
+                p={2}
+                bgcolor="error.light"
+                borderRadius={1}
+              >
+                <Badge
+                  badgeContent={alerts.summary?.critical || 0}
+                  color="error"
+                >
+                  <ErrorIcon fontSize="large" sx={{ color: "white" }} />
                 </Badge>
                 <Typography variant="h6" color="white" mt={1}>
                   Critical Alerts
@@ -229,9 +248,17 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               </Box>
             </Grid>
             <Grid item xs={12} sm={3}>
-              <Box textAlign="center" p={2} bgcolor="warning.light" borderRadius={1}>
-                <Badge badgeContent={alerts.summary?.warning || 0} color="warning">
-                  <WarningIcon fontSize="large" sx={{ color: 'white' }} />
+              <Box
+                textAlign="center"
+                p={2}
+                bgcolor="warning.light"
+                borderRadius={1}
+              >
+                <Badge
+                  badgeContent={alerts.summary?.warning || 0}
+                  color="warning"
+                >
+                  <WarningIcon fontSize="large" sx={{ color: "white" }} />
                 </Badge>
                 <Typography variant="h6" color="white" mt={1}>
                   Warning Alerts
@@ -239,9 +266,14 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               </Box>
             </Grid>
             <Grid item xs={12} sm={3}>
-              <Box textAlign="center" p={2} bgcolor="info.light" borderRadius={1}>
+              <Box
+                textAlign="center"
+                p={2}
+                bgcolor="info.light"
+                borderRadius={1}
+              >
                 <Badge badgeContent={alerts.summary?.info || 0} color="info">
-                  <InfoIcon fontSize="large" sx={{ color: 'white' }} />
+                  <InfoIcon fontSize="large" sx={{ color: "white" }} />
                 </Badge>
                 <Typography variant="h6" color="white" mt={1}>
                   Info Alerts
@@ -249,13 +281,20 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               </Box>
             </Grid>
             <Grid item xs={12} sm={3}>
-              <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
-                <CheckCircleIcon fontSize="large" sx={{ color: 'white' }} />
+              <Box
+                textAlign="center"
+                p={2}
+                bgcolor="success.light"
+                borderRadius={1}
+              >
+                <CheckCircleIcon fontSize="large" sx={{ color: "white" }} />
                 <Typography variant="h6" color="white" mt={1}>
                   System Healthy
                 </Typography>
                 <Typography variant="body2" color="white">
-                  {alerts.summary?.total === 0 ? 'All Good' : `${alerts.summary?.total || 0} Issues`}
+                  {alerts.summary?.total === 0
+                    ? "All Good"
+                    : `${alerts.summary?.total || 0} Issues`}
                 </Typography>
               </Box>
             </Grid>
@@ -271,8 +310,8 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Active Alerts
               </Typography>
-              
-              {(!alerts.active || alerts.active.length === 0) ? (
+
+              {!alerts.active || alerts.active.length === 0 ? (
                 <Alert severity="success">
                   <AlertTitle>All Systems Operational</AlertTitle>
                   No active alerts detected. All systems are running normally.
@@ -282,7 +321,12 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                   {alerts.active.map((alert) => (
                     <Accordion key={alert.id} sx={{ mb: 1 }}>
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Box display="flex" alignItems="center" width="100%" gap={2}>
+                        <Box
+                          display="flex"
+                          alignItems="center"
+                          width="100%"
+                          gap={2}
+                        >
                           {getSeverityIcon(alert.severity)}
                           <Box flexGrow={1}>
                             <Typography variant="subtitle1" fontWeight="medium">
@@ -290,7 +334,8 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                             </Typography>
                             <Typography variant="body2" color="textSecondary">
                               {formatTimeAgo(alert.createdAt)}
-                              {alert.count > 1 && ` • ${alert.count} occurrences`}
+                              {alert.count > 1 &&
+                                ` • ${alert.count} occurrences`}
                             </Typography>
                           </Box>
                           <Chip
@@ -304,27 +349,37 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                         <Typography variant="body2" paragraph>
                           {alert.message}
                         </Typography>
-                        
-                        {alert.metadata && Object.keys(alert.metadata).length > 0 && (
-                          <Box>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Details:
-                            </Typography>
-                            <Box component="pre" sx={{ 
-                              fontSize: '0.75rem', 
-                              bgcolor: 'grey.100', 
-                              p: 1, 
-                              borderRadius: 1,
-                              overflow: 'auto'
-                            }}>
-                              {JSON.stringify(alert.metadata, null, 2)}
-                            </Box>
-                          </Box>
-                        )}
 
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+                        {alert.metadata &&
+                          Object.keys(alert.metadata).length > 0 && (
+                            <Box>
+                              <Typography variant="subtitle2" gutterBottom>
+                                Details:
+                              </Typography>
+                              <Box
+                                component="pre"
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  bgcolor: "grey.100",
+                                  p: 1,
+                                  borderRadius: 1,
+                                  overflow: "auto",
+                                }}
+                              >
+                                {JSON.stringify(alert.metadata, null, 2)}
+                              </Box>
+                            </Box>
+                          )}
+
+                        <Box
+                          display="flex"
+                          justifyContent="space-between"
+                          alignItems="center"
+                          mt={2}
+                        >
                           <Typography variant="caption" color="textSecondary">
-                            Created: {new Date(alert.createdAt).toLocaleString()}
+                            Created:{" "}
+                            {new Date(alert.createdAt).toLocaleString()}
                           </Typography>
                           <Button
                             size="small"
@@ -350,40 +405,97 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Notification Channels
               </Typography>
-              
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                mb={2}
+              >
                 <Box display="flex" alignItems="center" gap={1}>
-                  <EmailIcon color={alertConfig.notifications.email.enabled ? 'primary' : 'disabled'} />
+                  <EmailIcon
+                    color={
+                      alertConfig.notifications.email.enabled
+                        ? "primary"
+                        : "disabled"
+                    }
+                  />
                   <Typography variant="body2">Email</Typography>
                 </Box>
                 <Chip
-                  label={alertConfig.notifications.email.enabled ? 'Enabled' : 'Disabled'}
+                  label={
+                    alertConfig.notifications.email.enabled
+                      ? "Enabled"
+                      : "Disabled"
+                  }
                   size="small"
-                  color={alertConfig.notifications.email.enabled ? 'success' : 'default'}
+                  color={
+                    alertConfig.notifications.email.enabled
+                      ? "success"
+                      : "default"
+                  }
                 />
               </Box>
 
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                mb={2}
+              >
                 <Box display="flex" alignItems="center" gap={1}>
-                  <SlackIcon color={alertConfig.notifications.slack.enabled ? 'primary' : 'disabled'} />
+                  <SlackIcon
+                    color={
+                      alertConfig.notifications.slack.enabled
+                        ? "primary"
+                        : "disabled"
+                    }
+                  />
                   <Typography variant="body2">Slack</Typography>
                 </Box>
                 <Chip
-                  label={alertConfig.notifications.slack.enabled ? 'Enabled' : 'Disabled'}
+                  label={
+                    alertConfig.notifications.slack.enabled
+                      ? "Enabled"
+                      : "Disabled"
+                  }
                   size="small"
-                  color={alertConfig.notifications.slack.enabled ? 'success' : 'default'}
+                  color={
+                    alertConfig.notifications.slack.enabled
+                      ? "success"
+                      : "default"
+                  }
                 />
               </Box>
 
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                mb={2}
+              >
                 <Box display="flex" alignItems="center" gap={1}>
-                  <WebhookIcon color={alertConfig.notifications.webhook.enabled ? 'primary' : 'disabled'} />
+                  <WebhookIcon
+                    color={
+                      alertConfig.notifications.webhook.enabled
+                        ? "primary"
+                        : "disabled"
+                    }
+                  />
                   <Typography variant="body2">Webhook</Typography>
                 </Box>
                 <Chip
-                  label={alertConfig.notifications.webhook.enabled ? 'Enabled' : 'Disabled'}
+                  label={
+                    alertConfig.notifications.webhook.enabled
+                      ? "Enabled"
+                      : "Disabled"
+                  }
                   size="small"
-                  color={alertConfig.notifications.webhook.enabled ? 'success' : 'default'}
+                  color={
+                    alertConfig.notifications.webhook.enabled
+                      ? "success"
+                      : "default"
+                  }
                 />
               </Box>
 
@@ -396,7 +508,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                 onClick={handleTestNotifications}
                 disabled={testingNotifications}
               >
-                {testingNotifications ? 'Testing...' : 'Test All Channels'}
+                {testingNotifications ? "Testing..." : "Test All Channels"}
               </Button>
             </CardContent>
           </Card>
@@ -407,15 +519,21 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Recent Activity
               </Typography>
-              
-              {(!alerts.recent || alerts.recent.length === 0) ? (
+
+              {!alerts.recent || alerts.recent.length === 0 ? (
                 <Typography variant="body2" color="textSecondary">
                   No recent activity
                 </Typography>
               ) : (
                 <Box>
                   {alerts.recent.slice(0, 5).map((alert, index) => (
-                    <Box key={index} display="flex" alignItems="center" gap={2} mb={1}>
+                    <Box
+                      key={index}
+                      display="flex"
+                      alignItems="center"
+                      gap={2}
+                      mb={1}
+                    >
                       {getSeverityIcon(alert.severity)}
                       <Box flexGrow={1}>
                         <Typography variant="body2" fontWeight="medium">
@@ -426,7 +544,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                         </Typography>
                       </Box>
                       <Chip
-                        label={alert.action || 'created'}
+                        label={alert.action || "created"}
                         size="small"
                         variant="outlined"
                       />
@@ -445,7 +563,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Health Monitoring Thresholds
               </Typography>
-              
+
               <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
                   <Typography variant="subtitle2" gutterBottom>
@@ -481,7 +599,11 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                   </Typography>
                   <Box mb={1}>
                     <Typography variant="body2" color="textSecondary">
-                      Warning: {(alertConfig.thresholds.errorRate.warning * 100).toFixed(1)}%
+                      Warning:{" "}
+                      {(alertConfig.thresholds.errorRate.warning * 100).toFixed(
+                        1
+                      )}
+                      %
                     </Typography>
                     <LinearProgress
                       variant="determinate"
@@ -492,7 +614,11 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                   </Box>
                   <Box>
                     <Typography variant="body2" color="textSecondary">
-                      Critical: {(alertConfig.thresholds.errorRate.critical * 100).toFixed(1)}%
+                      Critical:{" "}
+                      {(
+                        alertConfig.thresholds.errorRate.critical * 100
+                      ).toFixed(1)}
+                      %
                     </Typography>
                     <LinearProgress
                       variant="determinate"
@@ -549,7 +675,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
             <Typography variant="h6" gutterBottom>
               Alert Thresholds
             </Typography>
-            
+
             <Grid container spacing={2} mb={3}>
               <Grid item xs={6}>
                 <TextField
@@ -557,13 +683,18 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                   label="Latency Warning (ms)"
                   type="number"
                   value={alertConfig.thresholds.latency.warning}
-                  onChange={(e) => setAlertConfig(prev => ({
-                    ...prev,
-                    thresholds: {
-                      ...prev.thresholds,
-                      latency: { ...prev.thresholds.latency, warning: parseInt(e.target.value) }
-                    }
-                  }))}
+                  onChange={(e) =>
+                    setAlertConfig((prev) => ({
+                      ...prev,
+                      thresholds: {
+                        ...prev.thresholds,
+                        latency: {
+                          ...prev.thresholds.latency,
+                          warning: parseInt(e.target.value),
+                        },
+                      },
+                    }))
+                  }
                 />
               </Grid>
               <Grid item xs={6}>
@@ -572,13 +703,18 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                   label="Latency Critical (ms)"
                   type="number"
                   value={alertConfig.thresholds.latency.critical}
-                  onChange={(e) => setAlertConfig(prev => ({
-                    ...prev,
-                    thresholds: {
-                      ...prev.thresholds,
-                      latency: { ...prev.thresholds.latency, critical: parseInt(e.target.value) }
-                    }
-                  }))}
+                  onChange={(e) =>
+                    setAlertConfig((prev) => ({
+                      ...prev,
+                      thresholds: {
+                        ...prev.thresholds,
+                        latency: {
+                          ...prev.thresholds.latency,
+                          critical: parseInt(e.target.value),
+                        },
+                      },
+                    }))
+                  }
                 />
               </Grid>
             </Grid>
@@ -586,18 +722,23 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
             <Typography variant="h6" gutterBottom>
               Notification Channels
             </Typography>
-            
+
             <FormControlLabel
               control={
                 <Switch
                   checked={alertConfig.notifications.email.enabled}
-                  onChange={(e) => setAlertConfig(prev => ({
-                    ...prev,
-                    notifications: {
-                      ...prev.notifications,
-                      email: { ...prev.notifications.email, enabled: e.target.checked }
-                    }
-                  }))}
+                  onChange={(e) =>
+                    setAlertConfig((prev) => ({
+                      ...prev,
+                      notifications: {
+                        ...prev.notifications,
+                        email: {
+                          ...prev.notifications.email,
+                          enabled: e.target.checked,
+                        },
+                      },
+                    }))
+                  }
                 />
               }
               label="Email Notifications"
@@ -607,13 +748,18 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               control={
                 <Switch
                   checked={alertConfig.notifications.slack.enabled}
-                  onChange={(e) => setAlertConfig(prev => ({
-                    ...prev,
-                    notifications: {
-                      ...prev.notifications,
-                      slack: { ...prev.notifications.slack, enabled: e.target.checked }
-                    }
-                  }))}
+                  onChange={(e) =>
+                    setAlertConfig((prev) => ({
+                      ...prev,
+                      notifications: {
+                        ...prev.notifications,
+                        slack: {
+                          ...prev.notifications.slack,
+                          enabled: e.target.checked,
+                        },
+                      },
+                    }))
+                  }
                 />
               }
               label="Slack Notifications"
@@ -623,13 +769,18 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
               control={
                 <Switch
                   checked={alertConfig.notifications.webhook.enabled}
-                  onChange={(e) => setAlertConfig(prev => ({
-                    ...prev,
-                    notifications: {
-                      ...prev.notifications,
-                      webhook: { ...prev.notifications.webhook, enabled: e.target.checked }
-                    }
-                  }))}
+                  onChange={(e) =>
+                    setAlertConfig((prev) => ({
+                      ...prev,
+                      notifications: {
+                        ...prev.notifications,
+                        webhook: {
+                          ...prev.notifications.webhook,
+                          enabled: e.target.checked,
+                        },
+                      },
+                    }))
+                  }
                 />
               }
               label="Webhook Notifications"

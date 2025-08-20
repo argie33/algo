@@ -1,14 +1,14 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider, createTheme } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
-import App from './App'
-import { AuthProvider } from './contexts/AuthContext'
-import { configureAmplify } from './config/amplify'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter } from "react-router-dom";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import App from "./App";
+import { AuthProvider } from "./contexts/AuthContext";
+import { configureAmplify } from "./config/amplify";
 
-console.log('🚀 main.jsx loaded - starting React app');
+console.log("🚀 main.jsx loaded - starting React app");
 
 // Configure Amplify
 configureAmplify();
@@ -22,41 +22,42 @@ const queryClient = new QueryClient({
       cacheTime: 10 * 60 * 1000, // 10 minutes
     },
   },
-})
+});
 
-console.log('✅ QueryClient created');
+console.log("✅ QueryClient created");
 
 // Create theme
 const theme = createTheme({
   palette: {
-    mode: 'light',
+    mode: "light",
     primary: {
-      main: '#1976d2',
-      light: '#42a5f5',
-      dark: '#1565c0',
+      main: "#1976d2",
+      light: "#42a5f5",
+      dark: "#1565c0",
     },
     secondary: {
-      main: '#dc004e',
-      light: '#ff5983',
-      dark: '#9a0036',
+      main: "#dc004e",
+      light: "#ff5983",
+      dark: "#9a0036",
     },
     background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
+      default: "#f5f5f5",
+      paper: "#ffffff",
     },
     success: {
-      main: '#2e7d32',
-      light: '#4caf50',
-      dark: '#1b5e20',
+      main: "#2e7d32",
+      light: "#4caf50",
+      dark: "#1b5e20",
     },
     error: {
-      main: '#d32f2f',
-      light: '#ef5350',
-      dark: '#c62828',
+      main: "#d32f2f",
+      light: "#ef5350",
+      dark: "#c62828",
     },
   },
   typography: {
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+    fontFamily:
+      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
     h1: {
       fontWeight: 600,
     },
@@ -80,7 +81,7 @@ const theme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none',
+          textTransform: "none",
           fontWeight: 500,
         },
       },
@@ -88,7 +89,7 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           borderRadius: 12,
         },
       },
@@ -101,23 +102,23 @@ const theme = createTheme({
       },
     },
   },
-})
+});
 
-console.log('✅ Theme created');
-console.log('🔍 Looking for root element...');
+console.log("✅ Theme created");
+console.log("🔍 Looking for root element...");
 
-const rootElement = document.getElementById('root');
+const rootElement = document.getElementById("root");
 if (!rootElement) {
-  console.error('❌ Root element not found!');
-  alert('Root element not found!');
+  console.error("❌ Root element not found!");
+  alert("Root element not found!");
 } else {
-  console.log('✅ Root element found:', rootElement);
+  console.log("✅ Root element found:", rootElement);
 }
 
-console.log('🚀 Creating React root and rendering app...');
+console.log("🚀 Creating React root and rendering app...");
 
 try {
-  ReactDOM.createRoot(document.getElementById('root')).render(
+  ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
@@ -127,10 +128,10 @@ try {
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
-    </BrowserRouter>,
-  )
-  console.log('✅ React app rendered successfully');
+    </BrowserRouter>
+  );
+  console.log("✅ React app rendered successfully");
 } catch (error) {
-  console.error('❌ Error rendering React app:', error);
-  alert('Error rendering React app: ' + error.message);
+  console.error("❌ Error rendering React app:", error);
+  alert("Error rendering React app: " + error.message);
 }

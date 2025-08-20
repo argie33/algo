@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Card,
@@ -10,47 +10,59 @@ import {
   CircularProgress,
   Link,
   InputAdornment,
-  IconButton
-} from '@mui/material';
-import { Visibility, VisibilityOff, LockReset as ResetIcon } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+  IconButton,
+} from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  LockReset as ResetIcon,
+} from "@mui/icons-material";
+import { useAuth } from "../../contexts/AuthContext";
 
-function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }) {
+function ResetPasswordForm({
+  username,
+  onPasswordResetSuccess,
+  onSwitchToLogin,
+}) {
   const [formData, setFormData] = useState({
-    confirmationCode: '',
-    newPassword: '',
-    confirmPassword: ''
+    confirmationCode: "",
+    newPassword: "",
+    confirmPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [localError, setLocalError] = useState('');
+  const [localError, setLocalError] = useState("");
 
   const { confirmForgotPassword, isLoading, error, clearError } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     // Clear errors when user starts typing
     if (error) clearError();
-    if (localError) setLocalError('');
+    if (localError) setLocalError("");
   };
 
   const validateForm = () => {
-    if (!formData.confirmationCode || !formData.newPassword || !formData.confirmPassword) {
-      setLocalError('Please fill in all fields');
+    if (
+      !formData.confirmationCode ||
+      !formData.newPassword ||
+      !formData.confirmPassword
+    ) {
+      setLocalError("Please fill in all fields");
       return false;
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      setLocalError('Passwords do not match');
+      setLocalError("Passwords do not match");
       return false;
     }
 
     if (formData.newPassword.length < 8) {
-      setLocalError('Password must be at least 8 characters long');
+      setLocalError("Password must be at least 8 characters long");
       return false;
     }
 
@@ -59,7 +71,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
+    setLocalError("");
 
     if (!validateForm()) {
       return;
@@ -70,7 +82,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
       formData.confirmationCode,
       formData.newPassword
     );
-    
+
     if (result.success) {
       onPasswordResetSuccess?.();
     } else if (result.error) {
@@ -81,16 +93,21 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+    <Card sx={{ maxWidth: 400, mx: "auto", mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <ResetIcon sx={{ mr: 1, color: 'primary.main' }} />
+          <ResetIcon sx={{ mr: 1, color: "primary.main" }} />
           <Typography variant="h4" component="h1" color="primary">
             Set New Password
           </Typography>
         </Box>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <Typography
+          variant="body1"
+          color="text.secondary"
+          align="center"
+          mb={3}
+        >
           Enter the code from your email and choose a new password
         </Typography>
 
@@ -122,7 +139,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             id="newPassword"
             name="newPassword"
             label="New Password"
-            type={showPassword ? 'text' : 'password'}
+            type={showPassword ? "text" : "password"}
             value={formData.newPassword}
             onChange={handleChange}
             margin="normal"
@@ -142,7 +159,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              )
+              ),
             }}
           />
 
@@ -151,7 +168,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             id="confirmPassword"
             name="confirmPassword"
             label="Confirm New Password"
-            type={showConfirmPassword ? 'text' : 'password'}
+            type={showConfirmPassword ? "text" : "password"}
             value={formData.confirmPassword}
             onChange={handleChange}
             margin="normal"
@@ -170,7 +187,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              )
+              ),
             }}
           />
 
@@ -180,9 +197,11 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <ResetIcon />}
+            startIcon={
+              isLoading ? <CircularProgress size={20} /> : <ResetIcon />
+            }
           >
-            {isLoading ? 'Resetting...' : 'Reset Password'}
+            {isLoading ? "Resetting..." : "Reset Password"}
           </Button>
 
           <Box textAlign="center" mt={2}>
@@ -193,7 +212,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
                 variant="body2"
                 onClick={onSwitchToLogin}
                 disabled={isLoading}
-                sx={{ fontWeight: 'medium' }}
+                sx={{ fontWeight: "medium" }}
               >
                 Back to Sign In
               </Link>

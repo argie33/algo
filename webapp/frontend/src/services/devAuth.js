@@ -1,9 +1,9 @@
 // Development authentication service
 // Simulates AWS Cognito functionality for development environment
 
-const DEV_USERS_KEY = 'dev_users';
-const DEV_SESSION_KEY = 'dev_session';
-const DEV_PENDING_KEY = 'dev_pending';
+const DEV_USERS_KEY = "dev_users";
+const DEV_SESSION_KEY = "dev_session";
+const DEV_PENDING_KEY = "dev_pending";
 
 class DevAuthService {
   constructor() {
@@ -42,7 +42,10 @@ class DevAuthService {
   }
 
   savePendingVerifications() {
-    localStorage.setItem(DEV_PENDING_KEY, JSON.stringify(this.pendingVerifications));
+    localStorage.setItem(
+      DEV_PENDING_KEY,
+      JSON.stringify(this.pendingVerifications)
+    );
   }
 
   generateVerificationCode() {
@@ -54,27 +57,29 @@ class DevAuthService {
     return {
       accessToken: `dev-access-${username}-${timestamp}`,
       idToken: `dev-id-${username}-${timestamp}`,
-      refreshToken: `dev-refresh-${username}-${timestamp}`
+      refreshToken: `dev-refresh-${username}-${timestamp}`,
     };
   }
 
   async signUp(username, password, email, firstName, lastName) {
-    console.log('🔧 DEV: Simulating sign up for', username);
-    
+    console.log("🔧 DEV: Simulating sign up for", username);
+
     // Check if user already exists
     if (this.users[username]) {
-      throw new Error('UsernameExistsException: Username already exists');
+      throw new Error("UsernameExistsException: Username already exists");
     }
 
     // Check if email is already used
-    const existingUser = Object.values(this.users).find(user => user.email === email);
+    const existingUser = Object.values(this.users).find(
+      (user) => user.email === email
+    );
     if (existingUser) {
-      throw new Error('UsernameExistsException: Email already exists');
+      throw new Error("UsernameExistsException: Email already exists");
     }
 
     // Generate verification code
     const verificationCode = this.generateVerificationCode();
-    
+
     // Store pending verification
     this.pendingVerifications[username] = {
       username,
@@ -83,46 +88,48 @@ class DevAuthService {
       firstName,
       lastName,
       verificationCode,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     this.savePendingVerifications();
 
     // Simulate email being sent
-    console.log('📧 DEV: Email verification code sent to', email);
-    console.log('🔑 DEV: Verification code:', verificationCode);
-    
+    console.log("📧 DEV: Email verification code sent to", email);
+    console.log("🔑 DEV: Verification code:", verificationCode);
+
     // Show notification in UI
     setTimeout(() => {
-      alert(`Development Mode: Your verification code is: ${verificationCode}\n\nIn production, this would be sent to ${email}`);
+      alert(
+        `Development Mode: Your verification code is: ${verificationCode}\n\nIn production, this would be sent to ${email}`
+      );
     }, 1000);
 
     return {
       isSignUpComplete: false,
       nextStep: {
-        signUpStep: 'CONFIRM_SIGN_UP',
+        signUpStep: "CONFIRM_SIGN_UP",
         codeDeliveryDetails: {
-          deliveryMedium: 'EMAIL',
-          destination: email
-        }
-      }
+          deliveryMedium: "EMAIL",
+          destination: email,
+        },
+      },
     };
   }
 
   async confirmSignUp(username, confirmationCode) {
-    console.log('🔧 DEV: Confirming sign up for', username);
-    
+    console.log("🔧 DEV: Confirming sign up for", username);
+
     const pending = this.pendingVerifications[username];
     if (!pending) {
-      throw new Error('UserNotFoundException: User not found');
+      throw new Error("UserNotFoundException: User not found");
     }
 
     if (pending.verificationCode !== confirmationCode) {
-      throw new Error('CodeMismatchException: Invalid verification code');
+      throw new Error("CodeMismatchException: Invalid verification code");
     }
 
     // Check if code is expired (5 minutes)
     if (Date.now() - pending.createdAt > 5 * 60 * 1000) {
-      throw new Error('ExpiredCodeException: Verification code has expired');
+      throw new Error("ExpiredCodeException: Verification code has expired");
     }
 
     // Create user account
@@ -133,7 +140,7 @@ class DevAuthService {
       lastName: pending.lastName,
       password: pending.password, // In real app, this would be hashed
       confirmed: true,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     this.saveUsers();
 
@@ -141,27 +148,27 @@ class DevAuthService {
     delete this.pendingVerifications[username];
     this.savePendingVerifications();
 
-    console.log('✅ DEV: User confirmed successfully');
-    
+    console.log("✅ DEV: User confirmed successfully");
+
     return {
-      isSignUpComplete: true
+      isSignUpComplete: true,
     };
   }
 
   async signIn(username, password) {
-    console.log('🔧 DEV: Signing in user', username);
-    
+    console.log("🔧 DEV: Signing in user", username);
+
     const user = this.users[username];
     if (!user) {
-      throw new Error('UserNotFoundException: User not found');
+      throw new Error("UserNotFoundException: User not found");
     }
 
     if (!user.confirmed) {
-      throw new Error('UserNotConfirmedException: User not confirmed');
+      throw new Error("UserNotConfirmedException: User not confirmed");
     }
 
     if (user.password !== password) {
-      throw new Error('NotAuthorizedException: Invalid password');
+      throw new Error("NotAuthorizedException: Invalid password");
     }
 
     // Generate session
@@ -172,98 +179,100 @@ class DevAuthService {
         userId: `dev-${user.username}`,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
       },
       tokens,
-      expiresAt: Date.now() + 3600000 // 1 hour
+      expiresAt: Date.now() + 3600000, // 1 hour
     };
 
     this.saveSession(session);
-    console.log('✅ DEV: User signed in successfully');
+    console.log("✅ DEV: User signed in successfully");
 
     return {
       isSignedIn: true,
       user: session.user,
-      tokens: session.tokens
+      tokens: session.tokens,
     };
   }
 
   async signOut() {
-    console.log('🔧 DEV: Signing out user');
+    console.log("🔧 DEV: Signing out user");
     this.clearSession();
     return true;
   }
 
   async getCurrentUser() {
     if (!this.session || Date.now() > this.session.expiresAt) {
-      throw new Error('No authenticated user');
+      throw new Error("No authenticated user");
     }
     return this.session.user;
   }
 
   async fetchAuthSession() {
     if (!this.session || Date.now() > this.session.expiresAt) {
-      throw new Error('No valid session');
+      throw new Error("No valid session");
     }
     return {
-      tokens: this.session.tokens
+      tokens: this.session.tokens,
     };
   }
 
   async resetPassword(username) {
-    console.log('🔧 DEV: Initiating password reset for', username);
-    
+    console.log("🔧 DEV: Initiating password reset for", username);
+
     const user = this.users[username];
     if (!user) {
-      throw new Error('UserNotFoundException: User not found');
+      throw new Error("UserNotFoundException: User not found");
     }
 
     const resetCode = this.generateVerificationCode();
-    
+
     // Store reset code
     this.pendingVerifications[`reset_${username}`] = {
       username,
       resetCode,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     this.savePendingVerifications();
 
-    console.log('📧 DEV: Password reset code sent to', user.email);
-    console.log('🔑 DEV: Reset code:', resetCode);
-    
+    console.log("📧 DEV: Password reset code sent to", user.email);
+    console.log("🔑 DEV: Reset code:", resetCode);
+
     // Show notification in UI
     setTimeout(() => {
-      alert(`Development Mode: Your password reset code is: ${resetCode}\n\nIn production, this would be sent to ${user.email}`);
+      alert(
+        `Development Mode: Your password reset code is: ${resetCode}\n\nIn production, this would be sent to ${user.email}`
+      );
     }, 1000);
 
     return {
       nextStep: {
-        resetPasswordStep: 'CONFIRM_RESET_PASSWORD_WITH_CODE',
+        resetPasswordStep: "CONFIRM_RESET_PASSWORD_WITH_CODE",
         codeDeliveryDetails: {
-          deliveryMedium: 'EMAIL',
-          destination: user.email
-        }
-      }
+          deliveryMedium: "EMAIL",
+          destination: user.email,
+        },
+      },
     };
   }
 
   async confirmResetPassword(username, confirmationCode, newPassword) {
-    console.log('🔧 DEV: Confirming password reset for', username);
-    
+    console.log("🔧 DEV: Confirming password reset for", username);
+
     const resetKey = `reset_${username}`;
     const pending = this.pendingVerifications[resetKey];
-    
+
     if (!pending) {
-      throw new Error('Invalid reset request');
+      throw new Error("Invalid reset request");
     }
 
     if (pending.resetCode !== confirmationCode) {
-      throw new Error('CodeMismatchException: Invalid verification code');
+      throw new Error("CodeMismatchException: Invalid verification code");
     }
 
     // Check if code is expired (5 minutes)
     if (Date.now() - pending.createdAt > 5 * 60 * 1000) {
-      throw new Error('ExpiredCodeException: Verification code has expired');
+      throw new Error("ExpiredCodeException: Verification code has expired");
     }
 
     // Update password
@@ -274,8 +283,8 @@ class DevAuthService {
     delete this.pendingVerifications[resetKey];
     this.savePendingVerifications();
 
-    console.log('✅ DEV: Password reset successfully');
-    
+    console.log("✅ DEV: Password reset successfully");
+
     return true;
   }
 

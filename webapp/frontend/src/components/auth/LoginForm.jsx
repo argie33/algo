@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Card,
@@ -13,47 +13,51 @@ import {
   IconButton,
   Divider,
   Checkbox,
-  FormControlLabel
-} from '@mui/material';
-import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+  FormControlLabel,
+} from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  Login as LoginIcon,
+} from "@mui/icons-material";
+import { useAuth } from "../../contexts/AuthContext";
 
 function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const [formData, setFormData] = useState({
-    username: '',
-    password: ''
+    username: "",
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [localError, setLocalError] = useState('');
+  const [localError, setLocalError] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
   const { login, isLoading, error, clearError } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     // Clear errors when user starts typing
     if (error) clearError();
-    if (localError) setLocalError('');
+    if (localError) setLocalError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
+    setLocalError("");
 
     if (!formData.username || !formData.password) {
-      setLocalError('Please enter both username and password');
+      setLocalError("Please enter both username and password");
       return;
     }
 
     // Store remember me preference
-    localStorage.setItem('rememberMe', rememberMe.toString());
-    
+    localStorage.setItem("rememberMe", rememberMe.toString());
+
     const result = await login(formData.username, formData.password);
-    
+
     if (!result.success && result.error) {
       setLocalError(result.error);
     }
@@ -62,16 +66,21 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+    <Card sx={{ maxWidth: 400, mx: "auto", mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <LoginIcon sx={{ mr: 1, color: 'primary.main' }} />
+          <LoginIcon sx={{ mr: 1, color: "primary.main" }} />
           <Typography variant="h4" component="h1" color="primary">
             Sign In
           </Typography>
         </Box>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <Typography
+          variant="body1"
+          color="text.secondary"
+          align="center"
+          mb={3}
+        >
           Access your Financial Dashboard
         </Typography>
 
@@ -102,7 +111,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
             id="password"
             name="password"
             label="Password"
-            type={showPassword ? 'text' : 'password'}
+            type={showPassword ? "text" : "password"}
             value={formData.password}
             onChange={handleChange}
             margin="normal"
@@ -121,7 +130,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              )
+              ),
             }}
           />
 
@@ -144,12 +153,19 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <LoginIcon />}
+            startIcon={
+              isLoading ? <CircularProgress size={20} /> : <LoginIcon />
+            }
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? "Signing In..." : "Sign In"}
           </Button>
 
-          <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mt={2}
+          >
             <Link
               component="button"
               type="button"
@@ -165,14 +181,14 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
 
           <Box textAlign="center">
             <Typography variant="body2" color="text.secondary">
-              Don't have an account?{' '}
+              Don't have an account?{" "}
               <Link
                 component="button"
                 type="button"
                 variant="body2"
                 onClick={onSwitchToRegister}
                 disabled={isLoading}
-                sx={{ fontWeight: 'medium' }}
+                sx={{ fontWeight: "medium" }}
               >
                 Sign up here
               </Link>

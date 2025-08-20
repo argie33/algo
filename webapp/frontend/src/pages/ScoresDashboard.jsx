@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Container,
@@ -61,8 +61,8 @@ import {
   Zoom,
   Collapse,
   ToggleButton,
-  ToggleButtonGroup
-} from '@mui/material';
+  ToggleButtonGroup,
+} from "@mui/material";
 import {
   PieChart,
   Pie,
@@ -89,8 +89,8 @@ import {
   ComposedChart,
   Legend,
   RadialBarChart,
-  RadialBar
-} from 'recharts';
+  RadialBar,
+} from "recharts";
 import {
   TrendingUp,
   TrendingDown,
@@ -127,44 +127,53 @@ import {
   ArrowUpward,
   ArrowDownward,
   Remove,
-  Lock
-} from '@mui/icons-material';
-import { api } from '../services/api';
-import { formatPercentage, formatNumber } from '../utils/formatters';
+  Lock,
+} from "@mui/icons-material";
+import { api } from "../services/api";
+import { formatPercentage, formatNumber } from "../utils/formatters";
 
 // Custom styled components
-const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => {
+const ScoreGauge = ({
+  score,
+  size = 120,
+  thickness = 10,
+  showGrade = true,
+}) => {
   const theme = useTheme();
-  
+
   const getColor = (value) => {
     if (value >= 80) return theme.palette.success.main;
     if (value >= 60) return theme.palette.warning.main;
     if (value >= 40) return theme.palette.info.main;
     return theme.palette.error.main;
   };
-  
+
   const getGrade = (value) => {
-    if (value >= 90) return 'A+';
-    if (value >= 85) return 'A';
-    if (value >= 80) return 'A-';
-    if (value >= 75) return 'B+';
-    if (value >= 70) return 'B';
-    if (value >= 65) return 'B-';
-    if (value >= 60) return 'C+';
-    if (value >= 55) return 'C';
-    if (value >= 50) return 'C-';
-    if (value >= 45) return 'D+';
-    if (value >= 40) return 'D';
-    return 'F';
+    if (value >= 90) return "A+";
+    if (value >= 85) return "A";
+    if (value >= 80) return "A-";
+    if (value >= 75) return "B+";
+    if (value >= 70) return "B";
+    if (value >= 65) return "B-";
+    if (value >= 60) return "C+";
+    if (value >= 55) return "C";
+    if (value >= 50) return "C-";
+    if (value >= 45) return "D+";
+    if (value >= 40) return "D";
+    return "F";
   };
-  
+
   const data = [
-    { name: 'Score', value: score, fill: getColor(score) },
-    { name: 'Remaining', value: 100 - score, fill: alpha(theme.palette.action.disabled, 0.1) }
+    { name: "Score", value: score, fill: getColor(score) },
+    {
+      name: "Remaining",
+      value: 100 - score,
+      fill: alpha(theme.palette.action.disabled, 0.1),
+    },
   ];
-  
+
   return (
-    <Box sx={{ position: 'relative', width: size, height: size }}>
+    <Box sx={{ position: "relative", width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -186,11 +195,11 @@ const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => 
       </ResponsiveContainer>
       <Box
         sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          textAlign: 'center'
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          textAlign: "center",
         }}
       >
         <Typography variant="h4" fontWeight={700}>
@@ -215,11 +224,7 @@ function TabPanel({ children, value, index, ...other }) {
       aria-labelledby={`scores-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ py: 3 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
     </div>
   );
 }
@@ -234,7 +239,7 @@ const ScoresDashboard = () => {
   const [historicalScores, setHistoricalScores] = useState([]);
   const [peerComparison, setPeerComparison] = useState([]);
   const [expandedCategories, setExpandedCategories] = useState({});
-  const [selectedTimeframe, setSelectedTimeframe] = useState('3M');
+  const [selectedTimeframe, setSelectedTimeframe] = useState("3M");
   const [watchlist, setWatchlist] = useState([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
@@ -242,8 +247,8 @@ const ScoresDashboard = () => {
 
   // Mock data for demonstration
   const mockScores = {
-    symbol: 'AAPL',
-    company_name: 'Apple Inc.',
+    symbol: "AAPL",
+    company_name: "Apple Inc.",
     composite: 82,
     quality: {
       composite: 88,
@@ -251,7 +256,7 @@ const ScoresDashboard = () => {
       balance_strength: 85,
       profitability: 89,
       management: 86,
-      trend: 'improving'
+      trend: "improving",
     },
     growth: {
       composite: 78,
@@ -259,14 +264,14 @@ const ScoresDashboard = () => {
       earnings_growth: 82,
       fundamental_growth: 78,
       market_expansion: 75,
-      trend: 'stable'
+      trend: "stable",
     },
     value: {
       composite: 65,
       pe_score: 62,
       dcf_score: 68,
       relative_value: 65,
-      trend: 'improving'
+      trend: "improving",
     },
     momentum: {
       composite: 85,
@@ -274,7 +279,7 @@ const ScoresDashboard = () => {
       fundamental_momentum: 82,
       technical: 86,
       volume_analysis: 80,
-      trend: 'strong'
+      trend: "strong",
     },
     sentiment: {
       composite: 79,
@@ -282,7 +287,7 @@ const ScoresDashboard = () => {
       social_sentiment: 75,
       market_sentiment: 78,
       news_sentiment: 81,
-      trend: 'improving'
+      trend: "improving",
     },
     positioning: {
       composite: 84,
@@ -290,103 +295,225 @@ const ScoresDashboard = () => {
       insider: 78,
       short_interest: 85,
       options_flow: 88,
-      trend: 'bullish'
+      trend: "bullish",
     },
-    market_regime: 'bull',
+    market_regime: "bull",
     confidence_level: 92,
-    last_updated: new Date().toISOString()
+    last_updated: new Date().toISOString(),
   };
 
   const scoreCategories = [
     {
-      id: 'quality',
-      title: 'Quality Score',
+      id: "quality",
+      title: "Quality Score",
       icon: <Stars />,
-      description: 'Earnings quality, balance sheet strength, profitability, and management effectiveness',
+      description:
+        "Earnings quality, balance sheet strength, profitability, and management effectiveness",
       color: theme.palette.primary.main,
-      academicBasis: 'Based on Piotroski F-Score (2000) and Altman Z-Score (1968)',
-      weight: 0.20,
+      academicBasis:
+        "Based on Piotroski F-Score (2000) and Altman Z-Score (1968)",
+      weight: 0.2,
       subScores: [
-        { name: 'Earnings Quality', key: 'earnings_quality', weight: '25%', description: 'Cash flow vs. accruals analysis' },
-        { name: 'Balance Sheet Strength', key: 'balance_strength', weight: '30%', description: 'Financial stability metrics' },
-        { name: 'Profitability Metrics', key: 'profitability', weight: '25%', description: 'ROIC, ROE, and margins' },
-        { name: 'Management Effectiveness', key: 'management', weight: '20%', description: 'Capital allocation efficiency' }
-      ]
+        {
+          name: "Earnings Quality",
+          key: "earnings_quality",
+          weight: "25%",
+          description: "Cash flow vs. accruals analysis",
+        },
+        {
+          name: "Balance Sheet Strength",
+          key: "balance_strength",
+          weight: "30%",
+          description: "Financial stability metrics",
+        },
+        {
+          name: "Profitability Metrics",
+          key: "profitability",
+          weight: "25%",
+          description: "ROIC, ROE, and margins",
+        },
+        {
+          name: "Management Effectiveness",
+          key: "management",
+          weight: "20%",
+          description: "Capital allocation efficiency",
+        },
+      ],
     },
     {
-      id: 'growth',
-      title: 'Growth Score',
+      id: "growth",
+      title: "Growth Score",
       icon: <TrendingUp />,
-      description: 'Revenue growth, earnings growth, fundamental drivers, and market expansion potential',
+      description:
+        "Revenue growth, earnings growth, fundamental drivers, and market expansion potential",
       color: theme.palette.success.main,
-      academicBasis: 'Sustainable Growth Rate model (Higgins, 1977)',
-      weight: 0.20,
+      academicBasis: "Sustainable Growth Rate model (Higgins, 1977)",
+      weight: 0.2,
       subScores: [
-        { name: 'Revenue Growth Analysis', key: 'revenue_growth', weight: '30%', description: 'Organic growth assessment' },
-        { name: 'Earnings Growth Quality', key: 'earnings_growth', weight: '30%', description: 'EPS growth decomposition' },
-        { name: 'Fundamental Growth Drivers', key: 'fundamental_growth', weight: '25%', description: 'ROA trends and efficiency' },
-        { name: 'Market Expansion Potential', key: 'market_expansion', weight: '15%', description: 'TAM and penetration analysis' }
-      ]
+        {
+          name: "Revenue Growth Analysis",
+          key: "revenue_growth",
+          weight: "30%",
+          description: "Organic growth assessment",
+        },
+        {
+          name: "Earnings Growth Quality",
+          key: "earnings_growth",
+          weight: "30%",
+          description: "EPS growth decomposition",
+        },
+        {
+          name: "Fundamental Growth Drivers",
+          key: "fundamental_growth",
+          weight: "25%",
+          description: "ROA trends and efficiency",
+        },
+        {
+          name: "Market Expansion Potential",
+          key: "market_expansion",
+          weight: "15%",
+          description: "TAM and penetration analysis",
+        },
+      ],
     },
     {
-      id: 'value',
-      title: 'Value Score',
+      id: "value",
+      title: "Value Score",
       icon: <AccountBalance />,
-      description: 'Traditional multiples, intrinsic value analysis, and relative value assessment',
+      description:
+        "Traditional multiples, intrinsic value analysis, and relative value assessment",
       color: theme.palette.info.main,
-      academicBasis: 'Fama-French Value Factor (1992)',
-      weight: 0.20,
+      academicBasis: "Fama-French Value Factor (1992)",
+      weight: 0.2,
       subScores: [
-        { name: 'Traditional Multiple Analysis', key: 'pe_score', weight: '40%', description: 'P/E, P/B, EV/EBITDA ratios' },
-        { name: 'Intrinsic Value Analysis', key: 'dcf_score', weight: '35%', description: 'DCF and residual income models' },
-        { name: 'Relative Value Assessment', key: 'relative_value', weight: '25%', description: 'Peer and historical comparison' }
-      ]
+        {
+          name: "Traditional Multiple Analysis",
+          key: "pe_score",
+          weight: "40%",
+          description: "P/E, P/B, EV/EBITDA ratios",
+        },
+        {
+          name: "Intrinsic Value Analysis",
+          key: "dcf_score",
+          weight: "35%",
+          description: "DCF and residual income models",
+        },
+        {
+          name: "Relative Value Assessment",
+          key: "relative_value",
+          weight: "25%",
+          description: "Peer and historical comparison",
+        },
+      ],
     },
     {
-      id: 'momentum',
-      title: 'Momentum Score',
+      id: "momentum",
+      title: "Momentum Score",
       icon: <Speed />,
-      description: 'Price momentum, fundamental momentum, technical indicators, and volume analysis',
+      description:
+        "Price momentum, fundamental momentum, technical indicators, and volume analysis",
       color: theme.palette.warning.main,
-      academicBasis: 'Jegadeesh-Titman Momentum (1993)',
+      academicBasis: "Jegadeesh-Titman Momentum (1993)",
       weight: 0.15,
       subScores: [
-        { name: 'Price Momentum', key: 'price_momentum', weight: '40%', description: '12-1 month returns' },
-        { name: 'Fundamental Momentum', key: 'fundamental_momentum', weight: '30%', description: 'Earnings revision trends' },
-        { name: 'Technical Momentum', key: 'technical', weight: '20%', description: 'Moving averages and RSI' },
-        { name: 'Volume Analysis', key: 'volume_analysis', weight: '10%', description: 'On-balance volume trends' }
-      ]
+        {
+          name: "Price Momentum",
+          key: "price_momentum",
+          weight: "40%",
+          description: "12-1 month returns",
+        },
+        {
+          name: "Fundamental Momentum",
+          key: "fundamental_momentum",
+          weight: "30%",
+          description: "Earnings revision trends",
+        },
+        {
+          name: "Technical Momentum",
+          key: "technical",
+          weight: "20%",
+          description: "Moving averages and RSI",
+        },
+        {
+          name: "Volume Analysis",
+          key: "volume_analysis",
+          weight: "10%",
+          description: "On-balance volume trends",
+        },
+      ],
     },
     {
-      id: 'sentiment',
-      title: 'Sentiment Score',
+      id: "sentiment",
+      title: "Sentiment Score",
       icon: <Psychology />,
-      description: 'Analyst sentiment, social sentiment, market-based sentiment, and news sentiment',
+      description:
+        "Analyst sentiment, social sentiment, market-based sentiment, and news sentiment",
       color: theme.palette.secondary.main,
-      academicBasis: 'Baker & Wurgler Sentiment Index (2006)',
+      academicBasis: "Baker & Wurgler Sentiment Index (2006)",
       weight: 0.15,
       subScores: [
-        { name: 'Analyst Sentiment', key: 'analyst_sentiment', weight: '25%', description: 'Recommendation changes' },
-        { name: 'Social Sentiment', key: 'social_sentiment', weight: '25%', description: 'Reddit and social media NLP' },
-        { name: 'Market-Based Sentiment', key: 'market_sentiment', weight: '25%', description: 'Put/call ratios and skew' },
-        { name: 'News Sentiment', key: 'news_sentiment', weight: '25%', description: 'Financial news NLP analysis' }
-      ]
+        {
+          name: "Analyst Sentiment",
+          key: "analyst_sentiment",
+          weight: "25%",
+          description: "Recommendation changes",
+        },
+        {
+          name: "Social Sentiment",
+          key: "social_sentiment",
+          weight: "25%",
+          description: "Reddit and social media NLP",
+        },
+        {
+          name: "Market-Based Sentiment",
+          key: "market_sentiment",
+          weight: "25%",
+          description: "Put/call ratios and skew",
+        },
+        {
+          name: "News Sentiment",
+          key: "news_sentiment",
+          weight: "25%",
+          description: "Financial news NLP analysis",
+        },
+      ],
     },
     {
-      id: 'positioning',
-      title: 'Positioning Score',
+      id: "positioning",
+      title: "Positioning Score",
       icon: <Groups />,
-      description: 'Institutional holdings, insider activity, short interest dynamics, and options flow',
+      description:
+        "Institutional holdings, insider activity, short interest dynamics, and options flow",
       color: theme.palette.error.main,
-      academicBasis: 'Smart Money Tracking (13F Analysis)',
-      weight: 0.10,
+      academicBasis: "Smart Money Tracking (13F Analysis)",
+      weight: 0.1,
       subScores: [
-        { name: 'Institutional Holdings', key: 'institutional', weight: '40%', description: '13F filing analysis' },
-        { name: 'Insider Activity', key: 'insider', weight: '25%', description: 'Form 4 transactions' },
-        { name: 'Short Interest Dynamics', key: 'short_interest', weight: '20%', description: 'Days to cover trends' },
-        { name: 'Options Flow Analysis', key: 'options_flow', weight: '15%', description: 'Unusual options activity' }
-      ]
-    }
+        {
+          name: "Institutional Holdings",
+          key: "institutional",
+          weight: "40%",
+          description: "13F filing analysis",
+        },
+        {
+          name: "Insider Activity",
+          key: "insider",
+          weight: "25%",
+          description: "Form 4 transactions",
+        },
+        {
+          name: "Short Interest Dynamics",
+          key: "short_interest",
+          weight: "20%",
+          description: "Days to cover trends",
+        },
+        {
+          name: "Options Flow Analysis",
+          key: "options_flow",
+          weight: "15%",
+          description: "Unusual options activity",
+        },
+      ],
+    },
   ];
 
   // Load stock options
@@ -395,17 +522,17 @@ const ScoresDashboard = () => {
       try {
         // Mock data for demonstration
         setStockOptions([
-          { symbol: 'AAPL', company_name: 'Apple Inc.' },
-          { symbol: 'MSFT', company_name: 'Microsoft Corporation' },
-          { symbol: 'GOOGL', company_name: 'Alphabet Inc.' },
-          { symbol: 'AMZN', company_name: 'Amazon.com Inc.' },
-          { symbol: 'NVDA', company_name: 'NVIDIA Corporation' },
-          { symbol: 'META', company_name: 'Meta Platforms Inc.' },
-          { symbol: 'TSLA', company_name: 'Tesla Inc.' },
-          { symbol: 'BRK.B', company_name: 'Berkshire Hathaway Inc.' }
+          { symbol: "AAPL", company_name: "Apple Inc." },
+          { symbol: "MSFT", company_name: "Microsoft Corporation" },
+          { symbol: "GOOGL", company_name: "Alphabet Inc." },
+          { symbol: "AMZN", company_name: "Amazon.com Inc." },
+          { symbol: "NVDA", company_name: "NVIDIA Corporation" },
+          { symbol: "META", company_name: "Meta Platforms Inc." },
+          { symbol: "TSLA", company_name: "Tesla Inc." },
+          { symbol: "BRK.B", company_name: "Berkshire Hathaway Inc." },
         ]);
       } catch (error) {
-        console.error('Error loading stock options:', error);
+        console.error("Error loading stock options:", error);
       }
     };
     loadStockOptions();
@@ -429,7 +556,7 @@ const ScoresDashboard = () => {
         setLoading(false);
       }, 1000);
     } catch (error) {
-      console.error('Error loading scores:', error);
+      console.error("Error loading scores:", error);
       setLoading(false);
     }
   };
@@ -440,14 +567,14 @@ const ScoresDashboard = () => {
       const date = new Date();
       date.setDate(date.getDate() - (90 - i));
       return {
-        date: date.toISOString().split('T')[0],
+        date: date.toISOString().split("T")[0],
         composite: 75 + Math.random() * 15 + (i / 90) * 5,
         quality: 80 + Math.random() * 10 + (i / 90) * 3,
         growth: 70 + Math.random() * 15 + (i / 90) * 4,
         value: 60 + Math.random() * 20 + (i / 90) * 2,
         momentum: 75 + Math.random() * 20 + (i / 90) * 6,
         sentiment: 65 + Math.random() * 25 + (i / 90) * 5,
-        positioning: 70 + Math.random() * 20 + (i / 90) * 3
+        positioning: 70 + Math.random() * 20 + (i / 90) * 3,
       };
     });
     setHistoricalScores(mockHistorical);
@@ -456,39 +583,94 @@ const ScoresDashboard = () => {
   const loadPeerComparison = async (symbol) => {
     // Mock peer comparison data
     const mockPeers = [
-      { symbol: 'AAPL', name: 'Apple', composite: 82, quality: 88, growth: 78, value: 65, momentum: 85, sentiment: 79, positioning: 84 },
-      { symbol: 'MSFT', name: 'Microsoft', composite: 85, quality: 90, growth: 82, value: 70, momentum: 80, sentiment: 85, positioning: 88 },
-      { symbol: 'GOOGL', name: 'Google', composite: 78, quality: 85, growth: 75, value: 68, momentum: 78, sentiment: 72, positioning: 80 },
-      { symbol: 'AMZN', name: 'Amazon', composite: 76, quality: 82, growth: 88, value: 55, momentum: 75, sentiment: 70, positioning: 78 },
-      { symbol: 'META', name: 'Meta', composite: 72, quality: 78, growth: 70, value: 75, momentum: 68, sentiment: 65, positioning: 72 }
+      {
+        symbol: "AAPL",
+        name: "Apple",
+        composite: 82,
+        quality: 88,
+        growth: 78,
+        value: 65,
+        momentum: 85,
+        sentiment: 79,
+        positioning: 84,
+      },
+      {
+        symbol: "MSFT",
+        name: "Microsoft",
+        composite: 85,
+        quality: 90,
+        growth: 82,
+        value: 70,
+        momentum: 80,
+        sentiment: 85,
+        positioning: 88,
+      },
+      {
+        symbol: "GOOGL",
+        name: "Google",
+        composite: 78,
+        quality: 85,
+        growth: 75,
+        value: 68,
+        momentum: 78,
+        sentiment: 72,
+        positioning: 80,
+      },
+      {
+        symbol: "AMZN",
+        name: "Amazon",
+        composite: 76,
+        quality: 82,
+        growth: 88,
+        value: 55,
+        momentum: 75,
+        sentiment: 70,
+        positioning: 78,
+      },
+      {
+        symbol: "META",
+        name: "Meta",
+        composite: 72,
+        quality: 78,
+        growth: 70,
+        value: 75,
+        momentum: 68,
+        sentiment: 65,
+        positioning: 72,
+      },
     ];
     setPeerComparison(mockPeers);
   };
 
   const handleCategoryToggle = (categoryId) => {
-    setExpandedCategories(prev => ({
+    setExpandedCategories((prev) => ({
       ...prev,
-      [categoryId]: !prev[categoryId]
+      [categoryId]: !prev[categoryId],
     }));
   };
 
   const getScoreInterpretation = (score) => {
-    if (score >= 90) return { label: 'Exceptional', color: theme.palette.success.dark };
-    if (score >= 80) return { label: 'Strong', color: theme.palette.success.main };
-    if (score >= 70) return { label: 'Good', color: theme.palette.success.light };
-    if (score >= 60) return { label: 'Fair', color: theme.palette.warning.main };
-    if (score >= 50) return { label: 'Weak', color: theme.palette.warning.light };
-    if (score >= 40) return { label: 'Poor', color: theme.palette.error.light };
-    return { label: 'Critical', color: theme.palette.error.main };
+    if (score >= 90)
+      return { label: "Exceptional", color: theme.palette.success.dark };
+    if (score >= 80)
+      return { label: "Strong", color: theme.palette.success.main };
+    if (score >= 70)
+      return { label: "Good", color: theme.palette.success.light };
+    if (score >= 60)
+      return { label: "Fair", color: theme.palette.warning.main };
+    if (score >= 50)
+      return { label: "Weak", color: theme.palette.warning.light };
+    if (score >= 40) return { label: "Poor", color: theme.palette.error.light };
+    return { label: "Critical", color: theme.palette.error.main };
   };
 
   const getTrendIcon = (trend) => {
     switch (trend) {
-      case 'improving':
+      case "improving":
         return <TrendingUp sx={{ color: theme.palette.success.main }} />;
-      case 'declining':
+      case "declining":
         return <TrendingDown sx={{ color: theme.palette.error.main }} />;
-      case 'stable':
+      case "stable":
         return <Remove sx={{ color: theme.palette.info.main }} />;
       default:
         return <Remove />;
@@ -508,7 +690,9 @@ const ScoresDashboard = () => {
                 </Typography>
                 <Autocomplete
                   options={stockOptions}
-                  getOptionLabel={(option) => `${option.symbol} - ${option.company_name}`}
+                  getOptionLabel={(option) =>
+                    `${option.symbol} - ${option.company_name}`
+                  }
                   value={selectedStock}
                   onChange={(event, newValue) => setSelectedStock(newValue)}
                   renderInput={(params) => (
@@ -522,11 +706,13 @@ const ScoresDashboard = () => {
                 />
               </Grid>
               <Grid item xs={12} md={6}>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                   <ToggleButtonGroup
                     value={selectedTimeframe}
                     exclusive
-                    onChange={(e, value) => value && setSelectedTimeframe(value)}
+                    onChange={(e, value) =>
+                      value && setSelectedTimeframe(value)
+                    }
                     size="small"
                   >
                     <ToggleButton value="1W">1W</ToggleButton>
@@ -536,10 +722,20 @@ const ScoresDashboard = () => {
                     <ToggleButton value="1Y">1Y</ToggleButton>
                   </ToggleButtonGroup>
                   <FormControlLabel
-                    control={<Switch checked={showAdvanced} onChange={(e) => setShowAdvanced(e.target.checked)} />}
+                    control={
+                      <Switch
+                        checked={showAdvanced}
+                        onChange={(e) => setShowAdvanced(e.target.checked)}
+                      />
+                    }
                     label="Advanced View"
                   />
-                  <IconButton color="primary" onClick={() => selectedStock && loadScores(selectedStock.symbol)}>
+                  <IconButton
+                    color="primary"
+                    onClick={() =>
+                      selectedStock && loadScores(selectedStock.symbol)
+                    }
+                  >
                     <Refresh />
                   </IconButton>
                 </Box>
@@ -551,7 +747,7 @@ const ScoresDashboard = () => {
 
       {loading && (
         <Grid item xs={12}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
             <CircularProgress />
           </Box>
         </Grid>
@@ -561,23 +757,35 @@ const ScoresDashboard = () => {
         <>
           {/* Composite Score Hero Card */}
           <Grid item xs={12}>
-            <Card sx={{ 
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-            }}>
+            <Card
+              sx={{
+                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              }}
+            >
               <CardContent>
                 <Grid container spacing={3} alignItems="center">
                   <Grid item xs={12} md={3}>
-                    <ScoreGauge score={scores.composite} size={180} thickness={15} />
+                    <ScoreGauge
+                      score={scores.composite}
+                      size={180}
+                      thickness={15}
+                    />
                   </Grid>
                   <Grid item xs={12} md={5}>
                     <Typography variant="h4" fontWeight={700} gutterBottom>
                       {selectedStock.symbol} - {selectedStock.company_name}
                     </Typography>
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
                       Composite Score Analysis
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
+                    <Box
+                      sx={{ display: "flex", gap: 2, flexWrap: "wrap", mt: 2 }}
+                    >
                       <Chip
                         icon={<WorkspacePremium />}
                         label={getScoreInterpretation(scores.composite).label}
@@ -597,15 +805,44 @@ const ScoresDashboard = () => {
                     </Box>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 2, backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        backgroundColor: alpha(
+                          theme.palette.background.paper,
+                          0.8
+                        ),
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        color="text.secondary"
+                        gutterBottom
+                      >
                         Investment Recommendation
                       </Typography>
-                      <Rating value={scores.composite / 20} readOnly precision={0.5} size="large" />
-                      <Typography variant="h6" color={getScoreInterpretation(scores.composite).color} sx={{ mt: 1 }}>
-                        {scores.composite >= 70 ? "Strong Buy" : scores.composite >= 50 ? "Hold" : "Avoid"}
+                      <Rating
+                        value={scores.composite / 20}
+                        readOnly
+                        precision={0.5}
+                        size="large"
+                      />
+                      <Typography
+                        variant="h6"
+                        color={getScoreInterpretation(scores.composite).color}
+                        sx={{ mt: 1 }}
+                      >
+                        {scores.composite >= 70
+                          ? "Strong Buy"
+                          : scores.composite >= 50
+                            ? "Hold"
+                            : "Avoid"}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 1 }}
+                      >
                         Based on institutional-grade multi-factor analysis
                       </Typography>
                     </Paper>
@@ -621,75 +858,121 @@ const ScoresDashboard = () => {
               Six-Factor Analysis
             </Typography>
           </Grid>
-          
+
           {scoreCategories.map((category) => {
             const categoryScore = scores[category.id];
             const isExpanded = expandedCategories[category.id];
-            
+
             return (
               <Grid item xs={12} md={6} lg={4} key={category.id}>
-                <Card sx={{ 
-                  height: '100%',
-                  transition: 'all 0.3s ease',
-                  '&:hover': { 
-                    transform: 'translateY(-4px)',
-                    boxShadow: theme.shadows[8]
-                  }
-                }}>
+                <Card
+                  sx={{
+                    height: "100%",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      transform: "translateY(-4px)",
+                      boxShadow: theme.shadows[8],
+                    },
+                  }}
+                >
                   <CardHeader
                     avatar={
-                      <Avatar sx={{ bgcolor: alpha(category.color, 0.1), color: category.color }}>
+                      <Avatar
+                        sx={{
+                          bgcolor: alpha(category.color, 0.1),
+                          color: category.color,
+                        }}
+                      >
                         {category.icon}
                       </Avatar>
                     }
                     action={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         {getTrendIcon(categoryScore.trend)}
-                        <IconButton onClick={() => handleCategoryToggle(category.id)} size="small">
-                          {isExpanded ? <ExpandMore /> : <ExpandMore sx={{ transform: 'rotate(-90deg)' }} />}
+                        <IconButton
+                          onClick={() => handleCategoryToggle(category.id)}
+                          size="small"
+                        >
+                          {isExpanded ? (
+                            <ExpandMore />
+                          ) : (
+                            <ExpandMore sx={{ transform: "rotate(-90deg)" }} />
+                          )}
                         </IconButton>
                       </Box>
                     }
                     title={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         <Typography variant="h6">{category.title}</Typography>
                         <Tooltip title={category.description}>
-                          <Info sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Info
+                            sx={{ fontSize: 16, color: "text.secondary" }}
+                          />
                         </Tooltip>
                       </Box>
                     }
                     subheader={
                       <Typography variant="caption" color="text.secondary">
-                        Weight: {(category.weight * 100).toFixed(0)}% • {category.academicBasis}
+                        Weight: {(category.weight * 100).toFixed(0)}% •{" "}
+                        {category.academicBasis}
                       </Typography>
                     }
                   />
                   <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <ScoreGauge score={categoryScore.composite} size={100} thickness={8} showGrade={false} />
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      <ScoreGauge
+                        score={categoryScore.composite}
+                        size={100}
+                        thickness={8}
+                        showGrade={false}
+                      />
                       <Box>
-                        <Typography variant="h3" fontWeight={700} color={category.color}>
+                        <Typography
+                          variant="h3"
+                          fontWeight={700}
+                          color={category.color}
+                        >
                           {categoryScore.composite}
                         </Typography>
                         <Typography variant="subtitle1" color="text.secondary">
-                          {getScoreInterpretation(categoryScore.composite).label}
+                          {
+                            getScoreInterpretation(categoryScore.composite)
+                              .label
+                          }
                         </Typography>
                       </Box>
                     </Box>
-                    
+
                     <Collapse in={isExpanded}>
                       <Divider sx={{ my: 2 }} />
                       <Box sx={{ mt: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                        <Typography
+                          variant="subtitle2"
+                          color="text.secondary"
+                          gutterBottom
+                        >
                           Component Analysis
                         </Typography>
                         {category.subScores.map((subScore) => {
                           const value = categoryScore[subScore.key] || 0;
                           return (
                             <Box key={subScore.key} sx={{ mb: 2 }}>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  mb: 0.5,
+                                }}
+                              >
                                 <Tooltip title={subScore.description}>
-                                  <Typography variant="body2" sx={{ cursor: 'help' }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ cursor: "help" }}
+                                  >
                                     {subScore.name}
                                   </Typography>
                                 </Tooltip>
@@ -704,7 +987,7 @@ const ScoresDashboard = () => {
                                   height: 8,
                                   borderRadius: 4,
                                   backgroundColor: alpha(category.color, 0.1),
-                                  '& .MuiLinearProgress-bar': {
+                                  "& .MuiLinearProgress-bar": {
                                     backgroundColor: category.color,
                                     borderRadius: 4,
                                   },
@@ -737,18 +1020,63 @@ const ScoresDashboard = () => {
                 <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={historicalScores}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={alpha(theme.palette.divider, 0.5)}
+                      />
                       <XAxis dataKey="date" />
                       <YAxis domain={[0, 100]} />
                       <RechartsTooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="composite" stroke={theme.palette.primary.main} strokeWidth={3} name="Composite" />
-                      <Line type="monotone" dataKey="quality" stroke={scoreCategories[0].color} strokeWidth={2} name="Quality" />
-                      <Line type="monotone" dataKey="growth" stroke={scoreCategories[1].color} strokeWidth={2} name="Growth" />
-                      <Line type="monotone" dataKey="value" stroke={scoreCategories[2].color} strokeWidth={2} name="Value" />
-                      <Line type="monotone" dataKey="momentum" stroke={scoreCategories[3].color} strokeWidth={2} name="Momentum" />
-                      <Line type="monotone" dataKey="sentiment" stroke={scoreCategories[4].color} strokeWidth={2} name="Sentiment" />
-                      <Line type="monotone" dataKey="positioning" stroke={scoreCategories[5].color} strokeWidth={2} name="Positioning" />
+                      <Line
+                        type="monotone"
+                        dataKey="composite"
+                        stroke={theme.palette.primary.main}
+                        strokeWidth={3}
+                        name="Composite"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="quality"
+                        stroke={scoreCategories[0].color}
+                        strokeWidth={2}
+                        name="Quality"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="growth"
+                        stroke={scoreCategories[1].color}
+                        strokeWidth={2}
+                        name="Growth"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={scoreCategories[2].color}
+                        strokeWidth={2}
+                        name="Value"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="momentum"
+                        stroke={scoreCategories[3].color}
+                        strokeWidth={2}
+                        name="Momentum"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sentiment"
+                        stroke={scoreCategories[4].color}
+                        strokeWidth={2}
+                        name="Sentiment"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="positioning"
+                        stroke={scoreCategories[5].color}
+                        strokeWidth={2}
+                        name="Positioning"
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </Box>
@@ -766,15 +1094,23 @@ const ScoresDashboard = () => {
               <CardContent>
                 <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={scoreCategories.map(cat => ({
-                      category: cat.title.replace(' Score', ''),
-                      score: scores[cat.id].composite,
-                      fullMark: 100
-                    }))}>
+                    <RadarChart
+                      data={scoreCategories.map((cat) => ({
+                        category: cat.title.replace(" Score", ""),
+                        score: scores[cat.id].composite,
+                        fullMark: 100,
+                      }))}
+                    >
                       <PolarGrid gridType="polygon" />
                       <PolarAngleAxis dataKey="category" />
                       <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                      <Radar name="Current" dataKey="score" stroke={theme.palette.primary.main} fill={theme.palette.primary.main} fillOpacity={0.6} />
+                      <Radar
+                        name="Current"
+                        dataKey="score"
+                        stroke={theme.palette.primary.main}
+                        fill={theme.palette.primary.main}
+                        fillOpacity={0.6}
+                      />
                     </RadarChart>
                   </ResponsiveContainer>
                 </Box>
@@ -811,17 +1147,32 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {peerComparison.map((peer) => (
-                    <TableRow key={peer.symbol} selected={peer.symbol === selectedStock?.symbol}>
+                    <TableRow
+                      key={peer.symbol}
+                      selected={peer.symbol === selectedStock?.symbol}
+                    >
                       <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography fontWeight={600}>{peer.symbol}</Typography>
-                          <Typography variant="body2" color="text.secondary">{peer.name}</Typography>
+                        <Box
+                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                        >
+                          <Typography fontWeight={600}>
+                            {peer.symbol}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {peer.name}
+                          </Typography>
                         </Box>
                       </TableCell>
                       <TableCell align="center">
-                        <Chip 
-                          label={peer.composite} 
-                          color={peer.composite >= 80 ? 'success' : peer.composite >= 60 ? 'warning' : 'error'}
+                        <Chip
+                          label={peer.composite}
+                          color={
+                            peer.composite >= 80
+                              ? "success"
+                              : peer.composite >= 60
+                                ? "warning"
+                                : "error"
+                          }
                           size="small"
                         />
                       </TableCell>
@@ -874,8 +1225,13 @@ const ScoresDashboard = () => {
         <Grid item xs={12} key={category.id}>
           <Accordion defaultExpanded={false}>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: alpha(category.color, 0.1), color: category.color }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(category.color, 0.1),
+                    color: category.color,
+                  }}
+                >
                   {category.icon}
                 </Avatar>
                 <Box>
@@ -887,15 +1243,22 @@ const ScoresDashboard = () => {
               </Box>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography paragraph>
-                {category.description}
-              </Typography>
+              <Typography paragraph>{category.description}</Typography>
               <Divider sx={{ my: 2 }} />
               <Grid container spacing={2}>
                 {category.subScores.map((subScore) => (
                   <Grid item xs={12} md={6} key={subScore.key}>
-                    <Paper sx={{ p: 2, backgroundColor: alpha(category.color, 0.05) }}>
-                      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        backgroundColor: alpha(category.color, 0.05),
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle1"
+                        fontWeight={600}
+                        gutterBottom
+                      >
                         {subScore.name} ({subScore.weight})
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -909,7 +1272,7 @@ const ScoresDashboard = () => {
           </Accordion>
         </Grid>
       ))}
-      
+
       {/* Academic References */}
       <Grid item xs={12}>
         <Card>
@@ -922,7 +1285,7 @@ const ScoresDashboard = () => {
             <List>
               <ListItem>
                 <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: 'primary.main' }}>
+                  <Avatar sx={{ bgcolor: "primary.main" }}>
                     <Lightbulb />
                   </Avatar>
                 </ListItemAvatar>
@@ -933,7 +1296,7 @@ const ScoresDashboard = () => {
               </ListItem>
               <ListItem>
                 <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                  <Avatar sx={{ bgcolor: "secondary.main" }}>
                     <Lightbulb />
                   </Avatar>
                 </ListItemAvatar>
@@ -944,7 +1307,7 @@ const ScoresDashboard = () => {
               </ListItem>
               <ListItem>
                 <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: 'success.main' }}>
+                  <Avatar sx={{ bgcolor: "success.main" }}>
                     <Lightbulb />
                   </Avatar>
                 </ListItemAvatar>
@@ -955,7 +1318,7 @@ const ScoresDashboard = () => {
               </ListItem>
               <ListItem>
                 <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: 'warning.main' }}>
+                  <Avatar sx={{ bgcolor: "warning.main" }}>
                     <Lightbulb />
                   </Avatar>
                 </ListItemAvatar>
@@ -978,10 +1341,11 @@ const ScoresDashboard = () => {
           Institutional-Grade Stock Scoring System
         </Typography>
         <Typography variant="h6" color="text.secondary" paragraph>
-          Six-factor scoring methodology based on proven academic research and hedge fund analysis techniques
+          Six-factor scoring methodology based on proven academic research and
+          hedge fund analysis techniques
         </Typography>
-        
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 3 }}>
           <Chip
             icon={<Diamond />}
             label="Premium Feature"
@@ -1001,10 +1365,14 @@ const ScoresDashboard = () => {
         </Box>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
           <Tab label="Dashboard" icon={<Assessment />} iconPosition="start" />
-          <Tab label="Peer Comparison" icon={<CompareArrows />} iconPosition="start" />
+          <Tab
+            label="Peer Comparison"
+            icon={<CompareArrows />}
+            iconPosition="start"
+          />
           <Tab label="Methodology" icon={<School />} iconPosition="start" />
         </Tabs>
       </Box>
@@ -1012,11 +1380,11 @@ const ScoresDashboard = () => {
       <TabPanel value={activeTab} index={0}>
         {renderMainDashboard()}
       </TabPanel>
-      
+
       <TabPanel value={activeTab} index={1}>
         {renderPeerComparison()}
       </TabPanel>
-      
+
       <TabPanel value={activeTab} index={2}>
         {renderMethodology()}
       </TabPanel>

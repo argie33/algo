@@ -9,28 +9,28 @@ class SessionManager {
     this.warningTimer = null;
     this.sessionTimeoutTimer = null;
     this.isRefreshing = false;
-    
+
     // Configuration
     this.config = {
       tokenRefreshInterval: 45 * 60 * 1000, // 45 minutes
-      sessionTimeout: 8 * 60 * 60 * 1000,   // 8 hours
-      warningTime: 10 * 60 * 1000,          // 10 minutes before timeout
+      sessionTimeout: 8 * 60 * 60 * 1000, // 8 hours
+      warningTime: 10 * 60 * 1000, // 10 minutes before timeout
       maxRefreshAttempts: 3,
-      rememberMeDuration: 30 * 24 * 60 * 60 * 1000 // 30 days
+      rememberMeDuration: 30 * 24 * 60 * 60 * 1000, // 30 days
     };
-    
+
     this.callbacks = {
       onTokenRefresh: null,
       onSessionWarning: null,
       onSessionExpired: null,
-      onRefreshError: null
+      onRefreshError: null,
     };
-    
+
     this.sessionData = {
       lastActivity: Date.now(),
       loginTime: null,
       refreshAttempts: 0,
-      rememberMe: false
+      rememberMe: false,
     };
   }
 
@@ -42,8 +42,8 @@ class SessionManager {
     this.setupEventListeners();
     this.startSessionTracking();
     this.scheduleTokenRefresh();
-    
-    console.log('🔐 Session manager initialized');
+
+    console.log("🔐 Session manager initialized");
   }
 
   /**
@@ -62,17 +62,17 @@ class SessionManager {
       lastActivity: now,
       loginTime: now,
       refreshAttempts: 0,
-      rememberMe
+      rememberMe,
     };
-    
+
     // Store session info
     const storage = rememberMe ? localStorage : sessionStorage;
-    storage.setItem('sessionStart', now.toString());
-    storage.setItem('rememberMe', rememberMe.toString());
-    
+    storage.setItem("sessionStart", now.toString());
+    storage.setItem("rememberMe", rememberMe.toString());
+
     this.startSessionTracking();
     this.scheduleTokenRefresh();
-    
+
     console.log(`🔐 Session started (remember me: ${rememberMe})`);
   }
 
@@ -82,8 +82,8 @@ class SessionManager {
   endSession() {
     this.clearAllTimers();
     this.clearSessionStorage();
-    
-    console.log('🔐 Session ended');
+
+    console.log("🔐 Session ended");
   }
 
   /**
@@ -91,7 +91,7 @@ class SessionManager {
    */
   updateActivity() {
     this.sessionData.lastActivity = Date.now();
-    
+
     // Reset session timeout if user is active
     if (this.sessionTimeoutTimer) {
       clearTimeout(this.sessionTimeoutTimer);
@@ -106,12 +106,12 @@ class SessionManager {
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
     }
-    
+
     this.refreshTimer = setInterval(async () => {
       await this.refreshTokens();
     }, this.config.tokenRefreshInterval);
-    
-    console.log('🔄 Token refresh scheduled');
+
+    console.log("🔄 Token refresh scheduled");
   }
 
   /**
@@ -121,35 +121,35 @@ class SessionManager {
     if (this.isRefreshing || !this.authContext) {
       return;
     }
-    
+
     this.isRefreshing = true;
-    
+
     try {
-      console.log('🔄 Refreshing tokens...');
-      
+      console.log("🔄 Refreshing tokens...");
+
       const result = await this.authContext.refreshSession();
-      
+
       if (result.success) {
         this.sessionData.refreshAttempts = 0;
-        console.log('✅ Tokens refreshed successfully');
-        
+        console.log("✅ Tokens refreshed successfully");
+
         if (this.callbacks.onTokenRefresh) {
           this.callbacks.onTokenRefresh(result);
         }
       } else {
-        throw new Error(result.error || 'Token refresh failed');
+        throw new Error(result.error || "Token refresh failed");
       }
     } catch (error) {
-      console.error('❌ Token refresh failed:', error);
+      console.error("❌ Token refresh failed:", error);
       this.sessionData.refreshAttempts++;
-      
+
       if (this.callbacks.onRefreshError) {
         this.callbacks.onRefreshError(error, this.sessionData.refreshAttempts);
       }
-      
+
       // If max attempts reached, logout user
       if (this.sessionData.refreshAttempts >= this.config.maxRefreshAttempts) {
-        console.error('❌ Max refresh attempts reached, logging out');
+        console.error("❌ Max refresh attempts reached, logging out");
         await this.handleSessionExpired();
       }
     } finally {
@@ -172,11 +172,11 @@ class SessionManager {
     if (this.sessionTimeoutTimer) {
       clearTimeout(this.sessionTimeoutTimer);
     }
-    
-    const timeoutDuration = this.sessionData.rememberMe 
-      ? this.config.rememberMeDuration 
+
+    const timeoutDuration = this.sessionData.rememberMe
+      ? this.config.rememberMeDuration
       : this.config.sessionTimeout;
-    
+
     this.sessionTimeoutTimer = setTimeout(async () => {
       await this.handleSessionExpired();
     }, timeoutDuration);
@@ -189,13 +189,13 @@ class SessionManager {
     if (this.warningTimer) {
       clearTimeout(this.warningTimer);
     }
-    
-    const timeoutDuration = this.sessionData.rememberMe 
-      ? this.config.rememberMeDuration 
+
+    const timeoutDuration = this.sessionData.rememberMe
+      ? this.config.rememberMeDuration
       : this.config.sessionTimeout;
-    
+
     const warningTime = timeoutDuration - this.config.warningTime;
-    
+
     this.warningTimer = setTimeout(() => {
       this.handleSessionWarning();
     }, warningTime);
@@ -205,12 +205,12 @@ class SessionManager {
    * Handle session warning
    */
   handleSessionWarning() {
-    console.log('⚠️ Session expiring soon');
-    
+    console.log("⚠️ Session expiring soon");
+
     if (this.callbacks.onSessionWarning) {
       this.callbacks.onSessionWarning({
         timeRemaining: this.config.warningTime,
-        canExtend: true
+        canExtend: true,
       });
     }
   }
@@ -219,17 +219,17 @@ class SessionManager {
    * Handle session expired
    */
   async handleSessionExpired() {
-    console.log('❌ Session expired');
-    
+    console.log("❌ Session expired");
+
     if (this.callbacks.onSessionExpired) {
       this.callbacks.onSessionExpired();
     }
-    
+
     // Logout user
     if (this.authContext) {
       await this.authContext.logout();
     }
-    
+
     this.endSession();
   }
 
@@ -237,9 +237,9 @@ class SessionManager {
    * Extend session when user is active
    */
   extendSession() {
-    console.log('🔄 Extending session');
+    console.log("🔄 Extending session");
     this.updateActivity();
-    
+
     // Restart timers
     this.startSessionTimeout();
     this.startWarningTimer();
@@ -249,18 +249,25 @@ class SessionManager {
    * Setup event listeners for user activity
    */
   setupEventListeners() {
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-    
+    const events = [
+      "mousedown",
+      "mousemove",
+      "keypress",
+      "scroll",
+      "touchstart",
+      "click",
+    ];
+
     const activityHandler = () => {
       this.updateActivity();
     };
-    
-    events.forEach(event => {
+
+    events.forEach((event) => {
       document.addEventListener(event, activityHandler, true);
     });
-    
+
     // Listen for page visibility changes
-    document.addEventListener('visibilitychange', () => {
+    document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         this.updateActivity();
       }
@@ -275,12 +282,12 @@ class SessionManager {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
-    
+
     if (this.warningTimer) {
       clearTimeout(this.warningTimer);
       this.warningTimer = null;
     }
-    
+
     if (this.sessionTimeoutTimer) {
       clearTimeout(this.sessionTimeoutTimer);
       this.sessionTimeoutTimer = null;
@@ -291,10 +298,10 @@ class SessionManager {
    * Clear session storage
    */
   clearSessionStorage() {
-    localStorage.removeItem('sessionStart');
-    localStorage.removeItem('rememberMe');
-    sessionStorage.removeItem('sessionStart');
-    sessionStorage.removeItem('rememberMe');
+    localStorage.removeItem("sessionStart");
+    localStorage.removeItem("rememberMe");
+    sessionStorage.removeItem("sessionStart");
+    sessionStorage.removeItem("rememberMe");
   }
 
   /**
@@ -303,17 +310,17 @@ class SessionManager {
   getSessionInfo() {
     const now = Date.now();
     const sessionDuration = now - (this.sessionData.loginTime || now);
-    const timeoutDuration = this.sessionData.rememberMe 
-      ? this.config.rememberMeDuration 
+    const timeoutDuration = this.sessionData.rememberMe
+      ? this.config.rememberMeDuration
       : this.config.sessionTimeout;
-    
+
     return {
       isActive: true,
       sessionDuration,
       timeRemaining: timeoutDuration - sessionDuration,
       lastActivity: this.sessionData.lastActivity,
       rememberMe: this.sessionData.rememberMe,
-      refreshAttempts: this.sessionData.refreshAttempts
+      refreshAttempts: this.sessionData.refreshAttempts,
     };
   }
 
@@ -323,10 +330,10 @@ class SessionManager {
   isSessionValid() {
     const now = Date.now();
     const sessionAge = now - (this.sessionData.loginTime || now);
-    const maxAge = this.sessionData.rememberMe 
-      ? this.config.rememberMeDuration 
+    const maxAge = this.sessionData.rememberMe
+      ? this.config.rememberMeDuration
       : this.config.sessionTimeout;
-    
+
     return sessionAge < maxAge;
   }
 }

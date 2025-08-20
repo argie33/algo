@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import apiService from '../utils/apiService.jsx';
+import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import apiService from "../utils/apiService.jsx";
 
 /**
  * Hook to manage user onboarding state
@@ -11,49 +11,61 @@ export const useOnboarding = () => {
     hasApiKeys: false,
     hasPreferences: false,
     showOnboarding: false,
-    loading: true
+    loading: true,
   });
-  
+
   const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated && user) {
       checkOnboardingStatus();
     } else {
-      setOnboardingState(prev => ({ ...prev, loading: false }));
+      setOnboardingState((prev) => ({ ...prev, loading: false }));
     }
   }, [isAuthenticated, user]);
 
   const checkOnboardingStatus = async () => {
     try {
-      setOnboardingState(prev => ({ ...prev, loading: true }));
-      
+      setOnboardingState((prev) => ({ ...prev, loading: true }));
+
       // Check if onboarding is marked as complete
-      const onboardingResponse = await apiService.apiCall('/api/settings/onboarding-status', { method: 'GET' }, 'useOnboarding');
+      const onboardingResponse = await apiService.apiCall(
+        "/api/settings/onboarding-status",
+        { method: "GET" },
+        "useOnboarding"
+      );
       const isComplete = onboardingResponse?.isComplete || false;
-      
+
       // Check if user has API keys
-      const apiKeysResponse = await apiService.apiCall('/api/settings/api-keys', { method: 'GET' }, 'useOnboarding');
+      const apiKeysResponse = await apiService.apiCall(
+        "/api/settings/api-keys",
+        { method: "GET" },
+        "useOnboarding"
+      );
       const hasApiKeys = apiKeysResponse?.keys?.length > 0 || false;
-      
+
       // Check if user has set preferences
-      const preferencesResponse = await apiService.apiCall('/api/settings/preferences', { method: 'GET' }, 'useOnboarding');
+      const preferencesResponse = await apiService.apiCall(
+        "/api/settings/preferences",
+        { method: "GET" },
+        "useOnboarding"
+      );
       const hasPreferences = preferencesResponse?.riskTolerance ? true : false;
-      
+
       // Determine if we should show onboarding
-      const shouldShowOnboarding = !isComplete && (!hasApiKeys || !hasPreferences);
-      
+      const shouldShowOnboarding =
+        !isComplete && (!hasApiKeys || !hasPreferences);
+
       setOnboardingState({
         isComplete,
         hasApiKeys,
         hasPreferences,
         showOnboarding: shouldShowOnboarding,
-        loading: false
+        loading: false,
       });
-      
     } catch (error) {
-      console.error('Failed to check onboarding status:', error);
-      
+      console.error("Failed to check onboarding status:", error);
+
       // If this is a new user (no settings yet), show onboarding
       if (error.response?.status === 404) {
         setOnboardingState({
@@ -61,41 +73,45 @@ export const useOnboarding = () => {
           hasApiKeys: false,
           hasPreferences: false,
           showOnboarding: true,
-          loading: false
+          loading: false,
         });
       } else {
-        setOnboardingState(prev => ({
+        setOnboardingState((prev) => ({
           ...prev,
           loading: false,
-          showOnboarding: false
+          showOnboarding: false,
         }));
       }
     }
   };
 
   const completeOnboarding = () => {
-    setOnboardingState(prev => ({
+    setOnboardingState((prev) => ({
       ...prev,
       isComplete: true,
-      showOnboarding: false
+      showOnboarding: false,
     }));
   };
 
   const skipOnboarding = async () => {
     try {
-      await apiService.apiCall('/api/settings/onboarding-complete', { method: 'POST' }, 'useOnboarding');
+      await apiService.apiCall(
+        "/api/settings/onboarding-complete",
+        { method: "POST" },
+        "useOnboarding"
+      );
       completeOnboarding();
     } catch (error) {
-      console.error('Failed to skip onboarding:', error);
+      console.error("Failed to skip onboarding:", error);
       // Still mark as complete locally
       completeOnboarding();
     }
   };
 
   const reopenOnboarding = () => {
-    setOnboardingState(prev => ({
+    setOnboardingState((prev) => ({
       ...prev,
-      showOnboarding: true
+      showOnboarding: true,
     }));
   };
 
@@ -104,6 +120,6 @@ export const useOnboarding = () => {
     completeOnboarding,
     skipOnboarding,
     reopenOnboarding,
-    checkOnboardingStatus
+    checkOnboardingStatus,
   };
 };

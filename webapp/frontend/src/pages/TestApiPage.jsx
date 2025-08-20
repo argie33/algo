@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, Button, Box, Alert, Card, CardContent } from '@mui/material';
-import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  Typography,
+  Button,
+  Box,
+  Alert,
+  Card,
+  CardContent,
+} from "@mui/material";
+import {
+  getPortfolioPerformance,
+  getPortfolioAnalytics,
+} from "../services/api";
 
 const TestApiPage = () => {
   const [results, setResults] = useState({});
@@ -13,30 +24,29 @@ const TestApiPage = () => {
     const testResults = {};
 
     try {
-      console.log('🧪 Testing API endpoints...');
-      
+      console.log("🧪 Testing API endpoints...");
+
       // Test portfolio performance
-      console.log('Testing getPortfolioPerformance...');
-      const perfResult = await getPortfolioPerformance('1Y');
+      console.log("Testing getPortfolioPerformance...");
+      const perfResult = await getPortfolioPerformance("1Y");
       testResults.performance = {
         success: true,
         data: perfResult,
-        dataLength: perfResult?.data?.performance?.length || 0
+        dataLength: perfResult?.data?.performance?.length || 0,
       };
-      console.log('✅ Portfolio Performance success:', perfResult);
+      console.log("✅ Portfolio Performance success:", perfResult);
 
       // Test portfolio analytics
-      console.log('Testing getPortfolioAnalytics...');
-      const analyticsResult = await getPortfolioAnalytics('1Y');
+      console.log("Testing getPortfolioAnalytics...");
+      const analyticsResult = await getPortfolioAnalytics("1Y");
       testResults.analytics = {
         success: true,
         data: analyticsResult,
-        holdingsCount: analyticsResult?.data?.holdings?.length || 0
+        holdingsCount: analyticsResult?.data?.holdings?.length || 0,
       };
-      console.log('✅ Portfolio Analytics success:', analyticsResult);
-
+      console.log("✅ Portfolio Analytics success:", analyticsResult);
     } catch (err) {
-      console.error('❌ API Test failed:', err);
+      console.error("❌ API Test failed:", err);
       setError(err.message);
       testResults.error = err.message;
     }
@@ -56,7 +66,8 @@ const TestApiPage = () => {
           API Test Page
         </Typography>
         <Typography variant="body1" sx={{ mb: 3 }}>
-          This page tests the API endpoints used by the Portfolio Performance page.
+          This page tests the API endpoints used by the Portfolio Performance
+          page.
         </Typography>
 
         {error && (
@@ -65,13 +76,13 @@ const TestApiPage = () => {
           </Alert>
         )}
 
-        <Button 
-          variant="contained" 
-          onClick={testApi} 
+        <Button
+          variant="contained"
+          onClick={testApi}
           disabled={loading}
           sx={{ mb: 3 }}
         >
-          {loading ? 'Testing...' : 'Test API Endpoints'}
+          {loading ? "Testing..." : "Test API Endpoints"}
         </Button>
 
         {Object.keys(results).length > 0 && (
@@ -79,7 +90,7 @@ const TestApiPage = () => {
             <Typography variant="h6" gutterBottom>
               Test Results:
             </Typography>
-            
+
             {results.performance && (
               <Card sx={{ mb: 2 }}>
                 <CardContent>
@@ -90,7 +101,7 @@ const TestApiPage = () => {
                     Data points: {results.performance.dataLength}
                   </Typography>
                   <Typography variant="body2">
-                    Status: {results.performance.success ? 'SUCCESS' : 'FAILED'}
+                    Status: {results.performance.success ? "SUCCESS" : "FAILED"}
                   </Typography>
                 </CardContent>
               </Card>
@@ -106,7 +117,7 @@ const TestApiPage = () => {
                     Holdings count: {results.analytics.holdingsCount}
                   </Typography>
                   <Typography variant="body2">
-                    Status: {results.analytics.success ? 'SUCCESS' : 'FAILED'}
+                    Status: {results.analytics.success ? "SUCCESS" : "FAILED"}
                   </Typography>
                 </CardContent>
               </Card>
@@ -117,7 +128,10 @@ const TestApiPage = () => {
                 <Typography variant="h6" gutterBottom>
                   Raw Results:
                 </Typography>
-                <Box component="pre" sx={{ fontSize: '0.75rem', overflow: 'auto', maxHeight: 300 }}>
+                <Box
+                  component="pre"
+                  sx={{ fontSize: "0.75rem", overflow: "auto", maxHeight: 300 }}
+                >
                   {JSON.stringify(results, null, 2)}
                 </Box>
               </CardContent>

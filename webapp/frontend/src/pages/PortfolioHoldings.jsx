@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Box,
   Container,
@@ -32,8 +32,8 @@ import {
   LinearProgress,
   Fab,
   TableSortLabel,
-  TablePagination
-} from '@mui/material';
+  TablePagination,
+} from "@mui/material";
 import {
   PieChart,
   Pie,
@@ -45,8 +45,8 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  Treemap
-} from 'recharts';
+  Treemap,
+} from "recharts";
 import {
   Add,
   Delete,
@@ -58,9 +58,15 @@ import {
   Download,
   Upload,
   Sync,
-  FilterList
-} from '@mui/icons-material';
-import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
+  FilterList,
+} from "@mui/icons-material";
+import {
+  getPortfolioData,
+  addHolding,
+  updateHolding,
+  deleteHolding,
+  importPortfolioFromBroker,
+} from "../services/api";
 
 const PortfolioHoldings = () => {
   const { user } = useAuth();
@@ -71,18 +77,18 @@ const PortfolioHoldings = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedHolding, setSelectedHolding] = useState(null);
-  const [orderBy, setOrderBy] = useState('marketValue');
-  const [order, setOrder] = useState('desc');
+  const [orderBy, setOrderBy] = useState("marketValue");
+  const [order, setOrder] = useState("desc");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [filterText, setFilterText] = useState('');
+  const [filterText, setFilterText] = useState("");
 
   // New holding form state
   const [newHolding, setNewHolding] = useState({
-    symbol: '',
-    quantity: '',
-    costBasis: '',
-    purchaseDate: new Date().toISOString().split('T')[0]
+    symbol: "",
+    quantity: "",
+    costBasis: "",
+    purchaseDate: new Date().toISOString().split("T")[0],
   });
 
   const [portfolioSummary, setPortfolioSummary] = useState({
@@ -92,7 +98,7 @@ const PortfolioHoldings = () => {
     totalGainLossPercent: 0,
     dayGainLoss: 0,
     dayGainLossPercent: 0,
-    cashBalance: 0
+    cashBalance: 0,
   });
 
   useEffect(() => {
@@ -103,42 +109,73 @@ const PortfolioHoldings = () => {
     try {
       setLoading(true);
       const response = await getPortfolioData();
-      
+
       // Handle both direct data and wrapped response structures
       const data = response?.data || response;
-      
+
       if (data?.holdings && Array.isArray(data.holdings)) {
         // Transform API data to component format
-        const transformedHoldings = data.holdings.map(holding => ({
+        const transformedHoldings = data.holdings.map((holding) => ({
           id: holding.id || holding.symbol,
           symbol: holding.symbol,
           companyName: holding.name || holding.company || holding.companyName,
           quantity: holding.quantity,
-          costBasis: holding.avgCost || holding.cost_basis || holding.averageEntryPrice || holding.average_entry_price,
+          costBasis:
+            holding.avgCost ||
+            holding.cost_basis ||
+            holding.averageEntryPrice ||
+            holding.average_entry_price,
           currentPrice: holding.currentPrice || holding.current_price,
           marketValue: holding.marketValue || holding.market_value,
           gainLoss: holding.unrealizedPnl || holding.pnl || holding.gainLoss,
-          gainLossPercent: holding.unrealizedPnlPercent || holding.pnl_percent || holding.gainLossPercent,
+          gainLossPercent:
+            holding.unrealizedPnlPercent ||
+            holding.pnl_percent ||
+            holding.gainLossPercent,
           dayChange: holding.dayChange || holding.day_change,
-          dayChangePercent: holding.dayChangePercent || holding.day_change_percent,
+          dayChangePercent:
+            holding.dayChangePercent || holding.day_change_percent,
           sector: holding.sector,
           weight: holding.weight,
-          purchaseDate: holding.purchaseDate
+          purchaseDate: holding.purchaseDate,
         }));
-        
+
         setHoldings(transformedHoldings);
-        
+
         // Transform summary data
         const transformedSummary = {
-          totalValue: data.summary?.totalValue || data.totalValue || transformedHoldings.reduce((sum, h) => sum + (h.marketValue || 0), 0),
-          totalCost: data.summary?.totalCost || transformedHoldings.reduce((sum, h) => sum + ((h.costBasis || 0) * (h.quantity || 0)), 0),
-          totalGainLoss: data.summary?.totalPnl || data.summary?.totalGainLoss || transformedHoldings.reduce((sum, h) => sum + (h.gainLoss || 0), 0),
-          totalGainLossPercent: data.summary?.totalPnlPercent || data.summary?.totalGainLossPercent || 0,
-          dayGainLoss: data.summary?.dayPnl || data.summary?.dayGainLoss || transformedHoldings.reduce((sum, h) => sum + (h.dayChange || 0), 0),
-          dayGainLossPercent: data.summary?.dayPnlPercent || data.summary?.dayGainLossPercent || 0,
-          cashBalance: data.summary?.cash || data.summary?.cashBalance || 0
+          totalValue:
+            data.summary?.totalValue ||
+            data.totalValue ||
+            transformedHoldings.reduce(
+              (sum, h) => sum + (h.marketValue || 0),
+              0
+            ),
+          totalCost:
+            data.summary?.totalCost ||
+            transformedHoldings.reduce(
+              (sum, h) => sum + (h.costBasis || 0) * (h.quantity || 0),
+              0
+            ),
+          totalGainLoss:
+            data.summary?.totalPnl ||
+            data.summary?.totalGainLoss ||
+            transformedHoldings.reduce((sum, h) => sum + (h.gainLoss || 0), 0),
+          totalGainLossPercent:
+            data.summary?.totalPnlPercent ||
+            data.summary?.totalGainLossPercent ||
+            0,
+          dayGainLoss:
+            data.summary?.dayPnl ||
+            data.summary?.dayGainLoss ||
+            transformedHoldings.reduce((sum, h) => sum + (h.dayChange || 0), 0),
+          dayGainLossPercent:
+            data.summary?.dayPnlPercent ||
+            data.summary?.dayGainLossPercent ||
+            0,
+          cashBalance: data.summary?.cash || data.summary?.cashBalance || 0,
         };
-        
+
         setPortfolioSummary(transformedSummary);
       } else {
         // If no holdings data, show empty state
@@ -150,13 +187,13 @@ const PortfolioHoldings = () => {
           totalGainLossPercent: 0,
           dayGainLoss: 0,
           dayGainLossPercent: 0,
-          cashBalance: 0
+          cashBalance: 0,
         });
       }
     } catch (err) {
-      console.error('Holdings fetch error:', err);
-      setError('Failed to fetch portfolio holdings');
-      
+      console.error("Holdings fetch error:", err);
+      setError("Failed to fetch portfolio holdings");
+
       // Set empty state on error
       setHoldings([]);
       setPortfolioSummary({
@@ -166,7 +203,7 @@ const PortfolioHoldings = () => {
         totalGainLossPercent: 0,
         dayGainLoss: 0,
         dayGainLossPercent: 0,
-        cashBalance: 0
+        cashBalance: 0,
       });
     } finally {
       setLoading(false);
@@ -176,22 +213,27 @@ const PortfolioHoldings = () => {
   const handleAddHolding = async () => {
     try {
       if (!newHolding.symbol || !newHolding.quantity || !newHolding.costBasis) {
-        setError('Please fill in all required fields');
+        setError("Please fill in all required fields");
         return;
       }
 
       await addHolding({
         ...newHolding,
         quantity: parseFloat(newHolding.quantity),
-        costBasis: parseFloat(newHolding.costBasis)
+        costBasis: parseFloat(newHolding.costBasis),
       });
 
       setAddDialogOpen(false);
-      setNewHolding({ symbol: '', quantity: '', costBasis: '', purchaseDate: new Date().toISOString().split('T')[0] });
+      setNewHolding({
+        symbol: "",
+        quantity: "",
+        costBasis: "",
+        purchaseDate: new Date().toISOString().split("T")[0],
+      });
       fetchHoldings();
     } catch (err) {
-      setError('Failed to add holding');
-      console.error('Add holding error:', err);
+      setError("Failed to add holding");
+      console.error("Add holding error:", err);
     }
   };
 
@@ -200,15 +242,15 @@ const PortfolioHoldings = () => {
       await updateHolding(selectedHolding.id, {
         quantity: parseFloat(selectedHolding.quantity),
         costBasis: parseFloat(selectedHolding.costBasis),
-        purchaseDate: selectedHolding.purchaseDate
+        purchaseDate: selectedHolding.purchaseDate,
       });
 
       setEditDialogOpen(false);
       setSelectedHolding(null);
       fetchHoldings();
     } catch (err) {
-      setError('Failed to update holding');
-      console.error('Update holding error:', err);
+      setError("Failed to update holding");
+      console.error("Update holding error:", err);
     }
   };
 
@@ -217,8 +259,8 @@ const PortfolioHoldings = () => {
       await deleteHolding(holdingId);
       fetchHoldings();
     } catch (err) {
-      setError('Failed to delete holding');
-      console.error('Delete holding error:', err);
+      setError("Failed to delete holding");
+      console.error("Delete holding error:", err);
     }
   };
 
@@ -230,50 +272,51 @@ const PortfolioHoldings = () => {
       fetchHoldings();
     } catch (err) {
       setError(`Failed to import from ${broker}`);
-      console.error('Import error:', err);
+      console.error("Import error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleRequestSort = (property) => {
-    const isAsc = orderBy === property && order === 'asc';
-    setOrder(isAsc ? 'desc' : 'asc');
+    const isAsc = orderBy === property && order === "asc";
+    setOrder(isAsc ? "desc" : "asc");
     setOrderBy(property);
   };
 
   const getSectorColor = (sector) => {
     const colors = {
-      'Technology': '#2196F3',
-      'Healthcare': '#4CAF50',
-      'Financial': '#FF9800',
-      'Consumer': '#9C27B0',
-      'Industrial': '#795548',
-      'Energy': '#F44336',
-      'Utilities': '#607D8B',
-      'Materials': '#3F51B5',
-      'Real Estate': '#E91E63',
-      'Communication': '#00BCD4'
+      Technology: "#2196F3",
+      Healthcare: "#4CAF50",
+      Financial: "#FF9800",
+      Consumer: "#9C27B0",
+      Industrial: "#795548",
+      Energy: "#F44336",
+      Utilities: "#607D8B",
+      Materials: "#3F51B5",
+      "Real Estate": "#E91E63",
+      Communication: "#00BCD4",
     };
-    return colors[sector] || '#9E9E9E';
+    return colors[sector] || "#9E9E9E";
   };
 
-  const filteredHoldings = holdings.filter(holding =>
-    holding.symbol.toLowerCase().includes(filterText.toLowerCase()) ||
-    holding.companyName?.toLowerCase().includes(filterText.toLowerCase()) ||
-    holding.sector?.toLowerCase().includes(filterText.toLowerCase())
+  const filteredHoldings = holdings.filter(
+    (holding) =>
+      holding.symbol.toLowerCase().includes(filterText.toLowerCase()) ||
+      holding.companyName?.toLowerCase().includes(filterText.toLowerCase()) ||
+      holding.sector?.toLowerCase().includes(filterText.toLowerCase())
   );
 
   const sortedHoldings = [...filteredHoldings].sort((a, b) => {
     let aValue = a[orderBy];
     let bValue = b[orderBy];
 
-    if (typeof aValue === 'string') {
+    if (typeof aValue === "string") {
       aValue = aValue.toLowerCase();
       bValue = bValue.toLowerCase();
     }
 
-    if (order === 'desc') {
+    if (order === "desc") {
       return bValue > aValue ? 1 : -1;
     }
     return aValue > bValue ? 1 : -1;
@@ -286,7 +329,7 @@ const PortfolioHoldings = () => {
 
   // Prepare sector allocation data
   const sectorAllocation = holdings.reduce((acc, holding) => {
-    const sector = holding.sector || 'Unknown';
+    const sector = holding.sector || "Unknown";
     if (!acc[sector]) {
       acc[sector] = { value: 0, count: 0 };
     }
@@ -299,23 +342,28 @@ const PortfolioHoldings = () => {
     name: sector,
     value: data.value,
     count: data.count,
-    percentage: ((data.value / portfolioSummary.totalValue) * 100).toFixed(1)
+    percentage: ((data.value / portfolioSummary.totalValue) * 100).toFixed(1),
   }));
 
   // Top holdings for treemap
   const topHoldings = holdings
     .sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0))
     .slice(0, 10)
-    .map(holding => ({
+    .map((holding) => ({
       name: holding.symbol,
       size: holding.marketValue || 0,
-      gainLoss: holding.gainLoss || 0
+      gainLoss: holding.gainLoss || 0,
     }));
 
   if (loading) {
     return (
       <Container maxWidth="xl">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="60vh"
+        >
           <CircularProgress />
         </Box>
       </Container>
@@ -348,7 +396,10 @@ const PortfolioHoldings = () => {
                 Total Value
               </Typography>
               <Typography variant="h5">
-                ${portfolioSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                $
+                {portfolioSummary.totalValue.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                })}
               </Typography>
             </CardContent>
           </Card>
@@ -359,15 +410,26 @@ const PortfolioHoldings = () => {
               <Typography color="text.secondary" gutterBottom>
                 Total Gain/Loss
               </Typography>
-              <Typography 
-                variant="h5" 
-                color={portfolioSummary.totalGainLoss >= 0 ? 'success.main' : 'error.main'}
+              <Typography
+                variant="h5"
+                color={
+                  portfolioSummary.totalGainLoss >= 0
+                    ? "success.main"
+                    : "error.main"
+                }
               >
-                ${portfolioSummary.totalGainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                $
+                {portfolioSummary.totalGainLoss.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                })}
               </Typography>
-              <Typography 
-                variant="body2" 
-                color={portfolioSummary.totalGainLoss >= 0 ? 'success.main' : 'error.main'}
+              <Typography
+                variant="body2"
+                color={
+                  portfolioSummary.totalGainLoss >= 0
+                    ? "success.main"
+                    : "error.main"
+                }
               >
                 ({portfolioSummary.totalGainLossPercent.toFixed(2)}%)
               </Typography>
@@ -380,15 +442,26 @@ const PortfolioHoldings = () => {
               <Typography color="text.secondary" gutterBottom>
                 Day Gain/Loss
               </Typography>
-              <Typography 
-                variant="h5" 
-                color={portfolioSummary.dayGainLoss >= 0 ? 'success.main' : 'error.main'}
+              <Typography
+                variant="h5"
+                color={
+                  portfolioSummary.dayGainLoss >= 0
+                    ? "success.main"
+                    : "error.main"
+                }
               >
-                ${portfolioSummary.dayGainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                $
+                {portfolioSummary.dayGainLoss.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                })}
               </Typography>
-              <Typography 
-                variant="body2" 
-                color={portfolioSummary.dayGainLoss >= 0 ? 'success.main' : 'error.main'}
+              <Typography
+                variant="body2"
+                color={
+                  portfolioSummary.dayGainLoss >= 0
+                    ? "success.main"
+                    : "error.main"
+                }
               >
                 ({portfolioSummary.dayGainLossPercent.toFixed(2)}%)
               </Typography>
@@ -402,7 +475,10 @@ const PortfolioHoldings = () => {
                 Cash Balance
               </Typography>
               <Typography variant="h5">
-                ${portfolioSummary.cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                $
+                {portfolioSummary.cashBalance.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                })}
               </Typography>
             </CardContent>
           </Card>
@@ -429,10 +505,18 @@ const PortfolioHoldings = () => {
                     label={({ name, percentage }) => `${name} ${percentage}%`}
                   >
                     {sectorData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getSectorColor(entry.name)} />
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={getSectorColor(entry.name)}
+                      />
                     ))}
                   </Pie>
-                  <RechartsTooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Value']} />
+                  <RechartsTooltip
+                    formatter={(value) => [
+                      `$${value.toLocaleString()}`,
+                      "Value",
+                    ]}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -448,7 +532,7 @@ const PortfolioHoldings = () => {
                 <Treemap
                   data={topHoldings}
                   dataKey="size"
-                  aspectRatio={4/3}
+                  aspectRatio={4 / 3}
                   stroke="#fff"
                   fill="#8884d8"
                 />
@@ -459,8 +543,15 @@ const PortfolioHoldings = () => {
       </Grid>
 
       {/* Actions Bar */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 1 }}>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -489,7 +580,9 @@ const PortfolioHoldings = () => {
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           InputProps={{
-            startAdornment: <FilterList sx={{ mr: 1, color: 'text.secondary' }} />
+            startAdornment: (
+              <FilterList sx={{ mr: 1, color: "text.secondary" }} />
+            ),
           }}
         />
       </Box>
@@ -502,9 +595,9 @@ const PortfolioHoldings = () => {
               <TableRow>
                 <TableCell>
                   <TableSortLabel
-                    active={orderBy === 'symbol'}
-                    direction={orderBy === 'symbol' ? order : 'asc'}
-                    onClick={() => handleRequestSort('symbol')}
+                    active={orderBy === "symbol"}
+                    direction={orderBy === "symbol" ? order : "asc"}
+                    onClick={() => handleRequestSort("symbol")}
                   >
                     Symbol
                   </TableSortLabel>
@@ -512,9 +605,9 @@ const PortfolioHoldings = () => {
                 <TableCell>Company</TableCell>
                 <TableCell align="right">
                   <TableSortLabel
-                    active={orderBy === 'quantity'}
-                    direction={orderBy === 'quantity' ? order : 'asc'}
-                    onClick={() => handleRequestSort('quantity')}
+                    active={orderBy === "quantity"}
+                    direction={orderBy === "quantity" ? order : "asc"}
+                    onClick={() => handleRequestSort("quantity")}
                   >
                     Quantity
                   </TableSortLabel>
@@ -523,18 +616,18 @@ const PortfolioHoldings = () => {
                 <TableCell align="right">Current Price</TableCell>
                 <TableCell align="right">
                   <TableSortLabel
-                    active={orderBy === 'marketValue'}
-                    direction={orderBy === 'marketValue' ? order : 'asc'}
-                    onClick={() => handleRequestSort('marketValue')}
+                    active={orderBy === "marketValue"}
+                    direction={orderBy === "marketValue" ? order : "asc"}
+                    onClick={() => handleRequestSort("marketValue")}
                   >
                     Market Value
                   </TableSortLabel>
                 </TableCell>
                 <TableCell align="right">
                   <TableSortLabel
-                    active={orderBy === 'gainLoss'}
-                    direction={orderBy === 'gainLoss' ? order : 'asc'}
-                    onClick={() => handleRequestSort('gainLoss')}
+                    active={orderBy === "gainLoss"}
+                    direction={orderBy === "gainLoss" ? order : "asc"}
+                    onClick={() => handleRequestSort("gainLoss")}
                   >
                     Gain/Loss
                   </TableSortLabel>
@@ -554,7 +647,7 @@ const PortfolioHoldings = () => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {holding.companyName || 'N/A'}
+                      {holding.companyName || "N/A"}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">{holding.quantity}</TableCell>
@@ -565,28 +658,44 @@ const PortfolioHoldings = () => {
                     ${(holding.currentPrice || 0).toFixed(2)}
                   </TableCell>
                   <TableCell align="right">
-                    ${(holding.marketValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    $
+                    {(holding.marketValue || 0).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                    })}
                   </TableCell>
-                  <TableCell 
+                  <TableCell
                     align="right"
-                    sx={{ color: (holding.gainLoss || 0) >= 0 ? 'success.main' : 'error.main' }}
+                    sx={{
+                      color:
+                        (holding.gainLoss || 0) >= 0
+                          ? "success.main"
+                          : "error.main",
+                    }}
                   >
-                    ${(holding.gainLoss || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    $
+                    {(holding.gainLoss || 0).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                    })}
                   </TableCell>
-                  <TableCell 
+                  <TableCell
                     align="right"
-                    sx={{ color: (holding.gainLossPercent || 0) >= 0 ? 'success.main' : 'error.main' }}
+                    sx={{
+                      color:
+                        (holding.gainLossPercent || 0) >= 0
+                          ? "success.main"
+                          : "error.main",
+                    }}
                   >
-                    {(holding.gainLossPercent || 0) >= 0 ? '+' : ''}
+                    {(holding.gainLossPercent || 0) >= 0 ? "+" : ""}
                     {(holding.gainLossPercent || 0).toFixed(2)}%
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={holding.sector || 'Unknown'} 
+                    <Chip
+                      label={holding.sector || "Unknown"}
                       size="small"
-                      sx={{ 
-                        backgroundColor: getSectorColor(holding.sector) + '20',
-                        color: getSectorColor(holding.sector)
+                      sx={{
+                        backgroundColor: getSectorColor(holding.sector) + "20",
+                        color: getSectorColor(holding.sector),
                       }}
                     />
                   </TableCell>
@@ -628,21 +737,33 @@ const PortfolioHoldings = () => {
       </Card>
 
       {/* Add Holding Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Add New Holding</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
             <TextField
               label="Symbol"
               value={newHolding.symbol}
-              onChange={(e) => setNewHolding({ ...newHolding, symbol: e.target.value.toUpperCase() })}
+              onChange={(e) =>
+                setNewHolding({
+                  ...newHolding,
+                  symbol: e.target.value.toUpperCase(),
+                })
+              }
               required
             />
             <TextField
               label="Quantity"
               type="number"
               value={newHolding.quantity}
-              onChange={(e) => setNewHolding({ ...newHolding, quantity: e.target.value })}
+              onChange={(e) =>
+                setNewHolding({ ...newHolding, quantity: e.target.value })
+              }
               required
             />
             <TextField
@@ -650,30 +771,43 @@ const PortfolioHoldings = () => {
               type="number"
               step="0.01"
               value={newHolding.costBasis}
-              onChange={(e) => setNewHolding({ ...newHolding, costBasis: e.target.value })}
+              onChange={(e) =>
+                setNewHolding({ ...newHolding, costBasis: e.target.value })
+              }
               required
             />
             <TextField
               label="Purchase Date"
               type="date"
               value={newHolding.purchaseDate}
-              onChange={(e) => setNewHolding({ ...newHolding, purchaseDate: e.target.value })}
+              onChange={(e) =>
+                setNewHolding({ ...newHolding, purchaseDate: e.target.value })
+              }
               InputLabelProps={{ shrink: true }}
             />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddHolding} variant="contained">Add Holding</Button>
+          <Button onClick={handleAddHolding} variant="contained">
+            Add Holding
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Holding Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Edit Holding</DialogTitle>
         <DialogContent>
           {selectedHolding && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Box
+              sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}
+            >
               <TextField
                 label="Symbol"
                 value={selectedHolding.symbol}
@@ -683,20 +817,35 @@ const PortfolioHoldings = () => {
                 label="Quantity"
                 type="number"
                 value={selectedHolding.quantity}
-                onChange={(e) => setSelectedHolding({ ...selectedHolding, quantity: e.target.value })}
+                onChange={(e) =>
+                  setSelectedHolding({
+                    ...selectedHolding,
+                    quantity: e.target.value,
+                  })
+                }
               />
               <TextField
                 label="Cost Basis (per share)"
                 type="number"
                 step="0.01"
                 value={selectedHolding.costBasis}
-                onChange={(e) => setSelectedHolding({ ...selectedHolding, costBasis: e.target.value })}
+                onChange={(e) =>
+                  setSelectedHolding({
+                    ...selectedHolding,
+                    costBasis: e.target.value,
+                  })
+                }
               />
               <TextField
                 label="Purchase Date"
                 type="date"
                 value={selectedHolding.purchaseDate}
-                onChange={(e) => setSelectedHolding({ ...selectedHolding, purchaseDate: e.target.value })}
+                onChange={(e) =>
+                  setSelectedHolding({
+                    ...selectedHolding,
+                    purchaseDate: e.target.value,
+                  })
+                }
                 InputLabelProps={{ shrink: true }}
               />
             </Box>
@@ -704,35 +853,42 @@ const PortfolioHoldings = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleEditHolding} variant="contained">Save Changes</Button>
+          <Button onClick={handleEditHolding} variant="contained">
+            Save Changes
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* Import Dialog */}
-      <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Import Portfolio</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
             Import your portfolio from a supported broker:
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <Button
               variant="outlined"
-              onClick={() => handleImportFromBroker('alpaca')}
+              onClick={() => handleImportFromBroker("alpaca")}
               disabled={loading}
             >
               Import from Alpaca
             </Button>
             <Button
               variant="outlined"
-              onClick={() => handleImportFromBroker('robinhood')}
+              onClick={() => handleImportFromBroker("robinhood")}
               disabled={loading}
             >
               Import from Robinhood
             </Button>
             <Button
               variant="outlined"
-              onClick={() => handleImportFromBroker('fidelity')}
+              onClick={() => handleImportFromBroker("fidelity")}
               disabled={loading}
             >
               Import from Fidelity

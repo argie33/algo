@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Container,
   Typography,
@@ -9,9 +9,12 @@ import {
   CardContent,
   Button,
   Box,
-  Paper
-} from '@mui/material';
-import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
+  Paper,
+} from "@mui/material";
+import {
+  getPortfolioPerformance,
+  getPortfolioAnalytics,
+} from "../services/api";
 
 const PortfolioPerformanceDebug = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -24,21 +27,25 @@ const PortfolioPerformanceDebug = () => {
   const addDebugInfo = (message) => {
     const timestamp = new Date().toLocaleTimeString();
     const logMessage = `${timestamp}: ${message}`;
-    console.log('🐛 DEBUG:', logMessage);
-    setDebugInfo(prev => [...prev, logMessage]);
+    console.log("🐛 DEBUG:", logMessage);
+    setDebugInfo((prev) => [...prev, logMessage]);
   };
 
   useEffect(() => {
-    addDebugInfo('Component mounted');
-    addDebugInfo(`Auth loading: ${authLoading}, Authenticated: ${isAuthenticated}, User: ${user ? user.username : 'none'}`);
+    addDebugInfo("Component mounted");
+    addDebugInfo(
+      `Auth loading: ${authLoading}, Authenticated: ${isAuthenticated}, User: ${user ? user.username : "none"}`
+    );
   }, []);
 
   useEffect(() => {
-    addDebugInfo(`Auth state changed - Loading: ${authLoading}, Authenticated: ${isAuthenticated}`);
-    
+    addDebugInfo(
+      `Auth state changed - Loading: ${authLoading}, Authenticated: ${isAuthenticated}`
+    );
+
     // Only fetch data when auth is not loading
     if (!authLoading) {
-      addDebugInfo('Auth loading complete, attempting to fetch data');
+      addDebugInfo("Auth loading complete, attempting to fetch data");
       fetchData();
     }
   }, [authLoading, isAuthenticated]);
@@ -47,17 +54,23 @@ const PortfolioPerformanceDebug = () => {
     try {
       setLoading(true);
       setError(null);
-      addDebugInfo('Starting data fetch...');
+      addDebugInfo("Starting data fetch...");
 
       // Check if we have any auth token
-      const accessToken = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
-      addDebugInfo(`Access token exists: ${!!accessToken} (length: ${accessToken ? accessToken.length : 0})`);
+      const accessToken =
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("authToken");
+      addDebugInfo(
+        `Access token exists: ${!!accessToken} (length: ${accessToken ? accessToken.length : 0})`
+      );
 
       // Test 1: Portfolio Performance
-      addDebugInfo('Calling getPortfolioPerformance API...');
+      addDebugInfo("Calling getPortfolioPerformance API...");
       try {
-        const perfResponse = await getPortfolioPerformance('1Y');
-        addDebugInfo(`Performance API success: ${JSON.stringify(perfResponse?.success || 'unknown')}`);
+        const perfResponse = await getPortfolioPerformance("1Y");
+        addDebugInfo(
+          `Performance API success: ${JSON.stringify(perfResponse?.success || "unknown")}`
+        );
         setPerformanceData(perfResponse);
       } catch (perfError) {
         addDebugInfo(`Performance API failed: ${perfError.message}`);
@@ -65,29 +78,31 @@ const PortfolioPerformanceDebug = () => {
       }
 
       // Test 2: Portfolio Analytics
-      addDebugInfo('Calling getPortfolioAnalytics API...');
+      addDebugInfo("Calling getPortfolioAnalytics API...");
       try {
-        const analyticsResponse = await getPortfolioAnalytics('1Y');
-        addDebugInfo(`Analytics API success: ${JSON.stringify(analyticsResponse?.success || 'unknown')}`);
+        const analyticsResponse = await getPortfolioAnalytics("1Y");
+        addDebugInfo(
+          `Analytics API success: ${JSON.stringify(analyticsResponse?.success || "unknown")}`
+        );
         setAnalyticsData(analyticsResponse);
       } catch (analyticsError) {
         addDebugInfo(`Analytics API failed: ${analyticsError.message}`);
         // Don't throw here, as analytics failure shouldn't block performance data
       }
 
-      addDebugInfo('All API calls completed');
+      addDebugInfo("All API calls completed");
     } catch (err) {
       addDebugInfo(`Error in fetchData: ${err.message}`);
-      console.error('❌ Fetch Error:', err);
+      console.error("❌ Fetch Error:", err);
       setError(`Failed to fetch data: ${err.message}`);
     } finally {
       setLoading(false);
-      addDebugInfo('Data fetch completed, loading set to false');
+      addDebugInfo("Data fetch completed, loading set to false");
     }
   };
 
   const retryFetch = () => {
-    addDebugInfo('Manual retry initiated');
+    addDebugInfo("Manual retry initiated");
     fetchData();
   };
 
@@ -100,16 +115,25 @@ const PortfolioPerformanceDebug = () => {
       <Typography variant="h4" gutterBottom>
         Portfolio Performance (Debug Version)
       </Typography>
-      
+
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" gutterBottom>
           Authentication Status:
         </Typography>
-        <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-          <Typography>Auth Loading: {authLoading ? '⏳ Yes' : '✅ No'}</Typography>
-          <Typography>Authenticated: {isAuthenticated ? '✅ Yes' : '❌ No'}</Typography>
-          <Typography>User: {user ? `✅ ${user.username}` : '❌ None'}</Typography>
-          <Typography>Access Token: {localStorage.getItem('accessToken') ? '✅ Present' : '❌ Missing'}</Typography>
+        <Paper sx={{ p: 2, bgcolor: "grey.50" }}>
+          <Typography>
+            Auth Loading: {authLoading ? "⏳ Yes" : "✅ No"}
+          </Typography>
+          <Typography>
+            Authenticated: {isAuthenticated ? "✅ Yes" : "❌ No"}
+          </Typography>
+          <Typography>
+            User: {user ? `✅ ${user.username}` : "❌ None"}
+          </Typography>
+          <Typography>
+            Access Token:{" "}
+            {localStorage.getItem("accessToken") ? "✅ Present" : "❌ Missing"}
+          </Typography>
         </Paper>
       </Box>
 
@@ -123,10 +147,12 @@ const PortfolioPerformanceDebug = () => {
       )}
 
       {(loading || authLoading) && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
           <CircularProgress />
           <Typography>
-            {authLoading ? 'Initializing authentication...' : 'Loading portfolio data...'}
+            {authLoading
+              ? "Initializing authentication..."
+              : "Loading portfolio data..."}
           </Typography>
         </Box>
       )}
@@ -136,12 +162,13 @@ const PortfolioPerformanceDebug = () => {
           <Typography variant="h6" gutterBottom>
             Data Status
           </Typography>
-          
+
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle1">Performance Data:</Typography>
             {performanceData ? (
               <Typography color="success.main">
-                ✅ Loaded ({performanceData.data?.performance?.length || 0} data points)
+                ✅ Loaded ({performanceData.data?.performance?.length || 0} data
+                points)
               </Typography>
             ) : (
               <Typography color="error.main">❌ Not loaded</Typography>
@@ -159,7 +186,7 @@ const PortfolioPerformanceDebug = () => {
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: "flex", gap: 2 }}>
             <Button onClick={retryFetch} variant="outlined">
               Reload Data
             </Button>
@@ -175,15 +202,17 @@ const PortfolioPerformanceDebug = () => {
           <Typography variant="h6" gutterBottom>
             Debug Log ({debugInfo.length} entries):
           </Typography>
-          <Box sx={{ maxHeight: 400, overflow: 'auto', bgcolor: 'grey.50', p: 1 }}>
+          <Box
+            sx={{ maxHeight: 400, overflow: "auto", bgcolor: "grey.50", p: 1 }}
+          >
             {debugInfo.map((info, index) => (
-              <Typography 
-                key={index} 
-                variant="body2" 
-                sx={{ 
-                  fontFamily: 'monospace', 
-                  marginBottom: '2px',
-                  fontSize: '0.75rem'
+              <Typography
+                key={index}
+                variant="body2"
+                sx={{
+                  fontFamily: "monospace",
+                  marginBottom: "2px",
+                  fontSize: "0.75rem",
                 }}
               >
                 {info}

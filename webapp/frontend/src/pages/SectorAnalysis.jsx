@@ -1,19 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
-  Container, Typography, Box, Card, CardContent, Grid,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Button, Alert, LinearProgress, Chip
-} from '@mui/material';
+  Container,
+  Typography,
+  Box,
+  Card,
+  CardContent,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button,
+  Alert,
+  LinearProgress,
+  Chip,
+} from "@mui/material";
 import {
-  Refresh, TrendingUp, TrendingDown, ShowChart, BarChart
-} from '@mui/icons-material';
+  Refresh,
+  TrendingUp,
+  TrendingDown,
+  ShowChart,
+  BarChart,
+} from "@mui/icons-material";
 import {
-  BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
-} from 'recharts';
-import { useAuth } from '../contexts/AuthContext';
-import api from '../utils/apiService.jsx';
-import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+  BarChart as RechartsBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+import { useAuth } from "../contexts/AuthContext";
+import api from "../utils/apiService.jsx";
+import {
+  formatCurrency,
+  formatPercentage,
+  formatNumber,
+} from "../utils/formatters";
 
 const SectorAnalysis = () => {
   const { user } = useAuth();
@@ -24,16 +55,16 @@ const SectorAnalysis = () => {
 
   // Sector ETF mapping for real data
   const sectorETFs = {
-    'XLK': { name: 'Technology', color: '#2196F3' },
-    'XLV': { name: 'Healthcare', color: '#4CAF50' },
-    'XLF': { name: 'Financials', color: '#FF9800' },
-    'XLY': { name: 'Consumer Discretionary', color: '#9C27B0' },
-    'XLP': { name: 'Consumer Staples', color: '#795548' },
-    'XLE': { name: 'Energy', color: '#FF5722' },
-    'XLI': { name: 'Industrials', color: '#607D8B' },
-    'XLB': { name: 'Materials', color: '#8BC34A' },
-    'XLU': { name: 'Utilities', color: '#FFC107' },
-    'XLRE': { name: 'Real Estate', color: '#E91E63' }
+    XLK: { name: "Technology", color: "#2196F3" },
+    XLV: { name: "Healthcare", color: "#4CAF50" },
+    XLF: { name: "Financials", color: "#FF9800" },
+    XLY: { name: "Consumer Discretionary", color: "#9C27B0" },
+    XLP: { name: "Consumer Staples", color: "#795548" },
+    XLE: { name: "Energy", color: "#FF5722" },
+    XLI: { name: "Industrials", color: "#607D8B" },
+    XLB: { name: "Materials", color: "#8BC34A" },
+    XLU: { name: "Utilities", color: "#FFC107" },
+    XLRE: { name: "Real Estate", color: "#E91E63" },
   };
 
   useEffect(() => {
@@ -44,84 +75,87 @@ const SectorAnalysis = () => {
     try {
       setError(null);
       setLoading(true);
-      
+
       if (!user) {
-        console.warn('User not authenticated, skipping sector data fetch');
+        console.warn("User not authenticated, skipping sector data fetch");
         return;
       }
 
-      console.log('Loading sector analysis data');
-      
+      console.log("Loading sector analysis data");
+
       // Get sector ETF data
       const symbols = Object.keys(sectorETFs);
-      const response = await api.get(`/api/websocket/stream/${symbols.join(',')}`);
-      
+      const response = await api.get(
+        `/api/websocket/stream/${symbols.join(",")}`
+      );
+
       if (response.data.success) {
         const liveData = response.data.data;
-        
+
         // Transform API data for sector analysis
-        const sectors = Object.entries(sectorETFs).map(([etfSymbol, sectorInfo]) => {
-          const symbolData = liveData.data[etfSymbol];
-          if (symbolData && !symbolData.error) {
-            const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
-            // Mock performance data - in a real implementation this would be calculated from historical data
-            const mockChange = (Math.random() - 0.5) * 4; // ±2% range
-            const mockChangePercent = (mockChange / midPrice) * 100;
-            
-            return {
-              sector: sectorInfo.name,
-              etfSymbol: etfSymbol,
-              price: midPrice,
-              change: mockChange,
-              changePercent: mockChangePercent,
-              volume: symbolData.bidSize + symbolData.askSize,
-              marketCap: midPrice * 1000000000, // Mock market cap
-              color: sectorInfo.color,
-              dataSource: 'live',
-              timestamp: symbolData.timestamp
-            };
-          } else {
-            return {
-              sector: sectorInfo.name,
-              etfSymbol: etfSymbol,
-              error: symbolData?.error || 'Data unavailable',
-              color: sectorInfo.color,
-              dataSource: 'error'
-            };
+        const sectors = Object.entries(sectorETFs).map(
+          ([etfSymbol, sectorInfo]) => {
+            const symbolData = liveData.data[etfSymbol];
+            if (symbolData && !symbolData.error) {
+              const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
+              // Mock performance data - in a real implementation this would be calculated from historical data
+              const mockChange = (Math.random() - 0.5) * 4; // ±2% range
+              const mockChangePercent = (mockChange / midPrice) * 100;
+
+              return {
+                sector: sectorInfo.name,
+                etfSymbol: etfSymbol,
+                price: midPrice,
+                change: mockChange,
+                changePercent: mockChangePercent,
+                volume: symbolData.bidSize + symbolData.askSize,
+                marketCap: midPrice * 1000000000, // Mock market cap
+                color: sectorInfo.color,
+                dataSource: "live",
+                timestamp: symbolData.timestamp,
+              };
+            } else {
+              return {
+                sector: sectorInfo.name,
+                etfSymbol: etfSymbol,
+                error: symbolData?.error || "Data unavailable",
+                color: sectorInfo.color,
+                dataSource: "error",
+              };
+            }
           }
-        });
-        
+        );
+
         setSectorData(sectors);
         setLastUpdate(new Date());
-        
-        console.log('✅ Sector analysis data loaded successfully', {
+
+        console.log("✅ Sector analysis data loaded successfully", {
           sectors: sectors.length,
-          successful: sectors.filter(s => !s.error).length,
-          failed: sectors.filter(s => s.error).length
+          successful: sectors.filter((s) => !s.error).length,
+          failed: sectors.filter((s) => s.error).length,
         });
-        
       } else {
-        throw new Error('Failed to fetch sector data');
+        throw new Error("Failed to fetch sector data");
       }
-      
     } catch (error) {
-      console.error('Failed to load sector data:', error);
+      console.error("Failed to load sector data:", error);
       setError(error.message);
-      
+
       // Fallback to demo data for presentation
-      setSectorData(Object.entries(sectorETFs).map(([etfSymbol, sectorInfo]) => ({
-        sector: sectorInfo.name,
-        etfSymbol: etfSymbol,
-        price: 50 + Math.random() * 100,
-        change: (Math.random() - 0.5) * 4,
-        changePercent: (Math.random() - 0.5) * 4,
-        volume: Math.floor(Math.random() * 10000000),
-        marketCap: (50 + Math.random() * 100) * 1000000000,
-        color: sectorInfo.color,
-        dataSource: 'demo',
-        error: 'Using demo data'
-      })));
-      
+      setSectorData(
+        Object.entries(sectorETFs).map(([etfSymbol, sectorInfo]) => ({
+          sector: sectorInfo.name,
+          etfSymbol: etfSymbol,
+          price: 50 + Math.random() * 100,
+          change: (Math.random() - 0.5) * 4,
+          changePercent: (Math.random() - 0.5) * 4,
+          volume: Math.floor(Math.random() * 10000000),
+          marketCap: (50 + Math.random() * 100) * 1000000000,
+          color: sectorInfo.color,
+          dataSource: "demo",
+          error: "Using demo data",
+        }))
+      );
     } finally {
       setLoading(false);
     }
@@ -138,21 +172,21 @@ const SectorAnalysis = () => {
 
   // Prepare chart data
   const chartData = sectorData
-    .filter(s => !s.error)
-    .map(s => ({
-      name: s.sector.length > 15 ? s.sector.substring(0, 15) + '...' : s.sector,
+    .filter((s) => !s.error)
+    .map((s) => ({
+      name: s.sector.length > 15 ? s.sector.substring(0, 15) + "..." : s.sector,
       fullName: s.sector,
       performance: parseFloat(s.changePercent.toFixed(2)),
-      color: s.color
+      color: s.color,
     }))
     .sort((a, b) => b.performance - a.performance);
 
   const pieData = sectorData
-    .filter(s => !s.error)
-    .map(s => ({
+    .filter((s) => !s.error)
+    .map((s) => ({
       name: s.sector,
       value: s.marketCap / 1e12, // Convert to trillions
-      color: s.color
+      color: s.color,
     }));
 
   return (
@@ -167,12 +201,26 @@ const SectorAnalysis = () => {
             Comprehensive sector performance analysis and comparisons
           </Typography>
           <Box display="flex" gap={1} mt={1}>
-            <Chip label={`${sectorData.length} sectors`} color="primary" size="small" />
-            <Chip label="Real-time ETF Data" color="success" size="small" variant="outlined" />
-            <Chip label={`Updated ${formatTimeAgo(lastUpdate)}`} color="info" size="small" variant="outlined" />
+            <Chip
+              label={`${sectorData.length} sectors`}
+              color="primary"
+              size="small"
+            />
+            <Chip
+              label="Real-time ETF Data"
+              color="success"
+              size="small"
+              variant="outlined"
+            />
+            <Chip
+              label={`Updated ${formatTimeAgo(lastUpdate)}`}
+              color="info"
+              size="small"
+              variant="outlined"
+            />
           </Box>
         </Box>
-        
+
         <Button
           variant="outlined"
           startIcon={<Refresh />}
@@ -198,10 +246,13 @@ const SectorAnalysis = () => {
       {/* Error State */}
       {error && (
         <Alert severity="warning" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>Limited Data Available</Typography>
+          <Typography variant="h6" gutterBottom>
+            Limited Data Available
+          </Typography>
           <Typography variant="body2">{error}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Showing demo data for presentation. Configure Alpaca API credentials for live sector data.
+            Showing demo data for presentation. Configure Alpaca API credentials
+            for live sector data.
           </Typography>
         </Alert>
       )}
@@ -211,7 +262,13 @@ const SectorAnalysis = () => {
         <Grid item xs={12} md={8}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                display="flex"
+                alignItems="center"
+                gap={1}
+              >
                 <BarChart color="primary" />
                 Sector Performance Today
               </Typography>
@@ -219,25 +276,23 @@ const SectorAnalysis = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
+                    <XAxis
+                      dataKey="name"
                       angle={-45}
                       textAnchor="end"
                       height={80}
                       interval={0}
                     />
-                    <YAxis 
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip 
-                      formatter={(value) => [`${value}%`, 'Performance']}
+                    <YAxis tickFormatter={(value) => `${value}%`} />
+                    <Tooltip
+                      formatter={(value) => [`${value}%`, "Performance"]}
                       labelFormatter={(label) => {
-                        const item = chartData.find(d => d.name === label);
+                        const item = chartData.find((d) => d.name === label);
                         return item ? item.fullName : label;
                       }}
                     />
-                    <Bar 
-                      dataKey="performance" 
+                    <Bar
+                      dataKey="performance"
                       fill={(entry) => entry.color}
                       radius={[4, 4, 0, 0]}
                     >
@@ -255,7 +310,13 @@ const SectorAnalysis = () => {
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                display="flex"
+                alignItems="center"
+                gap={1}
+              >
                 <ShowChart color="primary" />
                 Market Cap Distribution
               </Typography>
@@ -275,7 +336,12 @@ const SectorAnalysis = () => {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => [`$${value.toFixed(1)}T`, 'Market Cap']} />
+                    <Tooltip
+                      formatter={(value) => [
+                        `$${value.toFixed(1)}T`,
+                        "Market Cap",
+                      ]}
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -295,21 +361,37 @@ const SectorAnalysis = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell><strong>Sector</strong></TableCell>
-                  <TableCell><strong>ETF</strong></TableCell>
-                  <TableCell align="right"><strong>Price</strong></TableCell>
-                  <TableCell align="right"><strong>Change</strong></TableCell>
-                  <TableCell align="right"><strong>Change %</strong></TableCell>
-                  <TableCell align="right"><strong>Volume</strong></TableCell>
-                  <TableCell align="right"><strong>Market Cap</strong></TableCell>
-                  <TableCell align="center"><strong>Status</strong></TableCell>
+                  <TableCell>
+                    <strong>Sector</strong>
+                  </TableCell>
+                  <TableCell>
+                    <strong>ETF</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Price</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Change</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Change %</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Volume</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Market Cap</strong>
+                  </TableCell>
+                  <TableCell align="center">
+                    <strong>Status</strong>
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {sectorData.map((sector) => {
                   const hasError = sector.error;
                   const isPositive = sector.changePercent >= 0;
-                  
+
                   return (
                     <TableRow key={sector.etfSymbol} hover>
                       <TableCell>
@@ -325,13 +407,13 @@ const SectorAnalysis = () => {
                           </Typography>
                         </Box>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Typography variant="body2" fontWeight="bold">
                           {sector.etfSymbol}
                         </Typography>
                       </TableCell>
-                      
+
                       <TableCell align="right">
                         {hasError ? (
                           <Typography color="error">--</Typography>
@@ -341,19 +423,24 @@ const SectorAnalysis = () => {
                           </Typography>
                         )}
                       </TableCell>
-                      
+
                       <TableCell align="right">
                         {hasError ? (
                           <Typography color="error">--</Typography>
                         ) : (
-                          <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                          <Box
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="flex-end"
+                            gap={1}
+                          >
                             {isPositive ? (
                               <TrendingUp color="success" fontSize="small" />
                             ) : (
                               <TrendingDown color="error" fontSize="small" />
                             )}
-                            <Typography 
-                              color={isPositive ? 'success.main' : 'error.main'}
+                            <Typography
+                              color={isPositive ? "success.main" : "error.main"}
                               fontWeight="bold"
                             >
                               {formatCurrency(Math.abs(sector.change))}
@@ -361,20 +448,20 @@ const SectorAnalysis = () => {
                           </Box>
                         )}
                       </TableCell>
-                      
+
                       <TableCell align="right">
                         {hasError ? (
                           <Typography color="error">--</Typography>
                         ) : (
-                          <Typography 
-                            color={isPositive ? 'success.main' : 'error.main'}
+                          <Typography
+                            color={isPositive ? "success.main" : "error.main"}
                             fontWeight="bold"
                           >
                             {formatPercentage(Math.abs(sector.changePercent))}
                           </Typography>
                         )}
                       </TableCell>
-                      
+
                       <TableCell align="right">
                         {hasError ? (
                           <Typography color="error">--</Typography>
@@ -384,7 +471,7 @@ const SectorAnalysis = () => {
                           </Typography>
                         )}
                       </TableCell>
-                      
+
                       <TableCell align="right">
                         {hasError ? (
                           <Typography color="error">--</Typography>
@@ -394,11 +481,11 @@ const SectorAnalysis = () => {
                           </Typography>
                         )}
                       </TableCell>
-                      
+
                       <TableCell align="center">
                         {hasError ? (
                           <Chip label="Error" color="error" size="small" />
-                        ) : sector.dataSource === 'demo' ? (
+                        ) : sector.dataSource === "demo" ? (
                           <Chip label="Demo" color="warning" size="small" />
                         ) : (
                           <Chip label="Live" color="success" size="small" />

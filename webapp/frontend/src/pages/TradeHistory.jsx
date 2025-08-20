@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Container,
@@ -44,8 +44,8 @@ import {
   FormControlLabel,
   Switch,
   Slider,
-  InputAdornment
-} from '@mui/material';
+  InputAdornment,
+} from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
@@ -66,30 +66,45 @@ import {
   SwapHoriz,
   Insights,
   PieChart,
-  BarChart
-} from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart as RechartsPieChart, Cell, BarChart as RechartsBarChart, Bar, ComposedChart, Area, AreaChart } from 'recharts';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+  BarChart,
+} from "@mui/icons-material";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Cell,
+  BarChart as RechartsBarChart,
+  Bar,
+  ComposedChart,
+  Area,
+  AreaChart,
+} from "recharts";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 
 const TradeHistory = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  
+
   // State management
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
-  const [sortBy, setSortBy] = useState('date');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortBy, setSortBy] = useState("date");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState({ start: null, end: null });
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -98,18 +113,28 @@ const TradeHistory = () => {
   const [insights, setInsights] = useState([]);
   const [performance, setPerformance] = useState(null);
   const [chartData, setChartData] = useState([]);
-  
+
   // Fetch trade data
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/');
+      navigate("/");
       return;
     }
     fetchTradeHistory();
     fetchAnalytics();
     fetchInsights();
     fetchPerformance();
-  }, [isAuthenticated, navigate, page, rowsPerPage, sortBy, sortOrder, typeFilter, statusFilter, dateFilter]);
+  }, [
+    isAuthenticated,
+    navigate,
+    page,
+    rowsPerPage,
+    sortBy,
+    sortOrder,
+    typeFilter,
+    statusFilter,
+    dateFilter,
+  ]);
 
   const fetchTradeHistory = async () => {
     try {
@@ -119,33 +144,33 @@ const TradeHistory = () => {
         limit: rowsPerPage,
         sortBy,
         sortOrder,
-        ...(typeFilter !== 'all' && { type: typeFilter }),
-        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(typeFilter !== "all" && { type: typeFilter }),
+        ...(statusFilter !== "all" && { status: statusFilter }),
         ...(dateFilter.start && { startDate: dateFilter.start.toISOString() }),
         ...(dateFilter.end && { endDate: dateFilter.end.toISOString() }),
-        ...(searchTerm && { search: searchTerm })
+        ...(searchTerm && { search: searchTerm }),
       });
 
       const response = await fetch(`/api/trades/history?${params}`, {
         headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
+          Authorization: `Bearer ${user.token}`,
+        },
       });
 
-      if (!response.ok) throw new Error('Failed to fetch trade history');
-      
+      if (!response.ok) throw new Error("Failed to fetch trade history");
+
       const data = await response.json();
       setTrades(data.trades || []);
-      
+
       // Generate chart data from trades
-      const chartData = data.trades?.map(trade => ({
-        date: new Date(trade.executedAt).toLocaleDateString(),
-        pnl: trade.realizedPnl || 0,
-        value: trade.value || 0,
-        cumulative: trade.cumulativePnl || 0
-      })) || [];
+      const chartData =
+        data.trades?.map((trade) => ({
+          date: new Date(trade.executedAt).toLocaleDateString(),
+          pnl: trade.realizedPnl || 0,
+          value: trade.value || 0,
+          cumulative: trade.cumulativePnl || 0,
+        })) || [];
       setChartData(chartData);
-      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -155,59 +180,59 @@ const TradeHistory = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch('/api/trades/analytics/overview', {
-        headers: { 'Authorization': `Bearer ${user.token}` }
+      const response = await fetch("/api/trades/analytics/overview", {
+        headers: { Authorization: `Bearer ${user.token}` },
       });
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data);
       }
     } catch (err) {
-      console.error('Failed to fetch analytics:', err);
+      console.error("Failed to fetch analytics:", err);
     }
   };
 
   const fetchInsights = async () => {
     try {
-      const response = await fetch('/api/trades/insights', {
-        headers: { 'Authorization': `Bearer ${user.token}` }
+      const response = await fetch("/api/trades/insights", {
+        headers: { Authorization: `Bearer ${user.token}` },
       });
       if (response.ok) {
         const data = await response.json();
         setInsights(data.insights || []);
       }
     } catch (err) {
-      console.error('Failed to fetch insights:', err);
+      console.error("Failed to fetch insights:", err);
     }
   };
 
   const fetchPerformance = async () => {
     try {
-      const response = await fetch('/api/trades/performance', {
-        headers: { 'Authorization': `Bearer ${user.token}` }
+      const response = await fetch("/api/trades/performance", {
+        headers: { Authorization: `Bearer ${user.token}` },
       });
       if (response.ok) {
         const data = await response.json();
         setPerformance(data);
       }
     } catch (err) {
-      console.error('Failed to fetch performance:', err);
+      console.error("Failed to fetch performance:", err);
     }
   };
 
   const handleImportTrades = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/trades/import/alpaca', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${user.token}` }
+      const response = await fetch("/api/trades/import/alpaca", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${user.token}` },
       });
-      
+
       if (response.ok) {
         await fetchTradeHistory();
         setImportDialogOpen(false);
       } else {
-        throw new Error('Failed to import trades');
+        throw new Error("Failed to import trades");
       }
     } catch (err) {
       setError(err.message);
@@ -216,18 +241,18 @@ const TradeHistory = () => {
     }
   };
 
-  const handleExportTrades = async (format = 'csv') => {
+  const handleExportTrades = async (format = "csv") => {
     try {
       const response = await fetch(`/api/trades/export?format=${format}`, {
-        headers: { 'Authorization': `Bearer ${user.token}` }
+        headers: { Authorization: `Bearer ${user.token}` },
       });
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = `trades_${new Date().toISOString().split('T')[0]}.${format}`;
+        a.download = `trades_${new Date().toISOString().split("T")[0]}.${format}`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -240,47 +265,59 @@ const TradeHistory = () => {
 
   const getTradeTypeColor = (type) => {
     switch (type?.toLowerCase()) {
-      case 'buy': return 'success';
-      case 'sell': return 'error';
-      case 'dividend': return 'info';
-      case 'split': return 'warning';
-      default: return 'default';
+      case "buy":
+        return "success";
+      case "sell":
+        return "error";
+      case "dividend":
+        return "info";
+      case "split":
+        return "warning";
+      default:
+        return "default";
     }
   };
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
-      case 'filled': return 'success';
-      case 'pending': return 'warning';
-      case 'cancelled': return 'error';
-      case 'partial': return 'info';
-      default: return 'default';
+      case "filled":
+        return "success";
+      case "pending":
+        return "warning";
+      case "cancelled":
+        return "error";
+      case "partial":
+        return "info";
+      default:
+        return "default";
     }
   };
 
   const formatCurrency = (amount) => {
-    if (amount === null || amount === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
+    if (amount === null || amount === undefined) return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount);
   };
 
   const formatPercent = (value) => {
-    if (value === null || value === undefined) return '0.00%';
+    if (value === null || value === undefined) return "0.00%";
     return `${(value * 100).toFixed(2)}%`;
   };
 
   // Filtered and sorted trades
   const filteredTrades = useMemo(() => {
-    let filtered = trades.filter(trade => {
-      const matchesSearch = !searchTerm || 
+    let filtered = trades.filter((trade) => {
+      const matchesSearch =
+        !searchTerm ||
         trade.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         trade.type?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesType = typeFilter === 'all' || trade.type === typeFilter;
-      const matchesStatus = statusFilter === 'all' || trade.status === statusFilter;
-      
+
+      const matchesType = typeFilter === "all" || trade.type === typeFilter;
+      const matchesStatus =
+        statusFilter === "all" || trade.status === statusFilter;
+
       return matchesSearch && matchesType && matchesStatus;
     });
 
@@ -288,8 +325,8 @@ const TradeHistory = () => {
     filtered.sort((a, b) => {
       const aVal = a[sortBy];
       const bVal = b[sortBy];
-      
-      if (sortOrder === 'asc') {
+
+      if (sortOrder === "asc") {
         return aVal > bVal ? 1 : -1;
       } else {
         return aVal < bVal ? 1 : -1;
@@ -299,7 +336,10 @@ const TradeHistory = () => {
     return filtered;
   }, [trades, searchTerm, typeFilter, statusFilter, sortBy, sortOrder]);
 
-  const paginatedTrades = filteredTrades.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const paginatedTrades = filteredTrades.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
 
   const TabPanel = ({ children, value, index, ...other }) => (
     <div role="tabpanel" hidden={value !== index} {...other}>
@@ -322,7 +362,12 @@ const TradeHistory = () => {
       <Container maxWidth="xl" sx={{ py: 3 }}>
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+          <Typography
+            variant="h4"
+            component="h1"
+            gutterBottom
+            sx={{ fontWeight: "bold" }}
+          >
             Trade History
           </Typography>
           <Typography variant="subtitle1" color="text.secondary">
@@ -342,7 +387,7 @@ const TradeHistory = () => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
                     <SwapHoriz color="primary" sx={{ mr: 1 }} />
                     <Typography variant="h6">Total Trades</Typography>
                   </Box>
@@ -355,11 +400,18 @@ const TradeHistory = () => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
                     <MonetizationOn color="success" sx={{ mr: 1 }} />
                     <Typography variant="h6">Total P&L</Typography>
                   </Box>
-                  <Typography variant="h4" sx={{ mt: 1, color: analytics.totalPnl >= 0 ? 'success.main' : 'error.main' }}>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      mt: 1,
+                      color:
+                        analytics.totalPnl >= 0 ? "success.main" : "error.main",
+                    }}
+                  >
                     {formatCurrency(analytics.totalPnl)}
                   </Typography>
                 </CardContent>
@@ -368,7 +420,7 @@ const TradeHistory = () => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Assessment color="info" sx={{ mr: 1 }} />
                     <Typography variant="h6">Win Rate</Typography>
                   </Box>
@@ -381,12 +433,12 @@ const TradeHistory = () => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Timeline color="secondary" sx={{ mr: 1 }} />
                     <Typography variant="h6">Avg Hold Time</Typography>
                   </Box>
                   <Typography variant="h4" sx={{ mt: 1 }}>
-                    {analytics.avgHoldTime || 'N/A'}
+                    {analytics.avgHoldTime || "N/A"}
                   </Typography>
                 </CardContent>
               </Card>
@@ -395,7 +447,7 @@ const TradeHistory = () => {
         )}
 
         {/* Action Buttons */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
           <Button
             variant="outlined"
             startIcon={<Upload />}
@@ -406,14 +458,14 @@ const TradeHistory = () => {
           <Button
             variant="outlined"
             startIcon={<Download />}
-            onClick={() => handleExportTrades('csv')}
+            onClick={() => handleExportTrades("csv")}
           >
             Export CSV
           </Button>
           <Button
             variant="outlined"
             startIcon={<Download />}
-            onClick={() => handleExportTrades('json')}
+            onClick={() => handleExportTrades("json")}
           >
             Export JSON
           </Button>
@@ -427,8 +479,11 @@ const TradeHistory = () => {
         </Box>
 
         {/* Tabs */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+          <Tabs
+            value={tabValue}
+            onChange={(e, newValue) => setTabValue(newValue)}
+          >
             <Tab icon={<History />} label="Trade List" />
             <Tab icon={<ShowChart />} label="Performance Chart" />
             <Tab icon={<Analytics />} label="Analytics" />
@@ -441,7 +496,14 @@ const TradeHistory = () => {
           {/* Filters */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 2,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
                 <TextField
                   size="small"
                   placeholder="Search by symbol or type..."
@@ -456,7 +518,7 @@ const TradeHistory = () => {
                   }}
                   sx={{ minWidth: 200 }}
                 />
-                
+
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>Type</InputLabel>
                   <Select
@@ -471,7 +533,7 @@ const TradeHistory = () => {
                     <MenuItem value="split">Split</MenuItem>
                   </Select>
                 </FormControl>
-                
+
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -497,22 +559,32 @@ const TradeHistory = () => {
               </Box>
 
               {showAdvancedFilters && (
-                <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                <Box
+                  sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}
+                >
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <DatePicker
                         label="Start Date"
                         value={dateFilter.start}
-                        onChange={(date) => setDateFilter(prev => ({ ...prev, start: date }))}
-                        renderInput={(params) => <TextField {...params} fullWidth />}
+                        onChange={(date) =>
+                          setDateFilter((prev) => ({ ...prev, start: date }))
+                        }
+                        renderInput={(params) => (
+                          <TextField {...params} fullWidth />
+                        )}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <DatePicker
                         label="End Date"
                         value={dateFilter.end}
-                        onChange={(date) => setDateFilter(prev => ({ ...prev, end: date }))}
-                        renderInput={(params) => <TextField {...params} fullWidth />}
+                        onChange={(date) =>
+                          setDateFilter((prev) => ({ ...prev, end: date }))
+                        }
+                        renderInput={(params) => (
+                          <TextField {...params} fullWidth />
+                        )}
                       />
                     </Grid>
                   </Grid>
@@ -529,11 +601,15 @@ const TradeHistory = () => {
                   <TableRow>
                     <TableCell>
                       <TableSortLabel
-                        active={sortBy === 'symbol'}
-                        direction={sortBy === 'symbol' ? sortOrder : 'asc'}
+                        active={sortBy === "symbol"}
+                        direction={sortBy === "symbol" ? sortOrder : "asc"}
                         onClick={() => {
-                          setSortBy('symbol');
-                          setSortOrder(sortBy === 'symbol' && sortOrder === 'asc' ? 'desc' : 'asc');
+                          setSortBy("symbol");
+                          setSortOrder(
+                            sortBy === "symbol" && sortOrder === "asc"
+                              ? "desc"
+                              : "asc"
+                          );
                         }}
                       >
                         Symbol
@@ -547,11 +623,15 @@ const TradeHistory = () => {
                     <TableCell>Status</TableCell>
                     <TableCell>
                       <TableSortLabel
-                        active={sortBy === 'executedAt'}
-                        direction={sortBy === 'executedAt' ? sortOrder : 'asc'}
+                        active={sortBy === "executedAt"}
+                        direction={sortBy === "executedAt" ? sortOrder : "asc"}
                         onClick={() => {
-                          setSortBy('executedAt');
-                          setSortOrder(sortBy === 'executedAt' && sortOrder === 'asc' ? 'desc' : 'asc');
+                          setSortBy("executedAt");
+                          setSortOrder(
+                            sortBy === "executedAt" && sortOrder === "asc"
+                              ? "desc"
+                              : "asc"
+                          );
                         }}
                       >
                         Date
@@ -588,7 +668,13 @@ const TradeHistory = () => {
                             label={trade.type}
                             color={getTradeTypeColor(trade.type)}
                             size="small"
-                            icon={trade.type === 'buy' ? <TrendingUp /> : <TrendingDown />}
+                            icon={
+                              trade.type === "buy" ? (
+                                <TrendingUp />
+                              ) : (
+                                <TrendingDown />
+                              )
+                            }
                           />
                         </TableCell>
                         <TableCell>{trade.quantity}</TableCell>
@@ -597,7 +683,11 @@ const TradeHistory = () => {
                         <TableCell>
                           <Typography
                             variant="body2"
-                            color={trade.realizedPnl >= 0 ? 'success.main' : 'error.main'}
+                            color={
+                              trade.realizedPnl >= 0
+                                ? "success.main"
+                                : "error.main"
+                            }
                             fontWeight="bold"
                           >
                             {formatCurrency(trade.realizedPnl)}
@@ -657,9 +747,16 @@ const TradeHistory = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <RechartsTooltip formatter={(value) => formatCurrency(value)} />
+                      <RechartsTooltip
+                        formatter={(value) => formatCurrency(value)}
+                      />
                       <Bar dataKey="pnl" fill="#8884d8" />
-                      <Line type="monotone" dataKey="cumulative" stroke="#82ca9d" strokeWidth={2} />
+                      <Line
+                        type="monotone"
+                        dataKey="cumulative"
+                        stroke="#82ca9d"
+                        strokeWidth={2}
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -676,59 +773,142 @@ const TradeHistory = () => {
                 <Card>
                   <CardHeader title="Trading Statistics" />
                   <CardContent>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Box
+                      sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography>Total Trades:</Typography>
-                        <Typography fontWeight="bold">{analytics.totalTrades}</Typography>
+                        <Typography fontWeight="bold">
+                          {analytics.totalTrades}
+                        </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography>Winning Trades:</Typography>
-                        <Typography fontWeight="bold" color="success.main">{analytics.winningTrades}</Typography>
+                        <Typography fontWeight="bold" color="success.main">
+                          {analytics.winningTrades}
+                        </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography>Losing Trades:</Typography>
-                        <Typography fontWeight="bold" color="error.main">{analytics.losingTrades}</Typography>
+                        <Typography fontWeight="bold" color="error.main">
+                          {analytics.losingTrades}
+                        </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography>Average Win:</Typography>
-                        <Typography fontWeight="bold">{formatCurrency(analytics.avgWin)}</Typography>
+                        <Typography fontWeight="bold">
+                          {formatCurrency(analytics.avgWin)}
+                        </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography>Average Loss:</Typography>
-                        <Typography fontWeight="bold">{formatCurrency(analytics.avgLoss)}</Typography>
+                        <Typography fontWeight="bold">
+                          {formatCurrency(analytics.avgLoss)}
+                        </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography>Profit Factor:</Typography>
-                        <Typography fontWeight="bold">{analytics.profitFactor}</Typography>
+                        <Typography fontWeight="bold">
+                          {analytics.profitFactor}
+                        </Typography>
                       </Box>
                     </Box>
                   </CardContent>
                 </Card>
               </Grid>
-              
+
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardHeader title="Performance Metrics" />
                   <CardContent>
                     {performance && (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 2,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
+                        >
                           <Typography>Total Return:</Typography>
-                          <Typography fontWeight="bold" color={performance.totalReturn >= 0 ? 'success.main' : 'error.main'}>
+                          <Typography
+                            fontWeight="bold"
+                            color={
+                              performance.totalReturn >= 0
+                                ? "success.main"
+                                : "error.main"
+                            }
+                          >
                             {formatPercent(performance.totalReturn)}
                           </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
+                        >
                           <Typography>Sharpe Ratio:</Typography>
-                          <Typography fontWeight="bold">{performance.sharpeRatio}</Typography>
+                          <Typography fontWeight="bold">
+                            {performance.sharpeRatio}
+                          </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
+                        >
                           <Typography>Max Drawdown:</Typography>
-                          <Typography fontWeight="bold" color="error.main">{formatPercent(performance.maxDrawdown)}</Typography>
+                          <Typography fontWeight="bold" color="error.main">
+                            {formatPercent(performance.maxDrawdown)}
+                          </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
+                        >
                           <Typography>Volatility:</Typography>
-                          <Typography fontWeight="bold">{formatPercent(performance.volatility)}</Typography>
+                          <Typography fontWeight="bold">
+                            {formatPercent(performance.volatility)}
+                          </Typography>
                         </Box>
                       </Box>
                     )}
@@ -754,7 +934,10 @@ const TradeHistory = () => {
                       {insight.description}
                     </Typography>
                     {insight.recommendation && (
-                      <Alert severity={insight.severity || 'info'} sx={{ mt: 2 }}>
+                      <Alert
+                        severity={insight.severity || "info"}
+                        sx={{ mt: 2 }}
+                      >
                         {insight.recommendation}
                       </Alert>
                     )}
@@ -762,13 +945,18 @@ const TradeHistory = () => {
                 </Card>
               </Grid>
             ))}
-            
+
             {insights.length === 0 && (
               <Grid item xs={12}>
                 <Card>
                   <CardContent>
-                    <Typography variant="body2" color="text.secondary" align="center">
-                      No AI insights available. Execute more trades to generate insights.
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      align="center"
+                    >
+                      No AI insights available. Execute more trades to generate
+                      insights.
                     </Typography>
                   </CardContent>
                 </Card>
@@ -778,14 +966,19 @@ const TradeHistory = () => {
         </TabPanel>
 
         {/* Import Dialog */}
-        <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)}>
+        <Dialog
+          open={importDialogOpen}
+          onClose={() => setImportDialogOpen(false)}
+        >
           <DialogTitle>Import Trades</DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Import your trades from connected brokers. This will sync your trade history and update your analytics.
+              Import your trades from connected brokers. This will sync your
+              trade history and update your analytics.
             </Typography>
             <Alert severity="info">
-              Make sure your broker API keys are configured in Settings before importing.
+              Make sure your broker API keys are configured in Settings before
+              importing.
             </Alert>
           </DialogContent>
           <DialogActions>
@@ -797,14 +990,21 @@ const TradeHistory = () => {
         </Dialog>
 
         {/* Trade Details Dialog */}
-        <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="md" fullWidth>
+        <Dialog
+          open={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
           <DialogTitle>Trade Details</DialogTitle>
           <DialogContent>
             {selectedTrade && (
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Symbol</Typography>
-                  <Typography variant="body2">{selectedTrade.symbol}</Typography>
+                  <Typography variant="body2">
+                    {selectedTrade.symbol}
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Type</Typography>
@@ -812,40 +1012,61 @@ const TradeHistory = () => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Quantity</Typography>
-                  <Typography variant="body2">{selectedTrade.quantity}</Typography>
+                  <Typography variant="body2">
+                    {selectedTrade.quantity}
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Price</Typography>
-                  <Typography variant="body2">{formatCurrency(selectedTrade.price)}</Typography>
+                  <Typography variant="body2">
+                    {formatCurrency(selectedTrade.price)}
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Total Value</Typography>
-                  <Typography variant="body2">{formatCurrency(selectedTrade.value)}</Typography>
+                  <Typography variant="body2">
+                    {formatCurrency(selectedTrade.value)}
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">P&L</Typography>
-                  <Typography variant="body2" color={selectedTrade.realizedPnl >= 0 ? 'success.main' : 'error.main'}>
+                  <Typography
+                    variant="body2"
+                    color={
+                      selectedTrade.realizedPnl >= 0
+                        ? "success.main"
+                        : "error.main"
+                    }
+                  >
                     {formatCurrency(selectedTrade.realizedPnl)}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Execution Date</Typography>
-                  <Typography variant="body2">{new Date(selectedTrade.executedAt).toLocaleString()}</Typography>
+                  <Typography variant="body2">
+                    {new Date(selectedTrade.executedAt).toLocaleString()}
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2">Status</Typography>
-                  <Typography variant="body2">{selectedTrade.status}</Typography>
+                  <Typography variant="body2">
+                    {selectedTrade.status}
+                  </Typography>
                 </Grid>
                 {selectedTrade.fees && (
                   <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2">Fees</Typography>
-                    <Typography variant="body2">{formatCurrency(selectedTrade.fees)}</Typography>
+                    <Typography variant="body2">
+                      {formatCurrency(selectedTrade.fees)}
+                    </Typography>
                   </Grid>
                 )}
                 {selectedTrade.notes && (
                   <Grid item xs={12}>
                     <Typography variant="subtitle2">Notes</Typography>
-                    <Typography variant="body2">{selectedTrade.notes}</Typography>
+                    <Typography variant="body2">
+                      {selectedTrade.notes}
+                    </Typography>
                   </Grid>
                 )}
               </Grid>

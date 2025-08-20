@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, CircularProgress, Alert, Card, CardContent, Button } from '@mui/material';
-import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  Typography,
+  CircularProgress,
+  Alert,
+  Card,
+  CardContent,
+  Button,
+} from "@mui/material";
+import {
+  getPortfolioPerformance,
+  getPortfolioAnalytics,
+} from "../services/api";
 
 const PortfolioPerformanceSimple = () => {
   const [loading, setLoading] = useState(true);
@@ -10,12 +21,15 @@ const PortfolioPerformanceSimple = () => {
   const [debugInfo, setDebugInfo] = useState([]);
 
   const addDebugInfo = (message) => {
-    console.log('🐛 DEBUG:', message);
-    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+    console.log("🐛 DEBUG:", message);
+    setDebugInfo((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()}: ${message}`,
+    ]);
   };
 
   useEffect(() => {
-    addDebugInfo('Component mounted, starting data fetch...');
+    addDebugInfo("Component mounted, starting data fetch...");
     fetchData();
   }, []);
 
@@ -23,33 +37,37 @@ const PortfolioPerformanceSimple = () => {
     try {
       setLoading(true);
       setError(null);
-      addDebugInfo('Setting loading to true, clearing error');
+      addDebugInfo("Setting loading to true, clearing error");
 
       // Test 1: Portfolio Performance
-      addDebugInfo('Calling getPortfolioPerformance...');
-      const perfResponse = await getPortfolioPerformance('1Y');
-      addDebugInfo(`Performance API response: ${JSON.stringify(perfResponse, null, 2).substring(0, 200)}...`);
+      addDebugInfo("Calling getPortfolioPerformance...");
+      const perfResponse = await getPortfolioPerformance("1Y");
+      addDebugInfo(
+        `Performance API response: ${JSON.stringify(perfResponse, null, 2).substring(0, 200)}...`
+      );
       setPerformanceData(perfResponse);
 
       // Test 2: Portfolio Analytics
-      addDebugInfo('Calling getPortfolioAnalytics...');
-      const analyticsResponse = await getPortfolioAnalytics('1Y');
-      addDebugInfo(`Analytics API response: ${JSON.stringify(analyticsResponse, null, 2).substring(0, 200)}...`);
+      addDebugInfo("Calling getPortfolioAnalytics...");
+      const analyticsResponse = await getPortfolioAnalytics("1Y");
+      addDebugInfo(
+        `Analytics API response: ${JSON.stringify(analyticsResponse, null, 2).substring(0, 200)}...`
+      );
       setAnalyticsData(analyticsResponse);
 
-      addDebugInfo('All API calls completed successfully');
+      addDebugInfo("All API calls completed successfully");
     } catch (err) {
       addDebugInfo(`Error occurred: ${err.message}`);
-      console.error('❌ API Error:', err);
+      console.error("❌ API Error:", err);
       setError(`Failed to fetch data: ${err.message}`);
     } finally {
       setLoading(false);
-      addDebugInfo('Setting loading to false');
+      addDebugInfo("Setting loading to false");
     }
   };
 
   const retryFetch = () => {
-    addDebugInfo('Manual retry initiated');
+    addDebugInfo("Manual retry initiated");
     fetchData();
   };
 
@@ -59,7 +77,14 @@ const PortfolioPerformanceSimple = () => {
         <Typography variant="h4" gutterBottom>
           Portfolio Performance (Simple Debug Version)
         </Typography>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
           <CircularProgress />
           <Typography>Loading portfolio data...</Typography>
         </div>
@@ -67,7 +92,11 @@ const PortfolioPerformanceSimple = () => {
           <CardContent>
             <Typography variant="h6">Debug Information:</Typography>
             {debugInfo.map((info, index) => (
-              <Typography key={index} variant="body2" style={{ fontFamily: 'monospace', marginBottom: '4px' }}>
+              <Typography
+                key={index}
+                variant="body2"
+                style={{ fontFamily: "monospace", marginBottom: "4px" }}
+              >
                 {info}
               </Typography>
             ))}
@@ -99,12 +128,14 @@ const PortfolioPerformanceSimple = () => {
           </Typography>
           {performanceData ? (
             <div>
-              <Typography color="success.main">✅ Performance data loaded successfully</Typography>
+              <Typography color="success.main">
+                ✅ Performance data loaded successfully
+              </Typography>
               <Typography>
                 Data points: {performanceData.data?.performance?.length || 0}
               </Typography>
               <Typography>
-                Success: {performanceData.success ? 'true' : 'false'}
+                Success: {performanceData.success ? "true" : "false"}
               </Typography>
             </div>
           ) : (
@@ -120,12 +151,14 @@ const PortfolioPerformanceSimple = () => {
           </Typography>
           {analyticsData ? (
             <div>
-              <Typography color="success.main">✅ Analytics data loaded successfully</Typography>
+              <Typography color="success.main">
+                ✅ Analytics data loaded successfully
+              </Typography>
               <Typography>
                 Holdings: {analyticsData.data?.holdings?.length || 0}
               </Typography>
               <Typography>
-                Success: {analyticsData.success ? 'true' : 'false'}
+                Success: {analyticsData.success ? "true" : "false"}
               </Typography>
             </div>
           ) : (
@@ -140,7 +173,11 @@ const PortfolioPerformanceSimple = () => {
             Debug Information:
           </Typography>
           {debugInfo.map((info, index) => (
-            <Typography key={index} variant="body2" style={{ fontFamily: 'monospace', marginBottom: '4px' }}>
+            <Typography
+              key={index}
+              variant="body2"
+              style={{ fontFamily: "monospace", marginBottom: "4px" }}
+            >
               {info}
             </Typography>
           ))}

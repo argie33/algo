@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Box,
   Container,
@@ -39,8 +39,8 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider
-} from '@mui/material';
+  Divider,
+} from "@mui/material";
 import {
   Add,
   Delete,
@@ -59,16 +59,16 @@ import {
   TrendingUp,
   Psychology,
   DataObject,
-  Api
-} from '@mui/icons-material';
-import { 
-  getApiKeys, 
-  addApiKey, 
-  updateApiKey, 
-  deleteApiKey, 
+  Api,
+} from "@mui/icons-material";
+import {
+  getApiKeys,
+  addApiKey,
+  updateApiKey,
+  deleteApiKey,
   testApiConnection,
-  importPortfolioFromBroker 
-} from '../services/api';
+  importPortfolioFromBroker,
+} from "../services/api";
 
 const SettingsApiKeys = () => {
   const { user } = useAuth();
@@ -84,56 +84,56 @@ const SettingsApiKeys = () => {
 
   // Add/Edit form state
   const [formData, setFormData] = useState({
-    provider: '',
-    apiKey: '',
-    apiSecret: '',
+    provider: "",
+    apiKey: "",
+    apiSecret: "",
     isSandbox: true,
-    description: ''
+    description: "",
   });
 
   const [showSecrets, setShowSecrets] = useState({});
 
   const supportedProviders = [
     {
-      id: 'alpaca',
-      name: 'Alpaca Markets',
-      description: 'Commission-free stock trading with API access',
-      features: ['Portfolio Import', 'Real-time Data', 'Trading'],
+      id: "alpaca",
+      name: "Alpaca Markets",
+      description: "Commission-free stock trading with API access",
+      features: ["Portfolio Import", "Real-time Data", "Trading"],
       icon: <AccountBalance />,
-      color: '#FFD700'
+      color: "#FFD700",
     },
     {
-      id: 'robinhood',
-      name: 'Robinhood',
-      description: 'Popular commission-free trading platform',
-      features: ['Portfolio Import', 'Basic Data'],
+      id: "robinhood",
+      name: "Robinhood",
+      description: "Popular commission-free trading platform",
+      features: ["Portfolio Import", "Basic Data"],
       icon: <TrendingUp />,
-      color: '#00C851'
+      color: "#00C851",
     },
     {
-      id: 'polygon',
-      name: 'Polygon.io',
-      description: 'Financial market data provider',
-      features: ['Real-time Data', 'Historical Data', 'Options Data'],
+      id: "polygon",
+      name: "Polygon.io",
+      description: "Financial market data provider",
+      features: ["Real-time Data", "Historical Data", "Options Data"],
       icon: <DataObject />,
-      color: '#2196F3'
+      color: "#2196F3",
     },
     {
-      id: 'alpha_vantage',
-      name: 'Alpha Vantage',
-      description: 'Free and premium financial data APIs',
-      features: ['Market Data', 'Technical Indicators', 'Forex'],
+      id: "alpha_vantage",
+      name: "Alpha Vantage",
+      description: "Free and premium financial data APIs",
+      features: ["Market Data", "Technical Indicators", "Forex"],
       icon: <Api />,
-      color: '#FF9800'
+      color: "#FF9800",
     },
     {
-      id: 'sentiment_one',
-      name: 'SentimentInvestor',
-      description: 'Social sentiment and alternative data',
-      features: ['Social Sentiment', 'News Analysis', 'Options Flow'],
+      id: "sentiment_one",
+      name: "SentimentInvestor",
+      description: "Social sentiment and alternative data",
+      features: ["Social Sentiment", "News Analysis", "Options Flow"],
       icon: <Psychology />,
-      color: '#9C27B0'
-    }
+      color: "#9C27B0",
+    },
   ];
 
   useEffect(() => {
@@ -146,8 +146,8 @@ const SettingsApiKeys = () => {
       const response = await getApiKeys();
       setApiKeys(response?.apiKeys || []);
     } catch (err) {
-      setError('Failed to fetch API keys');
-      console.error('API keys fetch error:', err);
+      setError("Failed to fetch API keys");
+      console.error("API keys fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -156,24 +156,24 @@ const SettingsApiKeys = () => {
   const handleAddApiKey = async () => {
     try {
       if (!formData.provider || !formData.apiKey) {
-        setError('Please fill in all required fields');
+        setError("Please fill in all required fields");
         return;
       }
 
       await addApiKey(formData);
       setAddDialogOpen(false);
       setFormData({
-        provider: '',
-        apiKey: '',
-        apiSecret: '',
+        provider: "",
+        apiKey: "",
+        apiSecret: "",
         isSandbox: true,
-        description: ''
+        description: "",
       });
-      setSuccess('API key added successfully');
+      setSuccess("API key added successfully");
       fetchApiKeys();
     } catch (err) {
-      setError('Failed to add API key');
-      console.error('Add API key error:', err);
+      setError("Failed to add API key");
+      console.error("Add API key error:", err);
     }
   };
 
@@ -181,34 +181,34 @@ const SettingsApiKeys = () => {
     try {
       await updateApiKey(selectedKey.id, {
         description: formData.description,
-        isSandbox: formData.isSandbox
+        isSandbox: formData.isSandbox,
       });
       setEditDialogOpen(false);
       setSelectedKey(null);
-      setSuccess('API key updated successfully');
+      setSuccess("API key updated successfully");
       fetchApiKeys();
     } catch (err) {
-      setError('Failed to update API key');
-      console.error('Update API key error:', err);
+      setError("Failed to update API key");
+      console.error("Update API key error:", err);
     }
   };
 
   const handleDeleteApiKey = async (keyId) => {
     try {
       await deleteApiKey(keyId);
-      setSuccess('API key deleted successfully');
+      setSuccess("API key deleted successfully");
       fetchApiKeys();
     } catch (err) {
-      setError('Failed to delete API key');
-      console.error('Delete API key error:', err);
+      setError("Failed to delete API key");
+      console.error("Delete API key error:", err);
     }
   };
 
   const handleTestConnection = async (keyId, provider) => {
     try {
-      setTesting(prev => ({ ...prev, [keyId]: true }));
+      setTesting((prev) => ({ ...prev, [keyId]: true }));
       const result = await testApiConnection(keyId);
-      
+
       if (result.success) {
         setSuccess(`${provider} connection test successful`);
       } else {
@@ -217,15 +217,15 @@ const SettingsApiKeys = () => {
     } catch (err) {
       setError(`Connection test failed: ${err.message}`);
     } finally {
-      setTesting(prev => ({ ...prev, [keyId]: false }));
+      setTesting((prev) => ({ ...prev, [keyId]: false }));
     }
   };
 
   const handleImportPortfolio = async (keyId, provider) => {
     try {
-      setImporting(prev => ({ ...prev, [keyId]: true }));
+      setImporting((prev) => ({ ...prev, [keyId]: true }));
       const result = await importPortfolioFromBroker(provider);
-      
+
       if (result.success) {
         setSuccess(`Portfolio imported successfully from ${provider}`);
       } else {
@@ -234,37 +234,48 @@ const SettingsApiKeys = () => {
     } catch (err) {
       setError(`Portfolio import failed: ${err.message}`);
     } finally {
-      setImporting(prev => ({ ...prev, [keyId]: false }));
+      setImporting((prev) => ({ ...prev, [keyId]: false }));
     }
   };
 
   const toggleShowSecret = (keyId) => {
-    setShowSecrets(prev => ({
+    setShowSecrets((prev) => ({
       ...prev,
-      [keyId]: !prev[keyId]
+      [keyId]: !prev[keyId],
     }));
   };
 
   const getProviderInfo = (providerId) => {
-    return supportedProviders.find(p => p.id === providerId) || {
-      name: providerId,
-      description: 'External API provider',
-      features: [],
-      icon: <Api />,
-      color: '#666666'
-    };
+    return (
+      supportedProviders.find((p) => p.id === providerId) || {
+        name: providerId,
+        description: "External API provider",
+        features: [],
+        icon: <Api />,
+        color: "#666666",
+      }
+    );
   };
 
   const maskApiKey = (key) => {
-    if (!key) return '';
-    if (key.length <= 8) return '*'.repeat(key.length);
-    return key.substring(0, 4) + '*'.repeat(key.length - 8) + key.substring(key.length - 4);
+    if (!key) return "";
+    if (key.length <= 8) return "*".repeat(key.length);
+    return (
+      key.substring(0, 4) +
+      "*".repeat(key.length - 8) +
+      key.substring(key.length - 4)
+    );
   };
 
   if (loading) {
     return (
       <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="60vh"
+        >
           <CircularProgress />
         </Box>
       </Container>
@@ -289,7 +300,11 @@ const SettingsApiKeys = () => {
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
+        <Alert
+          severity="success"
+          sx={{ mb: 3 }}
+          onClose={() => setSuccess(null)}
+        >
           {success}
         </Alert>
       )}
@@ -297,16 +312,17 @@ const SettingsApiKeys = () => {
       {/* Security Notice */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-            <Security sx={{ mr: 2, mt: 0.5, color: 'primary.main' }} />
+          <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+            <Security sx={{ mr: 2, mt: 0.5, color: "primary.main" }} />
             <Box>
               <Typography variant="h6" gutterBottom>
                 Security & Encryption
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Your API keys are encrypted using AES-256-GCM encryption before storage. 
-                We never store your credentials in plain text and they are only decrypted 
-                when needed for API calls. Your data is secure and isolated from other users.
+                Your API keys are encrypted using AES-256-GCM encryption before
+                storage. We never store your credentials in plain text and they
+                are only decrypted when needed for API calls. Your data is
+                secure and isolated from other users.
               </Typography>
             </Box>
           </Box>
@@ -314,10 +330,15 @@ const SettingsApiKeys = () => {
       </Card>
 
       {/* Add API Key Button */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">
-          Your API Keys ({apiKeys.length})
-        </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Typography variant="h6">Your API Keys ({apiKeys.length})</Typography>
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -349,7 +370,7 @@ const SettingsApiKeys = () => {
                   return (
                     <TableRow key={key.id}>
                       <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
                           <Box sx={{ color: provider.color, mr: 1 }}>
                             {provider.icon}
                           </Box>
@@ -357,7 +378,10 @@ const SettingsApiKeys = () => {
                             <Typography variant="body2" fontWeight="bold">
                               {provider.name}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {provider.description}
                             </Typography>
                           </Box>
@@ -365,60 +389,80 @@ const SettingsApiKeys = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {key.description || 'No description'}
+                          {key.description || "No description"}
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
                           <Typography variant="body2" fontFamily="monospace">
-                            {showSecrets[key.id] ? key.apiKey : maskApiKey(key.apiKey)}
+                            {showSecrets[key.id]
+                              ? key.apiKey
+                              : maskApiKey(key.apiKey)}
                           </Typography>
                           <IconButton
                             size="small"
                             onClick={() => toggleShowSecret(key.id)}
                           >
-                            {showSecrets[key.id] ? <VisibilityOff /> : <Visibility />}
+                            {showSecrets[key.id] ? (
+                              <VisibilityOff />
+                            ) : (
+                              <Visibility />
+                            )}
                           </IconButton>
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={key.isSandbox ? 'Sandbox' : 'Live'} 
-                          color={key.isSandbox ? 'warning' : 'success'}
+                        <Chip
+                          label={key.isSandbox ? "Sandbox" : "Live"}
+                          color={key.isSandbox ? "warning" : "success"}
                           size="small"
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={key.isActive ? 'Active' : 'Inactive'} 
-                          color={key.isActive ? 'success' : 'default'}
+                        <Chip
+                          label={key.isActive ? "Active" : "Inactive"}
+                          color={key.isActive ? "success" : "default"}
                           size="small"
                         />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {key.lastUsed ? new Date(key.lastUsed).toLocaleDateString() : 'Never'}
+                          {key.lastUsed
+                            ? new Date(key.lastUsed).toLocaleDateString()
+                            : "Never"}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
-                        <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Box sx={{ display: "flex", gap: 1 }}>
                           <Tooltip title="Test Connection">
                             <IconButton
                               size="small"
-                              onClick={() => handleTestConnection(key.id, provider.name)}
+                              onClick={() =>
+                                handleTestConnection(key.id, provider.name)
+                              }
                               disabled={testing[key.id]}
                             >
-                              {testing[key.id] ? <CircularProgress size={16} /> : <TestIcon />}
+                              {testing[key.id] ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                <TestIcon />
+                              )}
                             </IconButton>
                           </Tooltip>
-                          {provider.features.includes('Portfolio Import') && (
+                          {provider.features.includes("Portfolio Import") && (
                             <Tooltip title="Import Portfolio">
                               <IconButton
                                 size="small"
-                                onClick={() => handleImportPortfolio(key.id, key.provider)}
+                                onClick={() =>
+                                  handleImportPortfolio(key.id, key.provider)
+                                }
                                 disabled={importing[key.id]}
                               >
-                                {importing[key.id] ? <CircularProgress size={16} /> : <ImportIcon />}
+                                {importing[key.id] ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  <ImportIcon />
+                                )}
                               </IconButton>
                             </Tooltip>
                           )}
@@ -429,8 +473,8 @@ const SettingsApiKeys = () => {
                                 setSelectedKey(key);
                                 setFormData({
                                   provider: key.provider,
-                                  description: key.description || '',
-                                  isSandbox: key.isSandbox
+                                  description: key.description || "",
+                                  isSandbox: key.isSandbox,
                                 });
                                 setEditDialogOpen(true);
                               }}
@@ -458,13 +502,14 @@ const SettingsApiKeys = () => {
         </Card>
       ) : (
         <Card>
-          <CardContent sx={{ textAlign: 'center', py: 6 }}>
-            <Key sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <CardContent sx={{ textAlign: "center", py: 6 }}>
+            <Key sx={{ fontSize: 64, color: "text.secondary", mb: 2 }} />
             <Typography variant="h6" gutterBottom>
               No API Keys Added
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Add your first API key to start importing portfolio data and accessing real-time market information.
+              Add your first API key to start importing portfolio data and
+              accessing real-time market information.
             </Typography>
             <Button
               variant="contained"
@@ -486,7 +531,9 @@ const SettingsApiKeys = () => {
               <Grid item xs={12} md={6} key={provider.id}>
                 <Card variant="outlined">
                   <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                    <Box
+                      sx={{ display: "flex", alignItems: "flex-start", mb: 2 }}
+                    >
                       <Box sx={{ color: provider.color, mr: 2 }}>
                         {provider.icon}
                       </Box>
@@ -494,12 +541,16 @@ const SettingsApiKeys = () => {
                         <Typography variant="h6" gutterBottom>
                           {provider.name}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          gutterBottom
+                        >
                           {provider.description}
                         </Typography>
                       </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                       {provider.features.map((feature) => (
                         <Chip key={feature} label={feature} size="small" />
                       ))}
@@ -513,20 +564,27 @@ const SettingsApiKeys = () => {
       </Card>
 
       {/* Add API Key Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Add API Key</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
             <FormControl fullWidth>
               <InputLabel>Provider</InputLabel>
               <Select
                 value={formData.provider}
                 label="Provider"
-                onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, provider: e.target.value })
+                }
               >
                 {supportedProviders.map((provider) => (
                   <MenuItem key={provider.id} value={provider.id}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
                       <Box sx={{ color: provider.color, mr: 1 }}>
                         {provider.icon}
                       </Box>
@@ -541,7 +599,9 @@ const SettingsApiKeys = () => {
               fullWidth
               label="API Key"
               value={formData.apiKey}
-              onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, apiKey: e.target.value })
+              }
               required
               type="password"
             />
@@ -550,7 +610,9 @@ const SettingsApiKeys = () => {
               fullWidth
               label="API Secret (if required)"
               value={formData.apiSecret}
-              onChange={(e) => setFormData({ ...formData, apiSecret: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, apiSecret: e.target.value })
+              }
               type="password"
             />
 
@@ -558,7 +620,9 @@ const SettingsApiKeys = () => {
               fullWidth
               label="Description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               placeholder="e.g., Main trading account"
             />
 
@@ -566,7 +630,9 @@ const SettingsApiKeys = () => {
               control={
                 <Switch
                   checked={formData.isSandbox}
-                  onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, isSandbox: e.target.checked })
+                  }
                 />
               }
               label="Sandbox Environment"
@@ -574,7 +640,7 @@ const SettingsApiKeys = () => {
 
             <Alert severity="info">
               <Typography variant="body2">
-                Start with sandbox/paper trading to test the connection safely. 
+                Start with sandbox/paper trading to test the connection safely.
                 Your API keys will be encrypted before storage.
               </Typography>
             </Alert>
@@ -582,15 +648,22 @@ const SettingsApiKeys = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddApiKey} variant="contained">Add API Key</Button>
+          <Button onClick={handleAddApiKey} variant="contained">
+            Add API Key
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit API Key Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Edit API Key</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
             <TextField
               fullWidth
               label="Provider"
@@ -602,7 +675,9 @@ const SettingsApiKeys = () => {
               fullWidth
               label="Description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               placeholder="e.g., Main trading account"
             />
 
@@ -610,7 +685,9 @@ const SettingsApiKeys = () => {
               control={
                 <Switch
                   checked={formData.isSandbox}
-                  onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, isSandbox: e.target.checked })
+                  }
                 />
               }
               label="Sandbox Environment"
@@ -619,7 +696,9 @@ const SettingsApiKeys = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleEditApiKey} variant="contained">Save Changes</Button>
+          <Button onClick={handleEditApiKey} variant="contained">
+            Save Changes
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

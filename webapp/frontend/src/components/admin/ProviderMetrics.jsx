@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -24,8 +24,8 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Alert
-} from '@mui/material';
+  Alert,
+} from "@mui/material";
 import {
   Speed as SpeedIcon,
   TrendingUp as TrendingUpIcon,
@@ -36,11 +36,14 @@ import {
   Refresh as RefreshIcon,
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
-  Error as ErrorIcon
-} from '@mui/icons-material';
+  Error as ErrorIcon,
+} from "@mui/icons-material";
 
 const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
-  const [settingsDialog, setSettingsDialog] = useState({ open: false, provider: null });
+  const [settingsDialog, setSettingsDialog] = useState({
+    open: false,
+    provider: null,
+  });
   const [providers, setProviders] = useState(providersData || {});
 
   useEffect(() => {
@@ -49,11 +52,11 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'operational':
+      case "operational":
         return <CheckIcon color="success" />;
-      case 'warning':
+      case "warning":
         return <WarningIcon color="warning" />;
-      case 'error':
+      case "error":
         return <ErrorIcon color="error" />;
       default:
         return <StopIcon color="disabled" />;
@@ -61,32 +64,35 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
   };
 
   const getLatencyColor = (latency) => {
-    if (latency < 50) return 'success';
-    if (latency < 100) return 'warning';
-    return 'error';
+    if (latency < 50) return "success";
+    if (latency < 100) return "warning";
+    return "error";
   };
 
   const handleProviderToggle = async (providerId, enabled) => {
     try {
       // Mock API call - replace with actual endpoint
-      const response = await fetch(`/api/liveData/providers/${providerId}/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
-      });
+      const response = await fetch(
+        `/api/liveData/providers/${providerId}/toggle`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        }
+      );
 
       if (response.ok) {
-        setProviders(prev => ({
+        setProviders((prev) => ({
           ...prev,
           [providerId]: {
             ...prev[providerId],
-            status: enabled ? 'operational' : 'disconnected'
-          }
+            status: enabled ? "operational" : "disconnected",
+          },
         }));
         onProviderUpdate?.(providerId, { enabled });
       }
     } catch (error) {
-      console.error('Failed to toggle provider:', error);
+      console.error("Failed to toggle provider:", error);
     }
   };
 
@@ -101,18 +107,21 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
   const handleSettingsSave = async (settings) => {
     try {
       // Mock API call - replace with actual endpoint
-      const response = await fetch(`/api/liveData/providers/${settingsDialog.provider}/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
+      const response = await fetch(
+        `/api/liveData/providers/${settingsDialog.provider}/settings`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(settings),
+        }
+      );
 
       if (response.ok) {
         onProviderUpdate?.(settingsDialog.provider, settings);
         handleSettingsClose();
       }
     } catch (error) {
-      console.error('Failed to update provider settings:', error);
+      console.error("Failed to update provider settings:", error);
     }
   };
 
@@ -124,7 +133,12 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
           <Grid item xs={12} md={4} key={providerId}>
             <Card elevation={2}>
               <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="start"
+                  mb={2}
+                >
                   <Box display="flex" alignItems="center" gap={1}>
                     {getStatusIcon(provider.status)}
                     <Typography variant="h6" fontWeight="bold">
@@ -134,8 +148,10 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={provider.status === 'operational'}
-                        onChange={(e) => handleProviderToggle(providerId, e.target.checked)}
+                        checked={provider.status === "operational"}
+                        onChange={(e) =>
+                          handleProviderToggle(providerId, e.target.checked)
+                        }
                         size="small"
                       />
                     }
@@ -148,37 +164,43 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
                     <Typography variant="body2" color="textSecondary">
                       Connections
                     </Typography>
-                    <Typography variant="h5">
-                      {provider.connections}
-                    </Typography>
+                    <Typography variant="h5">{provider.connections}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" color="textSecondary">
                       Symbols
                     </Typography>
-                    <Typography variant="h5">
-                      {provider.symbols}
-                    </Typography>
+                    <Typography variant="h5">{provider.symbols}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" color="textSecondary">
                       Latency
                     </Typography>
                     <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="h6" color={`${getLatencyColor(provider.latency)}.main`}>
+                      <Typography
+                        variant="h6"
+                        color={`${getLatencyColor(provider.latency)}.main`}
+                      >
                         {provider.latency.toFixed(0)}ms
                       </Typography>
-                      {provider.latency < 50 ? <TrendingUpIcon fontSize="small" color="success" /> : 
-                       provider.latency > 100 ? <TrendingDownIcon fontSize="small" color="error" /> : null}
+                      {provider.latency < 50 ? (
+                        <TrendingUpIcon fontSize="small" color="success" />
+                      ) : provider.latency > 100 ? (
+                        <TrendingDownIcon fontSize="small" color="error" />
+                      ) : null}
                     </Box>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" color="textSecondary">
                       Success Rate
                     </Typography>
-                    <Typography 
-                      variant="h6" 
-                      color={provider.successRate > 95 ? 'success.main' : 'error.main'}
+                    <Typography
+                      variant="h6"
+                      color={
+                        provider.successRate > 95
+                          ? "success.main"
+                          : "error.main"
+                      }
                     >
                       {provider.successRate.toFixed(1)}%
                     </Typography>
@@ -186,16 +208,21 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
                 </Grid>
 
                 <Box mt={2}>
-                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    gutterBottom
+                  >
                     Daily Cost: ${provider.costToday.toFixed(2)}
                   </Typography>
                   <LinearProgress
                     variant="determinate"
                     value={provider.rateLimitUsage || 0}
-                    color={provider.rateLimitUsage > 80 ? 'error' : 'primary'}
+                    color={provider.rateLimitUsage > 80 ? "error" : "primary"}
                   />
                   <Typography variant="caption" color="textSecondary">
-                    Rate Limit Usage: {(provider.rateLimitUsage || 0).toFixed(1)}%
+                    Rate Limit Usage:{" "}
+                    {(provider.rateLimitUsage || 0).toFixed(1)}%
                   </Typography>
                 </Box>
 
@@ -203,14 +230,11 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
                   <IconButton
                     size="small"
                     onClick={() => handleSettingsOpen(providerId)}
-                    disabled={provider.status === 'disconnected'}
+                    disabled={provider.status === "disconnected"}
                   >
                     <SettingsIcon />
                   </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={onRefresh}
-                  >
+                  <IconButton size="small" onClick={onRefresh}>
                     <RefreshIcon />
                   </IconButton>
                 </Box>
@@ -223,7 +247,12 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
       {/* Detailed Provider Table */}
       <Card elevation={2}>
         <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={2}
+          >
             <Typography variant="h6" fontWeight="bold">
               Provider Performance Details
             </Typography>
@@ -269,14 +298,19 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
                         label={provider.status}
                         size="small"
                         color={
-                          provider.status === 'operational' ? 'success' :
-                          provider.status === 'warning' ? 'warning' : 'error'
+                          provider.status === "operational"
+                            ? "success"
+                            : provider.status === "warning"
+                              ? "warning"
+                              : "error"
                         }
                       />
                     </TableCell>
                     <TableCell align="right">{provider.connections}</TableCell>
                     <TableCell align="right">{provider.symbols}</TableCell>
-                    <TableCell align="right">{provider.requestsToday.toLocaleString()}</TableCell>
+                    <TableCell align="right">
+                      {provider.requestsToday.toLocaleString()}
+                    </TableCell>
                     <TableCell align="right">
                       <Typography
                         variant="body2"
@@ -289,7 +323,11 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
                     <TableCell align="right">
                       <Typography
                         variant="body2"
-                        color={provider.successRate > 95 ? 'success.main' : 'error.main'}
+                        color={
+                          provider.successRate > 95
+                            ? "success.main"
+                            : "error.main"
+                        }
                         fontWeight="medium"
                       >
                         {provider.successRate.toFixed(1)}%
@@ -331,7 +369,8 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
         fullWidth
       >
         <DialogTitle>
-          Provider Settings - {settingsDialog.provider && providers[settingsDialog.provider]?.name}
+          Provider Settings -{" "}
+          {settingsDialog.provider && providers[settingsDialog.provider]?.name}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
@@ -366,7 +405,8 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
               </Grid>
               <Grid item xs={12}>
                 <Alert severity="info">
-                  Changes will take effect immediately and may briefly interrupt active connections.
+                  Changes will take effect immediately and may briefly interrupt
+                  active connections.
                 </Alert>
               </Grid>
             </Grid>
@@ -374,10 +414,7 @@ const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleSettingsClose}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => handleSettingsSave({})}
-          >
+          <Button variant="contained" onClick={() => handleSettingsSave({})}>
             Save Settings
           </Button>
         </DialogActions>
