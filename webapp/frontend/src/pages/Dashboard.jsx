@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 import {
   Box,
   Grid,
@@ -12,12 +11,9 @@ import {
   Button,
   Avatar,
   Tooltip,
-  Fade,
-  Skeleton,
   TextField,
   Autocomplete,
   Container,
-  CardHeader,
   Badge,
   IconButton,
   LinearProgress,
@@ -26,124 +22,28 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
-  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tabs,
-  Tab,
-  Switch,
-  FormControlLabel,
-  CircularProgress,
   Stack,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from "@mui/material";
 import {
-  TrendingUp,
-  TrendingDown,
-  Assessment,
-  Notifications,
-  Event,
-  ListAlt,
-  ShowChart,
-  AccountBalance,
-  Download,
-  Info,
-  TrendingFlat,
-  ArrowUpward,
-  ArrowDownward,
-  Analytics,
-  Timeline,
-  Speed,
-  BarChart,
-  PieChart as PieChartIcon,
-  Warning,
-  CheckCircle,
-  Schedule,
-  Business,
-  Refresh,
-  Settings,
-  Visibility,
-  Add,
-  Remove,
-  PlayArrow,
-  Stop,
-  Pause,
-  FilterList,
-  Search,
-  BookmarkBorder,
-  Bookmark,
-  Share,
-  OpenInNew,
-  MonetizationOn,
-  Security,
-  Psychology,
-  Construction,
-  LocalAtm,
-  Home,
-  Factory,
-  Store,
-  AttachMoney,
-  Work,
-  TrendingFlat as TrendingFlatIcon,
-  Dashboard as DashboardIcon,
-  Star,
-  Insights,
-  AutoGraph,
-  CandlestickChart,
-  Leaderboard,
-  Psychology as PsychologyIcon,
-  Public,
-  Update,
-  ExpandMore,
-  TrendingFlat as NeutralIcon,
-  People,
-  Language,
-  LocalFireDepartment,
-  Bolt,
-  FlashOn,
-  Money,
-  TrendingFlat as FlatIcon,
-} from "@mui/icons-material";
+  TrendingUp, Assessment, Notifications, Event, ShowChart, AccountBalance, Download, ArrowUpward, ArrowDownward, Timeline, Speed, Warning, Business, Settings, Add, PlayArrow, FilterList, Security, Psychology, Star, Insights, AutoGraph, Psychology as PsychologyIcon, Public, LocalFireDepartment, Bolt, } from "@mui/icons-material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart as RechartsBarChart,
-  Bar,
-  Cell,
-  PieChart,
-  Pie,
-  RadialBarChart,
-  RadialBar,
-  ScatterChart,
-  Scatter,
-  ComposedChart,
-} from "recharts";
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Bar, Cell, PieChart, Pie, } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import {
   getStockPrices,
   getStockMetrics,
-  getBuySignals,
-  getSellSignals,
 } from "../services/api";
 import { format } from "date-fns";
 import { getApiConfig } from "../services/api";
 import HistoricalPriceChart from "../components/HistoricalPriceChart";
 import dataCache from "../services/dataCache";
 import MarketStatusBar from "../components/MarketStatusBar";
-import RealTimePriceWidget from "../components/RealTimePriceWidget";
 
 // Logo import with fallback
 let logoSrc = null;
@@ -159,7 +59,6 @@ try {
 const { apiUrl: API_BASE } = getApiConfig();
 console.log("Dashboard API Base:", API_BASE);
 
-const DEFAULT_TICKER = "AAPL";
 const WIDGET_COLORS = ["#1976d2", "#43a047", "#ffb300", "#8e24aa", "#e53935"];
 
 // ⚠️ MOCK DATA - Replace with real API when portfolio database is populated
@@ -883,7 +782,6 @@ const Dashboard = () => {
   const safeCalendar = mockCalendar;
   const safeSignals = mockSignals;
 
-  const equityCurve = Array.isArray(priceData?.data)
     ? priceData.data
         .map((p) => ({
           date: p.date || p.timestamp,
@@ -892,7 +790,6 @@ const Dashboard = () => {
         .reverse()
     : [];
 
-  const riskStats = metricsData?.data
     ? [
         { label: "Beta", value: metricsData.data.beta ?? "N/A" },
         {

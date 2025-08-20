@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -18,47 +18,25 @@ import {
   Paper,
   Chip,
   CircularProgress,
-  Alert,
-  Button,
   TextField,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Tooltip,
-  Badge,
   LinearProgress,
   Divider,
-  Slider,
   Switch,
   FormControlLabel,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  TablePagination,
-  TableSortLabel,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
   Autocomplete,
   Rating,
-  Stack,
   List,
   ListItem,
   ListItemText,
   ListItemAvatar,
   Avatar,
-  Skeleton,
   alpha,
   useTheme,
-  Fade,
-  Zoom,
   Collapse,
   ToggleButton,
   ToggleButtonGroup,
@@ -76,33 +54,18 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  Area,
-  AreaChart,
-  ScatterChart,
-  Scatter,
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Treemap,
-  ComposedChart,
   Legend,
-  RadialBarChart,
-  RadialBar,
 } from "recharts";
 import {
   TrendingUp,
   TrendingDown,
-  Analytics,
   Assessment,
   AccountBalance,
-  ShowChart,
-  Timeline,
-  PieChart as PieChartIcon,
-  BarChart as BarChartIcon,
-  Warning,
-  CheckCircle,
   Info,
   Speed,
   Psychology,
@@ -112,25 +75,13 @@ import {
   School,
   WorkspacePremium,
   Diamond,
-  FilterList,
   Refresh,
   Download,
-  Share,
-  BookmarkBorder,
-  Bookmark,
-  Visibility,
-  VisibilityOff,
   ExpandMore,
   Security,
-  Equalizer,
   CompareArrows,
-  ArrowUpward,
-  ArrowDownward,
   Remove,
-  Lock,
 } from "@mui/icons-material";
-import { api } from "../services/api";
-import { formatPercentage, formatNumber } from "../utils/formatters";
 
 // Custom styled components
 const ScoreGauge = ({
@@ -561,7 +512,6 @@ const ScoresDashboard = () => {
     }
   };
 
-  const loadHistoricalScores = async (symbol) => {
     // Mock historical data
     const mockHistorical = Array.from({ length: 90 }, (_, i) => {
       const date = new Date();
@@ -580,7 +530,6 @@ const ScoresDashboard = () => {
     setHistoricalScores(mockHistorical);
   };
 
-  const loadPeerComparison = async (symbol) => {
     // Mock peer comparison data
     const mockPeers = [
       {

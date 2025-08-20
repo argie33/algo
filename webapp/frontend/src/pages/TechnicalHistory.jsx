@@ -18,7 +18,6 @@ import {
   TextField,
   CircularProgress,
   Alert,
-  Chip,
   Grid,
   FormControl,
   InputLabel,
@@ -33,7 +32,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider,
   Stack,
   InputAdornment,
 } from "@mui/material";
@@ -41,25 +39,18 @@ import {
   ArrowBack,
   Search,
   FilterList,
-  ViewColumn,
   GetApp,
-  TrendingUp,
-  TrendingDown,
-  ShowChart,
   TableChart,
   ViewModule,
   ExpandMore,
   Clear,
-  DateRange,
 } from "@mui/icons-material";
 import { formatNumber, formatDate, formatCurrency } from "../utils/formatters";
-import { useTheme } from "@mui/material/styles";
 
 // Main component
 function PriceHistory() {
   const { symbol } = useParams();
   const navigate = useNavigate();
-  const theme = useTheme();
 
   // Core state
   const [data, setData] = useState([]);

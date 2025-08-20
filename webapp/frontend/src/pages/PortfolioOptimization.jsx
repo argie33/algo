@@ -45,40 +45,9 @@ import {
   DialogActions,
 } from "@mui/material";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  ScatterChart,
-  Scatter,
-  LineChart,
-  Line,
-} from "recharts";
+  PieChart, Pie, Cell, ResponsiveContainer, } from "recharts";
 import {
-  Tune as OptimizeIcon,
-  TrendingUp,
-  TrendingDown,
-  Analytics,
-  Assessment,
-  Security,
-  AccountBalance,
-  Warning,
-  CheckCircle,
-  Info,
-  PlayArrow,
-  Tune,
-  ExpandMore,
-  Star,
-  Lightbulb,
-  Speed,
-  Balance,
-} from "@mui/icons-material";
+  TrendingUp, Analytics, Security, AccountBalance, Warning, PlayArrow, ExpandMore, Lightbulb, Speed, Balance, } from "@mui/icons-material";
 import {
   getPortfolioOptimizationData,
   runPortfolioOptimization,
@@ -121,7 +90,6 @@ const PortfolioOptimization = () => {
     fetchOptimizationData();
   }, []);
 
-  const fetchOptimizationData = async () => {
     try {
       setLoading(true);
 

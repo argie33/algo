@@ -17,7 +17,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   CircularProgress,
   Alert,
@@ -32,18 +31,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Tooltip,
-  Badge,
-  LinearProgress,
-  Divider,
   TablePagination,
   TableSortLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  FormControlLabel,
-  Switch,
-  Slider,
   InputAdornment,
 } from "@mui/material";
 import {
@@ -57,33 +46,14 @@ import {
   Search,
   Analytics,
   ShowChart,
-  AccountBalance,
   Timeline,
   Assessment,
-  ExpandMore,
-  DateRange,
   MonetizationOn,
   SwapHoriz,
   Insights,
-  PieChart,
-  BarChart,
 } from "@mui/icons-material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  PieChart as RechartsPieChart,
-  Cell,
-  BarChart as RechartsBarChart,
-  Bar,
-  ComposedChart,
-  Area,
-  AreaChart,
-} from "recharts";
+  Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Bar, ComposedChart, } from "recharts";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -178,7 +148,6 @@ const TradeHistory = () => {
     }
   };
 
-  const fetchAnalytics = async () => {
     try {
       const response = await fetch("/api/trades/analytics/overview", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -192,7 +161,6 @@ const TradeHistory = () => {
     }
   };
 
-  const fetchInsights = async () => {
     try {
       const response = await fetch("/api/trades/insights", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -206,7 +174,6 @@ const TradeHistory = () => {
     }
   };
 
-  const fetchPerformance = async () => {
     try {
       const response = await fetch("/api/trades/performance", {
         headers: { Authorization: `Bearer ${user.token}` },

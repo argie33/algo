@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
   Box,
   Card,
   CardContent,
-  CardHeader,
   Typography,
   Grid,
   Tabs,
@@ -21,94 +20,36 @@ import {
   TableRow,
   Chip,
   IconButton,
-  Button,
-  Tooltip,
-  Divider,
   Avatar,
-  AvatarGroup,
-  Badge,
   Stack,
-  Fade,
   Zoom,
-  Collapse,
   useTheme,
   alpha,
-  Skeleton,
   ToggleButton,
   ToggleButtonGroup,
   CircularProgress,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
 } from "@mui/material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  AreaChart,
-  Area,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  ComposedChart,
-  Treemap,
-  RadialBarChart,
-  RadialBar,
-} from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend, } from "recharts";
 import {
   TrendingUp,
   TrendingDown,
   Analytics,
-  Speed,
   Psychology,
   Timeline,
   ShowChart,
   Refresh,
-  Info,
-  Warning,
-  CheckCircle,
-  Error as ErrorIcon,
   AccountBalance,
   Business,
   Assessment,
   Public,
   CalendarToday,
-  AttachMoney,
-  TrendingFlat,
-  BarChart as BarChartIcon,
-  PieChart as PieChartIcon,
-  BubbleChart,
-  DonutLarge,
-  FilterList,
-  Download,
-  Share,
   Fullscreen,
   FullscreenExit,
-  NavigateNext,
-  NavigateBefore,
-  Star,
-  StarBorder,
   Equalizer,
-  WaterDrop,
-  Bolt,
-  LocalFireDepartment,
 } from "@mui/icons-material";
 
 import {
-  api,
   getMarketOverview,
   getMarketSentimentHistory,
   getMarketSectorPerformance,
@@ -119,13 +60,10 @@ import {
 } from "../services/api";
 import {
   formatCurrency,
-  formatNumber,
   formatPercentage,
   getChangeColor,
-  getMarketCapCategory,
 } from "../utils/formatters";
 
-const COLORS = [
   "#0088FE",
   "#00C49F",
   "#FFBB28",
@@ -137,7 +75,6 @@ const COLORS = [
 ];
 
 // Advanced color schemes for different visualizations
-const CHART_COLORS = {
   primary: [
     "#6366f1",
     "#8b5cf6",
@@ -234,7 +171,6 @@ const GradientCard = ({ children, gradient, ...props }) => {
   );
 };
 
-const MetricCard = ({
   title,
   value,
   subtitle,
@@ -309,7 +245,6 @@ const MetricCard = ({
 const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
   const theme = useTheme();
   const percentage = (value / max) * 100;
-  const rotation = (percentage * 180) / 100 - 90;
 
   const getColor = () => {
     if (percentage <= 20) return theme.palette.error.main;
@@ -373,7 +308,6 @@ const TabPanel = ({ children, value, index, ...other }) => (
   </div>
 );
 
-const MetricTable = ({ data, columns, title }) => (
   <Card>
     <CardContent>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
@@ -410,7 +344,6 @@ const MetricTable = ({ data, columns, title }) => (
 );
 
 // Create component-specific logger
-const logger = createComponentLogger("MarketOverview");
 
 // Simplified API functions that work directly with your data
 const fetchMarketOverview = async () => {

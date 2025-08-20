@@ -12,13 +12,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   CircularProgress,
   Alert,
   TextField,
@@ -152,11 +145,11 @@ function TechnicalAnalysis() {
   // Log the technicalData and error for debugging
   useEffect(() => {
     if (technicalData) {
-      // eslint-disable-next-line no-console
+       
       console.log("TechnicalAnalysis: technicalData", technicalData);
     }
     if (error) {
-      // eslint-disable-next-line no-console
+       
       console.error("TechnicalAnalysis: error", error);
     }
   }, [technicalData, error]);
@@ -174,7 +167,6 @@ function TechnicalAnalysis() {
     setTimeframe(e.target.value);
     setPage(0);
   };
-  const handleSort = (column) => {
     const isAsc = orderBy === column && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
     setOrderBy(column);

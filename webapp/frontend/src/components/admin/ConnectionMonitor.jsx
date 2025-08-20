@@ -19,7 +19,6 @@ import {
   DialogContent,
   DialogActions,
   Grid,
-  LinearProgress,
   Alert,
   Switch,
   FormControlLabel,
@@ -30,18 +29,7 @@ import {
   InputLabel,
 } from "@mui/material";
 import {
-  Close as CloseIcon,
-  Refresh as RefreshIcon,
-  Add as AddIcon,
-  Remove as RemoveIcon,
-  Speed as SpeedIcon,
-  Timeline as TimelineIcon,
-  Storage as StorageIcon,
-  NetworkCheck as NetworkIcon,
-  Error as ErrorIcon,
-  CheckCircle as CheckIcon,
-  Warning as WarningIcon,
-} from "@mui/icons-material";
+  Close as CloseIcon, Refresh as RefreshIcon, } from "@mui/icons-material";
 
 const ConnectionMonitor = ({
   connectionsData,

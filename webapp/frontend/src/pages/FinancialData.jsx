@@ -14,12 +14,8 @@ import {
   TableBody,
   TableCell,
   TableContainer,
-  TableHead,
   TableRow,
-  Paper,
   TextField,
-  Button,
-  Chip,
   CircularProgress,
   Alert,
   Divider,
@@ -31,11 +27,7 @@ import {
   AccountBalance,
   Analytics,
   Timeline,
-  TrendingUp,
-  TrendingDown,
-  HorizontalRule,
   Search,
-  BusinessCenter,
   ShowChart,
 } from "@mui/icons-material";
 import {
@@ -46,8 +38,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
 } from "recharts";
 
 // Use centralized error logging (logger will be defined in component)
@@ -56,14 +46,7 @@ import {
   getBalanceSheet,
   getIncomeStatement,
   getCashFlowStatement,
-  getFinancialStatements,
   getKeyMetrics,
-  getTickerEarningsEstimates,
-  getTickerRevenueEstimates,
-  getTickerEarningsHistory,
-  getTickerEpsRevisions,
-  getTickerEpsTrend,
-  getTickerGrowthEstimates,
   getStocks,
 } from "../services/api";
 import {
@@ -123,7 +106,6 @@ function FinancialData() {
     setTabValue(newValue);
   };
 
-  const handleSearch = () => {
     if (searchTicker.trim()) {
       console.log(
         "🔍 FinancialData: Searching for ticker:",

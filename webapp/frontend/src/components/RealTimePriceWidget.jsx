@@ -11,7 +11,6 @@ import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
-  Warning,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 import dataCache from "../services/dataCache";
@@ -27,7 +26,6 @@ const RealTimePriceWidget = ({
   const updateIntervalRef = useRef(null);
 
   // Simulate price movements for development
-  const simulatePriceMovement = (basePrice) => {
     const volatility = 0.002; // 0.2% volatility
     const trend = Math.random() > 0.5 ? 1 : -1;
     const change = basePrice * volatility * trend * Math.random();

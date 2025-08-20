@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,6 @@ import {
   MenuItem,
   LinearProgress,
   IconButton,
-  Tooltip,
   Link,
   Accordion,
   AccordionSummary,
@@ -43,8 +42,6 @@ import {
   PlayArrow,
   ExpandMore,
   OpenInNew,
-  Info,
-  Warning,
   Star,
 } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";

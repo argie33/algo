@@ -19,12 +19,6 @@ import {
   Divider,
   Alert,
   Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   IconButton,
   Dialog,
   DialogTitle,
@@ -49,22 +43,13 @@ import {
   Api,
   Notifications,
   Palette,
-  Delete,
-  Edit,
-  Add,
   Visibility,
   VisibilityOff,
-  CloudUpload,
   Download,
-  Key,
-  Link,
   Warning,
   CheckCircle,
   Save,
   Cancel,
-  BusinessCenter,
-  TrendingUp,
-  MonetizationOn,
 } from "@mui/icons-material";
 import { getApiConfig } from "../services/api";
 import SettingsApiKeys from "./SettingsApiKeys";
@@ -329,7 +314,6 @@ const Settings = () => {
     }
   };
 
-  const handleDeleteApiKey = async (brokerName) => {
     try {
       const response = await fetch(
         `${apiUrl}/api/portfolio/api-keys/${brokerName}`,
@@ -353,7 +337,6 @@ const Settings = () => {
     }
   };
 
-  const handleTestConnection = async (brokerName) => {
     try {
       setLoading(true);
 
@@ -395,7 +378,6 @@ const Settings = () => {
     }
   };
 
-  const handleImportPortfolio = async (brokerName) => {
     try {
       setLoading(true);
 

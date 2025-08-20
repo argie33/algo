@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Container,
@@ -9,47 +9,23 @@ import {
   CardHeader,
   Tabs,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Chip,
   LinearProgress,
   Alert,
   Button,
-  TextField,
   MenuItem,
   IconButton,
   FormControl,
   InputLabel,
   Select,
-  Tooltip,
-  Badge,
   Divider,
   List,
   ListItem,
   ListItemText,
   ListItemAvatar,
   Avatar,
-  Rating,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  CircularProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Switch,
   FormControlLabel,
-  Slider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -57,63 +33,22 @@ import {
   Analytics,
   Assessment,
   ShowChart,
-  Timeline,
-  Warning,
-  CheckCircle,
-  Info,
-  Error,
   Speed,
-  AccountBalance,
   Business,
   Work,
   Psychology,
-  PieChart as PieChartIcon,
   BarChart as BarChartIcon,
   Refresh,
-  Download,
-  Settings,
   Lightbulb,
-  Security,
-  MonetizationOn,
   TrendingFlat,
-  ExpandMore,
-  Notifications,
   Schedule,
-  FlashOn,
   Flag,
-  LocalAtm,
-  Home,
   Factory,
   Store,
-  AttachMoney,
   Construction,
 } from "@mui/icons-material";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Area,
-  AreaChart,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  ComposedChart,
-  ScatterChart,
-  Scatter,
-  Treemap,
-  ReferenceLine,
-} from "recharts";
+  Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, ReferenceLine, } from "recharts";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -235,7 +170,6 @@ const EconomicModeling = () => {
     }
   };
 
-  const formatTimeHorizon = (months) => {
     if (months < 12) return `${months} months`;
     return `${Math.round(months / 12)} years`;
   };
@@ -1276,7 +1210,6 @@ const EconomicModeling = () => {
 };
 
 // ⚠️ MOCK DATA - Replace with real API when available
-const mockEconomicData = {
   isMockData: true,
   recessionProbability: 35,
   riskLevel: "Medium",

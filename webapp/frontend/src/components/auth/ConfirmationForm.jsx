@@ -10,7 +10,6 @@ import {
   CircularProgress,
   Link,
 } from "@mui/material";
-import { CheckCircle as ConfirmIcon } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function ConfirmationForm({

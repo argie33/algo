@@ -26,17 +26,12 @@ import {
   LinearProgress,
   Tooltip,
   IconButton,
-  Badge,
 } from "@mui/material";
 import {
   TrendingUp,
-  TrendingDown,
   Info,
   Assessment,
-  Speed,
   AttachMoney,
-  Psychology,
-  ShowChart,
   AccountBalance,
 } from "@mui/icons-material";
 import { getApiConfig } from "../services/api";
@@ -84,7 +79,6 @@ const MetricsDashboard = () => {
     }
   }, [activeTab]);
 
-  const fetchData = async () => {
     try {
       setLoading(true);
 
@@ -118,7 +112,6 @@ const MetricsDashboard = () => {
     }
   };
 
-  const fetchSectorAnalysis = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/metrics/sectors/analysis`);
       if (!response.ok)
@@ -132,7 +125,6 @@ const MetricsDashboard = () => {
     }
   };
 
-  const fetchTopStocks = async () => {
     try {
       const categories = ["composite", "quality", "value"];
       const promises = categories.map((category) =>

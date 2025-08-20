@@ -23,18 +23,24 @@ module.exports = {
       version: 'detect',
     },
   },
-  plugins: ['react-refresh', 'react'],
+  plugins: ['react-refresh', 'react', 'unused-imports'],
   rules: {
     'react-refresh/only-export-components': [
       'warn',
       { allowConstantExport: true },
     ],
     'react/prop-types': 'off', // Disable prop-types validation
-    'no-unused-vars': ['error', { 
-      "varsIgnorePattern": "^_",
-      "argsIgnorePattern": "^_",
-      "ignoreRestSiblings": true
-    }],
+    'no-unused-vars': 'off',
+    'unused-imports/no-unused-imports': 'error',
+    'unused-imports/no-unused-vars': [
+      'warn',
+      { 
+        "vars": "all", 
+        "varsIgnorePattern": "^_", 
+        "args": "after-used", 
+        "argsIgnorePattern": "^_" 
+      }
+    ],
     'react/react-in-jsx-scope': 'off', // Not needed for React 17+
     'react/display-name': 'off', // Allow anonymous components
     'react-hooks/exhaustive-deps': 'warn',

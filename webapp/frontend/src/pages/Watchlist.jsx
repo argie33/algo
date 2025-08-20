@@ -5,14 +5,12 @@ import {
   Box,
   Card,
   CardContent,
-  Grid,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   IconButton,
   Button,
   TextField,
@@ -30,9 +28,6 @@ import {
   Refresh,
   TrendingUp,
   TrendingDown,
-  Notifications,
-  NotificationsOff,
-  Edit,
 } from "@mui/icons-material";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../utils/apiService.jsx";
@@ -62,7 +57,6 @@ const Watchlist = () => {
     }
   }, [watchlist]);
 
-  const loadWatchlist = async () => {
     try {
       // For now, use a default watchlist stored locally
       // In a full implementation, this would come from user preferences/database

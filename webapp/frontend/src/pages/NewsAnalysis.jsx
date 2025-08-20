@@ -23,7 +23,6 @@ import {
   ListItemAvatar,
   Alert,
   CircularProgress,
-  Paper,
   Timeline,
   TimelineItem,
   TimelineSeparator,
@@ -50,23 +49,13 @@ import {
   Business,
   Assessment,
   Schedule,
-  Notifications,
   Warning,
   Info,
-  CheckCircle,
-  Error,
 } from "@mui/icons-material";
 import { formatDistanceToNow, format } from "date-fns";
 import { formatPercentage } from "../utils/formatters";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-} from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, } from "recharts";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -1163,7 +1152,6 @@ const NewsAnalysis = () => {
 };
 
 // ⚠️ MOCK DATA - Replace with real API when available
-const mockNewsData = {
   isMockData: true,
   sentiment: {
     overall: "Bullish",

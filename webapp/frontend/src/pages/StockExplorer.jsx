@@ -3,11 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
-  formatCurrency,
-  formatNumber,
-  formatPercentage as formatPercent,
-  getChangeColor,
-} from "../utils/formatters";
+  formatCurrency, formatNumber, getChangeColor, } from "../utils/formatters";
 import { screenStocks, getStockPriceHistory } from "../services/api";
 import {
   Box,
@@ -23,7 +19,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableRow,
   TablePagination,
@@ -31,22 +26,11 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  FormControl,
-  InputLabel,
-  Select,
   Slider,
-  Switch,
-  FormControlLabel,
   IconButton,
-  Tooltip,
   Alert,
   CircularProgress,
-  Divider,
   InputAdornment,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tabs,
-  Tab,
   Modal,
   Backdrop,
   Fade,
@@ -59,19 +43,9 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-  Tune,
 } from "@mui/icons-material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
-} from "recharts";
+  XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart, } from "recharts";
 
 // Create component-specific logger
 const logger = createComponentLogger("StockExplorer");
@@ -146,7 +120,6 @@ const SECTORS = [
 ];
 
 // Market categories that actually exist in the backend data
-const MARKET_CATEGORIES = [
   "Q",
   "G",
   "S",
@@ -283,7 +256,6 @@ function StockExplorer() {
     setSearchParams({});
   };
 
-  const handleSort = (column) => {
     const isAsc = orderBy === column && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
     setOrderBy(column);
@@ -298,7 +270,6 @@ function StockExplorer() {
     setPage(0);
   };
 
-  const handleRowClick = (symbol) => {
     navigate(`/stocks/${symbol}`);
   };
 
@@ -395,7 +366,6 @@ function StockExplorer() {
     ).length;
   };
 
-  const renderSliderFilter = (
     label,
     minKey,
     maxKey,

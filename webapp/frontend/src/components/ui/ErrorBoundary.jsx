@@ -4,8 +4,6 @@ import {
   AlertTitle,
   Box,
   Button,
-  Card,
-  CardContent,
   Typography,
   Collapse,
   IconButton,
@@ -13,7 +11,6 @@ import {
 } from "@mui/material";
 import {
   Refresh,
-  ErrorOutline,
   ExpandMore,
   ExpandLess,
   BugReport,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
@@ -12,43 +12,17 @@ import {
   TableHead,
   TableRow,
   Chip,
-  LinearProgress,
   Alert,
-  IconButton,
-  Tooltip,
   Button,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
-  Paper,
 } from "@mui/material";
 import {
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Speed as SpeedIcon,
-  Memory as MemoryIcon,
-  NetworkCheck as NetworkIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  Schedule as ScheduleIcon,
-  Analytics as AnalyticsIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+  Refresh as RefreshIcon, } from "@mui/icons-material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, } from "recharts";
 
 const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
   const [timeRange, setTimeRange] = useState("1h");
@@ -93,7 +67,6 @@ const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
     return "error";
   };
 
-  const formatBytes = (bytes) => {
     if (bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB"];

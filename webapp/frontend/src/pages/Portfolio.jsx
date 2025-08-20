@@ -39,18 +39,13 @@ import {
   Slider,
   Switch,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   TablePagination,
   TableSortLabel,
   Stepper,
   Step,
   StepLabel,
   StepContent,
-  Autocomplete,
   Rating,
-  Stack,
   List,
   ListItem,
   Menu,
@@ -61,8 +56,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -71,15 +64,11 @@ import {
   LineChart,
   Line,
   Area,
-  AreaChart,
-  ScatterChart,
-  Scatter,
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Treemap,
   ComposedChart,
 } from "recharts";
 import {
@@ -91,10 +80,7 @@ import {
   Edit,
   Assessment,
   AccountBalance,
-  ShowChart,
   Timeline,
-  PieChart as PieChartIcon,
-  BarChart as BarChartIcon,
   Warning,
   CheckCircle,
   Info,
@@ -103,26 +89,17 @@ import {
   Security,
   NotificationsActive,
   Notifications,
-  Settings,
-  ExpandMore,
-  Report,
   Speed,
   BusinessCenter,
   Psychology,
-  TrendingFlat,
-  School,
   Shield,
   Lightbulb,
-  StarRate,
-  CompareArrows,
   AccountBalanceWallet,
   FileDownload,
   PictureAsPdf,
-  GetApp,
   NotificationsNone,
   Refresh,
   Visibility,
-  VisibilityOff,
 } from "@mui/icons-material";
 import {
   getApiConfig,
@@ -310,7 +287,6 @@ const Portfolio = () => {
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
   // This function generates mock portfolio data and should be replaced with real API calls
-  /* const generateRealisticPortfolioData = (user) => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check
     
@@ -382,7 +358,6 @@ const Portfolio = () => {
   }; */
 
   // ⚠️ MOCK DATA - Replace with real API when available
-  const generatePerformanceHistory = () => {
     const history = [];
     const baseValue = 100000;
     let currentValue = baseValue;
@@ -409,7 +384,6 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
-  const generateSectorAllocation = (holdings) => {
     const sectors = {};
     holdings.forEach((holding) => {
       const sector = holding.sector || "Other";
@@ -434,7 +408,6 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
-  const generateRiskMetrics = (holdings) => {
     return {
       isMockData: true,
       var95: Math.round(
@@ -458,7 +431,6 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
-  const generateStressTests = () => {
     return [
       { scenario: "Market Crash (-20%)", impact: -0.2, isMockData: true },
       { scenario: "Tech Selloff (-15%)", impact: -0.12, isMockData: true },
@@ -618,7 +590,6 @@ const Portfolio = () => {
   };
 
   // Load available API connections
-  const loadAvailableConnections = async () => {
     try {
       const response = await getApiKeys();
       const connections = response?.apiKeys || [];
@@ -700,7 +671,6 @@ const Portfolio = () => {
     }
   };
 
-  const generateOptimizationResults = async () => {
     // Analyze current portfolio
     const currentHoldings = portfolioData.holdings;
     const totalValue = currentHoldings.reduce(
@@ -740,7 +710,6 @@ const Portfolio = () => {
     };
   };
 
-  const calculateCurrentPortfolioMetrics = (holdings) => {
     const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
     const weights = holdings.map((h) => h.marketValue / totalValue);
 
@@ -762,7 +731,6 @@ const Portfolio = () => {
     };
   };
 
-  const generateOptimizedAllocation = (method, currentHoldings) => {
     switch (method) {
       case "enhanced_sharpe":
         return optimizeEnhancedSharpe(currentHoldings);
@@ -781,7 +749,6 @@ const Portfolio = () => {
     }
   };
 
-  const optimizeEnhancedSharpe = (holdings) => {
     // Enhanced Sharpe ratio optimization with multiple factors
     const baseOptimization = holdings.map((holding) => {
       const qualityScore = holding.factorScores?.quality || 50;
@@ -825,9 +792,7 @@ const Portfolio = () => {
     }));
   };
 
-  const optimizeRiskParity = (holdings) => {
     // Equal risk contribution optimization
-    const totalRisk = holdings.reduce(
       (sum, h) => sum + (h.beta || 1) * h.allocation,
       0
     );
@@ -848,7 +813,6 @@ const Portfolio = () => {
     });
   };
 
-  const optimizeFactorBased = (holdings) => {
     // Factor-based optimization emphasizing quality and momentum
     return holdings.map((holding) => {
       const qualityWeight = (holding.factorScores?.quality || 50) / 100;
@@ -872,7 +836,6 @@ const Portfolio = () => {
     });
   };
 
-  const generateHoldingReasoning = (holding, score) => {
     const reasons = [];
 
     if (holding.factorScores?.quality > 70)
@@ -889,7 +852,6 @@ const Portfolio = () => {
     return reasons.join(", ");
   };
 
-  const calculateExpectedImprovements = (current, optimized) => {
     // Calculate expected improvements from optimization
     const currentSharpe = current.sharpeRatio;
     const optimizedSharpe = currentSharpe * 1.15; // Estimated 15% improvement
@@ -904,7 +866,6 @@ const Portfolio = () => {
     };
   };
 
-  const generateSpecificRecommendations = (current, optimized) => {
     const recommendations = [];
 
     optimized.forEach((optimizedHolding) => {
@@ -939,7 +900,6 @@ const Portfolio = () => {
     });
   };
 
-  const calculateOptimizationConfidence = () => {
     // Calculate confidence based on data quality and market conditions
     const dataQuality = 0.85; // Assume good data quality
     const marketStability = marketRegime === "normal" ? 0.9 : 0.7;
@@ -948,7 +908,6 @@ const Portfolio = () => {
     return Math.round(dataQuality * marketStability * portfolioSize * 100);
   };
 
-  const generateRiskAnalysis = (optimized) => {
     return {
       concentrationRisk: "REDUCED",
       sectorRisk: "BALANCED",
@@ -959,7 +918,6 @@ const Portfolio = () => {
     };
   };
 
-  const generateImplementationPlan = (recommendations) => {
     const highPriority = recommendations.filter((r) => r.priority === "HIGH");
     const mediumPriority = recommendations.filter(
       (r) => r.priority === "MEDIUM"
@@ -988,7 +946,6 @@ const Portfolio = () => {
     };
   };
 
-  const calculateTransactionCosts = (optimized) => {
     // Estimate transaction costs based on recommended changes
     const totalTrades = optimized.filter(
       (h) => Math.abs(h.optimizedWeight - (h.allocation || 0)) > 1
@@ -997,7 +954,6 @@ const Portfolio = () => {
   };
 
   // Additional optimization algorithms
-  const optimizeBlackLitterman = (holdings) => {
     // Black-Litterman optimization with market views
     return holdings.map((holding) => {
       const marketView = getMarketView(holding.symbol);
@@ -1016,7 +972,6 @@ const Portfolio = () => {
     });
   };
 
-  const optimizeMaxDiversification = (holdings) => {
     // Maximum diversification optimization
     const correlationPenalty = holdings.map((h) =>
       calculateCorrelationPenalty(h.symbol)
@@ -1039,7 +994,6 @@ const Portfolio = () => {
     });
   };
 
-  const optimizeMinCorrelation = (holdings) => {
     // Minimum correlation optimization
     return holdings.map((holding) => {
       const correlationScore = calculateCorrelationScore(holding.symbol);
@@ -1058,7 +1012,6 @@ const Portfolio = () => {
   };
 
   // Helper functions for optimization
-  const getMarketView = (symbol) => {
     // Simplified market view - in reality would come from analysis
     const views = {
       AAPL: 0.15,
@@ -1071,13 +1024,11 @@ const Portfolio = () => {
     return views[symbol] || 0;
   };
 
-  const calculateCorrelationPenalty = (symbol) => {
     // Simplified correlation penalty
     const techStocks = ["AAPL", "MSFT", "GOOGL", "META", "TSLA"];
     return techStocks.includes(symbol) ? 30 : 10;
   };
 
-  const calculateCorrelationScore = (symbol) => {
     // Simplified correlation score (0 = no correlation, 1 = perfect correlation)
     const correlations = {
       AAPL: 0.75,
@@ -1090,7 +1041,6 @@ const Portfolio = () => {
     return correlations[symbol] || 0.5;
   };
 
-  const calculateExpectedReturn = (holdings, weights) => {
     // Calculate expected portfolio return
     let expectedReturn = 0;
     holdings.forEach((holding, index) => {
@@ -1100,7 +1050,6 @@ const Portfolio = () => {
     return expectedReturn;
   };
 
-  const calculateDiversificationRatio = (holdings) => {
     // Simplified diversification ratio calculation
     const weightedVolatility = holdings.reduce(
       (sum, h) => sum + (h.allocation / 100) * (h.beta || 1) * 16,
@@ -1110,7 +1059,6 @@ const Portfolio = () => {
     return weightedVolatility / portfolioVolatility;
   };
 
-  const calculateESGScore = (holdings) => {
     // Simplified ESG score calculation
     const esgScores = {
       AAPL: 85,
@@ -1131,7 +1079,6 @@ const Portfolio = () => {
     return weightedESGScore;
   };
 
-  const calculateCorrelationRisk = (holdings) => {
     // Simplified correlation risk calculation
     const techWeight = holdings
       .filter((h) =>
@@ -3341,7 +3288,6 @@ const Portfolio = () => {
 
 // ⚠️ MOCK DATA - Replace with real API when available
 // Enhanced mock data with realistic portfolio metrics
-const mockPortfolioData = {
   isMockData: true,
   holdings: [
     {
@@ -3630,7 +3576,6 @@ const mockPortfolioData = {
 
 // ⚠️ MOCK DATA - Replace with real API when available
 // Mock risk alerts data
-const mockRiskAlerts = [
   {
     id: 1,
     symbol: "AAPL",
@@ -3674,7 +3619,6 @@ const mockRiskAlerts = [
 ];
 
 // Color palette for charts
-const COLORS = [
   "#0088FE",
   "#00C49F",
   "#FFBB28",

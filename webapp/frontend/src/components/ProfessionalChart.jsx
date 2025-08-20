@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Card,
@@ -7,12 +6,8 @@ import {
   Skeleton,
   Tooltip,
   IconButton,
-  Chip,
 } from "@mui/material";
 import {
-  TrendingUp,
-  TrendingDown,
-  InfoOutlined,
   Download,
   Fullscreen,
   Refresh,

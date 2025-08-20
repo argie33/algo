@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Grid,
@@ -19,7 +19,6 @@ import {
   Button,
   TextField,
   MenuItem,
-  CircularProgress,
   Alert,
 } from "@mui/material";
 import {
@@ -28,13 +27,11 @@ import {
   Refresh,
   Star,
   StarBorder,
-  AccountBalanceWallet,
   Timeline,
   NewReleases,
   Security,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,

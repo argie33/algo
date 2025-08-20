@@ -13,10 +13,7 @@ import {
   IconButton,
 } from "@mui/material";
 import {
-  Visibility,
-  VisibilityOff,
-  LockReset as ResetIcon,
-} from "@mui/icons-material";
+  Visibility, VisibilityOff, } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function ResetPasswordForm({

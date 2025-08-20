@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
 import { screenStocks } from "../services/api";
 import {
-  formatCurrency,
-  formatPercentage as formatPercent,
-  formatNumber,
-} from "../utils/formatters";
+  formatCurrency, formatNumber, } from "../utils/formatters";
 import {
   Box,
   Container,
@@ -46,12 +43,10 @@ import {
   ExpandMore,
   FilterList,
   Clear,
-  Search,
   TrendingUp,
   TrendingDown,
   ShowChart,
   BookmarkBorder,
-  Bookmark,
 } from "@mui/icons-material";
 
 // Create component-specific logger

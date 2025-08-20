@@ -3,7 +3,6 @@ import {
   Select as MuiSelect,
   MenuItem,
   FormControl,
-  InputLabel,
 } from "@mui/material";
 
 export const Select = React.forwardRef(

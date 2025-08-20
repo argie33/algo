@@ -17,7 +17,6 @@ import {
   TableCell,
   TableContainer,
   TableRow,
-  Paper,
   Divider,
   CircularProgress,
   Alert,
@@ -47,10 +46,7 @@ import {
 } from "recharts";
 import api from "../services/api";
 import {
-  formatCurrency,
-  formatPercentage as formatPercent,
-  formatNumber,
-} from "../utils/formatters";
+  formatCurrency, formatNumber, } from "../utils/formatters";
 
 // Use centralized error logging (logger will be defined in component)
 

@@ -36,7 +36,6 @@ import {
   TrendingDown,
   HorizontalRule,
   Analytics,
-  Event,
   Schedule,
   AttachMoney,
   ShowChart,
@@ -44,7 +43,6 @@ import {
 import {
   formatCurrency,
   formatPercentage,
-  formatNumber,
 } from "../utils/formatters";
 
 // Create component-specific logger

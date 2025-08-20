@@ -13,7 +13,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   IconButton,
   Tooltip,
   Switch,
@@ -27,17 +26,7 @@ import {
   Alert,
 } from "@mui/material";
 import {
-  Speed as SpeedIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Settings as SettingsIcon,
-  PlayArrow as PlayIcon,
-  Stop as StopIcon,
-  Refresh as RefreshIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  Error as ErrorIcon,
-} from "@mui/icons-material";
+  Settings as SettingsIcon, Refresh as RefreshIcon, } from "@mui/icons-material";
 
 const ProviderMetrics = ({ providersData, onProviderUpdate, onRefresh }) => {
   const [settingsDialog, setSettingsDialog] = useState({

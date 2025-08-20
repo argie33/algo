@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Box,
@@ -28,30 +28,12 @@ import {
   MenuItem,
   Slider,
   LinearProgress,
-  Badge,
-  Tooltip,
   IconButton,
-  Divider,
-  CardActions,
   InputAdornment,
 } from "@mui/material";
 import {
-  Search,
-  TrendingUp,
-  TrendingDown,
-  Target,
-  FlashOn as Zap,
-  BarChart as BarChart3,
-  Warning as AlertCircle,
-  CheckCircle,
-  Schedule as Clock,
-  FilterList as Filter,
-  Psychology,
-  Timeline,
-  ShowChart,
-  Refresh,
-} from "@mui/icons-material";
-import { formatCurrency, formatPercentage } from "../utils/formatters";
+  Search, TrendingUp, TrendingDown, Timeline, Refresh, } from "@mui/icons-material";
+import { formatCurrency } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 
 const PatternRecognition = () => {
@@ -1017,7 +999,6 @@ const PatternRecognition = () => {
 };
 
 // Robust logging for troubleshooting
-const logger = {
   info: (message, data) => {
     console.log(`[PatternRecognition] ${message}`, data);
   },

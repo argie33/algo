@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
@@ -19,7 +19,6 @@ import {
   Switch,
   FormControlLabel,
   Slider,
-  TextField,
   Select,
   MenuItem,
   FormControl,
@@ -33,18 +32,7 @@ import {
   AccordionDetails,
 } from "@mui/material";
 import {
-  AttachMoney as MoneyIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Savings as SavingsIcon,
-  Speed as SpeedIcon,
-  AutoFixHigh as OptimizeIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  ExpandMore as ExpandMoreIcon,
-  Timeline as TimelineIcon,
-  Compare as CompareIcon,
-} from "@mui/icons-material";
+  } from "@mui/icons-material";
 
 const CostOptimizer = ({ costData, onOptimize, onApplyRecommendation }) => {
   const [optimizationMode, setOptimizationMode] = useState("balanced");

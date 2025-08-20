@@ -17,7 +17,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   CircularProgress,
   Alert,
@@ -34,75 +33,33 @@ import {
   InputAdornment,
   IconButton,
   Tooltip,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  RadioGroup,
   FormControlLabel,
-  Radio,
   Switch,
-  Slider,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Badge,
 } from "@mui/material";
 import {
-  ShoppingCart,
   TrendingUp,
   TrendingDown,
   Cancel,
   Edit,
-  Delete,
   Add,
-  Remove,
-  PlayArrow,
-  Pause,
-  Stop,
   Refresh,
   Settings,
-  Warning,
-  CheckCircle,
-  Schedule,
   Info,
   AttachMoney,
   Speed,
-  Timer,
   Gavel,
   AccountBalance,
   Timeline,
   Assessment,
-  Security,
-  Notifications,
   Search,
-  FilterList,
   Download,
-  Upload,
-  SwapHoriz,
   ShowChart,
-  BarChart,
-  CandlestickChart,
-  FlashOn,
-  AccessTime,
   Error,
 } from "@mui/icons-material";
-import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-} from "recharts";
+
+
 
 const OrderManagement = () => {
   const { user, isAuthenticated } = useAuth();
@@ -218,7 +175,6 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchAccountInfo = async () => {
     try {
       const response = await fetch("/api/account", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -243,7 +199,6 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchPositions = async () => {
     try {
       const response = await fetch("/api/portfolio/holdings", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -258,7 +213,6 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchWatchlist = async () => {
     try {
       const response = await fetch("/api/watchlist", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -273,7 +227,6 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchOrderUpdates = async () => {
     try {
       const response = await fetch("/api/orders/updates", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -294,7 +247,6 @@ const OrderManagement = () => {
     }
   };
 
-  const fetchMarketData = async () => {
     try {
       const symbols = [
         ...new Set([...watchlist, ...orders.map((o) => o.symbol)]),
@@ -412,7 +364,6 @@ const OrderManagement = () => {
     }
   };
 
-  const modifyOrder = async (orderId, modifications) => {
     try {
       const response = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
@@ -431,7 +382,6 @@ const OrderManagement = () => {
     }
   };
 
-  const getOrderPreview = async (orderData) => {
     try {
       const response = await fetch("/api/orders/preview", {
         method: "POST",
@@ -473,7 +423,6 @@ const OrderManagement = () => {
     }
   };
 
-  const validateOrder = (orderData) => {
     if (!orderData.symbol)
       return { valid: false, message: "Symbol is required" };
     if (!orderData.quantity || parseFloat(orderData.quantity) <= 0)
@@ -528,7 +477,6 @@ const OrderManagement = () => {
     }).format(amount || 0);
   };
 
-  const formatPercent = (value) => {
     return `${(value * 100).toFixed(2)}%`;
   };
 

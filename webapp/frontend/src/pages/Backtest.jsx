@@ -31,47 +31,18 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Slider,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
 } from "@mui/material";
 import {
-  Analytics,
-  PlayArrow,
-  Refresh,
-  Assessment,
-  Timeline,
-  TrendingUp,
-  TrendingDown,
-  Speed,
-  ShowChart,
-  BarChart,
-  Warning,
-  CheckCircle,
-  Info,
-  Settings,
-  ExpandMore,
-  Download as DownloadIcon,
-  Save as SaveIcon,
-  ContentCopy as ContentCopyIcon,
-  HelpOutline,
-  Stop,
-  Share,
-  Delete,
-  Edit,
-  Add,
-  FolderOpen,
-  Person,
-  FileDownload as FileDownloadIcon,
-} from "@mui/icons-material";
+  PlayArrow, Refresh, Assessment, TrendingUp, TrendingDown, Warning, CheckCircle, Info, ExpandMore, Download as DownloadIcon, Save as SaveIcon, HelpOutline, Stop, Share, Delete, Edit, Add, FolderOpen, Person, } from "@mui/icons-material";
 import Autocomplete from "@mui/material/Autocomplete";
 import { Line } from "react-chartjs-2";
 import { Bar } from "react-chartjs-2";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
-import { javascript } from "@codemirror/lang-javascript";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Switch from "@mui/material/Switch";
@@ -765,7 +736,6 @@ export default function Backtest() {
   };
 
   // --- BATCH RUN LOGIC ---
-  const handleBatchRun = async (paramGrid) => {
     setBatchQueue(
       paramGrid.map((p) => ({
         params: p,
@@ -822,7 +792,6 @@ export default function Backtest() {
   };
 
   // --- STRATEGY VERSIONING LOGIC ---
-  const saveStrategyVersion = (id, code) => {
     setStrategyHistory((h) => ({
       ...h,
       [id]: [...(h[id] || []), { code, date: new Date().toISOString() }],

@@ -21,61 +21,38 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   CircularProgress,
   Alert,
   TextField,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Badge,
-  Tooltip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TablePagination,
   CardHeader,
-  LinearProgress,
-  Stack,
   Divider,
   Switch,
   FormControlLabel,
-  Autocomplete,
-  Rating,
 } from "@mui/material";
 import {
   Search,
   FilterList,
   Download,
   Save,
-  Star,
   TrendingUp,
   TrendingDown,
-  ExpandMore,
   Refresh,
   Analytics,
   Assessment,
   Clear,
   ShowChart,
-  Add,
-  Delete,
-  Edit,
-  Share,
   FolderOpen,
   Person,
-  BookmarkBorder,
-  Bookmark,
   AddShoppingCart,
   PlaylistAdd,
   Compare,
-  Timeline,
-  Speed,
-  Warning,
-  CheckCircle,
-  Info,
 } from "@mui/icons-material";
 import { getApiConfig, screenStocks } from "../services/api";
 import {
@@ -431,7 +408,6 @@ const AdvancedScreener = () => {
     }
   }, [isAuthenticated]);
 
-  const loadPresetScreens = () => {
     setPresetScreens([
       {
         id: "growth_stocks",
@@ -468,7 +444,6 @@ const AdvancedScreener = () => {
     ]);
   };
 
-  const loadWatchlists = () => {
     setWatchlists([
       {
         id: 1,
@@ -504,7 +479,6 @@ const AdvancedScreener = () => {
     }
   };
 
-  const loadUserWatchlists = async () => {
     try {
       const headers = { "Content-Type": "application/json" };
       if (user?.token) {
@@ -523,7 +497,6 @@ const AdvancedScreener = () => {
     }
   };
 
-  const loadSavedScreens = async () => {
     try {
       // Mock saved screens for now - would integrate with backend later
       setSavedScreens([
@@ -544,7 +517,6 @@ const AdvancedScreener = () => {
     }
   };
 
-  const loadSectors = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/stocks/sectors`);
       if (response.ok) {
@@ -556,7 +528,6 @@ const AdvancedScreener = () => {
     }
   };
 
-  const loadScreenStats = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/stocks/screen/stats`);
       if (response.ok) {
@@ -728,7 +699,6 @@ const AdvancedScreener = () => {
   };
 
   // Enhanced action handlers
-  const handleSort = (key) => {
     setSortConfig((prevSort) => ({
       key,
       direction:
@@ -736,7 +706,6 @@ const AdvancedScreener = () => {
     }));
   };
 
-  const handleStockSelect = (symbol, selected) => {
     if (selected) {
       setSelectedStocks((prev) => [...prev, symbol]);
     } else {
@@ -744,7 +713,6 @@ const AdvancedScreener = () => {
     }
   };
 
-  const handleToggleBookmark = async (symbol) => {
     try {
       if (isAuthenticated) {
         // Update bookmark on server
@@ -836,7 +804,6 @@ const AdvancedScreener = () => {
     URL.revokeObjectURL(url);
   };
 
-  const resetCriteria = () => {
     setScreenCriteria({
       quality: [0, 100],
       growth: [0, 100],

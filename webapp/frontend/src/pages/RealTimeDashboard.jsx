@@ -15,14 +15,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   IconButton,
   Switch,
   FormControlLabel,
   Alert,
-  LinearProgress,
-  Badge,
   Divider,
   Button,
   TextField,
@@ -45,10 +42,6 @@ import {
   ShowChart,
   BarChart,
   Visibility,
-  VisibilityOff,
-  Settings,
-  FilterList,
-  Add,
   Remove,
   Warning,
   CheckCircle,
@@ -62,13 +55,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
   BarChart as RechartsBarChart,
   Bar,
   Cell,
-  PieChart,
-  Pie,
 } from "recharts";
 import {
   formatCurrency,
@@ -281,7 +270,6 @@ const RealTimeDashboard = () => {
   };
 
   // Load Options Flow data from the new API
-  const loadOptionsFlowData = async () => {
     try {
       const response = await api.get("/api/news/options-flow", {
         params: {
@@ -304,7 +292,6 @@ const RealTimeDashboard = () => {
   };
 
   // Load Unusual Options Activity data
-  const loadUnusualOptionsActivity = async () => {
     try {
       const response = await api.get("/api/news/options-flow/unusual", {
         params: {
@@ -325,7 +312,6 @@ const RealTimeDashboard = () => {
   };
 
   // Load News Feed data from the new API
-  const loadNewsFeedData = async () => {
     try {
       const response = await api.get("/api/news/feed", {
         params: {
@@ -347,7 +333,6 @@ const RealTimeDashboard = () => {
   };
 
   // Load Economic Calendar data
-  const loadEconomicCalendarData = async () => {
     try {
       const response = await api.get("/api/news/economic-calendar", {
         params: {
@@ -377,7 +362,6 @@ const RealTimeDashboard = () => {
     setIsStreaming(!isStreaming);
   };
 
-  const addToWatchlist = (symbol) => {
     if (!watchlist.includes(symbol)) {
       setWatchlist([...watchlist, symbol]);
     }

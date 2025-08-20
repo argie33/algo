@@ -10,7 +10,6 @@ import {
   CircularProgress,
   Link,
 } from "@mui/material";
-import { LockReset as ResetIcon } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {

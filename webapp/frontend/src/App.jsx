@@ -22,33 +22,7 @@ import {
   Divider,
 } from "@mui/material";
 import {
-  Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  TrendingUp as TrendingUpIcon,
-  ShowChart as ShowChartIcon,
-  Analytics as AnalyticsIcon,
-  FilterList as FilterListIcon,
-  Business as BusinessIcon,
-  Timeline as TimelineIcon,
-  Person as PersonIcon,
-  Event as EventIcon,
-  Storage as StorageIcon,
-  AccountBalance as AccountBalanceIcon,
-  HealthAndSafety as HealthAndSafetyIcon,
-  Assessment as AssessmentIcon,
-  PlayArrow,
-  Login as LoginIcon,
-  Logout as LogoutIcon,
-  AccountCircle as AccountCircleIcon,
-  Psychology as PsychologyIcon,
-  Search as SearchIcon,
-  Public as PublicIcon,
-  Settings as SettingsIcon,
-  ExpandLess,
-  ExpandMore,
-  Stars,
-  NetworkCheck as NetworkIcon,
-} from "@mui/icons-material";
+  Menu as MenuIcon, Dashboard as DashboardIcon, PlayArrow, Settings as SettingsIcon, ExpandLess, ExpandMore, Stars, } from "@mui/icons-material";
 
 // All real page imports
 import Dashboard from "./pages/Dashboard";

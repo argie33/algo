@@ -7,7 +7,6 @@ import {
   Grid,
   Card,
   CardContent,
-  CardHeader,
   Tabs,
   Tab,
   Table,
@@ -17,60 +16,35 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Chip,
   CircularProgress,
   Alert,
-  Button,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   Switch,
   FormControlLabel,
-  Divider,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
 } from "@mui/material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  ComposedChart,
-  ScatterChart,
-  Scatter,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, BarChart, Bar, ComposedChart, PieChart, Pie, Cell, } from "recharts";
 import {
   TrendingUp,
-  TrendingDown,
   Analytics,
   Assessment,
-  Timeline,
   PieChart as PieChartIcon,
   ShowChart,
-  AccountBalance,
   Warning,
   CheckCircle,
-  Info,
   Star,
   StarBorder,
 } from "@mui/icons-material";
 import {
   getPortfolioPerformance,
   getPortfolioAnalytics,
-  getBenchmarkData,
 } from "../services/api";
 
 const PortfolioPerformance = () => {
@@ -103,7 +77,6 @@ const PortfolioPerformance = () => {
     fetchPerformanceData();
   }, [timeframe]);
 
-  const fetchPerformanceData = async () => {
     try {
       setLoading(true);
       setError(null); // Clear any previous errors

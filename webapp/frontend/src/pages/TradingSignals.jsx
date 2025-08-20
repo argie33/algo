@@ -20,15 +20,11 @@ import {
   Paper,
   Chip,
   CircularProgress,
-  Alert,
   TablePagination,
   Badge,
   Tooltip,
   Switch,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -44,8 +40,6 @@ import {
   TrendingDown,
   Analytics,
   NewReleases,
-  History,
-  ExpandMore,
   FilterList,
   Close,
   Timeline,
@@ -59,9 +53,8 @@ import { getApiConfig } from "../services/api";
 import {
   ErrorDisplay,
   LoadingDisplay,
-  useStandardizedError,
 } from "../components/ui/ErrorBoundary";
-import { createLogger, apiPatterns } from "../utils/apiService.jsx";
+import { createLogger } from "../utils/apiService.jsx";
 
 // Use standardized logger
 const logger = createLogger("TradingSignals");
@@ -252,7 +245,6 @@ function TradingSignals() {
     const isBuy = signal === "Buy" || signal === "BUY";
     const isSell = signal === "Sell" || signal === "SELL";
     const isHold = signal === "Hold" || signal === "HOLD";
-    const isNone = signal === "None" || !signal;
     const isRecent = isRecentSignal(signalDate);
 
     return (
@@ -306,7 +298,6 @@ function TradingSignals() {
     );
   };
 
-  const getStatusChip = (status) => {
     const colors = {
       TARGET_HIT: "#10B981",
       STOP_LOSS_HIT: "#DC2626",

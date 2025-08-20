@@ -231,7 +231,6 @@ export const updateApiBaseUrl = (newUrl) => {
 };
 
 // Retry configuration for Lambda cold starts
-const retryRequest = async (error) => {
   const { config: requestConfig } = error;
 
   if (!requestConfig || requestConfig.retryCount >= 3) {

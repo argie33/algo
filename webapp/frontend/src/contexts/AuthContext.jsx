@@ -636,7 +636,6 @@ export function AuthProvider({ children }) {
   };
 
   // Helper function to get user-friendly error messages
-  const getErrorMessage = (error) => {
     if (error.name === "NotAuthorizedException") {
       return "Invalid username or password";
     }

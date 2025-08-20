@@ -20,9 +20,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider,
   Button,
-  IconButton,
   Tooltip,
 } from "@mui/material";
 import {
@@ -36,24 +34,18 @@ import {
   Api,
   Cloud,
   Speed,
-  Memory,
 } from "@mui/icons-material";
 
 // Import API functions
 import {
   healthCheck,
-  getDataValidationSummary,
   getTechnicalData,
   getStocks,
   getMarketOverview,
   testApiConnection,
-  getBalanceSheet,
-  getIncomeStatement,
-  getCashFlowStatement,
   screenStocks,
   getBuySignals,
   getSellSignals,
-  getEarningsEstimates,
   getNaaimData,
   getFearGreedData,
   getApiConfig,

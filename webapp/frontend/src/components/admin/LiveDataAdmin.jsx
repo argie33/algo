@@ -14,11 +14,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Alert,
   AlertTitle,
   IconButton,
-  Tooltip,
   Switch,
   FormControlLabel,
   Dialog,
@@ -30,29 +28,13 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Divider,
   Fab,
   CircularProgress,
   Tabs,
   Tab,
 } from "@mui/material";
 import {
-  Speed as SpeedIcon,
-  NetworkCheck as NetworkIcon,
-  AttachMoney as CostIcon,
-  Timeline as MetricsIcon,
-  Settings as SettingsIcon,
-  Refresh as RefreshIcon,
-  PlayArrow as StartIcon,
-  Stop as StopIcon,
-  Warning as WarningIcon,
-  CheckCircle as SuccessIcon,
-  Error as ErrorIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Analytics as AnalyticsIcon,
-  Memory as MemoryIcon,
-} from "@mui/icons-material";
+  Settings as SettingsIcon, Refresh as RefreshIcon, Analytics as AnalyticsIcon, } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 import ProviderMetrics from "./ProviderMetrics";
 import ConnectionMonitor from "./ConnectionMonitor";

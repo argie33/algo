@@ -19,10 +19,6 @@ import {
   Paper,
   Chip,
   TablePagination,
-  Tabs,
-  Tab,
-  TextField,
-  Button,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -30,7 +26,6 @@ import {
   HorizontalRule,
   Analytics,
 } from "@mui/icons-material";
-import { formatCurrency, formatPercentage } from "../utils/formatters";
 
 // Create component-specific logger
 const logger = createComponentLogger("AnalystInsights");

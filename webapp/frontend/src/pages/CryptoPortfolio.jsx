@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Grid,
@@ -19,7 +19,6 @@ import {
   DialogActions,
   TextField,
   IconButton,
-  Chip,
   Alert,
   MenuItem,
   LinearProgress,
@@ -31,9 +30,6 @@ import {
   Delete,
   TrendingUp,
   TrendingDown,
-  AccountBalanceWallet,
-  Assessment,
-  PieChart,
   Refresh,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -99,7 +95,6 @@ function CryptoPortfolio() {
     },
   });
 
-  const resetNewPosition = () => {
     setNewPosition({
       symbol: "",
       quantity: "",

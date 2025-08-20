@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Container,
@@ -15,20 +15,15 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   LinearProgress,
   Alert,
   Button,
-  TextField,
   MenuItem,
   IconButton,
   FormControl,
   InputLabel,
   Select,
-  Tooltip,
-  Badge,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -39,7 +34,6 @@ import {
   Step,
   StepLabel,
   StepContent,
-  CircularProgress,
   TableSortLabel,
   Accordion,
   AccordionSummary,
@@ -56,49 +50,18 @@ import {
   Assessment,
   Warning,
   CheckCircle,
-  Info,
   Timeline,
-  ShowChart,
-  BarChart,
-  FilterList,
   Refresh,
   Download,
   Share,
   BookmarkBorder,
-  Bookmark,
-  ThumbUp,
-  ThumbDown,
-  Visibility,
-  VisibilityOff,
   ExpandMore,
   Speed,
   TrendingFlat,
   Lightbulb,
 } from "@mui/icons-material";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart as RechartsBarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Area,
-  AreaChart,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  ComposedChart,
-  ScatterChart,
-  Scatter,
-} from "recharts";
+  PieChart, Pie, Cell, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Line, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, ScatterChart, Scatter, } from "recharts";
 import { formatPercentage, formatNumber } from "../utils/formatters";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -1143,7 +1106,6 @@ const SentimentAnalysis = () => {
 };
 
 // ⚠️ MOCK DATA - Replace with real API when available
-const mockSentimentData = {
   isMockData: true,
   sources: [
     {
@@ -1278,7 +1240,6 @@ const mockSentimentData = {
 };
 
 // Color palette for charts
-const COLORS = [
   "#0088FE",
   "#00C49F",
   "#FFBB28",

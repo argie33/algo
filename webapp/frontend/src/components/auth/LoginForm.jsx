@@ -16,10 +16,7 @@ import {
   FormControlLabel,
 } from "@mui/material";
 import {
-  Visibility,
-  VisibilityOff,
-  Login as LoginIcon,
-} from "@mui/icons-material";
+  Visibility, VisibilityOff, } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {

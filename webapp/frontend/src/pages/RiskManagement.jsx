@@ -15,7 +15,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   CircularProgress,
   Alert,
@@ -25,51 +24,25 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Slider,
   LinearProgress,
-  Divider,
-  Badge,
-  Tooltip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from "@mui/material";
 import {
   Security,
   Warning,
-  TrendingUp,
-  TrendingDown,
   Assessment,
   Timeline,
   Shield,
   Error as ErrorIcon,
   CheckCircle,
-  ExpandMore,
-  Refresh,
-  Download,
-  Settings,
   Notifications,
   Speed,
 } from "@mui/icons-material";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, } from "recharts";
 import { getApiConfig } from "../services/api";
 
 const { apiUrl: API_BASE } = getApiConfig();
@@ -214,7 +187,6 @@ const RiskManagement = () => {
     loadRiskData();
   }, [selectedSymbol]);
 
-  const loadRiskData = async () => {
     setLoading(true);
     try {
       // ⚠️ MOCK DATA - TODO: Replace with real API call
