@@ -461,10 +461,7 @@ function TechnicalAnalysis() {
       )}
     </Box>
   );
-}
 
-const TechnicalAnalysis = () => {
-  // Move all the component logic here - this is likely the issue
   if (!technicalData?.data) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
