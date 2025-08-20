@@ -16,7 +16,7 @@ import {
   Visibility,
   VisibilityOff,
   VpnKey
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function ResetPasswordForm({

@@ -35,7 +35,7 @@ class ErrorBoundary extends React.Component {
     };
   }
 
-  componentDidCatch(_error, errorInfo) {
+  componentDidCatch(error, errorInfo) {
     // Only catch React rendering errors, not API/async errors
     const isReactRenderError = errorInfo && errorInfo.componentStack;
     const isNetworkError =

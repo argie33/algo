@@ -30,16 +30,12 @@ import {
   Refresh as RefreshIcon,
   Email as EmailIcon,
   CheckCircle as CheckCircleIcon,
-  TestIcon,
   Settings as SettingsIcon,
   ExpandMore as ExpandMoreIcon,
   Close as CloseIcon,
-  Slack as SlackIcon,
-  Webhook as WebhookIcon,
-  ,
   BugReport,
-  Message
-} from "@mui/icons-material";;
+  Message,
+} from "@mui/icons-material";
 
 const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
   const [alerts, setAlerts] = useState(

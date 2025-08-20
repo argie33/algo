@@ -545,20 +545,6 @@ function TradingSignals() {
     </TableContainer>
   );
 
-  const isLoading = signalsLoading || performanceLoading;
-
-  if (isLoading && !signalsData) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <LoadingDisplay
-          message="Loading trading signals and performance data..."
-          fullPage={true}
-          size="large"
-        />
-      </Container>
-    );
-  }
-
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Enhanced Header */}

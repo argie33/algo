@@ -11,9 +11,8 @@ import {
   Link,
 } from "@mui/material";
 import {
-  LockReset as ResetIcon,
   VpnKey
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {

@@ -43,7 +43,6 @@ import {
   ExpandMore,
   OpenInNew,
   Star,
-  Settings,
 } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 import api from "../../services/api";

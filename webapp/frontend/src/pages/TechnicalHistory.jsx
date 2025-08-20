@@ -81,6 +81,14 @@ function PriceHistory() {
     sma_max: "",
   });
 
+  // Price filters
+  const [priceFilters, setPriceFilters] = useState({
+    price_min: "",
+    price_max: "",
+    volume_min: "",
+    volume_max: "",
+  });
+
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState({
     date: true,

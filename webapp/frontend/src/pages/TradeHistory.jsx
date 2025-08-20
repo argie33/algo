@@ -51,9 +51,8 @@ import {
   MonetizationOn,
   SwapHoriz,
   Insights,
-  ,
   Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 import {
   Line,
   XAxis,
