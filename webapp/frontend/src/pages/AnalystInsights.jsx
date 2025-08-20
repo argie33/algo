@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
+import { formatPercentage as formatPercent } from "../utils/formatters";
 import {
   Box,
   Container,
@@ -151,7 +152,7 @@ function AnalystInsights() {
         </TableHead>
         <TableBody>
           {upgradesData?.data?.map((item, _index) => (
-            <TableRow key={`${item.symbol}-${index}`} hover>
+            <TableRow key={`${item.symbol}-${_index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">
                   {item.symbol}

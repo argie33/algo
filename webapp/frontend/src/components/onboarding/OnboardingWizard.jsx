@@ -208,14 +208,16 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
 
   const handleStepAction = async () => {
     switch (activeStep) {
-      case 1: // API Keys
+      case 1: { // API Keys
         const apiSuccess = await saveApiKeys();
         if (apiSuccess) handleNext();
         break;
-      case 2: // Preferences
+      }
+      case 2: { // Preferences
         const prefSuccess = await savePreferences();
         if (prefSuccess) handleNext();
         break;
+      }
       case 4: // Complete
         // Mark onboarding as completed
         try {

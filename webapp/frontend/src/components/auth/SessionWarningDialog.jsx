@@ -110,7 +110,7 @@ const SessionWarningDialog = ({
 
         <Typography variant="body2" color="text.secondary">
           You will be automatically logged out when the timer reaches zero.
-          Click "Stay Signed In" to extend your session.
+          Click &quot;Stay Signed In&quot; to extend your session.
         </Typography>
       </DialogContent>
 
