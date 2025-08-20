@@ -57,10 +57,8 @@ import {
   Lightbulb,
   Speed,
   Balance,
-  ,
-  Tune,
-  Tooltip
-} from "@mui/icons-material";;
+  Tune
+} from "@mui/icons-material";
 import {
   getPortfolioOptimizationData,
   runPortfolioOptimization,

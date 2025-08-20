@@ -107,6 +107,7 @@ function FinancialData() {
     setTabValue(newValue);
   };
 
+  const handleTickerSubmit = () => {
     if (searchTicker.trim()) {
       console.log(
         "🔍 FinancialData: Searching for ticker:",

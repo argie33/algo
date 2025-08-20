@@ -40,10 +40,8 @@ import {
   Warning,
   CheckCircle,
   Star,
-  StarBorder,
-  ,
-  Tooltip
-} from "@mui/icons-material";;
+  StarBorder
+} from "@mui/icons-material";
 import {
   getPortfolioPerformance,
   getPortfolioAnalytics,

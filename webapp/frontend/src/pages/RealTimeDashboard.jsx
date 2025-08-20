@@ -271,6 +271,7 @@ const RealTimeDashboard = () => {
   };
 
   // Load Options Flow data from the new API
+  const loadOptionsFlow = async () => {
     try {
       const response = await api.get("/api/news/options-flow", {
         params: {
@@ -293,6 +294,7 @@ const RealTimeDashboard = () => {
   };
 
   // Load Unusual Options Activity data
+  const loadUnusualOptions = async () => {
     try {
       const response = await api.get("/api/news/options-flow/unusual", {
         params: {
@@ -313,6 +315,7 @@ const RealTimeDashboard = () => {
   };
 
   // Load News Feed data from the new API
+  const loadNewsFeed = async () => {
     try {
       const response = await api.get("/api/news/feed", {
         params: {
@@ -334,6 +337,7 @@ const RealTimeDashboard = () => {
   };
 
   // Load Economic Calendar data
+  const loadEconomicCalendar = async () => {
     try {
       const response = await api.get("/api/news/economic-calendar", {
         params: {

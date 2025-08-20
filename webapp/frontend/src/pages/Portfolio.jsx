@@ -99,10 +99,8 @@ import {
   PictureAsPdf,
   NotificationsNone,
   Refresh,
-  Visibility,
-  ,
-  Tooltip
-} from "@mui/icons-material";;
+  Visibility
+} from "@mui/icons-material";
 import {
   getApiConfig,
   testApiConnection,

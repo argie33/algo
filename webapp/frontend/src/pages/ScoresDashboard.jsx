@@ -50,7 +50,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as Tooltip,
+  Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,

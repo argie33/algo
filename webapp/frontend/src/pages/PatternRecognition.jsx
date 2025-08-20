@@ -36,6 +36,28 @@ import {
 import { formatCurrency } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 
+// Robust logging for troubleshooting
+const logger = {
+  info: (message, data) => {
+    console.log(`[PatternRecognition] ${message}`, data);
+  },
+  error: (message, error, context) => {
+    console.error(`[PatternRecognition] ${message}`, {
+      error: error?.message || error,
+      stack: error?.stack,
+      context,
+    });
+  },
+  warn: (message, data) => {
+    console.warn(`[PatternRecognition] ${message}`, data);
+  },
+  debug: (message, data) => {
+    if (process.env.NODE_ENV === "development") {
+      console.debug(`[PatternRecognition] ${message}`, data);
+    }
+  },
+};
+
 const PatternRecognition = () => {
   const { apiUrl: API_BASE } = getApiConfig();
   const [tabValue, setTabValue] = useState(0);
@@ -996,28 +1018,6 @@ const PatternRecognition = () => {
       )}
     </Container>
   );
-};
-
-// Robust logging for troubleshooting
-const logger = {
-  info: (message, data) => {
-    console.log(`[PatternRecognition] ${message}`, data);
-  },
-  error: (message, error, context) => {
-    console.error(`[PatternRecognition] ${message}`, {
-      error: error?.message || error,
-      stack: error?.stack,
-      context,
-    });
-  },
-  warn: (message, data) => {
-    console.warn(`[PatternRecognition] ${message}`, data);
-  },
-  debug: (message, data) => {
-    if (process.env.NODE_ENV === "development") {
-      console.debug(`[PatternRecognition] ${message}`, data);
-    }
-  },
 };
 
 export default PatternRecognition;

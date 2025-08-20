@@ -1212,6 +1212,7 @@ const EconomicModeling = () => {
 };
 
 // ⚠️ MOCK DATA - Replace with real API when available
+const mockEconomicData = {
   isMockData: true,
   recessionProbability: 35,
   riskLevel: "Medium",
