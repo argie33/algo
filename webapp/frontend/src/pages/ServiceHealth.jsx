@@ -486,27 +486,6 @@ function ServiceHealth() {
 
   // Safe data extraction (all safe variables already defined above)
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "success":
-      case "healthy":
-      case "connected":
-        return <CheckCircle color="success" />;
-      case "error":
-      case "failed":
-      case "disconnected":
-        return <Error color="error" />;
-      case "warning":
-      case "stale":
-      case "incomplete":
-        return <Warning color="warning" />;
-      case "empty":
-        return <Info color="info" />;
-      default:
-        return <Info color="info" />;
-    }
-  };
-
   const getStatusColor = (status) => {
     switch (status) {
       case "success":

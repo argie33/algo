@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
-  formatCurrency, formatNumber, formatPercent, getChangeColor, } from "../utils/formatters";
+  formatCurrency, formatNumber, formatPercent, getChangeColor } from "../utils/formatters";
 import { screenStocks, getStockPriceHistory } from "../services/api";
 import {
   Box,
@@ -358,14 +358,11 @@ function StockExplorer() {
   };
 
   const getActiveFiltersCount = () => {
-    return Object.values(filters).filter(
-      (value) =>
-        value !== "" &&
-        value !== false &&
-        value !==
-          INITIAL_FILTERS[
-            Object.keys(filters).find((key) => filters[key] === value)
-          ]
+    return Object.keys(filters).filter(
+      (key) =>
+        filters[key] !== "" &&
+        filters[key] !== false &&
+        filters[key] !== INITIAL_FILTERS[key]
     ).length;
   };
 
