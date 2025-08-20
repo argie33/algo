@@ -40,7 +40,7 @@ import {
   Tune,
 } from "@mui/icons-material";
 
-const CostOptimizer = ({ costData, onOptimize, onApplyRecommendation }) => {
+const CostOptimizer = ({ _costData, onOptimize, onApplyRecommendation }) => {
   const [optimizationMode, setOptimizationMode] = useState("balanced");
   const [autoOptimize, setAutoOptimize] = useState(false);
   const [budgetLimit, setBudgetLimit] = useState(50);

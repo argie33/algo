@@ -140,7 +140,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <Tooltip
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
@@ -193,7 +193,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <Tooltip
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
@@ -238,7 +238,7 @@ const ProfessionalChart = ({
                 ))}
               </Pie>
               {showTooltip && (
-                <Tooltip
+                <RechartsTooltip
                   formatter={formatTooltip}
                   contentStyle={{
                     backgroundColor: "rgba(255, 255, 255, 0.95)",
@@ -278,7 +278,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <Tooltip
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
@@ -331,7 +331,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <Tooltip
+                <RechartsTooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
