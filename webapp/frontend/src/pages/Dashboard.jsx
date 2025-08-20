@@ -361,7 +361,7 @@ function usePortfolioData() {
   });
 }
 
-function useUser() {
+function _useUser() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard-user"],
     queryFn: async () => {
@@ -520,7 +520,7 @@ function TechnicalSignalsWidget() {
 
 // --- ENHANCED WIDGETS ---
 function MarketSentimentWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
+  const { data: marketData, isLoading: _isLoading } = useMarketOverview();
   const sentiment = marketData?.data?.sentiment || mockMarketSentiment;
 
   const getSentimentColor = (value) => {
@@ -608,7 +608,7 @@ function MarketSentimentWidget() {
 }
 
 function SectorPerformanceWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
+  const { data: marketData, isLoading: _isLoading2 } = useMarketOverview();
   const sectors = marketData?.data?.sectors || mockSectorPerformance;
 
   return (
@@ -643,7 +643,7 @@ function SectorPerformanceWidget() {
 }
 
 function TopStocksWidget() {
-  const { data: stocksData, isLoading } = useTopStocks();
+  const { data: stocksData, isLoading: _isLoading3 } = useTopStocks();
   const stocks = stocksData?.data || mockTopStocks;
 
   return (
@@ -702,7 +702,7 @@ function TopStocksWidget() {
 }
 
 function EconomicIndicatorsWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
+  const { data: marketData, isLoading: _isLoading4 } = useMarketOverview();
   const indicators = marketData?.data?.economic || mockEconomicIndicators;
 
   const getTrendIcon = (trend) => {
@@ -751,7 +751,7 @@ function EconomicIndicatorsWidget() {
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
-  const [dashboardView, setDashboardView] = useState("overview");
+  const [_dashboardView, _setDashboardView] = useState("overview");
 
   const SYMBOL_OPTIONS = [
     "AAPL",
@@ -765,10 +765,10 @@ const Dashboard = () => {
 
   // Enhanced data fetching
   const { data: portfolioData } = usePortfolioData();
-  const { data: marketData } = useMarketOverview();
-  const { data: topStocksData } = useTopStocks();
+  const { data: _marketData } = useMarketOverview();
+  const { data: _topStocksData } = useTopStocks();
 
-  const { data: priceData, isLoading: priceLoading } = useQuery({
+  const { data: priceData, isLoading: _priceLoading } = useQuery({
     queryKey: ["stock-prices", selectedSymbol],
     queryFn: async () => {
       try {
@@ -788,7 +788,7 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: metricsData, isLoading: metricsLoading } = useQuery({
+  const { data: metricsData, isLoading: _metricsLoading } = useQuery({
     queryKey: ["stock-metrics", selectedSymbol],
     queryFn: async () => {
       try {
@@ -816,7 +816,7 @@ const Dashboard = () => {
   const safeCalendar = mockCalendar;
   const safeSignals = mockSignals;
 
-  const chartData = priceData?.data
+  const _chartData = priceData?.data
     ? priceData.data
         .map((p) => ({
           date: p.date || p.timestamp,
@@ -825,7 +825,7 @@ const Dashboard = () => {
         .reverse()
     : [];
 
-  const metricsDisplay = metricsData?.data
+  const _metricsDisplay = metricsData?.data
     ? [
         { label: "Beta", value: metricsData.data.beta ?? "N/A" },
         {
