@@ -36,7 +36,10 @@ import {
   Close as CloseIcon,
   Slack as SlackIcon,
   Webhook as WebhookIcon,
-} from "@mui/icons-material";
+  ,
+  BugReport,
+  Message
+} from "@mui/icons-material";;
 
 const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
   const [alerts, setAlerts] = useState(
@@ -176,7 +179,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
             </Typography>
             <Box display="flex" gap={1}>
               <Button
-                startIcon={<TestIcon />}
+                startIcon={<BugReport />}
                 variant="outlined"
                 onClick={handleTestNotifications}
                 disabled={testingNotifications}
@@ -428,7 +431,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
                 mb={2}
               >
                 <Box display="flex" alignItems="center" gap={1}>
-                  <SlackIcon
+                  <Message
                     color={
                       alertConfig.notifications.slack.enabled
                         ? "primary"
@@ -487,7 +490,7 @@ const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {
 
               <Button
                 fullWidth
-                startIcon={<TestIcon />}
+                startIcon={<BugReport />}
                 variant="outlined"
                 onClick={handleTestNotifications}
                 disabled={testingNotifications}

@@ -40,7 +40,9 @@ import {
   CheckCircle,
   Notifications,
   Speed,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, } from "recharts";
 import { getApiConfig } from "../services/api";
@@ -510,7 +512,7 @@ const RiskManagement = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <RechartsTooltip
+                <Tooltip
                   formatter={(value) => [`$${value.toLocaleString()}`, ""]}
                 />
                 <Line

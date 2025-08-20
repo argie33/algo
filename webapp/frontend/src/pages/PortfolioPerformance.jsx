@@ -41,7 +41,9 @@ import {
   CheckCircle,
   Star,
   StarBorder,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   getPortfolioPerformance,
   getPortfolioAnalytics,
@@ -415,7 +417,7 @@ const PortfolioPerformance = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <RechartsTooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="portfolioValue"
@@ -481,7 +483,7 @@ const PortfolioPerformance = () => {
                           )
                         )}
                       </Pie>
-                      <RechartsTooltip
+                      <Tooltip
                         formatter={(value) => [
                           `${value.toFixed(2)}%`,
                           "Contribution",
@@ -628,7 +630,7 @@ const PortfolioPerformance = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <RechartsTooltip content={<CustomTooltip />} />
+                      <Tooltip content={<CustomTooltip />} />
                       <Line
                         type="monotone"
                         dataKey="volatility"
@@ -662,7 +664,7 @@ const PortfolioPerformance = () => {
                     height={100}
                   />
                   <YAxis />
-                  <RechartsTooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="return" name="Return %" fill="#2196F3" />
                 </BarChart>
               </ResponsiveContainer>

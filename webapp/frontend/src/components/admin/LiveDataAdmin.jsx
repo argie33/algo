@@ -42,7 +42,9 @@ import {
   NetworkCheck as NetworkIcon,
   MonetizationOn as CostIcon,
   Speed as SpeedIcon,
-} from "@mui/icons-material";
+  ,
+  AttachMoney
+} from "@mui/icons-material";;
 import { useAuth } from "../../contexts/AuthContext";
 import ProviderMetrics from "./ProviderMetrics";
 import ConnectionMonitor from "./ConnectionMonitor";
@@ -283,7 +285,7 @@ const LiveDataAdmin = () => {
                         of ${dashboardData?.limits?.cost?.max || 50} budget
                       </Typography>
                     </Box>
-                    <CostIcon color="primary" fontSize="large" />
+                    <AttachMoney color="primary" fontSize="large" />
                   </Box>
                   <LinearProgress
                     variant="determinate"

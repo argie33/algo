@@ -43,7 +43,9 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart, } from "recharts";
 
@@ -1464,7 +1466,7 @@ function StockExplorer() {
                               domain={["dataMin", "dataMax"]}
                               tickFormatter={(value) => `$${value.toFixed(2)}`}
                             />
-                            <RechartsTooltip
+                            <Tooltip
                               formatter={(value) => [
                                 `$${value.toFixed(2)}`,
                                 "Close",

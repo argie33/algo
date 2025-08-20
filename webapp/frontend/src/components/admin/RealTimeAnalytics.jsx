@@ -20,9 +20,26 @@ import {
   InputLabel,
 } from "@mui/material";
 import {
-  Refresh as RefreshIcon, } from "@mui/icons-material";
+  Refresh as RefreshIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, } from "recharts";
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as Tooltip,
+} from "recharts";
 
 const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
   const [timeRange, setTimeRange] = useState("1h");
@@ -67,7 +84,7 @@ const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
     return "error";
   };
 
-  const formatBytes = (bytes) => {
+  const _formatBytes = (bytes) => {
     if (bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB"];
@@ -257,7 +274,7 @@ const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
                         position: "insideLeft",
                       }}
                     />
-                    <RechartsTooltip />
+                    <Tooltip />
                     <Line
                       type="monotone"
                       dataKey="alpaca"
@@ -310,7 +327,7 @@ const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <RechartsTooltip />
+                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </Box>
@@ -337,7 +354,7 @@ const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
                         position: "insideLeft",
                       }}
                     />
-                    <RechartsTooltip />
+                    <Tooltip />
                     <Bar dataKey="messages" fill="#8884d8" />
                   </BarChart>
                 </ResponsiveContainer>

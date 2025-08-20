@@ -46,7 +46,9 @@ import {
   Factory,
   Store,
   Construction,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, ReferenceLine, } from "recharts";
 
@@ -641,7 +643,7 @@ const EconomicModeling = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="maturity" />
                     <YAxis />
-                    <RechartsTooltip
+                    <Tooltip
                       formatter={(value) => [`${value}%`, "Yield"]}
                     />
                     <Line
@@ -924,7 +926,7 @@ const EconomicModeling = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="sector" />
                     <YAxis />
-                    <RechartsTooltip
+                    <Tooltip
                       formatter={(value) => [`${value}%`, "Growth"]}
                     />
                     <Bar dataKey="growth">

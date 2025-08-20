@@ -79,6 +79,7 @@ const MetricsDashboard = () => {
     }
   }, [activeTab]);
 
+  const fetchData = async () => {
     try {
       setLoading(true);
 

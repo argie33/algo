@@ -14,7 +14,11 @@ import {
   Divider,
   Grid,
 } from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import {
+  Visibility,
+  VisibilityOff,
+  PersonAdd as RegisterIcon
+} from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {

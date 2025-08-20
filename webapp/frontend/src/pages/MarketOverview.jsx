@@ -47,7 +47,9 @@ import {
   Fullscreen,
   FullscreenExit,
   Equalizer,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 
 import {
   getMarketOverview,
@@ -75,6 +77,7 @@ import {
 ];
 
 // Advanced color schemes for different visualizations
+const colorSchemes = {
   primary: [
     "#6366f1",
     "#8b5cf6",
@@ -698,7 +701,7 @@ function MarketOverview() {
                   fontSize: 12,
                 }}
               />
-              <RechartsTooltip
+              <Tooltip
                 formatter={(value, name) => [`${value}`, name]}
               />
               <Legend verticalAlign="top" height={36} />
@@ -1495,7 +1498,7 @@ function MarketOverview() {
                           height={80}
                         />
                         <YAxis />
-                        <RechartsTooltip
+                        <Tooltip
                           formatter={(value, name) => [
                             `${value.toFixed(2)}%`,
                             "Performance",
@@ -1688,7 +1691,7 @@ function MarketOverview() {
                           <Cell fill="#F44336" />
                           <Cell fill="#9E9E9E" />
                         </Pie>
-                        <RechartsTooltip />
+                        <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -1964,7 +1967,7 @@ function MarketOverview() {
                                 position: "insideLeft",
                               }}
                             />
-                            <RechartsTooltip
+                            <Tooltip
                               formatter={(value) => [
                                 `${value.toFixed(1)}%`,
                                 "Average Return",
@@ -2006,7 +2009,7 @@ function MarketOverview() {
                                 position: "insideLeft",
                               }}
                             />
-                            <RechartsTooltip
+                            <Tooltip
                               formatter={(value, name, props) => [
                                 `${value.toFixed(1)}%`,
                                 "Average Return",

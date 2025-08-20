@@ -59,7 +59,9 @@ import {
   Speed,
   TrendingFlat,
   Lightbulb,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   PieChart, Pie, Cell, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Line, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, ScatterChart, Scatter, } from "recharts";
 import { formatPercentage, formatNumber } from "../utils/formatters";
@@ -370,7 +372,7 @@ const SentimentAnalysis = () => {
                       strokeWidth={2}
                       strokeDasharray="5 5"
                     />
-                    <RechartsTooltip />
+                    <Tooltip />
                   </RadarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -479,7 +481,7 @@ const SentimentAnalysis = () => {
                     <XAxis dataKey="date" />
                     <YAxis yAxisId="left" domain={[0, 100]} />
                     <YAxis yAxisId="right" orientation="right" />
-                    <RechartsTooltip />
+                    <Tooltip />
                     <Area
                       yAxisId="left"
                       type="monotone"
@@ -635,7 +637,7 @@ const SentimentAnalysis = () => {
                       name="Future Returns"
                       domain={[-10, 10]}
                     />
-                    <RechartsTooltip
+                    <Tooltip
                       cursor={{ strokeDasharray: "3 3" }}
                       formatter={(value, name) => [
                         name === "priceChange" ? `${value}%` : value,
@@ -883,7 +885,7 @@ const SentimentAnalysis = () => {
                         />
                       ))}
                     </Pie>
-                    <RechartsTooltip />
+                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>

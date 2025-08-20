@@ -38,7 +38,9 @@ import {
   Check as CheckIcon,
   Warning as WarningIcon,
   Compare as CompareIcon,
-} from "@mui/icons-material";
+  ,
+  Tune
+} from "@mui/icons-material";;
 
 const CostOptimizer = ({ costData, onOptimize, onApplyRecommendation }) => {
   const [optimizationMode, setOptimizationMode] = useState("balanced");
@@ -192,7 +194,7 @@ const CostOptimizer = ({ costData, onOptimize, onApplyRecommendation }) => {
                 label="Auto-optimize"
               />
               <Button
-                startIcon={<OptimizeIcon />}
+                startIcon={<Tune />}
                 variant="contained"
                 onClick={onOptimize}
               >

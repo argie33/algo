@@ -59,7 +59,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
+  Tooltip as Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -69,7 +69,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  ComposedChart,
+  ComposedChart
 } from "recharts";
 import {
   TrendingUp,
@@ -100,7 +100,9 @@ import {
   NotificationsNone,
   Refresh,
   Visibility,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   getApiConfig,
   testApiConnection,
@@ -1828,7 +1830,7 @@ const Portfolio = () => {
                             )
                           )}
                         </Pie>
-                        <RechartsTooltip
+                        <Tooltip
                           formatter={(value) => [
                             formatPercentage(value),
                             "Allocation",
@@ -1902,7 +1904,7 @@ const Portfolio = () => {
                     <XAxis dataKey="date" />
                     <YAxis yAxisId="left" />
                     <YAxis yAxisId="right" orientation="right" />
-                    <RechartsTooltip />
+                    <Tooltip />
                     <Area
                       yAxisId="left"
                       type="monotone"
@@ -2143,7 +2145,7 @@ const Portfolio = () => {
                       strokeWidth={2}
                       strokeDasharray="5 5"
                     />
-                    <RechartsTooltip />
+                    <Tooltip />
                   </RadarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -2496,7 +2498,7 @@ const Portfolio = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <RechartsTooltip
+                      <Tooltip
                         formatter={(value) => [
                           `$${value.toLocaleString()}`,
                           "",

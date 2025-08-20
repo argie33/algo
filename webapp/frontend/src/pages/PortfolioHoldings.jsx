@@ -34,7 +34,9 @@ import {
   Upload,
   Sync,
   FilterList,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   getPortfolioData,
   addHolding,
@@ -486,7 +488,7 @@ const PortfolioHoldings = () => {
                       />
                     ))}
                   </Pie>
-                  <RechartsTooltip
+                  <Tooltip
                     formatter={(value) => [
                       `$${value.toLocaleString()}`,
                       "Value",

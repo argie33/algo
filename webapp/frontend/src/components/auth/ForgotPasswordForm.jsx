@@ -10,6 +10,10 @@ import {
   CircularProgress,
   Link,
 } from "@mui/material";
+import {
+  LockReset as ResetIcon,
+  VpnKey
+} from "@mui/icons-material";;
 import { useAuth } from "../../contexts/AuthContext";
 
 function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
@@ -49,7 +53,7 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
     <Card sx={{ maxWidth: 400, mx: "auto", mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <ResetIcon sx={{ mr: 1, color: "primary.main" }} />
+          <VpnKey sx={{ mr: 1, color: "primary.main" }} />
           <Typography variant="h4" component="h1" color="primary">
             Reset Password
           </Typography>
@@ -93,7 +97,7 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
             startIcon={
-              isLoading ? <CircularProgress size={20} /> : <ResetIcon />
+              isLoading ? <CircularProgress size={20} /> : <VpnKey />
             }
           >
             {isLoading ? "Sending..." : "Send Reset Code"}

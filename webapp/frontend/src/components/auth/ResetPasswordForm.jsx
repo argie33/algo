@@ -12,7 +12,11 @@ import {
   InputAdornment,
   IconButton,
 } from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import {
+  Visibility,
+  VisibilityOff,
+  VpnKey
+} from "@mui/icons-material";;
 import { useAuth } from "../../contexts/AuthContext";
 
 function ResetPasswordForm({
@@ -92,7 +96,7 @@ function ResetPasswordForm({
     <Card sx={{ maxWidth: 400, mx: "auto", mt: 4 }}>
       <CardContent sx={{ p: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <ResetIcon sx={{ mr: 1, color: "primary.main" }} />
+          <VpnKey sx={{ mr: 1, color: "primary.main" }} />
           <Typography variant="h4" component="h1" color="primary">
             Set New Password
           </Typography>
@@ -194,7 +198,7 @@ function ResetPasswordForm({
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
             startIcon={
-              isLoading ? <CircularProgress size={20} /> : <ResetIcon />
+              isLoading ? <CircularProgress size={20} /> : <VpnKey />
             }
           >
             {isLoading ? "Resetting..." : "Reset Password"}

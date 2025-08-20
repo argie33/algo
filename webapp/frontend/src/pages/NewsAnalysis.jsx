@@ -51,7 +51,9 @@ import {
   Schedule,
   Warning,
   Info,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import { formatDistanceToNow, format } from "date-fns";
 import { formatPercentage } from "../utils/formatters";
 import {
@@ -740,7 +742,7 @@ const NewsAnalysis = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="time" />
                       <YAxis domain={[-100, 100]} />
-                      <RechartsTooltip />
+                      <Tooltip />
                       <Line
                         type="monotone"
                         dataKey="sentiment"

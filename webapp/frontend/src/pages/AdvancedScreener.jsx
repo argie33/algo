@@ -442,7 +442,6 @@ const AdvancedScreener = () => {
         },
       },
     ]);
-  };
 
     setWatchlists([
       {

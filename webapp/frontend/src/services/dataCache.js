@@ -211,7 +211,7 @@ class DataCacheService {
       apiCallCounts: {},
     };
 
-    for (const [cacheKey, value] of this.cache.entries()) {
+    for (const [_cacheKey, value] of this.cache.entries()) {
       const age = Date.now() - value.timestamp;
       stats.cacheEntries.push({
         endpoint: value.endpoint,

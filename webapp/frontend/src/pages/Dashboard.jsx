@@ -31,14 +31,48 @@ import {
   Stack,
 } from "@mui/material";
 import {
-  TrendingUp, Assessment, Notifications, Event, ShowChart, AccountBalance, Download, ArrowUpward, ArrowDownward, Timeline, Speed, Warning, Business, Settings, Add, PlayArrow, FilterList, Security, Psychology, Star, Insights, AutoGraph, Psychology as PsychologyIcon, Public, LocalFireDepartment, Bolt, } from "@mui/icons-material";
+  TrendingUp,
+  Assessment,
+  Notifications,
+  Event,
+  ShowChart,
+  AccountBalance,
+  Download,
+  ArrowUpward,
+  ArrowDownward,
+  Timeline,
+  Speed,
+  Warning,
+  Business,
+  Settings,
+  Add,
+  PlayArrow,
+  FilterList,
+  Security,
+  Psychology,
+  Star,
+  Insights,
+  AutoGraph,
+  Psychology as PsychologyIcon,
+  Public,
+  LocalFireDepartment,
+  Bolt,
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 import {
-  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Bar, Cell, PieChart, Pie, } from "recharts";
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as Tooltip,
+  ResponsiveContainer,
+  Bar,
+  Cell,
+  PieChart,
+  Pie,
+} from "recharts";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getStockPrices,
-  getStockMetrics,
-} from "../services/api";
+import { getStockPrices, getStockMetrics } from "../services/api";
 import { format } from "date-fns";
 import { getApiConfig } from "../services/api";
 import HistoricalPriceChart from "../components/HistoricalPriceChart";
@@ -592,7 +626,7 @@ function SectorPerformanceWidget() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
+            <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
             <Bar dataKey="performance" fill="#8884d8">
               {sectors.map((entry, index) => (
                 <Cell
@@ -1272,7 +1306,7 @@ const Dashboard = () => {
                         />
                       ))}
                     </Pie>
-                    <RechartsTooltip />
+                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>

@@ -7,7 +7,12 @@ import {
   Tooltip,
   IconButton,
 } from "@mui/material";
-import { Download, Fullscreen, Refresh } from "@mui/icons-material";
+import {
+  Download,
+  Fullscreen,
+  Refresh,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   LineChart,
   Line,
@@ -18,7 +23,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
+  Tooltip as Tooltip,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -140,7 +145,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip
+                <Tooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
@@ -193,7 +198,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip
+                <Tooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
@@ -238,7 +243,7 @@ const ProfessionalChart = ({
                 ))}
               </Pie>
               {showTooltip && (
-                <RechartsTooltip
+                <Tooltip
                   formatter={formatTooltip}
                   contentStyle={{
                     backgroundColor: "rgba(255, 255, 255, 0.95)",
@@ -278,7 +283,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip
+                <Tooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {
@@ -331,7 +336,7 @@ const ProfessionalChart = ({
                 tickFormatter={formatYAxis}
               />
               {showTooltip && (
-                <RechartsTooltip
+                <Tooltip
                   formatter={formatTooltip}
                   labelFormatter={(label) => {
                     if (typeof label === "string" && label.includes("-")) {

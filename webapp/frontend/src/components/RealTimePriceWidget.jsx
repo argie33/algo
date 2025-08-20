@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -25,7 +25,7 @@ const RealTimePriceWidget = ({
   const [isStale, setIsStale] = useState(false);
   const updateIntervalRef = useRef(null);
 
-  const fetchPriceData = async () => {
+  const fetchPriceData = useCallback(async () => {
     try {
       const data = await dataCache.get(
         `/api/stocks/quote/${symbol}`,
@@ -90,7 +90,7 @@ const RealTimePriceWidget = ({
       setLoading(false);
       setIsStale(true);
     }
-  };
+  }, [symbol]);
 
   useEffect(() => {
     // Initial fetch

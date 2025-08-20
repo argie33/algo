@@ -150,7 +150,7 @@ function AnalystInsights() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {upgradesData?.data?.map((item, index) => (
+          {upgradesData?.data?.map((item, _index) => (
             <TableRow key={`${item.symbol}-${index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">

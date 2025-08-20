@@ -45,7 +45,9 @@ import {
   Psychology,
   DataObject,
   Api,
-} from "@mui/icons-material";
+  ,
+  BugReport
+} from "@mui/icons-material";;
 import {
   getApiKeys,
   addApiKey,
@@ -430,7 +432,7 @@ const SettingsApiKeys = () => {
                               {testing[key.id] ? (
                                 <CircularProgress size={16} />
                               ) : (
-                                <TestIcon />
+                                <BugReport />
                               )}
                             </IconButton>
                           </Tooltip>

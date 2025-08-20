@@ -47,7 +47,20 @@ import {
 import {
   PieChart, Pie, Cell, ResponsiveContainer, } from "recharts";
 import {
-  TrendingUp, Analytics, Security, AccountBalance, Warning, PlayArrow, ExpandMore, Lightbulb, Speed, Balance, } from "@mui/icons-material";
+  TrendingUp,
+  Analytics,
+  Security,
+  AccountBalance,
+  Warning,
+  PlayArrow,
+  ExpandMore,
+  Lightbulb,
+  Speed,
+  Balance,
+  ,
+  Tune,
+  Tooltip
+} from "@mui/icons-material";;
 import {
   getPortfolioOptimizationData,
   runPortfolioOptimization,
@@ -522,7 +535,7 @@ const PortfolioOptimization = () => {
           <List>
             <ListItem>
               <ListItemIcon>
-                <OptimizeIcon />
+                <Tune />
               </ListItemIcon>
               <ListItemText
                 primary="Objective"
@@ -1014,7 +1027,7 @@ const PortfolioOptimization = () => {
                         />
                       ))}
                     </Pie>
-                    <RechartsTooltip
+                    <Tooltip
                       formatter={(value) => [`${value.toFixed(2)}%`, "Weight"]}
                     />
                   </PieChart>

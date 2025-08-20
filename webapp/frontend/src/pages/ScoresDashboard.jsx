@@ -50,7 +50,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
+  Tooltip as Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -81,7 +81,9 @@ import {
   Security,
   CompareArrows,
   Remove,
-} from "@mui/icons-material";
+  ,
+  Tooltip
+} from "@mui/icons-material";;
 
 // Custom styled components
 const ScoreGauge = ({
@@ -975,7 +977,7 @@ const ScoresDashboard = () => {
                       />
                       <XAxis dataKey="date" />
                       <YAxis domain={[0, 100]} />
-                      <RechartsTooltip />
+                      <Tooltip />
                       <Legend />
                       <Line
                         type="monotone"
@@ -1151,7 +1153,7 @@ const ScoresDashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="symbol" />
                   <YAxis domain={[0, 100]} />
-                  <RechartsTooltip />
+                  <Tooltip />
                   <Legend />
                   <Bar dataKey="quality" fill={scoreCategories[0].color} />
                   <Bar dataKey="growth" fill={scoreCategories[1].color} />
