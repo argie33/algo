@@ -37,7 +37,30 @@ import {
   DialogActions,
 } from "@mui/material";
 import {
-  PlayArrow, Refresh, Assessment, TrendingUp, TrendingDown, Warning, CheckCircle, Info, ExpandMore, Download as DownloadIcon, Save as SaveIcon, HelpOutline, Stop, Share, Delete, Edit, Add, FolderOpen, Person, } from "@mui/icons-material";
+  PlayArrow, 
+  Refresh, 
+  Assessment, 
+  TrendingUp, 
+  TrendingDown, 
+  Warning, 
+  CheckCircle, 
+  Info, 
+  ExpandMore, 
+  Download as DownloadIcon, 
+  Save as SaveIcon, 
+  HelpOutline, 
+  Stop, 
+  Share, 
+  Delete, 
+  Edit, 
+  Add, 
+  FolderOpen, 
+  Person,
+  Save,
+  ContentCopy as ContentCopyIcon,
+  FileDownload as FileDownloadIcon,
+  Download
+} from "@mui/icons-material";
 import Autocomplete from "@mui/material/Autocomplete";
 import { Line } from "react-chartjs-2";
 import { Bar } from "react-chartjs-2";
