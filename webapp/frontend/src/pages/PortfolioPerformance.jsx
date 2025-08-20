@@ -77,6 +77,7 @@ const PortfolioPerformance = () => {
     fetchPerformanceData();
   }, [timeframe]);
 
+  const fetchPerformanceData = async () => {
     try {
       setLoading(true);
       setError(null); // Clear any previous errors

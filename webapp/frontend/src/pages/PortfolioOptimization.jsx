@@ -101,6 +101,7 @@ const PortfolioOptimization = () => {
     fetchOptimizationData();
   }, []);
 
+  const fetchOptimizationData = async () => {
     try {
       setLoading(true);
 

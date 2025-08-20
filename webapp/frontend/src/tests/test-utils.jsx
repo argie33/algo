@@ -47,7 +47,7 @@ export const MockAuthProvider = ({ children, value = {} }) => {
 };
 
 // Mock useAuth hook
-export const mockUseAuth = () => useContext(MockAuthContext);
+export const useMockAuth = () => useContext(MockAuthContext);
 
 // Test wrapper that includes all necessary providers
 export const TestWrapper = ({ children, authValue = {} }) => (

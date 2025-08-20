@@ -52,7 +52,6 @@ import {
 import {
   formatCurrency,
   formatPercentage,
-  formatPercent,
   formatNumber,
 } from "../utils/formatters";
 
@@ -76,7 +75,7 @@ function FinancialData() {
   const logger = createComponentLogger("FinancialData");
 
   const [ticker, setTicker] = useState("AAPL");
-  const [searchTicker, setSearchTicker] = useState("AAPL");
+  const [searchTicker, _setSearchTicker] = useState("AAPL");
   const [tabValue, setTabValue] = useState(0);
   const [period, setPeriod] = useState("annual");
 
@@ -107,7 +106,7 @@ function FinancialData() {
     setTabValue(newValue);
   };
 
-  const handleTickerSubmit = () => {
+  const _handleTickerSubmit = () => {
     if (searchTicker.trim()) {
       console.log(
         "🔍 FinancialData: Searching for ticker:",
@@ -516,7 +515,7 @@ function FinancialData() {
                   <XAxis dataKey="year" />
                   <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
                   <Tooltip
-                    formatter={(value, name) => [
+                    formatter={(value, _name) => [
                       formatCurrency(value, 0),
                       "Value",
                     ]}

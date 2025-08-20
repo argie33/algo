@@ -59,7 +59,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -288,6 +288,7 @@ const Portfolio = () => {
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
   // This function generates mock portfolio data and should be replaced with real API calls
+  const generateMockPortfolioData = () => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check
     
@@ -356,7 +357,7 @@ const Portfolio = () => {
       riskMetrics: generateRiskMetrics(holdings),
       stressTests: generateStressTests()
     };
-  }; */
+  };
 
   // ⚠️ MOCK DATA - Replace with real API when available
   const generateMockHistory = () => {
@@ -434,6 +435,7 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
+  const generateStressTests = () => {
     return [
       { scenario: "Market Crash (-20%)", impact: -0.2, isMockData: true },
       { scenario: "Tech Selloff (-15%)", impact: -0.12, isMockData: true },

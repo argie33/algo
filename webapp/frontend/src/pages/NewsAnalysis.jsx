@@ -75,7 +75,7 @@ function TabPanel({ children, value, index, ...other }) {
 const NewsAnalysis = () => {
   const [tabValue, setTabValue] = useState(0);
   // ⚠️ MOCK DATA - Using mock news data
-  const [newsData, setNewsData] = useState(mockNewsData);
+  const [newsData, _setNewsData] = useState(mockNewsData);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedTimeframe, setSelectedTimeframe] = useState("today");

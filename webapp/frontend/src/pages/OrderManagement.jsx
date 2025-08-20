@@ -55,8 +55,6 @@ import {
   Download,
   ShowChart,
   Error,
-  BarChart,
-  FilterList,
 } from "@mui/icons-material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -100,10 +98,10 @@ const OrderManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sideFilter, setSideFilter] = useState("all");
-  const [dateRange, setDateRange] = useState({ start: null, end: null });
+  const [_dateRange, _setDateRange] = useState({ start: null, end: null });
 
   // Real-time updates
-  const [orderUpdates, setOrderUpdates] = useState({});
+  const [_orderUpdates, _setOrderUpdates] = useState({});
   const [executionAlerts, setExecutionAlerts] = useState([]);
 
   // Fetch initial data
@@ -240,7 +238,7 @@ const OrderManagement = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setOrderUpdates(data.updates || {});
+        _setOrderUpdates(data.updates || {});
 
         // Check for execution alerts
         const newAlerts = data.executions || [];
@@ -371,7 +369,7 @@ const OrderManagement = () => {
     }
   };
 
-  const modifyOrder = async (orderId, modifications) => {
+  const _modifyOrder = async (orderId, modifications) => {
     try {
       const response = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
@@ -487,6 +485,7 @@ const OrderManagement = () => {
     }).format(amount || 0);
   };
 
+  const _formatPercentage = (value) => {
     return `${(value * 100).toFixed(2)}%`;
   };
 

@@ -68,14 +68,14 @@ function TabPanel({ children, value, index, ...other }) {
 const EconomicModeling = () => {
   const [tabValue, setTabValue] = useState(0);
   const [selectedTimeframe, setSelectedTimeframe] = useState("6M");
-  const [selectedModel, setSelectedModel] = useState("composite");
+  const [_selectedModel, _setSelectedModel] = useState("composite");
   const [selectedScenario, setSelectedScenario] = useState("base");
-  const [loading, setLoading] = useState(false);
+  const [_loading, _setLoading] = useState(false);
   const [liveUpdates, setLiveUpdates] = useState(false);
   // ⚠️ MOCK DATA - Using mock economic data
-  const [economicData, setEconomicData] = useState(mockEconomicData);
-  const [alertsEnabled, setAlertsEnabled] = useState(true);
-  const [confidenceThreshold, setConfidenceThreshold] = useState(70);
+  const [economicData, _setEconomicData] = useState(mockEconomicData);
+  const [alertsEnabled, _setAlertsEnabled] = useState(true);
+  const [_confidenceThreshold, _setConfidenceThreshold] = useState(70);
 
   // Calculate composite recession probability
   const compositeRecessionProbability = useMemo(() => {
@@ -171,7 +171,7 @@ const EconomicModeling = () => {
     }
   };
 
-  const formatDuration = (months) => {
+  const _formatDuration = (months) => {
     if (months < 12) return `${months} months`;
     return `${Math.round(months / 12)} years`;
   };
@@ -217,7 +217,7 @@ const EconomicModeling = () => {
             label="Live Updates"
           />
 
-          <IconButton onClick={() => setLoading(true)}>
+          <IconButton onClick={() => _setLoading(true)}>
             <Refresh />
           </IconButton>
         </Box>
