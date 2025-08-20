@@ -29,6 +29,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tooltip,
 } from "@mui/material";
 import {
   Security,
@@ -187,6 +188,7 @@ const RiskManagement = () => {
     loadRiskData();
   }, [selectedSymbol]);
 
+  const loadRiskData = () => {
     setLoading(true);
     try {
       // ⚠️ MOCK DATA - TODO: Replace with real API call

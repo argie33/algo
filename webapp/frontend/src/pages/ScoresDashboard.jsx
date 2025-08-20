@@ -81,9 +81,7 @@ import {
   Security,
   CompareArrows,
   Remove,
-  ,
-  Tooltip
-} from "@mui/icons-material";;
+} from "@mui/icons-material";
 
 // Custom styled components
 const ScoreGauge = ({
@@ -532,6 +530,7 @@ const ScoresDashboard = () => {
     setHistoricalScores(mockHistorical);
   };
 
+  const loadPeerComparison = () => {
     // Mock peer comparison data
     const mockPeers = [
       {

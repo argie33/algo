@@ -90,6 +90,78 @@ function TradingSignals() {
   const [symbolFilter, setSymbolFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
+  // Helper function to check if signal is recent (within last 7 days)
+  const isRecentSignal = (signalDate) => {
+    if (!signalDate) return false;
+    const today = new Date();
+    const signal = new Date(signalDate);
+    const diffTime = Math.abs(today - signal);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  };
+
+  // Calculate summary statistics
+  const summaryStats = useMemo(() => {
+    if (!signalsData?.data) return null;
+
+    const signals = signalsData.data;
+    const totalSignals = signals.length;
+    const recentSignals = signals.filter((s) => isRecentSignal(s.date)).length;
+    const buySignals = signals.filter((s) => s.signal === "Buy").length;
+    const sellSignals = signals.filter((s) => s.signal === "Sell").length;
+
+    // Find top performing sectors
+    const sectorCounts = {};
+    signals.forEach((s) => {
+      if (s.sector) {
+        sectorCounts[s.sector] = (sectorCounts[s.sector] || 0) + 1;
+      }
+    });
+    const topSector = Object.entries(sectorCounts).sort(
+      (a, b) => b[1] - a[1]
+    )[0];
+
+    return {
+      totalSignals,
+      recentSignals,
+      buySignals,
+      sellSignals,
+      topSector: topSector ? topSector[0] : null,
+      topSectorCount: topSector ? topSector[1] : 0,
+    };
+  }, [signalsData]);
+
+  // Filter data based on recent-only setting
+  const filteredSignals = useMemo(() => {
+    if (!signalsData?.data) {
+      console.log("No signals data available:", signalsData);
+      return [];
+    }
+
+    let filtered = signalsData.data;
+
+    // Apply recent filter
+    if (showRecentOnly) {
+      filtered = filtered.filter((signal) => isRecentSignal(signal.date));
+    }
+
+    // Apply symbol filter
+    if (symbolFilter) {
+      filtered = filtered.filter((signal) =>
+        signal.symbol?.toLowerCase().includes(symbolFilter.toLowerCase())
+      );
+    }
+
+    logger.info("filteredSignals", "Data filtered", {
+      originalCount: signalsData.data.length,
+      filteredCount: filtered.length,
+      showRecentOnly,
+      symbolFilter,
+    });
+
+    return filtered;
+  }, [signalsData, showRecentOnly, symbolFilter]);
+
   // Fetch historical data for selected symbol
   const { data: historicalData, isLoading: historicalLoading } = useQuery({
     queryKey: ["historicalSignals", selectedSymbol],
@@ -243,16 +315,6 @@ function TradingSignals() {
     );
   }
 
-  // Helper function to check if signal is recent (within last 7 days)
-  const isRecentSignal = (signalDate) => {
-    if (!signalDate) return false;
-    const today = new Date();
-    const signal = new Date(signalDate);
-    const diffTime = Math.abs(today - signal);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7;
-  };
-
   const getSignalChip = (signal, signalDate) => {
     const isBuy = signal === "Buy" || signal === "BUY";
     const isSell = signal === "Sell" || signal === "SELL";
@@ -310,37 +372,6 @@ function TradingSignals() {
     );
   };
 
-  // Calculate summary statistics
-  const summaryStats = useMemo(() => {
-    if (!signalsData?.data) return null;
-
-    const signals = signalsData.data;
-    const totalSignals = signals.length;
-    const recentSignals = signals.filter((s) => isRecentSignal(s.date)).length;
-    const buySignals = signals.filter((s) => s.signal === "Buy").length;
-    const sellSignals = signals.filter((s) => s.signal === "Sell").length;
-
-    // Find top performing sectors
-    const sectorCounts = {};
-    signals.forEach((s) => {
-      if (s.sector) {
-        sectorCounts[s.sector] = (sectorCounts[s.sector] || 0) + 1;
-      }
-    });
-    const topSector = Object.entries(sectorCounts).sort(
-      (a, b) => b[1] - a[1]
-    )[0];
-
-    return {
-      totalSignals,
-      recentSignals,
-      buySignals,
-      sellSignals,
-      topSector: topSector ? topSector[0] : null,
-      topSectorCount: topSector ? topSector[1] : 0,
-    };
-  }, [signalsData]);
-
   const PerformanceCard = ({
     title,
     value,
@@ -373,37 +404,6 @@ function TradingSignals() {
       </CardContent>
     </Card>
   );
-  // Filter data based on recent-only setting
-  const filteredSignals = useMemo(() => {
-    if (!signalsData?.data) {
-      console.log("No signals data available:", signalsData);
-      return [];
-    }
-
-    let filtered = signalsData.data;
-    console.log("Raw signals data:", filtered.length, "signals");
-
-    // Apply recent-only filter if enabled
-    if (showRecentOnly) {
-      filtered = filtered.filter((signal) => isRecentSignal(signal.date));
-      console.log("After recent filter:", filtered.length, "signals");
-    }
-
-    // Remove duplicates by symbol, keeping the most recent
-    if (showRecentOnly) {
-      const symbolMap = new Map();
-      filtered.forEach((signal) => {
-        const existing = symbolMap.get(signal.symbol);
-        if (!existing || new Date(signal.date) > new Date(existing.date)) {
-          symbolMap.set(signal.symbol, signal);
-        }
-      });
-      filtered = Array.from(symbolMap.values());
-      console.log("After deduplication:", filtered.length, "signals");
-    }
-
-    return filtered;
-  }, [signalsData, showRecentOnly]);
 
   // --- Table for Buy/Sell signals, matching backend fields ---
   const BuySellSignalsTable = () => (

@@ -45,9 +45,9 @@ import {
   Psychology,
   DataObject,
   Api,
-  ,
-  BugReport
-} from "@mui/icons-material";;
+  BugReport,
+  Download
+} from "@mui/icons-material";
 import {
   getApiKeys,
   addApiKey,
@@ -101,7 +101,7 @@ const SettingsApiKeys = () => {
       id: "polygon",
       name: "Polygon.io",
       description: "Financial market data provider",
-      features: ["Real-time Data", "Historical Data", "Options Data"],
+      features: ["Real-time Data", "Historical Data"],
       icon: <DataObject />,
       color: "#2196F3",
     },
@@ -117,7 +117,7 @@ const SettingsApiKeys = () => {
       id: "sentiment_one",
       name: "SentimentInvestor",
       description: "Social sentiment and alternative data",
-      features: ["Social Sentiment", "News Analysis", "Options Flow"],
+      features: ["Social Sentiment", "News Analysis"],
       icon: <Psychology />,
       color: "#9C27B0",
     },
@@ -448,7 +448,7 @@ const SettingsApiKeys = () => {
                                 {importing[key.id] ? (
                                   <CircularProgress size={16} />
                                 ) : (
-                                  <ImportIcon />
+                                  <Download />
                                 )}
                               </IconButton>
                             </Tooltip>

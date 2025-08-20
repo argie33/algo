@@ -81,7 +81,7 @@ const Settings = () => {
     message: "",
     severity: "success",
   });
-  const [apiKeys, setApiKeys] = useState([]);
+  const [_apiKeys, _setApiKeys] = useState([]);
   const [addApiKeyDialog, setAddApiKeyDialog] = useState(false);
   const [showApiKeys, setShowApiKeys] = useState({});
 

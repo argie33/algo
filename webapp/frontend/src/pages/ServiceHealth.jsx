@@ -188,6 +188,142 @@ function ServiceHealth() {
     },
   });
 
+  // Simplified endpoint tests - only test essential endpoints
+  const endpoints = useMemo(
+    () => [
+      { name: "Health Check", fn: () => healthCheck(), critical: true },
+      { name: "API Connection", fn: () => testApiConnection(), critical: true },
+      { name: "Stocks", fn: () => getStocks({ limit: 5 }), critical: true },
+      {
+        name: "Technical Data",
+        fn: () => getTechnicalData("daily", { limit: 5 }),
+        critical: true,
+      },
+      {
+        name: "Market Overview",
+        fn: () => getMarketOverview(),
+        critical: true,
+      },
+      {
+        name: "Stock Screener",
+        fn: () => screenStocks({ limit: 5 }),
+        critical: false,
+      },
+      { name: "Buy Signals", fn: () => getBuySignals(), critical: false },
+      { name: "Sell Signals", fn: () => getSellSignals(), critical: false },
+      {
+        name: "NAAIM Data",
+        fn: () => getNaaimData({ limit: 5 }),
+        critical: false,
+      },
+      {
+        name: "Fear & Greed",
+        fn: () => getFearGreedData({ limit: 5 }),
+        critical: false,
+      },
+    ],
+    []
+  );
+
+  // Test all endpoints
+  const testAllEndpoints = useCallback(async () => {
+    setTestingInProgress(true);
+    const results = {};
+
+    console.log("Starting endpoint tests...");
+
+    // Test each endpoint with timeout and error handling
+    for (const endpoint of endpoints) {
+      try {
+        const startTime = Date.now();
+        console.log(`Testing ${endpoint.name}...`);
+
+        await Promise.race([
+          endpoint.fn(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout")), 10000)
+          ),
+        ]);
+
+        const endTime = Date.now();
+        results[endpoint.name] = {
+          status: "success",
+          response: "OK",
+          responseTime: endTime - startTime,
+          critical: endpoint.critical,
+        };
+        console.log(`✅ ${endpoint.name} passed (${endTime - startTime}ms)`);
+      } catch (error) {
+        console.error(`❌ ${endpoint.name} failed:`, error);
+        results[endpoint.name] = {
+          status: "error",
+          error: error.message || "Unknown error",
+          responseTime: 0,
+          critical: endpoint.critical,
+        };
+      }
+    }
+
+    setTestResults(results);
+    setTestingInProgress(false);
+    console.log("Endpoint tests completed:", results);
+  }, [endpoints]);
+
+  // Service health query
+  const {
+    data: serviceHealthData,
+    isLoading: isServiceLoading,
+    error: serviceError,
+    refetch: refetchService,
+  } = useQuery({
+    queryKey: ["serviceHealth"],
+    queryFn: async () => {
+      console.log("Fetching service health...");
+      try {
+        const response = await api.get("/health");
+        console.log("Service health response:", response.data);
+        return response.data;
+      } catch (error) {
+        console.error("Service health error:", error);
+        throw error;
+      }
+    },
+    refetchInterval: false,
+    retry: 1,
+    staleTime: 30000,
+    enabled: true,
+  });
+
+  useEffect(() => {
+    // Run API tests automatically when component mounts
+    testAllEndpoints();
+  }, [testAllEndpoints]);
+
+  useEffect(() => {
+    const env = {
+      Frontend: {
+        API_URL: process.env.REACT_APP_API_URL || "Not set",
+        Environment: process.env.NODE_ENV || "development",
+        Build_Time: process.env.REACT_APP_BUILD_TIME || "Unknown",
+        Version: process.env.REACT_APP_VERSION || "1.0.0",
+      },
+      Browser: {
+        User_Agent: navigator.userAgent,
+        Language: navigator.language,
+        Platform: navigator.platform,
+        Online: navigator.onLine,
+        Cookies_Enabled: navigator.cookieEnabled,
+      },
+      Runtime: {
+        React_Version: React.version,
+        Timestamp: new Date().toISOString(),
+        Timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    };
+
+    setEnvironmentInfo(env);
+  }, []);
+
   // Early return if component has error
   if (componentError) {
     return (
@@ -203,8 +339,53 @@ function ServiceHealth() {
     );
   }
 
-  // Simplified endpoint tests - only test essential endpoints
-  const endpoints = useMemo(
+  // Safe data extraction
+  const safeHealthData = isObject(healthData) ? healthData : {};
+  const safeDbHealth = isObject(dbHealth) ? dbHealth : {};
+  const safeTestResults = isObject(testResults) ? testResults : {};
+  const safeEnvironmentInfo = isObject(environmentInfo) ? environmentInfo : {};
+  const safeDiagnosticInfo = isObject(diagnosticInfo) ? diagnosticInfo : {};
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case "success":
+        return <CheckCircle color="success" />;
+      case "error":
+        return <ErrorIcon color="error" />;
+      case "warning":
+        return <Warning color="warning" />;
+      default:
+        return <Refresh />;
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchDb(), refetchService(), testAllEndpoints()]);
+    } catch (error) {
+      console.error("Failed to refresh service health:", error);
+      // Don't throw - just log the error
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return "Unknown";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    if (diffMinutes < 1) {
+      return "Just now";
+    } else if (diffMinutes < 60) {
+      return `${diffMinutes} minute${diffMinutes > 1 ? "s" : ""} ago`;
+    }
+  };
+
+  return (
     () => [
       { name: "Health Check", fn: () => healthCheck(), critical: true },
       { name: "API Connection", fn: () => testApiConnection(), critical: true },

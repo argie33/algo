@@ -63,7 +63,7 @@ import {
 } from "@mui/icons-material";
 import {
   PieChart, Pie, Cell, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Line, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, ScatterChart, Scatter, } from "recharts";
-import { formatPercentage, formatPercent, formatNumber } from "../utils/formatters";
+import { formatPercentage, formatNumber } from "../utils/formatters";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -880,7 +880,7 @@ const SentimentAnalysis = () => {
                       {sentimentData.socialPlatforms.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={COLORS[index % COLORS.length]}
+                          fill={CHART_COLORS[index % CHART_COLORS.length]}
                         />
                       ))}
                     </Pie>
@@ -1107,6 +1107,7 @@ const SentimentAnalysis = () => {
 };
 
 // ⚠️ MOCK DATA - Replace with real API when available
+const mockSentimentData = {
   isMockData: true,
   sources: [
     {
@@ -1132,14 +1133,6 @@ const SentimentAnalysis = () => {
       change: 5,
       weight: 0.25,
       reliability: 0.85,
-    },
-    {
-      source: "Options Flow",
-      score: 45,
-      previousScore: 55,
-      change: -10,
-      weight: 0.15,
-      reliability: 0.8,
     },
     {
       source: "Insider Trading",
@@ -1241,6 +1234,7 @@ const SentimentAnalysis = () => {
 };
 
 // Color palette for charts
+const CHART_COLORS = [
   "#0088FE",
   "#00C49F",
   "#FFBB28",
@@ -1328,7 +1322,7 @@ function generateSentimentInsights(metrics, data) {
     marketSummary: `Current sentiment shows ${metrics.overall >= 60 ? "bullish" : metrics.overall >= 40 ? "neutral" : "bearish"} bias with ${metrics.momentum > 0 ? "improving" : "deteriorating"} momentum. ${metrics.contrarian > 50 ? "Contrarian signals suggest potential reversal ahead." : "Sentiment alignment supports current trend."}`,
     opportunities: [
       "Social media sentiment diverging from analyst views - potential alpha opportunity",
-      "Options flow showing defensive positioning despite bullish news sentiment",
+      "Institutional flow showing defensive positioning despite bullish news sentiment",
       "Insider trading patterns suggest accumulation during sentiment weakness",
       "Cross-asset sentiment divergence creating relative value opportunities",
     ],

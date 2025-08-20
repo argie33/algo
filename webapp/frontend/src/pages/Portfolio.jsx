@@ -802,7 +802,9 @@ const Portfolio = () => {
     }));
   };
 
+  const optimizeRiskParity = (holdings) => {
     // Equal risk contribution optimization
+    const totalRiskContribution = holdings.reduce(
       (sum, h) => sum + (h.beta || 1) * h.allocation,
       0
     );
@@ -823,6 +825,7 @@ const Portfolio = () => {
     });
   };
 
+  const optimizeFactorBased = (holdings) => {
     // Factor-based optimization emphasizing quality and momentum
     return holdings.map((holding) => {
       const qualityWeight = (holding.factorScores?.quality || 50) / 100;
@@ -846,6 +849,7 @@ const Portfolio = () => {
     });
   };
 
+  const generateHoldingReasoning = (holding, score) => {
     const reasons = [];
 
     if (holding.factorScores?.quality > 70)
@@ -862,6 +866,7 @@ const Portfolio = () => {
     return reasons.join(", ");
   };
 
+  const calculateOptimizationBenefits = (current, optimized) => {
     // Calculate expected improvements from optimization
     const currentSharpe = current.sharpeRatio;
     const optimizedSharpe = currentSharpe * 1.15; // Estimated 15% improvement
@@ -876,6 +881,7 @@ const Portfolio = () => {
     };
   };
 
+  const generateOptimizationRecommendations = (current, optimized) => {
     const recommendations = [];
 
     optimized.forEach((optimizedHolding) => {
@@ -910,6 +916,7 @@ const Portfolio = () => {
     });
   };
 
+  const calculateOptimizationConfidence = (portfolioData, marketRegime) => {
     // Calculate confidence based on data quality and market conditions
     const dataQuality = 0.85; // Assume good data quality
     const marketStability = marketRegime === "normal" ? 0.9 : 0.7;
@@ -918,6 +925,7 @@ const Portfolio = () => {
     return Math.round(dataQuality * marketStability * portfolioSize * 100);
   };
 
+  const calculateRiskProfile = (optimized) => {
     return {
       concentrationRisk: "REDUCED",
       sectorRisk: "BALANCED",
@@ -928,6 +936,7 @@ const Portfolio = () => {
     };
   };
 
+  const createImplementationPlan = (recommendations) => {
     const highPriority = recommendations.filter((r) => r.priority === "HIGH");
     const mediumPriority = recommendations.filter(
       (r) => r.priority === "MEDIUM"
@@ -956,6 +965,7 @@ const Portfolio = () => {
     };
   };
 
+  const calculateTransactionCosts = (optimized) => {
     // Estimate transaction costs based on recommended changes
     const totalTrades = optimized.filter(
       (h) => Math.abs(h.optimizedWeight - (h.allocation || 0)) > 1
@@ -964,6 +974,7 @@ const Portfolio = () => {
   };
 
   // Additional optimization algorithms
+  const optimizeBlackLitterman = (holdings) => {
     // Black-Litterman optimization with market views
     return holdings.map((holding) => {
       const marketView = getMarketView(holding.symbol);
@@ -982,6 +993,7 @@ const Portfolio = () => {
     });
   };
 
+  const optimizeMaxDiversification = (holdings) => {
     // Maximum diversification optimization
     const correlationPenalty = holdings.map((h) =>
       calculateCorrelationPenalty(h.symbol)
@@ -1004,6 +1016,7 @@ const Portfolio = () => {
     });
   };
 
+  const optimizeMinCorrelation = (holdings) => {
     // Minimum correlation optimization
     return holdings.map((holding) => {
       const correlationScore = calculateCorrelationScore(holding.symbol);
@@ -1022,6 +1035,7 @@ const Portfolio = () => {
   };
 
   // Helper functions for optimization
+  const getMarketView = (symbol) => {
     // Simplified market view - in reality would come from analysis
     const views = {
       AAPL: 0.15,
@@ -1034,11 +1048,13 @@ const Portfolio = () => {
     return views[symbol] || 0;
   };
 
+  const calculateCorrelationPenalty = (symbol) => {
     // Simplified correlation penalty
     const techStocks = ["AAPL", "MSFT", "GOOGL", "META", "TSLA"];
     return techStocks.includes(symbol) ? 30 : 10;
   };
 
+  const calculateCorrelationScore = (symbol) => {
     // Simplified correlation score (0 = no correlation, 1 = perfect correlation)
     const correlations = {
       AAPL: 0.75,
@@ -1051,15 +1067,18 @@ const Portfolio = () => {
     return correlations[symbol] || 0.5;
   };
 
+  const calculatePortfolioMetrics = (holdings) => {
     // Calculate expected portfolio return
     let expectedReturn = 0;
-    holdings.forEach((holding, index) => {
+    holdings.forEach((holding) => {
       const stockReturn = holding.gainLossPercent || 8; // Default 8% expected return
-      expectedReturn += weights[index] * stockReturn;
+      const weight = (holding.allocation || 0) / 100;
+      expectedReturn += weight * stockReturn;
     });
     return expectedReturn;
   };
 
+  const calculateDiversificationRatio = (holdings) => {
     // Simplified diversification ratio calculation
     const weightedVolatility = holdings.reduce(
       (sum, h) => sum + (h.allocation / 100) * (h.beta || 1) * 16,
@@ -1069,6 +1088,7 @@ const Portfolio = () => {
     return weightedVolatility / portfolioVolatility;
   };
 
+  const calculateESGScore = (symbol) => {
     // Simplified ESG score calculation
     const esgScores = {
       AAPL: 85,
@@ -1079,16 +1099,19 @@ const Portfolio = () => {
       PG: 92,
       TSLA: 65,
     };
+    return esgScores[symbol] || 75;
+  };
 
+  const calculatePortfolioESGScore = (holdings) => {
     let weightedESGScore = 0;
     holdings.forEach((holding) => {
-      const score = esgScores[holding.symbol] || 75;
+      const score = calculateESGScore(holding.symbol);
       weightedESGScore += (holding.allocation / 100) * score;
     });
-
     return weightedESGScore;
   };
 
+  const calculateCorrelationRisk = (holdings) => {
     // Simplified correlation risk calculation
     const techWeight = holdings
       .filter((h) =>

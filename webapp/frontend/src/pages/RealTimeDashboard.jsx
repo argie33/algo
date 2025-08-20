@@ -29,6 +29,7 @@ import {
   ListItemText,
   ListItemAvatar,
   Avatar,
+  CircularProgress,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -62,7 +63,6 @@ import {
 import {
   formatCurrency,
   formatPercentage,
-  formatPercent,
   formatNumber,
 } from "../utils/formatters";
 import { useAuth } from "../contexts/AuthContext";
@@ -95,47 +95,18 @@ const RealTimeDashboard = () => {
     "GOOGL",
   ]);
   const [marketData, setMarketData] = useState(null);
-  const [optionsFlowData, setOptionsFlowData] = useState(null);
-  const [unusualOptionsData, setUnusualOptionsData] = useState(null);
   const [newsFeedData, setNewsFeedData] = useState(null);
-  const [economicCalendarData, setEconomicCalendarData] = useState(null);
+  const [unusualOptionsData, setUnusualOptionsData] = useState(null);
+  const [optionsFlowData, setOptionsFlowData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [refreshInterval, setRefreshInterval] = useState(5); // seconds
   const intervalRef = useRef(null);
 
   // Load initial data
   useEffect(() => {
     loadMarketData();
-    loadInitialOptionsAndNewsData();
   }, []);
-
-  // Load initial options and news data
-  const loadInitialOptionsAndNewsData = async () => {
-    try {
-      setLoading(true);
-
-      // Load all data in parallel
-      const [optionsFlow, unusualOptions, newsFeed, economicCalendar] =
-        await Promise.all([
-          loadOptionsFlowData(),
-          loadUnusualOptionsActivity(),
-          loadNewsFeedData(),
-          loadEconomicCalendarData(),
-        ]);
-
-      setOptionsFlowData(optionsFlow);
-      setUnusualOptionsData(unusualOptions);
-      setNewsFeedData(newsFeed);
-      setEconomicCalendarData(economicCalendar);
-    } catch (error) {
-      console.error("Failed to load options and news data:", error);
-      setError("Failed to load options and news data");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Streaming interval
   useEffect(() => {
@@ -270,94 +241,6 @@ const RealTimeDashboard = () => {
     }
   };
 
-  // Load Options Flow data from the new API
-  const loadOptionsFlow = async () => {
-    try {
-      const response = await api.get("/api/news/options-flow", {
-        params: {
-          limit: 50,
-          min_volume: 100,
-          min_premium: 10000,
-          timeframe: "1d",
-        },
-      });
-
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error("Failed to fetch options flow data");
-      }
-    } catch (error) {
-      console.error("Error loading options flow data:", error);
-      return null;
-    }
-  };
-
-  // Load Unusual Options Activity data
-  const loadUnusualOptions = async () => {
-    try {
-      const response = await api.get("/api/news/options-flow/unusual", {
-        params: {
-          limit: 25,
-          min_volume: 500,
-        },
-      });
-
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error("Failed to fetch unusual options activity");
-      }
-    } catch (error) {
-      console.error("Error loading unusual options activity:", error);
-      return null;
-    }
-  };
-
-  // Load News Feed data from the new API
-  const loadNewsFeed = async () => {
-    try {
-      const response = await api.get("/api/news/feed", {
-        params: {
-          category: "all",
-          limit: 20,
-          time_range: "24h",
-        },
-      });
-
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error("Failed to fetch news feed data");
-      }
-    } catch (error) {
-      console.error("Error loading news feed data:", error);
-      return null;
-    }
-  };
-
-  // Load Economic Calendar data
-  const loadEconomicCalendar = async () => {
-    try {
-      const response = await api.get("/api/news/economic-calendar", {
-        params: {
-          importance: "all",
-          country: "all",
-          date_range: "7d",
-          limit: 10,
-        },
-      });
-
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error("Failed to fetch economic calendar data");
-      }
-    } catch (error) {
-      console.error("Error loading economic calendar data:", error);
-      return null;
-    }
-  };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -367,6 +250,7 @@ const RealTimeDashboard = () => {
     setIsStreaming(!isStreaming);
   };
 
+  const addToWatchlist = (symbol) => {
     if (!watchlist.includes(symbol)) {
       setWatchlist([...watchlist, symbol]);
     }
@@ -1348,7 +1232,6 @@ const RealTimeDashboard = () => {
                       <IconButton
                         onClick={() => {
                           loadMarketData();
-                          loadInitialOptionsAndNewsData();
                         }}
                         disabled={isStreaming || loading}
                       >
@@ -1668,7 +1551,6 @@ const RealTimeDashboard = () => {
                         <IconButton
                           onClick={() => {
                             loadMarketData();
-                            loadInitialOptionsAndNewsData();
                           }}
                           disabled={isStreaming || loading}
                         >
@@ -1934,7 +1816,7 @@ const RealTimeDashboard = () => {
                             color="text.secondary"
                             gutterBottom
                           >
-                            Today's Key Events
+                            Today&apos;s Key Events
                           </Typography>
                           {[
                             {
