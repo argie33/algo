@@ -135,16 +135,16 @@ const Portfolio = () => {
   // ⚠️ MOCK DATA - Replace with real API when available
   const [portfolioData, setPortfolioData] = useState(mockPortfolioData);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [_error, _setError] = useState(null);
 
   // State variables that were defined later but used earlier
-  const [addHoldingDialog, setAddHoldingDialog] = useState(false);
+  const [_addHoldingDialog, _setAddHoldingDialog] = useState(false);
   const [orderBy, setOrderBy] = useState("allocation");
   const [order, setOrder] = useState("desc");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeframe, setTimeframe] = useState("1Y");
-  const [riskToggle, setRiskToggle] = useState("standard");
+  const [_riskToggle, _setRiskToggle] = useState("standard");
   const [riskSubTab, setRiskSubTab] = useState(0);
   const [riskAlertDialogOpen, setRiskAlertDialogOpen] = useState(false);
   const [newRiskAlert, setNewRiskAlert] = useState({
@@ -175,7 +175,7 @@ const Portfolio = () => {
   const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
 
   // Watchlist
-  const [watchlist, setWatchlist] = useState([
+  const [watchlist, _setWatchlist] = useState([
     { symbol: "NVDA", name: "NVIDIA Corp", price: 875.42, change: 2.3 },
     {
       symbol: "AMD",
@@ -188,7 +188,7 @@ const Portfolio = () => {
 
   // Refresh settings
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [_lastRefresh, _setLastRefresh] = useState(new Date());
 
   // Portfolio import functionality
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -205,7 +205,7 @@ const Portfolio = () => {
   const [timeHorizon, setTimeHorizon] = useState("medium");
   const [optimizationRunning, setOptimizationRunning] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState(null);
-  const [marketRegime, setMarketRegime] = useState("normal");
+  const [_marketRegime, _setMarketRegime] = useState("normal");
   const [optimizationConstraints, setOptimizationConstraints] = useState({
     maxPositionSize: 10,
     sectorLimits: true,
@@ -234,6 +234,89 @@ const Portfolio = () => {
       setLoading(false);
     }
   }, [isAuthenticated, user]);
+
+  // Advanced portfolio metrics calculations
+  const portfolioMetrics = useMemo(() => {
+    if (!portfolioData?.holdings) return null;
+    const { holdings } = portfolioData;
+    const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
+    const totalCost = holdings.reduce(
+      (sum, h) => sum + h.avgCost * h.shares,
+      0
+    );
+    const totalGainLoss = totalValue - totalCost;
+    const totalGainLossPercent = ((totalValue - totalCost) / totalCost) * 100;
+
+    // Calculate risk metrics
+    const volatility = calculatePortfolioVolatility(holdings);
+    const sharpeRatio = calculateSharpeRatio(totalGainLossPercent, volatility);
+    const beta = calculatePortfolioBeta(holdings);
+    const var95 = calculateVaR(holdings, 0.95);
+    const maxDrawdown = calculateMaxDrawdown(portfolioData.performanceHistory);
+
+    return {
+      totalValue,
+      totalCost,
+      totalGainLoss,
+      totalGainLossPercent,
+      volatility,
+      sharpeRatio,
+      beta,
+      var95,
+      maxDrawdown,
+      treynorRatio: totalGainLossPercent / beta,
+      informationRatio: calculateInformationRatio(
+        portfolioData.performanceHistory
+      ),
+      calmarRatio: totalGainLossPercent / Math.abs(maxDrawdown),
+    };
+  }, [portfolioData]);
+
+  // Factor analysis calculations
+  const factorAnalysis = useMemo(() => {
+    if (!portfolioData?.holdings) return null;
+    return calculateFactorExposure(portfolioData.holdings);
+  }, [portfolioData.holdings]);
+
+  // Sector and geographic diversification
+  const diversificationMetrics = useMemo(() => {
+    if (!portfolioData?.holdings || !portfolioData?.sectorAllocation) return null;
+    return {
+      sectorConcentration: calculateConcentrationRisk(
+        portfolioData.sectorAllocation
+      ),
+      geographicDiversification: calculateGeographicDiversification(
+        portfolioData.holdings
+      ),
+      marketCapExposure: calculateMarketCapExposure(portfolioData.holdings),
+      concentrationRisk: calculateHerfindahlIndex(portfolioData.holdings),
+    };
+  }, [portfolioData]);
+
+  // AI-powered insights
+  const aiInsights = useMemo(() => {
+    if (!portfolioMetrics || !factorAnalysis || !diversificationMetrics) return null;
+    return generateAIInsights(
+      portfolioMetrics,
+      factorAnalysis,
+      diversificationMetrics
+    );
+  }, [portfolioMetrics, factorAnalysis, diversificationMetrics]);
+
+  // Sorted holdings for display
+  const sortedHoldings = useMemo(() => {
+    if (!portfolioData?.holdings) return [];
+    return portfolioData.holdings.sort((a, b) => {
+      const aValue = a[orderBy];
+      const bValue = b[orderBy];
+
+      if (order === "asc") {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+  }, [portfolioData.holdings, orderBy, order]);
 
   const loadUserPortfolio = async () => {
     try {
@@ -616,7 +699,7 @@ const Portfolio = () => {
   const generateOptimizationResults = async () => {
     // Analyze current portfolio
     const currentHoldings = portfolioData.holdings;
-    const totalValue = currentHoldings.reduce(
+    const _totalValue = currentHoldings.reduce(
       (sum, h) => sum + h.marketValue,
       0
     );
@@ -1326,18 +1409,6 @@ const Portfolio = () => {
     }
   }, [autoRefresh, isAuthenticated, user]);
 
-  const sortedHoldings = useMemo(() => {
-    return portfolioData.holdings.sort((a, b) => {
-      const aValue = a[orderBy];
-      const bValue = b[orderBy];
-
-      if (order === "asc") {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
-  }, [portfolioData.holdings, orderBy, order]);
 
   if (isLoading) {
     return (

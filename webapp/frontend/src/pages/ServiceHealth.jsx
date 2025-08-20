@@ -351,7 +351,7 @@ function ServiceHealth() {
       case "success":
         return <CheckCircle color="success" />;
       case "error":
-        return <ErrorIcon color="error" />;
+        return <Error color="error" />;
       case "warning":
         return <Warning color="warning" />;
       default:

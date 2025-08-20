@@ -121,7 +121,7 @@ const SECTORS = [
 ];
 
 // Market categories that actually exist in the backend data
-const MARKET_CATEGORIES = [
+const _MARKET_CATEGORIES = [
   "Q",
   "G",
   "S",
@@ -135,7 +135,7 @@ function StockExplorer() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [viewMode] = useState("advanced"); // Always use advanced view with full table
+  const [viewMode, setViewMode] = useState("advanced"); // Always use advanced view with full table
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25); // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState("symbol"); // Default to alphabetical
@@ -183,7 +183,7 @@ function StockExplorer() {
     data: stocksData,
     isLoading,
     error,
-    refetch,
+    refetch: _refetch,
   } = useQuery({
     queryKey: ["stockExplorer", filters, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
@@ -1251,7 +1251,7 @@ function StockExplorer() {
                                         variant="caption"
                                         color="success.main"
                                       >
-                                        Click "Price History" again to see
+                                        Click &quot;Price History&quot; again to see
                                         detailed view
                                       </Typography>
                                     </Box>
