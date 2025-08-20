@@ -145,11 +145,9 @@ function TechnicalAnalysis() {
   // Log the technicalData and error for debugging
   useEffect(() => {
     if (technicalData) {
-       
       console.log("TechnicalAnalysis: technicalData", technicalData);
     }
     if (error) {
-       
       console.error("TechnicalAnalysis: error", error);
     }
   }, [technicalData, error]);
@@ -167,6 +165,8 @@ function TechnicalAnalysis() {
     setTimeframe(e.target.value);
     setPage(0);
   };
+
+  const handleSort = (column) => {
     const isAsc = orderBy === column && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
     setOrderBy(column);
@@ -461,16 +461,6 @@ function TechnicalAnalysis() {
       )}
     </Box>
   );
-
-  if (!technicalData?.data) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert severity="info">
-          No technical analysis data available. Please check your API connection.
-        </Alert>
-      </Container>
-    );
-  }
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

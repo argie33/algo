@@ -53,7 +53,14 @@ import {
   Insights,
 } from "@mui/icons-material";
 import {
-  Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Bar, ComposedChart, } from "recharts";
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Bar,
+  ComposedChart,
+} from "recharts";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -176,6 +183,7 @@ const TradeHistory = () => {
     }
   };
 
+  const fetchPerformance = async () => {
     try {
       const response = await fetch("/api/trades/performance", {
         headers: { Authorization: `Bearer ${user.token}` },
