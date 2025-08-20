@@ -35,6 +35,7 @@ import {
   Close as CloseIcon,
   BugReport,
   Message,
+  Webhook as WebhookIcon,
 } from "@mui/icons-material";
 
 const AlertMonitor = ({ alertData, onConfigUpdate, onRefresh }) => {

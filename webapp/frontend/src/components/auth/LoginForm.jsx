@@ -181,7 +181,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
 
           <Box textAlign="center">
             <Typography variant="body2" color="text.secondary">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 component="button"
                 type="button"

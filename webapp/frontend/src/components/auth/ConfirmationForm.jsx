@@ -107,7 +107,7 @@ function ConfirmationForm({
 
           <Box textAlign="center" mt={2}>
             <Typography variant="body2" color="text.secondary">
-              Didn't receive the code?{" "}
+              Didn&apos;t receive the code?{" "}
               <Link
                 component="button"
                 type="button"

@@ -39,7 +39,7 @@ import {
   Tooltip as Tooltip,
 } from "recharts";
 
-const RealTimeAnalytics = ({ analyticsData, onRefresh }) => {
+const RealTimeAnalytics = ({ _analyticsData, onRefresh }) => {
   const [timeRange, setTimeRange] = useState("1h");
   const [selectedMetric, setSelectedMetric] = useState("latency");
 
