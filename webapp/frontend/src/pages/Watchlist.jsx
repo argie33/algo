@@ -57,6 +57,7 @@ const Watchlist = () => {
     }
   }, [watchlist]);
 
+  const loadWatchlist = async () => {
     try {
       // For now, use a default watchlist stored locally
       // In a full implementation, this would come from user preferences/database
