@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import ApiKeysTab from "../../../components/settings/ApiKeysTab.jsx";
+import SettingsApiKeys from "../../../pages/SettingsApiKeys.jsx";
 import { useAuth } from "../../../contexts/AuthContext.jsx";
 
 // Mock the API config
@@ -64,7 +64,7 @@ describe("ApiKeysTab - Component UI Tests", () => {
   const renderApiKeysTab = () => {
     return render(
       <BrowserRouter>
-        <ApiKeysTab />
+        <SettingsApiKeys />
       </BrowserRouter>
     );
   };

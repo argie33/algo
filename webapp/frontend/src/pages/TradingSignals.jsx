@@ -100,6 +100,68 @@ function TradingSignals() {
     return diffDays <= 7;
   };
 
+  // Fetch buy/sell signals (moved up before useMemo hooks)
+  const {
+    data: signalsData,
+    isLoading: signalsLoading,
+    error: signalsError,
+  } = useQuery({
+    queryKey: [
+      "tradingSignals",
+      signalType,
+      timeframe,
+      page,
+      rowsPerPage,
+      symbolFilter,
+      showRecentOnly,
+    ],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams();
+
+        // Only add defined parameters
+        if (signalType !== "all") {
+          params.append("signal_type", signalType);
+        }
+        params.append("page", page + 1);
+        params.append("limit", rowsPerPage);
+        if (symbolFilter) {
+          params.append("symbol", symbolFilter);
+        }
+        if (showRecentOnly) {
+          params.append("latest_only", "true");
+        }
+        const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
+        logger.success("fetchTradingSignals", null, {
+          url,
+          signalType,
+          timeframe,
+        });
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        logger.info("fetchTradingSignals", "Data retrieved", {
+          recordCount: data?.data?.length || 0,
+          totalRecords: data?.total || 0,
+        });
+        return data;
+      } catch (err) {
+        logger.error("fetchTradingSignals", err);
+        throw err;
+      }
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 60000, // 1 minute
+    cacheTime: 300000, // 5 minutes
+    onError: (err) =>
+      logger.queryError("tradingSignals", err, { signalType, timeframe }),
+  });
+
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
     if (!signalsData?.data) return null;
@@ -194,79 +256,6 @@ function TradingSignals() {
     setPage(0);
   };
 
-  // Fetch buy/sell signals
-  const {
-    data: signalsData,
-    isLoading: signalsLoading,
-    error: signalsError,
-  } = useQuery({
-    queryKey: [
-      "tradingSignals",
-      signalType,
-      timeframe,
-      page,
-      rowsPerPage,
-      symbolFilter,
-      showRecentOnly,
-    ],
-    queryFn: async () => {
-      try {
-        const params = new URLSearchParams();
-
-        // Only add defined parameters
-        if (signalType !== "all") {
-          params.append("signal_type", signalType);
-        }
-        params.append("page", page + 1);
-        params.append("limit", rowsPerPage);
-        if (symbolFilter) {
-          params.append("symbol", symbolFilter);
-        }
-        if (showRecentOnly) {
-          params.append("latest_only", "true");
-        }
-        const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
-        logger.success("fetchTradingSignals", null, {
-          url,
-          signalType,
-          timeframe,
-        });
-
-        const response = await fetch(url);
-        if (!response.ok) {
-          const error = new Error(
-            `Failed to fetch signals (${response.status})`
-          );
-          logger.error("fetchTradingSignals", error, {
-            url,
-            status: response.status,
-            statusText: response.statusText,
-          });
-          throw error;
-        }
-
-        const result = await response.json();
-        logger.success("fetchTradingSignals", result, {
-          resultCount: result?.data?.length || 0,
-          signalType,
-          timeframe,
-          page: page + 1,
-        });
-        return result;
-      } catch (err) {
-        logger.error("fetchTradingSignals", err, {
-          signalType,
-          timeframe,
-          page: page + 1,
-          rowsPerPage,
-        });
-        throw err;
-      }
-    },
-    refetchInterval: 300000, // Refresh every 5 minutes
-    onError: (err) =>
-      logger.queryError("tradingSignals", err, { signalType, timeframe }),
-  });
 
   // Fetch performance summary
   const { data: performanceData, isLoading: performanceLoading } = useQuery({

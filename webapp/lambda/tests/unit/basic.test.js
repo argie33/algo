@@ -81,7 +81,7 @@ describe("Lambda Backend - Basic Functionality Tests", () => {
       const apiKeyService = require("../../utils/apiKeyService");
 
       // API key service exports an object with methods
-      expect(typeof apiKeyService.getUserApiKeys).toBe("function");
+      expect(typeof apiKeyService.listProviders).toBe("function");
       expect(typeof apiKeyService.storeApiKey).toBe("function");
       expect(typeof apiKeyService.validateJwtToken).toBe("function");
       expect(typeof apiKeyService.getHealthStatus).toBe("function");

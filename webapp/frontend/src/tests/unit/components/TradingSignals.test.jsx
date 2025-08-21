@@ -6,24 +6,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import TradingSignals from "../../../pages/TradingSignals.jsx";
 
 // Mock the API service
-vi.mock("../../../services/api.js", () => ({
-  getApiConfig: vi.fn(() => ({
-    baseURL: "http://localhost:3001",
-    isServerless: false,
-    apiUrl: "http://localhost:3001",
-    isConfigured: true,
-    environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-  })),
-  api: {
-    get: vi.fn(),
-    post: vi.fn(),
-  },
-}));
+vi.mock("../../../services/api.js", async () => {
+  const { createApiMock } = await import("../../test-utils/api-mocks.js");
+  return createApiMock();
+});
 
 // Mock MUI components that might cause issues in tests
 vi.mock("@mui/material", async () => {
@@ -56,12 +46,48 @@ vi.mock("react-chartjs-2", () => ({
 
 // Mock utility functions
 vi.mock("../../../utils/formatters.js", () => ({
-  formatPercentage: (value) => `${(value * 100).toFixed(2)}%`,
-  formatCurrency: (value) => `$${value.toLocaleString()}`,
+  formatPercentage: (value) => {
+    if (value === null || value === undefined || isNaN(value)) return "N/A%";
+    return `${(value * 100).toFixed(2)}%`;
+  },
+  formatCurrency: (value) => {
+    if (value === null || value === undefined || isNaN(value)) return "N/A";
+    return `$${value.toLocaleString()}`;
+  },
 }));
 
+// Mock the logger service
+vi.mock("../../../utils/apiService.jsx", () => ({
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    queryError: vi.fn(),
+  })),
+}));
+
+// Mock global fetch
+global.fetch = vi.fn();
+
 // Wrapper component for router and theme context
-const TestWrapper = ({ children }) => <BrowserRouter>{children}</BrowserRouter>;
+const TestWrapper = ({ children }) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        cacheTime: 0,
+      },
+    },
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>{children}</BrowserRouter>
+    </QueryClientProvider>
+  );
+};
 
 describe("Trading Signals Page Component", () => {
   let mockApi;
@@ -70,6 +96,18 @@ describe("Trading Signals Page Component", () => {
     const { api } = await import("../../../services/api.js");
     mockApi = api;
     vi.clearAllMocks();
+    
+    // Setup default successful fetch response
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 25
+      })
+    });
   });
 
   afterEach(() => {
@@ -80,37 +118,40 @@ describe("Trading Signals Page Component", () => {
     it("should render main trading signals sections", async () => {
       // Critical: Trading signals page should display key sections for decision making
       const mockSignalsData = {
-        signals: [
+        data: [
           {
             id: "signal1",
             symbol: "AAPL",
+            signal: "Buy",
             signal_type: "buy",
             strength: 0.8,
             price: 150.25,
             target_price: 165.0,
             confidence: 0.85,
-            timestamp: "2024-01-15T10:30:00Z",
+            date: "2024-01-15T10:30:00Z",
           },
           {
             id: "signal2",
             symbol: "MSFT",
+            signal: "Sell", 
             signal_type: "sell",
             strength: 0.7,
             price: 380.5,
             target_price: 360.0,
             confidence: 0.75,
-            timestamp: "2024-01-15T09:45:00Z",
+            date: "2024-01-15T09:45:00Z",
           },
         ],
-        market_summary: {
-          total_signals: 25,
-          buy_signals: 15,
-          sell_signals: 8,
-          hold_signals: 2,
-        },
+        total: 25,
+        page: 1,
+        limit: 25
       };
 
-      mockApi.get.mockResolvedValue({ data: mockSignalsData });
+      global.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockSignalsData
+      });
 
       render(
         <TestWrapper>
@@ -120,20 +161,17 @@ describe("Trading Signals Page Component", () => {
 
       // Should show signals table/list
       await waitFor(() => {
-        expect(
-          screen.getByText("AAPL") || screen.getByText("MSFT")
-        ).toBeTruthy();
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
       });
 
-      // Should show signal summary
-      expect(
-        screen.getByText(/signals/i) || screen.getByText(/total/i)
-      ).toBeTruthy();
+      expect(screen.getByText("MSFT")).toBeInTheDocument();
+
+      // Should show the main title (with emoji)
+      expect(screen.getByText("🎯 Trading Signals")).toBeInTheDocument();
 
       // Should show buy/sell indicators
-      expect(
-        screen.getByText(/buy/i) || screen.getByText(/sell/i)
-      ).toBeTruthy();
+      expect(screen.getByText("Buy")).toBeInTheDocument();
+      expect(screen.getByText("Sell")).toBeInTheDocument();
     });
 
     it("should display signal strength indicators", async () => {

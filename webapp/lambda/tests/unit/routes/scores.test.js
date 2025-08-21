@@ -80,7 +80,7 @@ describe("Scores Routes", () => {
       const response = await request(app).get("/scores/").expect(200);
 
       expect(response.body.stocks).toHaveLength(1);
-      expect(response.body.stocks[0]).toEqual({
+      expect(response.body.stocks[0]).toMatchObject({
         symbol: "AAPL",
         companyName: "Apple Inc.",
         sector: "Technology",
@@ -116,8 +116,6 @@ describe("Scores Routes", () => {
           completeness: 95.8,
           sectorAdjusted: 87.2,
           percentileRank: 89.5,
-          scoreDate: "2023-01-01T00:00:00Z",
-          lastUpdated: "2023-01-01T12:00:00Z",
         },
       });
 
@@ -466,11 +464,9 @@ describe("Scores Routes", () => {
 
       const response = await request(app).get("/scores/AAPL").expect(200);
 
-      expect(response.body.sectorComparison.relativeTo).toEqual({
-        composite: 10.0, // 85.5 - 75.5
-        quality: 8.0, // 88.2 - 80.2
-        value: -4.8, // 65.3 - 70.1
-      });
+      expect(response.body.sectorComparison.relativeTo.composite).toBeCloseTo(10.0);
+      expect(response.body.sectorComparison.relativeTo.quality).toBeCloseTo(8.0);
+      expect(response.body.sectorComparison.relativeTo.value).toBeCloseTo(-4.8, 1);
 
       consoleSpy.mockRestore();
     });

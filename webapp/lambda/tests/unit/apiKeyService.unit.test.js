@@ -54,7 +54,7 @@ describe("API Key Service Unit Tests", () => {
     // Clear module cache
     delete require.cache[require.resolve("../../utils/apiKeyService")];
 
-    // Setup mocks
+    // Setup mocks with proper implementations
     mockSecretsManager = {
       send: jest.fn(),
     };
@@ -83,13 +83,11 @@ describe("API Key Service Unit Tests", () => {
     crypto.createDecipherGCM.mockReturnValue(mockDecipher);
     crypto.randomBytes.mockReturnValue(Buffer.from("mockrandomdata12"));
 
-    // Clear environment variables
-    delete process.env.COGNITO_USER_POOL_ID;
-    delete process.env.COGNITO_CLIENT_ID;
-    delete process.env.API_KEY_ENCRYPTION_SECRET_ARN;
-    delete process.env.API_KEY_ENCRYPTION_SECRET;
-    delete process.env.WEBAPP_AWS_REGION;
-    delete process.env.AWS_REGION;
+    // Set required environment variables for tests to work
+    process.env.COGNITO_USER_POOL_ID = "us-east-1_testpool";
+    process.env.COGNITO_CLIENT_ID = "test-client-id";
+    process.env.API_KEY_ENCRYPTION_SECRET = "test-encryption-key-32-chars-long";
+    process.env.WEBAPP_AWS_REGION = "us-east-1";
 
     // Import apiKeyService after mocks are set up
     apiKeyService = require("../../utils/apiKeyService");
@@ -128,12 +126,15 @@ describe("API Key Service Unit Tests", () => {
       const user = await apiKeyService.validateJwtToken(mockToken);
 
       expect(user).toMatchObject({
-        sub: "user123",
-        email: "test@example.com",
-        username: "testuser",
-        role: "admin",
-        groups: ["users"],
-        sessionId: "mock-session-id-1234",
+        valid: true,
+        user: {
+          sub: "user123",
+          email: "test@example.com",
+          username: "testuser",
+          role: "admin",
+          groups: ["users"],
+          sessionId: "mock-session-id-1234",
+        },
       });
       expect(mockJwtVerifier.verify).toHaveBeenCalledWith(mockToken);
     });
@@ -142,9 +143,9 @@ describe("API Key Service Unit Tests", () => {
       const mockToken = "invalid-jwt-token";
       mockJwtVerifier.verify.mockRejectedValue(new Error("Invalid token"));
 
-      await expect(apiKeyService.validateJwtToken(mockToken)).rejects.toThrow(
-        "Invalid token"
-      );
+      const result = await apiKeyService.validateJwtToken(mockToken);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Invalid token");
     });
 
     test("should use cached session when available", async () => {
@@ -163,7 +164,7 @@ describe("API Key Service Unit Tests", () => {
       jest.clearAllMocks();
       const cachedUser = await apiKeyService.validateJwtToken(mockToken);
 
-      expect(cachedUser.sub).toBe("user123");
+      expect(cachedUser.user.sub).toBe("user123");
       expect(mockJwtVerifier.verify).not.toHaveBeenCalled();
     });
 
@@ -184,9 +185,9 @@ describe("API Key Service Unit Tests", () => {
       }
 
       // Next call should fail due to circuit breaker
-      await expect(apiKeyService.validateJwtToken(mockToken)).rejects.toThrow(
-        "JWT circuit breaker is OPEN"
-      );
+      const result = await apiKeyService.validateJwtToken(mockToken);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("circuit breaker");
     });
   });
 
@@ -643,15 +644,16 @@ describe("API Key Service Unit Tests", () => {
 
       mockJwtVerifier.verify.mockRejectedValue(new Error("Token expired"));
 
-      await expect(apiKeyService.validateJwtToken(mockToken)).rejects.toThrow(
-        "Token expired"
-      );
+      const result = await apiKeyService.validateJwtToken(mockToken);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Token expired");
     });
   });
 
   describe("Edge Cases", () => {
     test("should handle undefined token gracefully", async () => {
-      await expect(apiKeyService.validateJwtToken(undefined)).rejects.toThrow();
+      const result = await apiKeyService.validateJwtToken(undefined);
+      expect(result.valid).toBe(false);
     });
 
     test("should handle empty provider name", async () => {
