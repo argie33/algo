@@ -3,6 +3,7 @@
   "version": "1.0.2",
   "description": "React frontend for Financial Data Dashboard",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@aws-amplify/auth": "^6.13.1",
     "@aws-amplify/core": "^6.12.1",
@@ -73,11 +74,16 @@
     "test:performance": "vitest run src/tests/performance/",
     "test:component": "vitest run src/tests/unit/components/ src/tests/component/ src/tests/component-integration/",
     "test:all": "npm run test:dep && npm run test:quality && npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:security && npm run test:performance && npm run test:component",
-    "test:build": "npm ci && npm run build",
+    "test:build": "node --version && npm ci && npm run build",
+    "test:node-version": "node -e \"const v=process.version.slice(1).split('.').map(Number); if(v[0]<20||(v[0]===20&&v[1]<19)) throw new Error('Node '+process.version+' unsupported. Requires Node 20.19+ or 22.12+')\"",
     "setup-dev": "node scripts/setup-dev.js",
     "setup-prod": "node scripts/setup-prod.js",
     "start": "npm run setup-dev && npm run dev",
     "build-prod": "npm run setup-prod && npm run build"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "npm": ">=9.0.0"
   },
   "browserslist": {
     "production": [
