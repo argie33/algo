@@ -18,7 +18,7 @@ env:
   AWS_REGION: us-east-1
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
-  NODE_VERSION: '18.x'
+  NODE_VERSION: '20.x'
 
 jobs:
 ################################################################################
@@ -394,28 +394,38 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Install Frontend dependencies
+      - name: Install Frontend dependencies and test build
         working-directory: webapp/frontend
         run: |
+          # Check Node.js version compatibility first
+          echo "Checking Node.js version compatibility..."
+          npm run test:node-version
+          echo "✅ Node.js version compatible"
+          
+          # Use strict dependency resolution to catch version conflicts early
           npm ci
-          echo "Frontend dependencies installed"
-      - name: Test Frontend
+          echo "Frontend dependencies installed with strict resolution"
+          
+          # Test that build works with dependencies
+          echo "Testing build to catch dependency issues..."
+          npm run build
+          echo "Build test passed - dependencies are compatible"
+      - name: Test Frontend quality
         working-directory: webapp/frontend
         env:
           API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
         run: |
-          # Run tests if available
-          if npm run test:unit --if-present 2>/dev/null; then
-            echo "Frontend unit tests passed"
-          else
-            echo "No unit tests found or configured, skipping"
-          fi
+          # MANDATORY lint check - fail deployment if lint fails
+          echo "Running mandatory lint check..."
+          npm run lint
+          echo "✅ Lint check passed"
           
-          # Basic lint check if available
-          if npm run lint --if-present 2>/dev/null; then
-            echo "Frontend lint check passed"
+          # Run unit tests if available (non-blocking for now)
+          echo "Running unit tests..."
+          if npm run test:unit --if-present 2>/dev/null; then
+            echo "✅ Frontend unit tests passed"
           else
-            echo "No lint script found, skipping"
+            echo "⚠️ No unit tests found or tests failed - continuing deployment"
           fi
       - name: Get Cognito configuration
         id: cognito_config
@@ -639,7 +649,7 @@ jobs:
         env:
           STACK_NAME: ${{ needs.setup.outputs.stack_name }}
         run: |
-          echo "🎉 Webapp deployment completed!"
+          echo "🎉 Webapp deployment completed successfully!"
           echo ""
           echo "📊 Deployment Summary:"
           echo "  • Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
