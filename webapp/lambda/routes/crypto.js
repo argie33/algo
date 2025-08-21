@@ -505,7 +505,7 @@ router.get("/defi", async (req, res) => {
 });
 
 // Generate comprehensive crypto market overview
-async function generateCryptoMarketOverview() {
+async function _generateCryptoMarketOverview() {
   const totalMarketCap = 2200000000000 + (Math.random() - 0.5) * 200000000000; // ~$2.2T ± 200B
   const totalVolume24h = 85000000000 + (Math.random() - 0.5) * 15000000000; // ~$85B ± 15B
   const btcDominance = 48 + (Math.random() - 0.5) * 8; // 48% ± 4%
@@ -530,7 +530,7 @@ async function generateCryptoMarketOverview() {
 }
 
 // Generate top cryptocurrencies data
-async function generateTopCryptocurrencies(options) {
+async function _generateTopCryptocurrencies(options) {
   const baseCoins = [
     { symbol: "BTC", name: "Bitcoin", rank: 1 },
     { symbol: "ETH", name: "Ethereum", rank: 2 },
@@ -1008,7 +1008,7 @@ function groupProtocolsByCategory(protocols) {
 }
 
 // Fallback data generators
-function generateFallbackMarketOverview() {
+function _generateFallbackMarketOverview() {
   return {
     market_cap_usd: 2250000000000,
     volume_24h_usd: 87500000000,
@@ -1026,7 +1026,7 @@ function generateFallbackMarketOverview() {
   };
 }
 
-function generateFallbackTopCoins() {
+function _generateFallbackTopCoins() {
   return {
     coins: [
       {

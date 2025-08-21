@@ -15,6 +15,12 @@
     "test:performance": "jest tests/performance/",
     "test:component": "echo 'Backend has no component tests - components are frontend-only'",
     "test:all": "npm run test:dep && npm run test:quality && npm run test:unit && npm run test:integration && npm run test:security && npm run test:performance && npm run test:e2e",
+    "lint": "eslint . --ext js --max-warnings 0",
+    "lint:fix": "eslint . --ext js --fix",
+    "typecheck": "node -c index.js && find routes utils middleware -name '*.js' -exec node -c {} \\;",
+    "validate": "npm run lint && npm run format:check && npm run typecheck",
+    "precommit": "npm run validate",
+    "predeploy": "npm run validate && npm run test:dep",
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,json,md}\"",
     "package": "npm prune --production && zip -r function.zip . -x '*.git*' 'node_modules/.cache/*' 'tests/*' 'coverage/*'",
@@ -37,6 +43,7 @@
   },
   "devDependencies": {
     "axios": "^1.6.0",
+    "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "prettier": "^3.6.2",
     "supertest": "^6.3.3"

@@ -260,7 +260,7 @@ router.put(
     const correlationId =
       req.headers["x-correlation-id"] || `admin-provider-${Date.now()}`;
     const { providerId } = req.params;
-    const { rateLimits, enabled } = req.body;
+    const { rateLimits, _enabled } = req.body;
 
     try {
       logger.info("Updating provider settings", {

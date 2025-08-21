@@ -108,7 +108,7 @@ router.get("/status", (req, res) => {
 });
 
 // Validation schemas for websocket endpoints
-const websocketValidationSchemas = {
+const _websocketValidationSchemas = {
   stream: {
     symbols: {
       required: true,
@@ -801,7 +801,7 @@ router.get("/status", (req, res) => {
   const now = Date.now();
   const cacheDetails = {};
 
-  for (const [key, value] of realtimeDataCache.entries()) {
+  for (const [key, _value] of realtimeDataCache.entries()) {
     const symbol = key.split(":")[1];
     const lastUpdate = lastUpdateTime.get(symbol) || 0;
     cacheDetails[symbol] = {
@@ -833,7 +833,7 @@ setInterval(() => {
   const now = Date.now();
   const expiredKeys = [];
 
-  for (const [key, data] of realtimeDataCache.entries()) {
+  for (const [key, _data] of realtimeDataCache.entries()) {
     const symbol = key.split(":")[1];
     const lastUpdate = lastUpdateTime.get(symbol) || 0;
 

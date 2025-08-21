@@ -150,7 +150,7 @@ router.get("/import/status", authenticateToken, async (req, res) => {
 router.post("/import/alpaca", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
-    const { startDate, endDate, forceRefresh = false } = req.body;
+    const { startDate, endDate, _forceRefresh = false } = req.body;
 
     console.log(`🔄 [TRADES] Import requested for user: ${userId}`);
 
@@ -540,7 +540,7 @@ router.get("/history", authenticateToken, async (req, res) => {
         );
 
         // Get orders and activities from Alpaca
-        const [orders, portfolioHistory] = await Promise.all([
+        const [orders, _portfolioHistory] = await Promise.all([
           alpaca.getOrders({ status: "all", limit: 500 }),
           alpaca.getPortfolioHistory("1Y"),
         ]);
@@ -943,8 +943,8 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
         `🔄 Processing ${liveTradeData.length} live trade activities`
       );
 
-      const buys = liveTradeData.filter((t) => t.side === "buy");
-      const sells = liveTradeData.filter((t) => t.side === "sell");
+      const _buys = liveTradeData.filter((t) => t.side === "buy");
+      const _sells = liveTradeData.filter((t) => t.side === "sell");
       const totalVolume = liveTradeData.reduce(
         (sum, t) => sum + parseFloat(t.qty) * parseFloat(t.price),
         0

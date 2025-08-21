@@ -902,6 +902,34 @@ router.get("/", stocksListValidation, async (req, res) => {
         "Symbols table missing, using fallback query with stock_symbols only"
       );
       try {
+        // Re-declare variables for fallback scope
+        const page = req.validated.page || 1;
+        const limit = req.validated.limit || 50;
+        const offset = (page - 1) * limit;
+        const sortBy = req.validated.sortBy || "symbol";
+        const sortOrder = req.validated.sortOrder || "asc";
+        const validSortColumns = {
+          symbol: "ss.symbol",
+          security_name: "ss.security_name",
+          exchange: "ss.exchange",
+        };
+        const sortColumn = validSortColumns[sortBy] || "ss.symbol";
+        const sortDirection =
+          sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
+
+        let whereClause = "WHERE 1=1";
+        const params = [];
+        let paramCount = 0;
+        const search = req.validated.search || "";
+        const _sector = req.validated.sector || "";
+        const _exchange = req.validated.exchange || "";
+
+        // Add search filter
+        if (search) {
+          paramCount++;
+          whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+          params.push(`%${search}%`);
+        }
         const fallbackQuery = `
           SELECT 
             ss.symbol,
@@ -1740,7 +1768,7 @@ router.get("/screen/stats", async (req, res) => {
       console.error(
         `❌ Database query failed for screener stats - comprehensive diagnosis needed`,
         {
-          error: error.message,
+          error: "No statistical data found",
           detailed_diagnostics: {
             query_attempted: "screener_statistics_query",
             potential_causes: [

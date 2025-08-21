@@ -30,7 +30,7 @@ router.get("/flow", authenticateToken, async (req, res) => {
       query: req.query,
     });
 
-    const { symbols, timeframe = "1D", limit = 50 } = req.query;
+    const { symbols, timeframe = "1D", _limit = 50 } = req.query;
 
     // Get user's API credentials for options data
     const userId = req.user?.sub;

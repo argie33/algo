@@ -302,7 +302,7 @@ class PerformanceMonitor {
       const operationId = `${req.method}:${req.path}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
       const category = this.categorizeRequest(req);
 
-      const operation = this.startOperation(operationId, category, {
+      const _operation = this.startOperation(operationId, category, {
         method: req.method,
         path: req.path,
         correlationId: req.headers["x-correlation-id"] || req.id,

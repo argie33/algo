@@ -4,6 +4,18 @@ const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Helper function to calculate annualized return
+function calculateAnnualizedReturn(performance) {
+  if (!performance || performance.length < 2) return 0;
+
+  const _first = performance[0];
+  const last = performance[performance.length - 1];
+
+  const totalReturn = parseFloat(last.total_pnl_percent || 0);
+  // Simple annualized return approximation
+  return totalReturn; // Could be enhanced with actual date-based calculation
+}
+
 // Apply authentication middleware to all portfolio routes
 router.use(authenticateToken);
 
@@ -229,7 +241,7 @@ router.get("/performance", async (req, res) => {
 
     if (performance.length > 0) {
       const latest = performance[performance.length - 1];
-      const first = performance[0];
+      const _first = performance[0];
 
       metrics = {
         totalReturn: parseFloat(latest.total_pnl || 0),
@@ -308,7 +320,7 @@ router.get("/benchmark", async (req, res) => {
     }
 
     // Transform data for frontend consumption
-    const performance = benchmarkData.map((row, index) => {
+    const performance = benchmarkData.map((row, _index) => {
       const price = parseFloat(row.price);
       const basePrice = parseFloat(benchmarkData[0]?.price || price);
 
@@ -397,7 +409,7 @@ router.get("/holdings", async (req, res) => {
         holding.latest_price || holding.current_price || 0
       );
       const quantity = parseFloat(holding.quantity || 0);
-      const costBasis = parseFloat(holding.cost_basis || 0);
+      const _costBasis = parseFloat(holding.cost_basis || 0);
       const averageEntryPrice = parseFloat(holding.average_entry_price || 0);
 
       // Recalculate values with latest prices
@@ -560,7 +572,7 @@ router.get("/rebalance", async (req, res) => {
     // Generate rebalancing recommendations
     const recommendations = [];
     let rebalanceScore = 0;
-    let totalRebalanceAmount = 0;
+    let _totalRebalanceAmount = 0;
 
     for (const [tier, targetWeight] of Object.entries(targetAllocation)) {
       const currentWeight = currentAllocation[tier] || 0;
@@ -599,7 +611,7 @@ router.get("/rebalance", async (req, res) => {
               reason: `Reduce ${tier.replace("_", " ")} allocation from ${currentWeight.toFixed(1)}% to ${targetWeight}%`,
             });
 
-            totalRebalanceAmount += sellAmount;
+            _totalRebalanceAmount += sellAmount;
           }
         } else {
           // Need to buy more in this tier
@@ -1327,7 +1339,7 @@ router.get("/optimization", async (req, res) => {
 
 // Helper functions for calculations
 function calculateAdvancedAnalytics(holdings, performance) {
-  const totalValue = holdings.reduce(
+  const _totalValue = holdings.reduce(
     (sum, h) => sum + parseFloat(h.market_value || 0),
     0
   );
@@ -1877,7 +1889,7 @@ router.post("/test-connection/:brokerName", async (req, res) => {
     // Test connection based on broker
     let connectionResult;
     switch (brokerName.toLowerCase()) {
-      case "alpaca":
+      case "alpaca": {
         const AlpacaService = require("../utils/alpacaService");
         const alpaca = new AlpacaService(apiKey, apiSecret, keyData.is_sandbox);
         connectionResult = await alpaca.validateCredentials();
@@ -1894,6 +1906,7 @@ router.post("/test-connection/:brokerName", async (req, res) => {
           };
         }
         break;
+      }
 
       default:
         return res.status(400).json({
@@ -2128,7 +2141,7 @@ async function importFromAlpaca(apiKey, apiSecret, sandbox) {
   }
 }
 
-async function importFromRobinhood(apiKey, apiSecret, sandbox) {
+async function importFromRobinhood(_apiKey, _apiSecret, _sandbox) {
   try {
     console.log("🔗 Connecting to Robinhood API");
 
@@ -2180,7 +2193,7 @@ async function importFromTDAmeritrade(apiKey, apiSecret, sandbox) {
     );
 
     // Basic TD Ameritrade API structure (for reference)
-    const baseUrl = sandbox
+    const _baseUrl = sandbox
       ? "https://api.tdameritrade.com/v1"
       : "https://api.tdameritrade.com/v1";
 
@@ -2231,7 +2244,7 @@ async function importFromTDAmeritrade(apiKey, apiSecret, sandbox) {
 }
 
 async function storeImportedPortfolio(userId, portfolioData) {
-  const client = await query("BEGIN");
+  const _client = await query("BEGIN");
 
   try {
     // Clear existing holdings for this user
@@ -2765,7 +2778,7 @@ function getSectorStressMultiplier(sector) {
   return multipliers[sector] || 1.0;
 }
 
-async function calculateCorrelationMatrix(symbols, period) {
+async function calculateCorrelationMatrix(symbols, _period) {
   // Simplified correlation calculation
   const correlations = [];
 
@@ -2786,7 +2799,7 @@ async function calculateCorrelationMatrix(symbols, period) {
   return correlations;
 }
 
-function estimateCorrelation(symbol1, symbol2) {
+function estimateCorrelation(_symbol1, _symbol2) {
   // Simplified correlation estimate - in production would use actual price data
   // Same sector = higher correlation, different sectors = lower correlation
   return Math.random() * 0.6 + 0.1; // Random between 0.1 and 0.7
@@ -2897,7 +2910,7 @@ function getScenarioDescription(scenario) {
 }
 
 // Generate mock performance data for demo purposes
-function generateMockPerformance() {
+function _generateMockPerformance() {
   const days = 365;
   const performance = [];
   let value = 93525; // Starting value

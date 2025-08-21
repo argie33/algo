@@ -72,7 +72,7 @@ router.post("/database-test", requireRole(["admin"]), async (req, res) => {
     const test = new DatabaseConnectivityTest();
 
     // Test environment variables
-    const envOk = test.testEnvironmentVariables();
+    const _envOk = test.testEnvironmentVariables();
 
     // Test AWS Secrets Manager
     const secret = await test.testSecretsManager();
@@ -154,7 +154,7 @@ router.get("/system-info", async (req, res) => {
  * Test external service connectivity
  */
 router.post("/external-services", async (req, res) => {
-  const { testAlpaca = false, testPolygon = false } = req.body;
+  const { testAlpaca = false, _testPolygon = false } = req.body;
 
   try {
     const results = {

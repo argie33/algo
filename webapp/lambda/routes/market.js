@@ -1813,8 +1813,8 @@ router.get("/seasonality", async (req, res) => {
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1; // 1-12
-    const currentDay = currentDate.getDate();
-    const dayOfYear = Math.floor(
+    const _currentDay = currentDate.getDate();
+    const _dayOfYear = Math.floor(
       (currentDate - new Date(currentYear, 0, 0)) / (1000 * 60 * 60 * 24)
     );
 
@@ -2261,8 +2261,8 @@ function getActiveSeasonalPeriods(date) {
 }
 
 function getNextSeasonalEvent(date) {
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
+  const _month = date.getMonth() + 1;
+  const _day = date.getDate();
 
   // Define seasonal events chronologically
   const events = [
@@ -2374,7 +2374,7 @@ function getOverallBias(date) {
 }
 
 function getSeasonalRecommendation(date) {
-  const month = date.getMonth() + 1;
+  const _month = date.getMonth() + 1;
   const score = calculateSeasonalScore(date);
 
   if (score >= 70) {
@@ -2396,8 +2396,8 @@ router.get("/research-indicators", async (req, res) => {
 
   try {
     const today = new Date();
-    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const oneYearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const _thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const _oneYearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
 
     // VIX levels (volatility indicator)
     const vixData = {

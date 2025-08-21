@@ -626,7 +626,7 @@ class RealTimeDataService {
     let freshEntries = 0;
     let staleEntries = 0;
 
-    for (const [key, value] of this.cache.entries()) {
+    for (const [_key, value] of this.cache.entries()) {
       if (now - value.timestamp < this.cacheTimeout) {
         freshEntries++;
       } else {

@@ -4,7 +4,7 @@ const { query } = require("../utils/database");
 const { execFile } = require("child_process");
 const backtestStore = require("../utils/backtestStore");
 const path = require("path");
-const fs = require("fs");
+const _fs = require("fs");
 
 // Backtesting engine class
 class BacktestEngine {
@@ -398,7 +398,7 @@ router.post("/run", async (req, res) => {
 
 // Run Python strategy endpoint (sandboxed)
 router.post("/run-python", async (req, res) => {
-  const { strategy, input } = req.body;
+  const { strategy, input: _input } = req.body;
   if (!strategy) {
     return res.status(400).json({ error: "Python strategy code is required" });
   }
@@ -468,14 +468,12 @@ async function getHistoricalData(symbol, startDate, endDate) {
 
     const result = await query(sqlQuery, [symbol, startDate, endDate]);
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      throw new Error("No data found for this query");
     }
     return result.rows;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error);
-    return res
-      .status(500)
-      .json({ error: "Database error", details: error.message });
+    throw error;
   }
 }
 

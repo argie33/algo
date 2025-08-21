@@ -48,20 +48,6 @@ const tableSchemas = {
     primaryKey: ["symbol", "date"],
   },
 
-  user_api_keys: {
-    required: ["user_id", "provider", "encrypted_data"],
-    columns: {
-      user_id: { type: "VARCHAR", maxLength: 50 },
-      provider: { type: "VARCHAR", maxLength: 50 },
-      encrypted_data: { type: "TEXT" },
-      user_salt: { type: "VARCHAR", maxLength: 100 },
-      created_at: { type: "TIMESTAMP", default: "NOW()" },
-      updated_at: { type: "TIMESTAMP", default: "NOW()" },
-    },
-    indexes: ["user_id", "provider"],
-    primaryKey: ["user_id", "provider"],
-  },
-
   watchlists: {
     required: ["user_id", "name"],
     columns: {

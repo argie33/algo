@@ -303,12 +303,16 @@ class DatabaseConnectivityTest {
         if (client) {
           try {
             client.release();
-          } catch (e) {}
+          } catch (e) {
+            // Ignore cleanup errors
+          }
         }
         if (pool) {
           try {
             await pool.end();
-          } catch (e) {}
+          } catch (e) {
+            // Ignore cleanup errors
+          }
         }
       }
     }
@@ -393,7 +397,9 @@ class DatabaseConnectivityTest {
       if (client) {
         try {
           client.release();
-        } catch (e) {}
+        } catch (e) {
+          // Ignore cleanup errors
+        }
       }
     }
   }
@@ -470,7 +476,7 @@ class DatabaseConnectivityTest {
     console.log("=".repeat(60));
 
     // Test environment variables
-    const envOk = this.testEnvironmentVariables();
+    const _envOk = this.testEnvironmentVariables();
 
     // Test AWS Secrets Manager
     const secret = await this.testSecretsManager();

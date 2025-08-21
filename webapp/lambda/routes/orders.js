@@ -1,7 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
-const crypto = require("crypto");
+const _crypto = require("crypto");
 
 const router = express.Router();
 
@@ -181,7 +181,7 @@ router.post("/preview", async (req, res) => {
     orderType,
     limitPrice,
     stopPrice,
-    timeInForce,
+    _timeInForce,
     extendedHours,
   } = req.body;
 
@@ -419,7 +419,7 @@ router.post("/", async (req, res) => {
       RETURNING *
     `;
 
-    const orderResult = await query(insertOrderQuery, [
+    const _orderResult = await query(insertOrderQuery, [
       orderId,
       userId,
       symbol,

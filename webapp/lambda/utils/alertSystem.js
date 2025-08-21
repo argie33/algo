@@ -79,11 +79,11 @@ class AlertSystem extends EventEmitter {
     }, 30000); // Every 30 seconds
 
     // Listen to live data manager events
-    this.liveDataManager.on("connectionCreated", (data) => {
+    this.liveDataManager.on("connectionCreated", (_data) => {
       this.checkConnectionLimits();
     });
 
-    this.liveDataManager.on("connectionClosed", (data) => {
+    this.liveDataManager.on("connectionClosed", (_data) => {
       this.checkConnectionLimits();
     });
 
@@ -91,7 +91,7 @@ class AlertSystem extends EventEmitter {
       this.checkErrorRates(data.providerId);
     });
 
-    this.liveDataManager.on("requestTracked", (data) => {
+    this.liveDataManager.on("requestTracked", (_data) => {
       this.checkCostLimits();
     });
 
@@ -446,7 +446,7 @@ class AlertSystem extends EventEmitter {
       console.log(`📧 Email notification: [${alert.severity}] ${alert.title}`);
 
       // Here you would integrate with AWS SES, SendGrid, etc.
-      const emailData = {
+      const _emailData = {
         to: this.config.notifications.email.recipients,
         subject: `[ALERT-${alert.severity.toUpperCase()}] ${alert.title}`,
         body: `
@@ -491,7 +491,7 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
             ? "warning"
             : "good";
 
-      const slackMessage = {
+      const _slackMessage = {
         channel: this.config.notifications.slack.channel,
         username: "Live Data Monitor",
         icon_emoji:
@@ -545,7 +545,7 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
         return;
       }
 
-      const webhookData = {
+      const _webhookData = {
         alert: {
           id: alert.id,
           severity: alert.severity,

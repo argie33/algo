@@ -342,7 +342,7 @@ class LiveDataManager extends EventEmitter {
     if (!provider) return { allowed: false, reason: "Provider not found" };
 
     const now = Date.now();
-    const oneMinuteAgo = now - 60000;
+    const _oneMinuteAgo = now - 60000;
 
     // Count recent requests (would be tracked in real implementation)
     const recentRequests = 0; // This would be calculated from actual request log
@@ -575,7 +575,7 @@ class LiveDataManager extends EventEmitter {
     }
 
     // Check provider health
-    for (const [providerId, provider] of this.providers) {
+    for (const [_providerId, provider] of this.providers) {
       if (provider.metrics.successRate < 95) {
         alerts.push({
           type: "error",

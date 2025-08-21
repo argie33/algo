@@ -293,7 +293,7 @@ class ApiKeyService {
   async decryptApiKey(encryptedData, userSalt) {
     try {
       const encryptionKey = await this.getEncryptionKey();
-      const { encrypted, iv, authTag, algorithm, version } = encryptedData;
+      const { encrypted, iv, authTag, algorithm, _version } = encryptedData;
       const key = crypto.scryptSync(encryptionKey, userSalt, 32);
 
       const decipher = crypto.createDecipherGCM(
@@ -539,7 +539,7 @@ class ApiKeyService {
   async testConnection(provider, apiKeyData) {
     try {
       switch (provider) {
-        case "alpaca":
+        case "alpaca": {
           const AlpacaService = require("./alpacaService");
           const alpacaService = new AlpacaService(
             apiKeyData.apiKey,
@@ -547,6 +547,7 @@ class ApiKeyService {
             apiKeyData.isSandbox
           );
           return await alpacaService.validateCredentials();
+        }
 
         case "polygon":
           // Add polygon validation

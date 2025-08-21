@@ -668,7 +668,7 @@ router.get("/growth", (req, res) => {
 router.get("/results", async (req, res) => {
   try {
     console.log("📊 Screener results endpoint called");
-    const { limit = 20, offset = 0, filters = "{}" } = req.query;
+    const { limit = 20, offset = 0, _filters = "{}" } = req.query;
 
     // Mock screener results for ServiceHealth testing
     const mockResults = [

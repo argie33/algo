@@ -1400,7 +1400,7 @@ async function generateEconomicCalendarData(filters) {
 }
 
 // Generate sentiment dashboard data
-async function generateSentimentDashboardData(timeframe) {
+async function generateSentimentDashboardData(_timeframe) {
   const marketSentiment =
     Math.random() > 0.6
       ? "bullish"
@@ -1438,7 +1438,7 @@ async function generateSentimentDashboardData(timeframe) {
 }
 
 // Helper functions for data generation
-function generateHeadlineByCategory(category, sentiment) {
+function generateHeadlineByCategory(category, _sentiment) {
   const headlines = {
     markets: [
       "Stock Market Reaches New Heights as Tech Shares Surge",

@@ -425,7 +425,7 @@ async function getFinancialStatement(ticker, type, period) {
   const result = await query(query, [ticker]);
 
   if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-    return res.status(404).json({ error: "No data found for this query" });
+    throw new Error("No data found for this query");
   }
 
   // Group by date

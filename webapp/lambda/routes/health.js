@@ -80,9 +80,9 @@ router.get("/", async (req, res) => {
     }
     // Test database connection with timeout and detailed error reporting
     const dbStart = Date.now();
-    let result;
+    let _result;
     try {
-      result = await Promise.race([
+      _result = await Promise.race([
         query("SELECT 1 as ok"),
         new Promise((_, reject) =>
           setTimeout(
@@ -141,7 +141,7 @@ router.get("/", async (req, res) => {
         uptime: process.uptime(),
       });
     }
-    const dbTime = Date.now() - dbStart;
+    const _dbTime = Date.now() - dbStart;
     // Get table information (check existence first) with global timeout
     let tables = {};
     try {
@@ -1401,7 +1401,7 @@ router.post("/update-status", async (req, res) => {
                   "period_end",
                   "timestamp",
                 ];
-                let foundTimestamp = false;
+                let _foundTimestamp = false;
 
                 for (const col of timestampColumns) {
                   try {
@@ -1419,7 +1419,7 @@ router.post("/update-status", async (req, res) => {
                       );
                       if (tsResult.rows[0].last_update) {
                         lastUpdated = tsResult.rows[0].last_update;
-                        foundTimestamp = true;
+                        _foundTimestamp = true;
                         break;
                       }
                     }
@@ -1431,7 +1431,7 @@ router.post("/update-status", async (req, res) => {
                 // Determine if stale based on expected frequency
                 if (lastUpdated && tableRow.expected_update_frequency) {
                   const expectedInterval = tableRow.expected_update_frequency;
-                  const staleThreshold = new Date();
+                  const _staleThreshold = new Date();
 
                   // Simple stale check - if last update is older than 2x expected frequency
                   const hoursSinceUpdate =

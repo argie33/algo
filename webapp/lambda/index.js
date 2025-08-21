@@ -249,7 +249,7 @@ if (!isProduction) {
 
 // Global database initialization promise
 let dbInitPromise = null;
-let dbAvailable = false;
+let __dbAvailable = false;
 
 // Initialize database connection with shorter timeout
 const ensureDatabase = async () => {
@@ -276,14 +276,14 @@ const ensureDatabase = async () => {
       ),
     ])
       .then((pool) => {
-        dbAvailable = true;
+        __dbAvailable = true;
         console.log("Database connection established successfully");
         return pool;
       })
       .catch((err) => {
         console.error("Failed to initialize database:", err);
         dbInitPromise = null; // Reset to allow retry
-        dbAvailable = false;
+        __dbAvailable = false;
         throw err;
       });
   }

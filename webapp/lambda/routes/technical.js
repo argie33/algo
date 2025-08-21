@@ -1791,7 +1791,7 @@ async function analyzePatterns(symbol, timeframe, limit) {
 }
 
 // Get price data for pattern analysis
-async function getPriceDataForPatterns(symbol, timeframe) {
+async function getPriceDataForPatterns(symbol, _timeframe) {
   try {
     // Try to get real price data
     const tableName = "technical_data_daily";

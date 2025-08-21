@@ -6,7 +6,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { initializeDatabase } = require("./utils/database");
-const errorHandler = require("./middleware/errorHandler");
+const _errorHandler = require("./middleware/errorHandler");
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -190,7 +190,7 @@ app.get("/", (req, res) => {
 });
 
 // Error handling
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error("Error:", err);
   res.status(500).json({
     error: "Internal Server Error",
