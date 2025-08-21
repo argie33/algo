@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from "react";
 import {
-  Container,
-  Typography,
+  Alert,
   Box,
+  Button,
   Card,
   CardContent,
+  Chip,
+  Container,
   Grid,
+  LinearProgress,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  Alert,
-  LinearProgress,
-  Chip,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   Refresh,
@@ -68,7 +68,7 @@ const SectorAnalysis = () => {
 
   useEffect(() => {
     loadSectorData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSectorData = async () => {

@@ -2,38 +2,38 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getPriceHistory } from "../services/api";
 import {
-  Container,
-  Typography,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
   Box,
+  Button,
   Card,
   CardContent,
-  Button,
-  Paper,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TablePagination,
-  TextField,
   CircularProgress,
-  Alert,
-  Grid,
+  Container,
   FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Tabs,
-  Tab,
-  IconButton,
-  Switch,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Stack,
+  Grid,
+  IconButton,
   InputAdornment,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TablePagination,
+  TableRow,
+  Tabs,
+  TextField,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   ArrowBack,
@@ -173,7 +173,7 @@ function PriceHistory() {
   // Get visible columns for display
   const displayColumns = useMemo(() => {
     return allColumns.filter((col) => visibleColumns[col.id]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleColumns]);
 
   // Fetch data function
@@ -218,7 +218,7 @@ function PriceHistory() {
   // Effects
   useEffect(() => {
     fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, timeframe, page, rowsPerPage, dateFrom, dateTo, priceFilters]);
 
   // Filter data based on search term

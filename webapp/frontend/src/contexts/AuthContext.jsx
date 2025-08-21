@@ -158,7 +158,7 @@ export function AuthProvider({ children }) {
       sessionManager.endSession();
       setSessionWarning({ show: false, timeRemaining: 0 });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.isAuthenticated, state.user]);
 
   const checkAuthState = async () => {

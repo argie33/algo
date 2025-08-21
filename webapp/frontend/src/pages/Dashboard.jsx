@@ -1,34 +1,34 @@
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  Alert,
+  Autocomplete,
+  Avatar,
+  Badge,
   Box,
-  Grid,
+  Button,
   Card,
   CardContent,
-  Typography,
-  Divider,
   Chip,
-  Button,
-  Avatar,
-  TextField,
-  Autocomplete,
   Container,
-  Badge,
+  Divider,
+  Grid,
   IconButton,
   LinearProgress,
-  Alert,
   List,
   ListItem,
-  ListItemText,
   ListItemAvatar,
+  ListItemText,
+  Stack,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Stack,
+  TextField,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   TrendingUp,
@@ -57,7 +57,7 @@ import {
   Public,
   LocalFireDepartment,
   Bolt,
-  HorizontalRule,
+  HorizontalRule
 } from "@mui/icons-material";
 import {
   XAxis,
@@ -69,7 +69,7 @@ import {
   Cell,
   PieChart,
   Pie,
-  Tooltip as ChartTooltip,
+  Tooltip as RechartsTooltip
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { getStockPrices, getStockMetrics } from "../services/api";
@@ -626,7 +626,7 @@ function SectorPerformanceWidget() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <ChartTooltip formatter={(value) => `${value.toFixed(2)}%`} />
+            <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
             <Bar dataKey="performance" fill="#8884d8">
               {sectors.map((entry, index) => (
                 <Cell
@@ -1306,7 +1306,7 @@ const Dashboard = () => {
                         />
                       ))}
                     </Pie>
-                    <ChartTooltip />
+                    <RechartsTooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>

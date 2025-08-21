@@ -1,31 +1,31 @@
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
   Box,
-  Container,
-  Typography,
-  Grid,
   Card,
   CardContent,
+  Chip,
+  CircularProgress,
+  Container,
+  FormControl,
+  Grid,
+  IconButton,
+  InputLabel,
+  LinearProgress,
+  MenuItem,
+  Paper,
+  Select,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-  CircularProgress,
-  Alert,
-  Tab,
   Tabs,
-  LinearProgress,
-  IconButton,
+  TextField,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   TrendingUp,
@@ -61,7 +61,7 @@ const MetricsDashboard = () => {
 
   useEffect(() => {
     fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
     searchTerm,
@@ -78,7 +78,7 @@ const MetricsDashboard = () => {
     } else if (activeTab === 2) {
       fetchTopStocks();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const fetchData = async () => {

@@ -1,13 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  Alert,
   Box,
-  Container,
-  Typography,
-  Grid,
   Card,
   CardContent,
-  Tabs,
+  CircularProgress,
+  Container,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  InputLabel,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
   Tab,
   Table,
   TableBody,
@@ -15,20 +26,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  CircularProgress,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Switch,
-  FormControlLabel,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
+  Tabs,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   LineChart,
@@ -89,7 +89,7 @@ const PortfolioPerformance = () => {
 
   useEffect(() => {
     fetchPerformanceData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe]);
 
   const fetchPerformanceData = async () => {

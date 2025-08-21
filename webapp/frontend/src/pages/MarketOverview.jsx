@@ -1,33 +1,33 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Alert,
+  Avatar,
   Box,
   Card,
   CardContent,
-  Typography,
+  Chip,
+  CircularProgress,
   Grid,
-  Tabs,
-  Tab,
+  IconButton,
   LinearProgress,
-  Alert,
   Paper,
+  Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Chip,
-  IconButton,
-  Avatar,
-  Stack,
-  Zoom,
-  useTheme,
-  alpha,
+  Tabs,
   ToggleButton,
   ToggleButtonGroup,
-  CircularProgress,
   Tooltip,
+  Typography,
+  Zoom,
+  alpha,
+  useTheme
 } from "@mui/material";
 import {
   LineChart,
@@ -41,7 +41,7 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
+  Legend
 } from "recharts";
 import {
   TrendingUp,
@@ -58,7 +58,7 @@ import {
   CalendarToday,
   Fullscreen,
   FullscreenExit,
-  Equalizer,
+  Equalizer
 } from "@mui/icons-material";
 
 import {
@@ -68,12 +68,12 @@ import {
   getMarketBreadth,
   getEconomicIndicators,
   getSeasonalityData,
-  getMarketResearchIndicators,
+  getMarketResearchIndicators
 } from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
-  getChangeColor,
+  getChangeColor
 } from "../utils/formatters";
 
 const _CHART_COLORS = [

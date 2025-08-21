@@ -102,7 +102,7 @@ const TradeHistory = () => {
     fetchAnalytics();
     fetchInsights();
     fetchPerformance();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAuthenticated,
     navigate,

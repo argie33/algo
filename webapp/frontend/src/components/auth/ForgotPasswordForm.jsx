@@ -22,7 +22,7 @@ const ForgotPasswordForm = ({ onBack }) => {
 
     try {
       // Mock password reset functionality
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setMessage("Password reset email sent! Check your inbox.");
     } catch (err) {
       setError("Failed to send password reset email. Please try again.");
@@ -36,8 +36,13 @@ const ForgotPasswordForm = ({ onBack }) => {
       <Typography variant="h4" gutterBottom align="center">
         Reset Password
       </Typography>
-      
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }} align="center">
+
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mb: 3 }}
+        align="center"
+      >
         Enter your email address and we&apos;ll send you a password reset link.
       </Typography>
 
@@ -79,12 +84,7 @@ const ForgotPasswordForm = ({ onBack }) => {
           {loading ? "Sending..." : "Send Reset Email"}
         </Button>
 
-        <Button
-          fullWidth
-          variant="text"
-          onClick={onBack}
-          disabled={loading}
-        >
+        <Button fullWidth variant="text" onClick={onBack} disabled={loading}>
           Back to Sign In
         </Button>
       </Box>

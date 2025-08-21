@@ -2,55 +2,55 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
+  Alert,
+  Badge,
   Box,
-  Container,
-  Typography,
-  Grid,
+  Button,
   Card,
   CardContent,
   CardHeader,
-  Tabs,
+  Chip,
+  CircularProgress,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  InputLabel,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Paper,
+  Rating,
+  Select,
+  Slider,
+  Step,
+  StepContent,
+  StepLabel,
+  Stepper,
+  Switch,
   Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
-  TableRow,
-  Paper,
-  Chip,
-  CircularProgress,
-  Alert,
-  Button,
-  TextField,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Badge,
-  LinearProgress,
-  Divider,
-  Slider,
-  Switch,
-  FormControlLabel,
   TablePagination,
+  TableRow,
   TableSortLabel,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  Rating,
-  List,
-  ListItem,
-  Menu,
-  ListItemIcon,
-  ListItemText,
+  Tabs,
+  TextField,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   PieChart,
@@ -68,7 +68,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  ComposedChart,
+  ComposedChart
 } from "recharts";
 import {
   TrendingUp,
@@ -98,18 +98,18 @@ import {
   PictureAsPdf,
   NotificationsNone,
   Refresh,
-  Visibility,
+  Visibility
 } from "@mui/icons-material";
 import {
   getApiConfig,
   testApiConnection,
   importPortfolioFromBroker,
-  getApiKeys,
+  getApiKeys
 } from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
-  formatNumber,
+  formatNumber
 } from "../utils/formatters";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -233,7 +233,7 @@ const Portfolio = () => {
       // Load demo data for non-authenticated users
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
   // Auto-refresh effect

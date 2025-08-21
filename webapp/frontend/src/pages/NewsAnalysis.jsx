@@ -1,30 +1,30 @@
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
+  Avatar,
+  Badge,
   Box,
-  Container,
-  Typography,
-  Grid,
+  Button,
   Card,
   CardContent,
   CardHeader,
-  Tabs,
-  Tab,
   Chip,
-  Button,
-  TextField,
-  MenuItem,
-  IconButton,
-  Avatar,
-  Badge,
+  CircularProgress,
+  Container,
   Divider,
+  Grid,
+  IconButton,
+  LinearProgress,
   List,
   ListItem,
-  ListItemText,
   ListItemAvatar,
-  Alert,
-  CircularProgress,
-  LinearProgress,
+  ListItemText,
+  MenuItem,
+  Tab,
+  Tabs,
+  TextField,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   Timeline,
@@ -33,7 +33,7 @@ import {
   TimelineConnector,
   TimelineContent,
   TimelineDot,
-  TimelineOppositeContent,
+  TimelineOppositeContent
 } from "@mui/lab";
 import {
   TrendingUp,
@@ -53,7 +53,7 @@ import {
   Assessment,
   Schedule,
   Warning,
-  Info,
+  Info
 } from "@mui/icons-material";
 import { formatDistanceToNow, format } from "date-fns";
 import { formatPercentage } from "../utils/formatters";
@@ -63,7 +63,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
+  ResponsiveContainer
 } from "recharts";
 
 function TabPanel({ children, value, index, ...other }) {

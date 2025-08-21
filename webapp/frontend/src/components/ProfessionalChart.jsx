@@ -2,10 +2,10 @@ import {
   Box,
   Card,
   CardContent,
-  Typography,
-  Skeleton,
   IconButton,
+  Skeleton,
   Tooltip,
+  Typography
 } from "@mui/material";
 import { Download, Fullscreen, Refresh } from "@mui/icons-material";
 import {
@@ -23,7 +23,7 @@ import {
   Pie,
   Cell,
   ComposedChart,
-  Tooltip as RechartsTooltip,
+  Tooltip as RechartsTooltip
 } from "recharts";
 import { format } from "date-fns";
 

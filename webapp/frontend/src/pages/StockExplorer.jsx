@@ -10,35 +10,35 @@ import {
 } from "../utils/formatters";
 import { screenStocks, getStockPriceHistory } from "../services/api";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Backdrop,
   Box,
-  Container,
-  Typography,
-  Grid,
+  Button,
   Card,
   CardContent,
-  TextField,
-  MenuItem,
-  Button,
   Chip,
+  CircularProgress,
+  Container,
+  Fade,
+  Grid,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Modal,
+  Paper,
+  Slider,
   Table,
   TableBody,
   TableCell,
   TableHead,
-  TableRow,
   TablePagination,
-  Paper,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Slider,
-  IconButton,
-  Alert,
-  CircularProgress,
-  InputAdornment,
-  Modal,
-  Backdrop,
-  Fade,
+  TableRow,
+  TextField,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   ExpandMore,
@@ -166,7 +166,7 @@ function StockExplorer() {
       setFilters((prev) => ({ ...prev, ...params }));
       if (params.viewMode) setViewMode(params.viewMode);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
   // Build query parameters from filters

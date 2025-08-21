@@ -1,13 +1,24 @@
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
   Box,
-  Container,
-  Typography,
-  Grid,
+  Button,
   Card,
   CardContent,
   CardHeader,
-  Tabs,
+  Chip,
+  CircularProgress,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  Grid,
+  InputLabel,
+  LinearProgress,
+  MenuItem,
+  Select,
   Tab,
   Table,
   TableBody,
@@ -15,21 +26,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip,
-  CircularProgress,
-  Alert,
-  Button,
+  Tabs,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  LinearProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   Security,
@@ -192,7 +192,7 @@ const RiskManagement = () => {
 
   useEffect(() => {
     loadRiskData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSymbol]);
 
   const loadRiskData = () => {

@@ -139,7 +139,7 @@ const Settings = () => {
       );
       checkAuthState();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, isLoading]);
 
   const loadUserSettings = async () => {

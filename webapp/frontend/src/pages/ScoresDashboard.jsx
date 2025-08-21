@@ -1,13 +1,30 @@
 import React, { useState, useEffect } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Autocomplete,
+  Avatar,
   Box,
-  Container,
-  Typography,
-  Grid,
   Card,
   CardContent,
   CardHeader,
-  Tabs,
+  Chip,
+  CircularProgress,
+  Collapse,
+  Container,
+  Divider,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Paper,
+  Rating,
+  Switch,
   Tab,
   Table,
   TableBody,
@@ -15,31 +32,14 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Chip,
-  CircularProgress,
+  Tabs,
   TextField,
-  IconButton,
-  LinearProgress,
-  Divider,
-  Switch,
-  FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Autocomplete,
-  Rating,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  alpha,
-  useTheme,
-  Collapse,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  Typography,
+  alpha,
+  useTheme
 } from "@mui/material";
 import {
   PieChart,
@@ -59,7 +59,7 @@ import {
   PolarRadiusAxis,
   Radar,
   Legend,
-  Tooltip as RechartsTooltip,
+  Tooltip as RechartsTooltip
 } from "recharts";
 import {
   TrendingUp,
@@ -79,7 +79,7 @@ import {
   ExpandMore,
   Security,
   CompareArrows,
-  Remove,
+  Remove
 } from "@mui/icons-material";
 
 // Custom styled components
@@ -495,7 +495,7 @@ const ScoresDashboard = () => {
       loadHistoricalScores(selectedStock.symbol);
       loadPeerComparison(selectedStock.symbol);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStock, selectedTimeframe]);
 
   const loadScores = async (_symbol) => {

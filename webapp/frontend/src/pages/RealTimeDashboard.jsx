@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
+  Alert,
+  Avatar,
   Box,
-  Container,
-  Typography,
-  Grid,
+  Button,
   Card,
   CardContent,
   CardHeader,
-  Tabs,
+  Chip,
+  CircularProgress,
+  Container,
+  Divider,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  MenuItem,
+  Switch,
   Tab,
   Table,
   TableBody,
@@ -15,22 +27,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip,
-  IconButton,
-  Switch,
-  FormControlLabel,
-  Alert,
-  Divider,
-  Button,
+  Tabs,
   TextField,
-  MenuItem,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  CircularProgress,
   Tooltip,
+  Typography
 } from "@mui/material";
 import {
   TrendingUp,
@@ -106,7 +106,7 @@ const RealTimeDashboard = () => {
   // Load initial data
   useEffect(() => {
     loadMarketData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Streaming interval
@@ -127,7 +127,7 @@ const RealTimeDashboard = () => {
         clearInterval(intervalRef.current);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStreaming, refreshInterval, watchlist]);
 
   const loadMarketData = async () => {
