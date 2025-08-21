@@ -73,6 +73,7 @@
     "test:performance": "vitest run src/tests/performance/",
     "test:component": "vitest run src/tests/unit/components/ src/tests/component/ src/tests/component-integration/",
     "test:all": "npm run test:dep && npm run test:quality && npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:security && npm run test:performance && npm run test:component",
+    "test:build": "npm ci --legacy-peer-deps && npm run build",
     "setup-dev": "node scripts/setup-dev.js",
     "setup-prod": "node scripts/setup-prod.js",
     "start": "npm run setup-dev && npm run dev",
