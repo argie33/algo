@@ -263,7 +263,7 @@ const Portfolio = () => {
     } finally {
       setLoading(false);
     }
-  }, [timeframe, tokens?.accessToken, user?.userId, user?.username]);
+  }, [API_BASE, timeframe, tokens?.accessToken, user?.userId, user?.username]);
 
   // Authentication guard - disabled (portfolio available to all users)
   // useEffect(() => {

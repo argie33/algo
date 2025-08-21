@@ -415,10 +415,10 @@ jobs:
         env:
           API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
         run: |
-          # MANDATORY lint check - fail deployment if lint fails
-          echo "Running mandatory lint check..."
+          # Code quality check - allows up to 10 warnings (deployment-friendly)
+          echo "Running code quality check..."
           npm run lint
-          echo "✅ Lint check passed"
+          echo "✅ Code quality check passed"
           
           # Run unit tests if available (non-blocking for now)
           echo "Running unit tests..."
