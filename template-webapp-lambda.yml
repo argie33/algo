@@ -37,7 +37,7 @@ Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub 'financial-dashboard-user-pool-${EnvironmentName}'
+      UserPoolName: !Sub 'stocks-webapp-user-pool-${EnvironmentName}'
       UsernameAttributes:
         - email
       AutoVerifiedAttributes:
@@ -56,7 +56,7 @@ Resources:
         EmailMessage: 'Your verification code is {####}'
         EmailSubject: 'Your verification code'
       UserPoolTags:
-        Project: financial-dashboard
+        Project: stocks-webapp
         Environment: !Ref EnvironmentName
 
   # Cognito User Pool Client
@@ -64,7 +64,7 @@ Resources:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       UserPoolId: !Ref UserPool
-      ClientName: !Sub 'financial-dashboard-client-${EnvironmentName}'
+      ClientName: !Sub 'stocks-webapp-client-${EnvironmentName}'
       GenerateSecret: false
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
@@ -93,12 +93,12 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref UserPool
-      Domain: !Sub 'financial-dashboard-${EnvironmentName}-${AWS::AccountId}'
+      Domain: !Sub 'stocks-webapp-${EnvironmentName}-${AWS::AccountId}'
   # S3 Bucket for frontend hosting
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'financial-dashboard-frontend-dev-${AWS::AccountId}'
+      BucketName: !Sub 'stocks-webapp-frontend-${EnvironmentName}-${AWS::AccountId}'
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: error.html
@@ -220,7 +220,7 @@ Resources:
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-dev'
+      LogGroupName: !Sub '/aws/apigateway/stocks-webapp-${EnvironmentName}'
       RetentionInDays: 14
 
   # CloudWatch Log Group for Lambda
