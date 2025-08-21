@@ -1283,15 +1283,6 @@ const ScoresDashboard = () => {
       </Grid>
     </Grid>
   );
-
-  return (
-    <Container maxWidth="xl">
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" fontWeight={700} gutterBottom>
-          Institutional-Grade Stock Scoring System
-        </Typography>
-        <Typography variant="h6" color="text.secondary" paragraph>
-          Six-factor scoring methodology based on proven academic research and
           hedge fund analysis techniques
         </Typography>
 

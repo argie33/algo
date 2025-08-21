@@ -135,7 +135,7 @@ const Portfolio = () => {
   // ⚠️ MOCK DATA - Replace with real API when available
   const [portfolioData, setPortfolioData] = useState(mockPortfolioData);
   const [loading, setLoading] = useState(false);
-  const [_error, _setError] = useState(null);
+  const [error, setError] = useState(null);
 
   // State variables that were defined later but used earlier
   const [_addHoldingDialog, _setAddHoldingDialog] = useState(false);
@@ -188,7 +188,7 @@ const Portfolio = () => {
 
   // Refresh settings
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [_lastRefresh, _setLastRefresh] = useState(new Date());
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Portfolio import functionality
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -205,7 +205,7 @@ const Portfolio = () => {
   const [timeHorizon, setTimeHorizon] = useState("medium");
   const [optimizationRunning, setOptimizationRunning] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState(null);
-  const [_marketRegime, _setMarketRegime] = useState("normal");
+  const [marketRegime, setMarketRegime] = useState("normal");
   const [optimizationConstraints, setOptimizationConstraints] = useState({
     maxPositionSize: 10,
     sectorLimits: true,
@@ -736,7 +736,7 @@ const Portfolio = () => {
       optimizedAllocation,
       improvements,
       recommendations,
-      confidence: calculateOptimizationConfidence(),
+      confidence: calculateOptimizationConfidence(portfolioData, _marketRegime),
       riskAnalysis: generateRiskAnalysis(optimizedAllocation),
       implementationPlan: generateImplementationPlan(recommendations),
     };
@@ -1196,7 +1196,7 @@ const Portfolio = () => {
       },
     };
 
-    const currentRegime = regimeData[marketRegime];
+    const currentRegime = regimeData[_marketRegime];
 
     return (
       <Box mb={3}>

@@ -52,7 +52,7 @@ export const ErrorDisplay = ({
       fullPage,
       errorContext,
     });
-  }, [error, title, severity, fullPage]);
+  }, [error, title, severity, fullPage, errorContext, logger]);
 
   const ErrorContent = () => (
     <>

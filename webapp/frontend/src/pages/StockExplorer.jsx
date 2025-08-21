@@ -135,7 +135,7 @@ function StockExplorer() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [viewMode, setViewMode] = useState("advanced"); // Always use advanced view with full table
+  const [_viewMode, setViewMode] = useState("advanced"); // Always use advanced view with full table
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25); // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState("symbol"); // Default to alphabetical
@@ -258,7 +258,7 @@ function StockExplorer() {
     setSearchParams({});
   };
 
-  const handleRequestSort = (event, column) => {
+  const _handleRequestSort = (event, column) => {
     const isAsc = orderBy === column && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
     setOrderBy(column);
@@ -273,7 +273,7 @@ function StockExplorer() {
     setPage(0);
   };
 
-  const handleStockClick = (symbol) => {
+  const _handleStockClick = (symbol) => {
     navigate(`/stocks/${symbol}`);
   };
 
@@ -379,7 +379,7 @@ function StockExplorer() {
     }
   }
 
-  const renderRangeFilter = (
+  const _renderRangeFilter = (
     label,
     minKey,
     maxKey,
