@@ -57,7 +57,7 @@ import {
   Public,
   LocalFireDepartment,
   Bolt,
-  HorizontalRule
+  HorizontalRule,
 } from "@mui/icons-material";
 import {
   XAxis,
@@ -1054,9 +1054,9 @@ const Dashboard = () => {
               </Button>
             }
           >
-            <strong>Demo Mode:</strong> You&apos;re viewing sample data with full
-            platform capabilities. Sign in to access your personal portfolio,
-            real-time alerts, and advanced analytics.
+            <strong>Demo Mode:</strong> You&apos;re viewing sample data with
+            full platform capabilities. Sign in to access your personal
+            portfolio, real-time alerts, and advanced analytics.
           </Alert>
         )}
 

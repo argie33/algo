@@ -29,7 +29,19 @@ import {
   CircularProgress,
 } from "@mui/material";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend, } from "recharts";
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import {
   TrendingUp,
   TrendingDown,
@@ -46,7 +58,7 @@ import {
   Fullscreen,
   FullscreenExit,
   Equalizer,
-  Tooltip
+  Tooltip,
 } from "@mui/icons-material";
 
 import {
@@ -702,9 +714,7 @@ function MarketOverview() {
                   fontSize: 12,
                 }}
               />
-              <Tooltip
-                formatter={(value, name) => [`${value}`, name]}
-              />
+              <Tooltip formatter={(value, name) => [`${value}`, name]} />
               <Legend verticalAlign="top" height={36} />
               <Line
                 yAxisId="left"

@@ -1282,29 +1282,6 @@ const ScoresDashboard = () => {
         </Card>
       </Grid>
     </Grid>
-  );
-          hedge fund analysis techniques
-        </Typography>
-
-        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 3 }}>
-          <Chip
-            icon={<Diamond />}
-            label="Premium Feature"
-            color="primary"
-            variant="outlined"
-          />
-          <Chip
-            icon={<School />}
-            label="Academic Research Based"
-            variant="outlined"
-          />
-          <Chip
-            icon={<Security />}
-            label="Institutional Grade"
-            variant="outlined"
-          />
-        </Box>
-      </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>

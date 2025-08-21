@@ -30,7 +30,21 @@ import {
   ListItemIcon,
 } from "@mui/material";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, BarChart, Bar, ComposedChart, PieChart, Pie, Cell, Tooltip, } from "recharts";
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Area,
+  BarChart,
+  Bar,
+  ComposedChart,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+} from "recharts";
 import {
   TrendingUp,
   Analytics,
@@ -40,7 +54,7 @@ import {
   Warning,
   CheckCircle,
   Star,
-  StarBorder
+  StarBorder,
 } from "@mui/icons-material";
 import {
   getPortfolioPerformance,

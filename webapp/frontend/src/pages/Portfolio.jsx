@@ -68,7 +68,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  ComposedChart
+  ComposedChart,
 } from "recharts";
 import {
   TrendingUp,
@@ -98,7 +98,7 @@ import {
   PictureAsPdf,
   NotificationsNone,
   Refresh,
-  Visibility
+  Visibility,
 } from "@mui/icons-material";
 import {
   getApiConfig,
@@ -280,7 +280,8 @@ const Portfolio = () => {
 
   // Sector and geographic diversification
   const diversificationMetrics = useMemo(() => {
-    if (!portfolioData?.holdings || !portfolioData?.sectorAllocation) return null;
+    if (!portfolioData?.holdings || !portfolioData?.sectorAllocation)
+      return null;
     return {
       sectorConcentration: calculateConcentrationRisk(
         portfolioData.sectorAllocation
@@ -295,7 +296,8 @@ const Portfolio = () => {
 
   // AI-powered insights
   const aiInsights = useMemo(() => {
-    if (!portfolioMetrics || !factorAnalysis || !diversificationMetrics) return null;
+    if (!portfolioMetrics || !factorAnalysis || !diversificationMetrics)
+      return null;
     return generateAIInsights(
       portfolioMetrics,
       factorAnalysis,
@@ -372,34 +374,109 @@ const Portfolio = () => {
   const generateMockPortfolioData = () => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check
-    
+
     // Simulate market volatility
-    const volatilityMultiplier = marketOpen ? 1 + (Math.random() - 0.5) * 0.02 : 1;
-    
+    const volatilityMultiplier = marketOpen
+      ? 1 + (Math.random() - 0.5) * 0.02
+      : 1;
+
     // ⚠️ MOCK DATA - Replace with real API when available
     const baseHoldings = [
-      { symbol: 'AAPL', company: 'Apple Inc.', shares: 100, avgCost: 150.00, sector: 'Technology', beta: 1.2, isMockData: true },
-      { symbol: 'MSFT', company: 'Microsoft Corp.', shares: 75, avgCost: 240.00, sector: 'Technology', beta: 0.9, isMockData: true },
-      { symbol: 'GOOGL', company: 'Alphabet Inc.', shares: 50, avgCost: 120.00, sector: 'Technology', beta: 1.1, isMockData: true },
-      { symbol: 'TSLA', company: 'Tesla Inc.', shares: 25, avgCost: 200.00, sector: 'Consumer Cyclical', beta: 2.0, isMockData: true },
-      { symbol: 'NVDA', company: 'NVIDIA Corp.', shares: 40, avgCost: 300.00, sector: 'Technology', beta: 1.7, isMockData: true },
-      { symbol: 'AMZN', company: 'Amazon.com Inc.', shares: 30, avgCost: 130.00, sector: 'Consumer Cyclical', beta: 1.3, isMockData: true },
-      { symbol: 'META', company: 'Meta Platforms Inc.', shares: 60, avgCost: 180.00, sector: 'Technology', beta: 1.4, isMockData: true },
-      { symbol: 'SPY', company: 'SPDR S&P 500 ETF', shares: 200, avgCost: 400.00, sector: 'ETF', beta: 1.0, isMockData: true }
+      {
+        symbol: "AAPL",
+        company: "Apple Inc.",
+        shares: 100,
+        avgCost: 150.0,
+        sector: "Technology",
+        beta: 1.2,
+        isMockData: true,
+      },
+      {
+        symbol: "MSFT",
+        company: "Microsoft Corp.",
+        shares: 75,
+        avgCost: 240.0,
+        sector: "Technology",
+        beta: 0.9,
+        isMockData: true,
+      },
+      {
+        symbol: "GOOGL",
+        company: "Alphabet Inc.",
+        shares: 50,
+        avgCost: 120.0,
+        sector: "Technology",
+        beta: 1.1,
+        isMockData: true,
+      },
+      {
+        symbol: "TSLA",
+        company: "Tesla Inc.",
+        shares: 25,
+        avgCost: 200.0,
+        sector: "Consumer Cyclical",
+        beta: 2.0,
+        isMockData: true,
+      },
+      {
+        symbol: "NVDA",
+        company: "NVIDIA Corp.",
+        shares: 40,
+        avgCost: 300.0,
+        sector: "Technology",
+        beta: 1.7,
+        isMockData: true,
+      },
+      {
+        symbol: "AMZN",
+        company: "Amazon.com Inc.",
+        shares: 30,
+        avgCost: 130.0,
+        sector: "Consumer Cyclical",
+        beta: 1.3,
+        isMockData: true,
+      },
+      {
+        symbol: "META",
+        company: "Meta Platforms Inc.",
+        shares: 60,
+        avgCost: 180.0,
+        sector: "Technology",
+        beta: 1.4,
+        isMockData: true,
+      },
+      {
+        symbol: "SPY",
+        company: "SPDR S&P 500 ETF",
+        shares: 200,
+        avgCost: 400.0,
+        sector: "ETF",
+        beta: 1.0,
+        isMockData: true,
+      },
     ];
 
     // Simulate realistic current prices with daily volatility
-    const holdings = baseHoldings.map(holding => {
-      const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-      const volatility = holding.beta * 0.02 * Math.sin(dayOfYear / 365 * 2 * Math.PI) * volatilityMultiplier;
-      const trend = Math.sin((dayOfYear + holding.symbol.length * 10) / 50) * 0.1;
-      
-      const currentPrice = holding.avgCost * (1 + trend + volatility + (Math.random() - 0.5) * 0.05);
+    const holdings = baseHoldings.map((holding) => {
+      const dayOfYear = Math.floor(
+        (now - new Date(now.getFullYear(), 0, 0)) / 86400000
+      );
+      const volatility =
+        holding.beta *
+        0.02 *
+        Math.sin((dayOfYear / 365) * 2 * Math.PI) *
+        volatilityMultiplier;
+      const trend =
+        Math.sin((dayOfYear + holding.symbol.length * 10) / 50) * 0.1;
+
+      const currentPrice =
+        holding.avgCost *
+        (1 + trend + volatility + (Math.random() - 0.5) * 0.05);
       const marketValue = currentPrice * holding.shares;
       const costBasis = holding.avgCost * holding.shares;
       const gainLoss = marketValue - costBasis;
       const gainLossPercent = (gainLoss / costBasis) * 100;
-      
+
       return {
         ...holding,
         currentPrice: Math.round(currentPrice * 100) / 100,
@@ -409,14 +486,15 @@ const Portfolio = () => {
         allocation: 0, // Will be calculated below
         volume: Math.floor(Math.random() * 10000000) + 1000000,
         dayChange: Math.round((Math.random() - 0.5) * 10 * 100) / 100,
-        dayChangePercent: Math.round((Math.random() - 0.5) * 5 * 100) / 100
+        dayChangePercent: Math.round((Math.random() - 0.5) * 5 * 100) / 100,
       };
     });
 
     // Calculate allocations
     const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
-    holdings.forEach(holding => {
-      holding.allocation = Math.round((holding.marketValue / totalValue) * 100 * 100) / 100;
+    holdings.forEach((holding) => {
+      holding.allocation =
+        Math.round((holding.marketValue / totalValue) * 100 * 100) / 100;
     });
 
     return {
@@ -425,18 +503,18 @@ const Portfolio = () => {
       username: user.username,
       lastUpdated: now.toISOString(),
       preferences: {
-        displayCurrency: 'USD',
-        timeZone: 'America/New_York',
-        riskTolerance: 'moderate',
-        investmentStyle: 'growth'
+        displayCurrency: "USD",
+        timeZone: "America/New_York",
+        riskTolerance: "moderate",
+        investmentStyle: "growth",
       },
       holdings,
       totalValue,
-      totalCost: holdings.reduce((sum, h) => sum + (h.avgCost * h.shares), 0),
+      totalCost: holdings.reduce((sum, h) => sum + h.avgCost * h.shares, 0),
       performanceHistory: [],
       sectorAllocation: generateSectorAllocation(holdings),
       riskMetrics: generateRiskMetrics(holdings),
-      stressTests: generateStressTests()
+      stressTests: generateStressTests(),
     };
   };
 
@@ -547,7 +625,6 @@ const Portfolio = () => {
   // if (!isAuthenticated && !import.meta.env.DEV) {
   //   return null;
   // }
-
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -706,29 +783,38 @@ const Portfolio = () => {
 
     // Calculate current portfolio metrics
     const currentMetrics = {
-      totalValue: currentHoldings.reduce((sum, h) => sum + (h.currentValue || 0), 0),
+      totalValue: currentHoldings.reduce(
+        (sum, h) => sum + (h.currentValue || 0),
+        0
+      ),
       totalReturn: 0,
       sharpeRatio: 0,
-      volatility: 0
+      volatility: 0,
     };
 
     // Generate optimized allocation based on selected method
-    const optimizedAllocation = currentHoldings.map(holding => ({
+    const optimizedAllocation = currentHoldings.map((holding) => ({
       ...holding,
-      recommendedWeight: 1 / currentHoldings.length
+      recommendedWeight: 1 / currentHoldings.length,
     }));
 
     // Calculate expected improvements
     const improvements = {
       expectedReturn: 0.08,
       riskReduction: 0.15,
-      sharpeImprovement: 0.25
+      sharpeImprovement: 0.25,
     };
 
     // Generate specific recommendations
     const recommendations = [
-      { type: 'diversification', description: 'Consider adding international exposure' },
-      { type: 'rebalancing', description: 'Rebalance holdings to maintain target allocation' }
+      {
+        type: "diversification",
+        description: "Consider adding international exposure",
+      },
+      {
+        type: "rebalancing",
+        description: "Rebalance holdings to maintain target allocation",
+      },
     ];
 
     return {
@@ -1152,7 +1238,7 @@ const Portfolio = () => {
       riskScore: 0.6,
       concentrationRisk: "Medium",
       diversificationScore: 0.7,
-      volatilityRisk: "Low"
+      volatilityRisk: "Low",
     };
   };
 
@@ -1161,18 +1247,18 @@ const Portfolio = () => {
       phase1: {
         title: "Immediate Actions",
         timeframe: "1-2 weeks",
-        actions: recommendations.slice(0, 2)
+        actions: recommendations.slice(0, 2),
       },
       phase2: {
         title: "Medium Term",
-        timeframe: "1-3 months", 
-        actions: recommendations.slice(2)
-      }
+        timeframe: "1-3 months",
+        actions: recommendations.slice(2),
+      },
     };
   };
 
   const calculateExpectedReturn = (holdings) => {
-    const returns = holdings.map(h => h.expectedReturn || 0.08);
+    const returns = holdings.map((h) => h.expectedReturn || 0.08);
     return returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
   };
 
@@ -1408,7 +1494,6 @@ const Portfolio = () => {
       return () => clearInterval(interval);
     }
   }, [autoRefresh, isAuthenticated, user]);
-
 
   if (isLoading) {
     return (

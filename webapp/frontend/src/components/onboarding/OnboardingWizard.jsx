@@ -208,12 +208,14 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
 
   const handleStepAction = async () => {
     switch (activeStep) {
-      case 1: { // API Keys
+      case 1: {
+        // API Keys
         const apiSuccess = await saveApiKeys();
         if (apiSuccess) handleNext();
         break;
       }
-      case 2: { // Preferences
+      case 2: {
+        // Preferences
         const prefSuccess = await savePreferences();
         if (prefSuccess) handleNext();
         break;
@@ -553,8 +555,8 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
           </Typography>
           <Typography variant="body2">
             Start by exploring the Dashboard and Stock Analysis pages. Use the
-            search function to analyze your current holdings or stocks you&apos;re
-            interested in.
+            search function to analyze your current holdings or stocks
+            you&apos;re interested in.
           </Typography>
         </CardContent>
       </Card>
@@ -570,8 +572,8 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
       </Typography>
 
       <Typography variant="body1" paragraph>
-        You&apos;re all set up and ready to start your journey to smarter investing.
-        Your personalized dashboard is waiting for you.
+        You&apos;re all set up and ready to start your journey to smarter
+        investing. Your personalized dashboard is waiting for you.
       </Typography>
 
       <Card sx={{ mt: 3, backgroundColor: "background.default" }}>

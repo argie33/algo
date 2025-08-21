@@ -32,7 +32,16 @@ import {
   InputAdornment,
 } from "@mui/material";
 import {
-  Search, TrendingUp, TrendingDown, Timeline, Refresh, BarChart, FilterList, AccessTime, ErrorOutline } from "@mui/icons-material";
+  Search,
+  TrendingUp,
+  TrendingDown,
+  Timeline,
+  Refresh,
+  BarChart,
+  FilterList,
+  AccessTime,
+  ErrorOutline,
+} from "@mui/icons-material";
 import { formatCurrency } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 

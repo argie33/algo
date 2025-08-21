@@ -46,10 +46,20 @@ import {
   Factory,
   Store,
   Construction,
-  Tooltip
+  Tooltip,
 } from "@mui/icons-material";
 import {
-  Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, ReferenceLine, } from "recharts";
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  ReferenceLine,
+} from "recharts";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -643,9 +653,7 @@ const EconomicModeling = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="maturity" />
                     <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value}%`, "Yield"]}
-                    />
+                    <Tooltip formatter={(value) => [`${value}%`, "Yield"]} />
                     <Line
                       type="monotone"
                       dataKey="yield"
@@ -926,9 +934,7 @@ const EconomicModeling = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="sector" />
                     <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value}%`, "Growth"]}
-                    />
+                    <Tooltip formatter={(value) => [`${value}%`, "Growth"]} />
                     <Bar dataKey="growth">
                       {economicData.sectoralData?.map((entry, index) => (
                         <Cell

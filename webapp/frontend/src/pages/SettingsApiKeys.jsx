@@ -46,7 +46,7 @@ import {
   DataObject,
   Api,
   BugReport,
-  Download
+  Download,
 } from "@mui/icons-material";
 import {
   getApiKeys,

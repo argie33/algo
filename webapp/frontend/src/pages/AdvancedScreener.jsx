@@ -10,9 +10,7 @@ import {
   CircularProgress,
   Alert,
 } from "@mui/material";
-import {
-  Search,
-} from "@mui/icons-material";
+import { Search } from "@mui/icons-material";
 
 const AdvancedScreener = () => {
   const [_screenCriteria] = useState({
@@ -68,10 +66,10 @@ const AdvancedScreener = () => {
   const runScreen = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setResults(mockResults);
     } catch (err) {
       setError(err.message);
@@ -92,7 +90,8 @@ const AdvancedScreener = () => {
           📊 Advanced Stock Screener
         </Typography>
         <Typography variant="subtitle1" color="text.secondary">
-          Find stocks that match your investment criteria with advanced filtering
+          Find stocks that match your investment criteria with advanced
+          filtering
         </Typography>
       </Box>
 
@@ -104,7 +103,9 @@ const AdvancedScreener = () => {
                 variant="contained"
                 onClick={runScreen}
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : <Search />}
+                startIcon={
+                  loading ? <CircularProgress size={20} /> : <Search />
+                }
                 fullWidth
               >
                 {loading ? "Screening..." : "Run Screen"}

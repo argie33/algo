@@ -241,7 +241,6 @@ const RealTimeDashboard = () => {
     }
   };
 
-
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };

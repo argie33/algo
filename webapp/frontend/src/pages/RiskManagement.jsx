@@ -40,10 +40,16 @@ import {
   Error as ErrorIcon,
   CheckCircle,
   Notifications,
-  Speed
+  Speed,
 } from "@mui/icons-material";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 import { getApiConfig } from "../services/api";
 
 const { apiUrl: API_BASE } = getApiConfig();

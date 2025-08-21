@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
 import { screenStocks } from "../services/api";
-import { formatCurrency, formatNumber, formatPercent } from "../utils/formatters";
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+} from "../utils/formatters";
 import {
   Box,
   Container,

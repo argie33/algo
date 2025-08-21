@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
-  formatCurrency, formatNumber, formatPercent, getChangeColor } from "../utils/formatters";
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  getChangeColor,
+} from "../utils/formatters";
 import { screenStocks, getStockPriceHistory } from "../services/api";
 import {
   Box,
@@ -43,10 +47,16 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-  Tooltip
+  Tooltip,
 } from "@mui/icons-material";
 import {
-  XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart, } from "recharts";
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from "recharts";
 
 // Create component-specific logger
 const logger = createComponentLogger("StockExplorer");
@@ -1251,8 +1261,8 @@ function StockExplorer() {
                                         variant="caption"
                                         color="success.main"
                                       >
-                                        Click &quot;Price History&quot; again to see
-                                        detailed view
+                                        Click &quot;Price History&quot; again to
+                                        see detailed view
                                       </Typography>
                                     </Box>
                                   )}

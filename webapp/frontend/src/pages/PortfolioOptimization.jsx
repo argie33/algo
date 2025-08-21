@@ -44,8 +44,7 @@ import {
   DialogContent,
   DialogActions,
 } from "@mui/material";
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import {
   TrendingUp,
   Analytics,
@@ -57,7 +56,7 @@ import {
   Lightbulb,
   Speed,
   Balance,
-  Tune
+  Tune,
 } from "@mui/icons-material";
 import {
   getPortfolioOptimizationData,

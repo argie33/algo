@@ -45,7 +45,11 @@ import {
   Cell,
 } from "recharts";
 import api from "../services/api";
-import { formatCurrency, formatNumber, formatPercent } from "../utils/formatters";
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+} from "../utils/formatters";
 
 // Use centralized error logging (logger will be defined in component)
 

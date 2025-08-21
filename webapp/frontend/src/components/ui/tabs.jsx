@@ -2,7 +2,16 @@ import React from "react";
 import { Tabs as MuiTabs, Tab, Box } from "@mui/material";
 
 export const Tabs = React.forwardRef(
-  ({ className, value: _value, onValueChange: _onValueChange, children, ...props }, ref) => {
+  (
+    {
+      className,
+      value: _value,
+      onValueChange: _onValueChange,
+      children,
+      ...props
+    },
+    ref
+  ) => {
     return (
       <div ref={ref} className={className} {...props}>
         {children}
