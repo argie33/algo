@@ -60,12 +60,6 @@
   ],
   "author": "Financial Dashboard Team",
   "license": "MIT",
-  "jest": {
-    "testEnvironment": "node",
-    "testMatch": [
-      "**/tests/**/*.test.js"
-    ]
-  },
   "overrides": {
     "axios": "^1.6.0"
   }

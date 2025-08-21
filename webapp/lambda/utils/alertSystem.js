@@ -64,13 +64,20 @@ class AlertSystem extends EventEmitter {
     this.healthCheckInterval = null;
     this.metricsBuffer = new Map();
 
-    console.log("🚨 Alert System initialized");
+    if (process.env.NODE_ENV !== 'test') {
+      console.log("🚨 Alert System initialized");
+    }
   }
 
   /**
    * Start monitoring with health checks
    */
   startMonitoring(liveDataManager) {
+    // Don't start monitoring in test environment
+    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_ALERT_SYSTEM) {
+      return;
+    }
+
     this.liveDataManager = liveDataManager;
 
     // Start periodic health checks
