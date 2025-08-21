@@ -133,7 +133,7 @@ Resources:
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub 'financial-dashboard-api-dev'
+      Name: !Sub 'stocks-webapp-api-${EnvironmentName}'
       StageName: dev
       OpenApiVersion: 3.0.1
       EndpointConfiguration:
@@ -227,7 +227,7 @@ Resources:
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-dev'
+      LogGroupName: !Sub '/aws/lambda/stocks-webapp-api-${EnvironmentName}'
       RetentionInDays: 14
 
   # IAM Role for Lambda execution
