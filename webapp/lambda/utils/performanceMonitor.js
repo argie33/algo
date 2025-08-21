@@ -396,6 +396,15 @@ class PerformanceMonitor {
     this.metrics.clear();
     this.activeOperations.clear();
   }
+
+  /**
+   * Reset the performance monitor to initial state
+   */
+  reset() {
+    this.metrics.clear();
+    this.activeOperations.clear();
+    this.performanceHistory = [];
+  }
 }
 
 // Create singleton instance

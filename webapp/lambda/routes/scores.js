@@ -528,24 +528,27 @@ router.get("/sectors/analysis", async (req, res) => {
       lastUpdated: row.last_updated,
     }));
 
+    // Handle empty sectors data safely
+    const summary = {
+      totalSectors: sectors.length,
+      bestPerforming: sectors.length > 0 ? sectors[0] : null,
+      mostVolatile: sectors.length > 0 ? sectors.reduce((prev, current) =>
+        parseFloat(prev.scoreRange.volatility) >
+        parseFloat(current.scoreRange.volatility)
+          ? prev
+          : current
+      ) : null,
+      averageComposite: sectors.length > 0 ? (
+        sectors.reduce(
+          (sum, s) => sum + parseFloat(s.averageScores.composite),
+          0
+        ) / sectors.length
+      ).toFixed(2) : "0.00",
+    };
+
     res.json({
       sectors,
-      summary: {
-        totalSectors: sectors.length,
-        bestPerforming: sectors[0],
-        mostVolatile: sectors.reduce((prev, current) =>
-          parseFloat(prev.scoreRange.volatility) >
-          parseFloat(current.scoreRange.volatility)
-            ? prev
-            : current
-        ),
-        averageComposite: (
-          sectors.reduce(
-            (sum, s) => sum + parseFloat(s.averageScores.composite),
-            0
-          ) / sectors.length
-        ).toFixed(2),
-      },
+      summary,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

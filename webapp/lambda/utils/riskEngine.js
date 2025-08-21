@@ -173,19 +173,15 @@ class RiskEngine {
     lookbackDays = 252
   ) {
     try {
-      // Simplified VaR calculation
+      // Simplified VaR calculation - using snake_case to match API contract
       const mockVaR = {
-        portfolioId,
-        method,
-        confidenceLevel,
-        timeHorizon,
-        lookbackDays,
-        var_95: 0.05,
-        var_99: 0.08,
-        expectedShortfall: 0.12,
-        portfolioValue: 100000,
-        potentialLoss: 5000,
-        timestamp: new Date().toISOString(),
+        historical_var: 0.025,
+        parametric_var: 0.023,
+        monte_carlo_var: 0.027,
+        expected_shortfall: 0.035,
+        confidence_level: confidenceLevel,
+        time_horizon: timeHorizon,
+        lookback_days: lookbackDays,
       };
 
       return mockVaR;

@@ -13,25 +13,36 @@ jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn(),
 }));
 
+// Mock RiskEngine with factory pattern
+jest.mock("../../../utils/riskEngine", () => {
+  const mockMethods = {
+    calculateVaR: jest.fn(),
+    performStressTest: jest.fn(),
+    calculateCorrelationMatrix: jest.fn(),
+    calculatePortfolioRisk: jest.fn(),
+    startRealTimeMonitoring: jest.fn(),
+    stopRealTimeMonitoring: jest.fn(),
+    getMonitoringStatus: jest.fn(),
+  };
+  
+  return jest.fn().mockImplementation(() => mockMethods);
+});
+
 const { query } = require("../../../utils/database");
-const _RiskEngine = require("../../../utils/riskEngine");
+const RiskEngine = require("../../../utils/riskEngine");
 const { authenticateToken } = require("../../../middleware/auth");
 
 describe("Risk Routes", () => {
   let app;
-  let mockRiskEngine;
+  let mockRiskEngineInstance;
 
   beforeEach(() => {
     app = express();
     app.use(express.json());
     app.use("/risk", riskRouter);
 
-    // Initialize mockRiskEngine
-    mockRiskEngine = {
-      calculateVaR: jest.fn(),
-      performStressTest: jest.fn(),
-      calculateCorrelationMatrix: jest.fn(),
-    };
+    // Get mock instance - create new RiskEngine and it returns our mock
+    mockRiskEngineInstance = new RiskEngine();
 
     // Mock authentication middleware
     authenticateToken.mockImplementation((req, res, next) => {
@@ -99,7 +110,17 @@ describe("Risk Routes", () => {
     };
 
     test("should return portfolio risk metrics", async () => {
+      const mockRiskMetrics = {
+        overallRisk: "moderate",
+        riskScore: 0.65,
+        concentrationRisk: 0.15,
+        volatilityRisk: 0.25,
+        correlationRisk: 0.35,
+        recommendations: ["Consider diversification"]
+      };
+
       query.mockResolvedValue(mockPortfolioData);
+      mockRiskEngineInstance.calculatePortfolioRisk.mockResolvedValue(mockRiskMetrics);
 
       const response = await request(app)
         .get("/risk/portfolio/portfolio-123")
@@ -114,7 +135,17 @@ describe("Risk Routes", () => {
     });
 
     test("should handle custom parameters", async () => {
+      const mockRiskMetrics = {
+        overallRisk: "high",
+        riskScore: 0.85,
+        concentrationRisk: 0.25,
+        volatilityRisk: 0.35,
+        correlationRisk: 0.45,
+        recommendations: ["Reduce concentration risk"]
+      };
+
       query.mockResolvedValue(mockPortfolioData);
+      mockRiskEngineInstance.calculatePortfolioRisk.mockResolvedValue(mockRiskMetrics);
 
       const response = await request(app)
         .get("/risk/portfolio/portfolio-123?timeframe=6M&confidence_level=0.99")
@@ -164,7 +195,7 @@ describe("Risk Routes", () => {
 
     test("should return VaR analysis", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateVaR.mockResolvedValue(mockVarAnalysis);
+      mockRiskEngineInstance.calculateVaR.mockResolvedValue(mockVarAnalysis);
 
       const response = await request(app)
         .get("/risk/var/portfolio-123")
@@ -172,7 +203,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockVarAnalysis);
-      expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateVaR).toHaveBeenCalledWith(
         "portfolio-123",
         "historical",
         0.95,
@@ -183,7 +214,7 @@ describe("Risk Routes", () => {
 
     test("should handle custom VaR parameters", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateVaR.mockResolvedValue(mockVarAnalysis);
+      mockRiskEngineInstance.calculateVaR.mockResolvedValue(mockVarAnalysis);
 
       await request(app)
         .get(
@@ -191,7 +222,7 @@ describe("Risk Routes", () => {
         )
         .expect(200);
 
-      expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateVaR).toHaveBeenCalledWith(
         "portfolio-123",
         "monte_carlo",
         0.99,
@@ -218,23 +249,25 @@ describe("Risk Routes", () => {
     };
 
     const mockStressTestResults = {
+      portfolioId: "portfolio-123",
+      shockMagnitude: 0.2,
+      correlationAdjustment: true,
       scenarios: [
         {
-          name: "Market Crash",
-          portfolio_impact: -0.25,
-          individual_impacts: [
-            { symbol: "AAPL", impact: -0.3 },
-            { symbol: "MSFT", impact: -0.2 },
-          ],
+          scenario: "Market Shock",
+          impact: -19540.20143530528,
+          duration: "9 days",
+          recovery: "83 days",
+          probability: 0.08384342245266004,
         },
       ],
-      worst_case_scenario: -0.35,
-      best_case_scenario: -0.1,
+      overallImpact: -19540.20143530528,
+      timestamp: "2025-08-21T19:09:23.522Z",
     };
 
     test("should perform stress test", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.performStressTest.mockResolvedValue(mockStressTestResults);
+      mockRiskEngineInstance.performStressTest.mockResolvedValue(mockStressTestResults);
 
       const requestBody = {
         scenarios: ["market_crash", "interest_rate_spike"],
@@ -249,7 +282,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStressTestResults);
-      expect(mockRiskEngine.performStressTest).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.performStressTest).toHaveBeenCalledWith(
         "portfolio-123",
         ["market_crash", "interest_rate_spike"],
         0.2,
@@ -259,14 +292,14 @@ describe("Risk Routes", () => {
 
     test("should handle default parameters", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.performStressTest.mockResolvedValue(mockStressTestResults);
+      mockRiskEngineInstance.performStressTest.mockResolvedValue(mockStressTestResults);
 
       await request(app)
         .post("/risk/stress-test/portfolio-123")
         .send({})
         .expect(200);
 
-      expect(mockRiskEngine.performStressTest).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.performStressTest).toHaveBeenCalledWith(
         "portfolio-123",
         [],
         0.1,
@@ -399,19 +432,20 @@ describe("Risk Routes", () => {
     };
 
     const mockCorrelationMatrix = {
-      symbols: ["AAPL", "MSFT", "GOOGL"],
-      correlation_matrix: [
-        [1.0, 0.65, 0.58],
-        [0.65, 1.0, 0.72],
-        [0.58, 0.72, 1.0],
-      ],
-      eigenvalues: [2.1, 0.6, 0.3],
-      portfolio_diversification: 0.75,
+      portfolioId: "portfolio-123",
+      lookbackDays: 252,
+      correlationMatrix: {
+        AAPL: { AAPL: 1.0, MSFT: 0.65, GOOGL: 0.58 },
+        MSFT: { AAPL: 0.65, MSFT: 1.0, GOOGL: 0.72 },
+        GOOGL: { AAPL: 0.58, MSFT: 0.72, GOOGL: 1.0 },
+      },
+      assets: ["AAPL", "MSFT", "GOOGL"],
+      timestamp: "2025-08-21T19:09:23.522Z",
     };
 
     test("should return correlation matrix", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateCorrelationMatrix.mockResolvedValue(
+      mockRiskEngineInstance.calculateCorrelationMatrix.mockResolvedValue(
         mockCorrelationMatrix
       );
 
@@ -421,7 +455,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockCorrelationMatrix);
-      expect(mockRiskEngine.calculateCorrelationMatrix).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateCorrelationMatrix).toHaveBeenCalledWith(
         "portfolio-123",
         252
       );
@@ -429,7 +463,7 @@ describe("Risk Routes", () => {
 
     test("should handle custom lookback days", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateCorrelationMatrix.mockResolvedValue(
+      mockRiskEngineInstance.calculateCorrelationMatrix.mockResolvedValue(
         mockCorrelationMatrix
       );
 
@@ -437,7 +471,7 @@ describe("Risk Routes", () => {
         .get("/risk/correlation/portfolio-123?lookback_days=500")
         .expect(200);
 
-      expect(mockRiskEngine.calculateCorrelationMatrix).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateCorrelationMatrix).toHaveBeenCalledWith(
         "portfolio-123",
         500
       );
@@ -478,7 +512,7 @@ describe("Risk Routes", () => {
 
     test("should return risk attribution analysis", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateRiskAttribution.mockResolvedValue(
+      mockRiskEngineInstance.calculateRiskAttribution.mockResolvedValue(
         mockAttribution
       );
 
@@ -488,7 +522,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockAttribution);
-      expect(mockRiskEngine.calculateRiskAttribution).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateRiskAttribution).toHaveBeenCalledWith(
         "portfolio-123",
         "factor"
       );
@@ -496,7 +530,7 @@ describe("Risk Routes", () => {
 
     test("should handle custom attribution type", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateRiskAttribution.mockResolvedValue(
+      mockRiskEngineInstance.calculateRiskAttribution.mockResolvedValue(
         mockAttribution
       );
 
@@ -504,7 +538,7 @@ describe("Risk Routes", () => {
         .get("/risk/attribution/portfolio-123?attribution_type=security")
         .expect(200);
 
-      expect(mockRiskEngine.calculateRiskAttribution).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateRiskAttribution).toHaveBeenCalledWith(
         "portfolio-123",
         "security"
       );
@@ -726,7 +760,7 @@ describe("Risk Routes", () => {
     test("should start risk monitoring", async () => {
       const portfolioIds = ["portfolio-1", "portfolio-2"];
       query.mockResolvedValue({ rows: portfolioIds.map((id) => ({ id })) });
-      mockRiskEngine.startRealTimeMonitoring.mockResolvedValue(
+      mockRiskEngineInstance.startRealTimeMonitoring.mockResolvedValue(
         mockMonitoringResult
       );
 
@@ -740,7 +774,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockMonitoringResult);
-      expect(mockRiskEngine.startRealTimeMonitoring).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.startRealTimeMonitoring).toHaveBeenCalledWith(
         "test-user-123",
         portfolioIds,
         300000
@@ -748,13 +782,13 @@ describe("Risk Routes", () => {
     });
 
     test("should handle default parameters", async () => {
-      mockRiskEngine.startRealTimeMonitoring.mockResolvedValue(
+      mockRiskEngineInstance.startRealTimeMonitoring.mockResolvedValue(
         mockMonitoringResult
       );
 
       await request(app).post("/risk/monitoring/start").send({}).expect(200);
 
-      expect(mockRiskEngine.startRealTimeMonitoring).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.startRealTimeMonitoring).toHaveBeenCalledWith(
         "test-user-123",
         [],
         300000
@@ -783,7 +817,7 @@ describe("Risk Routes", () => {
     };
 
     test("should stop risk monitoring", async () => {
-      mockRiskEngine.stopRealTimeMonitoring.mockResolvedValue(mockStopResult);
+      mockRiskEngineInstance.stopRealTimeMonitoring.mockResolvedValue(mockStopResult);
 
       const response = await request(app)
         .post("/risk/monitoring/stop")
@@ -791,7 +825,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStopResult);
-      expect(mockRiskEngine.stopRealTimeMonitoring).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.stopRealTimeMonitoring).toHaveBeenCalledWith(
         "test-user-123"
       );
     });
@@ -807,7 +841,7 @@ describe("Risk Routes", () => {
     };
 
     test("should return monitoring status", async () => {
-      mockRiskEngine.getMonitoringStatus.mockResolvedValue(mockStatusResult);
+      mockRiskEngineInstance.getMonitoringStatus.mockResolvedValue(mockStatusResult);
 
       const response = await request(app)
         .get("/risk/monitoring/status")
@@ -815,7 +849,7 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStatusResult);
-      expect(mockRiskEngine.getMonitoringStatus).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.getMonitoringStatus).toHaveBeenCalledWith(
         "test-user-123"
       );
     });
@@ -824,7 +858,7 @@ describe("Risk Routes", () => {
   describe("Error handling", () => {
     test("should handle RiskEngine calculation errors", async () => {
       query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
-      mockRiskEngine.calculatePortfolioRisk.mockRejectedValue(
+      mockRiskEngineInstance.calculatePortfolioRisk.mockRejectedValue(
         new Error("Risk calculation failed")
       );
 
@@ -838,7 +872,7 @@ describe("Risk Routes", () => {
     });
 
     test("should handle monitoring service errors", async () => {
-      mockRiskEngine.startRealTimeMonitoring.mockRejectedValue(
+      mockRiskEngineInstance.startRealTimeMonitoring.mockRejectedValue(
         new Error("Monitoring service unavailable")
       );
 
@@ -879,14 +913,14 @@ describe("Risk Routes", () => {
   describe("Parameter validation", () => {
     test("should handle invalid confidence levels", async () => {
       query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
-      mockRiskEngine.calculateVaR.mockResolvedValue({});
+      mockRiskEngineInstance.calculateVaR.mockResolvedValue({});
 
       await request(app)
         .get("/risk/var/portfolio-123?confidence_level=invalid")
         .expect(200);
 
       // Should use NaN which becomes 0.95 default in calculation
-      expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateVaR).toHaveBeenCalledWith(
         "portfolio-123",
         "historical",
         expect.any(Number),
@@ -897,13 +931,13 @@ describe("Risk Routes", () => {
 
     test("should handle invalid time horizons", async () => {
       query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
-      mockRiskEngine.calculateVaR.mockResolvedValue({});
+      mockRiskEngineInstance.calculateVaR.mockResolvedValue({});
 
       await request(app)
         .get("/risk/var/portfolio-123?time_horizon=invalid")
         .expect(200);
 
-      expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
+      expect(mockRiskEngineInstance.calculateVaR).toHaveBeenCalledWith(
         "portfolio-123",
         "historical",
         0.95,

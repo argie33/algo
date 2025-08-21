@@ -36,6 +36,32 @@ export const createApiMock = () => ({
   getApiConfig: vi.fn(() => mockApiConfig),
   api: mockApiService,
   default: mockApiService,
+  
+  // Portfolio functions
+  getPortfolioData: vi.fn(() => Promise.resolve({ data: { holdings: [] } })),
+  getPortfolioAnalytics: vi.fn(() => Promise.resolve({ data: {} })),
+  
+  // API Key functions
+  getApiKeys: vi.fn(() => Promise.resolve({ data: [] })),
+  addApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  updateApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  deleteApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  
+  // Market data functions
+  getMarketOverview: vi.fn(() => Promise.resolve({ data: {} })),
+  getStocks: vi.fn(() => Promise.resolve({ data: [] })),
+  getHealth: vi.fn(() => Promise.resolve({ status: 'ok' })),
+  
+  // Dashboard functions
+  getDashboardSummary: vi.fn(() => Promise.resolve({ data: {} })),
+  getDashboardPortfolio: vi.fn(() => Promise.resolve({ data: {} })),
+  
+  // Technical data
+  getTechnicalData: vi.fn(() => Promise.resolve({ data: [] })),
+  getTechnicalHistory: vi.fn(() => Promise.resolve({ data: [] })),
+  
+  // Risk analysis
+  getRiskAnalysis: vi.fn(() => Promise.resolve({ data: {} })),
 })
 
 // Helper to reset all mocks

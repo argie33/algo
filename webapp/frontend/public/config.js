@@ -5,7 +5,7 @@ window.__CONFIG__ = {
   "USER_POOL_ID": "us-east-1_YxvwJo24T",
   "USER_POOL_CLIENT_ID": "1rn05nvf53cvmc0dsvbbkl3ng1",
   "USER_POOL_DOMAIN": "https://stocks-webapp-dev-626216981288.auth.us-east-1.amazoncognito.com",
-  "BUILD_TIME": "2025-08-21T18:51:00.000Z",
-  "VERSION": "1.0.0",
+  "BUILD_TIME": "2025-08-21T19:26:00.000Z",
+  "VERSION": "1.0.1",
   "ENVIRONMENT": "production"
 };

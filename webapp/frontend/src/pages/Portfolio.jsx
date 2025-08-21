@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -215,6 +215,56 @@ const Portfolio = () => {
     factorConstraints: true,
   });
 
+  // Load portfolio data function - using useCallback to fix hoisting issue
+  const loadUserPortfolio = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch real portfolio data from production API
+      const response = await fetch(
+        `${API_BASE}/api/portfolio/analytics?timeframe=${timeframe}`,
+        {
+          headers: {
+            Authorization: `Bearer ${tokens?.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Portfolio API failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const portfolioResponse = await response.json();
+
+      if (!portfolioResponse.data || !portfolioResponse.data.holdings) {
+        throw new Error("Invalid portfolio data structure received from API");
+      }
+
+      // Use real portfolio data from database
+      setPortfolioData({
+        ...portfolioResponse.data,
+        userId: user?.userId,
+        username: user?.username,
+        lastUpdated: new Date().toISOString(),
+        preferences: {
+          displayCurrency: "USD",
+          timeZone: "America/New_York",
+          riskTolerance: "moderate",
+          investmentStyle: "growth",
+        },
+      });
+    } catch (error) {
+      console.error("Error loading portfolio:", error);
+      setError("Failed to load portfolio data");
+    } finally {
+      setLoading(false);
+    }
+  }, [timeframe, tokens?.accessToken, user?.userId, user?.username]);
+
   // Authentication guard - disabled (portfolio available to all users)
   // useEffect(() => {
   //   // Skip authentication check in development mode
@@ -233,8 +283,7 @@ const Portfolio = () => {
       // Load demo data for non-authenticated users
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, loadUserPortfolio]);
 
   // Auto-refresh effect
   useEffect(() => {
@@ -334,56 +383,6 @@ const Portfolio = () => {
       }
     });
   }, [portfolioData.holdings, orderBy, order]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const loadUserPortfolio = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch real portfolio data from production API
-      const response = await fetch(
-        `${API_BASE}/api/portfolio/analytics?timeframe=${timeframe}`,
-        {
-          headers: {
-            Authorization: `Bearer ${tokens?.accessToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Portfolio API failed: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const portfolioResponse = await response.json();
-
-      if (!portfolioResponse.data || !portfolioResponse.data.holdings) {
-        throw new Error("Invalid portfolio data structure received from API");
-      }
-
-      // Use real portfolio data from database
-      setPortfolioData({
-        ...portfolioResponse.data,
-        userId: user?.userId,
-        username: user?.username,
-        lastUpdated: new Date().toISOString(),
-        preferences: {
-          displayCurrency: "USD",
-          timeZone: "America/New_York",
-          riskTolerance: "moderate",
-          investmentStyle: "growth",
-        },
-      });
-    } catch (error) {
-      console.error("Error loading portfolio:", error);
-      setError("Failed to load portfolio data");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
   // This function generates mock portfolio data and should be replaced with real API calls
