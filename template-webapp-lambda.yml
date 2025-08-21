@@ -147,7 +147,7 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
-        AllowOrigin: "'*'"
+        AllowOrigin: !Sub "'https://${CloudFrontDistribution.DomainName},http://localhost:5173,http://localhost:3000'"
         AllowCredentials: "'true'"
 
   # Main API Lambda function (handles all routes)
