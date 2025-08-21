@@ -2,8 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../utils/database');
-// const NewsAnalyzer = require('../utils/newsAnalyzer');
-// const SentimentEngine = require('../utils/sentimentEngine');
 
 // Mock implementations for deployment
 const NewsAnalyzer = { analyze: () => ({ score: 0.5, summary: 'Mock analysis' }) };
