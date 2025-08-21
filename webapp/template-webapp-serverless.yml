@@ -139,7 +139,7 @@ Resources:
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: financial-dashboard-api-dev
+      FunctionName: api-handler
       Runtime: nodejs18.x
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
