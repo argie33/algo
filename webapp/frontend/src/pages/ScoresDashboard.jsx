@@ -74,7 +74,6 @@ import {
   Lightbulb,
   School,
   WorkspacePremium,
-  Diamond,
   Refresh,
   Download,
   ExpandMore,

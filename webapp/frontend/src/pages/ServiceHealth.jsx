@@ -76,7 +76,7 @@ function ServiceHealth() {
   }, []);
 
   // Memoize other API config calls to prevent infinite re-renders
-  const apiConfig = useMemo(() => {
+  const _apiConfig = useMemo(() => {
     try {
       return getApiConfig();
     } catch (error) {
@@ -84,7 +84,7 @@ function ServiceHealth() {
       return {};
     }
   }, []);
-  const currentBaseURL = useMemo(() => {
+  const _currentBaseURL = useMemo(() => {
     try {
       return getCurrentBaseURL();
     } catch (error) {
@@ -271,10 +271,10 @@ function ServiceHealth() {
 
   // Service health query
   const {
-    data: _serviceHealthData,
-    isLoading: _isServiceLoading,
-    error: _serviceError,
-    refetch: refetchService,
+    data: healthData,
+    isLoading: healthLoading,
+    error: healthError,
+    refetch: refetchHealth,
   } = useQuery({
     queryKey: ["serviceHealth"],
     queryFn: async () => {
@@ -348,7 +348,7 @@ function ServiceHealth() {
   const _handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetchDb(), refetchService(), testAllEndpoints()]);
+      await Promise.all([refetchDb(), refetchHealth(), testAllEndpoints()]);
     } catch (error) {
       console.error("Failed to refresh service health:", error);
       // Don't throw - just log the error
@@ -371,67 +371,20 @@ function ServiceHealth() {
     }
   };
 
-  const _testEndpoints = [
-      { name: "Health Check", fn: () => healthCheck(), critical: true },
-      { name: "API Connection", fn: () => testApiConnection(), critical: true },
-      { name: "Stocks", fn: () => getStocks({ limit: 5 }), critical: true },
-      {
-        name: "Technical Data",
-        fn: () => getTechnicalData("daily", { limit: 5 }),
-        critical: true,
-      },
-      {
-        name: "Market Overview",
-        fn: () => getMarketOverview(),
-        critical: true,
-      },
-      {
-        name: "Stock Screener",
-        fn: () => screenStocks({ limit: 5 }),
-        critical: false,
-      },
-      { name: "Buy Signals", fn: () => getBuySignals(), critical: false },
-      { name: "Sell Signals", fn: () => getSellSignals(), critical: false },
-      {
-        name: "NAAIM Data",
-        fn: () => getNaaimData({ limit: 5 }),
-        critical: false,
-      },
-      {
-        name: "Fear & Greed",
-        fn: () => getFearGreedData({ limit: 5 }),
-        critical: false,
-      },
-    ];
-
-  // Health check query - simplified
-  const {
-    data: healthData,
-    isLoading: healthLoading,
-    error: healthError,
-    refetch: refetchHealth,
-  } = useQuery({
-    queryKey: ["serviceHealth"],
-    queryFn: async () => {
-      try {
-        const result = await healthCheck();
-        return result;
-      } catch (error) {
-        console.error("Health check failed:", error);
-        throw error;
-      }
-    },
-    refetchInterval: false,
-    retry: 1,
-    staleTime: 30000,
-    enabled: true, // Auto-run on mount
-  });
-
-  // Auto-run API tests on component mount
-  useEffect(() => {
-    // Run API tests automatically when component mounts
-    testAllEndpoints();
-  }, [testAllEndpoints]);
+  // Early return if component has error
+  if (componentError) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error">
+          <Typography variant="h6">Service Health Error</Typography>
+          <Typography variant="body2">{componentError}</Typography>
+          <Button onClick={() => window.location.reload()} sx={{ mt: 2 }}>
+            Reload Page
+          </Button>
+        </Alert>
+      </Container>
+    );
+  }
 
   // Refresh health status background job
   const refreshHealthStatus = async () => {
@@ -450,22 +403,6 @@ function ServiceHealth() {
       setRefreshing(false);
     }
   };
-
-  // Gather environment information
-  useEffect(() => {
-    const env = {
-      Frontend: {
-        ...apiConfig,
-        location: window.location.href,
-        userAgent: navigator.userAgent.substring(0, 100) + "...",
-        timestamp: new Date().toISOString(),
-        viteApiUrl: import.meta.env.VITE_API_URL,
-        currentBaseURL: currentBaseURL,
-        diagnosticInfo: diagnosticInfo,
-      },
-    };
-    setEnvironmentInfo(env);
-  }, [apiConfig, diagnosticInfo, currentBaseURL]);
 
   // Safe data extraction (all safe variables already defined above)
 
