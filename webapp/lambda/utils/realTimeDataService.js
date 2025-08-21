@@ -38,7 +38,9 @@ class RealTimeDataService {
     this.marketStatus = null;
     this.marketStatusUpdatedAt = 0;
 
-    console.log("🚀 Real-Time Data Service initialized");
+    if (process.env.NODE_ENV !== "test") {
+      console.log("🚀 Real-Time Data Service initialized");
+    }
   }
 
   /**

@@ -126,12 +126,15 @@ class LiveDataManager extends EventEmitter {
     };
 
     // Start monitoring and alert system only in non-test environments
-    if (process.env.NODE_ENV !== 'test' && !process.env.DISABLE_LIVE_DATA_MANAGER) {
+    if (
+      process.env.NODE_ENV !== "test" &&
+      !process.env.DISABLE_LIVE_DATA_MANAGER
+    ) {
       this.startMonitoring();
       this.initializeAlertSystem();
     }
 
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       console.log("🎛️ Live Data Manager initialized");
     }
   }

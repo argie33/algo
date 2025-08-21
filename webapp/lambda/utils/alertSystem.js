@@ -64,7 +64,7 @@ class AlertSystem extends EventEmitter {
     this.healthCheckInterval = null;
     this.metricsBuffer = new Map();
 
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       console.log("🚨 Alert System initialized");
     }
   }
@@ -74,7 +74,7 @@ class AlertSystem extends EventEmitter {
    */
   startMonitoring(liveDataManager) {
     // Don't start monitoring in test environment
-    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_ALERT_SYSTEM) {
+    if (process.env.NODE_ENV === "test" || process.env.DISABLE_ALERT_SYSTEM) {
       return;
     }
 

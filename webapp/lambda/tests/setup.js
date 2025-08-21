@@ -1,7 +1,7 @@
 // Jest setup file - runs before each test file
 
 // Set test environment
-process.env.NODE_ENV = 'test';
+process.env.NODE_ENV = "test";
 
 // Mock console methods to reduce noise
 const originalConsole = { ...console };

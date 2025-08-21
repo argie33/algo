@@ -828,27 +828,29 @@ router.get("/status", (req, res) => {
   );
 });
 
-// Cleanup expired cache entries periodically
-setInterval(() => {
-  const now = Date.now();
-  const expiredKeys = [];
+// Cleanup expired cache entries periodically (skip in test environment)
+if (process.env.NODE_ENV !== "test") {
+  setInterval(() => {
+    const now = Date.now();
+    const expiredKeys = [];
 
-  for (const [key, _data] of realtimeDataCache.entries()) {
-    const symbol = key.split(":")[1];
-    const lastUpdate = lastUpdateTime.get(symbol) || 0;
+    for (const [key, _data] of realtimeDataCache.entries()) {
+      const symbol = key.split(":")[1];
+      const lastUpdate = lastUpdateTime.get(symbol) || 0;
 
-    if (now - lastUpdate > CACHE_TTL * 2) {
-      // Double TTL for cleanup
-      expiredKeys.push(key);
-      lastUpdateTime.delete(symbol);
+      if (now - lastUpdate > CACHE_TTL * 2) {
+        // Double TTL for cleanup
+        expiredKeys.push(key);
+        lastUpdateTime.delete(symbol);
+      }
     }
-  }
 
-  expiredKeys.forEach((key) => realtimeDataCache.delete(key));
+    expiredKeys.forEach((key) => realtimeDataCache.delete(key));
 
-  if (expiredKeys.length > 0) {
-    console.log(`Cleaned up ${expiredKeys.length} expired cache entries`);
-  }
-}, CACHE_TTL);
+    if (expiredKeys.length > 0) {
+      console.log(`Cleaned up ${expiredKeys.length} expired cache entries`);
+    }
+  }, CACHE_TTL);
+}
 
 module.exports = router;

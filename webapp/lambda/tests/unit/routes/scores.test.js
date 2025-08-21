@@ -464,9 +464,16 @@ describe("Scores Routes", () => {
 
       const response = await request(app).get("/scores/AAPL").expect(200);
 
-      expect(response.body.sectorComparison.relativeTo.composite).toBeCloseTo(10.0);
-      expect(response.body.sectorComparison.relativeTo.quality).toBeCloseTo(8.0);
-      expect(response.body.sectorComparison.relativeTo.value).toBeCloseTo(-4.8, 1);
+      expect(response.body.sectorComparison.relativeTo.composite).toBeCloseTo(
+        10.0
+      );
+      expect(response.body.sectorComparison.relativeTo.quality).toBeCloseTo(
+        8.0
+      );
+      expect(response.body.sectorComparison.relativeTo.value).toBeCloseTo(
+        -4.8,
+        1
+      );
 
       consoleSpy.mockRestore();
     });

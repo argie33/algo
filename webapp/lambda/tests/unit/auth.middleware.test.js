@@ -64,7 +64,7 @@ describe("Auth Middleware", () => {
         username: "testuser",
         email: "test@example.com",
         "custom:role": "admin",
-        "cognito:groups": ["users"]
+        "cognito:groups": ["users"],
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
@@ -75,10 +75,10 @@ describe("Auth Middleware", () => {
       expect(mockVerifier.verify).toHaveBeenCalledWith("valid-jwt-token");
       expect(req.user).toEqual({
         sub: "user-123",
-        username: "testuser", 
+        username: "testuser",
         email: "test@example.com",
         role: "admin",
-        groups: ["users"]
+        groups: ["users"],
       });
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe("Auth Middleware", () => {
         sub: "dev-user",
         email: "dev@example.com",
         username: "dev-user",
-        role: "admin"
+        role: "admin",
       });
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
@@ -176,7 +176,7 @@ describe("Auth Middleware", () => {
         sub: "no-auth-user",
         email: "no-auth@example.com",
         username: "no-auth-user",
-        role: "user"
+        role: "user",
       });
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe("Auth Middleware", () => {
         sub: "user-456",
         username: "testuser",
         email: "test@example.com",
-        "custom:role": "moderator"
+        "custom:role": "moderator",
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
@@ -203,7 +203,7 @@ describe("Auth Middleware", () => {
       const mockPayload = {
         sub: "user-789",
         username: "basicuser",
-        email: "basic@example.com"
+        email: "basic@example.com",
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
@@ -269,7 +269,7 @@ describe("Auth Middleware", () => {
       const mockPayload = {
         sub: "user-123",
         username: "testuser",
-        email: "test@example.com"
+        email: "test@example.com",
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
@@ -282,7 +282,7 @@ describe("Auth Middleware", () => {
         username: "testuser",
         email: "test@example.com",
         role: "user",
-        groups: []
+        groups: [],
       });
       expect(next).toHaveBeenCalledWith();
     });
@@ -320,7 +320,7 @@ describe("Auth Middleware", () => {
         email: "no-auth@example.com",
         username: "no-auth-user",
         role: "user",
-        groups: []
+        groups: [],
       });
       expect(next).toHaveBeenCalledWith();
     });

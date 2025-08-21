@@ -369,7 +369,7 @@ describe("Database Utility Unit Tests", () => {
 
     test("should throw error when database unavailable during query", async () => {
       // No database configuration provided - this will cause getDbConfig to return null
-      
+
       await expect(database.query("SELECT 1")).rejects.toThrow(
         "Database not available - running in fallback mode"
       );
@@ -566,7 +566,7 @@ describe("Database Utility Unit Tests", () => {
       process.env.WEBAPP_AWS_REGION = "us-west-2";
       process.env.DB_SECRET_ARN =
         "arn:aws:secretsmanager:us-west-2:123456789:secret:test";
-      
+
       mockSecretsManager.send.mockRejectedValue(new Error("Region error"));
 
       await database.initializeDatabase();
