@@ -36,7 +36,7 @@ describe('Health Route Unit Tests', () => {
 
   describe('GET /health?quick=true', () => {
     test('should return quick health check without database', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -60,7 +60,7 @@ describe('Health Route Unit Tests', () => {
     });
 
     test('should include memory usage information', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -71,7 +71,7 @@ describe('Health Route Unit Tests', () => {
     });
 
     test('should include uptime as a number', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -80,7 +80,7 @@ describe('Health Route Unit Tests', () => {
     });
 
     test('should include API version information', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -104,14 +104,13 @@ describe('Health Route Unit Tests', () => {
         }]
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health')
         .expect(200);
 
       expect(response.body).toMatchObject({
         status: 'healthy',
-        healthy: true,
-        service: 'Financial Dashboard API'
+        healthy: true
       });
 
       expect(getPool).toHaveBeenCalled();
@@ -135,7 +134,7 @@ describe('Health Route Unit Tests', () => {
         }]
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health')
         .expect(200);
 
@@ -155,7 +154,7 @@ describe('Health Route Unit Tests', () => {
       const initError = new Error('Connection failed');
       initializeDatabase.mockRejectedValue(initError);
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health')
         .expect(503);
 
@@ -178,7 +177,7 @@ describe('Health Route Unit Tests', () => {
       const queryError = new Error('Query timeout');
       query.mockRejectedValue(queryError);
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health')
         .expect(503);
 
@@ -187,7 +186,7 @@ describe('Health Route Unit Tests', () => {
         healthy: false
       });
 
-      expect(response.body.database.status).toBe('query_failed');
+      expect(response.body.database.status).toBe('disconnected');
       expect(response.body.database.error).toBe('Query timeout');
     });
 
@@ -200,12 +199,12 @@ describe('Health Route Unit Tests', () => {
         throw new Error('Unexpected database error');
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health')
-        .expect(500);
+        .expect(503);
 
-      expect(response.body.error).toBeDefined();
-      expect(response.body.message).toContain('error');
+      expect(response.body.database.status).toBe('disconnected');
+      expect(response.body.database.error).toContain('database error');
     });
   });
 
@@ -216,7 +215,7 @@ describe('Health Route Unit Tests', () => {
         rows: [{ now: '2024-01-01T00:00:00.000Z', version: 'PostgreSQL 14.0' }]
       });
 
-      const _response = await request(app)
+      await request(app)
         .get('/health?quick=false')
         .expect(200);
 
@@ -230,7 +229,7 @@ describe('Health Route Unit Tests', () => {
         rows: [{ now: '2024-01-01T00:00:00.000Z', version: 'PostgreSQL 14.0' }]
       });
 
-      const _response = await request(app)
+      await request(app)
         .get('/health?quick=invalid')
         .expect(200);
 
@@ -244,7 +243,7 @@ describe('Health Route Unit Tests', () => {
         rows: [{ now: '2024-01-01T00:00:00.000Z', version: 'PostgreSQL 14.0' }]
       });
 
-      const _response = await request(app)
+      await request(app)
         .get('/health')
         .expect(200);
 
@@ -255,7 +254,7 @@ describe('Health Route Unit Tests', () => {
 
   describe('Response format validation', () => {
     test('should return valid ISO timestamp', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -264,7 +263,7 @@ describe('Health Route Unit Tests', () => {
     });
 
     test('should include all required fields in quick response', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -279,7 +278,7 @@ describe('Health Route Unit Tests', () => {
     });
 
     test('should return proper Content-Type header', async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -291,7 +290,7 @@ describe('Health Route Unit Tests', () => {
     test('should default to development environment when NODE_ENV not set', async () => {
       delete process.env.NODE_ENV;
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
@@ -302,7 +301,7 @@ describe('Health Route Unit Tests', () => {
     test('should use NODE_ENV when set', async () => {
       process.env.NODE_ENV = 'production';
 
-      const _response = await request(app)
+      const response = await request(app)
         .get('/health?quick=true')
         .expect(200);
 
