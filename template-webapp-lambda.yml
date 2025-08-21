@@ -101,7 +101,7 @@ Resources:
       BucketName: !Sub 'stocks-webapp-frontend-${EnvironmentName}-${AWS::AccountId}'
       WebsiteConfiguration:
         IndexDocument: index.html
-        ErrorDocument: error.html
+        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
