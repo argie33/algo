@@ -1017,22 +1017,22 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
     const totalTrades = liveMetrics
       ? liveMetrics.totalTrades
       : parseInt(metrics.total_trades || 0);
-    const winningTrades = liveMetrics
+    const finalWinningTrades = liveMetrics
       ? liveMetrics.winningTrades
       : parseInt(metrics.winning_trades || 0);
-    const losingTrades = liveMetrics
+    const finalLosingTrades = liveMetrics
       ? liveMetrics.losingTrades
       : parseInt(metrics.losing_trades || 0);
-    const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-    const totalPnL = liveMetrics
+    const winRate = totalTrades > 0 ? (finalWinningTrades / totalTrades) * 100 : 0;
+    const finalTotalPnL = liveMetrics
       ? liveMetrics.totalPnL
       : parseFloat(metrics.total_pnl || 0);
     const profitFactor =
-      losingTrades > 0 && totalPnL < 0
-        ? Math.abs(winningTrades * (totalPnL / totalTrades)) /
-          Math.abs(losingTrades * (totalPnL / totalTrades))
-        : totalPnL > 0
-          ? Math.abs(totalPnL / Math.max(losingTrades, 1))
+      finalLosingTrades > 0 && finalTotalPnL < 0
+        ? Math.abs(finalWinningTrades * (finalTotalPnL / totalTrades)) /
+          Math.abs(finalLosingTrades * (finalTotalPnL / totalTrades))
+        : finalTotalPnL > 0
+          ? Math.abs(finalTotalPnL / Math.max(finalLosingTrades, 1))
           : null;
 
     const responseData = {
@@ -1040,13 +1040,13 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
       data: {
         overview: {
           totalTrades: totalTrades,
-          winningTrades: winningTrades,
-          losingTrades: losingTrades,
+          winningTrades: finalWinningTrades,
+          losingTrades: finalLosingTrades,
           winRate: parseFloat(winRate.toFixed(2)),
-          totalPnl: parseFloat(totalPnL.toFixed(2)),
+          totalPnl: parseFloat(finalTotalPnL.toFixed(2)),
           avgPnl:
             totalTrades > 0
-              ? parseFloat((totalPnL / totalTrades).toFixed(2))
+              ? parseFloat((finalTotalPnL / totalTrades).toFixed(2))
               : 0,
           avgRoi: parseFloat(metrics.avg_roi || 0),
           bestTrade: parseFloat(metrics.best_trade || 0),
@@ -1070,7 +1070,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
     };
 
     console.log(
-      `✅ Analytics complete - ${totalTrades} trades, ${winRate.toFixed(1)}% win rate, $${totalPnL.toFixed(2)} P&L`
+      `✅ Analytics complete - ${totalTrades} trades, ${winRate.toFixed(1)}% win rate, $${finalTotalPnL.toFixed(2)} P&L`
     );
     res.json(responseData);
   } catch (error) {

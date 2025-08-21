@@ -124,7 +124,7 @@ class BacktestEngine {
     }
     const revenue = quantity * price * (1 - this.config.commission - this.config.slippage);
     this.cash += revenue;
-    let realizedPnL = (price - position.avgPrice) * quantity - (quantity * price * (this.config.commission + this.config.slippage));
+    const realizedPnL = (price - position.avgPrice) * quantity - (quantity * price * (this.config.commission + this.config.slippage));
     if (position.quantity === quantity) {
       this.positions.delete(symbol);
     } else {

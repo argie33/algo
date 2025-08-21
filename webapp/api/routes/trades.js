@@ -231,7 +231,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
     // Database queries will use the query function directly
     
     let statusFilter = '';
-    let params = [userId, parseInt(limit), parseInt(offset)];
+    const params = [userId, parseInt(limit), parseInt(offset)];
     
     if (status !== 'all') {
       statusFilter = 'AND ph.status = $4';
@@ -986,7 +986,7 @@ router.get('/export', authenticateToken, async (req, res) => {
     // Database queries will use the query function directly
     
     let whereClause = 'WHERE te.user_id = $1';
-    let params = [userId];
+    const params = [userId];
     let paramCount = 1;
     
     if (startDate) {

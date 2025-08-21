@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
   
   try {
     let whereClause = 'WHERE user_id = $1';
-    let params = [userId];
+    const params = [userId];
     let paramCount = 1;
     
     if (status && status !== 'all') {
@@ -655,7 +655,7 @@ router.get('/updates', async (req, res) => {
   
   try {
     let whereClause = 'WHERE user_id = $1';
-    let params = [userId];
+    const params = [userId];
     
     if (since) {
       whereClause += ' AND updated_at > $2';

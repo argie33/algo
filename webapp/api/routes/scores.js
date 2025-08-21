@@ -594,7 +594,7 @@ function generateScoreInterpretation(scoreData) {
   const value = parseFloat(scoreData.value_score) || 0;
   const growth = parseFloat(scoreData.growth_score) || 0;
   
-  let interpretation = {
+  const interpretation = {
     overall: '',
     strengths: [],
     concerns: [],

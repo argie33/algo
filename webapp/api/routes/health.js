@@ -275,7 +275,7 @@ router.get('/database', async (req, res) => {
       }
     }
     // Query health_status table for summary
-    let summary = {
+    const summary = {
       total_tables: 0,
       healthy_tables: 0,
       stale_tables: 0,
@@ -285,7 +285,7 @@ router.get('/database', async (req, res) => {
       total_records: 0,
       total_missing_data: 0
     };
-    let tables = {};
+    const tables = {};
     try {
       const result = await query('SELECT * FROM health_status');
       summary.total_tables = result.rowCount;
@@ -497,7 +497,8 @@ router.get('/database/diagnostics', async (req, res) => {
   let overallStatus = 'healthy';
   try {
     // Connection step
-    let connectionTest, connectStart = Date.now();
+    let connectionTest;
+    const connectStart = Date.now();
     try {
       connectionTest = await query('SELECT NOW() as current_time, version() as postgres_version, current_database() as db_name');
       diagnostics.connection.durationMs = Date.now() - connectStart;
@@ -547,7 +548,8 @@ router.get('/database/diagnostics', async (req, res) => {
       diagnostics.errors.push({ step: 'schemas', error: _e.message });
     }
     // Table info and record counts
-    let tables = [], tableStart = Date.now();
+    let tables = [];
+    const tableStart = Date.now();
     try {
       const tablesResult = await query(`
         SELECT 
@@ -815,7 +817,7 @@ router.post('/update-status', async (req, res) => {
     // Perform comprehensive health check for all tables
     const startTime = Date.now();
     const healthResults = [];
-    let summary = {
+    const summary = {
       total_tables: 0,
       healthy_tables: 0,
       stale_tables: 0,

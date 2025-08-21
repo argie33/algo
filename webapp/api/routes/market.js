@@ -307,7 +307,7 @@ router.get('/overview', async (req, res) => {
     }
 
     // Get sentiment indicators
-    let sentimentIndicators = {};
+    const sentimentIndicators = {};
     
     // Get Fear & Greed Index
     try {

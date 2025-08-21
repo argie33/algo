@@ -876,8 +876,8 @@ router.get('/screen', async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
     // Build dynamic query based on screening criteria
-    let whereConditions = ['current_price IS NOT NULL', 'market_cap IS NOT NULL'];
-    let queryParams = [];
+    const whereConditions = ['current_price IS NOT NULL', 'market_cap IS NOT NULL'];
+    const queryParams = [];
     let paramIndex = 1;
     
     // Sector filter

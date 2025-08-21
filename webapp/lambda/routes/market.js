@@ -3,6 +3,66 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Fallback data constants
+const FALLBACK_SECTORS = [
+  {
+    sector: "Technology",
+    stock_count: 150,
+    avg_change: 2.5,
+    total_volume: 5000000000,
+    avg_market_cap: 50000000000,
+  },
+  {
+    sector: "Healthcare",
+    stock_count: 120,
+    avg_change: 1.8,
+    total_volume: 3200000000,
+    avg_market_cap: 35000000000,
+  },
+  {
+    sector: "Financial Services",
+    stock_count: 200,
+    avg_change: 2.1,
+    total_volume: 4500000000,
+    avg_market_cap: 45000000000,
+  },
+  {
+    sector: "Consumer Cyclical",
+    stock_count: 180,
+    avg_change: 1.5,
+    total_volume: 2800000000,
+    avg_market_cap: 28000000000,
+  },
+  {
+    sector: "Communication Services",
+    stock_count: 90,
+    avg_change: 3.2,
+    total_volume: 6200000000,
+    avg_market_cap: 75000000000,
+  },
+  {
+    sector: "Industrials",
+    stock_count: 160,
+    avg_change: 1.7,
+    total_volume: 2100000000,
+    avg_market_cap: 22000000000,
+  },
+  {
+    sector: "Consumer Defensive",
+    stock_count: 85,
+    avg_change: 0.8,
+    total_volume: 1500000000,
+    avg_market_cap: 32000000000,
+  },
+  {
+    sector: "Energy",
+    stock_count: 70,
+    avg_change: 4.5,
+    total_volume: 3800000000,
+    avg_market_cap: 18000000000,
+  },
+];
+
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
   const results = {};
@@ -833,47 +893,10 @@ router.get("/sectors/performance", async (req, res) => {
         "Market data table not found, returning fallback sector data"
       );
       // Return fallback sector data
-      const fallbackSectors = [
-        {
-          sector: "Technology",
-          stock_count: 150,
-          avg_change: 2.5,
-          total_volume: 5000000000,
-          avg_market_cap: 50000000000,
-        },
-        {
-          sector: "Healthcare",
-          stock_count: 120,
-          avg_change: 1.8,
-          total_volume: 3000000000,
-          avg_market_cap: 40000000000,
-        },
-        {
-          sector: "Financial",
-          stock_count: 100,
-          avg_change: 0.9,
-          total_volume: 2500000000,
-          avg_market_cap: 35000000000,
-        },
-        {
-          sector: "Consumer Discretionary",
-          stock_count: 80,
-          avg_change: 1.2,
-          total_volume: 2000000000,
-          avg_market_cap: 30000000000,
-        },
-        {
-          sector: "Industrial",
-          stock_count: 90,
-          avg_change: 0.7,
-          total_volume: 1800000000,
-          avg_market_cap: 25000000000,
-        },
-      ];
 
       return res.json({
-        data: fallbackSectors,
-        count: fallbackSectors.length,
+        data: FALLBACK_SECTORS,
+        count: FALLBACK_SECTORS.length,
         message: "Using fallback data - market_data table not available",
       });
     }
@@ -899,68 +922,10 @@ router.get("/sectors/performance", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.log("No sector data found in query, using realistic fallback");
-      const fallbackSectors = [
-        {
-          sector: "Technology",
-          stock_count: 150,
-          avg_change: 2.5,
-          total_volume: 5000000000,
-          avg_market_cap: 50000000000,
-        },
-        {
-          sector: "Healthcare",
-          stock_count: 120,
-          avg_change: 1.8,
-          total_volume: 3000000000,
-          avg_market_cap: 40000000000,
-        },
-        {
-          sector: "Financial Services",
-          stock_count: 100,
-          avg_change: 0.9,
-          total_volume: 2500000000,
-          avg_market_cap: 35000000000,
-        },
-        {
-          sector: "Consumer Discretionary",
-          stock_count: 80,
-          avg_change: 1.2,
-          total_volume: 2000000000,
-          avg_market_cap: 30000000000,
-        },
-        {
-          sector: "Industrials",
-          stock_count: 90,
-          avg_change: 0.7,
-          total_volume: 1800000000,
-          avg_market_cap: 25000000000,
-        },
-        {
-          sector: "Consumer Staples",
-          stock_count: 60,
-          avg_change: 0.4,
-          total_volume: 1200000000,
-          avg_market_cap: 35000000000,
-        },
-        {
-          sector: "Energy",
-          stock_count: 40,
-          avg_change: -0.5,
-          total_volume: 1500000000,
-          avg_market_cap: 20000000000,
-        },
-        {
-          sector: "Utilities",
-          stock_count: 30,
-          avg_change: 0.1,
-          total_volume: 800000000,
-          avg_market_cap: 25000000000,
-        },
-      ];
 
       return res.json({
-        data: fallbackSectors,
-        count: fallbackSectors.length,
+        data: FALLBACK_SECTORS,
+        count: FALLBACK_SECTORS.length,
         message:
           "Using realistic fallback sector data - no current market data",
       });
@@ -973,47 +938,10 @@ router.get("/sectors/performance", async (req, res) => {
   } catch (error) {
     console.error("Error fetching sector performance:", error);
     // Return fallback data on error
-    const fallbackSectors = [
-      {
-        sector: "Technology",
-        stock_count: 150,
-        avg_change: 2.5,
-        total_volume: 5000000000,
-        avg_market_cap: 50000000000,
-      },
-      {
-        sector: "Healthcare",
-        stock_count: 120,
-        avg_change: 1.8,
-        total_volume: 3000000000,
-        avg_market_cap: 40000000000,
-      },
-      {
-        sector: "Financial Services",
-        stock_count: 100,
-        avg_change: 0.9,
-        total_volume: 2500000000,
-        avg_market_cap: 35000000000,
-      },
-      {
-        sector: "Consumer Discretionary",
-        stock_count: 80,
-        avg_change: 1.2,
-        total_volume: 2000000000,
-        avg_market_cap: 30000000000,
-      },
-      {
-        sector: "Industrials",
-        stock_count: 90,
-        avg_change: 0.7,
-        total_volume: 1800000000,
-        avg_market_cap: 25000000000,
-      },
-    ];
 
     res.json({
-      data: fallbackSectors,
-      count: fallbackSectors.length,
+      data: FALLBACK_SECTORS,
+      count: FALLBACK_SECTORS.length,
       error: "Database error, using fallback data",
       details: error.message,
     });
@@ -1511,47 +1439,10 @@ router.get("/sectors", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.log("No sectors data found, using realistic fallback");
-      const fallbackSectors = [
-        {
-          sector: "Technology",
-          stock_count: 150,
-          avg_change: 2.5,
-          total_volume: 5000000000,
-          avg_market_cap: 50000000000,
-        },
-        {
-          sector: "Healthcare",
-          stock_count: 120,
-          avg_change: 1.8,
-          total_volume: 3000000000,
-          avg_market_cap: 40000000000,
-        },
-        {
-          sector: "Financial Services",
-          stock_count: 100,
-          avg_change: 0.9,
-          total_volume: 2500000000,
-          avg_market_cap: 35000000000,
-        },
-        {
-          sector: "Consumer Discretionary",
-          stock_count: 80,
-          avg_change: 1.2,
-          total_volume: 2000000000,
-          avg_market_cap: 30000000000,
-        },
-        {
-          sector: "Industrials",
-          stock_count: 90,
-          avg_change: 0.7,
-          total_volume: 1800000000,
-          avg_market_cap: 25000000000,
-        },
-      ];
 
       return res.json({
-        data: fallbackSectors,
-        count: fallbackSectors.length,
+        data: FALLBACK_SECTORS,
+        count: FALLBACK_SECTORS.length,
         message: "Using realistic fallback sectors data",
       });
     }

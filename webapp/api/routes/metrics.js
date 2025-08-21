@@ -615,7 +615,7 @@ function generateMetricInterpretation(metricData) {
   const value = parseFloat(metricData.value_metric) || 0;
   const composite = (quality * 0.6 + value * 0.4);
   
-  let interpretation = {
+  const interpretation = {
     overall: '',
     strengths: [],
     concerns: [],

@@ -1049,7 +1049,7 @@ async function getSentimentData(symbol) {
 
 function assessDataQuality(basicInfo, financialData, technicalData, sentimentData, momentumData, positioningData, realtimeSentimentData) {
   let qualityScore = 0;
-  let maxScore = 7;
+  const maxScore = 7;
   
   if (basicInfo) qualityScore += 1;
   if (financialData && Object.keys(financialData).length > 5) qualityScore += 1;

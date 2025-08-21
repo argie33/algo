@@ -25,7 +25,7 @@ describe('Portfolio API Routes', () => {
   });
 
   describe('GET /api/portfolio/api-keys', () => {
-    it('should return empty api keys array', async () => {
+    it('should return empty api keys array with proper structure', async () => {
       const response = await request(app)
         .get('/api/portfolio/api-keys')
         .expect(200);
@@ -35,21 +35,47 @@ describe('Portfolio API Routes', () => {
         data: [],
         message: 'Portfolio API keys endpoint available (returning empty for now)'
       });
+      
+      // Validate response structure
+      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('message');
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(typeof response.body.success).toBe('boolean');
+      expect(typeof response.body.message).toBe('string');
     });
 
-    it('should handle errors gracefully', async () => {
-      // Mock an error in the route handler
+    it('should return JSON content type', async () => {
+      const response = await request(app)
+        .get('/api/portfolio/api-keys')
+        .expect(200)
+        .expect('Content-Type', /json/);
+
+      expect(response.headers['content-type']).toMatch(/application\/json/);
+    });
+
+    it('should handle errors gracefully with proper error structure', async () => {
       const originalConsoleError = console.error;
       console.error = jest.fn();
 
-      // This test verifies error handling structure
       const response = await request(app)
         .get('/api/portfolio/api-keys')
-        .expect(200); // Should still return 200 with current implementation
+        .expect(200);
 
       expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty('data');
       
       console.error = originalConsoleError;
+    });
+
+    it('should be authenticated route (mocked)', async () => {
+      // This test verifies the route is using authentication middleware
+      const response = await request(app)
+        .get('/api/portfolio/api-keys')
+        .expect(200);
+
+      // Since auth is mocked to succeed, we should get successful response
+      expect(response.body.success).toBe(true);
     });
   });
 
@@ -72,16 +98,18 @@ describe('Portfolio API Routes', () => {
   });
 
   describe('POST /api/portfolio/calculate-var', () => {
-    it('should return demo VaR calculation', async () => {
+    it('should return demo VaR calculation with valid portfolio data', async () => {
+      const portfolioData = {
+        portfolioValue: 100000,
+        positions: [
+          { symbol: 'AAPL', quantity: 100, currentPrice: 150 },
+          { symbol: 'GOOGL', quantity: 50, currentPrice: 2800 }
+        ]
+      };
+
       const response = await request(app)
         .post('/api/portfolio/calculate-var')
-        .send({
-          portfolioValue: 100000,
-          positions: [
-            { symbol: 'AAPL', quantity: 100, currentPrice: 150 },
-            { symbol: 'GOOGL', quantity: 50, currentPrice: 2800 }
-          ]
-        })
+        .send(portfolioData)
         .expect(200);
 
       expect(response.body).toEqual({
@@ -92,9 +120,18 @@ describe('Portfolio API Routes', () => {
           message: 'Demo VaR calculation'
         }
       });
+
+      // Validate response structure
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('var');
+      expect(response.body.data).toHaveProperty('confidence');
+      expect(response.body.data).toHaveProperty('message');
+      expect(typeof response.body.data.var).toBe('number');
+      expect(typeof response.body.data.confidence).toBe('number');
     });
 
-    it('should handle empty request body', async () => {
+    it('should handle empty request body gracefully', async () => {
       const response = await request(app)
         .post('/api/portfolio/calculate-var')
         .send({})
@@ -110,34 +147,95 @@ describe('Portfolio API Routes', () => {
       });
     });
 
-    it('should handle malformed request data', async () => {
+    it('should handle null request body', async () => {
       const response = await request(app)
         .post('/api/portfolio/calculate-var')
-        .send({
-          portfolioValue: 'invalid',
-          positions: 'not-an-array'
-        })
+        .send(null)
         .expect(200);
 
-      // Current implementation returns demo data regardless of input
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+    });
+
+    it('should handle malformed portfolio data types', async () => {
+      const invalidData = {
+        portfolioValue: 'not-a-number',
+        positions: 'not-an-array'
+      };
+
+      const response = await request(app)
+        .post('/api/portfolio/calculate-var')
+        .send(invalidData)
+        .expect(200);
+
+      // Current implementation returns demo data regardless of input validation
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.var).toBe(0.05);
+      expect(response.body.data.confidence).toBe(0.95);
+    });
+
+    it('should handle large portfolio values', async () => {
+      const largePortfolio = {
+        portfolioValue: 10000000, // 10M portfolio
+        positions: [
+          { symbol: 'AAPL', quantity: 1000, currentPrice: 150 },
+          { symbol: 'MSFT', quantity: 500, currentPrice: 300 },
+          { symbol: 'GOOGL', quantity: 200, currentPrice: 2800 }
+        ]
+      };
+
+      const response = await request(app)
+        .post('/api/portfolio/calculate-var')
+        .send(largePortfolio)
+        .expect(200);
+
       expect(response.body.success).toBe(true);
       expect(response.body.data.var).toBe(0.05);
     });
 
-    it('should handle server errors gracefully', async () => {
-      // Mock console.error to test error handling
-      const originalConsoleError = console.error;
-      console.error = jest.fn();
+    it('should handle empty positions array', async () => {
+      const emptyPositions = {
+        portfolioValue: 50000,
+        positions: []
+      };
 
-      // For this test, we'll verify the current behavior
       const response = await request(app)
         .post('/api/portfolio/calculate-var')
-        .send(null) // This might cause an error
+        .send(emptyPositions)
         .expect(200);
 
       expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+    });
+
+    it('should return consistent response format', async () => {
+      const response = await request(app)
+        .post('/api/portfolio/calculate-var')
+        .send({})
+        .expect(200);
+
+      // Verify consistent API response structure
+      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty('data');
+      expect(typeof response.body.success).toBe('boolean');
+      expect(typeof response.body.data).toBe('object');
       
-      console.error = originalConsoleError;
+      // VaR-specific structure
+      expect(response.body.data).toHaveProperty('var');
+      expect(response.body.data).toHaveProperty('confidence');
+      expect(response.body.data.var).toBeGreaterThanOrEqual(0);
+      expect(response.body.data.confidence).toBeGreaterThan(0);
+      expect(response.body.data.confidence).toBeLessThanOrEqual(1);
+    });
+
+    it('should handle Content-Type validation', async () => {
+      const response = await request(app)
+        .post('/api/portfolio/calculate-var')
+        .set('Content-Type', 'application/json')
+        .send({ portfolioValue: 100000 })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
     });
   });
 

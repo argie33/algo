@@ -1,5 +1,5 @@
 const express = require("express");
-const crypto = require("crypto");
+const cryptoUtils = require("crypto");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 
@@ -15,9 +15,9 @@ function encryptApiKey(apiKey, userSalt) {
   const secretKey =
     process.env.API_KEY_ENCRYPTION_SECRET ||
     "default-encryption-key-change-in-production";
-  const key = crypto.scryptSync(secretKey, userSalt, 32);
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipherGCM(ALGORITHM, key, iv);
+  const key = cryptoUtils.scryptSync(secretKey, userSalt, 32);
+  const iv = cryptoUtils.randomBytes(16);
+  const cipher = cryptoUtils.createCipherGCM(ALGORITHM, key, iv);
   cipher.setAAD(Buffer.from(userSalt));
 
   let encrypted = cipher.update(apiKey, "utf8", "hex");
@@ -35,9 +35,9 @@ function decryptApiKey(encryptedData, userSalt) {
   const secretKey =
     process.env.API_KEY_ENCRYPTION_SECRET ||
     "default-encryption-key-change-in-production";
-  const key = crypto.scryptSync(secretKey, userSalt, 32);
+  const key = cryptoUtils.scryptSync(secretKey, userSalt, 32);
   const iv = Buffer.from(encryptedData.iv, "hex");
-  const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
+  const decipher = cryptoUtils.createDecipherGCM(ALGORITHM, key, iv);
   decipher.setAAD(Buffer.from(userSalt));
   decipher.setAuthTag(Buffer.from(encryptedData.authTag, "hex"));
 
@@ -114,7 +114,7 @@ router.post("/api-keys", async (req, res) => {
 
   try {
     // Generate user-specific salt
-    const userSalt = crypto.randomBytes(16).toString("hex");
+    const userSalt = cryptoUtils.randomBytes(16).toString("hex");
 
     // Encrypt API credentials
     const encryptedApiKey = encryptApiKey(apiKey, userSalt);

@@ -368,8 +368,8 @@ router.get('/search',
       });
       
       // Build dynamic query with filters
-      let whereConditions = ['s.is_active = TRUE'];
-      let queryParams = [];
+      const whereConditions = ['s.is_active = TRUE'];
+      const queryParams = [];
       let paramIndex = 1;
       
       // Add search term condition

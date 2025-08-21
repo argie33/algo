@@ -1633,7 +1633,7 @@ function generateRiskRecommendations(riskAnalysis) {
 // SECURE API KEY MANAGEMENT AND PORTFOLIO IMPORT
 // =======================
 
-const crypto = require("crypto");
+const cryptoUtils = require("crypto");
 
 // Encrypt API keys using AES-256-GCM
 function encryptApiKey(apiKey, userSalt) {
@@ -1641,10 +1641,10 @@ function encryptApiKey(apiKey, userSalt) {
   const secretKey =
     process.env.API_KEY_ENCRYPTION_SECRET ||
     "default-dev-secret-key-32-chars!!";
-  const key = crypto.scryptSync(secretKey, userSalt, 32);
-  const iv = crypto.randomBytes(16);
+  const key = cryptoUtils.scryptSync(secretKey, userSalt, 32);
+  const iv = cryptoUtils.randomBytes(16);
 
-  const cipher = crypto.createCipher(algorithm, key);
+  const cipher = cryptoUtils.createCipher(algorithm, key);
   cipher.setAAD(Buffer.from(userSalt));
 
   let encrypted = cipher.update(apiKey, "utf8", "hex");
@@ -1665,9 +1665,9 @@ function decryptApiKey(encryptedData, userSalt) {
   const secretKey =
     process.env.API_KEY_ENCRYPTION_SECRET ||
     "default-dev-secret-key-32-chars!!";
-  const key = crypto.scryptSync(secretKey, userSalt, 32);
+  const key = cryptoUtils.scryptSync(secretKey, userSalt, 32);
 
-  const decipher = crypto.createDecipher(algorithm, key);
+  const decipher = cryptoUtils.createDecipher(algorithm, key);
   decipher.setAAD(Buffer.from(userSalt));
   decipher.setAuthTag(Buffer.from(encryptedData.authTag, "hex"));
 
