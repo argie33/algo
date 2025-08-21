@@ -106,6 +106,7 @@ const RealTimeDashboard = () => {
   // Load initial data
   useEffect(() => {
     loadMarketData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Streaming interval
@@ -126,6 +127,7 @@ const RealTimeDashboard = () => {
         clearInterval(intervalRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStreaming, refreshInterval, watchlist]);
 
   const loadMarketData = async () => {

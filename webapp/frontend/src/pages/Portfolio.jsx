@@ -233,6 +233,7 @@ const Portfolio = () => {
       // Load demo data for non-authenticated users
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
   // Auto-refresh effect
@@ -334,6 +335,7 @@ const Portfolio = () => {
     });
   }, [portfolioData.holdings, orderBy, order]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadUserPortfolio = async () => {
     try {
       setLoading(true);

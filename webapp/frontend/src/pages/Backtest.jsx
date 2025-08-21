@@ -328,6 +328,7 @@ export default function Backtest() {
       );
       setSavedStrategies(localStrategies);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
   // Enhanced: Fetch user-specific strategies

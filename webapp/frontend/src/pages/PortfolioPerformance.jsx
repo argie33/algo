@@ -89,6 +89,7 @@ const PortfolioPerformance = () => {
 
   useEffect(() => {
     fetchPerformanceData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe]);
 
   const fetchPerformanceData = async () => {

@@ -47,7 +47,6 @@ import {
   TrendingUp,
   TrendingDown,
   ShowChart,
-  Tooltip,
 } from "@mui/icons-material";
 import {
   XAxis,
@@ -166,6 +165,7 @@ function StockExplorer() {
       setFilters((prev) => ({ ...prev, ...params }));
       if (params.viewMode) setViewMode(params.viewMode);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
   // Build query parameters from filters

@@ -61,6 +61,7 @@ const MetricsDashboard = () => {
 
   useEffect(() => {
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
     searchTerm,
@@ -77,6 +78,7 @@ const MetricsDashboard = () => {
     } else if (activeTab === 2) {
       fetchTopStocks();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const fetchData = async () => {

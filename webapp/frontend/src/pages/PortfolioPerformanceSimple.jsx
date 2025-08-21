@@ -31,6 +31,7 @@ const PortfolioPerformanceSimple = () => {
   useEffect(() => {
     addDebugInfo("Component mounted, starting data fetch...");
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {

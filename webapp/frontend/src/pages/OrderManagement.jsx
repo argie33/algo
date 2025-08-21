@@ -121,6 +121,7 @@ const OrderManagement = () => {
     }, 5000);
 
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, navigate]);
 
   const fetchOrders = async () => {

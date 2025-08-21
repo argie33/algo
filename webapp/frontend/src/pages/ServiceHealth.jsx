@@ -324,20 +324,6 @@ function ServiceHealth() {
     setEnvironmentInfo(env);
   }, []);
 
-  // Early return if component has error
-  if (componentError) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error">
-          <Typography variant="h6">Service Health Error</Typography>
-          <Typography variant="body2">{componentError}</Typography>
-          <Button onClick={() => window.location.reload()} sx={{ mt: 2 }}>
-            Reload Page
-          </Button>
-        </Alert>
-      </Container>
-    );
-  }
 
   // Safe data extraction
   const safeHealthData = isObject(healthData) ? healthData : {};
@@ -385,7 +371,7 @@ function ServiceHealth() {
     }
   };
 
-  const _testEndpoints = useMemo(() => [
+  const _testEndpoints = [
       { name: "Health Check", fn: () => healthCheck(), critical: true },
       { name: "API Connection", fn: () => testApiConnection(), critical: true },
       { name: "Stocks", fn: () => getStocks({ limit: 5 }), critical: true },
@@ -416,7 +402,7 @@ function ServiceHealth() {
         fn: () => getFearGreedData({ limit: 5 }),
         critical: false,
       },
-    ], []);
+    ];
 
   // Health check query - simplified
   const {

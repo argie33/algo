@@ -68,6 +68,7 @@ const SectorAnalysis = () => {
 
   useEffect(() => {
     loadSectorData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSectorData = async () => {

@@ -58,7 +58,6 @@ import {
   Fullscreen,
   FullscreenExit,
   Equalizer,
-  Tooltip,
 } from "@mui/icons-material";
 
 import {

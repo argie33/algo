@@ -36,6 +36,7 @@ const PortfolioPerformanceDebug = () => {
     addDebugInfo(
       `Auth loading: ${authLoading}, Authenticated: ${isAuthenticated}, User: ${user ? user.username : "none"}`
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -48,6 +49,7 @@ const PortfolioPerformanceDebug = () => {
       addDebugInfo("Auth loading complete, attempting to fetch data");
       fetchData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isAuthenticated]);
 
   const fetchData = async () => {

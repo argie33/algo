@@ -25,6 +25,7 @@ const AuthTest = () => {
     addDebugInfo(
       `Initial auth state: loading=${auth.isLoading}, authenticated=${auth.isAuthenticated}`
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

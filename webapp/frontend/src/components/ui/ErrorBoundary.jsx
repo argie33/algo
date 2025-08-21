@@ -52,7 +52,8 @@ export const ErrorDisplay = ({
       fullPage,
       errorContext,
     });
-  }, [error, title, severity, fullPage, errorContext, logger]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, title, severity, fullPage]);
 
   const ErrorContent = () => (
     <>

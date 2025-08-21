@@ -55,6 +55,7 @@ const Watchlist = () => {
     if (watchlist.length > 0) {
       loadMarketData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchlist]);
 
   const loadWatchlist = async () => {

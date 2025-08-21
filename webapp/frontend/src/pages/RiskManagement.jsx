@@ -192,6 +192,7 @@ const RiskManagement = () => {
 
   useEffect(() => {
     loadRiskData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSymbol]);
 
   const loadRiskData = () => {

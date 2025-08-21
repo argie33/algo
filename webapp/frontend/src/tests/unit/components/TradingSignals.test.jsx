@@ -42,7 +42,7 @@ vi.mock("react-chartjs-2", () => ({
       Chart with {_data?.datasets?.length || 0} datasets
     </div>
   ),
-  Bar: ({ _data }) => <div _data-testid="bar-chart">Bar chart</div>,
+  Bar: ({ _data }) => <div data-testid="bar-chart">Bar chart</div>,
 }));
 
 // Mock utility functions
