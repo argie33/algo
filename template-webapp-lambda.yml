@@ -154,7 +154,7 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      FunctionName: !Sub 'stocks-webapp-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
       Environment:
