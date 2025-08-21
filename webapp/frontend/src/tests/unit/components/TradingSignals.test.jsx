@@ -10,6 +10,15 @@ import TradingSignals from "../../../pages/TradingSignals.jsx";
 
 // Mock the API service
 vi.mock("../../../services/api.js", () => ({
+  getApiConfig: vi.fn(() => ({
+    baseURL: "http://localhost:3001",
+    isServerless: false,
+    apiUrl: "http://localhost:3001",
+    isConfigured: true,
+    environment: "test",
+    isDevelopment: true,
+    isProduction: false,
+  })),
   api: {
     get: vi.fn(),
     post: vi.fn(),

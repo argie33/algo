@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const { query } = require("../utils/database");
-const NewsAnalyzer = require("../utils/newsAnalyzer");
-const SentimentEngine = require("../utils/sentimentEngine");
+const newsAnalyzer = require("../utils/newsAnalyzer");
+const sentimentEngine = require("../utils/sentimentEngine");
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
@@ -30,9 +30,7 @@ router.get("/", (req, res) => {
 const authRouter = express.Router();
 authRouter.use(authenticateToken);
 
-// Initialize news analyzer and sentiment engine
-const newsAnalyzer = new NewsAnalyzer();
-const sentimentEngine = new SentimentEngine();
+// News analyzer and sentiment engine are already initialized singletons
 
 // Get news articles with sentiment analysis
 router.get("/articles", async (req, res) => {

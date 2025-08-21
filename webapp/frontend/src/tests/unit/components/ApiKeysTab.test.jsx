@@ -23,7 +23,7 @@ global.fetch = mockFetch;
 // Mock window.confirm
 global.confirm = vi.fn();
 
-describe("ApiKeysTab - Fixed Authentication Tests", () => {
+describe("ApiKeysTab - Component UI Tests", () => {
   const mockApiKeys = [
     {
       id: "alpaca-123",
@@ -69,9 +69,9 @@ describe("ApiKeysTab - Fixed Authentication Tests", () => {
     );
   };
 
-  describe("Authentication Integration - AuthContext", () => {
-    it("should include Authorization header when user is authenticated via AuthContext", async () => {
-      // Mock authenticated user with AuthContext
+  describe("Authentication Context Integration", () => {
+    it("should authenticate API calls when user is logged in", async () => {
+      // Test UI component properly passes authentication to API calls
       vi.mocked(useAuth).mockReturnValue(mockAuthenticatedUser);
 
       mockFetch.mockResolvedValueOnce({

@@ -1023,7 +1023,8 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
     const finalLosingTrades = liveMetrics
       ? liveMetrics.losingTrades
       : parseInt(metrics.losing_trades || 0);
-    const winRate = totalTrades > 0 ? (finalWinningTrades / totalTrades) * 100 : 0;
+    const winRate =
+      totalTrades > 0 ? (finalWinningTrades / totalTrades) * 100 : 0;
     const finalTotalPnL = liveMetrics
       ? liveMetrics.totalPnL
       : parseFloat(metrics.total_pnl || 0);

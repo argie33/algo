@@ -74,20 +74,20 @@ class ApiKeyService {
    */
   async validateJwtToken(token) {
     // Input validation - prevent crashes from invalid tokens
-    if (!token || typeof token !== 'string' || token.trim() === '') {
+    if (!token || typeof token !== "string" || token.trim() === "") {
       return {
         valid: false,
-        error: 'Invalid or missing JWT token'
+        error: "Invalid or missing JWT token",
       };
     }
-    
+
     this.checkJwtCircuitBreaker();
 
     try {
       if (!this.jwtVerifier) {
         return {
           valid: false,
-          error: 'JWT verifier not available'
+          error: "JWT verifier not available",
         };
       }
 
@@ -100,7 +100,7 @@ class ApiKeyService {
         this.recordJwtSuccess();
         return {
           valid: true,
-          user: cachedSession.user
+          user: cachedSession.user,
         };
       }
 
@@ -127,13 +127,13 @@ class ApiKeyService {
       this.recordJwtSuccess();
       return {
         valid: true,
-        user: user
+        user: user,
       };
     } catch (error) {
       this.recordJwtFailure(error);
       return {
         valid: false,
-        error: error.message || 'JWT token validation failed'
+        error: error.message || "JWT token validation failed",
       };
     }
   }

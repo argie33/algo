@@ -1,28 +1,28 @@
-const request = require('supertest');
-const express = require('express');
-const riskRouter = require('../../../routes/risk');
+const request = require("supertest");
+const express = require("express");
+const riskRouter = require("../../../routes/risk");
 
 // Mock dependencies
-jest.mock('../../../utils/database');
-jest.mock('../../../utils/riskEngine');
-jest.mock('../../../middleware/auth');
+jest.mock("../../../utils/database");
+jest.mock("../../../utils/riskEngine");
+jest.mock("../../../middleware/auth");
 
-const { query } = require('../../../utils/database');
-const RiskEngine = require('../../../utils/riskEngine');
-const { authenticateToken } = require('../../../middleware/auth');
+const { query } = require("../../../utils/database");
+const RiskEngine = require("../../../utils/riskEngine");
+const { authenticateToken } = require("../../../middleware/auth");
 
-describe('Risk Routes', () => {
+describe("Risk Routes", () => {
   let app;
   let mockRiskEngine;
 
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    app.use('/risk', riskRouter);
-    
+    app.use("/risk", riskRouter);
+
     // Mock authentication middleware
     authenticateToken.mockImplementation((req, res, next) => {
-      req.user = { sub: 'test-user-123' };
+      req.user = { sub: "test-user-123" };
       next();
     });
 
@@ -35,65 +35,57 @@ describe('Risk Routes', () => {
       calculateRiskAttribution: jest.fn(),
       startRealTimeMonitoring: jest.fn(),
       stopRealTimeMonitoring: jest.fn(),
-      getMonitoringStatus: jest.fn()
+      getMonitoringStatus: jest.fn(),
     };
-    
+
     RiskEngine.mockImplementation(() => mockRiskEngine);
-    
+
     jest.clearAllMocks();
   });
 
-  describe('GET /risk/health', () => {
-    test('should return operational status', async () => {
-      const response = await request(app)
-        .get('/risk/health')
-        .expect(200);
+  describe("GET /risk/health", () => {
+    test("should return operational status", async () => {
+      const response = await request(app).get("/risk/health").expect(200);
 
       expect(response.body).toEqual({
         success: true,
-        status: 'operational',
-        service: 'risk-analysis',
+        status: "operational",
+        service: "risk-analysis",
         timestamp: expect.any(String),
-        message: 'Risk Analysis service is running'
+        message: "Risk Analysis service is running",
       });
 
       // Validate timestamp format
       expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
     });
 
-    test('should not require authentication', async () => {
+    test("should not require authentication", async () => {
       // Should work without authentication
-      await request(app)
-        .get('/risk/health')
-        .expect(200);
+      await request(app).get("/risk/health").expect(200);
     });
   });
 
-  describe('GET /risk/', () => {
-    test('should return API ready message', async () => {
-      const response = await request(app)
-        .get('/risk/')
-        .expect(200);
+  describe("GET /risk/", () => {
+    test("should return API ready message", async () => {
+      const response = await request(app).get("/risk/").expect(200);
 
       expect(response.body).toEqual({
         success: true,
-        message: 'Risk Analysis API - Ready',
+        message: "Risk Analysis API - Ready",
         timestamp: expect.any(String),
-        status: 'operational'
+        status: "operational",
       });
     });
 
-    test('should be a public endpoint', async () => {
+    test("should be a public endpoint", async () => {
       // Should work without authentication
-      await request(app)
-        .get('/risk/')
-        .expect(200);
+      await request(app).get("/risk/").expect(200);
     });
   });
 
-  describe('GET /risk/portfolio/:portfolioId', () => {
+  describe("GET /risk/portfolio/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const mockRiskMetrics = {
@@ -104,67 +96,67 @@ describe('Risk Routes', () => {
       beta: 1.2,
       sharpe_ratio: 1.5,
       max_drawdown: -0.12,
-      correlation_metrics: {}
+      correlation_metrics: {},
     };
 
-    test('should return portfolio risk metrics', async () => {
+    test("should return portfolio risk metrics", async () => {
       query.mockResolvedValue(mockPortfolioData);
       mockRiskEngine.calculatePortfolioRisk.mockResolvedValue(mockRiskMetrics);
 
       const response = await request(app)
-        .get('/risk/portfolio/portfolio-123')
+        .get("/risk/portfolio/portfolio-123")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockRiskMetrics);
       expect(mockRiskEngine.calculatePortfolioRisk).toHaveBeenCalledWith(
-        'portfolio-123',
-        '1Y',
+        "portfolio-123",
+        "1Y",
         0.95
       );
     });
 
-    test('should handle custom parameters', async () => {
+    test("should handle custom parameters", async () => {
       query.mockResolvedValue(mockPortfolioData);
       mockRiskEngine.calculatePortfolioRisk.mockResolvedValue(mockRiskMetrics);
 
       await request(app)
-        .get('/risk/portfolio/portfolio-123?timeframe=6M&confidence_level=0.99')
+        .get("/risk/portfolio/portfolio-123?timeframe=6M&confidence_level=0.99")
         .expect(200);
 
       expect(mockRiskEngine.calculatePortfolioRisk).toHaveBeenCalledWith(
-        'portfolio-123',
-        '6M',
+        "portfolio-123",
+        "6M",
         0.99
       );
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .get('/risk/portfolio/non-existent')
+        .get("/risk/portfolio/non-existent")
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
 
-    test('should handle database errors', async () => {
-      query.mockRejectedValue(new Error('Database connection failed'));
+    test("should handle database errors", async () => {
+      query.mockRejectedValue(new Error("Database connection failed"));
 
       const response = await request(app)
-        .get('/risk/portfolio/portfolio-123')
+        .get("/risk/portfolio/portfolio-123")
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Failed to calculate portfolio risk');
+      expect(response.body.error).toBe("Failed to calculate portfolio risk");
     });
   });
 
-  describe('GET /risk/var/:portfolioId', () => {
+  describe("GET /risk/var/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const mockVarAnalysis = {
@@ -174,167 +166,167 @@ describe('Risk Routes', () => {
       expected_shortfall: 0.035,
       confidence_level: 0.95,
       time_horizon: 1,
-      lookback_days: 252
+      lookback_days: 252,
     };
 
-    test('should return VaR analysis', async () => {
+    test("should return VaR analysis", async () => {
       query.mockResolvedValue(mockPortfolioData);
       mockRiskEngine.calculateVaR.mockResolvedValue(mockVarAnalysis);
 
       const response = await request(app)
-        .get('/risk/var/portfolio-123')
+        .get("/risk/var/portfolio-123")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockVarAnalysis);
       expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
-        'portfolio-123',
-        'historical',
+        "portfolio-123",
+        "historical",
         0.95,
         1,
         252
       );
     });
 
-    test('should handle custom VaR parameters', async () => {
+    test("should handle custom VaR parameters", async () => {
       query.mockResolvedValue(mockPortfolioData);
       mockRiskEngine.calculateVaR.mockResolvedValue(mockVarAnalysis);
 
       await request(app)
-        .get('/risk/var/portfolio-123?method=monte_carlo&confidence_level=0.99&time_horizon=5&lookback_days=500')
+        .get(
+          "/risk/var/portfolio-123?method=monte_carlo&confidence_level=0.99&time_horizon=5&lookback_days=500"
+        )
         .expect(200);
 
       expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
-        'portfolio-123',
-        'monte_carlo',
+        "portfolio-123",
+        "monte_carlo",
         0.99,
         5,
         500
       );
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .get('/risk/var/non-existent')
+        .get("/risk/var/non-existent")
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
   });
 
-  describe('POST /risk/stress-test/:portfolioId', () => {
+  describe("POST /risk/stress-test/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const mockStressTestResults = {
       scenarios: [
         {
-          name: 'Market Crash',
+          name: "Market Crash",
           portfolio_impact: -0.25,
           individual_impacts: [
-            { symbol: 'AAPL', impact: -0.30 },
-            { symbol: 'MSFT', impact: -0.20 }
-          ]
-        }
+            { symbol: "AAPL", impact: -0.3 },
+            { symbol: "MSFT", impact: -0.2 },
+          ],
+        },
       ],
       worst_case_scenario: -0.35,
-      best_case_scenario: -0.10
+      best_case_scenario: -0.1,
     };
 
-    test('should perform stress test', async () => {
+    test("should perform stress test", async () => {
       query.mockResolvedValue(mockPortfolioData);
       mockRiskEngine.performStressTest.mockResolvedValue(mockStressTestResults);
 
       const requestBody = {
-        scenarios: ['market_crash', 'interest_rate_spike'],
+        scenarios: ["market_crash", "interest_rate_spike"],
         shock_magnitude: 0.2,
-        correlation_adjustment: true
+        correlation_adjustment: true,
       };
 
       const response = await request(app)
-        .post('/risk/stress-test/portfolio-123')
+        .post("/risk/stress-test/portfolio-123")
         .send(requestBody)
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStressTestResults);
       expect(mockRiskEngine.performStressTest).toHaveBeenCalledWith(
-        'portfolio-123',
-        ['market_crash', 'interest_rate_spike'],
+        "portfolio-123",
+        ["market_crash", "interest_rate_spike"],
         0.2,
         true
       );
     });
 
-    test('should handle default parameters', async () => {
+    test("should handle default parameters", async () => {
       query.mockResolvedValue(mockPortfolioData);
       mockRiskEngine.performStressTest.mockResolvedValue(mockStressTestResults);
 
       await request(app)
-        .post('/risk/stress-test/portfolio-123')
+        .post("/risk/stress-test/portfolio-123")
         .send({})
         .expect(200);
 
       expect(mockRiskEngine.performStressTest).toHaveBeenCalledWith(
-        'portfolio-123',
+        "portfolio-123",
         [],
         0.1,
         false
       );
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .post('/risk/stress-test/non-existent')
+        .post("/risk/stress-test/non-existent")
         .send({})
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
   });
 
-  describe('GET /risk/alerts', () => {
+  describe("GET /risk/alerts", () => {
     const mockAlertsData = {
       rows: [
         {
-          id: 'alert-1',
-          alert_type: 'var_breach',
-          severity: 'high',
-          title: 'VaR Limit Exceeded',
-          description: 'Portfolio VaR has exceeded the defined threshold',
-          metric_name: 'var_95',
+          id: "alert-1",
+          alert_type: "var_breach",
+          severity: "high",
+          title: "VaR Limit Exceeded",
+          description: "Portfolio VaR has exceeded the defined threshold",
+          metric_name: "var_95",
           current_value: 0.055,
-          threshold_value: 0.050,
-          portfolio_id: 'portfolio-123',
+          threshold_value: 0.05,
+          portfolio_id: "portfolio-123",
           symbol: null,
-          created_at: '2023-01-01T10:00:00Z',
-          updated_at: '2023-01-01T10:00:00Z',
-          status: 'active',
+          created_at: "2023-01-01T10:00:00Z",
+          updated_at: "2023-01-01T10:00:00Z",
+          status: "active",
           acknowledged_at: null,
-          portfolio_name: 'My Portfolio'
-        }
-      ]
+          portfolio_name: "My Portfolio",
+        },
+      ],
     };
 
     const mockCountData = {
-      rows: [{ total: 5 }]
+      rows: [{ total: 5 }],
     };
 
-    test('should return risk alerts', async () => {
+    test("should return risk alerts", async () => {
       query
         .mockResolvedValueOnce(mockAlertsData)
         .mockResolvedValueOnce(mockCountData);
 
-      const response = await request(app)
-        .get('/risk/alerts')
-        .expect(200);
+      const response = await request(app).get("/risk/alerts").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.alerts).toEqual(mockAlertsData.rows);
@@ -343,30 +335,30 @@ describe('Risk Routes', () => {
       expect(response.body.data.offset).toBe(0);
     });
 
-    test('should filter alerts by severity', async () => {
+    test("should filter alerts by severity", async () => {
       query
         .mockResolvedValueOnce(mockAlertsData)
         .mockResolvedValueOnce(mockCountData);
 
       const response = await request(app)
-        .get('/risk/alerts?severity=high&status=active&limit=10&offset=5')
+        .get("/risk/alerts?severity=high&status=active&limit=10&offset=5")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE ra.user_id = $1 AND ra.severity = $2 AND ra.status = $3'),
-        ['test-user-123', 'high', 'active', 10, 5]
+        expect.stringContaining(
+          "WHERE ra.user_id = $1 AND ra.severity = $2 AND ra.status = $3"
+        ),
+        ["test-user-123", "high", "active", 10, 5]
       );
     });
 
-    test('should handle empty alerts', async () => {
+    test("should handle empty alerts", async () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: 0 }] });
 
-      const response = await request(app)
-        .get('/risk/alerts')
-        .expect(200);
+      const response = await request(app).get("/risk/alerts").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.alerts).toEqual([]);
@@ -374,275 +366,281 @@ describe('Risk Routes', () => {
     });
   });
 
-  describe('PUT /risk/alerts/:alertId/acknowledge', () => {
+  describe("PUT /risk/alerts/:alertId/acknowledge", () => {
     const mockAlertData = {
-      rows: [{ id: 'alert-1' }]
+      rows: [{ id: "alert-1" }],
     };
 
-    test('should acknowledge alert successfully', async () => {
-      query
-        .mockResolvedValueOnce(mockAlertData)
-        .mockResolvedValueOnce({});
+    test("should acknowledge alert successfully", async () => {
+      query.mockResolvedValueOnce(mockAlertData).mockResolvedValueOnce({});
 
       const response = await request(app)
-        .put('/risk/alerts/alert-1/acknowledge')
+        .put("/risk/alerts/alert-1/acknowledge")
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toBe('Alert acknowledged successfully');
+      expect(response.body.message).toBe("Alert acknowledged successfully");
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE risk_alerts SET status = \'acknowledged\''),
-        ['alert-1']
+        expect.stringContaining(
+          "UPDATE risk_alerts SET status = 'acknowledged'"
+        ),
+        ["alert-1"]
       );
     });
 
-    test('should return 404 for non-existent alert', async () => {
+    test("should return 404 for non-existent alert", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .put('/risk/alerts/non-existent/acknowledge')
+        .put("/risk/alerts/non-existent/acknowledge")
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Alert not found');
+      expect(response.body.error).toBe("Alert not found");
     });
   });
 
-  describe('GET /risk/correlation/:portfolioId', () => {
+  describe("GET /risk/correlation/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const mockCorrelationMatrix = {
-      symbols: ['AAPL', 'MSFT', 'GOOGL'],
+      symbols: ["AAPL", "MSFT", "GOOGL"],
       correlation_matrix: [
         [1.0, 0.65, 0.58],
         [0.65, 1.0, 0.72],
-        [0.58, 0.72, 1.0]
+        [0.58, 0.72, 1.0],
       ],
       eigenvalues: [2.1, 0.6, 0.3],
-      portfolio_diversification: 0.75
+      portfolio_diversification: 0.75,
     };
 
-    test('should return correlation matrix', async () => {
+    test("should return correlation matrix", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateCorrelationMatrix.mockResolvedValue(mockCorrelationMatrix);
+      mockRiskEngine.calculateCorrelationMatrix.mockResolvedValue(
+        mockCorrelationMatrix
+      );
 
       const response = await request(app)
-        .get('/risk/correlation/portfolio-123')
+        .get("/risk/correlation/portfolio-123")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockCorrelationMatrix);
       expect(mockRiskEngine.calculateCorrelationMatrix).toHaveBeenCalledWith(
-        'portfolio-123',
+        "portfolio-123",
         252
       );
     });
 
-    test('should handle custom lookback days', async () => {
+    test("should handle custom lookback days", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateCorrelationMatrix.mockResolvedValue(mockCorrelationMatrix);
+      mockRiskEngine.calculateCorrelationMatrix.mockResolvedValue(
+        mockCorrelationMatrix
+      );
 
       await request(app)
-        .get('/risk/correlation/portfolio-123?lookback_days=500')
+        .get("/risk/correlation/portfolio-123?lookback_days=500")
         .expect(200);
 
       expect(mockRiskEngine.calculateCorrelationMatrix).toHaveBeenCalledWith(
-        'portfolio-123',
+        "portfolio-123",
         500
       );
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .get('/risk/correlation/non-existent')
+        .get("/risk/correlation/non-existent")
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
   });
 
-  describe('GET /risk/attribution/:portfolioId', () => {
+  describe("GET /risk/attribution/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const mockAttribution = {
       factor_attribution: {
         market: 0.65,
         value: 0.15,
-        growth: -0.10,
+        growth: -0.1,
         momentum: 0.08,
-        quality: 0.12
+        quality: 0.12,
       },
       security_attribution: [
-        { symbol: 'AAPL', contribution: 0.35 },
-        { symbol: 'MSFT', contribution: 0.25 },
-        { symbol: 'GOOGL', contribution: 0.20 }
+        { symbol: "AAPL", contribution: 0.35 },
+        { symbol: "MSFT", contribution: 0.25 },
+        { symbol: "GOOGL", contribution: 0.2 },
       ],
-      total_attribution: 1.00
+      total_attribution: 1.0,
     };
 
-    test('should return risk attribution analysis', async () => {
+    test("should return risk attribution analysis", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateRiskAttribution.mockResolvedValue(mockAttribution);
+      mockRiskEngine.calculateRiskAttribution.mockResolvedValue(
+        mockAttribution
+      );
 
       const response = await request(app)
-        .get('/risk/attribution/portfolio-123')
+        .get("/risk/attribution/portfolio-123")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockAttribution);
       expect(mockRiskEngine.calculateRiskAttribution).toHaveBeenCalledWith(
-        'portfolio-123',
-        'factor'
+        "portfolio-123",
+        "factor"
       );
     });
 
-    test('should handle custom attribution type', async () => {
+    test("should handle custom attribution type", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngine.calculateRiskAttribution.mockResolvedValue(mockAttribution);
+      mockRiskEngine.calculateRiskAttribution.mockResolvedValue(
+        mockAttribution
+      );
 
       await request(app)
-        .get('/risk/attribution/portfolio-123?attribution_type=security')
+        .get("/risk/attribution/portfolio-123?attribution_type=security")
         .expect(200);
 
       expect(mockRiskEngine.calculateRiskAttribution).toHaveBeenCalledWith(
-        'portfolio-123',
-        'security'
+        "portfolio-123",
+        "security"
       );
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .get('/risk/attribution/non-existent')
+        .get("/risk/attribution/non-existent")
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
   });
 
-  describe('GET /risk/limits/:portfolioId', () => {
+  describe("GET /risk/limits/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const mockLimitsData = {
       rows: [
         {
-          id: 'limit-1',
-          metric_name: 'var_95',
-          threshold_value: 0.050,
+          id: "limit-1",
+          metric_name: "var_95",
+          threshold_value: 0.05,
           warning_threshold: 0.045,
-          threshold_type: 'absolute',
+          threshold_type: "absolute",
           is_active: true,
-          created_at: '2023-01-01T00:00:00Z',
-          updated_at: '2023-01-01T00:00:00Z'
+          created_at: "2023-01-01T00:00:00Z",
+          updated_at: "2023-01-01T00:00:00Z",
         },
         {
-          id: 'limit-2',
-          metric_name: 'max_drawdown',
+          id: "limit-2",
+          metric_name: "max_drawdown",
           threshold_value: -0.15,
           warning_threshold: -0.12,
-          threshold_type: 'percentage',
+          threshold_type: "percentage",
           is_active: true,
-          created_at: '2023-01-01T00:00:00Z',
-          updated_at: '2023-01-01T00:00:00Z'
-        }
-      ]
+          created_at: "2023-01-01T00:00:00Z",
+          updated_at: "2023-01-01T00:00:00Z",
+        },
+      ],
     };
 
-    test('should return risk limits', async () => {
+    test("should return risk limits", async () => {
       query
         .mockResolvedValueOnce(mockPortfolioData)
         .mockResolvedValueOnce(mockLimitsData);
 
       const response = await request(app)
-        .get('/risk/limits/portfolio-123')
+        .get("/risk/limits/portfolio-123")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.limits).toEqual(mockLimitsData.rows);
-      expect(response.body.data.portfolio_id).toBe('portfolio-123');
+      expect(response.body.data.portfolio_id).toBe("portfolio-123");
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .get('/risk/limits/non-existent')
+        .get("/risk/limits/non-existent")
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
   });
 
-  describe('PUT /risk/limits/:portfolioId', () => {
+  describe("PUT /risk/limits/:portfolioId", () => {
     const mockPortfolioData = {
-      rows: [{ id: 'portfolio-123' }]
+      rows: [{ id: "portfolio-123" }],
     };
 
     const limitsUpdateData = {
       limits: [
         {
-          metric_name: 'var_95',
+          metric_name: "var_95",
           threshold_value: 0.055,
-          warning_threshold: 0.050,
-          threshold_type: 'absolute',
-          is_active: true
+          warning_threshold: 0.05,
+          threshold_type: "absolute",
+          is_active: true,
         },
         {
-          metric_name: 'max_drawdown',
-          threshold_value: -0.20,
+          metric_name: "max_drawdown",
+          threshold_value: -0.2,
           warning_threshold: -0.15,
-          threshold_type: 'percentage',
-          is_active: true
-        }
-      ]
+          threshold_type: "percentage",
+          is_active: true,
+        },
+      ],
     };
 
-    test('should update risk limits successfully', async () => {
-      query
-        .mockResolvedValueOnce(mockPortfolioData)
-        .mockResolvedValue({});
+    test("should update risk limits successfully", async () => {
+      query.mockResolvedValueOnce(mockPortfolioData).mockResolvedValue({});
 
       const response = await request(app)
-        .put('/risk/limits/portfolio-123')
+        .put("/risk/limits/portfolio-123")
         .send(limitsUpdateData)
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toBe('Risk limits updated successfully');
+      expect(response.body.message).toBe("Risk limits updated successfully");
       expect(query).toHaveBeenCalledTimes(3); // 1 for portfolio check + 2 for limit updates
     });
 
-    test('should return 404 for non-existent portfolio', async () => {
+    test("should return 404 for non-existent portfolio", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .put('/risk/limits/non-existent')
+        .put("/risk/limits/non-existent")
         .send(limitsUpdateData)
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Portfolio not found');
+      expect(response.body.error).toBe("Portfolio not found");
     });
   });
 
-  describe('GET /risk/dashboard', () => {
+  describe("GET /risk/dashboard", () => {
     const mockPortfolioRiskData = {
       rows: [
         {
-          id: 'portfolio-1',
-          name: 'Growth Portfolio',
+          id: "portfolio-1",
+          name: "Growth Portfolio",
           total_value: 100000,
           var_95: 0.045,
           var_99: 0.065,
@@ -651,259 +649,270 @@ describe('Risk Routes', () => {
           beta: 1.2,
           sharpe_ratio: 1.5,
           max_drawdown: -0.12,
-          calculated_at: '2023-01-01T10:00:00Z'
-        }
-      ]
+          calculated_at: "2023-01-01T10:00:00Z",
+        },
+      ],
     };
 
     const mockAlertsCountData = {
       rows: [
-        { severity: 'high', count: 2 },
-        { severity: 'medium', count: 5 },
-        { severity: 'low', count: 3 }
-      ]
+        { severity: "high", count: 2 },
+        { severity: "medium", count: 5 },
+        { severity: "low", count: 3 },
+      ],
     };
 
     const mockMarketRiskData = {
       rows: [
         {
-          indicator_name: 'VIX',
+          indicator_name: "VIX",
           current_value: 25.5,
-          risk_level: 'high',
-          last_updated: '2023-01-01T15:00:00Z'
+          risk_level: "high",
+          last_updated: "2023-01-01T15:00:00Z",
         },
         {
-          indicator_name: 'Credit Spreads',
+          indicator_name: "Credit Spreads",
           current_value: 150,
-          risk_level: 'medium',
-          last_updated: '2023-01-01T15:00:00Z'
-        }
-      ]
+          risk_level: "medium",
+          last_updated: "2023-01-01T15:00:00Z",
+        },
+      ],
     };
 
-    test('should return risk dashboard data', async () => {
+    test("should return risk dashboard data", async () => {
       query
         .mockResolvedValueOnce(mockPortfolioRiskData)
         .mockResolvedValueOnce(mockAlertsCountData)
         .mockResolvedValueOnce(mockMarketRiskData);
 
-      const response = await request(app)
-        .get('/risk/dashboard')
-        .expect(200);
+      const response = await request(app).get("/risk/dashboard").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.portfolios).toEqual(mockPortfolioRiskData.rows);
       expect(response.body.data.alert_counts).toEqual({
         high: 2,
         medium: 5,
-        low: 3
+        low: 3,
       });
-      expect(response.body.data.market_indicators).toEqual(mockMarketRiskData.rows);
+      expect(response.body.data.market_indicators).toEqual(
+        mockMarketRiskData.rows
+      );
       expect(response.body.data.summary.total_portfolios).toBe(1);
       expect(response.body.data.summary.total_alerts).toBe(10);
       expect(response.body.data.summary.high_risk_portfolios).toBe(0); // var_95 0.045 < 0.05
     });
 
-    test('should handle empty dashboard data', async () => {
+    test("should handle empty dashboard data", async () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
 
-      const response = await request(app)
-        .get('/risk/dashboard')
-        .expect(200);
+      const response = await request(app).get("/risk/dashboard").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.portfolios).toEqual([]);
-      expect(response.body.data.alert_counts).toEqual({ high: 0, medium: 0, low: 0 });
+      expect(response.body.data.alert_counts).toEqual({
+        high: 0,
+        medium: 0,
+        low: 0,
+      });
       expect(response.body.data.summary.total_portfolios).toBe(0);
       expect(response.body.data.summary.total_alerts).toBe(0);
     });
   });
 
-  describe('POST /risk/monitoring/start', () => {
+  describe("POST /risk/monitoring/start", () => {
     const mockMonitoringResult = {
-      status: 'started',
+      status: "started",
       portfolio_count: 2,
       check_interval: 300000,
-      started_at: new Date().toISOString()
+      started_at: new Date().toISOString(),
     };
 
-    test('should start risk monitoring', async () => {
-      const portfolioIds = ['portfolio-1', 'portfolio-2'];
-      query.mockResolvedValue({ rows: portfolioIds.map(id => ({ id })) });
-      mockRiskEngine.startRealTimeMonitoring.mockResolvedValue(mockMonitoringResult);
+    test("should start risk monitoring", async () => {
+      const portfolioIds = ["portfolio-1", "portfolio-2"];
+      query.mockResolvedValue({ rows: portfolioIds.map((id) => ({ id })) });
+      mockRiskEngine.startRealTimeMonitoring.mockResolvedValue(
+        mockMonitoringResult
+      );
 
       const response = await request(app)
-        .post('/risk/monitoring/start')
+        .post("/risk/monitoring/start")
         .send({
           portfolio_ids: portfolioIds,
-          check_interval: 300000
+          check_interval: 300000,
         })
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockMonitoringResult);
       expect(mockRiskEngine.startRealTimeMonitoring).toHaveBeenCalledWith(
-        'test-user-123',
+        "test-user-123",
         portfolioIds,
         300000
       );
     });
 
-    test('should handle default parameters', async () => {
-      mockRiskEngine.startRealTimeMonitoring.mockResolvedValue(mockMonitoringResult);
+    test("should handle default parameters", async () => {
+      mockRiskEngine.startRealTimeMonitoring.mockResolvedValue(
+        mockMonitoringResult
+      );
 
-      await request(app)
-        .post('/risk/monitoring/start')
-        .send({})
-        .expect(200);
+      await request(app).post("/risk/monitoring/start").send({}).expect(200);
 
       expect(mockRiskEngine.startRealTimeMonitoring).toHaveBeenCalledWith(
-        'test-user-123',
+        "test-user-123",
         [],
         300000
       );
     });
 
-    test('should return 400 for invalid portfolio ownership', async () => {
-      query.mockResolvedValue({ rows: [{ id: 'portfolio-1' }] }); // Only 1 of 2 portfolios found
+    test("should return 400 for invalid portfolio ownership", async () => {
+      query.mockResolvedValue({ rows: [{ id: "portfolio-1" }] }); // Only 1 of 2 portfolios found
 
       const response = await request(app)
-        .post('/risk/monitoring/start')
+        .post("/risk/monitoring/start")
         .send({
-          portfolio_ids: ['portfolio-1', 'portfolio-2']
+          portfolio_ids: ["portfolio-1", "portfolio-2"],
         })
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('One or more portfolios not found');
+      expect(response.body.error).toBe("One or more portfolios not found");
     });
   });
 
-  describe('POST /risk/monitoring/stop', () => {
+  describe("POST /risk/monitoring/stop", () => {
     const mockStopResult = {
-      status: 'stopped',
-      stopped_at: new Date().toISOString()
+      status: "stopped",
+      stopped_at: new Date().toISOString(),
     };
 
-    test('should stop risk monitoring', async () => {
+    test("should stop risk monitoring", async () => {
       mockRiskEngine.stopRealTimeMonitoring.mockResolvedValue(mockStopResult);
 
       const response = await request(app)
-        .post('/risk/monitoring/stop')
+        .post("/risk/monitoring/stop")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStopResult);
-      expect(mockRiskEngine.stopRealTimeMonitoring).toHaveBeenCalledWith('test-user-123');
+      expect(mockRiskEngine.stopRealTimeMonitoring).toHaveBeenCalledWith(
+        "test-user-123"
+      );
     });
   });
 
-  describe('GET /risk/monitoring/status', () => {
+  describe("GET /risk/monitoring/status", () => {
     const mockStatusResult = {
       is_monitoring: true,
       portfolio_count: 3,
       check_interval: 300000,
-      last_check: '2023-01-01T15:30:00Z',
-      alerts_generated: 5
+      last_check: "2023-01-01T15:30:00Z",
+      alerts_generated: 5,
     };
 
-    test('should return monitoring status', async () => {
+    test("should return monitoring status", async () => {
       mockRiskEngine.getMonitoringStatus.mockResolvedValue(mockStatusResult);
 
       const response = await request(app)
-        .get('/risk/monitoring/status')
+        .get("/risk/monitoring/status")
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStatusResult);
-      expect(mockRiskEngine.getMonitoringStatus).toHaveBeenCalledWith('test-user-123');
+      expect(mockRiskEngine.getMonitoringStatus).toHaveBeenCalledWith(
+        "test-user-123"
+      );
     });
   });
 
-  describe('Error handling', () => {
-    test('should handle RiskEngine calculation errors', async () => {
-      query.mockResolvedValue({ rows: [{ id: 'portfolio-123' }] });
-      mockRiskEngine.calculatePortfolioRisk.mockRejectedValue(new Error('Risk calculation failed'));
+  describe("Error handling", () => {
+    test("should handle RiskEngine calculation errors", async () => {
+      query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
+      mockRiskEngine.calculatePortfolioRisk.mockRejectedValue(
+        new Error("Risk calculation failed")
+      );
 
       const response = await request(app)
-        .get('/risk/portfolio/portfolio-123')
+        .get("/risk/portfolio/portfolio-123")
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Failed to calculate portfolio risk');
-      expect(response.body.message).toBe('Risk calculation failed');
+      expect(response.body.error).toBe("Failed to calculate portfolio risk");
+      expect(response.body.message).toBe("Risk calculation failed");
     });
 
-    test('should handle monitoring service errors', async () => {
-      mockRiskEngine.startRealTimeMonitoring.mockRejectedValue(new Error('Monitoring service unavailable'));
+    test("should handle monitoring service errors", async () => {
+      mockRiskEngine.startRealTimeMonitoring.mockRejectedValue(
+        new Error("Monitoring service unavailable")
+      );
 
       const response = await request(app)
-        .post('/risk/monitoring/start')
+        .post("/risk/monitoring/start")
         .send({})
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Failed to start risk monitoring');
+      expect(response.body.error).toBe("Failed to start risk monitoring");
     });
 
-    test('should handle malformed request bodies', async () => {
-      query.mockResolvedValue({ rows: [{ id: 'portfolio-123' }] });
+    test("should handle malformed request bodies", async () => {
+      query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
 
       await request(app)
-        .put('/risk/limits/portfolio-123')
-        .send('invalid json')
+        .put("/risk/limits/portfolio-123")
+        .send("invalid json")
         .expect(400);
     });
   });
 
-  describe('Authentication requirements', () => {
-    test('should require authentication for protected endpoints', async () => {
+  describe("Authentication requirements", () => {
+    test("should require authentication for protected endpoints", async () => {
       // Remove authentication mock to test auth requirement
       authenticateToken.mockImplementation((req, res, _next) => {
-        res.status(401).json({ error: 'Authentication required' });
+        res.status(401).json({ error: "Authentication required" });
       });
 
       const response = await request(app)
-        .get('/risk/portfolio/portfolio-123')
+        .get("/risk/portfolio/portfolio-123")
         .expect(401);
 
-      expect(response.body.error).toBe('Authentication required');
+      expect(response.body.error).toBe("Authentication required");
     });
   });
 
-  describe('Parameter validation', () => {
-    test('should handle invalid confidence levels', async () => {
-      query.mockResolvedValue({ rows: [{ id: 'portfolio-123' }] });
+  describe("Parameter validation", () => {
+    test("should handle invalid confidence levels", async () => {
+      query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
       mockRiskEngine.calculateVaR.mockResolvedValue({});
 
       await request(app)
-        .get('/risk/var/portfolio-123?confidence_level=invalid')
+        .get("/risk/var/portfolio-123?confidence_level=invalid")
         .expect(200);
 
       // Should use NaN which becomes 0.95 default in calculation
       expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
-        'portfolio-123',
-        'historical',
+        "portfolio-123",
+        "historical",
         expect.any(Number),
         1,
         252
       );
     });
 
-    test('should handle invalid time horizons', async () => {
-      query.mockResolvedValue({ rows: [{ id: 'portfolio-123' }] });
+    test("should handle invalid time horizons", async () => {
+      query.mockResolvedValue({ rows: [{ id: "portfolio-123" }] });
       mockRiskEngine.calculateVaR.mockResolvedValue({});
 
       await request(app)
-        .get('/risk/var/portfolio-123?time_horizon=invalid')
+        .get("/risk/var/portfolio-123?time_horizon=invalid")
         .expect(200);
 
       expect(mockRiskEngine.calculateVaR).toHaveBeenCalledWith(
-        'portfolio-123',
-        'historical',
+        "portfolio-123",
+        "historical",
         0.95,
         expect.any(Number), // parseInt('invalid') = NaN
         252
