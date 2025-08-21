@@ -4,11 +4,21 @@ import { BrowserRouter } from "react-router-dom";
 import SettingsApiKeys from "../../../pages/SettingsApiKeys.jsx";
 import { useAuth } from "../../../contexts/AuthContext.jsx";
 
-// Mock the API config
+// Mock the API service
 vi.mock("../../../services/api.js", () => ({
   getApiConfig: () => ({
     apiUrl: "http://localhost:3001",
   }),
+  getApiKeys: vi.fn(() => Promise.resolve({ data: [] })),
+  addApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  updateApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  deleteApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
 }));
 
 // Mock AuthContext - This is the key fix!

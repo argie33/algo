@@ -413,25 +413,25 @@ describe("Error Tracker Service", () => {
       expect(history[2].message).toBe("Error 2");
     });
 
-    test("should return recent errors in chronological order", () => {
+    test("should return recent errors in chronological order", async () => {
       const errors = [
         new Error("First error"),
         new Error("Second error"),
         new Error("Third error"),
       ];
 
-      errors.forEach((error, index) => {
-        // Add small delay to ensure different timestamps
-        setTimeout(() => errorTracker.trackError(error), index);
-      });
+      // Track errors with artificial delay to ensure different timestamps
+      for (let i = 0; i < errors.length; i++) {
+        await new Promise(resolve => setTimeout(() => {
+          errorTracker.trackError(errors[i]);
+          resolve();
+        }, i + 1));
+      }
 
-      // Wait for all errors to be tracked
-      setTimeout(() => {
-        const recentErrors = errorTracker.getRecentErrors();
-        expect(recentErrors[0].message).toBe("Third error");
-        expect(recentErrors[1].message).toBe("Second error");
-        expect(recentErrors[2].message).toBe("First error");
-      }, 10);
+      const recentErrors = errorTracker.getRecentErrors();
+      expect(recentErrors[0].message).toBe("Third error");
+      expect(recentErrors[1].message).toBe("Second error");
+      expect(recentErrors[2].message).toBe("First error");
     });
 
     test("should clear history when requested", () => {

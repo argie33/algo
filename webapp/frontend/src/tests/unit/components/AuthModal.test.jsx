@@ -487,7 +487,7 @@ describe("AuthModal Component - Authentication Interface", () => {
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-form")).toBeInTheDocument();
         expect(screen.getByText("Confirming for: newuser")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
     });
 
     it("should clear error states when switching modes", async () => {

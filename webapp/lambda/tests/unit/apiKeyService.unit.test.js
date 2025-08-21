@@ -51,9 +51,6 @@ describe("API Key Service Unit Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Clear module cache
-    delete require.cache[require.resolve("../../utils/apiKeyService")];
-
     // Setup mocks with proper implementations
     mockSecretsManager = {
       send: jest.fn(),
@@ -89,8 +86,21 @@ describe("API Key Service Unit Tests", () => {
     process.env.API_KEY_ENCRYPTION_SECRET = "test-encryption-key-32-chars-long";
     process.env.WEBAPP_AWS_REGION = "us-east-1";
 
-    // Import apiKeyService after mocks are set up
-    apiKeyService = require("../../utils/apiKeyService");
+    // Import apiKeyService if not already imported
+    if (!apiKeyService) {
+      apiKeyService = require("../../utils/apiKeyService");
+    }
+
+    // Reset service state for clean tests
+    apiKeyService.clearAllCaches();
+    apiKeyService.jwtCircuitBreaker = {
+      failures: 0,
+      lastFailureTime: 0,
+      state: "CLOSED",
+      maxFailures: 3,
+      timeout: 30000
+    };
+    apiKeyService.jwtVerifier = mockJwtVerifier;
   });
 
   afterEach(() => {
@@ -141,6 +151,9 @@ describe("API Key Service Unit Tests", () => {
 
     test("should handle JWT validation failure", async () => {
       const mockToken = "invalid-jwt-token";
+      
+      // Ensure the JWT verifier is properly mocked and will reject
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockRejectedValue(new Error("Invalid token"));
 
       const result = await apiKeyService.validateJwtToken(mockToken);
@@ -171,23 +184,25 @@ describe("API Key Service Unit Tests", () => {
     test("should handle circuit breaker OPEN state", async () => {
       const mockToken = "test-token";
 
-      // Trigger multiple failures to open circuit breaker
+      // Ensure the JWT verifier is properly mocked and will reject
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockRejectedValue(
         new Error("JWT verification failed")
       );
 
+      // Trigger exactly 3 failures to open circuit breaker (maxFailures = 3)
       for (let i = 0; i < 3; i++) {
-        try {
-          await apiKeyService.validateJwtToken(mockToken);
-        } catch (error) {
-          // Ignore errors to trigger circuit breaker
-        }
+        const result = await apiKeyService.validateJwtToken(mockToken);
+        expect(result.valid).toBe(false);
       }
 
+      // Verify circuit breaker is now OPEN
+      expect(apiKeyService.jwtCircuitBreaker.state).toBe("OPEN");
+
       // Next call should fail due to circuit breaker
-      const result = await apiKeyService.validateJwtToken(mockToken);
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("circuit breaker");
+      await expect(apiKeyService.validateJwtToken(mockToken)).rejects.toThrow(
+        "JWT circuit breaker is OPEN - authentication temporarily unavailable"
+      );
     });
   });
 
@@ -198,19 +213,31 @@ describe("API Key Service Unit Tests", () => {
     });
 
     test("should encrypt API key data successfully", async () => {
+      const mockToken = "valid-jwt-token";
       const mockData = { apiKey: "test-key", apiSecret: "test-secret" };
-      const _mockSalt = "user-salt-123";
+
+      // Mock JWT validation
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        username: "testuser"
+      });
+
+      // Mock database response
+      query.mockResolvedValue({
+        rows: [{ id: 1 }],
+      });
 
       // Reset module to get fresh instance with encryption key
       delete require.cache[require.resolve("../../utils/apiKeyService")];
       const freshApiKeyService = require("../../utils/apiKeyService");
 
-      const _encrypted = await freshApiKeyService.storeApiKey(
-        "token",
+      const result = await freshApiKeyService.storeApiKey(
+        mockToken,
         "alpaca",
         mockData
       );
 
+      expect(result.success).toBe(true);
       expect(crypto.createCipherGCM).toHaveBeenCalled();
       expect(mockCipher.setAAD).toHaveBeenCalled();
       expect(mockCipher.update).toHaveBeenCalled();
@@ -290,6 +317,14 @@ describe("API Key Service Unit Tests", () => {
       const provider = "alpaca";
       const apiKeyData = { apiKey: "test-key", apiSecret: "test-secret" };
 
+      // Ensure the JWT verifier is properly set and configured
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
+
       query.mockResolvedValueOnce({ rows: [{ id: 1 }] }); // For store operation
       query.mockResolvedValueOnce({ rows: [] }); // For audit log
 
@@ -311,6 +346,14 @@ describe("API Key Service Unit Tests", () => {
     test("should retrieve API key successfully", async () => {
       const mockToken = "valid-jwt-token";
       const provider = "alpaca";
+
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
 
       const mockDbResult = {
         rows: [
@@ -348,6 +391,14 @@ describe("API Key Service Unit Tests", () => {
       const mockToken = "valid-jwt-token";
       const provider = "alpaca";
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
+
       query.mockResolvedValue({ rows: [] }); // No API key found
 
       const result = await apiKeyService.getApiKey(mockToken, provider);
@@ -358,6 +409,14 @@ describe("API Key Service Unit Tests", () => {
     test("should delete API key successfully", async () => {
       const mockToken = "valid-jwt-token";
       const provider = "alpaca";
+
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
 
       query.mockResolvedValueOnce({ rowCount: 1 }); // For delete operation
       query.mockResolvedValueOnce({ rows: [] }); // For audit log
@@ -375,6 +434,14 @@ describe("API Key Service Unit Tests", () => {
 
     test("should list providers successfully", async () => {
       const mockToken = "valid-jwt-token";
+
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
 
       const mockDbResult = {
         rows: [
@@ -420,6 +487,14 @@ describe("API Key Service Unit Tests", () => {
       const mockToken = "valid-jwt-token";
       const provider = "alpaca";
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
+
       // Mock getApiKey to return valid data
       query.mockResolvedValue({
         rows: [
@@ -450,6 +525,14 @@ describe("API Key Service Unit Tests", () => {
       const mockToken = "valid-jwt-token";
       const provider = "alpaca";
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
+
       query.mockResolvedValue({ rows: [] }); // No API key found
 
       const result = await apiKeyService.validateApiKey(mockToken, provider);
@@ -462,6 +545,14 @@ describe("API Key Service Unit Tests", () => {
     test("should detect missing required fields", async () => {
       const mockToken = "valid-jwt-token";
       const provider = "alpaca";
+
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
+      mockJwtVerifier.verify.mockResolvedValue({
+        sub: "user123",
+        email: "test@example.com",
+        username: "testuser"
+      });
 
       query.mockResolvedValue({
         rows: [
@@ -493,9 +584,12 @@ describe("API Key Service Unit Tests", () => {
       // We can test the internal logic by checking validation results
       const mockToken = "valid-jwt-token";
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockResolvedValue({
         sub: "user123",
         email: "test@example.com",
+        username: "testuser"
       });
 
       query.mockResolvedValue({ rows: [] }); // No API key found
@@ -524,10 +618,12 @@ describe("API Key Service Unit Tests", () => {
       const mockToken = "test-token";
       const provider = "alpaca";
 
-      // Mock JWT validation to succeed
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockResolvedValue({
         sub: "user123",
         email: "test@example.com",
+        username: "testuser"
       });
 
       // Mock database to fail
@@ -552,9 +648,12 @@ describe("API Key Service Unit Tests", () => {
       const mockToken = "test-token";
       const provider = "alpaca";
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockResolvedValue({
         sub: "user123",
         email: "test@example.com",
+        username: "testuser"
       });
 
       // Trigger one failure first
@@ -624,9 +723,12 @@ describe("API Key Service Unit Tests", () => {
       const provider = "alpaca";
       const apiKeyData = { apiKey: "test-key", apiSecret: "test-secret" };
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockResolvedValue({
         sub: "user123",
         email: "test@example.com",
+        username: "testuser"
       });
 
       // Mock encryption to fail
@@ -642,6 +744,8 @@ describe("API Key Service Unit Tests", () => {
     test("should handle JWT verification errors", async () => {
       const mockToken = "invalid-token";
 
+      // Setup JWT verifier mock to fail
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockRejectedValue(new Error("Token expired"));
 
       const result = await apiKeyService.validateJwtToken(mockToken);
@@ -659,9 +763,12 @@ describe("API Key Service Unit Tests", () => {
     test("should handle empty provider name", async () => {
       const mockToken = "valid-jwt-token";
 
+      // Setup JWT verifier mock
+      apiKeyService.jwtVerifier = mockJwtVerifier;
       mockJwtVerifier.verify.mockResolvedValue({
         sub: "user123",
         email: "test@example.com",
+        username: "testuser"
       });
 
       query.mockResolvedValue({ rows: [] });

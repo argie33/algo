@@ -9,6 +9,23 @@ import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import SettingsApiKeys from "../../../pages/SettingsApiKeys.jsx";
 
+// Mock the API service
+vi.mock("../../../services/api.js", () => ({
+  getApiConfig: () => ({
+    apiUrl: "http://localhost:3001",
+  }),
+  getApiKeys: vi.fn(() => Promise.resolve({ data: [] })),
+  addApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  updateApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  deleteApiKey: vi.fn(() => Promise.resolve({ success: true })),
+  api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
 // Mock the API keys provider
 const mockAddApiKey = vi.fn();
 const mockDeleteApiKey = vi.fn();
