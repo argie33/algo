@@ -235,6 +235,20 @@ const Portfolio = () => {
     }
   }, [isAuthenticated, user]);
 
+  // Auto-refresh effect
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        setLastRefresh(new Date());
+        if (isAuthenticated && user) {
+          loadUserPortfolio();
+        }
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, isAuthenticated, user, loadUserPortfolio]);
+
   // Advanced portfolio metrics calculations
   const portfolioMetrics = useMemo(() => {
     if (!portfolioData?.holdings) return null;
@@ -822,7 +836,7 @@ const Portfolio = () => {
       optimizedAllocation,
       improvements,
       recommendations,
-      confidence: calculateOptimizationConfidence(portfolioData, _marketRegime),
+      confidence: calculateOptimizationConfidence(portfolioData, marketRegime),
       riskAnalysis: generateRiskAnalysis(optimizedAllocation),
       implementationPlan: generateImplementationPlan(recommendations),
     };
@@ -1282,7 +1296,7 @@ const Portfolio = () => {
       },
     };
 
-    const currentRegime = regimeData[_marketRegime];
+    const currentRegime = regimeData[marketRegime];
 
     return (
       <Box mb={3}>
@@ -1481,19 +1495,6 @@ const Portfolio = () => {
     );
   };
 
-  // Auto-refresh effect
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        setLastRefresh(new Date());
-        if (isAuthenticated && user) {
-          loadUserPortfolio();
-        }
-      }, 30000); // Refresh every 30 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, isAuthenticated, user]);
 
   if (isLoading) {
     return (
