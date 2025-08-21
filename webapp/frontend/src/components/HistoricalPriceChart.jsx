@@ -10,6 +10,7 @@ import {
   Alert,
   CircularProgress,
   Chip,
+  Tooltip,
 } from "@mui/material";
 import {
   ShowChart,
@@ -23,7 +24,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import { getStockPrices } from "../services/api";

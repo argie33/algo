@@ -258,6 +258,7 @@ export const LoadingDisplay = ({
 };
 
 // Hook for consistent API error handling
+// eslint-disable-next-line react-refresh/only-export-components
 export const useStandardizedError = () => {
   const logger = {
     error: (message, error, context) => {

@@ -16,6 +16,7 @@ import {
   Alert,
   LinearProgress,
   Chip,
+  Tooltip,
 } from "@mui/material";
 import {
   Refresh,
@@ -30,7 +31,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   PieChart,
   Pie,

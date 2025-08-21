@@ -26,6 +26,7 @@ import {
   Avatar,
   Switch,
   FormControlLabel,
+  Tooltip,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -46,7 +47,6 @@ import {
   Factory,
   Store,
   Construction,
-  Tooltip,
 } from "@mui/icons-material";
 import {
   Cell,

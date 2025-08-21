@@ -38,6 +38,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Tooltip,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -59,7 +60,6 @@ import {
   Speed,
   TrendingFlat,
   Lightbulb,
-  Tooltip,
 } from "@mui/icons-material";
 import {
   PieChart,

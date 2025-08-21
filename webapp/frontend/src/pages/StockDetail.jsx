@@ -21,6 +21,7 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  Tooltip,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -36,7 +37,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   BarChart,
   Bar,

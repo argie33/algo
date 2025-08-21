@@ -78,7 +78,6 @@ import {
   LineElement,
   BarElement,
   Title,
-  Tooltip as ChartTooltip,
   Legend,
   ArcElement,
 } from "chart.js";
@@ -91,7 +90,6 @@ ChartJS.register(
   LineElement,
   BarElement,
   Title,
-  ChartTooltip,
   Legend,
   ArcElement
 );

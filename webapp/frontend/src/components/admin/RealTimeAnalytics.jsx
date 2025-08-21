@@ -18,6 +18,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Tooltip,
 } from "@mui/material";
 import {
   Refresh as RefreshIcon,
@@ -36,7 +37,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Tooltip as Tooltip,
 } from "recharts";
 
 const RealTimeAnalytics = ({ _analyticsData, onRefresh }) => {

@@ -14,7 +14,6 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Tooltip,
   Switch,
   FormControlLabel,
   Button,
@@ -24,6 +23,7 @@ import {
   DialogActions,
   TextField,
   Alert,
+  Tooltip,
 } from "@mui/material";
 import {
   Settings as SettingsIcon,

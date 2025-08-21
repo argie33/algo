@@ -47,6 +47,7 @@ export const MockAuthProvider = ({ children, value = {} }) => {
 };
 
 // Mock useAuth hook
+// eslint-disable-next-line react-refresh/only-export-components
 export const useMockAuth = () => useContext(MockAuthContext);
 
 // Test wrapper that includes all necessary providers
@@ -57,6 +58,7 @@ export const TestWrapper = ({ children, authValue = {} }) => (
 );
 
 // Custom render function that includes the wrapper
+// eslint-disable-next-line react-refresh/only-export-components
 export const renderWithProviders = (ui, options = {}) => {
   const { authValue, ...renderOptions } = options;
 
@@ -68,6 +70,7 @@ export const renderWithProviders = (ui, options = {}) => {
 };
 
 // Mock API responses
+// eslint-disable-next-line react-refresh/only-export-components
 export const mockApiResponses = {
   portfolio: {
     success: true,
@@ -109,11 +112,13 @@ export const mockApiResponses = {
 };
 
 // Component test helpers
+// eslint-disable-next-line react-refresh/only-export-components
 export const waitForLoadingToFinish = async () => {
   // Wait for loading states to complete
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMockUser = (overrides = {}) => ({
   userId: "test-user-123",
   username: "testuser",
@@ -126,5 +131,7 @@ export const createMockUser = (overrides = {}) => ({
 });
 
 // Export test utilities
+// eslint-disable-next-line react-refresh/only-export-components
 export * from "@testing-library/react";
+// eslint-disable-next-line react-refresh/only-export-components
 export { vi } from "vitest";

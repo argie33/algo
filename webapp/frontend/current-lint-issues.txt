@@ -1,0 +1,137 @@
+
+> financial-dashboard-frontend@1.0.2 lint
+> eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0
+
+
+/home/stocks/algo/webapp/frontend/src/components/HistoricalPriceChart.jsx
+  260:16  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/components/ProfessionalChart.jsx
+  141:18  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+  194:18  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+  239:18  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+  279:18  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+  332:18  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+  390:16  error  'Tooltip' is not defined          react/jsx-no-undef
+  397:16  error  'Tooltip' is not defined          react/jsx-no-undef
+  404:16  error  'Tooltip' is not defined          react/jsx-no-undef
+  411:16  error  'Tooltip' is not defined          react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/components/admin/ConnectionMonitor.jsx
+  330:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  365:26  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/components/admin/ProviderMetrics.jsx
+  343:24  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/components/admin/RealTimeAnalytics.jsx
+  274:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  327:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  354:22  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/Dashboard.jsx
+   627:14  error  'ChartTooltip' is not defined  react/jsx-no-undef
+   928:16  error  'Tooltip' is not defined       react/jsx-no-undef
+  1307:22  error  'ChartTooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/EconomicModeling.jsx
+  655:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  936:22  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/FinancialData.jsx
+  516:20  error  'Tooltip' is not defined  react/jsx-no-undef
+  649:18  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/MarketOverview.jsx
+   716:16  error  'Tooltip' is not defined  react/jsx-no-undef
+  1511:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  1704:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  1980:30  error  'Tooltip' is not defined  react/jsx-no-undef
+  2022:30  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/MetricsDashboard.jsx
+  272:20  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/NewsAnalysis.jsx
+  751:24  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/OrderManagement.jsx
+  834:36  error  'Tooltip' is not defined  react/jsx-no-undef
+  853:36  error  'Tooltip' is not defined  react/jsx-no-undef
+  864:32  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/Portfolio.jsx
+  1554:12  error  'Tooltip' is not defined  react/jsx-no-undef
+  1565:12  error  'Tooltip' is not defined  react/jsx-no-undef
+  1571:12  error  'Tooltip' is not defined  react/jsx-no-undef
+  1990:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  2064:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  2305:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  2658:24  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/PortfolioHoldings.jsx
+  489:20  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/PortfolioPerformance.jsx
+  433:18  error  'Tooltip' is not defined  react/jsx-no-undef
+  499:24  error  'Tooltip' is not defined  react/jsx-no-undef
+  646:24  error  'Tooltip' is not defined  react/jsx-no-undef
+  680:20  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/RealTimeDashboard.jsx
+  1173:26  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/RiskManagement.jsx
+  521:18  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/ScoresDashboard.jsx
+   860:26  error  'Tooltip' is not defined          react/jsx-no-undef
+   920:34  error  'Tooltip' is not defined          react/jsx-no-undef
+   978:24  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+  1154:20  error  'RechartsTooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/SectorAnalysis.jsx
+  286:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  338:22  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/SentimentAnalysis.jsx
+  391:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  500:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  656:22  error  'Tooltip' is not defined  react/jsx-no-undef
+  904:22  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/ServiceHealth.jsx
+  1035:42  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/SettingsApiKeys.jsx
+  423:28  error  'Tooltip' is not defined  react/jsx-no-undef
+  439:30  error  'Tooltip' is not defined  react/jsx-no-undef
+  455:28  error  'Tooltip' is not defined  react/jsx-no-undef
+  471:28  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/StockDetail.jsx
+   484:26  error  'Tooltip' is not defined  react/jsx-no-undef
+   558:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  1037:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  1079:26  error  'Tooltip' is not defined  react/jsx-no-undef
+  1491:24  error  'Tooltip' is not defined  react/jsx-no-undef
+  1602:24  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/StockExplorer.jsx
+  1479:30  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/StockScreener.jsx
+  1410:20  error  'Tooltip' is not defined  react/jsx-no-undef
+  1415:20  error  'Tooltip' is not defined  react/jsx-no-undef
+  1557:36  error  'Tooltip' is not defined  react/jsx-no-undef
+  1567:36  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/TechnicalHistory.jsx
+  483:12  error  'Tooltip' is not defined  react/jsx-no-undef
+  488:12  error  'Tooltip' is not defined  react/jsx-no-undef
+
+/home/stocks/algo/webapp/frontend/src/pages/TradingSignals.jsx
+  486:18  error  'Tooltip' is not defined  react/jsx-no-undef
+
+✖ 76 problems (76 errors, 0 warnings)
+

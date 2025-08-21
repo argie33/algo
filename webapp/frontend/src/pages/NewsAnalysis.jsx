@@ -23,6 +23,10 @@ import {
   ListItemAvatar,
   Alert,
   CircularProgress,
+  LinearProgress,
+  Tooltip,
+} from "@mui/material";
+import {
   Timeline,
   TimelineItem,
   TimelineSeparator,
@@ -30,8 +34,7 @@ import {
   TimelineContent,
   TimelineDot,
   TimelineOppositeContent,
-  LinearProgress,
-} from "@mui/material";
+} from "@mui/lab";
 import {
   TrendingUp,
   TrendingDown,
@@ -51,7 +54,6 @@ import {
   Schedule,
   Warning,
   Info,
-  Tooltip,
 } from "@mui/icons-material";
 import { formatDistanceToNow, format } from "date-fns";
 import { formatPercentage } from "../utils/formatters";

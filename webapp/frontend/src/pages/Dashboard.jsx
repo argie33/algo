@@ -10,7 +10,6 @@ import {
   Chip,
   Button,
   Avatar,
-  Tooltip,
   TextField,
   Autocomplete,
   Container,
@@ -29,6 +28,7 @@ import {
   TableHead,
   TableRow,
   Stack,
+  Tooltip,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -63,13 +63,13 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as ChartTooltip,
   ResponsiveContainer,
   Bar,
   BarChart,
   Cell,
   PieChart,
   Pie,
+  Tooltip as ChartTooltip,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { getStockPrices, getStockMetrics } from "../services/api";

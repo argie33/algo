@@ -25,6 +25,7 @@ import {
   DialogActions,
   TableSortLabel,
   TablePagination,
+  Tooltip,
 } from "@mui/material";
 import { PieChart, Pie, Cell, ResponsiveContainer, Treemap } from "recharts";
 import {
@@ -34,7 +35,6 @@ import {
   Upload,
   Sync,
   FilterList,
-  Tooltip,
 } from "@mui/icons-material";
 import {
   getPortfolioData,
