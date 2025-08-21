@@ -18,7 +18,7 @@ jest.mock('../../utils/database', () => ({
   query: jest.fn()
 }));
 
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { SecretsManagerClient, GetSecretValueCommand: _GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { CognitoJwtVerifier } = require('aws-jwt-verify');
 const { query } = require('../../utils/database');
 

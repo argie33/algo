@@ -37,7 +37,7 @@ console.error = jest.fn();
 
 const {
   SecretsManagerClient,
-  GetSecretValueCommand
+  GetSecretValueCommand: _GetSecretValueCommand
 } = require('@aws-sdk/client-secrets-manager');
 const { Pool } = require('pg');
 

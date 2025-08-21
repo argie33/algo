@@ -190,13 +190,13 @@ describe('API Key Service Unit Tests', () => {
 
     test('should encrypt API key data successfully', async () => {
       const mockData = { apiKey: 'test-key', apiSecret: 'test-secret' };
-      const mockSalt = 'user-salt-123';
+      const _mockSalt = 'user-salt-123';
       
       // Reset module to get fresh instance with encryption key
       delete require.cache[require.resolve('../../utils/apiKeyService')];
       const freshApiKeyService = require('../../utils/apiKeyService');
       
-      const encrypted = await freshApiKeyService.storeApiKey('token', 'alpaca', mockData);
+      const _encrypted = await freshApiKeyService.storeApiKey('token', 'alpaca', mockData);
       
       expect(crypto.createCipherGCM).toHaveBeenCalled();
       expect(mockCipher.setAAD).toHaveBeenCalled();
@@ -206,20 +206,20 @@ describe('API Key Service Unit Tests', () => {
     });
 
     test('should decrypt API key data successfully', async () => {
-      const mockEncryptedData = {
+      const _mockEncryptedData = {
         encrypted: 'encrypteddata',
         iv: 'mockhexiv',
         authTag: 'mockauthtag',
         algorithm: 'aes-256-gcm'
       };
-      const mockSalt = 'user-salt-123';
+      const _mockSalt2 = 'user-salt-123';
       
       mockDecipher.update.mockReturnValue('{"apiKey":"test-key"}');
       mockDecipher.final.mockReturnValue('');
       
       // Reset module to get fresh instance
       delete require.cache[require.resolve('../../utils/apiKeyService')];
-      const freshApiKeyService = require('../../utils/apiKeyService');
+      const _freshApiKeyService = require('../../utils/apiKeyService');
       
       // We need to test the internal method through a public method
       // This is tested indirectly through getApiKey
@@ -236,7 +236,7 @@ describe('API Key Service Unit Tests', () => {
       
       // Reset module to get fresh instance
       delete require.cache[require.resolve('../../utils/apiKeyService')];
-      const freshApiKeyService = require('../../utils/apiKeyService');
+      const _freshApiKeyService2 = require('../../utils/apiKeyService');
       
       // The encryption key should be retrieved from Secrets Manager
       // This is tested indirectly through the service initialization

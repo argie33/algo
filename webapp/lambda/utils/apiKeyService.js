@@ -73,11 +73,22 @@ class ApiKeyService {
    * Enhanced JWT token validation with circuit breaker
    */
   async validateJwtToken(token) {
+    // Input validation - prevent crashes from invalid tokens
+    if (!token || typeof token !== 'string' || token.trim() === '') {
+      return {
+        valid: false,
+        error: 'Invalid or missing JWT token'
+      };
+    }
+    
     this.checkJwtCircuitBreaker();
 
     try {
       if (!this.jwtVerifier) {
-        throw new Error("JWT verifier not available");
+        return {
+          valid: false,
+          error: 'JWT verifier not available'
+        };
       }
 
       // Check session cache first
@@ -87,7 +98,10 @@ class ApiKeyService {
         Date.now() - cachedSession.timestamp < this.cacheTimeout
       ) {
         this.recordJwtSuccess();
-        return cachedSession.user;
+        return {
+          valid: true,
+          user: cachedSession.user
+        };
       }
 
       // Verify token
@@ -111,10 +125,16 @@ class ApiKeyService {
       });
 
       this.recordJwtSuccess();
-      return user;
+      return {
+        valid: true,
+        user: user
+      };
     } catch (error) {
       this.recordJwtFailure(error);
-      throw error;
+      return {
+        valid: false,
+        error: error.message || 'JWT token validation failed'
+      };
     }
   }
 
