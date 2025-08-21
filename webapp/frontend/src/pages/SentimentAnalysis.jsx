@@ -100,8 +100,8 @@ function TabPanel({ children, value, index, ...other }) {
 const SentimentAnalysis = () => {
   const [activeTab, setActiveTab] = useState(0);
   // ⚠️ MOCK DATA - Using mock sentiment data
-  const [sentimentData, setSentimentData] = useState(mockSentimentData);
-  const [loading, setLoading] = useState(false);
+  const [sentimentData, _setSentimentData] = useState(mockSentimentData);
+  const [_loading, _setLoading] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState("1W");
   const [selectedSymbol, setSelectedSymbol] = useState("SPY");
   const [orderBy, setOrderBy] = useState("impact");
@@ -1335,7 +1335,7 @@ function calculateSentimentDivergence(sources) {
   return Math.round(Math.sqrt(variance));
 }
 
-function generateSentimentInsights(metrics, data) {
+function generateSentimentInsights(metrics, _data) {
   return {
     marketSummary: `Current sentiment shows ${metrics.overall >= 60 ? "bullish" : metrics.overall >= 40 ? "neutral" : "bearish"} bias with ${metrics.momentum > 0 ? "improving" : "deteriorating"} momentum. ${metrics.contrarian > 50 ? "Contrarian signals suggest potential reversal ahead." : "Sentiment alignment supports current trend."}`,
     opportunities: [

@@ -58,7 +58,7 @@ import {
 } from "../services/api";
 
 const SettingsApiKeys = () => {
-  const { user } = useAuth();
+  const { _user } = useAuth();
   const [apiKeys, setApiKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

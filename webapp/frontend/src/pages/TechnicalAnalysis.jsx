@@ -61,7 +61,7 @@ function TechnicalAnalysis() {
     data: technicalData,
     isLoading,
     error,
-    refetch,
+    _refetch,
   } = useQuery({
     queryKey: [
       "technicalAnalysis",
@@ -166,7 +166,7 @@ function TechnicalAnalysis() {
     setPage(0);
   };
 
-  const handleSort = (column) => {
+  const _handleSort = (column) => {
     const isAsc = orderBy === column && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
     setOrderBy(column);

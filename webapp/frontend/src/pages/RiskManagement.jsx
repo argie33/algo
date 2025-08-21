@@ -52,7 +52,7 @@ import {
 } from "recharts";
 import { getApiConfig } from "../services/api";
 
-const { apiUrl: API_BASE } = getApiConfig();
+const { apiUrl: _API_BASE } = getApiConfig();
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -72,8 +72,8 @@ const RiskManagement = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [riskData, setRiskData] = useState(null);
-  const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
-  const [portfolioRisk, setPortfolioRisk] = useState(null);
+  const [selectedSymbol, _setSelectedSymbol] = useState("AAPL");
+  const [_portfolioRisk, _setPortfolioRisk] = useState(null);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [newAlert, setNewAlert] = useState({
     symbol: "",

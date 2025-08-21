@@ -88,7 +88,7 @@ function StockDetail() {
   const {
     data: metrics,
     isLoading: metricsLoading,
-    error: metricsError,
+    error: _metricsError,
   } = useQuery({
     queryKey: ["stockMetrics", symbol],
     queryFn: () => api.getStockMetrics(symbol),
@@ -98,8 +98,8 @@ function StockDetail() {
   // Fetch financial data
   const {
     data: financials,
-    isLoading: financialsLoading,
-    error: financialsError,
+    isLoading: _financialsLoading,
+    error: _financialsError,
   } = useQuery({
     queryKey: ["stockFinancials", symbol],
     queryFn: () => api.getStockFinancials(symbol),
@@ -110,8 +110,8 @@ function StockDetail() {
   // Fetch analyst recommendations
   const {
     data: recommendations,
-    isLoading: recLoading,
-    error: recError,
+    isLoading: _recLoading,
+    error: _recError,
   } = useQuery({
     queryKey: ["stockRecommendations", symbol],
     queryFn: () => api.getAnalystRecommendations(symbol),
@@ -124,7 +124,7 @@ function StockDetail() {
   const {
     data: balanceSheet,
     isLoading: balanceSheetLoading,
-    error: balanceSheetError,
+    error: _balanceSheetError,
   } = useQuery({
     queryKey: ["balanceSheet", symbol, "annual"],
     queryFn: () => api.getBalanceSheet(symbol, "annual"),
@@ -135,7 +135,7 @@ function StockDetail() {
   const {
     data: incomeStatement,
     isLoading: incomeStatementLoading,
-    error: incomeStatementError,
+    error: _incomeStatementError,
   } = useQuery({
     queryKey: ["incomeStatement", symbol, "annual"],
     queryFn: () => api.getIncomeStatement(symbol, "annual"),
@@ -146,7 +146,7 @@ function StockDetail() {
   const {
     data: cashFlowStatement,
     isLoading: cashFlowLoading,
-    error: cashFlowError,
+    error: _cashFlowError,
   } = useQuery({
     queryKey: ["cashFlowStatement", symbol, "annual"],
     queryFn: () => api.getCashFlowStatement(symbol, "annual"),
@@ -160,7 +160,7 @@ function StockDetail() {
   const {
     data: analystOverview,
     isLoading: analystOverviewLoading,
-    error: analystOverviewError,
+    error: _analystOverviewError,
   } = useQuery({
     queryKey: ["analystOverview", symbol],
     queryFn: () => api.getAnalystOverview(symbol),

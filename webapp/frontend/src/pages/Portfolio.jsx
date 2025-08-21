@@ -135,7 +135,7 @@ const Portfolio = () => {
   // ⚠️ MOCK DATA - Replace with real API when available
   const [portfolioData, setPortfolioData] = useState(mockPortfolioData);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [_error, setError] = useState(null);
 
   // State variables that were defined later but used earlier
   const [_addHoldingDialog, _setAddHoldingDialog] = useState(false);
@@ -188,7 +188,7 @@ const Portfolio = () => {
 
   // Refresh settings
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [_lastRefresh, setLastRefresh] = useState(new Date());
 
   // Portfolio import functionality
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -205,7 +205,7 @@ const Portfolio = () => {
   const [timeHorizon, setTimeHorizon] = useState("medium");
   const [optimizationRunning, setOptimizationRunning] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState(null);
-  const [marketRegime, setMarketRegime] = useState("normal");
+  const [marketRegime, _setMarketRegime] = useState("normal");
   const [optimizationConstraints, setOptimizationConstraints] = useState({
     maxPositionSize: 10,
     sectorLimits: true,
@@ -385,7 +385,7 @@ const Portfolio = () => {
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
   // This function generates mock portfolio data and should be replaced with real API calls
-  const generateMockPortfolioData = () => {
+  const _generateMockPortfolioData = () => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check
 
@@ -533,7 +533,7 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Replace with real API when available
-  const generateMockHistory = () => {
+  const _generateMockHistory = () => {
     const history = [];
     const baseValue = 100000;
     let currentValue = baseValue;
@@ -842,7 +842,7 @@ const Portfolio = () => {
     };
   };
 
-  const generateRiskAssessment = (holdings) => {
+  const _generateRiskAssessment = (holdings) => {
     const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
     const weights = holdings.map((h) => h.marketValue / totalValue);
 
@@ -864,7 +864,7 @@ const Portfolio = () => {
     };
   };
 
-  const optimizePortfolio = (method, currentHoldings) => {
+  const _optimizePortfolio = (method, currentHoldings) => {
     switch (method) {
       case "enhanced_sharpe":
         return optimizeEnhancedSharpe(currentHoldings);
@@ -929,7 +929,7 @@ const Portfolio = () => {
 
   const optimizeRiskParity = (holdings) => {
     // Equal risk contribution optimization
-    const totalRiskContribution = holdings.reduce(
+    const _totalRiskContribution = holdings.reduce(
       (sum, h) => sum + (h.beta || 1) * h.allocation,
       0
     );
@@ -974,7 +974,7 @@ const Portfolio = () => {
     });
   };
 
-  const generateHoldingReasoning = (holding, score) => {
+  const generateHoldingReasoning = (holding, _score) => {
     const reasons = [];
 
     if (holding.factorScores?.quality > 70)
@@ -991,7 +991,7 @@ const Portfolio = () => {
     return reasons.join(", ");
   };
 
-  const calculateOptimizationBenefits = (current, optimized) => {
+  const _calculateOptimizationBenefits = (current, optimized) => {
     // Calculate expected improvements from optimization
     const currentSharpe = current.sharpeRatio;
     const optimizedSharpe = currentSharpe * 1.15; // Estimated 15% improvement
@@ -1006,7 +1006,7 @@ const Portfolio = () => {
     };
   };
 
-  const generateOptimizationRecommendations = (current, optimized) => {
+  const _generateOptimizationRecommendations = (current, optimized) => {
     const recommendations = [];
 
     optimized.forEach((optimizedHolding) => {
@@ -1050,7 +1050,7 @@ const Portfolio = () => {
     return Math.round(dataQuality * marketStability * portfolioSize * 100);
   };
 
-  const calculateRiskProfile = (optimized) => {
+  const _calculateRiskProfile = (_optimized) => {
     return {
       concentrationRisk: "REDUCED",
       sectorRisk: "BALANCED",
@@ -1061,7 +1061,7 @@ const Portfolio = () => {
     };
   };
 
-  const createImplementationPlan = (recommendations) => {
+  const _createImplementationPlan = (recommendations) => {
     const highPriority = recommendations.filter((r) => r.priority === "HIGH");
     const mediumPriority = recommendations.filter(
       (r) => r.priority === "MEDIUM"
@@ -1192,7 +1192,7 @@ const Portfolio = () => {
     return correlations[symbol] || 0.5;
   };
 
-  const calculatePortfolioMetrics = (holdings) => {
+  const _calculatePortfolioMetrics = (holdings) => {
     // Calculate expected portfolio return
     let expectedReturn = 0;
     holdings.forEach((holding) => {
@@ -1227,7 +1227,7 @@ const Portfolio = () => {
     return esgScores[symbol] || 75;
   };
 
-  const calculatePortfolioESGScore = (holdings) => {
+  const _calculatePortfolioESGScore = (holdings) => {
     let weightedESGScore = 0;
     holdings.forEach((holding) => {
       const score = calculateESGScore(holding.symbol);
@@ -1247,7 +1247,7 @@ const Portfolio = () => {
     return techWeight > 50 ? 0.8 : 0.4; // High risk if >50% in tech
   };
 
-  const generateRiskAnalysis = (optimizedAllocation) => {
+  const generateRiskAnalysis = (_optimizedAllocation) => {
     return {
       riskScore: 0.6,
       concentrationRisk: "Medium",
@@ -1494,7 +1494,6 @@ const Portfolio = () => {
       </Grid>
     );
   };
-
 
   if (isLoading) {
     return (
@@ -3898,12 +3897,12 @@ function calculateConcentrationRisk(sectorAllocation) {
   );
 }
 
-function calculateGeographicDiversification(holdings) {
+function calculateGeographicDiversification(_holdings) {
   // Simplified - assume all holdings are US for now
   return { US: 100, International: 0, Emerging: 0 };
 }
 
-function calculateMarketCapExposure(holdings) {
+function calculateMarketCapExposure(_holdings) {
   // Simplified categorization
   return {
     LargeCap: 75.5,
@@ -3922,8 +3921,8 @@ function calculateHerfindahlIndex(holdings) {
 
 function generateAIInsights(
   portfolioMetrics,
-  factorAnalysis,
-  diversificationMetrics
+  _factorAnalysis,
+  _diversificationMetrics
 ) {
   return {
     confidenceScore: 87,

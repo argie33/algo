@@ -72,7 +72,7 @@ function PriceHistory() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Technical filters
-  const [techFilters, setTechFilters] = useState({
+  const [_techFilters, _setTechFilters] = useState({
     rsi_min: "",
     rsi_max: "",
     macd_min: "",

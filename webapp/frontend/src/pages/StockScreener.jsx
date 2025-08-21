@@ -142,7 +142,7 @@ const EXCHANGES = ["NYSE", "NASDAQ", "AMEX"];
 function StockScreener() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [savedScreens, setSavedScreens] = useState([]);
+  const [_savedScreens, _setSavedScreens] = useState([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [orderBy, setOrderBy] = useState("symbol"); // Default to alphabetical
@@ -172,7 +172,7 @@ function StockScreener() {
     data: screenResults,
     isLoading,
     error,
-    refetch,
+    _refetch,
   } = useQuery({
     queryKey: ["stockScreener", filters, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
@@ -441,7 +441,7 @@ function StockScreener() {
       id: "qualityScore",
       label: "Quality",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 80,
       isFactorScore: true,
     },
@@ -449,7 +449,7 @@ function StockScreener() {
       id: "growthScore",
       label: "Growth",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 80,
       isFactorScore: true,
     },
@@ -457,7 +457,7 @@ function StockScreener() {
       id: "valueScore",
       label: "Value",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 80,
       isFactorScore: true,
     },
@@ -465,7 +465,7 @@ function StockScreener() {
       id: "momentumScore",
       label: "Momentum",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 90,
       isFactorScore: true,
     },
@@ -473,7 +473,7 @@ function StockScreener() {
       id: "sentimentScore",
       label: "Sentiment",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 90,
       isFactorScore: true,
     },
@@ -481,7 +481,7 @@ function StockScreener() {
       id: "positioningScore",
       label: "Positioning",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 100,
       isFactorScore: true,
     },
@@ -489,7 +489,7 @@ function StockScreener() {
       id: "compositeScore",
       label: "Composite",
       sortable: true,
-      format: (val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
       width: 90,
       isFactorScore: true,
     },

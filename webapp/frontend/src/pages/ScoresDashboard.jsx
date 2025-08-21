@@ -1284,12 +1284,17 @@ const ScoresDashboard = () => {
     </Grid>
   );
 
-  // Main component render
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
-        <Box>
+      <Box sx={{ textAlign: "center", mb: 4 }}>
+        <Box
+          sx={{
+            background: `linear-gradient(135deg, ${theme.palette.primary.main}20, ${theme.palette.secondary.main}20)`,
+            borderRadius: 2,
+            p: 3,
+            mb: 3,
+          }}
+        >
           <Typography variant="h3" component="h1" gutterBottom>
             Advanced Scoring Dashboard
           </Typography>

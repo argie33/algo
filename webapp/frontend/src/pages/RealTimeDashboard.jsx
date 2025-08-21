@@ -95,9 +95,9 @@ const RealTimeDashboard = () => {
     "GOOGL",
   ]);
   const [marketData, setMarketData] = useState(null);
-  const [newsFeedData, setNewsFeedData] = useState(null);
-  const [unusualOptionsData, setUnusualOptionsData] = useState(null);
-  const [optionsFlowData, setOptionsFlowData] = useState(null);
+  const [newsFeedData, _setNewsFeedData] = useState(null);
+  const [unusualOptionsData, _setUnusualOptionsData] = useState(null);
+  const [optionsFlowData, _setOptionsFlowData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(5); // seconds
@@ -162,7 +162,7 @@ const RealTimeDashboard = () => {
               timestamp: symbolData.timestamp,
               alert: false,
               dataSource: "live",
-              chartData: Array.from({ length: 20 }, (_, i) => ({
+              chartData: Array.from({ length: 20 }, (_, _i) => ({
                 value: midPrice + Math.random() * 2 - 1,
               })),
             };
@@ -249,7 +249,7 @@ const RealTimeDashboard = () => {
     setIsStreaming(!isStreaming);
   };
 
-  const addToWatchlist = (symbol) => {
+  const _addToWatchlist = (symbol) => {
     if (!watchlist.includes(symbol)) {
       setWatchlist([...watchlist, symbol]);
     }
@@ -1488,7 +1488,7 @@ const RealTimeDashboard = () => {
                           >
                             Institutional Block Trades
                           </Typography>
-                          {["AAPL", "MSFT", "NVDA"].map((symbol, index) => (
+                          {["AAPL", "MSFT", "NVDA"].map((symbol, _index) => (
                             <Box
                               key={symbol}
                               display="flex"

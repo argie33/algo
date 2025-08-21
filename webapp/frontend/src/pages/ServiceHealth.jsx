@@ -271,9 +271,9 @@ function ServiceHealth() {
 
   // Service health query
   const {
-    data: serviceHealthData,
-    isLoading: isServiceLoading,
-    error: serviceError,
+    data: _serviceHealthData,
+    isLoading: _isServiceLoading,
+    error: _serviceError,
     refetch: refetchService,
   } = useQuery({
     queryKey: ["serviceHealth"],
@@ -359,7 +359,7 @@ function ServiceHealth() {
     }
   };
 
-  const handleRefresh = async () => {
+  const _handleRefresh = async () => {
     setRefreshing(true);
     try {
       await Promise.all([refetchDb(), refetchService(), testAllEndpoints()]);
@@ -371,7 +371,7 @@ function ServiceHealth() {
     }
   };
 
-  const formatTimestamp = (timestamp) => {
+  const _formatTimestamp = (timestamp) => {
     if (!timestamp) return "Unknown";
     const date = new Date(timestamp);
     const now = new Date();
@@ -385,8 +385,7 @@ function ServiceHealth() {
     }
   };
 
-  return (
-    () => [
+  const _testEndpoints = useMemo(() => [
       { name: "Health Check", fn: () => healthCheck(), critical: true },
       { name: "API Connection", fn: () => testApiConnection(), critical: true },
       { name: "Stocks", fn: () => getStocks({ limit: 5 }), critical: true },
@@ -417,9 +416,7 @@ function ServiceHealth() {
         fn: () => getFearGreedData({ limit: 5 }),
         critical: false,
       },
-    ],
-    []
-  );
+    ], []);
 
   // Health check query - simplified
   const {
