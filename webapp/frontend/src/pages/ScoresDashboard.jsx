@@ -1282,6 +1282,22 @@ const ScoresDashboard = () => {
         </Card>
       </Grid>
     </Grid>
+  );
+
+  // Main component render
+  return (
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
+        <Box>
+          <Typography variant="h3" component="h1" gutterBottom>
+            Advanced Scoring Dashboard
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Comprehensive multi-factor analysis and scoring framework
+          </Typography>
+        </Box>
+      </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
