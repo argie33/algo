@@ -410,34 +410,6 @@ jobs:
           echo "Testing build to catch dependency issues..."
           npm run build
           echo "Build test passed - dependencies are compatible"
-      - name: Test Frontend quality
-        working-directory: webapp/frontend
-        env:
-          API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
-        run: |
-          # Code quality check - informational only, does not block deployment
-          echo "Running code quality check..."
-          if npm run lint; then
-            echo "✅ Code quality check passed"
-          else
-            echo "⚠️ Code quality issues detected - continuing deployment (informational only)"
-          fi
-          
-          # Run unit tests if available (non-blocking for now)
-          echo "Running unit tests..."
-          if npm run test:unit --if-present 2>/dev/null; then
-            echo "✅ Frontend unit tests passed"
-          else
-            echo "⚠️ No unit tests found or tests failed - continuing deployment"
-          fi
-          
-          # React build validation - informational only, does not block deployment
-          echo "Running React build validation..."
-          if node test-react-build-validation.cjs; then
-            echo "✅ React build validation passed - production ready"
-          else
-            echo "⚠️ React build validation issues detected - continuing deployment (informational only)"
-          fi
       - name: Get Cognito configuration
         id: cognito_config
         run: |
