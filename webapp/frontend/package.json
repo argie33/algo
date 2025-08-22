@@ -22,19 +22,18 @@
     "@uiw/react-codemirror": "^4.23.13",
     "aws-amplify": "^6.15.1",
     "axios": "^1.3.4",
-    "chart.js": "^4.4.1",
     "date-fns": "^2.30.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.263.1",
     "numeral": "^2.0.6",
     "react": "^18.3.1",
-    "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.8.1",
     "recharts": "^2.15.4",
     "styled-components": "^5.3.9"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",
@@ -51,8 +50,7 @@
     "jsdom": "^23.0.1",
     "prettier": "^3.6.2",
     "vite": "^7.1.3",
-    "vitest": "^3.2.4",
-    "@playwright/test": "^1.40.0"
+    "vitest": "^3.2.4"
   },
   "scripts": {
     "dev": "vite",
@@ -80,7 +78,7 @@
     "test:comprehensive": "npm run test:unit && npm run test:integration && npm run test:component && npm run test:e2e",
     "test:ci": "npm run test:unit && npm run test:integration && npm run test:component",
     "test:critical": "npm run test:financial && npm run test:security",
-    "test:dep": "npm audit --audit-level=moderate",
+    "test:dep": "npm audit --audit-level=moderate && node -e \"const pkg=require('./package.json'); const deps={...pkg.dependencies,...pkg.devDependencies}; const issues=[]; const chartjs=Object.keys(deps).filter(d=>d.includes('chart.js')||d.includes('react-chartjs')||d==='chart.js'); if(chartjs.length>0) issues.push('Chart.js dependencies: '+chartjs.join(', ')+' (conflict with React 18.3.1)'); if(deps['use-sync-external-store']) issues.push('use-sync-external-store explicitly included (built into React 18+)'); if(deps.react&&deps['react-dom']&&deps.react!==deps['react-dom']) issues.push('React/ReactDOM version mismatch: '+deps.react+' vs '+deps['react-dom']); const reactQuery=deps['@tanstack/react-query']; if(reactQuery&&!reactQuery.startsWith('^4.')) issues.push('React Query '+reactQuery+' may have React 18 compatibility issues'); if(deps['react-router']&&deps['react-router-dom']) issues.push('Both react-router and react-router-dom installed (use only react-router-dom)'); if(issues.length>0){console.error('❌ Dependency conflicts found:'); issues.forEach(i=>console.error('  - '+i)); process.exit(1);} console.log('✅ No conflicting dependencies found');\"",
     "test:security:audit": "npm audit --audit-level=high",
     "test:build": "node --version && npm ci && npm run build",
     "test:node-version": "node -e \"const v=process.version.slice(1).split('.').map(Number); if(v[0]<20||(v[0]===20&&v[1]<19)) throw new Error('Node '+process.version+' unsupported. Requires Node 20.19+ or 22.12+')\"",
