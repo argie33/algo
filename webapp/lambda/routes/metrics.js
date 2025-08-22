@@ -531,19 +531,19 @@ router.get("/sectors/analysis", async (req, res) => {
       sectors,
       summary: {
         totalSectors: sectors.length,
-        bestPerforming: sectors[0],
-        mostVolatile: sectors.reduce((prev, current) =>
+        bestPerforming: sectors.length > 0 ? sectors[0] : null,
+        mostVolatile: sectors.length > 0 ? sectors.reduce((prev, current) =>
           parseFloat(prev.metricRange.volatility) >
           parseFloat(current.metricRange.volatility)
             ? prev
             : current
-        ),
-        averageQuality: (
+        ) : null,
+        averageQuality: sectors.length > 0 ? (
           sectors.reduce(
             (sum, s) => sum + parseFloat(s.averageMetrics.quality),
             0
           ) / sectors.length
-        ).toFixed(4),
+        ).toFixed(4) : "0.0000",
       },
       timestamp: new Date().toISOString(),
     });

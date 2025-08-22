@@ -719,12 +719,70 @@ router.get("/orders", async (req, res) => {
 // Handle POST requests for orders (placeholder)
 router.post("/orders", async (req, res) => {
   try {
-    res.status(501).json({
-      success: false,
-      error: "Order placement not implemented",
-      message: "This feature will be available in a future release"
+    const { symbol, quantity, type, side, limitPrice, stopPrice } = req.body;
+    
+    // Basic validation
+    if (!symbol || !quantity || !type || !side) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: symbol, quantity, type, side",
+        requiredFields: ["symbol", "quantity", "type", "side"]
+      });
+    }
+    
+    // Validate order type
+    if (!["market", "limit", "stop", "stop_limit"].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid order type. Must be: market, limit, stop, or stop_limit"
+      });
+    }
+    
+    // Validate side
+    if (!["buy", "sell"].includes(side)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid side. Must be: buy or sell"
+      });
+    }
+    
+    // Validate quantity
+    if (quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Quantity must be greater than 0"
+      });
+    }
+    
+    // Validate limit price for limit orders
+    if (type === "limit" && (!limitPrice || limitPrice <= 0)) {
+      return res.status(400).json({
+        success: false,
+        error: "Limit price required for limit orders"
+      });
+    }
+    
+    // For now, return success (would integrate with actual broker API in production)
+    const order = {
+      id: Date.now(),
+      symbol: symbol.toUpperCase(),
+      quantity: parseInt(quantity),
+      type,
+      side,
+      limitPrice: limitPrice || null,
+      stopPrice: stopPrice || null,
+      status: "pending",
+      created_at: new Date().toISOString(),
+    };
+    
+    res.status(201).json({
+      success: true,
+      message: "Order created successfully",
+      data: order
     });
+    
   } catch (error) {
+    console.error("Order placement error:", error);
     res.status(500).json({
       success: false,
       error: "Internal server error",

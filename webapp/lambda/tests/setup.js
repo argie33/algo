@@ -30,7 +30,10 @@ jest.mock('../utils/apiKeyService', () => ({
   storeApiKey: jest.fn().mockResolvedValue(true),
   deleteApiKey: jest.fn().mockResolvedValue(true),
   listApiKeys: jest.fn().mockResolvedValue([]),
+  listProviders: jest.fn().mockResolvedValue([]),
   validateApiKey: jest.fn().mockResolvedValue(true),
+  validateJwtToken: jest.fn().mockResolvedValue({ sub: "test-user-id" }),
+  getHealthStatus: jest.fn().mockResolvedValue({ status: "healthy" }),
 }));
 
 // Setup in-memory test database using pg-mem

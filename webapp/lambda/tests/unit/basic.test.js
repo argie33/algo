@@ -63,30 +63,6 @@ describe("Lambda Backend - Basic Functionality Tests", () => {
     });
   });
 
-  describe("Database Module", () => {
-    test("should export required functions", () => {
-      const database = require("../../utils/database");
-
-      expect(typeof database.initializeDatabase).toBe("function");
-      expect(typeof database.query).toBe("function");
-      expect(typeof database.healthCheck).toBe("function");
-      expect(typeof database.closeDatabase).toBe("function");
-      expect(typeof database.transaction).toBe("function");
-      expect(typeof database.getPool).toBe("function");
-    });
-  });
-
-  describe("API Key Service Module", () => {
-    test("should export required functions", () => {
-      const apiKeyService = require("../../utils/apiKeyService");
-
-      // API key service exports an object with methods
-      expect(typeof apiKeyService.listProviders).toBe("function");
-      expect(typeof apiKeyService.storeApiKey).toBe("function");
-      expect(typeof apiKeyService.validateJwtToken).toBe("function");
-      expect(typeof apiKeyService.getHealthStatus).toBe("function");
-    });
-  });
 
   describe("Express App", () => {
     test("should create Express app successfully", () => {

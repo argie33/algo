@@ -281,6 +281,87 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
+// Route aliases for test compatibility
+router.post("/confirm-forgot-password", async (req, res) => {
+  // Alias for reset-password endpoint to match test expectations
+  const { username, confirmationCode, newPassword } = req.body;
+
+  if (!username || !confirmationCode || !newPassword) {
+    return res.status(400).json({
+      error: "Missing required parameters",
+      message: "Username, confirmation code, and new password are required",
+    });
+  }
+
+  try {
+    const command = new ConfirmForgotPasswordCommand({
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      Username: username,
+      ConfirmationCode: confirmationCode,
+      Password: newPassword,
+    });
+
+    await cognitoClient.send(command);
+    res.json({
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    console.error("Password reset error:", error);
+    res.status(400).json({
+      error: error.message || "Password reset failed",
+    });
+  }
+});
+
+router.post("/respond-to-challenge", async (req, res) => {
+  // Alias for challenge endpoint to match test expectations
+  const { challengeName, session, challengeResponses } = req.body;
+
+  if (!challengeName || !session) {
+    return res.status(400).json({
+      error: "Missing required parameters",
+      message: "Challenge name and session are required",
+    });
+  }
+
+  try {
+    const command = new RespondToAuthChallengeCommand({
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      ChallengeName: challengeName,
+      Session: session,
+      ChallengeResponses: challengeResponses || {},
+    });
+
+    const response = await cognitoClient.send(command);
+
+    if (response.AuthenticationResult) {
+      res.json({
+        tokens: {
+          accessToken: response.AuthenticationResult.AccessToken,
+          idToken: response.AuthenticationResult.IdToken,
+          refreshToken: response.AuthenticationResult.RefreshToken,
+        },
+        user: response.AuthenticationResult.User || {},
+      });
+    } else if (response.ChallengeName) {
+      res.json({
+        challenge: response.ChallengeName,
+        challengeParameters: response.ChallengeParameters,
+        session: response.Session,
+      });
+    } else {
+      res.json({
+        message: "Challenge response processed",
+      });
+    }
+  } catch (error) {
+    console.error("Challenge response error:", error);
+    res.status(400).json({
+      error: error.message || "Challenge response failed",
+    });
+  }
+});
+
 // Get current user info (protected route)
 router.get("/me", authenticateToken, (req, res) => {
   res.json({

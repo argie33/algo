@@ -3,6 +3,9 @@
  * Critical: Validates secure API key storage and retrieval for financial data
  */
 
+// Unmock the apiKeyService for this test to test real encryption
+jest.unmock('../../../utils/apiKeyService');
+
 const apiKeyService = require('../../../utils/apiKeyService');
 const { query } = require('../../../utils/database');
 const _crypto = require('crypto');
@@ -27,6 +30,10 @@ describe('API Key Encryption Integration', () => {
 
   beforeAll(async () => {
     testUserId = 'test-user-encryption-' + Date.now();
+    
+    // Set up environment variables for API key encryption testing
+    process.env.API_KEY_ENCRYPTION_SECRET = 'test-secret-key-for-integration-testing-32-chars';
+    process.env.NODE_ENV = 'test';
     
     // Ensure API key service is initialized
     if (!apiKeyService.isEnabled) {

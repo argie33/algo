@@ -220,39 +220,99 @@ describe("Metrics Routes", () => {
             symbol: "AAPL",
             company_name: "Apple Inc.",
             sector: "Technology",
+            industry: "Consumer Electronics",
+            market_cap: 3000000000000,
+            current_price: 150.00,
+            trailing_pe: 25.5,
+            price_to_book: 10.2,
+            dividend_yield: 0.5,
+            return_on_equity: 15.2,
+            return_on_assets: 8.1,
+            debt_to_equity: 0.3,
+            free_cash_flow: 92000000000,
             quality_metric: 0.85,
             earnings_quality_metric: 0.82,
             balance_sheet_metric: 0.88,
             profitability_metric: 0.90,
+            management_metric: 0.85,
             piotroski_f_score: 8,
             altman_z_score: 3.2,
+            accruals_ratio: 0.05,
+            cash_conversion_ratio: 0.95,
+            shareholder_yield: 0.02,
             value_metric: 0.75,
-            composite_metric: 0.80,
-            last_updated: new Date().toISOString()
+            multiples_metric: 0.70,
+            intrinsic_value_metric: 0.80,
+            relative_value_metric: 0.75,
+            dcf_intrinsic_value: 175.50,
+            dcf_margin_of_safety: 0.15,
+            ddm_value: 160.00,
+            rim_value: 170.00,
+            current_pe: 24.8,
+            current_pb: 9.8,
+            current_ev_ebitda: 18.5,
+            confidence_score: 0.92,
+            data_completeness: 0.98,
+            market_cap_tier: "large",
+            date: new Date().toISOString().split('T')[0],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }
         ]
       };
 
-      query.mockResolvedValueOnce(mockDetailedMetrics);
+      const mockSectorBenchmark = {
+        rows: [
+          {
+            avg_quality: 0.72,
+            avg_value: 0.68,
+            peer_count: 25
+          }
+        ]
+      };
+
+      query
+        .mockResolvedValueOnce(mockDetailedMetrics)
+        .mockResolvedValueOnce(mockSectorBenchmark);
 
       const response = await request(app)
         .get("/metrics/AAPL")
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          symbol: "AAPL",
-          company_name: "Apple Inc.",
-          quality_metric: 0.85,
-          value_metric: 0.75,
-          composite_metric: 0.80,
-          piotroski_f_score: 8,
-          altman_z_score: 3.2
+        symbol: "AAPL",
+        companyName: "Apple Inc.",
+        sector: "Technology",
+        industry: "Consumer Electronics",
+        currentData: expect.objectContaining({
+          marketCap: 3000000000000,
+          currentPrice: 150.00
+        }),
+        metrics: expect.objectContaining({
+          composite: expect.any(Number),
+          quality: 0.85,
+          value: 0.75
+        }),
+        detailedBreakdown: expect.objectContaining({
+          quality: expect.objectContaining({
+            overall: 0.85,
+            scores: expect.objectContaining({
+              piotrosiScore: 8,
+              altmanZScore: 3.2
+            })
+          })
+        }),
+        sectorComparison: expect.objectContaining({
+          sectorName: "Technology",
+          peerCount: 25
+        }),
+        interpretation: expect.objectContaining({
+          overall: expect.any(String),
+          recommendation: expect.any(String)
         })
       });
 
-      expect(query).toHaveBeenCalledTimes(1);
+      expect(query).toHaveBeenCalledTimes(2);
       expect(query.mock.calls[0][1]).toContain("AAPL");
     });
 
@@ -264,9 +324,9 @@ describe("Metrics Routes", () => {
         .expect(404);
 
       expect(response.body).toEqual({
-        success: false,
-        error: "Symbol not found",
-        message: "No metrics data available for INVALID"
+        error: "Symbol not found or no metrics available",
+        symbol: "INVALID",
+        timestamp: expect.any(String)
       });
     });
 
@@ -278,9 +338,10 @@ describe("Metrics Routes", () => {
         .expect(500);
 
       expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch symbol metrics",
-        message: "Database query failed"
+        error: "Failed to fetch detailed metrics",
+        message: "Database query failed",
+        symbol: "AAPL",
+        timestamp: expect.any(String)
       });
     });
   });
@@ -291,23 +352,25 @@ describe("Metrics Routes", () => {
         rows: [
           {
             sector: "Technology",
-            avg_quality_metric: 0.78,
-            avg_value_metric: 0.65,
-            avg_composite_metric: 0.72,
             stock_count: 145,
-            top_performer: "AAPL",
-            bottom_performer: "TECH_WORST",
-            avg_market_cap: 125000000000
+            avg_quality: 0.78,
+            avg_value: 0.65,
+            avg_composite: 0.72,
+            quality_volatility: 0.15,
+            max_quality: 0.95,
+            min_quality: 0.45,
+            last_updated: new Date().toISOString()
           },
           {
             sector: "Healthcare",
-            avg_quality_metric: 0.72,
-            avg_value_metric: 0.58,
-            avg_composite_metric: 0.65,
             stock_count: 89,
-            top_performer: "JNJ",
-            bottom_performer: "HEALTH_WORST",
-            avg_market_cap: 85000000000
+            avg_quality: 0.72,
+            avg_value: 0.58,
+            avg_composite: 0.65,
+            quality_volatility: 0.18,
+            max_quality: 0.88,
+            min_quality: 0.42,
+            last_updated: new Date().toISOString()
           }
         ]
       };
@@ -319,22 +382,36 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
+        sectors: expect.arrayContaining([
           expect.objectContaining({
             sector: "Technology",
-            avg_quality_metric: 0.78,
-            avg_composite_metric: 0.72,
-            stock_count: 145,
-            top_performer: "AAPL"
+            stockCount: 145,
+            averageMetrics: expect.objectContaining({
+              composite: "0.7200",
+              quality: "0.7800",
+              value: "0.6500"
+            }),
+            metricRange: expect.objectContaining({
+              min: "0.4500",
+              max: "0.9500",
+              volatility: "0.1500"
+            })
           }),
           expect.objectContaining({
             sector: "Healthcare",
-            avg_quality_metric: 0.72,
-            stock_count: 89,
-            top_performer: "JNJ"
+            stockCount: 89,
+            averageMetrics: expect.objectContaining({
+              quality: "0.7200"
+            })
           })
-        ])
+        ]),
+        summary: expect.objectContaining({
+          totalSectors: 2,
+          bestPerforming: expect.objectContaining({
+            sector: "Technology"
+          }),
+          averageQuality: expect.any(String)
+        })
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -347,10 +424,12 @@ describe("Metrics Routes", () => {
         .get("/metrics/sectors/analysis")
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        data: [],
-        message: "No sector analysis data available"
+      expect(response.body).toMatchObject({
+        sectors: [],
+        summary: expect.objectContaining({
+          totalSectors: 0
+        }),
+        timestamp: expect.any(String)
       });
     });
 
@@ -362,9 +441,9 @@ describe("Metrics Routes", () => {
         .expect(500);
 
       expect(response.body).toMatchObject({
-        success: false,
         error: "Failed to fetch sector analysis",
-        message: "Sector analysis query failed"
+        message: "Sector analysis query failed",
+        timestamp: expect.any(String)
       });
     });
   });
@@ -376,16 +455,26 @@ describe("Metrics Routes", () => {
           {
             symbol: "AAPL",
             company_name: "Apple Inc.",
+            sector: "Technology",
+            market_cap: 3000000000000,
+            current_price: 150.00,
             quality_metric: 0.95,
-            composite_metric: 0.88,
-            sector: "Technology"
+            value_metric: 0.80,
+            category_metric: 0.95,
+            confidence_score: 0.92,
+            updated_at: new Date().toISOString()
           },
           {
             symbol: "MSFT",
             company_name: "Microsoft Corporation",
+            sector: "Technology",
+            market_cap: 2800000000000,
+            current_price: 380.00,
             quality_metric: 0.92,
-            composite_metric: 0.85,
-            sector: "Technology"
+            value_metric: 0.75,
+            category_metric: 0.92,
+            confidence_score: 0.89,
+            updated_at: new Date().toISOString()
           }
         ]
       };
@@ -397,21 +486,26 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
+        category: "QUALITY",
+        topStocks: expect.arrayContaining([
           expect.objectContaining({
             symbol: "AAPL",
-            quality_metric: 0.95,
-            sector: "Technology"
+            qualityMetric: 0.95,
+            sector: "Technology",
+            categoryMetric: 0.95
           }),
           expect.objectContaining({
             symbol: "MSFT",
-            quality_metric: 0.92,
-            sector: "Technology"
+            qualityMetric: 0.92,
+            sector: "Technology",
+            categoryMetric: 0.92
           })
         ]),
-        category: "quality",
-        total: 2
+        summary: expect.objectContaining({
+          count: 2,
+          averageMetric: expect.any(String),
+          highestMetric: expect.any(String)
+        })
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -423,9 +517,14 @@ describe("Metrics Routes", () => {
           {
             symbol: "BRK.A",
             company_name: "Berkshire Hathaway Inc.",
+            sector: "Financial Services",
+            market_cap: 650000000000,
+            current_price: 425000.00,
+            quality_metric: 0.75,
             value_metric: 0.88,
-            composite_metric: 0.82,
-            sector: "Financial Services"
+            category_metric: 0.88,
+            confidence_score: 0.85,
+            updated_at: new Date().toISOString()
           }
         ]
       };
@@ -438,16 +537,19 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
+        category: "VALUE",
+        topStocks: expect.arrayContaining([
           expect.objectContaining({
             symbol: "BRK.A",
-            value_metric: 0.88,
-            sector: "Financial Services"
+            valueMetric: 0.88,
+            sector: "Financial Services",
+            categoryMetric: 0.88
           })
         ]),
-        category: "value",
-        total: 1
+        summary: expect.objectContaining({
+          count: 1,
+          averageMetric: expect.any(String)
+        })
       });
     });
 
@@ -461,31 +563,31 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body).toEqual({
-        success: true,
-        data: [],
-        category: "composite",
-        total: 0,
-        message: "No top performers found"
+        category: "COMPOSITE",
+        topStocks: [],
+        summary: {
+          count: 0,
+          averageMetric: 0,
+          highestMetric: 0,
+          lowestMetric: 0
+        },
+        timestamp: expect.any(String)
       });
     });
 
     test("should handle invalid category", async () => {
-      const mockEmpty = { rows: [] };
-      query.mockResolvedValueOnce(mockEmpty);
-
       const response = await request(app)
         .get("/metrics/top/invalid_category")
-        .expect(200);
+        .expect(400);
 
       expect(response.body).toMatchObject({
-        success: true,
-        data: [],
-        category: "invalid_category",
-        total: 0
+        error: "Invalid category",
+        validCategories: ["composite", "quality", "value"],
+        timestamp: expect.any(String)
       });
 
-      // Should still call database but with default quality metric
-      expect(query).toHaveBeenCalledTimes(1);
+      // Should not call database for invalid category
+      expect(query).not.toHaveBeenCalled();
     });
 
     test("should handle database errors for top performers", async () => {
@@ -496,9 +598,9 @@ describe("Metrics Routes", () => {
         .expect(500);
 
       expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch top performers",
-        message: "Top performers query failed"
+        error: "Failed to fetch top stocks",
+        message: "Top performers query failed",
+        timestamp: expect.any(String)
       });
     });
   });

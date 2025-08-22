@@ -215,8 +215,7 @@ describe("Sectors Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Failed to fetch sector analysis",
-        message: "Database connection failed"
+        error: "Database connection failed"
       });
     });
   });
@@ -300,8 +299,7 @@ describe("Sectors Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Failed to fetch sectors list",
-        message: "Database query failed"
+        error: "Database query failed"
       });
     });
   });
@@ -454,8 +452,7 @@ describe("Sectors Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Failed to fetch sector details",
-        message: "Database connection failed"
+        error: "Database connection failed"
       });
     });
 

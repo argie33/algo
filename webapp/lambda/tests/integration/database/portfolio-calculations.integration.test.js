@@ -13,7 +13,7 @@ describe('Portfolio Calculations Integration', () => {
 
   beforeAll(async () => {
     // Setup test user and portfolio data - use the same ID that auth middleware provides
-    testUserId = 'no-auth-user'; // This matches what auth middleware sets when no Cognito is configured
+    testUserId = 'test-user-id'; // This matches what validateJwtToken mock returns in tests/setup.js
     
     // Insert test portfolio data
     testPortfolioData = {

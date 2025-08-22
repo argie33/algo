@@ -16,9 +16,27 @@ const { query } = require("../../../utils/database");
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
     req.user = { sub: "test-user-id" };
+    req.token = "test-jwt-token";
     next();
   },
 }));
+
+// Mock API Key Service
+jest.mock("../../../utils/apiKeyService", () => ({
+  listProviders: jest.fn(),
+  storeApiKey: jest.fn(), 
+  getApiKey: jest.fn(),
+  validateApiKey: jest.fn(),
+  deleteApiKey: jest.fn(),
+  getHealthStatus: jest.fn(),
+}));
+
+const {
+  listProviders,
+  storeApiKey,
+  getApiKey,
+  deleteApiKey,
+} = require("../../../utils/apiKeyService");
 
 const settingsRoutes = require("../../../routes/settings");
 const app = express();
@@ -32,19 +50,16 @@ describe("Settings API Routes", () => {
 
   describe("GET /api/settings/api-keys", () => {
     it("should return API keys for authenticated user", async () => {
-      const mockRows = [
+      const mockProviders = [
         {
-          id: "1",
           provider: "alpaca",
-          description: "Test API Key",
-          isSandbox: true,
-          isActive: true,
-          createdAt: "2023-01-01T00:00:00Z",
-          lastUsed: null,
+          updated_at: "2023-01-01T00:00:00Z",
+          created_at: "2023-01-01T00:00:00Z",
+          last_used: null,
         },
       ];
 
-      query.mockResolvedValue({ rows: mockRows });
+      listProviders.mockResolvedValue(mockProviders);
 
       const response = await request(app)
         .get("/api/settings/api-keys")
@@ -52,27 +67,16 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        apiKeys: [
-          {
-            id: "1",
-            provider: "alpaca",
-            description: "Test API Key",
-            isSandbox: true,
-            isActive: true,
-            createdAt: "2023-01-01T00:00:00Z",
-            lastUsed: null,
-            apiKey: "****",
-          },
-        ],
+        apiKeys: mockProviders,
+        providers: mockProviders,
+        timestamp: expect.any(String),
       });
 
-      expect(query).toHaveBeenCalledWith(expect.stringContaining("SELECT"), [
-        "test-user-id",
-      ]);
+      expect(listProviders).toHaveBeenCalledWith("test-jwt-token");
     });
 
     it("should handle database errors gracefully", async () => {
-      query.mockRejectedValue(new Error("Database connection failed"));
+      listProviders.mockRejectedValue(new Error("Database connection failed"));
 
       const response = await request(app)
         .get("/api/settings/api-keys")
@@ -81,21 +85,21 @@ describe("Settings API Routes", () => {
       expect(response.body).toEqual({
         success: false,
         error: "Failed to fetch API keys",
+        message: "Database connection failed",
       });
     });
   });
 
   describe("POST /api/settings/api-keys", () => {
     it("should add new API key successfully", async () => {
-      const mockRow = {
+      const mockStoreResult = {
         id: "1",
         provider: "alpaca",
-        description: "New API Key",
-        isSandbox: true,
-        createdAt: "2023-01-01T00:00:00Z",
+        encrypted: true,
+        user: "test-user-id",
       };
 
-      query.mockResolvedValue({ rows: [mockRow] });
+      storeApiKey.mockResolvedValue(mockStoreResult);
 
       const response = await request(app)
         .post("/api/settings/api-keys")
@@ -110,13 +114,24 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        message: "API key added successfully",
-        apiKey: mockRow,
+        message: "alpaca API key stored successfully",
+        result: {
+          id: "1",
+          provider: "alpaca",
+          encrypted: true,
+          user: "test-user-id",
+        },
       });
 
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("INSERT INTO user_api_keys"),
-        expect.arrayContaining(["test-user-id", "alpaca"])
+      expect(storeApiKey).toHaveBeenCalledWith(
+        "test-jwt-token",
+        "alpaca",
+        expect.objectContaining({
+          apiKey: "test-api-key",
+          apiSecret: "test-secret",
+          isSandbox: true,
+          description: "New API Key",
+        })
       );
     });
 
@@ -132,13 +147,13 @@ describe("Settings API Routes", () => {
       expect(response.body).toEqual({
         success: false,
         error: "Provider and API key are required",
+        requiredFields: ["provider", "apiKey"],
       });
     });
 
     it("should handle duplicate API key errors", async () => {
-      const error = new Error("Duplicate key");
-      error.code = "23505";
-      query.mockRejectedValue(error);
+      const error = new Error("API key for this provider already exists");
+      storeApiKey.mockRejectedValue(error);
 
       const response = await request(app)
         .post("/api/settings/api-keys")
@@ -146,28 +161,36 @@ describe("Settings API Routes", () => {
           provider: "alpaca",
           apiKey: "test-api-key",
         })
-        .expect(400);
+        .expect(500);
 
       expect(response.body).toEqual({
         success: false,
-        error: "API key for this provider already exists",
+        error: "Failed to store API key",
+        message: "API key for this provider already exists",
       });
     });
   });
 
-  describe("PUT /api/settings/api-keys/:keyId", () => {
+  describe("PUT /api/settings/api-keys/:provider", () => {
     it("should update API key successfully", async () => {
-      const mockRow = {
-        id: "1",
-        provider: "alpaca",
-        description: "Updated API Key",
-        isSandbox: false,
+      const mockExistingData = {
+        apiKey: "existing-key",
+        apiSecret: "existing-secret",
+        isSandbox: true,
+        description: "Existing API Key",
       };
 
-      query.mockResolvedValue({ rows: [mockRow] });
+      const mockUpdateResult = {
+        id: "1",
+        provider: "alpaca",
+        encrypted: true,
+      };
+
+      getApiKey.mockResolvedValue(mockExistingData);
+      storeApiKey.mockResolvedValue(mockUpdateResult);
 
       const response = await request(app)
-        .put("/api/settings/api-keys/1")
+        .put("/api/settings/api-keys/alpaca")
         .send({
           description: "Updated API Key",
           isSandbox: false,
@@ -176,16 +199,32 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        message: "API key updated successfully",
-        apiKey: mockRow,
+        message: "alpaca API key updated successfully",
+        result: {
+          id: "1",
+          provider: "alpaca",
+          encrypted: true,
+        },
       });
+
+      expect(getApiKey).toHaveBeenCalledWith("test-jwt-token", "alpaca");
+      expect(storeApiKey).toHaveBeenCalledWith(
+        "test-jwt-token",
+        "alpaca",
+        expect.objectContaining({
+          apiKey: "existing-key",
+          apiSecret: "existing-secret",
+          isSandbox: false,
+          description: "Updated API Key",
+        })
+      );
     });
 
     it("should handle not found errors", async () => {
-      query.mockResolvedValue({ rows: [] });
+      getApiKey.mockResolvedValue(null);
 
       const response = await request(app)
-        .put("/api/settings/api-keys/999")
+        .put("/api/settings/api-keys/nonexistent")
         .send({
           description: "Updated API Key",
         })
@@ -193,33 +232,43 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: "API key not found",
+        error: "API key configuration not found",
+        provider: "nonexistent",
       });
     });
   });
 
-  describe("DELETE /api/settings/api-keys/:keyId", () => {
+  describe("DELETE /api/settings/api-keys/:provider", () => {
     it("should delete API key successfully", async () => {
-      query.mockResolvedValue({
-        rows: [{ id: "1", provider: "alpaca" }],
-      });
+      const mockDeleteResult = {
+        deleted: true,
+        provider: "alpaca",
+      };
+
+      deleteApiKey.mockResolvedValue(mockDeleteResult);
 
       const response = await request(app)
-        .delete("/api/settings/api-keys/1")
+        .delete("/api/settings/api-keys/alpaca")
         .expect(200);
 
       expect(response.body).toEqual({
         success: true,
-        message: "API key deleted successfully",
+        message: "alpaca API key deleted successfully",
+        provider: "alpaca",
       });
+
+      expect(deleteApiKey).toHaveBeenCalledWith("test-jwt-token", "alpaca");
     });
   });
 
   describe("GET /api/settings/onboarding-status", () => {
     it("should return onboarding status", async () => {
       query.mockResolvedValue({
-        rows: [{ onboarding_complete: true }],
+        rows: [{ onboarding_completed: true }],
       });
+      listProviders.mockResolvedValue([
+        { provider: "alpaca", configured: true },
+      ]);
 
       const response = await request(app)
         .get("/api/settings/onboarding-status")
@@ -227,15 +276,19 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        data: {
-          isComplete: true,
-          userId: "test-user-id",
+        onboarding: {
+          completed: true,
+          hasApiKeys: true,
+          configuredProviders: 1,
+          nextStep: "complete",
         },
+        timestamp: expect.any(String),
       });
     });
 
     it("should handle missing user gracefully", async () => {
       query.mockResolvedValue({ rows: [] });
+      listProviders.mockResolvedValue([]);
 
       const response = await request(app)
         .get("/api/settings/onboarding-status")
@@ -243,6 +296,8 @@ describe("Settings API Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.onboarding.completed).toBe(false);
+      expect(response.body.onboarding.hasApiKeys).toBe(false);
+      expect(response.body.onboarding.nextStep).toBe("configure-api-keys");
     });
   });
 
