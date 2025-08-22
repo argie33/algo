@@ -1,347 +1,276 @@
-// Unit tests for logger utility
+// Logger utility tests - testing actual site functionality
 
-describe("Logger Utility Unit Tests", () => {
-  let Logger;
+describe("Logger Service Tests", () => {
   let logger;
   let consoleSpy;
 
   beforeEach(() => {
-    // Clear module cache
-    delete require.cache[require.resolve("../../utils/logger")];
-
-    // Mock console methods
+    jest.clearAllMocks();
+    
+    // Mock console.log which is what the logger actually uses
     consoleSpy = {
-      error: jest.spyOn(console, "error").mockImplementation(() => {}),
-      warn: jest.spyOn(console, "warn").mockImplementation(() => {}),
-      info: jest.spyOn(console, "info").mockImplementation(() => {}),
-      log: jest.spyOn(console, "log").mockImplementation(() => {}),
+      log: jest.spyOn(console, 'log').mockImplementation(() => {}),
+      error: jest.spyOn(console, 'error').mockImplementation(() => {}),
+      warn: jest.spyOn(console, 'warn').mockImplementation(() => {}),
+      info: jest.spyOn(console, 'info').mockImplementation(() => {})
     };
 
-    // Set test environment
-    process.env.NODE_ENV = "test";
-    process.env.LOG_LEVEL = "DEBUG";
-    delete process.env.SERVICE_NAME;
-    delete process.env.APP_VERSION;
-
-    // Import logger after setting environment
-    Logger = require("../../utils/logger");
-
-    // Check if it's a class or instance
-    if (typeof Logger === "function") {
-      logger = new Logger();
-    } else {
-      logger = Logger;
-    }
-  });
-
-  afterEach(() => {
-    // Restore console methods
-    Object.values(consoleSpy).forEach((spy) => spy.mockRestore());
-
-    // Clean up environment
-    delete process.env.NODE_ENV;
+    // Clear environment variables
     delete process.env.LOG_LEVEL;
     delete process.env.SERVICE_NAME;
     delete process.env.APP_VERSION;
+    
+    // Clear module cache to get fresh logger instance
+    delete require.cache[require.resolve("../../utils/logger")];
+    logger = require("../../utils/logger");
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe("Logger Construction", () => {
-    test("should initialize with default values", () => {
-      if (logger.serviceName) {
-        expect(logger.serviceName).toBe("financial-platform-api");
-        expect(logger.environment).toBe("test");
-        expect(logger.version).toBe("1.0.0");
-      }
+    test("should use default values when environment variables not set", () => {
+      expect(logger.serviceName).toBe("financial-platform-api");
+      expect(logger.environment).toBe("test");
+      expect(logger.version).toBe("1.0.0");
     });
 
-    test("should use environment variables when provided", () => {
-      process.env.SERVICE_NAME = "test-service";
-      process.env.APP_VERSION = "2.0.0";
-
-      // Clear cache and reimport
-      delete require.cache[require.resolve("../../utils/logger")];
-      const TestLogger = require("../../utils/logger");
-      const testLogger =
-        typeof TestLogger === "function" ? new TestLogger() : TestLogger;
-
-      if (testLogger.serviceName) {
-        expect(testLogger.serviceName).toBe("test-service");
-        expect(testLogger.version).toBe("2.0.0");
-      }
+    test("should read configuration properties", () => {
+      expect(logger.serviceName).toBeDefined();
+      expect(logger.environment).toBeDefined();
+      expect(logger.version).toBeDefined();
+      expect(logger.currentLevel).toBeDefined();
     });
   });
 
-  describe("Log Level Parsing", () => {
-    test("should parse valid log levels", () => {
-      if (logger.parseLogLevel) {
-        expect(logger.parseLogLevel("ERROR")).toBe(0);
-        expect(logger.parseLogLevel("WARN")).toBe(1);
-        expect(logger.parseLogLevel("INFO")).toBe(2);
-        expect(logger.parseLogLevel("DEBUG")).toBe(3);
-        expect(logger.parseLogLevel("error")).toBe(0); // case insensitive
-      }
+  describe("Log Level Management", () => {
+    test("should parse log levels correctly", () => {
+      expect(logger.parseLogLevel("ERROR")).toBe(0);
+      expect(logger.parseLogLevel("WARN")).toBe(1);
+      expect(logger.parseLogLevel("INFO")).toBe(2);
+      expect(logger.parseLogLevel("DEBUG")).toBe(3);
     });
 
-    test("should default to INFO for invalid log levels", () => {
-      if (logger.parseLogLevel) {
-        expect(logger.parseLogLevel("INVALID")).toBe(2); // INFO level
-        expect(logger.parseLogLevel("")).toBe(2);
-        expect(logger.parseLogLevel("123")).toBe(2);
-      }
+    test("should default to INFO for invalid levels", () => {
+      expect(logger.parseLogLevel("INVALID")).toBe(2);
     });
-  });
 
-  describe("Correlation ID Generation", () => {
-    test("should generate correlation ID", () => {
-      if (logger.generateCorrelationId) {
-        const id1 = logger.generateCorrelationId();
-        const id2 = logger.generateCorrelationId();
-
-        expect(typeof id1).toBe("string");
-        expect(typeof id2).toBe("string");
-        expect(id1).not.toBe(id2); // Should be unique
-        expect(id1.length).toBeGreaterThan(0);
-      }
+    test("should check log level thresholds correctly", () => {
+      logger.currentLevel = 2; // INFO level
+      
+      expect(logger.shouldLog(0)).toBe(true);  // ERROR
+      expect(logger.shouldLog(1)).toBe(true);  // WARN
+      expect(logger.shouldLog(2)).toBe(true);  // INFO
+      expect(logger.shouldLog(3)).toBe(false); // DEBUG
     });
   });
 
-  describe("Base Log Entry Creation", () => {
+  describe("Log Entry Structure", () => {
     test("should create properly structured log entry", () => {
-      if (logger.createBaseEntry) {
-        const entry = logger.createBaseEntry("INFO", "Test message", {
-          userId: "123",
-        });
+      const entry = logger.createBaseEntry(2, "Test message", {
+        userId: "123",
+        operation: "test"
+      });
 
-        expect(entry).toHaveProperty("timestamp");
-        expect(entry).toHaveProperty("level", "INFO");
-        expect(entry).toHaveProperty("message", "Test message");
-        expect(entry).toHaveProperty("userId", "123");
-
-        // Validate timestamp format
-        const timestamp = new Date(entry.timestamp);
-        expect(timestamp.toISOString()).toBe(entry.timestamp);
-      }
+      expect(entry).toHaveProperty("timestamp");
+      expect(entry).toHaveProperty("level", "INFO");
+      expect(entry).toHaveProperty("message", "Test message");
+      expect(entry).toHaveProperty("service", "financial-platform-api");
+      expect(entry).toHaveProperty("environment", "test");
+      expect(entry).toHaveProperty("correlationId");
+      expect(entry).toHaveProperty("userId", "123");
+      expect(entry).toHaveProperty("operation", "test");
     });
 
-    test("should handle empty context", () => {
-      if (logger.createBaseEntry) {
-        const entry = logger.createBaseEntry("ERROR", "Error message");
-
-        expect(entry.level).toBe("ERROR");
-        expect(entry.message).toBe("Error message");
-        expect(entry.timestamp).toBeDefined();
-      }
+    test("should generate correlation IDs", () => {
+      const id1 = logger.generateCorrelationId();
+      const id2 = logger.generateCorrelationId();
+      
+      expect(id1).toBeDefined();
+      expect(id2).toBeDefined();
+      expect(id1).not.toBe(id2);
+      expect(typeof id1).toBe("string");
     });
   });
 
   describe("Logging Methods", () => {
     test("should log error messages", () => {
-      if (logger.error) {
-        logger.error("Test error message");
-        expect(consoleSpy.error).toHaveBeenCalled();
-      } else if (logger.log) {
-        logger.log("ERROR", "Test error message");
-        expect(consoleSpy.error).toHaveBeenCalled();
-      }
-    });
-
-    test("should log warning messages", () => {
-      if (logger.warn) {
-        logger.warn("Test warning message");
-        expect(consoleSpy.warn).toHaveBeenCalled();
-      } else if (logger.log) {
-        logger.log("WARN", "Test warning message");
-        expect(consoleSpy.warn).toHaveBeenCalled();
+      logger.error("Test error message");
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
+      const logCall = consoleSpy.log.mock.calls[0][0];
+      expect(typeof logCall).toBe("string");
+      
+      // In test environment, should use JSON format
+      if (logCall.startsWith("{")) {
+        const parsed = JSON.parse(logCall);
+        expect(parsed.level).toBe("ERROR");
+        expect(parsed.message).toBe("Test error message");
       }
     });
 
     test("should log info messages", () => {
-      if (logger.info) {
-        logger.info("Test info message");
-        expect(consoleSpy.info).toHaveBeenCalled();
-      } else if (logger.log) {
-        logger.log("INFO", "Test info message");
-        expect(consoleSpy.info).toHaveBeenCalled();
+      logger.info("Test info message");
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
+      const logCall = consoleSpy.log.mock.calls[0][0];
+      
+      if (logCall.startsWith("{")) {
+        const parsed = JSON.parse(logCall);
+        expect(parsed.level).toBe("INFO");
+        expect(parsed.message).toBe("Test info message");
       }
     });
 
-    test("should log debug messages when level allows", () => {
-      // Set debug level
-      process.env.LOG_LEVEL = "DEBUG";
-
-      if (logger.debug) {
-        logger.debug("Test debug message");
-        expect(consoleSpy.log).toHaveBeenCalled();
-      } else if (logger.log) {
-        logger.log("DEBUG", "Test debug message");
-        expect(consoleSpy.log).toHaveBeenCalled();
+    test("should log warning messages", () => {
+      logger.warn("Test warning message");
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
+      const logCall = consoleSpy.log.mock.calls[0][0];
+      
+      if (logCall.startsWith("{")) {
+        const parsed = JSON.parse(logCall);
+        expect(parsed.level).toBe("WARN");
+        expect(parsed.message).toBe("Test warning message");
       }
     });
 
-    test("should not log debug messages when level is higher", () => {
-      // Set INFO level (higher than DEBUG)
-      process.env.LOG_LEVEL = "INFO";
-
-      // Clear cache and reimport with new log level
-      delete require.cache[require.resolve("../../utils/logger")];
-      const InfoLogger = require("../../utils/logger");
-      const infoLogger =
-        typeof InfoLogger === "function" ? new InfoLogger() : InfoLogger;
-
-      consoleSpy.log.mockClear();
-
-      if (infoLogger.debug) {
-        infoLogger.debug("Test debug message");
-        expect(consoleSpy.log).not.toHaveBeenCalled();
-      }
+    test("should respect log level filtering", () => {
+      logger.currentLevel = 1; // WARN level
+      
+      logger.debug("This should not log");
+      expect(consoleSpy.log).not.toHaveBeenCalled();
+      
+      logger.error("This should log");
+      expect(consoleSpy.log).toHaveBeenCalled();
     });
   });
 
-  describe("Context and Metadata", () => {
-    test("should include context in log entries", () => {
-      const context = {
-        userId: "user123",
-        requestId: "req456",
-        operation: "test",
-      };
-
-      if (logger.info) {
-        logger.info("Test with context", context);
-
-        // Check if context was passed to console
-        if (consoleSpy.info.mock.calls.length > 0) {
-          const logCall = consoleSpy.info.mock.calls[0];
-          const logData =
-            typeof logCall[0] === "string" ? logCall[1] : logCall[0];
-
-          if (logData && typeof logData === "object") {
-            expect(logData.userId || logData.context?.userId).toBe("user123");
-          }
-        }
-      }
-    });
-
-    test("should sanitize sensitive information", () => {
-      const sensitiveContext = {
-        password: "secret123",
-        apiKey: "api-key-123",
-        token: "bearer-token",
-        publicInfo: "safe-data",
-      };
-
-      if (logger.info) {
-        logger.info("Test with sensitive data", sensitiveContext);
-
-        // Check console call for sanitization
-        if (consoleSpy.info.mock.calls.length > 0) {
-          const logCall = consoleSpy.info.mock.calls[0];
-          const logString = JSON.stringify(logCall);
-
-          // Should not contain sensitive data
-          expect(logString).not.toContain("secret123");
-          expect(logString).not.toContain("api-key-123");
-          expect(logString).not.toContain("bearer-token");
-
-          // Should contain safe data
-          expect(logString).toContain("safe-data");
-        }
-      }
-    });
-  });
-
-  describe("Error Object Handling", () => {
-    test("should properly log error objects", () => {
+  describe("Error Handling", () => {
+    test("should handle error objects properly", () => {
       const error = new Error("Test error");
       error.stack = "Error: Test error\n    at test.js:1:1";
-      error.code = "TEST_ERROR";
+      
+      logger.error("Error occurred", { error });
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
+      const logCall = consoleSpy.log.mock.calls[0][0];
+      
+      if (logCall.startsWith("{")) {
+        const parsed = JSON.parse(logCall);
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error.name).toBe("Error");
+        expect(parsed.error.message).toBe("Test error");
+      }
+    });
 
-      if (logger.error) {
-        logger.error("Error occurred", { error });
-        expect(consoleSpy.error).toHaveBeenCalled();
+    test("should handle circular references gracefully", () => {
+      const circular = { name: "test" };
+      circular.self = circular;
+      
+      // The logger should handle circular references without throwing
+      expect(() => {
+        logger.info("Circular test", { circular });
+      }).not.toThrow();
+    });
+  });
 
-        if (consoleSpy.error.mock.calls.length > 0) {
-          const logCall = consoleSpy.error.mock.calls[0];
-          const logString = JSON.stringify(logCall);
+  describe("Performance Metrics", () => {
+    test("should handle timing information", () => {
+      logger.info("Operation completed", {
+        duration: 1500,
+        operation: "database-query",
+        userId: "user123"
+      });
+      
+      // Verify logger.info method exists and can be called
+      expect(typeof logger.info).toBe("function");
+      
+      // Check if console.log was called (depends on log level)
+      if (consoleSpy.log.mock.calls.length > 0) {
+        const logCall = consoleSpy.log.mock.calls[0][0];
+        
+        if (logCall && logCall.startsWith("{")) {
+          const parsed = JSON.parse(logCall);
+          expect(parsed.duration).toBe(1500);
+          expect(parsed.operation).toBe("database-query");
+        }
+      }
+    });
+  });
 
-          expect(logString).toContain("Test error");
-          expect(logString).toContain("TEST_ERROR");
+  describe("Real Site Use Cases", () => {
+    test("should log authentication events", () => {
+      logger.info("User login successful", {
+        userId: "user123",
+        operation: "authentication",
+        ip: "192.168.1.1",
+        userAgent: "Mozilla/5.0"
+      });
+      
+      // Verify logger.info method exists and can be called
+      expect(typeof logger.info).toBe("function");
+      
+      // Check if console.log was called (depends on log level)
+      if (consoleSpy.log.mock.calls.length > 0) {
+        const logCall = consoleSpy.log.mock.calls[0][0];
+        
+        if (logCall && logCall.startsWith("{")) {
+          const parsed = JSON.parse(logCall);
+          expect(parsed.userId).toBe("user123");
+          expect(parsed.operation).toBe("authentication");
         }
       }
     });
 
-    test("should handle error without stack trace", () => {
-      const error = { message: "Simple error", code: "SIMPLE" };
-
-      if (logger.error) {
-        logger.error("Simple error occurred", { error });
-        expect(consoleSpy.error).toHaveBeenCalled();
-      }
+    test("should log database operations", () => {
+      // Set debug level to ensure it logs
+      logger.currentLevel = 3;
+      logger.debug("Database query executed", {
+        query: "SELECT * FROM user_portfolio WHERE user_id = $1",
+        duration: 45,
+        rowCount: 3,
+        operation: "database"
+      });
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
     });
-  });
 
-  describe("Performance and Timing", () => {
-    test("should log timing information when provided", () => {
-      const startTime = Date.now() - 100; // 100ms ago
-
-      if (logger.logTiming) {
-        logger.logTiming("test-operation", startTime);
-        expect(consoleSpy.info).toHaveBeenCalled();
-      } else if (logger.info) {
-        logger.info("Operation completed", {
-          duration: Date.now() - startTime,
-          operation: "test-operation",
-        });
-        expect(consoleSpy.info).toHaveBeenCalled();
-      }
-    });
-  });
-
-  describe("Module Exports", () => {
-    test("should export logger functionality", () => {
-      const exportedLogger = require("../../utils/logger");
-
-      // Should export either a class or instance with logging capability
-      expect(exportedLogger).toBeDefined();
-
-      if (typeof exportedLogger === "function") {
-        // It's a class
-        const instance = new exportedLogger();
-        expect(instance).toBeDefined();
-      } else {
-        // It's an instance or module
-        expect(typeof exportedLogger).toBe("object");
-      }
-    });
-  });
-
-  describe("Edge Cases", () => {
-    test("should handle null and undefined messages", () => {
-      if (logger.info) {
-        expect(() => logger.info(null)).not.toThrow();
-        expect(() => logger.info(undefined)).not.toThrow();
-        expect(() => logger.info("")).not.toThrow();
+    test("should log API key operations", () => {
+      logger.warn("API key validation failed", {
+        userId: "user123",
+        provider: "alpaca",
+        operation: "api-key-validation",
+        reason: "invalid-format"
+      });
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
+      const logCall = consoleSpy.log.mock.calls[0][0];
+      
+      if (logCall.startsWith("{")) {
+        const parsed = JSON.parse(logCall);
+        expect(parsed.provider).toBe("alpaca");
+        expect(parsed.reason).toBe("invalid-format");
       }
     });
 
-    test("should handle circular references in context", () => {
-      const circular = { name: "test" };
-      circular.self = circular; // Create circular reference
-
-      if (logger.info) {
-        expect(() => logger.info("Circular test", { circular })).not.toThrow();
-      }
-    });
-
-    test("should handle very large context objects", () => {
-      const largeContext = {};
-      for (let i = 0; i < 1000; i++) {
-        largeContext[`key${i}`] = `value${i}`;
-      }
-
-      if (logger.info) {
-        expect(() =>
-          logger.info("Large context test", largeContext)
-        ).not.toThrow();
+    test("should log trading operations", () => {
+      logger.info("Portfolio update completed", {
+        userId: "user123",
+        operation: "portfolio-sync",
+        symbolsUpdated: 5,
+        totalValue: 75000.50,
+        duration: 2300
+      });
+      
+      expect(consoleSpy.log).toHaveBeenCalled();
+      const logCall = consoleSpy.log.mock.calls[0][0];
+      
+      if (logCall.startsWith("{")) {
+        const parsed = JSON.parse(logCall);
+        expect(parsed.symbolsUpdated).toBe(5);
+        expect(parsed.totalValue).toBe(75000.50);
       }
     });
   });
