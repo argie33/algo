@@ -68,7 +68,8 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  ComposedChart
+  ComposedChart,
+  Tooltip as RechartsTooltip
 } from "recharts";
 import {
   TrendingUp,
@@ -265,6 +266,21 @@ const Portfolio = () => {
     }
   }, [API_BASE, timeframe, tokens?.accessToken, user?.userId, user?.username]);
 
+  // Load available API connections
+  const loadAvailableConnections = useCallback(async () => {
+    try {
+      const response = await getApiKeys();
+      const connections = response?.apiKeys || [];
+      setAvailableConnections(
+        connections.filter((conn) =>
+          ["alpaca", "robinhood"].includes(conn.provider.toLowerCase())
+        )
+      );
+    } catch (error) {
+      console.error("Failed to load API connections:", error);
+    }
+  }, []);
+
   // Authentication guard - disabled (portfolio available to all users)
   // useEffect(() => {
   //   // Skip authentication check in development mode
@@ -283,7 +299,7 @@ const Portfolio = () => {
       // Load demo data for non-authenticated users
       setLoading(false);
     }
-  }, [isAuthenticated, user, loadUserPortfolio]);
+  }, [isAuthenticated, user, loadUserPortfolio, loadAvailableConnections]);
 
   // Auto-refresh effect
   useEffect(() => {
@@ -705,20 +721,6 @@ const Portfolio = () => {
     }
   };
 
-  // Load available API connections
-  const loadAvailableConnections = async () => {
-    try {
-      const response = await getApiKeys();
-      const connections = response?.apiKeys || [];
-      setAvailableConnections(
-        connections.filter((conn) =>
-          ["alpaca", "robinhood"].includes(conn.provider.toLowerCase())
-        )
-      );
-    } catch (error) {
-      console.error("Failed to load API connections:", error);
-    }
-  };
 
   // Test connection to broker
   const handleTestConnection = async (connectionId, provider) => {
@@ -1987,7 +1989,7 @@ const Portfolio = () => {
                             )
                           )}
                         </Pie>
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value) => [
                             formatPercentage(value),
                             "Allocation",
@@ -2061,7 +2063,7 @@ const Portfolio = () => {
                     <XAxis dataKey="date" />
                     <YAxis yAxisId="left" />
                     <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip />
+                    <RechartsTooltip />
                     <Area
                       yAxisId="left"
                       type="monotone"
@@ -2302,7 +2304,7 @@ const Portfolio = () => {
                       strokeWidth={2}
                       strokeDasharray="5 5"
                     />
-                    <Tooltip />
+                    <RechartsTooltip />
                   </RadarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -2655,7 +2657,7 @@ const Portfolio = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip
+                      <RechartsTooltip
                         formatter={(value) => [
                           `$${value.toLocaleString()}`,
                           "",

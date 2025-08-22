@@ -2229,6 +2229,29 @@ export const getEarningsMetrics = async (params = {}) => {
 };
 
 // Test API Connection
+export const initializeApi = async () => {
+  try {
+    console.log("🔧 [API] Initializing API connection...");
+    const healthResponse = await fetch(`${getCurrentBaseURL()}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!healthResponse.ok) {
+      throw new Error(`API initialization failed: ${healthResponse.status}`);
+    }
+    
+    const healthData = await healthResponse.json();
+    console.log("✅ [API] API initialized successfully:", healthData);
+    return healthData;
+  } catch (error) {
+    console.error("❌ [API] API initialization failed:", error);
+    throw error;
+  }
+};
+
 export const testApiConnection = async (customUrl = null) => {
   try {
     console.log("Testing API connection...");
@@ -3271,10 +3294,61 @@ export const getDashboardTechnicalSignals = async () => {
   }
 };
 
+// Missing API functions that tests expect
+export const getQuote = async (symbol) => {
+  try {
+    console.log(`📊 [API] Fetching quote for ${symbol}...`);
+    const response = await api.get(`/api/market/quote/${symbol}`);
+    
+    const result = {
+      symbol: symbol,
+      price: response.data?.price || 0,
+      change: response.data?.change || 0,
+      changePercent: response.data?.changePercent || 0,
+      volume: response.data?.volume || 0,
+      timestamp: response.data?.timestamp || new Date().toISOString(),
+    };
+    
+    console.log(`📊 [API] Quote for ${symbol}:`, result);
+    return result;
+  } catch (error) {
+    console.error(`❌ [API] Quote error for ${symbol}:`, error);
+    throw new Error(`Failed to fetch quote for ${symbol}: ${error.message}`);
+  }
+};
+
+export const placeOrder = async (orderRequest) => {
+  try {
+    console.log("📈 [API] Placing order:", orderRequest);
+    const response = await api.post("/api/orders", orderRequest);
+    
+    const result = {
+      orderId: response.data?.orderId || `order-${Date.now()}`,
+      status: response.data?.status || 'pending',
+      symbol: orderRequest.symbol,
+      quantity: orderRequest.quantity,
+      side: orderRequest.side,
+      type: orderRequest.type || 'market',
+      timestamp: new Date().toISOString(),
+    };
+    
+    console.log("📈 [API] Order placed:", result);
+    return result;
+  } catch (error) {
+    console.error("❌ [API] Order placement error:", error);
+    throw new Error(`Failed to place order: ${error.message}`);
+  }
+};
+
 // Export all methods as a default object for easier importing
 export default {
+  // Core API
   healthCheck,
   getMarketOverview,
+  
+  // Portfolio functions (with aliases for tests)
+  getPortfolio: getPortfolioData, // Alias for tests
+  getPortfolioData,
   getMarketSentimentHistory,
   getMarketSectorPerformance,
   getMarketBreadth,
@@ -3284,7 +3358,6 @@ export default {
   getPortfolioAnalytics,
   getPortfolioRiskAnalysis,
   getPortfolioOptimization,
-  getPortfolioData,
   addHolding,
   updateHolding,
   deleteHolding,
@@ -3342,6 +3415,7 @@ export default {
   getTechnicalSummary,
   getDataValidationSummary,
   getEarningsMetrics,
+  initializeApi,
   testApiConnection,
   getDiagnosticInfo,
   getApiConfig,
@@ -3386,4 +3460,14 @@ export default {
   getStockHistory,
   searchStocks,
   getHealth,
+  
+  // API Key management
+  getApiKeys,
+  addApiKey,
+  updateApiKey,
+  deleteApiKey,
+  
+  // Trading functions
+  placeOrder,
+  getQuote,
 };

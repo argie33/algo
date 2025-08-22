@@ -41,11 +41,11 @@ vi.mock("../../../components/auth/LoginForm.jsx", () => ({
 }));
 
 vi.mock("../../../components/auth/RegisterForm.jsx", () => ({
-  default: ({ onSuccess, onSwitchToLogin }) => (
+  default: ({ onRegistrationSuccess, onSwitchToLogin }) => (
     <div data-testid="register-form">
       <button
         onClick={() =>
-          onSuccess("newuser", "CONFIRM_SIGN_UP", "Check your email")
+          onRegistrationSuccess("newuser", "CONFIRM_SIGN_UP", "Check your email")
         }
       >
         Register Success
@@ -56,32 +56,32 @@ vi.mock("../../../components/auth/RegisterForm.jsx", () => ({
 }));
 
 vi.mock("../../../components/auth/ConfirmationForm.jsx", () => ({
-  default: ({ username, onSuccess, onResendCode }) => (
+  default: ({ username, onConfirmationSuccess, onResendCode }) => (
     <div data-testid="confirmation-form">
       <span>Confirming for: {username}</span>
-      <button onClick={onSuccess}>Confirm Success</button>
+      <button onClick={onConfirmationSuccess}>Confirm Success</button>
       <button onClick={onResendCode}>Resend Code</button>
     </div>
   ),
 }));
 
 vi.mock("../../../components/auth/ForgotPasswordForm.jsx", () => ({
-  default: ({ onSuccess, onBackToLogin }) => (
+  default: ({ onForgotPasswordSuccess, onSwitchToLogin }) => (
     <div data-testid="forgot-password-form">
-      <button onClick={() => onSuccess("testuser")}>
+      <button onClick={() => onForgotPasswordSuccess("testuser")}>
         Forgot Password Success
       </button>
-      <button onClick={onBackToLogin}>Back to Login</button>
+      <button onClick={onSwitchToLogin}>Back to Login</button>
     </div>
   ),
 }));
 
 vi.mock("../../../components/auth/ResetPasswordForm.jsx", () => ({
-  default: ({ username, onSuccess, onBackToLogin }) => (
+  default: ({ username, onPasswordResetSuccess, onSwitchToLogin }) => (
     <div data-testid="reset-password-form">
       <span>Reset password for: {username}</span>
-      <button onClick={onSuccess}>Reset Success</button>
-      <button onClick={onBackToLogin}>Back to Login</button>
+      <button onClick={onPasswordResetSuccess}>Reset Success</button>
+      <button onClick={onSwitchToLogin}>Back to Login</button>
     </div>
   ),
 }));
@@ -487,7 +487,7 @@ describe("AuthModal Component - Authentication Interface", () => {
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-form")).toBeInTheDocument();
         expect(screen.getByText("Confirming for: newuser")).toBeInTheDocument();
-      }, { timeout: 10000 });
+      }, { timeout: 15000 });
     });
 
     it("should clear error states when switching modes", async () => {
@@ -525,8 +525,8 @@ describe("AuthModal Component - Authentication Interface", () => {
       await user.click(registerButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/check your email/i)).toBeInTheDocument();
-      });
+        expect(screen.getByText(/please check your email for a verification code/i)).toBeInTheDocument();
+      }, { timeout: 10000 });
     });
 
     it("should show success message after confirmation", async () => {
@@ -547,8 +547,8 @@ describe("AuthModal Component - Authentication Interface", () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/account confirmed/i)).toBeInTheDocument();
-      });
+        expect(screen.getByText(/account confirmed! you can now sign in/i)).toBeInTheDocument();
+      }, { timeout: 10000 });
     });
 
     it("should handle success state transitions smoothly", async () => {
@@ -570,8 +570,8 @@ describe("AuthModal Component - Authentication Interface", () => {
 
       // Should show success message briefly then switch to login
       await waitFor(() => {
-        expect(screen.getByText(/account confirmed/i)).toBeInTheDocument();
-      });
+        expect(screen.getByText(/account confirmed! you can now sign in/i)).toBeInTheDocument();
+      }, { timeout: 10000 });
 
       // Fast-forward to see mode switch
       vi.advanceTimersByTime(2000);

@@ -5,6 +5,7 @@
  * and catch issues that would cause CI/CD failures before they reach the pipeline.
  */
 
+import { describe, test, expect } from 'vitest';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';

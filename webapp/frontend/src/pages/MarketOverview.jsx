@@ -528,7 +528,7 @@ function MarketOverview() {
           <small>
             Debug endpoint:{" "}
             <code>
-              https://ye9syrnj8c.execute-api.us-east-1.amazonaws.com/dev/market/debug
+              {window.__CONFIG__?.API_URL}/market/debug
             </code>
           </small>
         </Alert>

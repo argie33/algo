@@ -26,8 +26,11 @@ const cloudfrontUrl = process.argv[7] || '';
 // Create environment configuration
 const prodConfig = {
   API_URL: apiUrl,
+  USER_POOL_ID: userPoolId,
+  USER_POOL_CLIENT_ID: clientId,
+  USER_POOL_DOMAIN: cognitoDomain,
   BUILD_TIME: new Date().toISOString(),
-  VERSION: '1.0.0',
+  VERSION: '1.0.1',
   ENVIRONMENT: environment
 };
 

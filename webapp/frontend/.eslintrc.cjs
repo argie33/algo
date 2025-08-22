@@ -3,7 +3,8 @@ module.exports = {
   env: { 
     browser: true, 
     es2020: true,
-    node: true
+    node: true,
+    jest: true
   },
   extends: [
     'eslint:recommended',
@@ -45,4 +46,24 @@ module.exports = {
     'react/display-name': 'off', // Allow anonymous components
     'react-hooks/exhaustive-deps': 'warn',
   },
+  overrides: [
+    {
+      files: ['**/*.test.js', '**/*.test.jsx', '**/*.spec.js', '**/*.spec.jsx', '**/tests/**/*.js', '**/tests/**/*.jsx'],
+      env: {
+        jest: true,
+      },
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        jest: 'readonly',
+        vi: 'readonly',
+      },
+    },
+  ],
 }

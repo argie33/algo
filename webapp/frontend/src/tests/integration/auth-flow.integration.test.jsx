@@ -501,9 +501,9 @@ describe('Authentication Flow Integration', () => {
     });
 
     it('should handle concurrent authentication requests', async () => {
-      let resolveFirst, resolveSecond;
+      let resolveFirst, _resolveSecond;
       const firstPromise = new Promise(resolve => { resolveFirst = resolve; });
-      const secondPromise = new Promise(resolve => { resolveSecond = resolve; });
+      const secondPromise = new Promise(resolve => { _resolveSecond = resolve; });
 
       mockAuthService.signIn
         .mockReturnValueOnce(firstPromise)

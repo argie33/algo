@@ -343,7 +343,7 @@ test.describe('Complete User Portfolio Workflow', () => {
 
     await test.step('Verify real-time price updates', async () => {
       // Take screenshot of initial prices
-      const initialPrices = await page.$$eval('[data-testid="holding-price"]', elements => {
+      const _initialPrices = await page.$$eval('[data-testid="holding-price"]', elements => {
         return elements.map(el => el.textContent);
       });
 

@@ -32,10 +32,43 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            mui: ['@mui/material', '@mui/icons-material'],
-            charts: ['recharts']
+          manualChunks: (id) => {
+            // Core React libraries
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor';
+            }
+            // MUI components and icons
+            if (id.includes('node_modules/@mui')) {
+              return 'mui';
+            }
+            // Chart libraries
+            if (id.includes('node_modules/recharts')) {
+              return 'charts';
+            }
+            // Router libraries
+            if (id.includes('node_modules/react-router')) {
+              return 'router';
+            }
+            // React Query
+            if (id.includes('node_modules/@tanstack/react-query')) {
+              return 'query';
+            }
+            // Core pages
+            if (id.includes('src/pages/Portfolio.jsx') || id.includes('src/pages/Dashboard.jsx') || id.includes('src/pages/Settings.jsx')) {
+              return 'pages';
+            }
+            // Trading related pages
+            if (id.includes('src/pages/Trading') || id.includes('src/pages/AdvancedScreener') || id.includes('src/pages/Backtest')) {
+              return 'trading';
+            }
+            // Analysis pages
+            if (id.includes('src/pages/Technical') || id.includes('src/pages/News') || id.includes('src/pages/Sentiment')) {
+              return 'analysis';
+            }
+            // Other large node_modules
+            if (id.includes('node_modules')) {
+              return 'vendor-misc';
+            }
           }
         },
         // Limit concurrent operations to prevent EMFILE

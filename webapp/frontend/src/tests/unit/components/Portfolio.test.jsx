@@ -22,19 +22,46 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   })),
 }));
 
-// Mock the API service
+// Mock the API service - Portfolio imports individual functions
 vi.mock("../../../services/api.js", () => ({
+  // Mock direct function imports that Portfolio uses
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+  testApiConnection: vi.fn(() => Promise.resolve({
+    success: true,
+    data: { status: 'healthy' }
+  })),
+  getApiKeys: vi.fn(() => Promise.resolve({
+    success: true,
+    apiKeys: [
+      {
+        provider: 'alpaca',
+        keyId: 'PK***ABC',
+        isValid: true,
+        lastValidated: '2025-01-15T10:30:00Z'
+      }
+    ]
+  })),
+  importPortfolioFromBroker: vi.fn(() => Promise.resolve({
+    success: true,
+    data: { message: 'Portfolio imported successfully' }
+  })),
+  
+  // Mock the named export api object
   api: {
     getPortfolio: vi.fn(),
     getQuote: vi.fn(),
     placeOrder: vi.fn(),
   },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-  })),
-  initializeApi: vi.fn(),
-  testApiConnection: vi.fn(),
+  
+  // Mock the default export api object for other tests
+  default: {
+    getPortfolio: vi.fn(),
+    getQuote: vi.fn(),
+    placeOrder: vi.fn(),
+  },
 }));
 
 // Mock chart components to avoid canvas issues in tests
@@ -54,13 +81,14 @@ vi.mock("react-chartjs-2", () => ({
 describe("Portfolio Component - User Interface", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock global fetch since Portfolio component uses fetch directly
+    global.fetch = vi.fn();
   });
 
   describe("Portfolio Loading and Display", () => {
     it("should display loading state initially", async () => {
       // Critical: Users should see loading indicator while data loads
-      const { api } = await import("../../../services/api.js");
-      api.getPortfolio.mockImplementation(() => new Promise(() => {})); // Never resolves
+      global.fetch.mockImplementation(() => new Promise(() => {})); // Never resolves
 
       renderWithProviders(<Portfolio />);
 
@@ -72,34 +100,43 @@ describe("Portfolio Component - User Interface", () => {
 
     it("should display portfolio data when loaded successfully", async () => {
       // Critical: Users need to see their portfolio value and holdings
-      const { api } = await import("../../../services/api.js");
-      const mockPortfolio = {
-        totalValue: 125750.5,
-        todaysPnL: 2500.75,
-        totalPnL: 25750.5,
-        positions: [
-          {
-            symbol: "AAPL",
-            quantity: 100,
-            currentPrice: 150.25,
-            marketValue: 15025,
-            avgCost: 145.0,
-            unrealizedPnL: 525,
-            percentageReturn: 3.62,
-          },
-          {
-            symbol: "MSFT",
-            quantity: 50,
-            currentPrice: 280.1,
-            marketValue: 14005,
-            avgCost: 275.0,
-            unrealizedPnL: 255,
-            percentageReturn: 1.85,
-          },
-        ],
+      const mockPortfolioResponse = {
+        data: {
+          holdings: [
+            {
+              symbol: "AAPL",
+              quantity: 100,
+              currentPrice: 150.25,
+              marketValue: 15025,
+              avgCost: 145.0,
+              unrealizedPnL: 525,
+              percentageReturn: 3.62,
+            },
+            {
+              symbol: "MSFT",
+              quantity: 50,
+              currentPrice: 280.1,
+              marketValue: 14005,
+              avgCost: 275.0,
+              unrealizedPnL: 255,
+              percentageReturn: 1.85,
+            },
+          ],
+          totalValue: 125750.5,
+          todaysPnL: 2500.75,
+          totalPnL: 25750.5,
+          performanceHistory: [
+            { date: '2024-01-01', portfolioValue: 120000, benchmarkValue: 100000 },
+            { date: '2024-01-02', portfolioValue: 122500, benchmarkValue: 101000 },
+            { date: '2024-01-03', portfolioValue: 125750.5, benchmarkValue: 102000 },
+          ],
+        }
       };
 
-      api.getPortfolio.mockResolvedValue(mockPortfolio);
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockPortfolioResponse),
+      });
 
       renderWithProviders(<Portfolio />);
 
@@ -126,7 +163,7 @@ describe("Portfolio Component - User Interface", () => {
 
     it("should handle empty portfolio gracefully", async () => {
       // Critical: New users or users who sold everything should see proper empty state
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const emptyPortfolio = {
         totalValue: 0,
         todaysPnL: 0,
@@ -134,7 +171,7 @@ describe("Portfolio Component - User Interface", () => {
         positions: [],
       };
 
-      api.getPortfolio.mockResolvedValue(emptyPortfolio);
+      apiModule.api.getPortfolio.mockResolvedValue(emptyPortfolio);
 
       renderWithProviders(<Portfolio />);
 
@@ -157,7 +194,7 @@ describe("Portfolio Component - User Interface", () => {
   describe("Portfolio Calculations Display", () => {
     it("should display profit/loss with correct formatting and colors", async () => {
       // Critical: P&L display affects user trading decisions
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const portfolioWithPnL = {
         totalValue: 50000,
         todaysPnL: -1250.75, // Negative P&L
@@ -175,7 +212,7 @@ describe("Portfolio Component - User Interface", () => {
         ],
       };
 
-      api.getPortfolio.mockResolvedValue(portfolioWithPnL);
+      apiModule.api.getPortfolio.mockResolvedValue(portfolioWithPnL);
 
       renderWithProviders(<Portfolio />);
 
@@ -200,7 +237,7 @@ describe("Portfolio Component - User Interface", () => {
 
     it("should calculate and display percentage returns correctly", async () => {
       // Critical: Percentage returns help users understand performance
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const portfolioWithReturns = {
         totalValue: 100000,
         positions: [
@@ -216,7 +253,7 @@ describe("Portfolio Component - User Interface", () => {
         ],
       };
 
-      api.getPortfolio.mockResolvedValue(portfolioWithReturns);
+      apiModule.api.getPortfolio.mockResolvedValue(portfolioWithReturns);
 
       renderWithProviders(<Portfolio />);
 
@@ -232,8 +269,8 @@ describe("Portfolio Component - User Interface", () => {
   describe("Error Handling", () => {
     it("should display error message when portfolio load fails", async () => {
       // Critical: API failures should not leave users with blank screen
-      const { api } = await import("../../../services/api.js");
-      api.getPortfolio.mockRejectedValue(
+      const apiModule = await import("../../../services/api.js");
+      apiModule.api.getPortfolio.mockRejectedValue(
         new Error("API temporarily unavailable")
       );
 
@@ -251,14 +288,14 @@ describe("Portfolio Component - User Interface", () => {
 
     it("should handle malformed portfolio data gracefully", async () => {
       // Critical: Bad data should not crash the component
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const malformedData = {
         // Missing required fields
         positions: null,
         totalValue: "not-a-number",
       };
 
-      api.getPortfolio.mockResolvedValue(malformedData);
+      apiModule.api.getPortfolio.mockResolvedValue(malformedData);
 
       renderWithProviders(<Portfolio />);
 
@@ -272,7 +309,7 @@ describe("Portfolio Component - User Interface", () => {
   describe("User Interaction Features", () => {
     it("should allow filtering/sorting of positions", async () => {
       // Critical: Users with many positions need to find stocks quickly
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const largePortfolio = {
         totalValue: 250000,
         positions: Array.from({ length: 20 }, (_, i) => ({
@@ -284,7 +321,7 @@ describe("Portfolio Component - User Interface", () => {
         })),
       };
 
-      api.getPortfolio.mockResolvedValue(largePortfolio);
+      apiModule.api.getPortfolio.mockResolvedValue(largePortfolio);
 
       renderWithProviders(<Portfolio />);
 
@@ -304,7 +341,7 @@ describe("Portfolio Component - User Interface", () => {
 
     it("should show real-time price updates when available", async () => {
       // Critical: Live prices help users make timely trading decisions
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const portfolioData = {
         totalValue: 75000,
         positions: [
@@ -318,7 +355,7 @@ describe("Portfolio Component - User Interface", () => {
         ],
       };
 
-      api.getPortfolio.mockResolvedValue(portfolioData);
+      apiModule.api.getPortfolio.mockResolvedValue(portfolioData);
 
       renderWithProviders(<Portfolio />);
 
@@ -341,8 +378,8 @@ describe("Portfolio Component - User Interface", () => {
   describe("Accessibility and User Experience", () => {
     it("should be accessible to screen readers", async () => {
       // Critical: Financial data must be accessible to all users
-      const { api } = await import("../../../services/api.js");
-      api.getPortfolio.mockResolvedValue({
+      const apiModule = await import("../../../services/api.js");
+      apiModule.api.getPortfolio.mockResolvedValue({
         totalValue: 100000,
         positions: [{ symbol: "AAPL", quantity: 10, currentPrice: 150 }],
       });
@@ -366,7 +403,7 @@ describe("Portfolio Component - User Interface", () => {
 
     it("should handle large numbers formatting correctly", async () => {
       // Critical: Large portfolios should display readable numbers
-      const { api } = await import("../../../services/api.js");
+      const apiModule = await import("../../../services/api.js");
       const largePortfolio = {
         totalValue: 5750000.5, // $5.75M
         positions: [
@@ -379,7 +416,7 @@ describe("Portfolio Component - User Interface", () => {
         ],
       };
 
-      api.getPortfolio.mockResolvedValue(largePortfolio);
+      apiModule.api.getPortfolio.mockResolvedValue(largePortfolio);
 
       renderWithProviders(<Portfolio />);
 
