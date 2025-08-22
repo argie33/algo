@@ -1980,14 +1980,14 @@ const Portfolio = () => {
                             `${name} ${(percent * 100).toFixed(0)}%`
                           }
                         >
-                          {portfolioData.sectorAllocation.map(
+                          {portfolioData.sectorAllocation?.map(
                             (entry, index) => (
                               <Cell
                                 key={`cell-${index}`}
                                 fill={CHART_COLORS[index % CHART_COLORS.length]}
                               />
                             )
-                          )}
+                          ) || []}
                         </Pie>
                         <RechartsTooltip
                           formatter={(value) => [
@@ -2012,9 +2012,9 @@ const Portfolio = () => {
                       </Typography>
                       <LinearProgress
                         variant="determinate"
-                        value={diversificationMetrics.concentrationRisk * 100}
+                        value={(diversificationMetrics?.concentrationRisk || 0) * 100}
                         color={
-                          diversificationMetrics.concentrationRisk > 0.3
+                          (diversificationMetrics?.concentrationRisk || 0) > 0.3
                             ? "error"
                             : "success"
                         }
@@ -2023,7 +2023,7 @@ const Portfolio = () => {
                       <Typography variant="caption" color="text.secondary">
                         Herfindahl Index:{" "}
                         {formatNumber(
-                          diversificationMetrics.concentrationRisk,
+                          diversificationMetrics?.concentrationRisk || 0,
                           3
                         )}
                       </Typography>
@@ -2803,7 +2803,7 @@ const Portfolio = () => {
                     </StepLabel>
                     <StepContent>
                       <List>
-                        {aiInsights.strengths.map((strength, index) => (
+                        {aiInsights?.strengths?.map((strength, index) => (
                           <ListItem key={index}>
                             <CheckCircle color="success" sx={{ mr: 2 }} />
                             <Typography variant="body2">{strength}</Typography>
@@ -2821,7 +2821,7 @@ const Portfolio = () => {
                     </StepLabel>
                     <StepContent>
                       <List>
-                        {aiInsights.improvements.map((improvement, index) => (
+                        {aiInsights?.improvements?.map((improvement, index) => (
                           <ListItem key={index}>
                             <Lightbulb color="warning" sx={{ mr: 2 }} />
                             <Typography variant="body2">
@@ -2873,7 +2873,7 @@ const Portfolio = () => {
                 <Typography variant="subtitle2" gutterBottom>
                   Key Recommendations
                 </Typography>
-                {aiInsights.recommendations.map((rec, index) => (
+                {aiInsights?.recommendations?.map((rec, index) => (
                   <Chip
                     key={index}
                     label={rec}
@@ -3868,7 +3868,12 @@ function calculateFactorExposure(holdings) {
   return factors.map((factor) => {
     const exposure = holdings.reduce((sum, h) => {
       const factorKey = factor.toLowerCase();
-      return sum + (h.allocation / 100) * (h.factorScores[factorKey] - 50); // Center around 50
+      // Check if factorScores exists and has the required factor
+      const factorScore = h.factorScores?.[factorKey];
+      if (typeof factorScore !== 'number') {
+        return sum; // Skip if no factor score available
+      }
+      return sum + (h.allocation / 100) * (factorScore - 50); // Center around 50
     }, 0);
 
     return {

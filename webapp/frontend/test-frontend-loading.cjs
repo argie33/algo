@@ -12,7 +12,7 @@ const path = require('path');
 class FrontendLoadingTester {
   constructor() {
     this.distPath = path.join(__dirname, 'dist');
-    this.cdnUrl = 'https://d1zb7knau41vl9.cloudfront.net';
+    this.cdnUrl = 'https://d1copuy2oqlazx.cloudfront.net';
     this.apiUrl = 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev';
   }
 

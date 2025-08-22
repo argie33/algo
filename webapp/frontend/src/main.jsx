@@ -11,9 +11,11 @@ import { configureAmplify } from "./config/amplify";
 
 console.log("🚀 main.jsx loaded - starting React app");
 
-// Unregister any existing Service Workers to clear old cached API URLs
+// Aggressively clear all Service Workers and caches to fix old API URL caching
 if ('serviceWorker' in navigator) {
+  // Unregister all service workers
   navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    console.log(`🧹 Found ${registrations.length} Service Worker registrations`);
     for(let registration of registrations) {
       registration.unregister().then(function(boolean) {
         console.log('🧹 Service Worker unregistered:', boolean);
@@ -21,6 +23,23 @@ if ('serviceWorker' in navigator) {
     }
   }).catch(function(error) {
     console.log('Service Worker unregistration failed:', error);
+  });
+}
+
+// Clear all caches to ensure fresh configuration loading
+if ('caches' in window) {
+  caches.keys().then(function(cacheNames) {
+    console.log(`🗑️ Found ${cacheNames.length} cache stores`);
+    return Promise.all(
+      cacheNames.map(function(cacheName) {
+        console.log('🗑️ Deleting cache:', cacheName);
+        return caches.delete(cacheName);
+      })
+    );
+  }).then(function() {
+    console.log('✅ All caches cleared');
+  }).catch(function(error) {
+    console.log('Cache clearing failed:', error);
   });
 }
 

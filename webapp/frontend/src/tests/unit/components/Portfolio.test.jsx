@@ -20,6 +20,7 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
     isLoading: false,
     error: null,
   })),
+  AuthProvider: ({ children }) => children, // Mock AuthProvider as a pass-through
 }));
 
 // Mock the API service - Portfolio imports individual functions
