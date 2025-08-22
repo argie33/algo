@@ -34,7 +34,7 @@ jest.mock("../../../utils/liveDataManager", () => ({
 
 // Now import the routes after mocking
 const liveDataRoutes = require("../../../routes/liveData");
-const { authenticateToken } = require("../../../middleware/auth");
+// Auth middleware mocked above
 const logger = require("../../../utils/logger");
 const realTimeDataService = require("../../../utils/realTimeDataService");
 const liveDataManager = require("../../../utils/liveDataManager");

@@ -251,7 +251,7 @@ describe("Orders Routes - Testing Your Actual Site", () => {
 
   describe("Authentication", () => {
     test("should require authentication for all routes", async () => {
-      authenticateToken.mockImplementation((req, res, next) => {
+      authenticateToken.mockImplementation((req, res, _next) => {
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
 

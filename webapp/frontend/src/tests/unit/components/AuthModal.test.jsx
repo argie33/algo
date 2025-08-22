@@ -29,13 +29,13 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 
 // Mock child components to isolate AuthModal testing
 vi.mock("../../../components/auth/LoginForm.jsx", () => ({
-  default: ({ onSuccess, onSwitchToRegister, onForgotPassword }) => (
+  default: ({ onSwitchToRegister, onSwitchToForgotPassword }) => (
     <div data-testid="login-form">
-      <button onClick={() => onSuccess({ username: "testuser" })}>
-        Login Success
+      <button onClick={() => console.log("Login submitted")}>
+        Login Submit
       </button>
       <button onClick={onSwitchToRegister}>Switch to Register</button>
-      <button onClick={onForgotPassword}>Forgot Password</button>
+      <button onClick={onSwitchToForgotPassword}>Forgot Password</button>
     </div>
   ),
 }));
@@ -230,7 +230,7 @@ describe("AuthModal Component - Authentication Interface", () => {
   });
 
   describe("Authentication Flow", () => {
-    it("should handle successful login", async () => {
+    it("should handle login submission", async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       render(
@@ -239,11 +239,12 @@ describe("AuthModal Component - Authentication Interface", () => {
         </TestWrapper>
       );
 
-      const loginButton = screen.getByText("Login Success");
+      const loginButton = screen.getByText("Login Submit");
       await user.click(loginButton);
 
-      // Should show success state (implementation dependent)
-      // This tests the login success callback flow
+      // Login submission is handled by AuthContext
+      // Test verifies the button click doesn't crash the component
+      expect(screen.getByTestId("login-form")).toBeInTheDocument();
     });
 
     it("should handle successful registration requiring confirmation", async () => {

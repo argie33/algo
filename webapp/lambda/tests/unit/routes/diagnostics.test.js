@@ -277,7 +277,7 @@ describe("Diagnostics Routes", () => {
 
       DatabaseConnectivityTest.mockImplementation(() => mockTest);
 
-      const response = await request(app)
+      const _response = await request(app)
         .post("/diagnostics/database-test")
         .send({ sslMode: "require" })
         .expect(200);
@@ -472,7 +472,7 @@ describe("Diagnostics Routes", () => {
 
   describe("Authentication", () => {
     test("should require authentication for all routes", async () => {
-      authenticateToken.mockImplementation((req, res, next) => {
+      authenticateToken.mockImplementation((req, res, _next) => {
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
 

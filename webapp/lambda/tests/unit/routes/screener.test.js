@@ -139,7 +139,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle price filters", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ priceMin: 50, priceMax: 200 })
         .expect(200);
@@ -153,7 +153,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle market cap filters", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ marketCapMin: 1000000000, marketCapMax: 100000000000 })
         .expect(200);
@@ -167,7 +167,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle valuation filters", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ peRatioMin: 10, peRatioMax: 25 })
         .expect(200);
@@ -181,7 +181,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle sector filter", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ sector: "Technology" })
         .expect(200);
@@ -195,7 +195,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle growth filters", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ revenueGrowthMin: 15, earningsGrowthMin: 20 })
         .expect(200);
@@ -209,7 +209,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle technical filters", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ rsiMin: 30, rsiMax: 70, volumeMin: 1000000 })
         .expect(200);
@@ -223,7 +223,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle custom sorting", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ sortBy: "peRatio", sortOrder: "asc" })
         .expect(200);
@@ -237,7 +237,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should handle pagination", async () => {
       query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/screener/screen")
         .query({ page: 2, limit: 25 })
         .expect(200);
@@ -702,7 +702,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
   describe("Authentication", () => {
     test("should require authentication for protected routes", async () => {
-      authenticateToken.mockImplementation((req, res, next) => {
+      authenticateToken.mockImplementation((req, res, _next) => {
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
 

@@ -17,7 +17,7 @@ jest.mock("../../utils/apiKeyService", () => ({
 }));
 
 // Import after mocking
-const { query: mockQuery, healthCheck: mockHealthCheck } = require("../../utils/database");
+const { query: _mockQuery, healthCheck: mockHealthCheck } = require("../../utils/database");
 const {
   storeApiKey,
   listProviders,

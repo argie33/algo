@@ -12,8 +12,20 @@ import { AuthProvider } from '../../contexts/AuthContext';
 // Mock the API configuration to use live endpoints
 vi.mock('../../services/api', async () => {
   const actual = await vi.importActual('../../services/api');
+  
+  // Create axios instance with live API base URL
+  const axios = await import('axios');
+  const liveApiInstance = axios.default.create({
+    baseURL: 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev',
+    timeout: 10000,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
   return {
     ...actual,
+    default: liveApiInstance,
     getApiConfig: () => ({
       baseURL: 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev',
       isServerless: true,
@@ -22,7 +34,11 @@ vi.mock('../../services/api', async () => {
       environment: 'production',
       isDevelopment: false,
       isProduction: true
-    })
+    }),
+    // Override all API methods to use live endpoint
+    fetchMarketOverview: () => liveApiInstance.get('/api/market/overview'),
+    fetchStockData: (symbol) => liveApiInstance.get(`/api/stocks/${symbol}`),
+    fetchPortfolioData: () => liveApiInstance.get('/api/portfolio/holdings')
   };
 });
 

@@ -1,8 +1,8 @@
 const request = require('supertest');
 const express = require('express');
-const jwt = require('jsonwebtoken');
+const _jwt = require('jsonwebtoken');
 const portfolioRoutes = require('../../routes/portfolio');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken: _authenticateToken } = require('../../middleware/auth');
 
 // Mock database with your actual schema
 const mockDatabase = require('../testDatabase');

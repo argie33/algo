@@ -33,7 +33,7 @@ jest.mock("../../../utils/alpacaService", () => {
 // Now import the routes after mocking
 const tradesRoutes = require("../../../routes/trades");
 const { authenticateToken } = require("../../../middleware/auth");
-const { query, transaction } = require("../../../utils/database");
+const { query, transaction: _transaction } = require("../../../utils/database");
 
 describe("Trades Routes - Testing Your Actual Site", () => {
   let app;
@@ -121,7 +121,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
 
   describe("Authentication", () => {
     test("should require authentication for protected routes", async () => {
-      authenticateToken.mockImplementation((req, res, next) => {
+      authenticateToken.mockImplementation((req, res, _next) => {
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
 
