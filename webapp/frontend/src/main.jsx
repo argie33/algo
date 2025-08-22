@@ -1,7 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 // Fresh deployment to clear CloudFront cache and ensure correct config (2025-08-21)
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -73,18 +72,6 @@ forceReloadConfig();
 // Configure Amplify
 configureAmplify();
 
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes
-    },
-  },
-});
-
-console.log("✅ QueryClient created");
 
 // Create theme
 const theme = createTheme({
@@ -180,14 +167,12 @@ console.log("🚀 Creating React root and rendering app...");
 try {
   ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
   console.log("✅ React app rendered successfully");

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "../hooks/useData";
 import {
   Box,
   Container,

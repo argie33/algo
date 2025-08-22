@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "../hooks/useData";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
   Box,

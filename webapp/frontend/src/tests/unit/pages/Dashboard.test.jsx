@@ -19,6 +19,12 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
     isAuthenticated: true,
     isLoading: false,
   })),
+  AuthProvider: vi.fn(({ children }) => children),
+  default: vi.fn(() => ({
+    user: createMockUser(),
+    isAuthenticated: true,
+    isLoading: false,
+  })),
 }));
 
 // Mock API service
@@ -38,6 +44,8 @@ vi.mock("../../../services/api.js", () => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
   })),
+  getStockPrices: vi.fn(),
+  getStockMetrics: vi.fn(),
 }));
 
 // Mock chart components
@@ -119,6 +127,17 @@ describe("Dashboard Page", () => {
       };
 
       api.getDashboard.mockResolvedValue(mockDashboardData);
+      
+      // Mock the additional API functions needed by Dashboard
+      const { getStockPrices, getStockMetrics } = await import("../../../services/api.js");
+      getStockPrices.mockResolvedValue([
+        { symbol: "AAPL", price: 150.25, change: 2.50, changePercent: 1.69 },
+        { symbol: "MSFT", price: 280.10, change: -3.25, changePercent: -1.15 },
+      ]);
+      getStockMetrics.mockResolvedValue([
+        { symbol: "AAPL", metric: 0.85, volatility: 0.15, volume: 50000000 },
+        { symbol: "MSFT", metric: 0.78, volatility: 0.12, volume: 35000000 },
+      ]);
 
       renderWithProviders(<Dashboard />);
 

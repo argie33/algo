@@ -19,7 +19,18 @@ vi.mock('../../contexts/AuthContext', () => ({
 
 // Mock API service functions
 const mockApiService = {
-  get: vi.fn().mockResolvedValue({ data: [] }),
+  get: vi.fn().mockResolvedValue({ 
+    data: { 
+      data: {
+        symbol: 'AAPL',
+        price: 150.00,
+        change: 2.50,
+        changePercent: 1.69,
+        volume: 1000000,
+        timestamp: new Date().toISOString()
+      }
+    } 
+  }),
   post: vi.fn().mockResolvedValue({ success: true }),
 };
 
@@ -293,7 +304,7 @@ describe('Real-time Data Components', () => {
     });
 
     it('should load and display live data for a symbol', async () => {
-      const { rerender } = renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
+      renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
 
       // Check loading state
       expect(screen.getByTestId('live-data-loading')).toBeInTheDocument();

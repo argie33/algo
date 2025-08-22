@@ -8,6 +8,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { vi } from "vitest";
 
@@ -79,10 +80,21 @@ const testTheme = createTheme({
 
 // Test wrapper that includes all necessary providers for real site testing
 export const TestWrapper = ({ children, _authValue = {} }) => {
+  const testQueryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  });
+
   return (
     <BrowserRouter>
       <ThemeProvider theme={testTheme}>
-        <TestAuthProvider>{children}</TestAuthProvider>
+        <QueryClientProvider client={testQueryClient}>
+          <TestAuthProvider>{children}</TestAuthProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
   );

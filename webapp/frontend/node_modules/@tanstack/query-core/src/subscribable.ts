@@ -1,26 +1,23 @@
-type Listener = () => void
-
-export class Subscribable<TListener extends Function = Listener> {
-  protected listeners: TListener[]
+export class Subscribable<TListener extends Function> {
+  protected listeners = new Set<TListener>()
 
   constructor() {
-    this.listeners = []
     this.subscribe = this.subscribe.bind(this)
   }
 
   subscribe(listener: TListener): () => void {
-    this.listeners.push(listener as TListener)
+    this.listeners.add(listener)
 
     this.onSubscribe()
 
     return () => {
-      this.listeners = this.listeners.filter((x) => x !== listener)
+      this.listeners.delete(listener)
       this.onUnsubscribe()
     }
   }
 
   hasListeners(): boolean {
-    return this.listeners.length > 0
+    return this.listeners.size > 0
   }
 
   protected onSubscribe(): void {
