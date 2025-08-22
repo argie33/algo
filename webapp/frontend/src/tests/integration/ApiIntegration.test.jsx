@@ -1,11 +1,11 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { BrowserRouter } from 'react-router-dom';
-import { vi } from 'vitest';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { BrowserRouter } from "react-router-dom";
+import { vi } from "vitest";
 
 // Mock the API service
-vi.mock('../../services/api', () => ({
+vi.mock("../../services/api", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
@@ -21,22 +21,22 @@ vi.mock('../../services/api', () => ({
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
-  }
+  },
 }));
 
 // Mock AuthContext
 const mockAuthContext = {
-  user: { sub: 'test-user', email: 'test@example.com' },
-  token: 'mock-jwt-token',
+  user: { sub: "test-user", email: "test@example.com" },
+  token: "mock-jwt-token",
   isAuthenticated: true,
 };
 
-vi.mock('../../contexts/AuthContext', () => ({
+vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => mockAuthContext,
 }));
 
 // Import after mocking
-import api from '../../services/api';
+import api from "../../services/api";
 
 // Mock components that integrate with APIs
 const MockApiKeyIntegrationComponent = () => {
@@ -49,7 +49,7 @@ const MockApiKeyIntegrationComponent = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/api/settings/api-keys');
+      const response = await api.get("/api/settings/api-keys");
       setApiKeys(response.data.apiKeys || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -61,9 +61,9 @@ const MockApiKeyIntegrationComponent = () => {
   const addApiKey = async (provider, keyData) => {
     try {
       setError(null);
-      await api.post('/api/settings/api-keys', {
+      await api.post("/api/settings/api-keys", {
         provider,
-        ...keyData
+        ...keyData,
       });
       await loadApiKeys(); // Reload after adding
       return { success: true };
@@ -77,23 +77,25 @@ const MockApiKeyIntegrationComponent = () => {
   const validateApiKey = async (provider) => {
     try {
       setError(null);
-      const response = await api.post(`/api/settings/api-keys/${provider}/validate`);
-      setValidationResults(prev => ({
+      const response = await api.post(
+        `/api/settings/api-keys/${provider}/validate`
+      );
+      setValidationResults((prev) => ({
         ...prev,
         [provider]: {
           valid: response.data.data?.valid || false,
-          details: response.data.data
-        }
+          details: response.data.data,
+        },
       }));
       return response.data.data;
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.message;
-      setValidationResults(prev => ({
+      setValidationResults((prev) => ({
         ...prev,
         [provider]: {
           valid: false,
-          error: errorMsg
-        }
+          error: errorMsg,
+        },
       }));
       throw err;
     }
@@ -119,14 +121,21 @@ const MockApiKeyIntegrationComponent = () => {
   return (
     <div data-testid="api-key-integration">
       <h2>API Key Management</h2>
-      
+
       {loading && <div data-testid="loading">Loading API keys...</div>}
-      {error && <div data-testid="error" role="alert">Error: {error}</div>}
-      
+      {error && (
+        <div data-testid="error" role="alert">
+          Error: {error}
+        </div>
+      )}
+
       <div data-testid="api-keys-list">
-        {apiKeys.map(apiKey => (
+        {apiKeys.map((apiKey) => (
           <div key={apiKey.provider} data-testid={`api-key-${apiKey.provider}`}>
-            <span>{apiKey.provider}: {apiKey.hasApiKey ? 'Connected' : 'Not Connected'}</span>
+            <span>
+              {apiKey.provider}:{" "}
+              {apiKey.hasApiKey ? "Connected" : "Not Connected"}
+            </span>
             <button onClick={() => validateApiKey(apiKey.provider)}>
               Validate
             </button>
@@ -135,7 +144,7 @@ const MockApiKeyIntegrationComponent = () => {
             </button>
             {validationResults[apiKey.provider] && (
               <span data-testid={`validation-${apiKey.provider}`}>
-                {validationResults[apiKey.provider].valid ? 'Valid' : 'Invalid'}
+                {validationResults[apiKey.provider].valid ? "Valid" : "Invalid"}
                 {validationResults[apiKey.provider].error && (
                   <span>: {validationResults[apiKey.provider].error}</span>
                 )}
@@ -147,18 +156,22 @@ const MockApiKeyIntegrationComponent = () => {
 
       <div data-testid="add-api-key-section">
         <button
-          onClick={() => addApiKey('alpaca', { 
-            apiKey: 'PKTEST_123', 
-            apiSecret: 'secret123',
-            isSandbox: true
-          })}
+          onClick={() =>
+            addApiKey("alpaca", {
+              apiKey: "PKTEST_123",
+              apiSecret: "secret123",
+              isSandbox: true,
+            })
+          }
         >
           Add Alpaca API Key
         </button>
         <button
-          onClick={() => addApiKey('polygon', {
-            apiKey: 'polygon_key_123'
-          })}
+          onClick={() =>
+            addApiKey("polygon", {
+              apiKey: "polygon_key_123",
+            })
+          }
         >
           Add Polygon API Key
         </button>
@@ -172,7 +185,7 @@ const MockMarketDataComponent = () => {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
 
-  const loadMarketData = async (symbol = 'SPY') => {
+  const loadMarketData = async (symbol = "SPY") => {
     try {
       setLoading(true);
       setError(null);
@@ -189,7 +202,7 @@ const MockMarketDataComponent = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.post('/api/market/data/batch', { symbols });
+      const response = await api.post("/api/market/data/batch", { symbols });
       setMarketData(response.data.data);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -205,10 +218,14 @@ const MockMarketDataComponent = () => {
   return (
     <div data-testid="market-data-integration">
       <h2>Market Data Integration</h2>
-      
+
       {loading && <div data-testid="loading">Loading market data...</div>}
-      {error && <div data-testid="error" role="alert">Error: {error}</div>}
-      
+      {error && (
+        <div data-testid="error" role="alert">
+          Error: {error}
+        </div>
+      )}
+
       {marketData && (
         <div data-testid="market-data-content">
           <div>Symbol: {marketData.symbol}</div>
@@ -219,9 +236,9 @@ const MockMarketDataComponent = () => {
       )}
 
       <div data-testid="market-controls">
-        <button onClick={() => loadMarketData('AAPL')}>Load AAPL</button>
-        <button onClick={() => loadMarketData('MSFT')}>Load MSFT</button>
-        <button onClick={() => loadMultipleSymbols(['AAPL', 'MSFT', 'GOOGL'])}>
+        <button onClick={() => loadMarketData("AAPL")}>Load AAPL</button>
+        <button onClick={() => loadMarketData("MSFT")}>Load MSFT</button>
+        <button onClick={() => loadMultipleSymbols(["AAPL", "MSFT", "GOOGL"])}>
           Load Multiple
         </button>
       </div>
@@ -239,7 +256,7 @@ const MockPortfolioApiComponent = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/api/portfolio/summary');
+      const response = await api.get("/api/portfolio/summary");
       setPortfolio(response.data.data);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -251,7 +268,7 @@ const MockPortfolioApiComponent = () => {
   const loadOrders = async () => {
     try {
       setError(null);
-      const response = await api.get('/api/trading/orders');
+      const response = await api.get("/api/trading/orders");
       setOrders(response.data.data || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -261,7 +278,7 @@ const MockPortfolioApiComponent = () => {
   const placeOrder = async (orderData) => {
     try {
       setError(null);
-      const response = await api.post('/api/trading/orders', orderData);
+      const response = await api.post("/api/trading/orders", orderData);
       await loadOrders(); // Reload orders after placing
       return response.data;
     } catch (err) {
@@ -290,10 +307,14 @@ const MockPortfolioApiComponent = () => {
   return (
     <div data-testid="portfolio-api-integration">
       <h2>Portfolio & Trading Integration</h2>
-      
+
       {loading && <div data-testid="loading">Loading portfolio...</div>}
-      {error && <div data-testid="error" role="alert">Error: {error}</div>}
-      
+      {error && (
+        <div data-testid="error" role="alert">
+          Error: {error}
+        </div>
+      )}
+
       {portfolio && (
         <div data-testid="portfolio-summary">
           <div>Total Value: ${portfolio.totalValue?.toFixed(2)}</div>
@@ -305,11 +326,13 @@ const MockPortfolioApiComponent = () => {
 
       <div data-testid="orders-section">
         <h3>Orders ({orders.length})</h3>
-        {orders.map(order => (
+        {orders.map((order) => (
           <div key={order.id} data-testid={`order-${order.id}`}>
-            <span>{order.symbol} - {order.side} {order.qty} @ {order.price}</span>
+            <span>
+              {order.symbol} - {order.side} {order.qty} @ {order.price}
+            </span>
             <span>Status: {order.status}</span>
-            {order.status === 'new' && (
+            {order.status === "new" && (
               <button onClick={() => cancelOrder(order.id)}>Cancel</button>
             )}
           </div>
@@ -318,23 +341,27 @@ const MockPortfolioApiComponent = () => {
 
       <div data-testid="trading-controls">
         <button
-          onClick={() => placeOrder({
-            symbol: 'AAPL',
-            qty: 10,
-            side: 'buy',
-            type: 'market'
-          })}
+          onClick={() =>
+            placeOrder({
+              symbol: "AAPL",
+              qty: 10,
+              side: "buy",
+              type: "market",
+            })
+          }
         >
           Buy 10 AAPL (Market)
         </button>
         <button
-          onClick={() => placeOrder({
-            symbol: 'MSFT',
-            qty: 5,
-            side: 'sell',
-            type: 'limit',
-            limit_price: 300.00
-          })}
+          onClick={() =>
+            placeOrder({
+              symbol: "MSFT",
+              qty: 5,
+              side: "sell",
+              type: "limit",
+              limit_price: 300.0,
+            })
+          }
         >
           Sell 5 MSFT @ $300
         </button>
@@ -349,31 +376,34 @@ const MockNewsApiComponent = () => {
   const [error, setError] = React.useState(null);
   const [filters, setFilters] = React.useState({
     symbols: [],
-    sentiment: 'all',
-    limit: 20
+    sentiment: "all",
+    limit: 20,
   });
 
-  const loadNews = React.useCallback(async (newsFilters = filters) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      if (newsFilters.symbols.length > 0) {
-        params.append('symbols', newsFilters.symbols.join(','));
-      }
-      if (newsFilters.sentiment !== 'all') {
-        params.append('sentiment', newsFilters.sentiment);
-      }
-      params.append('limit', newsFilters.limit);
+  const loadNews = React.useCallback(
+    async (newsFilters = filters) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const params = new URLSearchParams();
+        if (newsFilters.symbols.length > 0) {
+          params.append("symbols", newsFilters.symbols.join(","));
+        }
+        if (newsFilters.sentiment !== "all") {
+          params.append("sentiment", newsFilters.sentiment);
+        }
+        params.append("limit", newsFilters.limit);
 
-      const response = await api.get(`/api/news/latest?${params.toString()}`);
-      setNews(response.data.data || []);
-    } catch (err) {
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+        const response = await api.get(`/api/news/latest?${params.toString()}`);
+        setNews(response.data.data || []);
+      } catch (err) {
+        setError(err.response?.data?.error || err.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filters]
+  );
 
   const analyzeSentiment = async (newsId) => {
     try {
@@ -393,14 +423,18 @@ const MockNewsApiComponent = () => {
   return (
     <div data-testid="news-api-integration">
       <h2>News API Integration</h2>
-      
+
       {loading && <div data-testid="loading">Loading news...</div>}
-      {error && <div data-testid="error" role="alert">Error: {error}</div>}
+      {error && (
+        <div data-testid="error" role="alert">
+          Error: {error}
+        </div>
+      )}
 
       <div data-testid="news-filters">
         <button
           onClick={() => {
-            const newFilters = { ...filters, symbols: ['AAPL'] };
+            const newFilters = { ...filters, symbols: ["AAPL"] };
             setFilters(newFilters);
             loadNews(newFilters);
           }}
@@ -409,7 +443,7 @@ const MockNewsApiComponent = () => {
         </button>
         <button
           onClick={() => {
-            const newFilters = { ...filters, sentiment: 'positive' };
+            const newFilters = { ...filters, sentiment: "positive" };
             setFilters(newFilters);
             loadNews(newFilters);
           }}
@@ -418,7 +452,7 @@ const MockNewsApiComponent = () => {
         </button>
         <button
           onClick={() => {
-            const newFilters = { symbols: [], sentiment: 'all', limit: 20 };
+            const newFilters = { symbols: [], sentiment: "all", limit: 20 };
             setFilters(newFilters);
             loadNews(newFilters);
           }}
@@ -426,9 +460,9 @@ const MockNewsApiComponent = () => {
           Clear Filters
         </button>
       </div>
-      
+
       <div data-testid="news-list">
-        {news.map(article => (
+        {news.map((article) => (
           <div key={article.id} data-testid={`news-${article.id}`}>
             <h4>{article.headline}</h4>
             <p>{article.summary}</p>
@@ -436,7 +470,7 @@ const MockNewsApiComponent = () => {
               <span>Source: {article.source}</span>
               <span>Sentiment: {article.sentiment}</span>
               {article.relevantSymbols && (
-                <span>Symbols: {article.relevantSymbols.join(', ')}</span>
+                <span>Symbols: {article.relevantSymbols.join(", ")}</span>
               )}
             </div>
             <button onClick={() => analyzeSentiment(article.id)}>
@@ -450,72 +484,68 @@ const MockNewsApiComponent = () => {
 };
 
 const renderWithRouter = (component) => {
-  return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
-  );
+  return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
-describe('API Integration Tests', () => {
+describe("API Integration Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('API Key Management Integration', () => {
+  describe("API Key Management Integration", () => {
     const mockApiKeys = [
       {
-        provider: 'alpaca',
+        provider: "alpaca",
         hasApiKey: true,
-        connectionStatus: 'connected',
-        lastValidated: '2023-06-15T10:00:00Z'
+        connectionStatus: "connected",
+        lastValidated: "2023-06-15T10:00:00Z",
       },
       {
-        provider: 'polygon',
+        provider: "polygon",
         hasApiKey: false,
-        connectionStatus: 'disconnected',
-        lastValidated: null
-      }
+        connectionStatus: "disconnected",
+        lastValidated: null,
+      },
     ];
 
     beforeEach(() => {
       api.get.mockResolvedValue({
-        data: { success: true, apiKeys: mockApiKeys }
+        data: { success: true, apiKeys: mockApiKeys },
       });
     });
 
-    it('should load and display existing API keys', async () => {
+    it("should load and display existing API keys", async () => {
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('api-key-alpaca')).toBeInTheDocument();
-        expect(screen.getByTestId('api-key-polygon')).toBeInTheDocument();
+        expect(screen.getByTestId("api-key-alpaca")).toBeInTheDocument();
+        expect(screen.getByTestId("api-key-polygon")).toBeInTheDocument();
       });
 
       expect(screen.getByText(/alpaca.*Connected/i)).toBeInTheDocument();
       expect(screen.getByText(/polygon.*Not Connected/i)).toBeInTheDocument();
-      expect(api.get).toHaveBeenCalledWith('/api/settings/api-keys');
+      expect(api.get).toHaveBeenCalledWith("/api/settings/api-keys");
     });
 
-    it('should add new API keys successfully', async () => {
+    it("should add new API keys successfully", async () => {
       api.post.mockResolvedValue({
-        data: { success: true, message: 'API key added successfully' }
+        data: { success: true, message: "API key added successfully" },
       });
 
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('add-api-key-section')).toBeInTheDocument();
+        expect(screen.getByTestId("add-api-key-section")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Add Alpaca API Key'));
+      fireEvent.click(screen.getByText("Add Alpaca API Key"));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/settings/api-keys', {
-          provider: 'alpaca',
-          apiKey: 'PKTEST_123',
-          apiSecret: 'secret123',
-          isSandbox: true
+        expect(api.post).toHaveBeenCalledWith("/api/settings/api-keys", {
+          provider: "alpaca",
+          apiKey: "PKTEST_123",
+          apiSecret: "secret123",
+          isSandbox: true,
         });
       });
 
@@ -523,596 +553,628 @@ describe('API Integration Tests', () => {
       expect(api.get).toHaveBeenCalledTimes(2);
     });
 
-    it('should validate API keys and show results', async () => {
+    it("should validate API keys and show results", async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
           data: {
             valid: true,
-            account_id: 'test-account-123',
-            buying_power: 50000.00
-          }
-        }
+            account_id: "test-account-123",
+            buying_power: 50000.0,
+          },
+        },
       });
 
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('api-key-alpaca')).toBeInTheDocument();
+        expect(screen.getByTestId("api-key-alpaca")).toBeInTheDocument();
       });
 
-      const validateButton = screen.getAllByText('Validate')[0];
+      const validateButton = screen.getAllByText("Validate")[0];
       fireEvent.click(validateButton);
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/settings/api-keys/alpaca/validate');
-        expect(screen.getByTestId('validation-alpaca')).toHaveTextContent('Valid');
+        expect(api.post).toHaveBeenCalledWith(
+          "/api/settings/api-keys/alpaca/validate"
+        );
+        expect(screen.getByTestId("validation-alpaca")).toHaveTextContent(
+          "Valid"
+        );
       });
     });
 
-    it('should handle API key validation failures', async () => {
+    it("should handle API key validation failures", async () => {
       api.post.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Invalid API credentials'
-          }
-        }
+            error: "Invalid API credentials",
+          },
+        },
       });
 
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('api-key-alpaca')).toBeInTheDocument();
+        expect(screen.getByTestId("api-key-alpaca")).toBeInTheDocument();
       });
 
-      const validateButton = screen.getAllByText('Validate')[0];
+      const validateButton = screen.getAllByText("Validate")[0];
       fireEvent.click(validateButton);
 
       await waitFor(() => {
-        expect(screen.getByTestId('validation-alpaca')).toHaveTextContent('Invalid');
-        expect(screen.getByTestId('validation-alpaca')).toHaveTextContent('Invalid API credentials');
+        expect(screen.getByTestId("validation-alpaca")).toHaveTextContent(
+          "Invalid"
+        );
+        expect(screen.getByTestId("validation-alpaca")).toHaveTextContent(
+          "Invalid API credentials"
+        );
       });
     });
 
-    it('should delete API keys successfully', async () => {
+    it("should delete API keys successfully", async () => {
       api.delete.mockResolvedValue({
-        data: { success: true, message: 'API key deleted' }
+        data: { success: true, message: "API key deleted" },
       });
 
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('api-key-alpaca')).toBeInTheDocument();
+        expect(screen.getByTestId("api-key-alpaca")).toBeInTheDocument();
       });
 
-      const deleteButton = screen.getAllByText('Delete')[0];
+      const deleteButton = screen.getAllByText("Delete")[0];
       fireEvent.click(deleteButton);
 
       await waitFor(() => {
-        expect(api.delete).toHaveBeenCalledWith('/api/settings/api-keys/alpaca');
+        expect(api.delete).toHaveBeenCalledWith(
+          "/api/settings/api-keys/alpaca"
+        );
       });
 
       // Should reload API keys after deleting
       expect(api.get).toHaveBeenCalledTimes(2);
     });
 
-    it('should handle API errors gracefully', async () => {
+    it("should handle API errors gracefully", async () => {
       api.get.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Failed to load API keys'
-          }
-        }
+            error: "Failed to load API keys",
+          },
+        },
       });
 
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
-        expect(screen.getByTestId('error')).toHaveTextContent('Failed to load API keys');
+        expect(screen.getByTestId("error")).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toHaveTextContent(
+          "Failed to load API keys"
+        );
       });
     });
   });
 
-  describe('Market Data API Integration', () => {
+  describe("Market Data API Integration", () => {
     const mockMarketData = {
-      symbol: 'SPY',
-      price: 420.50,
+      symbol: "SPY",
+      price: 420.5,
       change: 2.15,
       changePercent: 0.51,
       volume: 45678900,
-      high: 422.10,
-      low: 418.30,
+      high: 422.1,
+      low: 418.3,
       open: 419.75,
-      previousClose: 418.35
+      previousClose: 418.35,
     };
 
     beforeEach(() => {
       api.get.mockResolvedValue({
-        data: { success: true, data: mockMarketData }
+        data: { success: true, data: mockMarketData },
       });
     });
 
-    it('should load market data for default symbol', async () => {
+    it("should load market data for default symbol", async () => {
       renderWithRouter(<MockMarketDataComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('market-data-content')).toBeInTheDocument();
+        expect(screen.getByTestId("market-data-content")).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Symbol: SPY')).toBeInTheDocument();
-      expect(screen.getByText('Price: $420.5')).toBeInTheDocument();
-      expect(screen.getByText('Change: 2.15')).toBeInTheDocument();
-      expect(api.get).toHaveBeenCalledWith('/api/market/data/SPY');
+      expect(screen.getByText("Symbol: SPY")).toBeInTheDocument();
+      expect(screen.getByText("Price: $420.5")).toBeInTheDocument();
+      expect(screen.getByText("Change: 2.15")).toBeInTheDocument();
+      expect(api.get).toHaveBeenCalledWith("/api/market/data/SPY");
     });
 
-    it('should load different symbols when buttons are clicked', async () => {
-      const aaplData = { ...mockMarketData, symbol: 'AAPL', price: 150.25 };
+    it("should load different symbols when buttons are clicked", async () => {
+      const aaplData = { ...mockMarketData, symbol: "AAPL", price: 150.25 };
       api.get.mockResolvedValue({
-        data: { success: true, data: aaplData }
+        data: { success: true, data: aaplData },
       });
 
       renderWithRouter(<MockMarketDataComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('market-controls')).toBeInTheDocument();
+        expect(screen.getByTestId("market-controls")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Load AAPL'));
+      fireEvent.click(screen.getByText("Load AAPL"));
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith('/api/market/data/AAPL');
+        expect(api.get).toHaveBeenCalledWith("/api/market/data/AAPL");
       });
     });
 
-    it('should handle batch symbol loading', async () => {
+    it("should handle batch symbol loading", async () => {
       const batchData = {
-        'AAPL': { symbol: 'AAPL', price: 150.25 },
-        'MSFT': { symbol: 'MSFT', price: 300.50 },
-        'GOOGL': { symbol: 'GOOGL', price: 2800.75 }
+        AAPL: { symbol: "AAPL", price: 150.25 },
+        MSFT: { symbol: "MSFT", price: 300.5 },
+        GOOGL: { symbol: "GOOGL", price: 2800.75 },
       };
 
       api.post.mockResolvedValue({
-        data: { success: true, data: batchData }
+        data: { success: true, data: batchData },
       });
 
       renderWithRouter(<MockMarketDataComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Load Multiple')).toBeInTheDocument();
+        expect(screen.getByText("Load Multiple")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Load Multiple'));
+      fireEvent.click(screen.getByText("Load Multiple"));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/market/data/batch', {
-          symbols: ['AAPL', 'MSFT', 'GOOGL']
+        expect(api.post).toHaveBeenCalledWith("/api/market/data/batch", {
+          symbols: ["AAPL", "MSFT", "GOOGL"],
         });
       });
     });
 
-    it('should handle market data API errors', async () => {
+    it("should handle market data API errors", async () => {
       api.get.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Market data service unavailable'
-          }
-        }
+            error: "Market data service unavailable",
+          },
+        },
       });
 
       renderWithRouter(<MockMarketDataComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
-        expect(screen.getByText(/Market data service unavailable/)).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
+        expect(
+          screen.getByText(/Market data service unavailable/)
+        ).toBeInTheDocument();
       });
     });
   });
 
-  describe('Portfolio and Trading API Integration', () => {
+  describe("Portfolio and Trading API Integration", () => {
     const mockPortfolio = {
-      totalValue: 125000.00,
-      cash: 15000.00,
-      dayPnL: 2500.00,
+      totalValue: 125000.0,
+      cash: 15000.0,
+      dayPnL: 2500.0,
       holdings: [
-        { symbol: 'AAPL', quantity: 100, value: 15000.00 },
-        { symbol: 'MSFT', quantity: 50, value: 15000.00 }
-      ]
+        { symbol: "AAPL", quantity: 100, value: 15000.0 },
+        { symbol: "MSFT", quantity: 50, value: 15000.0 },
+      ],
     };
 
     const mockOrders = [
       {
-        id: 'order-123',
-        symbol: 'AAPL',
-        side: 'buy',
+        id: "order-123",
+        symbol: "AAPL",
+        side: "buy",
         qty: 10,
-        price: 150.00,
-        status: 'new',
-        created_at: '2023-06-15T14:30:00Z'
+        price: 150.0,
+        status: "new",
+        created_at: "2023-06-15T14:30:00Z",
       },
       {
-        id: 'order-456',
-        symbol: 'MSFT',
-        side: 'sell',
+        id: "order-456",
+        symbol: "MSFT",
+        side: "sell",
         qty: 5,
-        price: 300.00,
-        status: 'filled',
-        created_at: '2023-06-15T13:15:00Z'
-      }
+        price: 300.0,
+        status: "filled",
+        created_at: "2023-06-15T13:15:00Z",
+      },
     ];
 
     beforeEach(() => {
       api.get.mockImplementation((endpoint) => {
-        if (endpoint === '/api/portfolio/summary') {
-          return Promise.resolve({ data: { success: true, data: mockPortfolio } });
+        if (endpoint === "/api/portfolio/summary") {
+          return Promise.resolve({
+            data: { success: true, data: mockPortfolio },
+          });
         }
-        if (endpoint === '/api/trading/orders') {
+        if (endpoint === "/api/trading/orders") {
           return Promise.resolve({ data: { success: true, data: mockOrders } });
         }
-        return Promise.reject(new Error('Unknown endpoint'));
+        return Promise.reject(new Error("Unknown endpoint"));
       });
     });
 
-    it('should load portfolio summary and orders', async () => {
+    it("should load portfolio summary and orders", async () => {
       renderWithRouter(<MockPortfolioApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('portfolio-summary')).toBeInTheDocument();
-        expect(screen.getByTestId('orders-section')).toBeInTheDocument();
+        expect(screen.getByTestId("portfolio-summary")).toBeInTheDocument();
+        expect(screen.getByTestId("orders-section")).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Total Value: $125000.00')).toBeInTheDocument();
-      expect(screen.getByText('Cash: $15000.00')).toBeInTheDocument();
-      expect(screen.getByText('Day P&L: $2500.00')).toBeInTheDocument();
-      expect(screen.getByText('Orders (2)')).toBeInTheDocument();
-      
-      expect(api.get).toHaveBeenCalledWith('/api/portfolio/summary');
-      expect(api.get).toHaveBeenCalledWith('/api/trading/orders');
+      expect(screen.getByText("Total Value: $125000.00")).toBeInTheDocument();
+      expect(screen.getByText("Cash: $15000.00")).toBeInTheDocument();
+      expect(screen.getByText("Day P&L: $2500.00")).toBeInTheDocument();
+      expect(screen.getByText("Orders (2)")).toBeInTheDocument();
+
+      expect(api.get).toHaveBeenCalledWith("/api/portfolio/summary");
+      expect(api.get).toHaveBeenCalledWith("/api/trading/orders");
     });
 
-    it('should place market orders successfully', async () => {
+    it("should place market orders successfully", async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
           data: {
-            id: 'new-order-789',
-            status: 'accepted'
-          }
-        }
+            id: "new-order-789",
+            status: "accepted",
+          },
+        },
       });
 
       renderWithRouter(<MockPortfolioApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('trading-controls')).toBeInTheDocument();
+        expect(screen.getByTestId("trading-controls")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Buy 10 AAPL (Market)'));
+      fireEvent.click(screen.getByText("Buy 10 AAPL (Market)"));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/trading/orders', {
-          symbol: 'AAPL',
+        expect(api.post).toHaveBeenCalledWith("/api/trading/orders", {
+          symbol: "AAPL",
           qty: 10,
-          side: 'buy',
-          type: 'market'
+          side: "buy",
+          type: "market",
         });
       });
 
       // Should reload orders after placing
-      expect(api.get).toHaveBeenCalledWith('/api/trading/orders');
+      expect(api.get).toHaveBeenCalledWith("/api/trading/orders");
     });
 
-    it('should place limit orders successfully', async () => {
+    it("should place limit orders successfully", async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
           data: {
-            id: 'limit-order-999',
-            status: 'accepted'
-          }
-        }
+            id: "limit-order-999",
+            status: "accepted",
+          },
+        },
       });
 
       renderWithRouter(<MockPortfolioApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Sell 5 MSFT @ $300')).toBeInTheDocument();
+        expect(screen.getByText("Sell 5 MSFT @ $300")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Sell 5 MSFT @ $300'));
+      fireEvent.click(screen.getByText("Sell 5 MSFT @ $300"));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/trading/orders', {
-          symbol: 'MSFT',
+        expect(api.post).toHaveBeenCalledWith("/api/trading/orders", {
+          symbol: "MSFT",
           qty: 5,
-          side: 'sell',
-          type: 'limit',
-          limit_price: 300.00
+          side: "sell",
+          type: "limit",
+          limit_price: 300.0,
         });
       });
     });
 
-    it('should cancel orders successfully', async () => {
+    it("should cancel orders successfully", async () => {
       api.delete.mockResolvedValue({
-        data: { success: true, message: 'Order canceled' }
+        data: { success: true, message: "Order canceled" },
       });
 
       renderWithRouter(<MockPortfolioApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('order-order-123')).toBeInTheDocument();
+        expect(screen.getByTestId("order-order-123")).toBeInTheDocument();
       });
 
       // Only new orders should have cancel buttons
-      const cancelButton = screen.getByText('Cancel');
+      const cancelButton = screen.getByText("Cancel");
       fireEvent.click(cancelButton);
 
       await waitFor(() => {
-        expect(api.delete).toHaveBeenCalledWith('/api/trading/orders/order-123');
+        expect(api.delete).toHaveBeenCalledWith(
+          "/api/trading/orders/order-123"
+        );
       });
 
       // Should reload orders after canceling
-      expect(api.get).toHaveBeenCalledWith('/api/trading/orders');
+      expect(api.get).toHaveBeenCalledWith("/api/trading/orders");
     });
 
-    it('should handle trading API errors', async () => {
+    it("should handle trading API errors", async () => {
       api.post.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Insufficient buying power'
-          }
-        }
+            error: "Insufficient buying power",
+          },
+        },
       });
 
       renderWithRouter(<MockPortfolioApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Buy 10 AAPL (Market)')).toBeInTheDocument();
+        expect(screen.getByText("Buy 10 AAPL (Market)")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Buy 10 AAPL (Market)'));
+      fireEvent.click(screen.getByText("Buy 10 AAPL (Market)"));
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
-        expect(screen.getByText(/Insufficient buying power/)).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
+        expect(
+          screen.getByText(/Insufficient buying power/)
+        ).toBeInTheDocument();
       });
     });
   });
 
-  describe('News API Integration', () => {
+  describe("News API Integration", () => {
     const mockNews = [
       {
         id: 1,
-        headline: 'Apple Reports Strong Q2 Earnings',
-        summary: 'Apple Inc. reported better than expected earnings...',
-        source: 'Reuters',
-        publishedAt: '2023-06-15T14:30:00Z',
-        sentiment: 'positive',
-        relevantSymbols: ['AAPL']
+        headline: "Apple Reports Strong Q2 Earnings",
+        summary: "Apple Inc. reported better than expected earnings...",
+        source: "Reuters",
+        publishedAt: "2023-06-15T14:30:00Z",
+        sentiment: "positive",
+        relevantSymbols: ["AAPL"],
       },
       {
         id: 2,
-        headline: 'Tech Stocks Under Pressure',
-        summary: 'Technology sector faces headwinds...',
-        source: 'Bloomberg',
-        publishedAt: '2023-06-15T13:15:00Z',
-        sentiment: 'negative',
-        relevantSymbols: ['AAPL', 'MSFT', 'GOOGL']
-      }
+        headline: "Tech Stocks Under Pressure",
+        summary: "Technology sector faces headwinds...",
+        source: "Bloomberg",
+        publishedAt: "2023-06-15T13:15:00Z",
+        sentiment: "negative",
+        relevantSymbols: ["AAPL", "MSFT", "GOOGL"],
+      },
     ];
 
     beforeEach(() => {
       api.get.mockResolvedValue({
-        data: { success: true, data: mockNews }
+        data: { success: true, data: mockNews },
       });
     });
 
-    it('should load and display news articles', async () => {
+    it("should load and display news articles", async () => {
       renderWithRouter(<MockNewsApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('news-list')).toBeInTheDocument();
+        expect(screen.getByTestId("news-list")).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('news-1')).toBeInTheDocument();
-      expect(screen.getByTestId('news-2')).toBeInTheDocument();
-      expect(screen.getByText('Apple Reports Strong Q2 Earnings')).toBeInTheDocument();
-      expect(screen.getByText('Tech Stocks Under Pressure')).toBeInTheDocument();
-      expect(api.get).toHaveBeenCalledWith('/api/news/latest?limit=20');
+      expect(screen.getByTestId("news-1")).toBeInTheDocument();
+      expect(screen.getByTestId("news-2")).toBeInTheDocument();
+      expect(
+        screen.getByText("Apple Reports Strong Q2 Earnings")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Tech Stocks Under Pressure")
+      ).toBeInTheDocument();
+      expect(api.get).toHaveBeenCalledWith("/api/news/latest?limit=20");
     });
 
-    it('should filter news by symbol', async () => {
+    it("should filter news by symbol", async () => {
       const filteredNews = [mockNews[0]]; // Only AAPL news
       api.get.mockResolvedValue({
-        data: { success: true, data: filteredNews }
+        data: { success: true, data: filteredNews },
       });
 
       renderWithRouter(<MockNewsApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Filter AAPL News')).toBeInTheDocument();
+        expect(screen.getByText("Filter AAPL News")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Filter AAPL News'));
+      fireEvent.click(screen.getByText("Filter AAPL News"));
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith('/api/news/latest?symbols=AAPL&limit=20');
+        expect(api.get).toHaveBeenCalledWith(
+          "/api/news/latest?symbols=AAPL&limit=20"
+        );
       });
     });
 
-    it('should filter news by sentiment', async () => {
+    it("should filter news by sentiment", async () => {
       const positiveNews = [mockNews[0]]; // Only positive news
       api.get.mockResolvedValue({
-        data: { success: true, data: positiveNews }
+        data: { success: true, data: positiveNews },
       });
 
       renderWithRouter(<MockNewsApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Positive News Only')).toBeInTheDocument();
+        expect(screen.getByText("Positive News Only")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Positive News Only'));
+      fireEvent.click(screen.getByText("Positive News Only"));
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith('/api/news/latest?sentiment=positive&limit=20');
+        expect(api.get).toHaveBeenCalledWith(
+          "/api/news/latest?sentiment=positive&limit=20"
+        );
       });
     });
 
-    it('should analyze sentiment for individual articles', async () => {
+    it("should analyze sentiment for individual articles", async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
           data: {
-            sentiment: 'positive',
+            sentiment: "positive",
             confidence: 0.85,
-            keywords: ['earnings', 'growth', 'revenue']
-          }
-        }
+            keywords: ["earnings", "growth", "revenue"],
+          },
+        },
       });
 
       renderWithRouter(<MockNewsApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('news-1')).toBeInTheDocument();
+        expect(screen.getByTestId("news-1")).toBeInTheDocument();
       });
 
-      const analyzeButtons = screen.getAllByText('Analyze Sentiment');
+      const analyzeButtons = screen.getAllByText("Analyze Sentiment");
       fireEvent.click(analyzeButtons[0]);
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/news/1/sentiment');
+        expect(api.post).toHaveBeenCalledWith("/api/news/1/sentiment");
       });
     });
 
-    it('should clear all filters', async () => {
+    it("should clear all filters", async () => {
       renderWithRouter(<MockNewsApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Clear Filters')).toBeInTheDocument();
+        expect(screen.getByText("Clear Filters")).toBeInTheDocument();
       });
 
       // First apply some filters
-      fireEvent.click(screen.getByText('Filter AAPL News'));
+      fireEvent.click(screen.getByText("Filter AAPL News"));
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith('/api/news/latest?symbols=AAPL&limit=20');
+        expect(api.get).toHaveBeenCalledWith(
+          "/api/news/latest?symbols=AAPL&limit=20"
+        );
       });
 
       // Then clear filters
-      fireEvent.click(screen.getByText('Clear Filters'));
+      fireEvent.click(screen.getByText("Clear Filters"));
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith('/api/news/latest?limit=20');
+        expect(api.get).toHaveBeenCalledWith("/api/news/latest?limit=20");
       });
     });
 
-    it('should handle news API errors', async () => {
+    it("should handle news API errors", async () => {
       api.get.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'News service temporarily unavailable'
-          }
-        }
+            error: "News service temporarily unavailable",
+          },
+        },
       });
 
       renderWithRouter(<MockNewsApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
-        expect(screen.getByText(/News service temporarily unavailable/)).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
+        expect(
+          screen.getByText(/News service temporarily unavailable/)
+        ).toBeInTheDocument();
       });
     });
   });
 
-  describe('API Integration Error Handling', () => {
-    it('should handle network timeouts gracefully', async () => {
+  describe("API Integration Error Handling", () => {
+    it("should handle network timeouts gracefully", async () => {
       api.get.mockRejectedValue({
-        code: 'ECONNABORTED',
-        message: 'timeout of 5000ms exceeded'
+        code: "ECONNABORTED",
+        message: "timeout of 5000ms exceeded",
       });
 
       renderWithRouter(<MockMarketDataComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
         expect(screen.getByText(/timeout/i)).toBeInTheDocument();
       });
     });
 
-    it('should handle rate limiting errors', async () => {
+    it("should handle rate limiting errors", async () => {
       api.get.mockRejectedValue({
         response: {
           status: 429,
           data: {
             success: false,
-            error: 'Rate limit exceeded. Please try again later.',
-            retryAfter: 60
-          }
-        }
+            error: "Rate limit exceeded. Please try again later.",
+            retryAfter: 60,
+          },
+        },
       });
 
       renderWithRouter(<MockMarketDataComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
         expect(screen.getByText(/Rate limit exceeded/)).toBeInTheDocument();
       });
     });
 
-    it('should handle server errors with proper user messaging', async () => {
+    it("should handle server errors with proper user messaging", async () => {
       api.get.mockRejectedValue({
         response: {
           status: 500,
           data: {
             success: false,
-            error: 'Internal server error'
-          }
-        }
+            error: "Internal server error",
+          },
+        },
       });
 
       renderWithRouter(<MockApiKeyIntegrationComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
         expect(screen.getByText(/Internal server error/)).toBeInTheDocument();
       });
     });
 
-    it('should handle authentication errors', async () => {
+    it("should handle authentication errors", async () => {
       api.get.mockRejectedValue({
         response: {
           status: 401,
           data: {
             success: false,
-            error: 'Authentication required'
-          }
-        }
+            error: "Authentication required",
+          },
+        },
       });
 
       renderWithRouter(<MockPortfolioApiComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('error')).toBeInTheDocument();
+        expect(screen.getByTestId("error")).toBeInTheDocument();
         expect(screen.getByText(/Authentication required/)).toBeInTheDocument();
       });
     });
   });
 
-  describe('API Integration Performance', () => {
-    it('should batch API calls efficiently', async () => {
+  describe("API Integration Performance", () => {
+    it("should batch API calls efficiently", async () => {
       const BatchComponent = () => {
         React.useEffect(() => {
           // Simulate batching multiple API calls
           Promise.all([
-            api.get('/api/portfolio/summary'),
-            api.get('/api/trading/orders'),
-            api.get('/api/market/data/SPY')
+            api.get("/api/portfolio/summary"),
+            api.get("/api/trading/orders"),
+            api.get("/api/market/data/SPY"),
           ]);
         }, []);
 
@@ -1120,28 +1182,28 @@ describe('API Integration Tests', () => {
       };
 
       api.get.mockResolvedValue({
-        data: { success: true, data: {} }
+        data: { success: true, data: {} },
       });
 
       renderWithRouter(<BatchComponent />);
 
-      expect(screen.getByTestId('batch-component')).toBeInTheDocument();
+      expect(screen.getByTestId("batch-component")).toBeInTheDocument();
 
       // All three calls should be made in parallel
       expect(api.get).toHaveBeenCalledTimes(3);
-      expect(api.get).toHaveBeenCalledWith('/api/portfolio/summary');
-      expect(api.get).toHaveBeenCalledWith('/api/trading/orders');
-      expect(api.get).toHaveBeenCalledWith('/api/market/data/SPY');
+      expect(api.get).toHaveBeenCalledWith("/api/portfolio/summary");
+      expect(api.get).toHaveBeenCalledWith("/api/trading/orders");
+      expect(api.get).toHaveBeenCalledWith("/api/market/data/SPY");
     });
 
-    it('should handle concurrent API requests without race conditions', async () => {
+    it("should handle concurrent API requests without race conditions", async () => {
       let callCount = 0;
       api.get.mockImplementation(() => {
         callCount++;
-        return new Promise(resolve => {
+        return new Promise((resolve) => {
           setTimeout(() => {
             resolve({
-              data: { success: true, data: { callNumber: callCount } }
+              data: { success: true, data: { callNumber: callCount } },
             });
           }, Math.random() * 100); // Random delay to simulate race conditions
         });
@@ -1152,18 +1214,18 @@ describe('API Integration Tests', () => {
 
         React.useEffect(() => {
           // Make multiple concurrent calls
-          const promises = Array.from({ length: 5 }, (_, i) => 
+          const promises = Array.from({ length: 5 }, (_, i) =>
             api.get(`/api/test/${i}`)
           );
 
-          Promise.all(promises).then(responses => {
-            setResults(responses.map(r => r.data.data.callNumber));
+          Promise.all(promises).then((responses) => {
+            setResults(responses.map((r) => r.data.data.callNumber));
           });
         }, []);
 
         return (
           <div data-testid="concurrent-results">
-            Results: {results.join(', ')}
+            Results: {results.join(", ")}
           </div>
         );
       };
@@ -1171,7 +1233,9 @@ describe('API Integration Tests', () => {
       renderWithRouter(<ConcurrentComponent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('concurrent-results')).toHaveTextContent(/Results: \d+, \d+, \d+, \d+, \d+/);
+        expect(screen.getByTestId("concurrent-results")).toHaveTextContent(
+          /Results: \d+, \d+, \d+, \d+, \d+/
+        );
       });
 
       expect(api.get).toHaveBeenCalledTimes(5);

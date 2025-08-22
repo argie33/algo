@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -27,7 +27,7 @@ import {
   Typography,
   Zoom,
   alpha,
-  useTheme
+  useTheme,
 } from "@mui/material";
 import {
   LineChart,
@@ -41,7 +41,7 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend
+  Legend,
 } from "recharts";
 import {
   TrendingUp,
@@ -58,7 +58,7 @@ import {
   CalendarToday,
   Fullscreen,
   FullscreenExit,
-  Equalizer
+  Equalizer,
 } from "@mui/icons-material";
 
 import {
@@ -68,12 +68,12 @@ import {
   getMarketBreadth,
   getEconomicIndicators,
   getSeasonalityData,
-  getMarketResearchIndicators
+  getMarketResearchIndicators,
 } from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
-  getChangeColor
+  getChangeColor,
 } from "../utils/formatters";
 
 const _CHART_COLORS = [
@@ -527,9 +527,7 @@ function MarketOverview() {
           <br />
           <small>
             Debug endpoint:{" "}
-            <code>
-              {window.__CONFIG__?.API_URL}/market/debug
-            </code>
+            <code>{window.__CONFIG__?.API_URL}/market/debug</code>
           </small>
         </Alert>
       </Box>

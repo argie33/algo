@@ -12,7 +12,7 @@ import { createApiMock, resetApiMocks } from "./api-mocks.js";
 export const setupTestEnvironment = () => {
   // Mock global fetch
   global.fetch = vi.fn();
-  
+
   // Setup default successful fetch response
   global.fetch.mockResolvedValue({
     ok: true,
@@ -21,13 +21,13 @@ export const setupTestEnvironment = () => {
       data: [],
       total: 0,
       page: 1,
-      limit: 25
-    })
+      limit: 25,
+    }),
   });
 
   // Mock the API service
   vi.mock("../../services/api.js", async () => createApiMock());
-  
+
   // Mock the logger service
   vi.mock("../../utils/apiService.jsx", () => ({
     createLogger: vi.fn(() => ({
@@ -93,10 +93,10 @@ export const mockTradingData = {
       symbol: `STOCK${i + 1}`,
       signal: i % 2 === 0 ? "Buy" : "Sell",
       signal_type: i % 2 === 0 ? "buy" : "sell",
-      strength: 0.7 + (i * 0.1),
-      price: 100 + (i * 50),
-      target_price: 110 + (i * 50),
-      confidence: 0.8 + (i * 0.05),
+      strength: 0.7 + i * 0.1,
+      price: 100 + i * 50,
+      target_price: 110 + i * 50,
+      confidence: 0.8 + i * 0.05,
       date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
     })),
     total: count,
@@ -108,9 +108,9 @@ export const mockTradingData = {
     data: Array.from({ length: count }, (_, i) => ({
       id: `holding${i + 1}`,
       symbol: `STOCK${i + 1}`,
-      quantity: 100 + (i * 50),
-      current_price: 50 + (i * 25),
-      total_value: (100 + (i * 50)) * (50 + (i * 25)),
+      quantity: 100 + i * 50,
+      current_price: 50 + i * 25,
+      total_value: (100 + i * 50) * (50 + i * 25),
       gain_loss: (i % 2 === 0 ? 1 : -1) * (10 + i * 5),
       gain_loss_percentage: (i % 2 === 0 ? 1 : -1) * (0.05 + i * 0.02),
     })),
@@ -124,7 +124,7 @@ export const mockTradingData = {
       total_return: 0.15,
       ytd_return: 0.12,
       monthly_returns: Array.from({ length: 12 }, (_, i) => ({
-        month: `2024-${(i + 1).toString().padStart(2, '0')}`,
+        month: `2024-${(i + 1).toString().padStart(2, "0")}`,
         return: (Math.random() - 0.5) * 0.1,
       })),
     },
@@ -136,11 +136,11 @@ export const testScenarios = {
   loading: () => {
     global.fetch.mockImplementation(() => new Promise(() => {})); // Never resolves
   },
-  
+
   error: (message = "API Error") => {
     global.fetch.mockRejectedValue(new Error(message));
   },
-  
+
   success: (data) => {
     global.fetch.mockResolvedValue({
       ok: true,
@@ -148,7 +148,7 @@ export const testScenarios = {
       json: async () => data,
     });
   },
-  
+
   empty: () => {
     global.fetch.mockResolvedValue({
       ok: true,

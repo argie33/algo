@@ -33,7 +33,7 @@ import {
   TableRow,
   TextField,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -255,7 +255,6 @@ function TradingSignals() {
     setSymbolFilter("");
     setPage(0);
   };
-
 
   // Fetch performance summary
   const { data: performanceData, isLoading: performanceLoading } = useQuery({

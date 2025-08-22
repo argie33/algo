@@ -1,30 +1,42 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { vi, describe, test, beforeEach, expect } from 'vitest';
-import '@testing-library/jest-dom';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { vi, describe, test, beforeEach, expect } from "vitest";
+import "@testing-library/jest-dom";
 
 // Mock MUI breakpoint hooks
 const mockUseMediaQuery = vi.fn();
-vi.mock('@mui/material/useMediaQuery', () => mockUseMediaQuery);
+vi.mock("@mui/material/useMediaQuery", () => mockUseMediaQuery);
 
 // Mock components that would be rendered
-vi.mock('../../pages/Dashboard', () => {
+vi.mock("../../pages/Dashboard", () => {
   return function MockDashboard() {
-    const isMobile = mockUseMediaQuery('(max-width:768px)');
+    const isMobile = mockUseMediaQuery("(max-width:768px)");
     return (
       <div data-testid="dashboard">
-        <div data-testid="mobile-header" style={{ display: isMobile ? 'block' : 'none' }}>
+        <div
+          data-testid="mobile-header"
+          style={{ display: isMobile ? "block" : "none" }}
+        >
           Mobile Header
         </div>
-        <div data-testid="desktop-sidebar" style={{ display: isMobile ? 'none' : 'block' }}>
+        <div
+          data-testid="desktop-sidebar"
+          style={{ display: isMobile ? "none" : "block" }}
+        >
           Desktop Sidebar
         </div>
-        <div data-testid="portfolio-grid" className={isMobile ? 'mobile-grid' : 'desktop-grid'}>
+        <div
+          data-testid="portfolio-grid"
+          className={isMobile ? "mobile-grid" : "desktop-grid"}
+        >
           Portfolio Overview
         </div>
-        <div data-testid="chart-container" className={isMobile ? 'mobile-chart' : 'desktop-chart'}>
+        <div
+          data-testid="chart-container"
+          className={isMobile ? "mobile-chart" : "desktop-chart"}
+        >
           Market Chart
         </div>
       </div>
@@ -32,15 +44,21 @@ vi.mock('../../pages/Dashboard', () => {
   };
 });
 
-vi.mock('../../pages/Portfolio', () => {
+vi.mock("../../pages/Portfolio", () => {
   return function MockPortfolio() {
-    const isMobile = mockUseMediaQuery('(max-width:768px)');
+    const isMobile = mockUseMediaQuery("(max-width:768px)");
     return (
       <div data-testid="portfolio-page">
-        <div data-testid="holdings-table" className={isMobile ? 'mobile-table' : 'desktop-table'}>
+        <div
+          data-testid="holdings-table"
+          className={isMobile ? "mobile-table" : "desktop-table"}
+        >
           Holdings Table
         </div>
-        <div data-testid="action-buttons" className={isMobile ? 'mobile-actions' : 'desktop-actions'}>
+        <div
+          data-testid="action-buttons"
+          className={isMobile ? "mobile-actions" : "desktop-actions"}
+        >
           <button>Buy</button>
           <button>Sell</button>
         </div>
@@ -49,9 +67,9 @@ vi.mock('../../pages/Portfolio', () => {
   };
 });
 
-vi.mock('../../components/navigation/AppBar', () => {
+vi.mock("../../components/navigation/AppBar", () => {
   return function MockAppBar() {
-    const isMobile = mockUseMediaQuery('(max-width:768px)');
+    const isMobile = mockUseMediaQuery("(max-width:768px)");
     return (
       <div data-testid="app-bar">
         {isMobile ? (
@@ -71,9 +89,9 @@ vi.mock('../../components/navigation/AppBar', () => {
 // Mock components for mobile-specific features
 const MockMobileApp = () => {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } }
+    defaultOptions: { queries: { retry: false } },
   });
-  
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -83,9 +101,7 @@ const MockMobileApp = () => {
           </div>
           <div data-testid="main-content">
             <div data-testid="dashboard">
-              <div data-testid="mobile-portfolio-card">
-                Portfolio: $125,000
-              </div>
+              <div data-testid="mobile-portfolio-card">Portfolio: $125,000</div>
               <div data-testid="mobile-quick-actions">
                 <button>Trade</button>
                 <button>Watchlist</button>
@@ -108,35 +124,35 @@ const MockMobileApp = () => {
   );
 };
 
-describe('Mobile Responsiveness Tests', () => {
+describe("Mobile Responsiveness Tests", () => {
   let _queryClient;
-  
+
   beforeEach(() => {
     _queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } }
+      defaultOptions: { queries: { retry: false } },
     });
     vi.clearAllMocks();
   });
 
-  describe('Breakpoint Detection', () => {
-    test('should detect mobile breakpoint correctly', () => {
+  describe("Breakpoint Detection", () => {
+    test("should detect mobile breakpoint correctly", () => {
       mockUseMediaQuery.mockReturnValue(true);
-      
+
       render(<MockMobileApp />);
-      
-      expect(mockUseMediaQuery).toHaveBeenCalledWith('(max-width:768px)');
-      expect(screen.getByTestId('mobile-menu-button')).toBeInTheDocument();
+
+      expect(mockUseMediaQuery).toHaveBeenCalledWith("(max-width:768px)");
+      expect(screen.getByTestId("mobile-menu-button")).toBeInTheDocument();
     });
 
-    test('should detect tablet breakpoint correctly', () => {
+    test("should detect tablet breakpoint correctly", () => {
       mockUseMediaQuery
         .mockReturnValueOnce(false) // not mobile
         .mockReturnValueOnce(true); // is tablet
-      
+
       const MockTabletApp = () => {
-        const isMobile = mockUseMediaQuery('(max-width:768px)');
-        const isTablet = mockUseMediaQuery('(max-width:1024px)');
-        
+        const isMobile = mockUseMediaQuery("(max-width:768px)");
+        const isTablet = mockUseMediaQuery("(max-width:1024px)");
+
         return (
           <div data-testid="tablet-app">
             {isTablet && !isMobile && (
@@ -145,17 +161,17 @@ describe('Mobile Responsiveness Tests', () => {
           </div>
         );
       };
-      
+
       render(<MockTabletApp />);
-      expect(screen.getByTestId('tablet-navigation')).toBeInTheDocument();
+      expect(screen.getByTestId("tablet-navigation")).toBeInTheDocument();
     });
 
-    test('should detect desktop breakpoint correctly', () => {
+    test("should detect desktop breakpoint correctly", () => {
       mockUseMediaQuery.mockReturnValue(false);
-      
+
       const MockDesktopApp = () => {
-        const isMobile = mockUseMediaQuery('(max-width:768px)');
-        
+        const isMobile = mockUseMediaQuery("(max-width:768px)");
+
         return (
           <div data-testid="desktop-app">
             {!isMobile && (
@@ -164,105 +180,110 @@ describe('Mobile Responsiveness Tests', () => {
           </div>
         );
       };
-      
+
       render(<MockDesktopApp />);
-      expect(screen.getByTestId('desktop-sidebar')).toBeInTheDocument();
+      expect(screen.getByTestId("desktop-sidebar")).toBeInTheDocument();
     });
   });
 
-  describe('Mobile Navigation', () => {
+  describe("Mobile Navigation", () => {
     beforeEach(() => {
       mockUseMediaQuery.mockReturnValue(true); // mobile
     });
 
-    test('should render mobile bottom navigation', () => {
+    test("should render mobile bottom navigation", () => {
       render(<MockMobileApp />);
-      
-      expect(screen.getByTestId('mobile-bottom-navigation')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-dashboard')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-portfolio')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-screener')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-settings')).toBeInTheDocument();
+
+      expect(
+        screen.getByTestId("mobile-bottom-navigation")
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("nav-dashboard")).toBeInTheDocument();
+      expect(screen.getByTestId("nav-portfolio")).toBeInTheDocument();
+      expect(screen.getByTestId("nav-screener")).toBeInTheDocument();
+      expect(screen.getByTestId("nav-settings")).toBeInTheDocument();
     });
 
-    test('should handle mobile menu interactions', () => {
+    test("should handle mobile menu interactions", () => {
       render(<MockMobileApp />);
-      
-      const menuButton = screen.getByTestId('mobile-menu-button');
+
+      const menuButton = screen.getByTestId("mobile-menu-button");
       fireEvent.click(menuButton);
-      
+
       // Menu should be accessible
       expect(menuButton).toBeInTheDocument();
-      expect(menuButton.textContent).toBe('☰');
+      expect(menuButton.textContent).toBe("☰");
     });
 
-    test('should navigate between sections on mobile', () => {
+    test("should navigate between sections on mobile", () => {
       render(<MockMobileApp />);
-      
-      const dashboardTab = screen.getByTestId('nav-dashboard');
-      const portfolioTab = screen.getByTestId('nav-portfolio');
-      
+
+      const dashboardTab = screen.getByTestId("nav-dashboard");
+      const portfolioTab = screen.getByTestId("nav-portfolio");
+
       fireEvent.click(portfolioTab);
-      expect(portfolioTab).toHaveClass('Mui-selected');
-      
+      expect(portfolioTab).toHaveClass("Mui-selected");
+
       fireEvent.click(dashboardTab);
-      expect(dashboardTab).toHaveClass('Mui-selected');
+      expect(dashboardTab).toHaveClass("Mui-selected");
     });
   });
 
-  describe('Mobile Layout Adaptations', () => {
+  describe("Mobile Layout Adaptations", () => {
     beforeEach(() => {
       mockUseMediaQuery.mockReturnValue(true); // mobile
     });
 
-    test('should adapt dashboard layout for mobile', () => {
+    test("should adapt dashboard layout for mobile", () => {
       render(<MockMobileApp />);
-      
-      const portfolioCard = screen.getByTestId('mobile-portfolio-card');
-      const quickActions = screen.getByTestId('mobile-quick-actions');
-      
+
+      const portfolioCard = screen.getByTestId("mobile-portfolio-card");
+      const quickActions = screen.getByTestId("mobile-quick-actions");
+
       expect(portfolioCard).toBeInTheDocument();
       expect(quickActions).toBeInTheDocument();
       expect(quickActions.children).toHaveLength(3);
     });
 
-    test('should render mobile-optimized charts', () => {
+    test("should render mobile-optimized charts", () => {
       render(<MockMobileApp />);
-      
-      const chartContainer = screen.getByTestId('mobile-chart-container');
-      const chart = screen.getByTestId('mobile-chart');
-      
+
+      const chartContainer = screen.getByTestId("mobile-chart-container");
+      const chart = screen.getByTestId("mobile-chart");
+
       expect(chartContainer).toBeInTheDocument();
       expect(chart).toBeInTheDocument();
     });
 
-    test('should handle touch interactions', () => {
+    test("should handle touch interactions", () => {
       render(<MockMobileApp />);
-      
-      const tradeButton = screen.getByText('Trade');
-      
+
+      const tradeButton = screen.getByText("Trade");
+
       // Simulate touch events
       fireEvent.touchStart(tradeButton);
       fireEvent.touchEnd(tradeButton);
-      
+
       expect(tradeButton).toBeInTheDocument();
     });
   });
 
-  describe('Tablet Layout Adaptations', () => {
+  describe("Tablet Layout Adaptations", () => {
     beforeEach(() => {
       mockUseMediaQuery
         .mockReturnValueOnce(false) // not mobile
         .mockReturnValueOnce(true); // is tablet
     });
 
-    test('should show tablet-optimized portfolio table', () => {
+    test("should show tablet-optimized portfolio table", () => {
       const MockTabletPortfolio = () => {
-        const isTablet = mockUseMediaQuery('(max-width:1024px)');
-        
+        const isTablet = mockUseMediaQuery("(max-width:1024px)");
+
         return (
           <div data-testid="tablet-portfolio">
-            <table data-testid="tablet-holdings-table" className={isTablet ? 'tablet-table' : 'desktop-table'}>
+            <table
+              data-testid="tablet-holdings-table"
+              className={isTablet ? "tablet-table" : "desktop-table"}
+            >
               <tbody>
                 <tr>
                   <td>AAPL</td>
@@ -274,49 +295,52 @@ describe('Mobile Responsiveness Tests', () => {
           </div>
         );
       };
-      
+
       render(<MockTabletPortfolio />);
-      
-      const table = screen.getByTestId('tablet-holdings-table');
-      expect(table).toHaveClass('tablet-table');
+
+      const table = screen.getByTestId("tablet-holdings-table");
+      expect(table).toHaveClass("tablet-table");
     });
 
-    test('should adapt chart sizing for tablet', () => {
+    test("should adapt chart sizing for tablet", () => {
       const MockTabletChart = () => {
-        const isTablet = mockUseMediaQuery('(max-width:1024px)');
-        
+        const isTablet = mockUseMediaQuery("(max-width:1024px)");
+
         return (
-          <div data-testid="tablet-chart" style={{ 
-            width: isTablet ? '100%' : '80%',
-            height: isTablet ? '300px' : '400px'
-          }}>
+          <div
+            data-testid="tablet-chart"
+            style={{
+              width: isTablet ? "100%" : "80%",
+              height: isTablet ? "300px" : "400px",
+            }}
+          >
             Chart Content
           </div>
         );
       };
-      
+
       render(<MockTabletChart />);
-      
-      const chart = screen.getByTestId('tablet-chart');
-      expect(chart).toHaveStyle({ width: '100%', height: '300px' });
+
+      const chart = screen.getByTestId("tablet-chart");
+      expect(chart).toHaveStyle({ width: "100%", height: "300px" });
     });
   });
 
-  describe('Performance on Mobile Devices', () => {
+  describe("Performance on Mobile Devices", () => {
     beforeEach(() => {
       mockUseMediaQuery.mockReturnValue(true); // mobile
     });
 
-    test('should implement lazy loading for mobile components', async () => {
+    test("should implement lazy loading for mobile components", async () => {
       const MockLazyMobileComponent = () => {
         const [isLoaded, setIsLoaded] = React.useState(false);
-        
+
         React.useEffect(() => {
           // Simulate lazy loading
           const timer = setTimeout(() => setIsLoaded(true), 100);
           return () => clearTimeout(timer);
         }, []);
-        
+
         return (
           <div data-testid="lazy-component">
             {isLoaded ? (
@@ -327,72 +351,74 @@ describe('Mobile Responsiveness Tests', () => {
           </div>
         );
       };
-      
+
       render(<MockLazyMobileComponent />);
-      
-      expect(screen.getByTestId('lazy-skeleton')).toBeInTheDocument();
-      
+
+      expect(screen.getByTestId("lazy-skeleton")).toBeInTheDocument();
+
       await waitFor(() => {
-        expect(screen.getByTestId('lazy-content')).toBeInTheDocument();
+        expect(screen.getByTestId("lazy-content")).toBeInTheDocument();
       });
     });
 
-    test('should optimize data fetching for mobile', async () => {
+    test("should optimize data fetching for mobile", async () => {
       const MockOptimizedMobileData = () => {
-        const isMobile = mockUseMediaQuery('(max-width:768px)');
+        const isMobile = mockUseMediaQuery("(max-width:768px)");
         const [data, _setData] = React.useState(null);
-        
+
         React.useEffect(() => {
           const fetchData = () => {
             // Simulate reduced data for mobile
-            const mobileData = isMobile 
-              ? { summary: 'Portfolio: $125K', items: 5 }
-              : { detailed: 'Full data', items: 50 };
-            
+            const mobileData = isMobile
+              ? { summary: "Portfolio: $125K", items: 5 }
+              : { detailed: "Full data", items: 50 };
+
             setTimeout(() => _setData(mobileData), 50);
           };
-          
+
           fetchData();
         }, [isMobile]);
-        
+
         return (
           <div data-testid="optimized-data">
             {data && (
               <div data-testid="data-content">
                 Items: {data.items}
-                {data.summary && <div data-testid="mobile-summary">{data.summary}</div>}
+                {data.summary && (
+                  <div data-testid="mobile-summary">{data.summary}</div>
+                )}
               </div>
             )}
           </div>
         );
       };
-      
+
       render(<MockOptimizedMobileData />);
-      
+
       await waitFor(() => {
-        expect(screen.getByTestId('data-content')).toBeInTheDocument();
-        expect(screen.getByTestId('mobile-summary')).toBeInTheDocument();
-        expect(screen.getByText('Items: 5')).toBeInTheDocument();
+        expect(screen.getByTestId("data-content")).toBeInTheDocument();
+        expect(screen.getByTestId("mobile-summary")).toBeInTheDocument();
+        expect(screen.getByText("Items: 5")).toBeInTheDocument();
       });
     });
 
-    test('should handle offline scenarios on mobile', async () => {
+    test("should handle offline scenarios on mobile", async () => {
       const MockOfflineMobileApp = () => {
         const [isOnline, setIsOnline] = React.useState(navigator.onLine);
-        
+
         React.useEffect(() => {
           const handleOnline = () => setIsOnline(true);
           const handleOffline = () => setIsOnline(false);
-          
-          window.addEventListener('online', handleOnline);
-          window.addEventListener('offline', handleOffline);
-          
+
+          window.addEventListener("online", handleOnline);
+          window.addEventListener("offline", handleOffline);
+
           return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
           };
         }, []);
-        
+
         return (
           <div data-testid="offline-aware-app">
             {!isOnline && (
@@ -401,131 +427,153 @@ describe('Mobile Responsiveness Tests', () => {
               </div>
             )}
             <div data-testid="app-content">
-              {isOnline ? 'Live Data' : 'Cached Data'}
+              {isOnline ? "Live Data" : "Cached Data"}
             </div>
           </div>
         );
       };
-      
+
       render(<MockOfflineMobileApp />);
-      
+
       // Simulate going offline
-      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
-      fireEvent(window, new Event('offline'));
-      
+      Object.defineProperty(navigator, "onLine", {
+        value: false,
+        configurable: true,
+      });
+      fireEvent(window, new Event("offline"));
+
       await waitFor(() => {
-        expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
-        expect(screen.getByText('Cached Data')).toBeInTheDocument();
+        expect(screen.getByTestId("offline-banner")).toBeInTheDocument();
+        expect(screen.getByText("Cached Data")).toBeInTheDocument();
       });
     });
   });
 
-  describe('Accessibility on Mobile', () => {
+  describe("Accessibility on Mobile", () => {
     beforeEach(() => {
       mockUseMediaQuery.mockReturnValue(true); // mobile
     });
 
-    test('should maintain accessibility standards on mobile', () => {
+    test("should maintain accessibility standards on mobile", () => {
       render(<MockMobileApp />);
-      
-      const bottomNav = screen.getByTestId('mobile-bottom-navigation');
-      const navButtons = bottomNav.querySelectorAll('button');
-      
-      navButtons.forEach(button => {
-        expect(button).toHaveAttribute('role');
-        expect(button).not.toHaveAttribute('aria-hidden', 'true');
+
+      const bottomNav = screen.getByTestId("mobile-bottom-navigation");
+      const navButtons = bottomNav.querySelectorAll("button");
+
+      navButtons.forEach((button) => {
+        expect(button).toHaveAttribute("role");
+        expect(button).not.toHaveAttribute("aria-hidden", "true");
       });
     });
 
-    test('should support screen readers on mobile', () => {
+    test("should support screen readers on mobile", () => {
       render(<MockMobileApp />);
-      
-      const portfolioCard = screen.getByTestId('mobile-portfolio-card');
-      expect(portfolioCard).toHaveAttribute('aria-label', expect.any(String));
+
+      const portfolioCard = screen.getByTestId("mobile-portfolio-card");
+      expect(portfolioCard).toHaveAttribute("aria-label", expect.any(String));
     });
 
-    test('should handle focus management on mobile', () => {
+    test("should handle focus management on mobile", () => {
       render(<MockMobileApp />);
-      
-      const menuButton = screen.getByTestId('mobile-menu-button');
+
+      const menuButton = screen.getByTestId("mobile-menu-button");
       menuButton.focus();
-      
+
       expect(document.activeElement).toBe(menuButton);
-      
+
       // Simulate tab navigation
-      fireEvent.keyDown(menuButton, { key: 'Tab' });
+      fireEvent.keyDown(menuButton, { key: "Tab" });
     });
   });
 
-  describe('Mobile-Specific Features', () => {
+  describe("Mobile-Specific Features", () => {
     beforeEach(() => {
       mockUseMediaQuery.mockReturnValue(true); // mobile
     });
 
-    test('should support pull-to-refresh on mobile', async () => {
+    test("should support pull-to-refresh on mobile", async () => {
       const MockPullToRefreshApp = () => {
         const [isRefreshing, setIsRefreshing] = React.useState(false);
-        
+
         const handleRefresh = () => {
           setIsRefreshing(true);
           setTimeout(() => setIsRefreshing(false), 1000);
         };
-        
+
         return (
           <div data-testid="pull-to-refresh-app" onTouchMove={handleRefresh}>
-            {isRefreshing && <div data-testid="refresh-indicator">Refreshing...</div>}
+            {isRefreshing && (
+              <div data-testid="refresh-indicator">Refreshing...</div>
+            )}
             <div data-testid="app-content">Portfolio Data</div>
           </div>
         );
       };
-      
+
       render(<MockPullToRefreshApp />);
-      
-      const app = screen.getByTestId('pull-to-refresh-app');
+
+      const app = screen.getByTestId("pull-to-refresh-app");
       fireEvent.touchMove(app);
-      
+
       await waitFor(() => {
-        expect(screen.getByTestId('refresh-indicator')).toBeInTheDocument();
+        expect(screen.getByTestId("refresh-indicator")).toBeInTheDocument();
       });
     });
 
-    test('should handle device orientation changes', () => {
+    test("should handle device orientation changes", () => {
       const MockOrientationApp = () => {
-        const [orientation, setOrientation] = React.useState('portrait');
-        
+        const [orientation, setOrientation] = React.useState("portrait");
+
         React.useEffect(() => {
           const handleOrientationChange = () => {
-            setOrientation(window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
+            setOrientation(
+              window.innerWidth > window.innerHeight ? "landscape" : "portrait"
+            );
           };
-          
-          window.addEventListener('orientationchange', handleOrientationChange);
-          return () => window.removeEventListener('orientationchange', handleOrientationChange);
+
+          window.addEventListener("orientationchange", handleOrientationChange);
+          return () =>
+            window.removeEventListener(
+              "orientationchange",
+              handleOrientationChange
+            );
         }, []);
-        
+
         return (
-          <div data-testid="orientation-app" className={`orientation-${orientation}`}>
+          <div
+            data-testid="orientation-app"
+            className={`orientation-${orientation}`}
+          >
             Current orientation: {orientation}
           </div>
         );
       };
-      
+
       render(<MockOrientationApp />);
-      
+
       // Simulate orientation change
-      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true });
-      Object.defineProperty(window, 'innerHeight', { value: 600, configurable: true });
-      
-      fireEvent(window, new Event('orientationchange'));
-      
-      expect(screen.getByText('Current orientation: landscape')).toBeInTheDocument();
+      Object.defineProperty(window, "innerWidth", {
+        value: 800,
+        configurable: true,
+      });
+      Object.defineProperty(window, "innerHeight", {
+        value: 600,
+        configurable: true,
+      });
+
+      fireEvent(window, new Event("orientationchange"));
+
+      expect(
+        screen.getByText("Current orientation: landscape")
+      ).toBeInTheDocument();
     });
 
-    test('should optimize touch targets for mobile', () => {
+    test("should optimize touch targets for mobile", () => {
       render(<MockMobileApp />);
-      
-      const actionButtons = screen.getByTestId('mobile-quick-actions').children;
-      
-      Array.from(actionButtons).forEach(button => {
+
+      const actionButtons = screen.getByTestId("mobile-quick-actions").children;
+
+      Array.from(actionButtons).forEach((button) => {
         const styles = window.getComputedStyle(button);
         // Touch targets should be at least 44px
         expect(parseInt(styles.minHeight)).toBeGreaterThanOrEqual(44);
@@ -534,60 +582,66 @@ describe('Mobile Responsiveness Tests', () => {
     });
   });
 
-  describe('Cross-Device Consistency', () => {
-    test('should maintain data consistency across devices', async () => {
+  describe("Cross-Device Consistency", () => {
+    test("should maintain data consistency across devices", async () => {
       const MockConsistentDataApp = ({ deviceType }) => {
-        const [data, _setData] = React.useState({ portfolio: 125000, positions: [] });
-        
+        const [data, _setData] = React.useState({
+          portfolio: 125000,
+          positions: [],
+        });
+
         return (
           <div data-testid={`${deviceType}-app`}>
             <div data-testid="portfolio-value">
               Portfolio: ${data.portfolio.toLocaleString()}
             </div>
-            <div data-testid="device-indicator">
-              Device: {deviceType}
-            </div>
+            <div data-testid="device-indicator">Device: {deviceType}</div>
           </div>
         );
       };
-      
+
       // Test mobile
       mockUseMediaQuery.mockReturnValue(true);
-      const { rerender } = render(<MockConsistentDataApp deviceType="mobile" />);
-      
-      expect(screen.getByText('Portfolio: $125,000')).toBeInTheDocument();
-      expect(screen.getByText('Device: mobile')).toBeInTheDocument();
-      
+      const { rerender } = render(
+        <MockConsistentDataApp deviceType="mobile" />
+      );
+
+      expect(screen.getByText("Portfolio: $125,000")).toBeInTheDocument();
+      expect(screen.getByText("Device: mobile")).toBeInTheDocument();
+
       // Test desktop
       mockUseMediaQuery.mockReturnValue(false);
       rerender(<MockConsistentDataApp deviceType="desktop" />);
-      
-      expect(screen.getByText('Portfolio: $125,000')).toBeInTheDocument();
-      expect(screen.getByText('Device: desktop')).toBeInTheDocument();
+
+      expect(screen.getByText("Portfolio: $125,000")).toBeInTheDocument();
+      expect(screen.getByText("Device: desktop")).toBeInTheDocument();
     });
 
-    test('should sync preferences across devices', () => {
+    test("should sync preferences across devices", () => {
       const MockPreferencesApp = ({ deviceType }) => {
-        const [theme, setTheme] = React.useState('light');
-        
+        const [theme, setTheme] = React.useState("light");
+
         React.useEffect(() => {
           // Simulate preference sync
-          const savedTheme = localStorage.getItem('theme') || 'light';
+          const savedTheme = localStorage.getItem("theme") || "light";
           setTheme(savedTheme);
         }, []);
-        
+
         return (
-          <div data-testid={`${deviceType}-preferences`} className={`theme-${theme}`}>
+          <div
+            data-testid={`${deviceType}-preferences`}
+            className={`theme-${theme}`}
+          >
             Current theme: {theme}
           </div>
         );
       };
-      
-      localStorage.setItem('theme', 'dark');
-      
+
+      localStorage.setItem("theme", "dark");
+
       render(<MockPreferencesApp deviceType="mobile" />);
-      
-      expect(screen.getByText('Current theme: dark')).toBeInTheDocument();
+
+      expect(screen.getByText("Current theme: dark")).toBeInTheDocument();
     });
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -39,7 +39,7 @@ import {
   Tooltip,
   Typography,
   alpha,
-  useTheme
+  useTheme,
 } from "@mui/material";
 import {
   PieChart,
@@ -59,7 +59,7 @@ import {
   PolarRadiusAxis,
   Radar,
   Legend,
-  Tooltip as RechartsTooltip
+  Tooltip as RechartsTooltip,
 } from "recharts";
 import {
   TrendingUp,
@@ -79,7 +79,7 @@ import {
   ExpandMore,
   Security,
   CompareArrows,
-  Remove
+  Remove,
 } from "@mui/icons-material";
 
 // Custom styled components

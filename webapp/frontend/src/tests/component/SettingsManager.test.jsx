@@ -1,11 +1,10 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { BrowserRouter } from 'react-router-dom';
-import SettingsManager from '../../components/SettingsManager';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { BrowserRouter } from "react-router-dom";
+import SettingsManager from "../../components/SettingsManager";
 
 // Mock the API service
-vi.mock('../../services/api', () => ({
+vi.mock("../../services/api", () => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
@@ -14,54 +13,50 @@ vi.mock('../../services/api', () => ({
 
 // Mock AuthContext
 const mockAuthContext = {
-  user: { sub: 'test-user', email: 'test@example.com' },
-  token: 'mock-jwt-token',
+  user: { sub: "test-user", email: "test@example.com" },
+  token: "mock-jwt-token",
   isAuthenticated: true,
 };
 
-vi.mock('../../contexts/AuthContext', () => ({
+vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => mockAuthContext,
 }));
 
 // Import after mocking
-import api from '../../services/api';
+import api from "../../services/api";
 
 const renderWithRouter = (component) => {
-  return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
-  );
+  return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
-describe('SettingsManager Component', () => {
+describe("SettingsManager Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Default API responses
     api.get.mockResolvedValue({
       data: {
         success: true,
         data: {
           profile: {
-            name: 'Test User',
-            email: 'test@example.com',
-            preferences: {}
+            name: "Test User",
+            email: "test@example.com",
+            preferences: {},
           },
           apiKeys: [],
           notifications: {
             email: true,
-            push: false
-          }
-        }
-      }
+            push: false,
+          },
+        },
+      },
     });
   });
 
-  describe('Settings Tabs Navigation', () => {
-    it('should render all settings tabs', async () => {
+  describe("Settings Tabs Navigation", () => {
+    it("should render all settings tabs", async () => {
       renderWithRouter(<SettingsManager />);
-      
+
       await waitFor(() => {
         expect(screen.getByText(/Profile/i)).toBeInTheDocument();
         expect(screen.getByText(/API Keys/i)).toBeInTheDocument();
@@ -70,7 +65,7 @@ describe('SettingsManager Component', () => {
       });
     });
 
-    it('should switch between tabs when clicked', async () => {
+    it("should switch between tabs when clicked", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
@@ -79,7 +74,7 @@ describe('SettingsManager Component', () => {
 
       // Click API Keys tab
       fireEvent.click(screen.getByText(/API Keys/i));
-      
+
       await waitFor(() => {
         expect(screen.getByText(/Manage your API keys/i)).toBeInTheDocument();
       });
@@ -88,64 +83,70 @@ describe('SettingsManager Component', () => {
       fireEvent.click(screen.getByText(/Notifications/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/Notification preferences/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Notification preferences/i)
+        ).toBeInTheDocument();
       });
     });
   });
 
-  describe('Profile Settings', () => {
-    it('should display user profile information', async () => {
+  describe("Profile Settings", () => {
+    it("should display user profile information", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
+        expect(
+          screen.getByDisplayValue("test@example.com")
+        ).toBeInTheDocument();
       });
     });
 
-    it('should update profile when form is submitted', async () => {
+    it("should update profile when form is submitted", async () => {
       api.put.mockResolvedValue({
         data: {
           success: true,
-          message: 'Profile updated successfully'
-        }
+          message: "Profile updated successfully",
+        },
       });
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       // Update name
-      const nameField = screen.getByDisplayValue('Test User');
-      fireEvent.change(nameField, { target: { value: 'Updated Name' } });
+      const nameField = screen.getByDisplayValue("Test User");
+      fireEvent.change(nameField, { target: { value: "Updated Name" } });
 
       // Submit form
       fireEvent.click(screen.getByText(/Save Profile/i));
 
       await waitFor(() => {
-        expect(api.put).toHaveBeenCalledWith('/api/settings/profile', {
-          name: 'Updated Name',
-          email: 'test@example.com'
+        expect(api.put).toHaveBeenCalledWith("/api/settings/profile", {
+          name: "Updated Name",
+          email: "test@example.com",
         });
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Profile updated successfully/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Profile updated successfully/i)
+        ).toBeInTheDocument();
       });
     });
 
-    it('should validate profile form fields', async () => {
+    it("should validate profile form fields", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       // Clear required field
-      const nameField = screen.getByDisplayValue('Test User');
-      fireEvent.change(nameField, { target: { value: '' } });
+      const nameField = screen.getByDisplayValue("Test User");
+      fireEvent.change(nameField, { target: { value: "" } });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
 
@@ -157,15 +158,19 @@ describe('SettingsManager Component', () => {
     });
   });
 
-  describe('Notification Settings', () => {
-    it('should display notification preferences', async () => {
+  describe("Notification Settings", () => {
+    it("should display notification preferences", async () => {
       renderWithRouter(<SettingsManager />);
 
       fireEvent.click(screen.getByText(/Notifications/i));
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/Email notifications/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/Push notifications/i)).toBeInTheDocument();
+        expect(
+          screen.getByLabelText(/Email notifications/i)
+        ).toBeInTheDocument();
+        expect(
+          screen.getByLabelText(/Push notifications/i)
+        ).toBeInTheDocument();
       });
 
       // Check initial states
@@ -173,12 +178,12 @@ describe('SettingsManager Component', () => {
       expect(screen.getByLabelText(/Push notifications/i)).not.toBeChecked();
     });
 
-    it('should update notification preferences', async () => {
+    it("should update notification preferences", async () => {
       api.put.mockResolvedValue({
         data: {
           success: true,
-          message: 'Notifications updated'
-        }
+          message: "Notifications updated",
+        },
       });
 
       renderWithRouter(<SettingsManager />);
@@ -186,7 +191,9 @@ describe('SettingsManager Component', () => {
       fireEvent.click(screen.getByText(/Notifications/i));
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/Email notifications/i)).toBeInTheDocument();
+        expect(
+          screen.getByLabelText(/Email notifications/i)
+        ).toBeInTheDocument();
       });
 
       // Toggle push notifications
@@ -196,16 +203,16 @@ describe('SettingsManager Component', () => {
       fireEvent.click(screen.getByText(/Save Notifications/i));
 
       await waitFor(() => {
-        expect(api.put).toHaveBeenCalledWith('/api/settings/notifications', {
+        expect(api.put).toHaveBeenCalledWith("/api/settings/notifications", {
           email: true,
-          push: true
+          push: true,
         });
       });
     });
   });
 
-  describe('User Preferences', () => {
-    it('should display theme and language preferences', async () => {
+  describe("User Preferences", () => {
+    it("should display theme and language preferences", async () => {
       renderWithRouter(<SettingsManager />);
 
       fireEvent.click(screen.getByText(/Preferences/i));
@@ -217,12 +224,12 @@ describe('SettingsManager Component', () => {
       });
     });
 
-    it('should update user preferences', async () => {
+    it("should update user preferences", async () => {
       api.put.mockResolvedValue({
         data: {
           success: true,
-          message: 'Preferences updated'
-        }
+          message: "Preferences updated",
+        },
       });
 
       renderWithRouter(<SettingsManager />);
@@ -235,65 +242,70 @@ describe('SettingsManager Component', () => {
 
       // Change theme
       fireEvent.change(screen.getByLabelText(/Theme/i), {
-        target: { value: 'dark' }
+        target: { value: "dark" },
       });
 
       // Change currency
       fireEvent.change(screen.getByLabelText(/Currency/i), {
-        target: { value: 'EUR' }
+        target: { value: "EUR" },
       });
 
       fireEvent.click(screen.getByText(/Save Preferences/i));
 
       await waitFor(() => {
-        expect(api.put).toHaveBeenCalledWith('/api/settings/preferences', {
-          theme: 'dark',
-          language: 'en',
-          currency: 'EUR'
+        expect(api.put).toHaveBeenCalledWith("/api/settings/preferences", {
+          theme: "dark",
+          language: "en",
+          currency: "EUR",
         });
       });
     });
   });
 
-  describe('Settings Integration', () => {
-    it('should load all settings data on component mount', async () => {
+  describe("Settings Integration", () => {
+    it("should load all settings data on component mount", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith('/api/settings/profile');
-        expect(api.get).toHaveBeenCalledWith('/api/settings/api-keys');
-        expect(api.get).toHaveBeenCalledWith('/api/settings/notifications');
-        expect(api.get).toHaveBeenCalledWith('/api/settings/preferences');
+        expect(api.get).toHaveBeenCalledWith("/api/settings/profile");
+        expect(api.get).toHaveBeenCalledWith("/api/settings/api-keys");
+        expect(api.get).toHaveBeenCalledWith("/api/settings/notifications");
+        expect(api.get).toHaveBeenCalledWith("/api/settings/preferences");
       });
     });
 
-    it('should handle loading errors gracefully', async () => {
+    it("should handle loading errors gracefully", async () => {
       api.get.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Failed to load settings'
-          }
-        }
+            error: "Failed to load settings",
+          },
+        },
       });
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Failed to load settings/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Failed to load settings/i)
+        ).toBeInTheDocument();
       });
     });
 
-    it('should provide refresh functionality', async () => {
-      api.get.mockRejectedValueOnce(new Error('Network error'))
-           .mockResolvedValue({
-             data: { success: true, data: { profile: {}, apiKeys: [] } }
-           });
+    it("should provide refresh functionality", async () => {
+      api.get
+        .mockRejectedValueOnce(new Error("Network error"))
+        .mockResolvedValue({
+          data: { success: true, data: { profile: {}, apiKeys: [] } },
+        });
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Failed to load settings/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Failed to load settings/i)
+        ).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText(/Refresh/i));
@@ -306,40 +318,44 @@ describe('SettingsManager Component', () => {
     });
   });
 
-  describe('Form Validation', () => {
-    it('should validate email format in profile', async () => {
+  describe("Form Validation", () => {
+    it("should validate email format in profile", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
+        expect(
+          screen.getByDisplayValue("test@example.com")
+        ).toBeInTheDocument();
       });
 
       // Enter invalid email
-      const emailField = screen.getByDisplayValue('test@example.com');
-      fireEvent.change(emailField, { target: { value: 'invalid-email' } });
+      const emailField = screen.getByDisplayValue("test@example.com");
+      fireEvent.change(emailField, { target: { value: "invalid-email" } });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/Please enter a valid email/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Please enter a valid email/i)
+        ).toBeInTheDocument();
       });
 
       expect(api.put).not.toHaveBeenCalled();
     });
 
-    it('should prevent submission with empty required fields', async () => {
+    it("should prevent submission with empty required fields", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       // Clear all required fields
-      const nameField = screen.getByDisplayValue('Test User');
-      const emailField = screen.getByDisplayValue('test@example.com');
+      const nameField = screen.getByDisplayValue("Test User");
+      const emailField = screen.getByDisplayValue("test@example.com");
 
-      fireEvent.change(nameField, { target: { value: '' } });
-      fireEvent.change(emailField, { target: { value: '' } });
+      fireEvent.change(nameField, { target: { value: "" } });
+      fireEvent.change(emailField, { target: { value: "" } });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
 
@@ -352,82 +368,106 @@ describe('SettingsManager Component', () => {
     });
   });
 
-  describe('Loading States', () => {
-    it('should show loading spinner while fetching settings', async () => {
-      api.get.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
-          data: { success: true, data: {} }
-        }), 100))
+  describe("Loading States", () => {
+    it("should show loading spinner while fetching settings", async () => {
+      api.get.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  data: { success: true, data: {} },
+                }),
+              100
+            )
+          )
       );
 
       renderWithRouter(<SettingsManager />);
 
       expect(screen.getByText(/Loading settings/i)).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.queryByText(/Loading settings/i)).not.toBeInTheDocument();
-      }, { timeout: 200 });
+      await waitFor(
+        () => {
+          expect(
+            screen.queryByText(/Loading settings/i)
+          ).not.toBeInTheDocument();
+        },
+        { timeout: 200 }
+      );
     });
 
-    it('should show loading state while saving', async () => {
-      api.put.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
-          data: { success: true, message: 'Saved' }
-        }), 100))
+    it("should show loading state while saving", async () => {
+      api.put.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  data: { success: true, message: "Saved" },
+                }),
+              100
+            )
+          )
       );
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
 
       expect(screen.getByText(/Saving/i)).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.queryByText(/Saving/i)).not.toBeInTheDocument();
-      }, { timeout: 200 });
+      await waitFor(
+        () => {
+          expect(screen.queryByText(/Saving/i)).not.toBeInTheDocument();
+        },
+        { timeout: 200 }
+      );
     });
   });
 
-  describe('Success and Error Messages', () => {
-    it('should show success message after successful update', async () => {
+  describe("Success and Error Messages", () => {
+    it("should show success message after successful update", async () => {
       api.put.mockResolvedValue({
         data: {
           success: true,
-          message: 'Profile updated successfully'
-        }
+          message: "Profile updated successfully",
+        },
       });
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/Profile updated successfully/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Profile updated successfully/i)
+        ).toBeInTheDocument();
       });
     });
 
-    it('should show error message when update fails', async () => {
+    it("should show error message when update fails", async () => {
       api.put.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Update failed'
-          }
-        }
+            error: "Update failed",
+          },
+        },
       });
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
@@ -437,51 +477,59 @@ describe('SettingsManager Component', () => {
       });
     });
 
-    it('should auto-dismiss success messages', async () => {
+    it("should auto-dismiss success messages", async () => {
       vi.useFakeTimers();
 
       api.put.mockResolvedValue({
         data: {
           success: true,
-          message: 'Profile updated successfully'
-        }
+          message: "Profile updated successfully",
+        },
       });
 
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText(/Save Profile/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/Profile updated successfully/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Profile updated successfully/i)
+        ).toBeInTheDocument();
       });
 
       // Fast forward 5 seconds
       vi.advanceTimersByTime(5000);
 
       await waitFor(() => {
-        expect(screen.queryByText(/Profile updated successfully/i)).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(/Profile updated successfully/i)
+        ).not.toBeInTheDocument();
       });
 
       vi.useRealTimers();
     });
   });
 
-  describe('Accessibility', () => {
-    it('should have proper ARIA labels for tabs', async () => {
+  describe("Accessibility", () => {
+    it("should have proper ARIA labels for tabs", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
-        expect(screen.getByRole('tablist')).toBeInTheDocument();
-        expect(screen.getByRole('tab', { name: /Profile/i })).toBeInTheDocument();
-        expect(screen.getByRole('tab', { name: /API Keys/i })).toBeInTheDocument();
+        expect(screen.getByRole("tablist")).toBeInTheDocument();
+        expect(
+          screen.getByRole("tab", { name: /Profile/i })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("tab", { name: /API Keys/i })
+        ).toBeInTheDocument();
       });
     });
 
-    it('should have proper form labels', async () => {
+    it("should have proper form labels", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
@@ -490,11 +538,17 @@ describe('SettingsManager Component', () => {
       });
 
       // Check ARIA attributes
-      expect(screen.getByLabelText(/Name/i)).toHaveAttribute('aria-required', 'true');
-      expect(screen.getByLabelText(/Email/i)).toHaveAttribute('aria-required', 'true');
+      expect(screen.getByLabelText(/Name/i)).toHaveAttribute(
+        "aria-required",
+        "true"
+      );
+      expect(screen.getByLabelText(/Email/i)).toHaveAttribute(
+        "aria-required",
+        "true"
+      );
     });
 
-    it('should be keyboard navigable', async () => {
+    it("should be keyboard navigable", async () => {
       renderWithRouter(<SettingsManager />);
 
       await waitFor(() => {
@@ -502,17 +556,17 @@ describe('SettingsManager Component', () => {
       });
 
       // Tab navigation
-      const profileTab = screen.getByRole('tab', { name: /Profile/i });
-      const apiKeysTab = screen.getByRole('tab', { name: /API Keys/i });
+      const profileTab = screen.getByRole("tab", { name: /Profile/i });
+      const apiKeysTab = screen.getByRole("tab", { name: /API Keys/i });
 
       profileTab.focus();
       expect(profileTab).toHaveFocus();
 
       // Arrow key navigation
-      fireEvent.keyDown(profileTab, { key: 'ArrowRight' });
+      fireEvent.keyDown(profileTab, { key: "ArrowRight" });
       expect(apiKeysTab).toHaveFocus();
 
-      fireEvent.keyDown(apiKeysTab, { key: 'ArrowLeft' });
+      fireEvent.keyDown(apiKeysTab, { key: "ArrowLeft" });
       expect(profileTab).toHaveFocus();
     });
   });

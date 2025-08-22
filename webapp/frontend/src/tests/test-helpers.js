@@ -5,7 +5,7 @@
 
 // Real API configuration for testing actual site
 export const REAL_API_CONFIG = {
-  apiUrl: process.env.VITE_API_URL || 'http://localhost:3001', // Dynamic URL from CloudFormation
+  apiUrl: process.env.VITE_API_URL || "http://localhost:3001", // Dynamic URL from CloudFormation
   timeout: 30000,
 };
 
@@ -70,16 +70,16 @@ export const createMockUser = (overrides = {}) => ({
 // Helper to make real API calls during tests
 export const makeRealApiCall = async (endpoint, options = {}) => {
   const url = `${REAL_API_CONFIG.apiUrl}${endpoint}`;
-  
+
   try {
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
     });
-    
+
     return {
       ok: response.ok,
       status: response.status,
@@ -93,7 +93,6 @@ export const makeRealApiCall = async (endpoint, options = {}) => {
     };
   }
 };
-
 
 // Re-export testing library utilities
 export * from "@testing-library/react";

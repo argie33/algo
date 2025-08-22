@@ -1,4 +1,3 @@
-import React from "react";
 import ReactDOM from "react-dom/client";
 // Fresh deployment to clear CloudFront cache and ensure correct config (2025-08-21)
 import { BrowserRouter } from "react-router-dom";
@@ -11,35 +10,44 @@ import { configureAmplify } from "./config/amplify";
 console.log("🚀 main.jsx loaded - starting React app");
 
 // Aggressively clear all Service Workers and caches to fix old API URL caching
-if ('serviceWorker' in navigator) {
+if ("serviceWorker" in navigator) {
   // Unregister all service workers
-  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-    console.log(`🧹 Found ${registrations.length} Service Worker registrations`);
-    for(let registration of registrations) {
-      registration.unregister().then(function(boolean) {
-        console.log('🧹 Service Worker unregistered:', boolean);
-      });
-    }
-  }).catch(function(error) {
-    console.log('Service Worker unregistration failed:', error);
-  });
+  navigator.serviceWorker
+    .getRegistrations()
+    .then(function (registrations) {
+      console.log(
+        `🧹 Found ${registrations.length} Service Worker registrations`
+      );
+      for (let registration of registrations) {
+        registration.unregister().then(function (boolean) {
+          console.log("🧹 Service Worker unregistered:", boolean);
+        });
+      }
+    })
+    .catch(function (error) {
+      console.log("Service Worker unregistration failed:", error);
+    });
 }
 
 // Clear all caches to ensure fresh configuration loading
-if ('caches' in window) {
-  caches.keys().then(function(cacheNames) {
-    console.log(`🗑️ Found ${cacheNames.length} cache stores`);
-    return Promise.all(
-      cacheNames.map(function(cacheName) {
-        console.log('🗑️ Deleting cache:', cacheName);
-        return caches.delete(cacheName);
-      })
-    );
-  }).then(function() {
-    console.log('✅ All caches cleared');
-  }).catch(function(error) {
-    console.log('Cache clearing failed:', error);
-  });
+if ("caches" in window) {
+  caches
+    .keys()
+    .then(function (cacheNames) {
+      console.log(`🗑️ Found ${cacheNames.length} cache stores`);
+      return Promise.all(
+        cacheNames.map(function (cacheName) {
+          console.log("🗑️ Deleting cache:", cacheName);
+          return caches.delete(cacheName);
+        })
+      );
+    })
+    .then(function () {
+      console.log("✅ All caches cleared");
+    })
+    .catch(function (error) {
+      console.log("Cache clearing failed:", error);
+    });
 }
 
 // Force reload config.js with cache busting to get latest API URL configuration
@@ -49,21 +57,21 @@ const forceReloadConfig = () => {
     const existingScript = document.querySelector('script[src*="config.js"]');
     if (existingScript) {
       existingScript.remove();
-      console.log('🗑️ Removed existing config script');
+      console.log("🗑️ Removed existing config script");
     }
-    
+
     // Add new config script with cache busting
-    const script = document.createElement('script');
+    const script = document.createElement("script");
     script.src = `/config.js?t=${Date.now()}`;
     script.onload = () => {
-      console.log('✅ Config reloaded with latest values:', window.__CONFIG__);
+      console.log("✅ Config reloaded with latest values:", window.__CONFIG__);
     };
     script.onerror = () => {
-      console.error('❌ Failed to reload config.js');
+      console.error("❌ Failed to reload config.js");
     };
     document.head.appendChild(script);
   } catch (error) {
-    console.error('❌ Error forcing config reload:', error);
+    console.error("❌ Error forcing config reload:", error);
   }
 };
 
@@ -71,7 +79,6 @@ forceReloadConfig();
 
 // Configure Amplify
 configureAmplify();
-
 
 // Create theme
 const theme = createTheme({

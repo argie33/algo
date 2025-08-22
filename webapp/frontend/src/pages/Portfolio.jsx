@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -50,7 +50,7 @@ import {
   Tabs,
   TextField,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   PieChart,
@@ -69,7 +69,7 @@ import {
   PolarRadiusAxis,
   Radar,
   ComposedChart,
-  Tooltip as RechartsTooltip
+  Tooltip as RechartsTooltip,
 } from "recharts";
 import {
   TrendingUp,
@@ -99,18 +99,18 @@ import {
   PictureAsPdf,
   NotificationsNone,
   Refresh,
-  Visibility
+  Visibility,
 } from "@mui/icons-material";
 import {
   getApiConfig,
   testApiConnection,
   importPortfolioFromBroker,
-  getApiKeys
+  getApiKeys,
 } from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
-  formatNumber
+  formatNumber,
 } from "../utils/formatters";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -236,7 +236,7 @@ const Portfolio = () => {
       if (!response) {
         throw new Error("Portfolio API request failed - no response received");
       }
-      
+
       if (!response.ok) {
         throw new Error(
           `Portfolio API failed: ${response.status} ${response.statusText}`
@@ -724,7 +724,6 @@ const Portfolio = () => {
       loadUserPortfolio();
     }
   };
-
 
   // Test connection to broker
   const handleTestConnection = async (connectionId, provider) => {
@@ -2016,7 +2015,9 @@ const Portfolio = () => {
                       </Typography>
                       <LinearProgress
                         variant="determinate"
-                        value={(diversificationMetrics?.concentrationRisk || 0) * 100}
+                        value={
+                          (diversificationMetrics?.concentrationRisk || 0) * 100
+                        }
                         color={
                           (diversificationMetrics?.concentrationRisk || 0) > 0.3
                             ? "error"
@@ -2845,7 +2846,8 @@ const Portfolio = () => {
                     </StepLabel>
                     <StepContent>
                       <Alert severity="info" sx={{ mt: 1 }}>
-                        {aiInsights?.marketAnalysis || "Market analysis not available"}
+                        {aiInsights?.marketAnalysis ||
+                          "Market analysis not available"}
                       </Alert>
                     </StepContent>
                   </Step>
@@ -3874,7 +3876,7 @@ function calculateFactorExposure(holdings) {
       const factorKey = factor.toLowerCase();
       // Check if factorScores exists and has the required factor
       const factorScore = h.factorScores?.[factorKey];
-      if (typeof factorScore !== 'number') {
+      if (typeof factorScore !== "number") {
         return sum; // Skip if no factor score available
       }
       return sum + (h.allocation / 100) * (factorScore - 50); // Center around 50

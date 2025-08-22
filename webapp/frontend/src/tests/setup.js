@@ -13,7 +13,7 @@ global.ResizeObserver = class ResizeObserver {
 };
 
 // Mock window.matchMedia for MUI
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query) => ({
     matches: false,
@@ -28,7 +28,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Configure fetch for real site testing
-const _REAL_API_URL = process.env.VITE_API_URL || 'http://localhost:3001'; // Dynamic URL from CloudFormation
+const _REAL_API_URL = process.env.VITE_API_URL || "http://localhost:3001"; // Dynamic URL from CloudFormation
 
 // Only mock fetch in specific test scenarios
 global.originalFetch = global.fetch;
@@ -43,11 +43,12 @@ global.fetch = global.originalFetch || fetch;
 const originalConsole = { ...console };
 console.error = (...args) => {
   const message = args[0];
-  if (typeof message === 'string' && (
-    message.includes('Warning: An update to') ||
-    message.includes('act()') ||
-    message.includes('React Router Future Flag')
-  )) {
+  if (
+    typeof message === "string" &&
+    (message.includes("Warning: An update to") ||
+      message.includes("act()") ||
+      message.includes("React Router Future Flag"))
+  ) {
     return; // Suppress React warnings
   }
   originalConsole.error.apply(console, args);
@@ -55,10 +56,11 @@ console.error = (...args) => {
 
 console.warn = (...args) => {
   const message = args[0];
-  if (typeof message === 'string' && (
-    message.includes('React Router') ||
-    message.includes('Warning: An update to')
-  )) {
+  if (
+    typeof message === "string" &&
+    (message.includes("React Router") ||
+      message.includes("Warning: An update to"))
+  ) {
     return; // Suppress React warnings
   }
   originalConsole.warn.apply(console, args);

@@ -1,35 +1,41 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { BrowserRouter } from 'react-router-dom';
+import React from "react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { BrowserRouter } from "react-router-dom";
 
 // Import vitest functions
-import { vi, describe, beforeEach, expect } from 'vitest';
+import { vi, describe, beforeEach, expect } from "vitest";
 
 // Mock AuthContext
 const mockAuthContext = {
-  user: { sub: 'test-user', email: 'test@example.com' },
-  token: 'mock-jwt-token',
+  user: { sub: "test-user", email: "test@example.com" },
+  token: "mock-jwt-token",
   isAuthenticated: true,
 };
 
-vi.mock('../../contexts/AuthContext', () => ({
+vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => mockAuthContext,
 }));
 
 // Mock API service functions
 const mockApiService = {
-  get: vi.fn().mockResolvedValue({ 
-    data: { 
+  get: vi.fn().mockResolvedValue({
+    data: {
       data: {
-        symbol: 'AAPL',
-        price: 150.00,
-        change: 2.50,
+        symbol: "AAPL",
+        price: 150.0,
+        change: 2.5,
         changePercent: 1.69,
         volume: 1000000,
-        timestamp: new Date().toISOString()
-      }
-    } 
+        timestamp: new Date().toISOString(),
+      },
+    },
   }),
   post: vi.fn().mockResolvedValue({ success: true }),
 };
@@ -38,7 +44,12 @@ const mockApiService = {
 const api = mockApiService;
 
 // Mock real-time data components
-const MockLiveDataComponent = ({ symbol, onDataUpdate, autoRefresh = false, refreshInterval = 5000 }) => {
+const MockLiveDataComponent = ({
+  symbol,
+  onDataUpdate,
+  autoRefresh = false,
+  refreshInterval = 5000,
+}) => {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -74,13 +85,19 @@ const MockLiveDataComponent = ({ symbol, onDataUpdate, autoRefresh = false, refr
   }, [autoRefresh, refreshInterval, fetchData]);
 
   if (loading) {
-    return <div data-testid="live-data-loading">Loading live data for {symbol}...</div>;
+    return (
+      <div data-testid="live-data-loading">
+        Loading live data for {symbol}...
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div data-testid="live-data-error">
-        <p>Error loading data for {symbol}: {error.message}</p>
+        <p>
+          Error loading data for {symbol}: {error.message}
+        </p>
         <button onClick={fetchData}>Retry</button>
       </div>
     );
@@ -100,35 +117,36 @@ const MockLiveDataComponent = ({ symbol, onDataUpdate, autoRefresh = false, refr
 
 const MockPriceStreamComponent = ({ symbols = [], onPriceUpdate }) => {
   const [prices, setPrices] = React.useState({});
-  const [connectionStatus, setConnectionStatus] = React.useState('disconnected');
+  const [connectionStatus, setConnectionStatus] =
+    React.useState("disconnected");
   const [reconnectAttempts, setReconnectAttempts] = React.useState(0);
 
   React.useEffect(() => {
     // Simulate connection establishment
-    setConnectionStatus('connecting');
-    
+    setConnectionStatus("connecting");
+
     const connectTimer = setTimeout(() => {
-      setConnectionStatus('connected');
-      
+      setConnectionStatus("connected");
+
       // Simulate price updates every 2 seconds
       const updateInterval = setInterval(() => {
-        symbols.forEach(symbol => {
+        symbols.forEach((symbol) => {
           const newPrice = Math.random() * 100 + 50; // Random price between 50-150
           const change = (Math.random() - 0.5) * 5; // Random change between -2.5 and 2.5
-          
+
           const priceData = {
             symbol,
             price: newPrice,
             change,
             changePercent: (change / (newPrice - change)) * 100,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           };
-          
-          setPrices(prev => ({
+
+          setPrices((prev) => ({
             ...prev,
-            [symbol]: priceData
+            [symbol]: priceData,
           }));
-          
+
           if (onPriceUpdate) {
             onPriceUpdate(priceData);
           }
@@ -137,25 +155,25 @@ const MockPriceStreamComponent = ({ symbols = [], onPriceUpdate }) => {
 
       return () => {
         clearInterval(updateInterval);
-        setConnectionStatus('disconnected');
+        setConnectionStatus("disconnected");
       };
     }, 1000);
 
     return () => {
       clearTimeout(connectTimer);
-      setConnectionStatus('disconnected');
+      setConnectionStatus("disconnected");
     };
   }, [symbols, onPriceUpdate]);
 
   const reconnect = () => {
-    setReconnectAttempts(prev => prev + 1);
-    setConnectionStatus('connecting');
-    
+    setReconnectAttempts((prev) => prev + 1);
+    setConnectionStatus("connecting");
+
     setTimeout(() => {
       if (reconnectAttempts < 3) {
-        setConnectionStatus('connected');
+        setConnectionStatus("connected");
       } else {
-        setConnectionStatus('failed');
+        setConnectionStatus("failed");
       }
     }, 1000);
   };
@@ -164,17 +182,19 @@ const MockPriceStreamComponent = ({ symbols = [], onPriceUpdate }) => {
     <div data-testid="price-stream">
       <div data-testid="connection-status">
         Status: {connectionStatus}
-        {connectionStatus === 'failed' && (
+        {connectionStatus === "failed" && (
           <button onClick={reconnect}>Reconnect</button>
         )}
       </div>
-      
+
       {Object.entries(prices).map(([symbol, data]) => (
         <div key={symbol} data-testid={`price-${symbol}`}>
-          <span>{symbol}: ${data.price.toFixed(2)}</span>
-          <span className={data.change >= 0 ? 'positive' : 'negative'}>
-            {data.change >= 0 ? '+' : ''}{data.change.toFixed(2)} 
-            ({data.changePercent.toFixed(2)}%)
+          <span>
+            {symbol}: ${data.price.toFixed(2)}
+          </span>
+          <span className={data.change >= 0 ? "positive" : "negative"}>
+            {data.change >= 0 ? "+" : ""}
+            {data.change.toFixed(2)}({data.changePercent.toFixed(2)}%)
           </span>
         </div>
       ))}
@@ -189,40 +209,42 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
 
   React.useEffect(() => {
     // Initial portfolio load
-    api.get(`/api/portfolio/${portfolioId}`).then(response => {
+    api.get(`/api/portfolio/${portfolioId}`).then((response) => {
       setPortfolio(response.data.data);
     });
 
     if (realtimeUpdates) {
       const interval = setInterval(() => {
         // Simulate portfolio value updates
-        setPortfolio(prev => {
+        setPortfolio((prev) => {
           if (!prev) return null;
-          
-          const updatedHoldings = prev.holdings.map(holding => ({
+
+          const updatedHoldings = prev.holdings.map((holding) => ({
             ...holding,
             currentPrice: holding.currentPrice * (0.98 + Math.random() * 0.04), // ±2% price movement
-            lastUpdate: Date.now()
+            lastUpdate: Date.now(),
           }));
-          
-          const totalValue = updatedHoldings.reduce((sum, holding) => 
-            sum + (holding.currentPrice * holding.quantity), 0);
-          
+
+          const totalValue = updatedHoldings.reduce(
+            (sum, holding) => sum + holding.currentPrice * holding.quantity,
+            0
+          );
+
           const updatedPortfolio = {
             ...prev,
             holdings: updatedHoldings,
             totalValue,
-            lastUpdate: Date.now()
+            lastUpdate: Date.now(),
           };
-          
+
           if (onPortfolioUpdate) {
             onPortfolioUpdate(updatedPortfolio);
           }
-          
+
           return updatedPortfolio;
         });
-        
-        setUpdateCount(prev => prev + 1);
+
+        setUpdateCount((prev) => prev + 1);
       }, 3000);
 
       return () => clearInterval(interval);
@@ -230,7 +252,7 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
   }, [portfolioId, realtimeUpdates, onPortfolioUpdate]);
 
   const toggleRealtime = () => {
-    setRealtimeUpdates(prev => !prev);
+    setRealtimeUpdates((prev) => !prev);
   };
 
   return (
@@ -238,21 +260,25 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
       <div>
         <h3>Portfolio: {portfolioId}</h3>
         <button onClick={toggleRealtime}>
-          {realtimeUpdates ? 'Pause' : 'Resume'} Real-time Updates
+          {realtimeUpdates ? "Pause" : "Resume"} Real-time Updates
         </button>
         <span data-testid="update-count">Updates: {updateCount}</span>
       </div>
-      
+
       {portfolio && (
         <div>
           <p data-testid="portfolio-value">
             Total Value: ${portfolio.totalValue?.toFixed(2)}
           </p>
           <div data-testid="portfolio-holdings">
-            {portfolio.holdings?.map(holding => (
-              <div key={holding.symbol} data-testid={`holding-${holding.symbol}`}>
-                {holding.symbol}: ${holding.currentPrice?.toFixed(2)} 
-                x {holding.quantity} = ${(holding.currentPrice * holding.quantity).toFixed(2)}
+            {portfolio.holdings?.map((holding) => (
+              <div
+                key={holding.symbol}
+                data-testid={`holding-${holding.symbol}`}
+              >
+                {holding.symbol}: ${holding.currentPrice?.toFixed(2)}x{" "}
+                {holding.quantity} = $
+                {(holding.currentPrice * holding.quantity).toFixed(2)}
               </div>
             ))}
           </div>
@@ -266,14 +292,10 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
 };
 
 const renderWithRouter = (component) => {
-  return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
-  );
+  return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
-describe('Real-time Data Components', () => {
+describe("Real-time Data Components", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
@@ -284,88 +306,106 @@ describe('Real-time Data Components', () => {
     vi.useRealTimers();
   });
 
-  describe('Live Data Component', () => {
+  describe("Live Data Component", () => {
     const mockLiveData = {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       price: 150.25,
-      change: 2.50,
+      change: 2.5,
       changePercent: 1.69,
       volume: 45678900,
-      lastUpdate: '2023-06-15T15:30:00Z'
+      lastUpdate: "2023-06-15T15:30:00Z",
     };
 
     beforeEach(() => {
       api.get.mockResolvedValue({
         data: {
           success: true,
-          data: mockLiveData
-        }
+          data: mockLiveData,
+        },
       });
     });
 
-    it('should load and display live data for a symbol', async () => {
+    it("should load and display live data for a symbol", async () => {
       renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
 
       // Check loading state
-      expect(screen.getByTestId('live-data-loading')).toBeInTheDocument();
+      expect(screen.getByTestId("live-data-loading")).toBeInTheDocument();
 
       // Wait for content to load with a shorter timeout
-      await waitFor(() => {
-        expect(screen.queryByTestId('live-data-content')).toBeInTheDocument();
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(screen.queryByTestId("live-data-content")).toBeInTheDocument();
+        },
+        { timeout: 1000 }
+      );
 
-      expect(screen.getByText('Live Data: AAPL')).toBeInTheDocument();
-      expect(screen.getByText('Price: $150.25')).toBeInTheDocument();
-      expect(screen.getByText('Change: 2.5')).toBeInTheDocument();
-      expect(screen.getByText('Volume: 45,678,900')).toBeInTheDocument();
+      expect(screen.getByText("Live Data: AAPL")).toBeInTheDocument();
+      expect(screen.getByText("Price: $150.25")).toBeInTheDocument();
+      expect(screen.getByText("Change: 2.5")).toBeInTheDocument();
+      expect(screen.getByText("Volume: 45,678,900")).toBeInTheDocument();
     });
 
-    it('should handle data loading errors', async () => {
-      api.get.mockRejectedValue(new Error('API unavailable'));
+    it("should handle data loading errors", async () => {
+      api.get.mockRejectedValue(new Error("API unavailable"));
 
       renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('live-data-error')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("live-data-error")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
-      expect(screen.getByText(/Error loading data for AAPL/)).toBeInTheDocument();
-      expect(screen.getByText('Retry')).toBeInTheDocument();
+      expect(
+        screen.getByText(/Error loading data for AAPL/)
+      ).toBeInTheDocument();
+      expect(screen.getByText("Retry")).toBeInTheDocument();
     });
 
-    it('should retry loading data when retry button is clicked', async () => {
-      api.get.mockRejectedValueOnce(new Error('Network error'))
-           .mockResolvedValue({
-             data: { success: true, data: mockLiveData }
-           });
+    it("should retry loading data when retry button is clicked", async () => {
+      api.get
+        .mockRejectedValueOnce(new Error("Network error"))
+        .mockResolvedValue({
+          data: { success: true, data: mockLiveData },
+        });
 
       renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('live-data-error')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("live-data-error")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
-      fireEvent.click(screen.getByText('Retry'));
+      fireEvent.click(screen.getByText("Retry"));
 
-      await waitFor(() => {
-        expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       expect(api.get).toHaveBeenCalledTimes(2);
     });
 
-    it('should auto-refresh data at specified intervals', async () => {
+    it("should auto-refresh data at specified intervals", async () => {
       renderWithRouter(
-        <MockLiveDataComponent 
-          symbol="AAPL" 
-          autoRefresh={true} 
-          refreshInterval={1000} 
+        <MockLiveDataComponent
+          symbol="AAPL"
+          autoRefresh={true}
+          refreshInterval={1000}
         />
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       expect(api.get).toHaveBeenCalledTimes(1);
 
@@ -374,91 +414,109 @@ describe('Real-time Data Components', () => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2);
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 1000 }
+      );
 
       // Fast forward another 1 second
       act(() => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(3);
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(3);
+        },
+        { timeout: 1000 }
+      );
     });
 
-    it('should call onDataUpdate callback when data changes', async () => {
+    it("should call onDataUpdate callback when data changes", async () => {
       const mockOnDataUpdate = vi.fn();
 
       renderWithRouter(
-        <MockLiveDataComponent 
-          symbol="AAPL" 
-          onDataUpdate={mockOnDataUpdate} 
-        />
+        <MockLiveDataComponent symbol="AAPL" onDataUpdate={mockOnDataUpdate} />
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       expect(mockOnDataUpdate).toHaveBeenCalledWith(mockLiveData);
     });
 
-    it('should manually refresh data when refresh button is clicked', async () => {
+    it("should manually refresh data when refresh button is clicked", async () => {
       renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       expect(api.get).toHaveBeenCalledTimes(1);
 
-      fireEvent.click(screen.getByText('Refresh'));
+      fireEvent.click(screen.getByText("Refresh"));
 
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2);
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 1000 }
+      );
     });
   });
 
-  describe('Price Stream Component', () => {
-    it('should establish connection and stream prices for multiple symbols', async () => {
-      const symbols = ['AAPL', 'MSFT', 'GOOGL'];
+  describe("Price Stream Component", () => {
+    it("should establish connection and stream prices for multiple symbols", async () => {
+      const symbols = ["AAPL", "MSFT", "GOOGL"];
       renderWithRouter(<MockPriceStreamComponent symbols={symbols} />);
 
       // Should start with disconnected status
-      expect(screen.getByText('Status: connecting')).toBeInTheDocument();
+      expect(screen.getByText("Status: connecting")).toBeInTheDocument();
 
       // Fast forward to establish connection
       act(() => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        expect(screen.getByText('Status: connected')).toBeInTheDocument();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expect(screen.getByText("Status: connected")).toBeInTheDocument();
+        },
+        { timeout: 2000 }
+      );
 
       // Fast forward to get first price updates
       act(() => {
         vi.advanceTimersByTime(2000);
       });
 
-      await waitFor(() => {
-        symbols.forEach(symbol => {
-          expect(screen.getByTestId(`price-${symbol}`)).toBeInTheDocument();
-        });
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          symbols.forEach((symbol) => {
+            expect(screen.getByTestId(`price-${symbol}`)).toBeInTheDocument();
+          });
+        },
+        { timeout: 2000 }
+      );
     });
 
-    it('should call onPriceUpdate callback for price changes', async () => {
+    it("should call onPriceUpdate callback for price changes", async () => {
       const mockOnPriceUpdate = vi.fn();
-      const symbols = ['AAPL'];
+      const symbols = ["AAPL"];
 
       renderWithRouter(
-        <MockPriceStreamComponent 
-          symbols={symbols} 
-          onPriceUpdate={mockOnPriceUpdate} 
+        <MockPriceStreamComponent
+          symbols={symbols}
+          onPriceUpdate={mockOnPriceUpdate}
         />
       );
 
@@ -473,19 +531,19 @@ describe('Real-time Data Components', () => {
 
       const callArgs = mockOnPriceUpdate.mock.calls[0][0];
       expect(callArgs).toMatchObject({
-        symbol: 'AAPL',
+        symbol: "AAPL",
         price: expect.any(Number),
         change: expect.any(Number),
         changePercent: expect.any(Number),
-        timestamp: expect.any(Number)
+        timestamp: expect.any(Number),
       });
     });
 
-    it('should handle connection failures and provide reconnect functionality', async () => {
-      renderWithRouter(<MockPriceStreamComponent symbols={['AAPL']} />);
+    it("should handle connection failures and provide reconnect functionality", async () => {
+      renderWithRouter(<MockPriceStreamComponent symbols={["AAPL"]} />);
 
       // Simulate multiple failed reconnection attempts
-      const reconnectButton = () => screen.queryByText('Reconnect');
+      const reconnectButton = () => screen.queryByText("Reconnect");
 
       // Force failure state
       act(() => {
@@ -503,14 +561,14 @@ describe('Real-time Data Components', () => {
       }
 
       await waitFor(() => {
-        expect(screen.getByText('Status: failed')).toBeInTheDocument();
+        expect(screen.getByText("Status: failed")).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Reconnect')).toBeInTheDocument();
+      expect(screen.getByText("Reconnect")).toBeInTheDocument();
     });
 
-    it('should display positive and negative price changes with appropriate styling', async () => {
-      renderWithRouter(<MockPriceStreamComponent symbols={['AAPL', 'MSFT']} />);
+    it("should display positive and negative price changes with appropriate styling", async () => {
+      renderWithRouter(<MockPriceStreamComponent symbols={["AAPL", "MSFT"]} />);
 
       // Establish connection and get price updates
       act(() => {
@@ -518,73 +576,75 @@ describe('Real-time Data Components', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('price-AAPL')).toBeInTheDocument();
-        expect(screen.getByTestId('price-MSFT')).toBeInTheDocument();
+        expect(screen.getByTestId("price-AAPL")).toBeInTheDocument();
+        expect(screen.getByTestId("price-MSFT")).toBeInTheDocument();
       });
 
       // Check for positive/negative change styling classes
       const priceElements = screen.getAllByTestId(/^price-/);
-      priceElements.forEach(element => {
-        const changeElement = element.querySelector('.positive, .negative');
+      priceElements.forEach((element) => {
+        const changeElement = element.querySelector(".positive, .negative");
         expect(changeElement).toBeInTheDocument();
       });
     });
   });
 
-  describe('Portfolio Real-time Component', () => {
+  describe("Portfolio Real-time Component", () => {
     const mockPortfolio = {
-      id: 'portfolio-123',
+      id: "portfolio-123",
       holdings: [
         {
-          symbol: 'AAPL',
+          symbol: "AAPL",
           quantity: 100,
-          currentPrice: 150.00,
-          costBasis: 120.00
+          currentPrice: 150.0,
+          costBasis: 120.0,
         },
         {
-          symbol: 'MSFT',
+          symbol: "MSFT",
           quantity: 50,
-          currentPrice: 300.00,
-          costBasis: 250.00
-        }
+          currentPrice: 300.0,
+          costBasis: 250.0,
+        },
       ],
-      totalValue: 30000.00,
-      lastUpdate: Date.now()
+      totalValue: 30000.0,
+      lastUpdate: Date.now(),
     };
 
     beforeEach(() => {
       api.get.mockResolvedValue({
         data: {
           success: true,
-          data: mockPortfolio
-        }
+          data: mockPortfolio,
+        },
       });
     });
 
-    it('should load portfolio and start real-time updates', async () => {
+    it("should load portfolio and start real-time updates", async () => {
       renderWithRouter(
         <MockPortfolioRealTimeComponent portfolioId="portfolio-123" />
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Portfolio: portfolio-123')).toBeInTheDocument();
+        expect(
+          screen.getByText("Portfolio: portfolio-123")
+        ).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('portfolio-value')).toBeInTheDocument();
-      expect(screen.getByTestId('holding-AAPL')).toBeInTheDocument();
-      expect(screen.getByTestId('holding-MSFT')).toBeInTheDocument();
+      expect(screen.getByTestId("portfolio-value")).toBeInTheDocument();
+      expect(screen.getByTestId("holding-AAPL")).toBeInTheDocument();
+      expect(screen.getByTestId("holding-MSFT")).toBeInTheDocument();
     });
 
-    it('should update portfolio values in real-time', async () => {
+    it("should update portfolio values in real-time", async () => {
       renderWithRouter(
         <MockPortfolioRealTimeComponent portfolioId="portfolio-123" />
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('portfolio-value')).toBeInTheDocument();
+        expect(screen.getByTestId("portfolio-value")).toBeInTheDocument();
       });
 
-      const initialValue = screen.getByTestId('portfolio-value').textContent;
+      const initialValue = screen.getByTestId("portfolio-value").textContent;
 
       // Fast forward to trigger update
       act(() => {
@@ -592,36 +652,40 @@ describe('Real-time Data Components', () => {
       });
 
       await waitFor(() => {
-        const updatedValue = screen.getByTestId('portfolio-value').textContent;
+        const updatedValue = screen.getByTestId("portfolio-value").textContent;
         expect(updatedValue).not.toBe(initialValue);
       });
 
-      expect(screen.getByTestId('update-count')).toHaveTextContent('Updates: 1');
+      expect(screen.getByTestId("update-count")).toHaveTextContent(
+        "Updates: 1"
+      );
     });
 
-    it('should pause and resume real-time updates', async () => {
+    it("should pause and resume real-time updates", async () => {
       renderWithRouter(
         <MockPortfolioRealTimeComponent portfolioId="portfolio-123" />
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Pause Real-time Updates')).toBeInTheDocument();
+        expect(screen.getByText("Pause Real-time Updates")).toBeInTheDocument();
       });
 
       // Pause updates
-      fireEvent.click(screen.getByText('Pause Real-time Updates'));
-      expect(screen.getByText('Resume Real-time Updates')).toBeInTheDocument();
+      fireEvent.click(screen.getByText("Pause Real-time Updates"));
+      expect(screen.getByText("Resume Real-time Updates")).toBeInTheDocument();
 
       // Fast forward - no updates should occur
       act(() => {
         vi.advanceTimersByTime(6000);
       });
 
-      expect(screen.getByTestId('update-count')).toHaveTextContent('Updates: 0');
+      expect(screen.getByTestId("update-count")).toHaveTextContent(
+        "Updates: 0"
+      );
 
       // Resume updates
-      fireEvent.click(screen.getByText('Resume Real-time Updates'));
-      expect(screen.getByText('Pause Real-time Updates')).toBeInTheDocument();
+      fireEvent.click(screen.getByText("Resume Real-time Updates"));
+      expect(screen.getByText("Pause Real-time Updates")).toBeInTheDocument();
 
       // Fast forward - updates should resume
       act(() => {
@@ -629,22 +693,24 @@ describe('Real-time Data Components', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('update-count')).toHaveTextContent('Updates: 1');
+        expect(screen.getByTestId("update-count")).toHaveTextContent(
+          "Updates: 1"
+        );
       });
     });
 
-    it('should call onPortfolioUpdate callback when portfolio changes', async () => {
+    it("should call onPortfolioUpdate callback when portfolio changes", async () => {
       const mockOnPortfolioUpdate = vi.fn();
 
       renderWithRouter(
-        <MockPortfolioRealTimeComponent 
-          portfolioId="portfolio-123" 
+        <MockPortfolioRealTimeComponent
+          portfolioId="portfolio-123"
           onPortfolioUpdate={mockOnPortfolioUpdate}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('portfolio-value')).toBeInTheDocument();
+        expect(screen.getByTestId("portfolio-value")).toBeInTheDocument();
       });
 
       // Trigger update
@@ -660,36 +726,36 @@ describe('Real-time Data Components', () => {
       expect(callArgs).toMatchObject({
         holdings: expect.any(Array),
         totalValue: expect.any(Number),
-        lastUpdate: expect.any(Number)
+        lastUpdate: expect.any(Number),
       });
     });
 
-    it('should show last update timestamp', async () => {
+    it("should show last update timestamp", async () => {
       renderWithRouter(
         <MockPortfolioRealTimeComponent portfolioId="portfolio-123" />
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('last-update')).toBeInTheDocument();
+        expect(screen.getByTestId("last-update")).toBeInTheDocument();
       });
 
-      const lastUpdateText = screen.getByTestId('last-update').textContent;
+      const lastUpdateText = screen.getByTestId("last-update").textContent;
       expect(lastUpdateText).toMatch(/Last Update: \d{1,2}:\d{2}:\d{2}/);
     });
   });
 
-  describe('Real-time Data Integration', () => {
-    it('should coordinate multiple real-time components', async () => {
+  describe("Real-time Data Integration", () => {
+    it("should coordinate multiple real-time components", async () => {
       const priceUpdates = [];
       const portfolioUpdates = [];
 
       const IntegratedComponent = () => (
         <div>
-          <MockPriceStreamComponent 
-            symbols={['AAPL', 'MSFT']}
+          <MockPriceStreamComponent
+            symbols={["AAPL", "MSFT"]}
             onPriceUpdate={(data) => priceUpdates.push(data)}
           />
-          <MockPortfolioRealTimeComponent 
+          <MockPortfolioRealTimeComponent
             portfolioId="portfolio-123"
             onPortfolioUpdate={(data) => portfolioUpdates.push(data)}
           />
@@ -700,7 +766,7 @@ describe('Real-time Data Components', () => {
 
       // Wait for connections and initial data
       await waitFor(() => {
-        expect(screen.getByText('Status: connected')).toBeInTheDocument();
+        expect(screen.getByText("Status: connected")).toBeInTheDocument();
       });
 
       // Fast forward to trigger updates
@@ -714,17 +780,17 @@ describe('Real-time Data Components', () => {
       });
     });
 
-    it('should handle memory leaks with proper cleanup', async () => {
+    it("should handle memory leaks with proper cleanup", async () => {
       const { unmount } = renderWithRouter(
-        <MockLiveDataComponent 
-          symbol="AAPL" 
-          autoRefresh={true} 
-          refreshInterval={1000} 
+        <MockLiveDataComponent
+          symbol="AAPL"
+          autoRefresh={true}
+          refreshInterval={1000}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
+        expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
       });
 
       // Verify timers are running
@@ -742,7 +808,7 @@ describe('Real-time Data Components', () => {
       expect(api.get).toHaveBeenCalledTimes(1);
     });
 
-    it('should throttle rapid updates to prevent performance issues', async () => {
+    it("should throttle rapid updates to prevent performance issues", async () => {
       const rapidUpdates = vi.fn();
 
       const RapidUpdateComponent = () => {
@@ -751,7 +817,7 @@ describe('Real-time Data Components', () => {
         React.useEffect(() => {
           // Simulate rapid updates (every 100ms)
           const interval = setInterval(() => {
-            setUpdateCount(prev => {
+            setUpdateCount((prev) => {
               const newCount = prev + 1;
               rapidUpdates(newCount);
               return newCount;
@@ -772,13 +838,15 @@ describe('Real-time Data Components', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('rapid-updates')).toHaveTextContent('Updates: 10');
+        expect(screen.getByTestId("rapid-updates")).toHaveTextContent(
+          "Updates: 10"
+        );
       });
 
       expect(rapidUpdates).toHaveBeenCalledTimes(10);
     });
 
-    it('should handle offline/online state changes', async () => {
+    it("should handle offline/online state changes", async () => {
       const OnlineAwareComponent = () => {
         const [isOnline, setIsOnline] = React.useState(navigator.onLine);
 
@@ -786,18 +854,18 @@ describe('Real-time Data Components', () => {
           const handleOnline = () => setIsOnline(true);
           const handleOffline = () => setIsOnline(false);
 
-          window.addEventListener('online', handleOnline);
-          window.addEventListener('offline', handleOffline);
+          window.addEventListener("online", handleOnline);
+          window.addEventListener("offline", handleOffline);
 
           return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
           };
         }, []);
 
         return (
           <div data-testid="online-status">
-            Status: {isOnline ? 'Online' : 'Offline'}
+            Status: {isOnline ? "Online" : "Offline"}
             {isOnline ? (
               <MockLiveDataComponent symbol="AAPL" />
             ) : (
@@ -809,31 +877,33 @@ describe('Real-time Data Components', () => {
 
       renderWithRouter(<OnlineAwareComponent />);
 
-      expect(screen.getByText('Status: Online')).toBeInTheDocument();
+      expect(screen.getByText("Status: Online")).toBeInTheDocument();
 
       // Simulate going offline
       act(() => {
-        window.dispatchEvent(new Event('offline'));
+        window.dispatchEvent(new Event("offline"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Status: Offline')).toBeInTheDocument();
-        expect(screen.getByText('Using cached data while offline')).toBeInTheDocument();
+        expect(screen.getByText("Status: Offline")).toBeInTheDocument();
+        expect(
+          screen.getByText("Using cached data while offline")
+        ).toBeInTheDocument();
       });
 
       // Simulate going back online
       act(() => {
-        window.dispatchEvent(new Event('online'));
+        window.dispatchEvent(new Event("online"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Status: Online')).toBeInTheDocument();
+        expect(screen.getByText("Status: Online")).toBeInTheDocument();
       });
     });
   });
 
-  describe('Performance and Optimization', () => {
-    it('should debounce rapid state updates', async () => {
+  describe("Performance and Optimization", () => {
+    it("should debounce rapid state updates", async () => {
       const updateCallback = vi.fn();
 
       const DebouncedComponent = () => {
@@ -864,7 +934,7 @@ describe('Real-time Data Components', () => {
 
       // Click rapidly
       for (let i = 0; i < 5; i++) {
-        fireEvent.click(screen.getByText('Update'));
+        fireEvent.click(screen.getByText("Update"));
       }
 
       // Should not have called callback yet
@@ -881,7 +951,7 @@ describe('Real-time Data Components', () => {
       });
     });
 
-    it('should use efficient rendering patterns for large datasets', async () => {
+    it("should use efficient rendering patterns for large datasets", async () => {
       const LargeDatasetComponent = () => {
         const [data, setData] = React.useState([]);
 
@@ -891,7 +961,7 @@ describe('Real-time Data Components', () => {
             id: i,
             symbol: `STOCK${i}`,
             price: Math.random() * 100 + 50,
-            change: (Math.random() - 0.5) * 10
+            change: (Math.random() - 0.5) * 10,
           }));
           setData(largeDataset);
         }, []);
@@ -900,11 +970,15 @@ describe('Real-time Data Components', () => {
           <div data-testid="large-dataset">
             <div>Total items: {data.length}</div>
             <div>
-              {data.slice(0, 10).map(item => ( // Only render first 10 items
-                <div key={item.id} data-testid={`item-${item.id}`}>
-                  {item.symbol}: ${item.price.toFixed(2)}
-                </div>
-              ))}
+              {data.slice(0, 10).map(
+                (
+                  item // Only render first 10 items
+                ) => (
+                  <div key={item.id} data-testid={`item-${item.id}`}>
+                    {item.symbol}: ${item.price.toFixed(2)}
+                  </div>
+                )
+              )}
             </div>
           </div>
         );
@@ -914,7 +988,7 @@ describe('Real-time Data Components', () => {
       renderWithRouter(<LargeDatasetComponent />);
 
       await waitFor(() => {
-        expect(screen.getByText('Total items: 1000')).toBeInTheDocument();
+        expect(screen.getByText("Total items: 1000")).toBeInTheDocument();
       });
 
       const endTime = performance.now();
@@ -922,9 +996,9 @@ describe('Real-time Data Components', () => {
 
       // Should render efficiently (less than 100ms for 1000 items)
       expect(renderTime).toBeLessThan(100);
-      expect(screen.getByTestId('item-0')).toBeInTheDocument();
-      expect(screen.getByTestId('item-9')).toBeInTheDocument();
-      expect(screen.queryByTestId('item-10')).not.toBeInTheDocument(); // Should not render beyond visible items
+      expect(screen.getByTestId("item-0")).toBeInTheDocument();
+      expect(screen.getByTestId("item-9")).toBeInTheDocument();
+      expect(screen.queryByTestId("item-10")).not.toBeInTheDocument(); // Should not render beyond visible items
     });
   });
 });

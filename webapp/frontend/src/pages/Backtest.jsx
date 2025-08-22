@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Box,
@@ -61,7 +61,17 @@ import {
   Download,
 } from "@mui/icons-material";
 import Autocomplete from "@mui/material/Autocomplete";
-import { LineChart, BarChart, ResponsiveContainer, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Bar } from "recharts";
+import {
+  LineChart,
+  BarChart,
+  ResponsiveContainer,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Bar,
+} from "recharts";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import Tabs from "@mui/material/Tabs";
@@ -606,7 +616,7 @@ export default function Backtest() {
     });
   };
 
-  // Helper: get trade markers for equity curve  
+  // Helper: get trade markers for equity curve
   const _getTradeMarkers = (equity, trades) => {
     if (!equity || !trades) return [];
     return trades
@@ -1353,12 +1363,24 @@ export default function Backtest() {
           <Box mb={2}>
             <Typography variant="subtitle2">Equity Curve</Typography>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={result.equity.map(p => ({ date: p.date, value: p.value }))}>
+              <LineChart
+                data={result.equity.map((p) => ({
+                  date: p.date,
+                  value: p.value,
+                }))}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" hide />
                 <YAxis />
                 <RechartsTooltip />
-                <Line type="monotone" dataKey="value" stroke="#1976d2" strokeWidth={2} dot={false} name="Equity Curve" />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#1976d2"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Equity Curve"
+                />
               </LineChart>
             </ResponsiveContainer>
           </Box>
@@ -1370,7 +1392,14 @@ export default function Backtest() {
               <BarChart data={getDrawdownSeries(result.equity)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" hide />
-                <YAxis domain={[Math.min(...getDrawdownSeries(result.equity).map(p => p.drawdown)), 0]} />
+                <YAxis
+                  domain={[
+                    Math.min(
+                      ...getDrawdownSeries(result.equity).map((p) => p.drawdown)
+                    ),
+                    0,
+                  ]}
+                />
                 <RechartsTooltip />
                 <Bar dataKey="drawdown" fill="#ff7043" name="Drawdown (%)" />
               </BarChart>
@@ -1581,12 +1610,24 @@ export default function Backtest() {
                   Custom Metric: {metricKey}
                 </Typography>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={metric.map(p => ({ date: p.date || p[0], value: p.value ?? p[1] }))}>
+                  <LineChart
+                    data={metric.map((p) => ({
+                      date: p.date || p[0],
+                      value: p.value ?? p[1],
+                    }))}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" hide />
                     <YAxis />
                     <RechartsTooltip />
-                    <Line type="monotone" dataKey="value" stroke="#8e24aa" strokeWidth={2} dot={false} name={metricKey} />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#8e24aa"
+                      strokeWidth={2}
+                      dot={false}
+                      name={metricKey}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>

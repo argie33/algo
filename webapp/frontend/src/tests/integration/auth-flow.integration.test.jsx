@@ -3,23 +3,23 @@
  * Critical: Validates complete auth flow for secure financial data access
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from '../../contexts/AuthContext';
-import LoginForm from '../../components/auth/LoginForm';
-import Dashboard from '../../pages/Dashboard';
-import { api } from '../../services/api';
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "../../contexts/AuthContext";
+import LoginForm from "../../components/auth/LoginForm";
+import Dashboard from "../../pages/Dashboard";
+import { api } from "../../services/api";
 
 // Mock AWS Amplify
-vi.mock('aws-amplify', () => ({
+vi.mock("aws-amplify", () => ({
   Amplify: {
     configure: vi.fn(),
   },
 }));
 
-vi.mock('@aws-amplify/auth', () => ({
+vi.mock("@aws-amplify/auth", () => ({
   signIn: vi.fn(),
   signOut: vi.fn(),
   getCurrentUser: vi.fn(),
@@ -28,28 +28,26 @@ vi.mock('@aws-amplify/auth', () => ({
 }));
 
 // Mock API service
-vi.mock('../../services/api', () => ({
+vi.mock("../../services/api", () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
     defaults: { headers: { common: {} } },
   },
   getApiConfig: vi.fn(() => ({
-    baseURL: 'https://test-api.example.com',
+    baseURL: "https://test-api.example.com",
     isConfigured: true,
   })),
 }));
 
-describe('Authentication Flow Integration', () => {
+describe("Authentication Flow Integration", () => {
   let queryClient;
   let mockAuthService;
 
   const TestWrapper = ({ children }) => (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>
   );
@@ -64,10 +62,14 @@ describe('Authentication Flow Integration', () => {
 
     // Reset mocks
     vi.clearAllMocks();
-    
+
     // Setup default mock implementations
-    const { signIn, getCurrentUser, fetchAuthSession } = require('@aws-amplify/auth');
-    
+    const {
+      signIn,
+      getCurrentUser,
+      fetchAuthSession,
+    } = require("@aws-amplify/auth");
+
     mockAuthService = {
       signIn,
       getCurrentUser,
@@ -75,7 +77,7 @@ describe('Authentication Flow Integration', () => {
     };
 
     // Mock localStorage
-    Object.defineProperty(window, 'localStorage', {
+    Object.defineProperty(window, "localStorage", {
       value: {
         getItem: vi.fn(),
         setItem: vi.fn(),
@@ -91,15 +93,15 @@ describe('Authentication Flow Integration', () => {
     vi.restoreAllMocks();
   });
 
-  describe('User Registration Flow', () => {
-    it('should handle successful user registration', async () => {
-      const { signUp } = require('@aws-amplify/auth');
+  describe("User Registration Flow", () => {
+    it("should handle successful user registration", async () => {
+      const { signUp } = require("@aws-amplify/auth");
       signUp.mockResolvedValueOnce({
         isSignUpComplete: false,
         nextStep: {
-          signUpStep: 'CONFIRM_SIGN_UP',
+          signUpStep: "CONFIRM_SIGN_UP",
         },
-        userId: 'test-user-123',
+        userId: "test-user-123",
       });
 
       render(
@@ -115,18 +117,20 @@ describe('Authentication Flow Integration', () => {
       // Fill registration form
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /create account/i });
+      const submitButton = screen.getByRole("button", {
+        name: /create account/i,
+      });
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'Test123!@#' } });
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "Test123!@#" } });
       fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(signUp).toHaveBeenCalledWith({
-          username: 'test@example.com',
-          password: 'Test123!@#',
+          username: "test@example.com",
+          password: "Test123!@#",
           attributes: {
-            email: 'test@example.com',
+            email: "test@example.com",
           },
         });
       });
@@ -135,11 +139,11 @@ describe('Authentication Flow Integration', () => {
       expect(screen.getByText(/verification code/i)).toBeInTheDocument();
     });
 
-    it('should handle registration validation errors', async () => {
-      const { signUp } = require('@aws-amplify/auth');
+    it("should handle registration validation errors", async () => {
+      const { signUp } = require("@aws-amplify/auth");
       signUp.mockRejectedValueOnce({
-        name: 'InvalidPasswordException',
-        message: 'Password must be at least 8 characters',
+        name: "InvalidPasswordException",
+        message: "Password must be at least 8 characters",
       });
 
       render(
@@ -154,25 +158,29 @@ describe('Authentication Flow Integration', () => {
 
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /create account/i });
+      const submitButton = screen.getByRole("button", {
+        name: /create account/i,
+      });
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'weak' } });
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "weak" } });
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/password must be at least 8 characters/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/password must be at least 8 characters/i)
+        ).toBeInTheDocument();
       });
     });
   });
 
-  describe('User Login Flow', () => {
-    it('should handle successful login with MFA', async () => {
+  describe("User Login Flow", () => {
+    it("should handle successful login with MFA", async () => {
       // Mock successful login requiring MFA
       mockAuthService.signIn.mockResolvedValueOnce({
         isSignedIn: false,
         nextStep: {
-          signInStep: 'CONFIRM_SIGN_IN_WITH_TOTP_CODE',
+          signInStep: "CONFIRM_SIGN_IN_WITH_TOTP_CODE",
         },
       });
 
@@ -184,16 +192,16 @@ describe('Authentication Flow Integration', () => {
 
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const loginButton = screen.getByRole('button', { name: /sign in/i });
+      const loginButton = screen.getByRole("button", { name: /sign in/i });
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'Test123!@#' } });
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "Test123!@#" } });
       fireEvent.click(loginButton);
 
       await waitFor(() => {
         expect(mockAuthService.signIn).toHaveBeenCalledWith({
-          username: 'test@example.com',
-          password: 'Test123!@#',
+          username: "test@example.com",
+          password: "Test123!@#",
         });
       });
 
@@ -201,33 +209,33 @@ describe('Authentication Flow Integration', () => {
       expect(screen.getByText(/enter.*code/i)).toBeInTheDocument();
     });
 
-    it('should complete login flow and redirect to dashboard', async () => {
+    it("should complete login flow and redirect to dashboard", async () => {
       // Mock successful complete login
       mockAuthService.signIn.mockResolvedValueOnce({
         isSignedIn: true,
         nextStep: {
-          signInStep: 'DONE',
+          signInStep: "DONE",
         },
       });
 
       mockAuthService.getCurrentUser.mockResolvedValueOnce({
-        username: 'test@example.com',
-        userId: 'test-user-123',
+        username: "test@example.com",
+        userId: "test-user-123",
         attributes: {
-          email: 'test@example.com',
+          email: "test@example.com",
         },
       });
 
       mockAuthService.fetchAuthSession.mockResolvedValueOnce({
         tokens: {
           accessToken: {
-            toString: () => 'mock-access-token',
+            toString: () => "mock-access-token",
           },
           idToken: {
-            toString: () => 'mock-id-token',
+            toString: () => "mock-id-token",
             payload: {
-              'cognito:username': 'test@example.com',
-              sub: 'test-user-123',
+              "cognito:username": "test@example.com",
+              sub: "test-user-123",
             },
           },
         },
@@ -235,7 +243,7 @@ describe('Authentication Flow Integration', () => {
 
       // Mock API health check
       api.get.mockResolvedValueOnce({
-        data: { status: 'healthy', healthy: true },
+        data: { status: "healthy", healthy: true },
       });
 
       render(
@@ -246,10 +254,10 @@ describe('Authentication Flow Integration', () => {
 
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const loginButton = screen.getByRole('button', { name: /sign in/i });
+      const loginButton = screen.getByRole("button", { name: /sign in/i });
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'Test123!@#' } });
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "Test123!@#" } });
       fireEvent.click(loginButton);
 
       await waitFor(() => {
@@ -259,10 +267,10 @@ describe('Authentication Flow Integration', () => {
       });
     });
 
-    it('should handle login failure gracefully', async () => {
+    it("should handle login failure gracefully", async () => {
       mockAuthService.signIn.mockRejectedValueOnce({
-        name: 'NotAuthorizedException',
-        message: 'Incorrect username or password.',
+        name: "NotAuthorizedException",
+        message: "Incorrect username or password.",
       });
 
       render(
@@ -273,36 +281,38 @@ describe('Authentication Flow Integration', () => {
 
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const loginButton = screen.getByRole('button', { name: /sign in/i });
+      const loginButton = screen.getByRole("button", { name: /sign in/i });
 
-      fireEvent.change(emailInput, { target: { value: 'wrong@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'wrongpassword' } });
+      fireEvent.change(emailInput, { target: { value: "wrong@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "wrongpassword" } });
       fireEvent.click(loginButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/incorrect username or password/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/incorrect username or password/i)
+        ).toBeInTheDocument();
       });
     });
   });
 
-  describe('Session Management', () => {
-    it('should persist authentication state across page refreshes', async () => {
+  describe("Session Management", () => {
+    it("should persist authentication state across page refreshes", async () => {
       // Mock existing session
       mockAuthService.getCurrentUser.mockResolvedValueOnce({
-        username: 'test@example.com',
-        userId: 'test-user-123',
+        username: "test@example.com",
+        userId: "test-user-123",
       });
 
       mockAuthService.fetchAuthSession.mockResolvedValueOnce({
         tokens: {
           accessToken: {
-            toString: () => 'mock-access-token',
+            toString: () => "mock-access-token",
           },
           idToken: {
-            toString: () => 'mock-id-token',
+            toString: () => "mock-id-token",
             payload: {
-              'cognito:username': 'test@example.com',
-              sub: 'test-user-123',
+              "cognito:username": "test@example.com",
+              sub: "test-user-123",
             },
           },
         },
@@ -320,26 +330,27 @@ describe('Authentication Flow Integration', () => {
       });
     });
 
-    it('should handle token refresh automatically', async () => {
+    it("should handle token refresh automatically", async () => {
       // Mock token refresh scenario
       mockAuthService.fetchAuthSession
         .mockResolvedValueOnce({
           tokens: {
             accessToken: {
-              toString: () => 'expired-token',
+              toString: () => "expired-token",
             },
           },
         })
         .mockResolvedValueOnce({
           tokens: {
             accessToken: {
-              toString: () => 'new-fresh-token',
+              toString: () => "new-fresh-token",
             },
           },
         });
 
-      api.get.mockRejectedValueOnce({ status: 401 })
-           .mockResolvedValueOnce({ data: { status: 'healthy' } });
+      api.get
+        .mockRejectedValueOnce({ status: 401 })
+        .mockResolvedValueOnce({ data: { status: "healthy" } });
 
       render(
         <TestWrapper>
@@ -352,18 +363,18 @@ describe('Authentication Flow Integration', () => {
       });
     });
 
-    it('should handle session expiration and redirect to login', async () => {
+    it("should handle session expiration and redirect to login", async () => {
       mockAuthService.getCurrentUser.mockRejectedValueOnce({
-        name: 'UserUnAuthenticatedException',
+        name: "UserUnAuthenticatedException",
       });
 
       mockAuthService.fetchAuthSession.mockRejectedValueOnce({
-        name: 'UserUnAuthenticatedException',
+        name: "UserUnAuthenticatedException",
       });
 
       const { location } = window;
       delete window.location;
-      window.location = { href: '', replace: vi.fn() };
+      window.location = { href: "", replace: vi.fn() };
 
       render(
         <TestWrapper>
@@ -380,12 +391,12 @@ describe('Authentication Flow Integration', () => {
     });
   });
 
-  describe('API Integration with Authentication', () => {
-    it('should set authorization headers after successful login', async () => {
+  describe("API Integration with Authentication", () => {
+    it("should set authorization headers after successful login", async () => {
       mockAuthService.fetchAuthSession.mockResolvedValueOnce({
         tokens: {
           accessToken: {
-            toString: () => 'mock-access-token-12345',
+            toString: () => "mock-access-token-12345",
           },
         },
       });
@@ -402,13 +413,15 @@ describe('Authentication Flow Integration', () => {
       );
 
       await waitFor(() => {
-        expect(api.defaults.headers.common.Authorization).toBe('Bearer mock-access-token-12345');
+        expect(api.defaults.headers.common.Authorization).toBe(
+          "Bearer mock-access-token-12345"
+        );
       });
     });
 
-    it('should handle API authentication failures', async () => {
+    it("should handle API authentication failures", async () => {
       api.get.mockRejectedValueOnce({
-        response: { status: 401, data: { error: 'Unauthorized' } },
+        response: { status: 401, data: { error: "Unauthorized" } },
       });
 
       mockAuthService.signOut = vi.fn();
@@ -426,14 +439,14 @@ describe('Authentication Flow Integration', () => {
     });
   });
 
-  describe('Logout Flow', () => {
-    it('should clear authentication state on logout', async () => {
-      const { signOut } = require('@aws-amplify/auth');
+  describe("Logout Flow", () => {
+    it("should clear authentication state on logout", async () => {
+      const { signOut } = require("@aws-amplify/auth");
       signOut.mockResolvedValueOnce();
 
       // Mock authenticated state first
       mockAuthService.getCurrentUser.mockResolvedValueOnce({
-        username: 'test@example.com',
+        username: "test@example.com",
       });
 
       render(
@@ -443,7 +456,9 @@ describe('Authentication Flow Integration', () => {
       );
 
       // Find and click logout button
-      const logoutButton = screen.getByRole('button', { name: /logout|sign out/i });
+      const logoutButton = screen.getByRole("button", {
+        name: /logout|sign out/i,
+      });
       fireEvent.click(logoutButton);
 
       await waitFor(() => {
@@ -452,12 +467,12 @@ describe('Authentication Flow Integration', () => {
       });
     });
 
-    it('should remove API authorization headers on logout', async () => {
-      const { signOut } = require('@aws-amplify/auth');
+    it("should remove API authorization headers on logout", async () => {
+      const { signOut } = require("@aws-amplify/auth");
       signOut.mockResolvedValueOnce();
 
       // Set initial auth header
-      api.defaults.headers.common.Authorization = 'Bearer test-token';
+      api.defaults.headers.common.Authorization = "Bearer test-token";
 
       render(
         <TestWrapper>
@@ -465,7 +480,9 @@ describe('Authentication Flow Integration', () => {
         </TestWrapper>
       );
 
-      const logoutButton = screen.getByRole('button', { name: /logout|sign out/i });
+      const logoutButton = screen.getByRole("button", {
+        name: /logout|sign out/i,
+      });
       fireEvent.click(logoutButton);
 
       await waitFor(() => {
@@ -474,11 +491,11 @@ describe('Authentication Flow Integration', () => {
     });
   });
 
-  describe('Error Handling and Edge Cases', () => {
-    it('should handle network errors during authentication', async () => {
+  describe("Error Handling and Edge Cases", () => {
+    it("should handle network errors during authentication", async () => {
       mockAuthService.signIn.mockRejectedValueOnce({
-        name: 'NetworkError',
-        message: 'Network request failed',
+        name: "NetworkError",
+        message: "Network request failed",
       });
 
       render(
@@ -489,21 +506,27 @@ describe('Authentication Flow Integration', () => {
 
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const loginButton = screen.getByRole('button', { name: /sign in/i });
+      const loginButton = screen.getByRole("button", { name: /sign in/i });
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'Test123!@#' } });
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "Test123!@#" } });
       fireEvent.click(loginButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/network.*error|connection.*failed/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/network.*error|connection.*failed/i)
+        ).toBeInTheDocument();
       });
     });
 
-    it('should handle concurrent authentication requests', async () => {
+    it("should handle concurrent authentication requests", async () => {
       let resolveFirst, _resolveSecond;
-      const firstPromise = new Promise(resolve => { resolveFirst = resolve; });
-      const secondPromise = new Promise(resolve => { _resolveSecond = resolve; });
+      const firstPromise = new Promise((resolve) => {
+        resolveFirst = resolve;
+      });
+      const secondPromise = new Promise((resolve) => {
+        _resolveSecond = resolve;
+      });
 
       mockAuthService.signIn
         .mockReturnValueOnce(firstPromise)
@@ -517,18 +540,18 @@ describe('Authentication Flow Integration', () => {
 
       const emailInput = screen.getByLabelText(/email/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const loginButton = screen.getByRole('button', { name: /sign in/i });
+      const loginButton = screen.getByRole("button", { name: /sign in/i });
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-      fireEvent.change(passwordInput, { target: { value: 'Test123!@#' } });
-      
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+      fireEvent.change(passwordInput, { target: { value: "Test123!@#" } });
+
       // Trigger two rapid login attempts
       fireEvent.click(loginButton);
       fireEvent.click(loginButton);
 
       // Resolve first request
       resolveFirst({ isSignedIn: true });
-      
+
       await waitFor(() => {
         expect(mockAuthService.signIn).toHaveBeenCalledTimes(1); // Second call should be prevented
       });

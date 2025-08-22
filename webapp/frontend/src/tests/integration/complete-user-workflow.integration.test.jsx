@@ -83,7 +83,7 @@ describe("Complete User Workflow Integration Tests", () => {
   describe("New User Registration and Onboarding", () => {
     it("should complete full new user onboarding flow", async () => {
       const { api } = await import("../../services/api.js");
-      
+
       // Mock successful registration
       api.register.mockResolvedValue({
         success: true,
@@ -114,19 +114,22 @@ describe("Complete User Workflow Integration Tests", () => {
       // Should start at login/register page
       await waitFor(() => {
         expect(
-          screen.getByText(/sign up/i) || 
-          screen.getByText(/register/i) ||
-          screen.getByRole("button", { name: /register/i })
+          screen.getByText(/sign up/i) ||
+            screen.getByText(/register/i) ||
+            screen.getByRole("button", { name: /register/i })
         ).toBeTruthy();
       });
 
       // Fill registration form
-      const emailInput = screen.getByLabelText(/email/i) || 
-                        screen.getByPlaceholderText(/email/i);
-      const passwordInput = screen.getByLabelText(/password/i) || 
-                           screen.getByPlaceholderText(/password/i);
-      const submitButton = screen.getByRole("button", { name: /register/i }) ||
-                          screen.getByRole("button", { name: /sign up/i });
+      const emailInput =
+        screen.getByLabelText(/email/i) ||
+        screen.getByPlaceholderText(/email/i);
+      const passwordInput =
+        screen.getByLabelText(/password/i) ||
+        screen.getByPlaceholderText(/password/i);
+      const submitButton =
+        screen.getByRole("button", { name: /register/i }) ||
+        screen.getByRole("button", { name: /sign up/i });
 
       await user.type(emailInput, "newuser@example.com");
       await user.type(passwordInput, "SecurePassword123!");
@@ -146,8 +149,8 @@ describe("Complete User Workflow Integration Tests", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/welcome/i) ||
-          screen.getByText(/getting started/i) ||
-          screen.getByText(/setup/i)
+            screen.getByText(/getting started/i) ||
+            screen.getByText(/setup/i)
         ).toBeTruthy();
       });
     });
@@ -173,15 +176,15 @@ describe("Complete User Workflow Integration Tests", () => {
       // Mock dashboard data for returning user
       api.getDashboard.mockResolvedValue({
         portfolio: {
-          totalValue: 125750.50,
+          totalValue: 125750.5,
           todaysPnL: 2500.75,
           positions: [
             { symbol: "AAPL", quantity: 100, currentPrice: 175.25 },
-            { symbol: "MSFT", quantity: 50, currentPrice: 380.10 },
+            { symbol: "MSFT", quantity: 50, currentPrice: 380.1 },
           ],
         },
         market: {
-          SP500: { price: 4125.75, change: 25.50, changePercent: 0.62 },
+          SP500: { price: 4125.75, change: 25.5, changePercent: 0.62 },
         },
         recentActivity: [
           { type: "BUY", symbol: "AAPL", quantity: 10, price: 175.25 },
@@ -214,7 +217,9 @@ describe("Complete User Workflow Integration Tests", () => {
       // After successful login, should show dashboard
       await waitFor(() => {
         expect(screen.getByText(/dashboard/i)).toBeTruthy();
-        expect(screen.getByText(/125,750/i) || screen.getByText(/\$125,750/i)).toBeTruthy();
+        expect(
+          screen.getByText(/125,750/i) || screen.getByText(/\$125,750/i)
+        ).toBeTruthy();
       });
     });
   });
@@ -222,7 +227,9 @@ describe("Complete User Workflow Integration Tests", () => {
   describe("API Key Setup and Validation Workflow", () => {
     it("should complete API key setup workflow", async () => {
       const { api } = await import("../../services/api.js");
-      const { useApiKeys } = await import("../../components/ApiKeyProvider.jsx");
+      const { useApiKeys } = await import(
+        "../../components/ApiKeyProvider.jsx"
+      );
 
       // Mock authenticated user
       mockAuthContext.user = createMockUser();
@@ -256,8 +263,9 @@ describe("Complete User Workflow Integration Tests", () => {
 
       // Navigate to settings
       await waitFor(() => {
-        const settingsLink = screen.getByText(/settings/i) || 
-                           screen.getByRole("link", { name: /settings/i });
+        const settingsLink =
+          screen.getByText(/settings/i) ||
+          screen.getByRole("link", { name: /settings/i });
         expect(settingsLink).toBeTruthy();
       });
 
@@ -266,32 +274,38 @@ describe("Complete User Workflow Integration Tests", () => {
 
       // Should be on settings page
       await waitFor(() => {
-        expect(screen.getByText(/API Keys/i) || screen.getByText(/api/i)).toBeTruthy();
+        expect(
+          screen.getByText(/API Keys/i) || screen.getByText(/api/i)
+        ).toBeTruthy();
       });
 
       // Add new API key
-      const addApiKeyButton = screen.getByText(/Add API Key/i) || 
-                             screen.getByRole("button", { name: /add/i });
+      const addApiKeyButton =
+        screen.getByText(/Add API Key/i) ||
+        screen.getByRole("button", { name: /add/i });
       await user.click(addApiKeyButton);
 
       // Fill API key form
       await waitFor(() => {
-        const providerSelect = screen.getByLabelText(/provider/i) || 
-                              screen.getByRole("combobox");
+        const providerSelect =
+          screen.getByLabelText(/provider/i) || screen.getByRole("combobox");
         expect(providerSelect).toBeTruthy();
       });
 
-      const apiKeyInput = screen.getByLabelText(/API Key/i) || 
-                         screen.getByPlaceholderText(/API Key/i);
-      const secretInput = screen.getByLabelText(/Secret/i) || 
-                         screen.getByPlaceholderText(/Secret/i);
+      const apiKeyInput =
+        screen.getByLabelText(/API Key/i) ||
+        screen.getByPlaceholderText(/API Key/i);
+      const secretInput =
+        screen.getByLabelText(/Secret/i) ||
+        screen.getByPlaceholderText(/Secret/i);
 
       await user.type(apiKeyInput, "PK123ABC456DEF");
       await user.type(secretInput, "secret123456789");
 
       // Test API key
-      const testButton = screen.getByText(/Test/i) || 
-                        screen.getByRole("button", { name: /test/i });
+      const testButton =
+        screen.getByText(/Test/i) ||
+        screen.getByRole("button", { name: /test/i });
       await user.click(testButton);
 
       await waitFor(() => {
@@ -305,15 +319,16 @@ describe("Complete User Workflow Integration Tests", () => {
       // Should show validation success
       await waitFor(() => {
         expect(
-          screen.getByText(/valid/i) || 
-          screen.getByText(/success/i) ||
-          screen.getByText(/connected/i)
+          screen.getByText(/valid/i) ||
+            screen.getByText(/success/i) ||
+            screen.getByText(/connected/i)
         ).toBeTruthy();
       });
 
       // Save API key
-      const saveButton = screen.getByText(/Save/i) || 
-                        screen.getByRole("button", { name: /save/i });
+      const saveButton =
+        screen.getByText(/Save/i) ||
+        screen.getByRole("button", { name: /save/i });
       await user.click(saveButton);
 
       await waitFor(() => {
@@ -347,7 +362,7 @@ describe("Complete User Workflow Integration Tests", () => {
           {
             symbol: "MSFT",
             quantity: 50,
-            currentPrice: 380.10,
+            currentPrice: 380.1,
             marketValue: 19005,
             unrealizedPnL: 2005,
             percentageReturn: 11.76,
@@ -363,8 +378,9 @@ describe("Complete User Workflow Integration Tests", () => {
 
       // Navigate to portfolio
       await waitFor(() => {
-        const portfolioLink = screen.getByText(/portfolio/i) || 
-                             screen.getByRole("link", { name: /portfolio/i });
+        const portfolioLink =
+          screen.getByText(/portfolio/i) ||
+          screen.getByRole("link", { name: /portfolio/i });
         expect(portfolioLink).toBeTruthy();
       });
 
@@ -374,19 +390,27 @@ describe("Complete User Workflow Integration Tests", () => {
       // Should display portfolio data
       await waitFor(() => {
         expect(api.getPortfolio).toHaveBeenCalled();
-        expect(screen.getByText(/155,750/i) || screen.getByText(/\$155,750/i)).toBeTruthy();
+        expect(
+          screen.getByText(/155,750/i) || screen.getByText(/\$155,750/i)
+        ).toBeTruthy();
         expect(screen.getByText("AAPL")).toBeTruthy();
         expect(screen.getByText("MSFT")).toBeTruthy();
       });
 
       // Should show position details
       expect(screen.getByText(/100/)).toBeTruthy(); // AAPL quantity
-      expect(screen.getByText(/50/)).toBeTruthy();  // MSFT quantity
-      expect(screen.getByText(/175\.25/i) || screen.getByText(/175/i)).toBeTruthy(); // AAPL price
+      expect(screen.getByText(/50/)).toBeTruthy(); // MSFT quantity
+      expect(
+        screen.getByText(/175\.25/i) || screen.getByText(/175/i)
+      ).toBeTruthy(); // AAPL price
 
       // Check P&L display
-      expect(screen.getByText(/3,250/i) || screen.getByText(/\$3,250/i)).toBeTruthy(); // Today's P&L
-      expect(screen.getByText(/35,750/i) || screen.getByText(/\$35,750/i)).toBeTruthy(); // Total P&L
+      expect(
+        screen.getByText(/3,250/i) || screen.getByText(/\$3,250/i)
+      ).toBeTruthy(); // Today's P&L
+      expect(
+        screen.getByText(/35,750/i) || screen.getByText(/\$35,750/i)
+      ).toBeTruthy(); // Total P&L
     });
   });
 
@@ -405,13 +429,13 @@ describe("Complete User Workflow Integration Tests", () => {
         symbol: "TSLA",
         quantity: 10,
         side: "buy",
-        price: 245.50,
+        price: 245.5,
       });
 
       // Mock market quote
       api.getQuote = vi.fn().mockResolvedValue({
         symbol: "TSLA",
-        price: 245.50,
+        price: 245.5,
         change: 5.25,
         changePercent: 2.18,
       });
@@ -424,9 +448,10 @@ describe("Complete User Workflow Integration Tests", () => {
 
       // Navigate to trading page
       await waitFor(() => {
-        const tradingLink = screen.getByText(/trade/i) || 
-                          screen.getByText(/trading/i) ||
-                          screen.getByRole("link", { name: /trade/i });
+        const tradingLink =
+          screen.getByText(/trade/i) ||
+          screen.getByText(/trading/i) ||
+          screen.getByRole("link", { name: /trade/i });
         expect(tradingLink).toBeTruthy();
       });
 
@@ -437,28 +462,32 @@ describe("Complete User Workflow Integration Tests", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/buy/i) ||
-          screen.getByText(/sell/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/sell/i) ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
 
       // Fill trading form
-      const symbolInput = screen.getByLabelText(/symbol/i) || 
-                         screen.getByPlaceholderText(/symbol/i);
-      const quantityInput = screen.getByLabelText(/quantity/i) || 
-                           screen.getByPlaceholderText(/quantity/i);
+      const symbolInput =
+        screen.getByLabelText(/symbol/i) ||
+        screen.getByPlaceholderText(/symbol/i);
+      const quantityInput =
+        screen.getByLabelText(/quantity/i) ||
+        screen.getByPlaceholderText(/quantity/i);
 
       await user.type(symbolInput, "TSLA");
       await user.type(quantityInput, "10");
 
       // Select buy order
-      const buyButton = screen.getByText(/buy/i) || 
-                       screen.getByRole("button", { name: /buy/i });
+      const buyButton =
+        screen.getByText(/buy/i) ||
+        screen.getByRole("button", { name: /buy/i });
       await user.click(buyButton);
 
       // Place order
-      const placeOrderButton = screen.getByText(/place order/i) || 
-                              screen.getByRole("button", { name: /place/i });
+      const placeOrderButton =
+        screen.getByText(/place order/i) ||
+        screen.getByRole("button", { name: /place/i });
       await user.click(placeOrderButton);
 
       // Should confirm order placement
@@ -475,8 +504,8 @@ describe("Complete User Workflow Integration Tests", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/order placed/i) ||
-          screen.getByText(/pending/i) ||
-          screen.getByText(/order-789/i)
+            screen.getByText(/pending/i) ||
+            screen.getByText(/order-789/i)
         ).toBeTruthy();
       });
     });
@@ -493,15 +522,11 @@ describe("Complete User Workflow Integration Tests", () => {
       // Mock market data
       api.getMarketOverview.mockResolvedValue({
         indices: {
-          SP500: { price: 4125.75, change: 25.50, changePercent: 0.62 },
+          SP500: { price: 4125.75, change: 25.5, changePercent: 0.62 },
           NASDAQ: { price: 13250.25, change: -15.75, changePercent: -0.12 },
         },
-        topGainers: [
-          { symbol: "NVDA", change: 15.25, changePercent: 8.5 },
-        ],
-        topLosers: [
-          { symbol: "META", change: -12.50, changePercent: -4.1 },
-        ],
+        topGainers: [{ symbol: "NVDA", change: 15.25, changePercent: 8.5 }],
+        topLosers: [{ symbol: "META", change: -12.5, changePercent: -4.1 }],
       });
 
       renderWithProviders(
@@ -512,8 +537,9 @@ describe("Complete User Workflow Integration Tests", () => {
 
       // Navigate to market overview
       await waitFor(() => {
-        const marketLink = screen.getByText(/market/i) || 
-                          screen.getByRole("link", { name: /market/i });
+        const marketLink =
+          screen.getByText(/market/i) ||
+          screen.getByRole("link", { name: /market/i });
         expect(marketLink).toBeTruthy();
       });
 
@@ -525,13 +551,17 @@ describe("Complete User Workflow Integration Tests", () => {
         expect(api.getMarketOverview).toHaveBeenCalled();
         expect(screen.getByText(/S&P|SP500/i)).toBeTruthy();
         expect(screen.getByText(/NASDAQ/i)).toBeTruthy();
-        expect(screen.getByText(/4,125/i) || screen.getByText(/4125/i)).toBeTruthy();
+        expect(
+          screen.getByText(/4,125/i) || screen.getByText(/4125/i)
+        ).toBeTruthy();
       });
 
       // Should show top movers
       expect(screen.getByText("NVDA")).toBeTruthy();
       expect(screen.getByText("META")).toBeTruthy();
-      expect(screen.getByText(/8\.5%/i) || screen.getByText(/8\.5/i)).toBeTruthy();
+      expect(
+        screen.getByText(/8\.5%/i) || screen.getByText(/8\.5/i)
+      ).toBeTruthy();
     });
   });
 
@@ -572,14 +602,13 @@ describe("Complete User Workflow Integration Tests", () => {
       await waitFor(() => {
         expect(api.getSettings).toHaveBeenCalled();
         expect(
-          screen.getByText(/notifications/i) ||
-          screen.getByText(/preferences/i)
+          screen.getByText(/notifications/i) || screen.getByText(/preferences/i)
         ).toBeTruthy();
       });
 
       // Update a setting
-      const emailToggle = screen.getByRole("checkbox") || 
-                         screen.getByRole("switch");
+      const emailToggle =
+        screen.getByRole("checkbox") || screen.getByRole("switch");
       await user.click(emailToggle);
 
       // Should save settings automatically
@@ -604,7 +633,9 @@ describe("Complete User Workflow Integration Tests", () => {
       mockAuthContext.isAuthenticated = true;
 
       // Mock API failure
-      api.getPortfolio.mockRejectedValue(new Error("Service temporarily unavailable"));
+      api.getPortfolio.mockRejectedValue(
+        new Error("Service temporarily unavailable")
+      );
 
       renderWithProviders(
         <BrowserRouter>
@@ -620,14 +651,15 @@ describe("Complete User Workflow Integration Tests", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/error/i) ||
-          screen.getByText(/unavailable/i) ||
-          screen.getByText(/failed/i)
+            screen.getByText(/unavailable/i) ||
+            screen.getByText(/failed/i)
         ).toBeTruthy();
       });
 
       // Should provide retry option
-      const retryButton = screen.queryByText(/retry/i) || 
-                         screen.queryByRole("button", { name: /retry/i });
+      const retryButton =
+        screen.queryByText(/retry/i) ||
+        screen.queryByRole("button", { name: /retry/i });
       if (retryButton) {
         expect(retryButton).toBeTruthy();
       }
@@ -637,7 +669,9 @@ describe("Complete User Workflow Integration Tests", () => {
       const { api } = await import("../../services/api.js");
 
       // Mock network error
-      api.getMarketOverview.mockRejectedValue(new Error("Network request failed"));
+      api.getMarketOverview.mockRejectedValue(
+        new Error("Network request failed")
+      );
 
       mockAuthContext.user = createMockUser();
       mockAuthContext.isAuthenticated = true;
@@ -652,8 +686,8 @@ describe("Complete User Workflow Integration Tests", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/network/i) ||
-          screen.getByText(/connection/i) ||
-          screen.getByText(/offline/i)
+            screen.getByText(/connection/i) ||
+            screen.getByText(/offline/i)
         ).toBeTruthy();
       });
     });
@@ -664,10 +698,14 @@ describe("Complete User Workflow Integration Tests", () => {
       const { api } = await import("../../services/api.js");
 
       // Mock slow API response
-      api.getPortfolio.mockImplementation(() => 
-        new Promise(resolve => 
-          setTimeout(() => resolve({ totalValue: 100000, positions: [] }), 2000)
-        )
+      api.getPortfolio.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve({ totalValue: 100000, positions: [] }),
+              2000
+            )
+          )
       );
 
       mockAuthContext.user = createMockUser();
@@ -685,14 +723,19 @@ describe("Complete User Workflow Integration Tests", () => {
       // Should show loading state
       expect(
         screen.getByText(/loading/i) ||
-        screen.getByTestId("loading") ||
-        screen.getByRole("progressbar")
+          screen.getByTestId("loading") ||
+          screen.getByRole("progressbar")
       ).toBeTruthy();
 
       // Should eventually show data
-      await waitFor(() => {
-        expect(screen.getByText(/100,000/i) || screen.getByText(/\$100,000/i)).toBeTruthy();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(
+            screen.getByText(/100,000/i) || screen.getByText(/\$100,000/i)
+          ).toBeTruthy();
+        },
+        { timeout: 3000 }
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "../hooks/useData";
 import { createComponentLogger } from "../utils/errorLogger";
 import {

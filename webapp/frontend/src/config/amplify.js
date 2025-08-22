@@ -2,14 +2,18 @@ import { Amplify } from "aws-amplify";
 
 // Get runtime configuration values
 const getRuntimeConfig = () => {
-  return typeof window !== "undefined" && window.__CONFIG__ ? window.__CONFIG__ : {};
+  return typeof window !== "undefined" && window.__CONFIG__
+    ? window.__CONFIG__
+    : {};
 };
 
 // Check if Cognito is configured
 const isCognitoConfigured = () => {
   const runtimeConfig = getRuntimeConfig();
-  const userPoolId = runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID;
-  const clientId = runtimeConfig.USER_POOL_CLIENT_ID || import.meta.env.VITE_COGNITO_CLIENT_ID;
+  const userPoolId =
+    runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID;
+  const clientId =
+    runtimeConfig.USER_POOL_CLIENT_ID || import.meta.env.VITE_COGNITO_CLIENT_ID;
 
   // Check if we have real values (not dummy values)
   return !!(
@@ -25,25 +29,25 @@ const isCognitoConfigured = () => {
 // Amplify configuration with runtime config support
 const getAmplifyConfig = () => {
   const runtimeConfig = getRuntimeConfig();
-  
+
   return {
     Auth: {
       Cognito: {
         userPoolId:
-          runtimeConfig.USER_POOL_ID || 
-          import.meta.env.VITE_COGNITO_USER_POOL_ID || 
+          runtimeConfig.USER_POOL_ID ||
+          import.meta.env.VITE_COGNITO_USER_POOL_ID ||
           "us-east-1_DUMMY",
         userPoolClientId:
-          runtimeConfig.USER_POOL_CLIENT_ID || 
-          import.meta.env.VITE_COGNITO_CLIENT_ID || 
+          runtimeConfig.USER_POOL_CLIENT_ID ||
+          import.meta.env.VITE_COGNITO_CLIENT_ID ||
           "dummy-client-id",
         region: import.meta.env.VITE_AWS_REGION || "us-east-1",
         signUpVerificationMethod: "code",
         loginWith: {
           oauth: {
-            domain: 
-              runtimeConfig.USER_POOL_DOMAIN || 
-              import.meta.env.VITE_COGNITO_DOMAIN || 
+            domain:
+              runtimeConfig.USER_POOL_DOMAIN ||
+              import.meta.env.VITE_COGNITO_DOMAIN ||
               "dummy-domain",
             scopes: ["email", "profile", "openid"],
             redirectSignIn:
@@ -67,15 +71,15 @@ export function configureAmplify() {
   try {
     const config = getAmplifyConfig();
     const runtimeConfig = getRuntimeConfig();
-    
+
     console.log("🔧 [AMPLIFY CONFIG] Configuration details:", {
       userPoolId: config.Auth.Cognito.userPoolId,
       clientId: config.Auth.Cognito.userPoolClientId,
       domain: config.Auth.Cognito.loginWith.oauth.domain,
       runtimeConfigAvailable: !!Object.keys(runtimeConfig).length,
-      isCognitoConfigured: isCognitoConfigured()
+      isCognitoConfigured: isCognitoConfigured(),
     });
-    
+
     if (!isCognitoConfigured()) {
       console.warn(
         "⚠️  Cognito not configured - using dummy values for development"
@@ -86,7 +90,7 @@ export function configureAmplify() {
       console.log("- VITE_COGNITO_DOMAIN");
       console.log("Or set runtime config in window.__CONFIG__");
     }
-    
+
     Amplify.configure(config);
     console.log("✅ Amplify configured successfully");
   } catch (error) {

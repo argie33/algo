@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -38,7 +38,7 @@ import {
   TableSortLabel,
   Tabs,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   TrendingUp,

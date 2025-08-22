@@ -4,10 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  renderWithProviders,
-  createMockUser,
-} from "../../test-utils.jsx";
+import { renderWithProviders, createMockUser } from "../../test-utils.jsx";
 import { screen, waitFor } from "@testing-library/react";
 import Portfolio from "../../../pages/Portfolio.jsx";
 
@@ -29,33 +26,39 @@ vi.mock("../../../services/api.js", () => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
   })),
-  testApiConnection: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { status: 'healthy' }
-  })),
-  getApiKeys: vi.fn(() => Promise.resolve({
-    success: true,
-    apiKeys: [
-      {
-        provider: 'alpaca',
-        keyId: 'PK***ABC',
-        isValid: true,
-        lastValidated: '2025-01-15T10:30:00Z'
-      }
-    ]
-  })),
-  importPortfolioFromBroker: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { message: 'Portfolio imported successfully' }
-  })),
-  
+  testApiConnection: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: { status: "healthy" },
+    })
+  ),
+  getApiKeys: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      apiKeys: [
+        {
+          provider: "alpaca",
+          keyId: "PK***ABC",
+          isValid: true,
+          lastValidated: "2025-01-15T10:30:00Z",
+        },
+      ],
+    })
+  ),
+  importPortfolioFromBroker: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: { message: "Portfolio imported successfully" },
+    })
+  ),
+
   // Mock the named export api object
   api: {
     getPortfolio: vi.fn(),
     getQuote: vi.fn(),
     placeOrder: vi.fn(),
   },
-  
+
   // Mock the default export api object for other tests
   default: {
     getPortfolio: vi.fn(),
@@ -83,7 +86,7 @@ describe("Portfolio Component - User Interface", () => {
     vi.clearAllMocks();
     // Mock global fetch since Portfolio component uses fetch directly
     global.fetch = vi.fn();
-    
+
     // Default successful fetch response
     global.fetch.mockResolvedValue({
       ok: true,
@@ -102,21 +105,21 @@ describe("Portfolio Component - User Interface", () => {
               percentageGain: 3.62,
             },
             {
-              symbol: "MSFT", 
+              symbol: "MSFT",
               quantity: 50,
-              currentPrice: 280.50,
+              currentPrice: 280.5,
               marketValue: 14025,
               avgCost: 275.0,
               unrealizedGainLoss: 275,
               percentageGain: 2.0,
-            }
+            },
           ],
           totalValue: 29050,
           totalGainLoss: 800,
           totalGainLossPercentage: 2.83,
-          lastUpdated: new Date().toISOString()
-        }
-      })
+          lastUpdated: new Date().toISOString(),
+        },
+      }),
     });
   });
 
@@ -128,7 +131,10 @@ describe("Portfolio Component - User Interface", () => {
       renderWithProviders(<Portfolio />);
 
       // Should show loading indicator
-      const loadingElement = screen.queryByText(/loading/i) || screen.queryByTestId("loading") || screen.queryByText(/portfolio/i);
+      const loadingElement =
+        screen.queryByText(/loading/i) ||
+        screen.queryByTestId("loading") ||
+        screen.queryByText(/portfolio/i);
       expect(loadingElement).toBeTruthy();
     });
 
@@ -160,11 +166,23 @@ describe("Portfolio Component - User Interface", () => {
           todaysPnL: 2500.75,
           totalPnL: 25750.5,
           performanceHistory: [
-            { date: '2024-01-01', portfolioValue: 120000, benchmarkValue: 100000 },
-            { date: '2024-01-02', portfolioValue: 122500, benchmarkValue: 101000 },
-            { date: '2024-01-03', portfolioValue: 125750.5, benchmarkValue: 102000 },
+            {
+              date: "2024-01-01",
+              portfolioValue: 120000,
+              benchmarkValue: 100000,
+            },
+            {
+              date: "2024-01-02",
+              portfolioValue: 122500,
+              benchmarkValue: 101000,
+            },
+            {
+              date: "2024-01-03",
+              portfolioValue: 125750.5,
+              benchmarkValue: 102000,
+            },
           ],
-        }
+        },
       };
 
       global.fetch.mockResolvedValue({

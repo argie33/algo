@@ -21,7 +21,7 @@ import {
   TableRow,
   Tabs,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   TrendingUp,

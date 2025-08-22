@@ -2233,16 +2233,16 @@ export const initializeApi = async () => {
   try {
     console.log("🔧 [API] Initializing API connection...");
     const healthResponse = await fetch(`${getCurrentBaseURL()}/health`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
-    
+
     if (!healthResponse.ok) {
       throw new Error(`API initialization failed: ${healthResponse.status}`);
     }
-    
+
     const healthData = await healthResponse.json();
     console.log("✅ [API] API initialized successfully:", healthData);
     return healthData;
@@ -3299,7 +3299,7 @@ export const getQuote = async (symbol) => {
   try {
     console.log(`📊 [API] Fetching quote for ${symbol}...`);
     const response = await api.get(`/api/market/quote/${symbol}`);
-    
+
     const result = {
       symbol: symbol,
       price: response.data?.price || 0,
@@ -3308,7 +3308,7 @@ export const getQuote = async (symbol) => {
       volume: response.data?.volume || 0,
       timestamp: response.data?.timestamp || new Date().toISOString(),
     };
-    
+
     console.log(`📊 [API] Quote for ${symbol}:`, result);
     return result;
   } catch (error) {
@@ -3321,17 +3321,17 @@ export const placeOrder = async (orderRequest) => {
   try {
     console.log("📈 [API] Placing order:", orderRequest);
     const response = await api.post("/api/orders", orderRequest);
-    
+
     const result = {
       orderId: response.data?.orderId || `order-${Date.now()}`,
-      status: response.data?.status || 'pending',
+      status: response.data?.status || "pending",
       symbol: orderRequest.symbol,
       quantity: orderRequest.quantity,
       side: orderRequest.side,
-      type: orderRequest.type || 'market',
+      type: orderRequest.type || "market",
       timestamp: new Date().toISOString(),
     };
-    
+
     console.log("📈 [API] Order placed:", result);
     return result;
   } catch (error) {
@@ -3345,7 +3345,7 @@ export default {
   // Core API
   healthCheck,
   getMarketOverview,
-  
+
   // Portfolio functions (with aliases for tests)
   getPortfolio: getPortfolioData, // Alias for tests
   getPortfolioData,
@@ -3460,13 +3460,13 @@ export default {
   getStockHistory,
   searchStocks,
   getHealth,
-  
+
   // API Key management
   getApiKeys,
   addApiKey,
   updateApiKey,
   deleteApiKey,
-  
+
   // Trading functions
   placeOrder,
   getQuote,

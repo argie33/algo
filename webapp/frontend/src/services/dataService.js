@@ -9,11 +9,11 @@ class DataService {
     this.loadingStates = new Map();
     this.errorStates = new Map();
     this.subscribers = new Map();
-    
+
     // Cache settings
     this.defaultStaleTime = 5 * 60 * 1000; // 5 minutes
     this.defaultCacheTime = 10 * 60 * 1000; // 10 minutes
-    
+
     // Cleanup interval
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
@@ -23,7 +23,7 @@ class DataService {
   // Generate cache key from query parameters
   getCacheKey(url, options = {}) {
     const params = new URLSearchParams(options.params || {}).toString();
-    return `${url}${params ? `?${params}` : ''}`;
+    return `${url}${params ? `?${params}` : ""}`;
   }
 
   // Check if cached data is still fresh
@@ -35,7 +35,7 @@ class DataService {
   async fetchData(url, options = {}) {
     const cacheKey = this.getCacheKey(url, options);
     const staleTime = options.staleTime || this.defaultStaleTime;
-    
+
     // Return cached data if fresh
     const cached = this.cache.get(cacheKey);
     if (cached && this.isFresh(cached, staleTime)) {
@@ -43,7 +43,7 @@ class DataService {
         data: cached.data,
         isLoading: false,
         error: null,
-        isStale: false
+        isStale: false,
       };
     }
 
@@ -53,7 +53,7 @@ class DataService {
         data: cached?.data || null,
         isLoading: true,
         error: null,
-        isStale: cached ? !this.isFresh(cached, staleTime) : false
+        isStale: cached ? !this.isFresh(cached, staleTime) : false,
       };
     }
 
@@ -64,16 +64,16 @@ class DataService {
     try {
       // Get API base URL
       const apiUrl = this.getApiUrl();
-      const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
-      
+      const fullUrl = url.startsWith("http") ? url : `${apiUrl}${url}`;
+
       // Prepare fetch options
       const fetchOptions = {
-        method: options.method || 'GET',
+        method: options.method || "GET",
         headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
+          "Content-Type": "application/json",
+          ...options.headers,
         },
-        ...options.fetchOptions
+        ...options.fetchOptions,
       };
 
       // Add auth token if available
@@ -88,58 +88,57 @@ class DataService {
       }
 
       const response = await fetch(fullUrl, fetchOptions);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       // Cache the response
       this.cache.set(cacheKey, {
         data,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
-      
+
       // Clear loading and error states
       this.loadingStates.delete(cacheKey);
       this.errorStates.delete(cacheKey);
-      
+
       // Notify subscribers
       this.notifySubscribers(cacheKey, {
         data,
         isLoading: false,
         error: null,
-        isStale: false
+        isStale: false,
       });
-      
+
       return {
         data,
         isLoading: false,
         error: null,
-        isStale: false
+        isStale: false,
       };
-      
     } catch (error) {
       console.error(`DataService fetch error for ${url}:`, error);
-      
+
       // Set error state
       this.errorStates.set(cacheKey, error);
       this.loadingStates.delete(cacheKey);
-      
+
       // Notify subscribers
       this.notifySubscribers(cacheKey, {
         data: cached?.data || null,
         isLoading: false,
         error,
-        isStale: cached ? !this.isFresh(cached, staleTime) : false
+        isStale: cached ? !this.isFresh(cached, staleTime) : false,
       });
-      
+
       return {
         data: cached?.data || null,
         isLoading: false,
         error,
-        isStale: cached ? !this.isFresh(cached, staleTime) : false
+        isStale: cached ? !this.isFresh(cached, staleTime) : false,
       };
     }
   }
@@ -147,23 +146,23 @@ class DataService {
   // Get API URL from config
   getApiUrl() {
     // Check runtime config first
-    if (typeof window !== 'undefined' && window.__CONFIG__?.API_URL) {
+    if (typeof window !== "undefined" && window.__CONFIG__?.API_URL) {
       return window.__CONFIG__.API_URL;
     }
-    
+
     // Fallback to environment variable
-    return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    return import.meta.env.VITE_API_URL || "http://localhost:3001";
   }
 
   // Get authentication token
   async getAuthToken() {
     try {
       // Import auth service dynamically to avoid circular dependencies
-      const devAuth = await import('./devAuth');
+      const devAuth = await import("./devAuth");
       const session = devAuth.default.session;
       return session?.accessToken || null;
     } catch (error) {
-      console.warn('Failed to get auth token:', error);
+      console.warn("Failed to get auth token:", error);
       return null;
     }
   }
@@ -174,7 +173,7 @@ class DataService {
       this.subscribers.set(cacheKey, new Set());
     }
     this.subscribers.get(cacheKey).add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const callbacks = this.subscribers.get(cacheKey);
@@ -191,11 +190,11 @@ class DataService {
   notifySubscribers(cacheKey, result) {
     const callbacks = this.subscribers.get(cacheKey);
     if (callbacks) {
-      callbacks.forEach(callback => {
+      callbacks.forEach((callback) => {
         try {
           callback(result);
         } catch (error) {
-          console.error('Error notifying subscriber:', error);
+          console.error("Error notifying subscriber:", error);
         }
       });
     }
@@ -250,6 +249,7 @@ export default dataService;
 
 // Export convenience methods
 export const fetchData = (url, options) => dataService.fetchData(url, options);
-export const invalidateCache = (url, options) => dataService.invalidate(url, options);
+export const invalidateCache = (url, options) =>
+  dataService.invalidate(url, options);
 export const refetchData = (url, options) => dataService.refetch(url, options);
 export const clearAllCache = () => dataService.clearCache();

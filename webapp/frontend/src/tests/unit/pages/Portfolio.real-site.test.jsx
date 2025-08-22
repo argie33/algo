@@ -1,165 +1,45 @@
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
-import { BrowserRouter } from 'react-router-dom';
-import Portfolio from '../../../pages/Portfolio';
-import AuthContext from '../../../contexts/AuthContext';
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { vi } from "vitest";
+import { BrowserRouter } from "react-router-dom";
+import Portfolio from "../../../pages/Portfolio";
+import AuthContext from "../../../contexts/AuthContext";
 
 // Mock the useAuth hook
-vi.mock('../../../contexts/AuthContext', async () => {
-  const actual = await vi.importActual('../../../contexts/AuthContext');
+vi.mock("../../../contexts/AuthContext", async () => {
+  const actual = await vi.importActual("../../../contexts/AuthContext");
   return {
     ...actual,
     default: actual.default,
     useAuth: vi.fn(() => ({
-      user: { id: 'test-user', email: 'test@example.com' },
+      user: { id: "test-user", email: "test@example.com" },
       isAuthenticated: true,
       isLoading: false,
-      tokens: { idToken: 'test-token' }
-    }))
+      tokens: { idToken: "test-token" },
+    })),
   };
 });
 
 // Mock your actual API functions
-vi.mock('../../../services/api', () => ({
+vi.mock("../../../services/api", () => ({
   getApiConfig: vi.fn(() => ({
-    apiUrl: 'http://localhost:3001',
-    baseURL: 'http://localhost:3001'
+    apiUrl: "http://localhost:3001",
+    baseURL: "http://localhost:3001",
   })),
-  getPortfolioData: vi.fn(() => Promise.resolve({
-    success: true,
-    data: {
-      holdings: [
-        {
-          symbol: 'AAPL',
-          company: 'Apple Inc.',
-          shares: 100,
-          marketValue: 18945,
-          gainLoss: 3945,
-          gainLossPercent: 26.3,
-          currentPrice: 189.45,
-          costBasis: 150.00,
-          beta: 1.2,
-          volatility: 0.25,
-          allocation: 60.4,
-          factorScores: {
-            quality: 85,
-            growth: 75,
-            value: 45,
-            momentum: 65,
-            size: 30,
-            liquidity: 90,
-            sentiment: 70,
-            positioning: 55
-          }
-        },
-        {
-          symbol: 'MSFT',
-          company: 'Microsoft Corporation',
-          shares: 50,
-          marketValue: 17500,
-          gainLoss: 2500,
-          gainLossPercent: 16.7,
-          currentPrice: 350.00,
-          costBasis: 300.00,
-          beta: 1.1,
-          volatility: 0.22,
-          allocation: 39.6,
-          factorScores: {
-            quality: 90,
-            growth: 80,
-            value: 40,
-            momentum: 70,
-            size: 25,
-            liquidity: 95,
-            sentiment: 75,
-            positioning: 60
-          }
-        }
-      ],
-      summary: {
-        totalValue: 125000,
-        dayChange: 2500,
-        dayChangePercent: 2.04
-      },
-      performanceHistory: [
-        {
-          date: '2025-01-01',
-          portfolioValue: 100000
-        },
-        {
-          date: '2025-01-15',
-          portfolioValue: 125000
-        }
-      ],
-      sectorAllocation: [
-        {
-          sector: 'Technology',
-          value: 75000,
-          percentage: 60
-        },
-        {
-          sector: 'Healthcare',
-          value: 25000,
-          percentage: 20
-        },
-        {
-          sector: 'Financials',
-          value: 25000,
-          percentage: 20
-        }
-      ]
-    }
-  })),
-  addHolding: vi.fn(),
-  updateHolding: vi.fn(),
-  deleteHolding: vi.fn(),
-  getApiKeys: vi.fn(() => Promise.resolve({
-    apiKeys: [
-      {
-        provider: 'alpaca',
-        keyId: 'test-key',
-        isValid: true,
-        lastValidated: '2025-01-15T10:30:00Z'
-      }
-    ]
-  })),
-  testApiConnection: vi.fn(() => Promise.resolve({ success: true })),
-  importPortfolioFromBroker: vi.fn(() => Promise.resolve({ success: true })),
-  api: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn()
-  }
-}));
-
-const mockAuthContext = {
-  user: { id: 'test-user', email: 'test@example.com' },
-  isAuthenticated: true,
-  isLoading: false,
-  tokens: { idToken: 'test-token' }
-};
-
-// Mock fetch for API calls
-global.fetch = vi.fn(() =>
-  Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve({
+  getPortfolioData: vi.fn(() =>
+    Promise.resolve({
       success: true,
       data: {
         holdings: [
           {
-            symbol: 'AAPL',
-            company: 'Apple Inc.',
+            symbol: "AAPL",
+            company: "Apple Inc.",
             shares: 100,
             marketValue: 18945,
             gainLoss: 3945,
             gainLossPercent: 26.3,
             currentPrice: 189.45,
-            costBasis: 150.00,
+            costBasis: 150.0,
             beta: 1.2,
             volatility: 0.25,
             allocation: 60.4,
@@ -171,18 +51,18 @@ global.fetch = vi.fn(() =>
               size: 30,
               liquidity: 90,
               sentiment: 70,
-              positioning: 55
-            }
+              positioning: 55,
+            },
           },
           {
-            symbol: 'MSFT',
-            company: 'Microsoft Corporation',
+            symbol: "MSFT",
+            company: "Microsoft Corporation",
             shares: 50,
             marketValue: 17500,
             gainLoss: 2500,
             gainLossPercent: 16.7,
-            currentPrice: 350.00,
-            costBasis: 300.00,
+            currentPrice: 350.0,
+            costBasis: 300.0,
             beta: 1.1,
             volatility: 0.22,
             allocation: 39.6,
@@ -194,44 +74,168 @@ global.fetch = vi.fn(() =>
               size: 25,
               liquidity: 95,
               sentiment: 75,
-              positioning: 60
-            }
-          }
+              positioning: 60,
+            },
+          },
         ],
         summary: {
           totalValue: 125000,
           dayChange: 2500,
-          dayChangePercent: 2.04
+          dayChangePercent: 2.04,
         },
         performanceHistory: [
           {
-            date: '2025-01-01',
-            portfolioValue: 100000
+            date: "2025-01-01",
+            portfolioValue: 100000,
           },
           {
-            date: '2025-01-15',
-            portfolioValue: 125000
-          }
+            date: "2025-01-15",
+            portfolioValue: 125000,
+          },
         ],
         sectorAllocation: [
           {
-            sector: 'Technology',
+            sector: "Technology",
             value: 75000,
-            percentage: 60
+            percentage: 60,
           },
           {
-            sector: 'Healthcare',
+            sector: "Healthcare",
             value: 25000,
-            percentage: 20
+            percentage: 20,
           },
           {
-            sector: 'Financials',
+            sector: "Financials",
             value: 25000,
-            percentage: 20
-          }
-        ]
-      }
+            percentage: 20,
+          },
+        ],
+      },
     })
+  ),
+  addHolding: vi.fn(),
+  updateHolding: vi.fn(),
+  deleteHolding: vi.fn(),
+  getApiKeys: vi.fn(() =>
+    Promise.resolve({
+      apiKeys: [
+        {
+          provider: "alpaca",
+          keyId: "test-key",
+          isValid: true,
+          lastValidated: "2025-01-15T10:30:00Z",
+        },
+      ],
+    })
+  ),
+  testApiConnection: vi.fn(() => Promise.resolve({ success: true })),
+  importPortfolioFromBroker: vi.fn(() => Promise.resolve({ success: true })),
+  api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+const mockAuthContext = {
+  user: { id: "test-user", email: "test@example.com" },
+  isAuthenticated: true,
+  isLoading: false,
+  tokens: { idToken: "test-token" },
+};
+
+// Mock fetch for API calls
+global.fetch = vi.fn(() =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        success: true,
+        data: {
+          holdings: [
+            {
+              symbol: "AAPL",
+              company: "Apple Inc.",
+              shares: 100,
+              marketValue: 18945,
+              gainLoss: 3945,
+              gainLossPercent: 26.3,
+              currentPrice: 189.45,
+              costBasis: 150.0,
+              beta: 1.2,
+              volatility: 0.25,
+              allocation: 60.4,
+              factorScores: {
+                quality: 85,
+                growth: 75,
+                value: 45,
+                momentum: 65,
+                size: 30,
+                liquidity: 90,
+                sentiment: 70,
+                positioning: 55,
+              },
+            },
+            {
+              symbol: "MSFT",
+              company: "Microsoft Corporation",
+              shares: 50,
+              marketValue: 17500,
+              gainLoss: 2500,
+              gainLossPercent: 16.7,
+              currentPrice: 350.0,
+              costBasis: 300.0,
+              beta: 1.1,
+              volatility: 0.22,
+              allocation: 39.6,
+              factorScores: {
+                quality: 90,
+                growth: 80,
+                value: 40,
+                momentum: 70,
+                size: 25,
+                liquidity: 95,
+                sentiment: 75,
+                positioning: 60,
+              },
+            },
+          ],
+          summary: {
+            totalValue: 125000,
+            dayChange: 2500,
+            dayChangePercent: 2.04,
+          },
+          performanceHistory: [
+            {
+              date: "2025-01-01",
+              portfolioValue: 100000,
+            },
+            {
+              date: "2025-01-15",
+              portfolioValue: 125000,
+            },
+          ],
+          sectorAllocation: [
+            {
+              sector: "Technology",
+              value: 75000,
+              percentage: 60,
+            },
+            {
+              sector: "Healthcare",
+              value: 25000,
+              percentage: 20,
+            },
+            {
+              sector: "Financials",
+              value: 25000,
+              percentage: 20,
+            },
+          ],
+        },
+      }),
   })
 );
 
@@ -245,25 +249,25 @@ const renderWithAuth = (component) => {
   );
 };
 
-describe('Portfolio Page - Real Site Tests', () => {
+describe("Portfolio Page - Real Site Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('Mock Data Display', () => {
-    test('should display mock portfolio data on initial load', async () => {
+  describe("Mock Data Display", () => {
+    test("should display mock portfolio data on initial load", async () => {
       renderWithAuth(<Portfolio />);
 
       // Test that mock data from your actual codebase is displayed
       await waitFor(() => {
-        expect(screen.getByText('AAPL')).toBeInTheDocument();
-        expect(screen.getByText('Apple Inc.')).toBeInTheDocument();
-        expect(screen.getByText('MSFT')).toBeInTheDocument();
-        expect(screen.getByText('Microsoft Corporation')).toBeInTheDocument();
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+        expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
+        expect(screen.getByText("MSFT")).toBeInTheDocument();
+        expect(screen.getByText("Microsoft Corporation")).toBeInTheDocument();
       });
     });
 
-    test('should show portfolio value and gain/loss from mock data', async () => {
+    test("should show portfolio value and gain/loss from mock data", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
@@ -273,33 +277,33 @@ describe('Portfolio Page - Real Site Tests', () => {
       });
     });
 
-    test('should display holdings table with your actual columns', async () => {
+    test("should display holdings table with your actual columns", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
         // Test actual column headers from your Portfolio component
-        expect(screen.getByText('Symbol')).toBeInTheDocument();
-        expect(screen.getByText('Company')).toBeInTheDocument();
-        expect(screen.getByText('Shares')).toBeInTheDocument();
-        expect(screen.getByText('Market Value')).toBeInTheDocument();
-        expect(screen.getByText('Gain/Loss')).toBeInTheDocument();
-        expect(screen.getByText('Allocation')).toBeInTheDocument();
+        expect(screen.getByText("Symbol")).toBeInTheDocument();
+        expect(screen.getByText("Company")).toBeInTheDocument();
+        expect(screen.getByText("Shares")).toBeInTheDocument();
+        expect(screen.getByText("Market Value")).toBeInTheDocument();
+        expect(screen.getByText("Gain/Loss")).toBeInTheDocument();
+        expect(screen.getByText("Allocation")).toBeInTheDocument();
       });
     });
   });
 
-  describe('MUI Tabs Functionality', () => {
-    test('should have multiple tabs as per your implementation', async () => {
+  describe("MUI Tabs Functionality", () => {
+    test("should have multiple tabs as per your implementation", async () => {
       const user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
       // Test actual tabs from your Portfolio component
       await waitFor(() => {
-        expect(screen.getByRole('tablist')).toBeInTheDocument();
+        expect(screen.getByRole("tablist")).toBeInTheDocument();
       });
 
       // Test tab switching functionality
-      const tabs = screen.getAllByRole('tab');
+      const tabs = screen.getAllByRole("tab");
       expect(tabs.length).toBeGreaterThan(1);
 
       // Click second tab
@@ -310,24 +314,24 @@ describe('Portfolio Page - Real Site Tests', () => {
     });
   });
 
-  describe('Holdings Table Interactions', () => {
-    test('should allow sorting by different columns', async () => {
+  describe("Holdings Table Interactions", () => {
+    test("should allow sorting by different columns", async () => {
       const user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
-        const symbolHeader = screen.getByText('Symbol');
+        const symbolHeader = screen.getByText("Symbol");
         expect(symbolHeader).toBeInTheDocument();
       });
 
       // Test your TableSortLabel functionality
-      const sortButton = screen.getByRole('button', { name: /Symbol/i });
+      const sortButton = screen.getByRole("button", { name: /Symbol/i });
       await user.click(sortButton);
 
       // Should trigger sort functionality
     });
 
-    test('should have pagination controls', async () => {
+    test("should have pagination controls", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
@@ -337,64 +341,68 @@ describe('Portfolio Page - Real Site Tests', () => {
     });
   });
 
-  describe('Charts and Visualizations', () => {
-    test('should display Recharts components', async () => {
+  describe("Charts and Visualizations", () => {
+    test("should display Recharts components", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
         // Test that your PieChart, LineChart components render
-        const charts = document.querySelectorAll('.recharts-wrapper');
+        const charts = document.querySelectorAll(".recharts-wrapper");
         expect(charts.length).toBeGreaterThan(0);
       });
     });
 
-    test('should display allocation pie chart', async () => {
+    test("should display allocation pie chart", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
         // Test sector allocation chart from your mock data
-        const pieChart = document.querySelector('.recharts-pie');
+        const pieChart = document.querySelector(".recharts-pie");
         expect(pieChart).toBeInTheDocument();
       });
     });
   });
 
-  describe('Add/Edit Holdings Dialog', () => {
-    test('should open add holding dialog', async () => {
+  describe("Add/Edit Holdings Dialog", () => {
+    test("should open add holding dialog", async () => {
       const user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
       // Find and click the Add button from your MUI components
-      const addButton = screen.getByLabelText(/add/i) || screen.getByRole('button', { name: /add/i });
+      const addButton =
+        screen.getByLabelText(/add/i) ||
+        screen.getByRole("button", { name: /add/i });
       if (addButton) {
         await user.click(addButton);
 
         await waitFor(() => {
-          expect(screen.getByRole('dialog')).toBeInTheDocument();
+          expect(screen.getByRole("dialog")).toBeInTheDocument();
         });
       }
     });
 
-    test('should validate form inputs in add holding dialog', async () => {
+    test("should validate form inputs in add holding dialog", async () => {
       const user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
       // Navigate through your actual form validation
-      const addButton = screen.getByLabelText(/add/i) || screen.getByRole('button', { name: /add/i });
+      const addButton =
+        screen.getByLabelText(/add/i) ||
+        screen.getByRole("button", { name: /add/i });
       if (addButton) {
         await user.click(addButton);
 
         // Test your TextField validation
         const symbolInput = screen.getByLabelText(/symbol/i);
-        await user.type(symbolInput, 'INVALID_SYMBOL_TOO_LONG');
+        await user.type(symbolInput, "INVALID_SYMBOL_TOO_LONG");
 
         // Should show validation error
       }
     });
   });
 
-  describe('Risk Alerts Feature', () => {
-    test('should display risk alerts section', async () => {
+  describe("Risk Alerts Feature", () => {
+    test("should display risk alerts section", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
@@ -403,7 +411,7 @@ describe('Portfolio Page - Real Site Tests', () => {
       });
     });
 
-    test('should allow creating new risk alerts', async () => {
+    test("should allow creating new risk alerts", async () => {
       const user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
@@ -415,25 +423,26 @@ describe('Portfolio Page - Real Site Tests', () => {
     });
   });
 
-  describe('Factor Scores Display', () => {
-    test('should display factor scores for holdings', async () => {
+  describe("Factor Scores Display", () => {
+    test("should display factor scores for holdings", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
         // Test your factor scores from mock data
-        const qualityScore = screen.getByText('85') || screen.getByText('Quality: 85');
+        const qualityScore =
+          screen.getByText("85") || screen.getByText("Quality: 85");
         if (qualityScore) {
           expect(qualityScore).toBeInTheDocument();
         }
       });
     });
 
-    test('should show radar chart for factor analysis', async () => {
+    test("should show radar chart for factor analysis", async () => {
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
         // Test your RadarChart component
-        const radarChart = document.querySelector('.recharts-radar');
+        const radarChart = document.querySelector(".recharts-radar");
         if (radarChart) {
           expect(radarChart).toBeInTheDocument();
         }
@@ -441,10 +450,10 @@ describe('Portfolio Page - Real Site Tests', () => {
     });
   });
 
-  describe('Responsive Design', () => {
-    test('should adapt to mobile viewport', () => {
+  describe("Responsive Design", () => {
+    test("should adapt to mobile viewport", () => {
       // Mock mobile viewport
-      Object.defineProperty(window, 'innerWidth', {
+      Object.defineProperty(window, "innerWidth", {
         writable: true,
         configurable: true,
         value: 768,
@@ -453,23 +462,23 @@ describe('Portfolio Page - Real Site Tests', () => {
       renderWithAuth(<Portfolio />);
 
       // Test your responsive Grid components
-      const grids = document.querySelectorAll('.MuiGrid-root');
+      const grids = document.querySelectorAll(".MuiGrid-root");
       expect(grids.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Authentication Integration', () => {
-    test('should access user context properly', () => {
+  describe("Authentication Integration", () => {
+    test("should access user context properly", () => {
       renderWithAuth(<Portfolio />);
 
       // Should access the auth context you're using
       expect(mockAuthContext.isAuthenticated).toBe(true);
     });
 
-    test('should handle unauthenticated state', () => {
+    test("should handle unauthenticated state", () => {
       const unauthenticatedContext = {
         ...mockAuthContext,
-        isAuthenticated: false
+        isAuthenticated: false,
       };
 
       render(
@@ -484,22 +493,22 @@ describe('Portfolio Page - Real Site Tests', () => {
     });
   });
 
-  describe('API Integration Preparation', () => {
-    test('should call getPortfolioData when real API is enabled', async () => {
-      const { getPortfolioData } = await import('../../../services/api');
-      
+  describe("API Integration Preparation", () => {
+    test("should call getPortfolioData when real API is enabled", async () => {
+      const { getPortfolioData } = await import("../../../services/api");
+
       getPortfolioData.mockResolvedValue({
         data: {
           holdings: [
             {
-              symbol: 'REAL_AAPL',
-              company: 'Apple Inc.',
+              symbol: "REAL_AAPL",
+              company: "Apple Inc.",
               shares: 50,
-              currentPrice: 190.00,
-              marketValue: 9500
-            }
-          ]
-        }
+              currentPrice: 190.0,
+              marketValue: 9500,
+            },
+          ],
+        },
       });
 
       renderWithAuth(<Portfolio />);
@@ -508,10 +517,10 @@ describe('Portfolio Page - Real Site Tests', () => {
       // expect(getPortfolioData).toHaveBeenCalled();
     });
 
-    test('should handle API errors gracefully', async () => {
-      const { getPortfolioData } = await import('../../../services/api');
-      
-      getPortfolioData.mockRejectedValue(new Error('API Error'));
+    test("should handle API errors gracefully", async () => {
+      const { getPortfolioData } = await import("../../../services/api");
+
+      getPortfolioData.mockRejectedValue(new Error("API Error"));
 
       renderWithAuth(<Portfolio />);
 
@@ -519,31 +528,31 @@ describe('Portfolio Page - Real Site Tests', () => {
     });
   });
 
-  describe('Component State Management', () => {
-    test('should manage activeTab state correctly', async () => {
+  describe("Component State Management", () => {
+    test("should manage activeTab state correctly", async () => {
       const user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
       // Test your actual tab state management
-      const tabs = screen.getAllByRole('tab');
+      const tabs = screen.getAllByRole("tab");
       if (tabs.length > 1) {
         await user.click(tabs[1]);
-        
+
         // Should update activeTab state
         await waitFor(() => {
-          expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+          expect(tabs[1]).toHaveAttribute("aria-selected", "true");
         });
       }
     });
 
-    test('should manage table sorting state', async () => {
+    test("should manage table sorting state", async () => {
       const _user = userEvent.setup();
       renderWithAuth(<Portfolio />);
 
       await waitFor(() => {
-        const symbolHeader = screen.getByText('Symbol');
-        if (symbolHeader.closest('button')) {
-          fireEvent.click(symbolHeader.closest('button'));
+        const symbolHeader = screen.getByText("Symbol");
+        if (symbolHeader.closest("button")) {
+          fireEvent.click(symbolHeader.closest("button"));
         }
       });
 

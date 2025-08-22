@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Alert,
@@ -28,7 +28,7 @@ import {
   TableRow,
   TextField,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -57,7 +57,7 @@ import {
   Public,
   LocalFireDepartment,
   Bolt,
-  HorizontalRule
+  HorizontalRule,
 } from "@mui/icons-material";
 import {
   XAxis,
@@ -69,7 +69,7 @@ import {
   Cell,
   PieChart,
   Pie,
-  Tooltip as RechartsTooltip
+  Tooltip as RechartsTooltip,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { getStockPrices, getStockMetrics } from "../services/api";
@@ -83,7 +83,8 @@ import MarketStatusBar from "../components/MarketStatusBar";
 let _logoSrc = null;
 try {
   // Use dynamic import for assets in Vite
-  _logoSrc = new URL("../assets/logo.png", import.meta.url).href;
+  _logoSrc = /* @vite-ignore */ new URL("../assets/logo.png", import.meta.url)
+    .href;
 } catch (e) {
   console.warn("Logo not found, using fallback avatar");
   _logoSrc = null;

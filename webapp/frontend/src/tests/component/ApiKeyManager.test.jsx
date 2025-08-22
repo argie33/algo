@@ -1,11 +1,10 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { ApiKeyProvider } from '../../components/ApiKeyProvider';
-import ApiKeyManager from '../../components/ApiKeyManager';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { ApiKeyProvider } from "../../components/ApiKeyProvider";
+import ApiKeyManager from "../../components/ApiKeyManager";
 
 // Mock the API service
-vi.mock('../../services/api', () => ({
+vi.mock("../../services/api", () => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
@@ -14,62 +13,58 @@ vi.mock('../../services/api', () => ({
 
 // Mock AuthContext
 const mockAuthContext = {
-  user: { sub: 'test-user', email: 'test@example.com' },
-  token: 'mock-jwt-token',
+  user: { sub: "test-user", email: "test@example.com" },
+  token: "mock-jwt-token",
   isAuthenticated: true,
 };
 
-vi.mock('../../contexts/AuthContext', () => ({
+vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => mockAuthContext,
 }));
 
 // Import after mocking
-import api from '../../services/api';
+import api from "../../services/api";
 
 const renderWithProviders = (component) => {
-  return render(
-    <ApiKeyProvider>
-      {component}
-    </ApiKeyProvider>
-  );
+  return render(<ApiKeyProvider>{component}</ApiKeyProvider>);
 };
 
-describe('ApiKeyManager Component', () => {
+describe("ApiKeyManager Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Default API responses
     api.get.mockResolvedValue({
       data: {
         success: true,
-        apiKeys: []
-      }
+        apiKeys: [],
+      },
     });
   });
 
-  describe('Initial Load', () => {
-    it('should render the API key manager interface', async () => {
+  describe("Initial Load", () => {
+    it("should render the API key manager interface", async () => {
       renderWithProviders(<ApiKeyManager />);
-      
+
       expect(screen.getByText(/API Keys/i)).toBeInTheDocument();
       expect(screen.getByText(/Add API Key/i)).toBeInTheDocument();
     });
 
-    it('should load existing API keys on mount', async () => {
+    it("should load existing API keys on mount", async () => {
       const mockApiKeys = [
         {
-          provider: 'alpaca',
+          provider: "alpaca",
           hasApiKey: true,
-          lastValidated: '2023-01-01T00:00:00Z',
-          connectionStatus: 'connected'
-        }
+          lastValidated: "2023-01-01T00:00:00Z",
+          connectionStatus: "connected",
+        },
       ];
 
       api.get.mockResolvedValue({
         data: {
           success: true,
-          apiKeys: mockApiKeys
-        }
+          apiKeys: mockApiKeys,
+        },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -79,12 +74,12 @@ describe('ApiKeyManager Component', () => {
         expect(screen.getByText(/connected/i)).toBeInTheDocument();
       });
 
-      expect(api.get).toHaveBeenCalledWith('/api/settings/api-keys');
+      expect(api.get).toHaveBeenCalledWith("/api/settings/api-keys");
     });
   });
 
-  describe('Adding API Keys', () => {
-    it('should show add API key form when Add button is clicked', async () => {
+  describe("Adding API Keys", () => {
+    it("should show add API key form when Add button is clicked", async () => {
       renderWithProviders(<ApiKeyManager />);
 
       fireEvent.click(screen.getByText(/Add API Key/i));
@@ -95,12 +90,12 @@ describe('ApiKeyManager Component', () => {
       });
     });
 
-    it('should successfully add a new API key', async () => {
+    it("should successfully add a new API key", async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
-          message: 'API key stored successfully'
-        }
+          message: "API key stored successfully",
+        },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -114,29 +109,29 @@ describe('ApiKeyManager Component', () => {
 
       // Fill form
       fireEvent.change(screen.getByLabelText(/Provider/i), {
-        target: { value: 'alpaca' }
+        target: { value: "alpaca" },
       });
       fireEvent.change(screen.getByLabelText(/API Key/i), {
-        target: { value: 'PKTEST_123' }
+        target: { value: "PKTEST_123" },
       });
       fireEvent.change(screen.getByLabelText(/API Secret/i), {
-        target: { value: 'secret123' }
+        target: { value: "secret123" },
       });
 
       // Submit form
       fireEvent.click(screen.getByText(/Save/i));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/settings/api-keys', {
-          provider: 'alpaca',
-          apiKey: 'PKTEST_123',
-          apiSecret: 'secret123',
-          isSandbox: true
+        expect(api.post).toHaveBeenCalledWith("/api/settings/api-keys", {
+          provider: "alpaca",
+          apiKey: "PKTEST_123",
+          apiSecret: "secret123",
+          isSandbox: true,
         });
       });
     });
 
-    it('should validate required fields', async () => {
+    it("should validate required fields", async () => {
       renderWithProviders(<ApiKeyManager />);
 
       fireEvent.click(screen.getByText(/Add API Key/i));
@@ -156,14 +151,14 @@ describe('ApiKeyManager Component', () => {
       expect(api.post).not.toHaveBeenCalled();
     });
 
-    it('should handle API key storage errors', async () => {
+    it("should handle API key storage errors", async () => {
       api.post.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Invalid API key'
-          }
-        }
+            error: "Invalid API key",
+          },
+        },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -176,10 +171,10 @@ describe('ApiKeyManager Component', () => {
 
       // Fill and submit form
       fireEvent.change(screen.getByLabelText(/Provider/i), {
-        target: { value: 'alpaca' }
+        target: { value: "alpaca" },
       });
       fireEvent.change(screen.getByLabelText(/API Key/i), {
-        target: { value: 'INVALID_KEY' }
+        target: { value: "INVALID_KEY" },
       });
 
       fireEvent.click(screen.getByText(/Save/i));
@@ -190,25 +185,25 @@ describe('ApiKeyManager Component', () => {
     });
   });
 
-  describe('API Key Validation', () => {
-    it('should validate API key connection', async () => {
+  describe("API Key Validation", () => {
+    it("should validate API key connection", async () => {
       const mockApiKeys = [
         {
-          provider: 'alpaca',
+          provider: "alpaca",
           hasApiKey: true,
-          connectionStatus: 'disconnected'
-        }
+          connectionStatus: "disconnected",
+        },
       ];
 
       api.get.mockResolvedValue({
-        data: { success: true, apiKeys: mockApiKeys }
+        data: { success: true, apiKeys: mockApiKeys },
       });
 
       api.post.mockResolvedValue({
         data: {
           success: true,
-          data: { valid: true, account_id: 'test-account' }
-        }
+          data: { valid: true, account_id: "test-account" },
+        },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -221,7 +216,9 @@ describe('ApiKeyManager Component', () => {
       fireEvent.click(screen.getByText(/Test Connection/i));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/settings/api-keys/alpaca/validate');
+        expect(api.post).toHaveBeenCalledWith(
+          "/api/settings/api-keys/alpaca/validate"
+        );
       });
 
       await waitFor(() => {
@@ -229,26 +226,26 @@ describe('ApiKeyManager Component', () => {
       });
     });
 
-    it('should handle validation failures', async () => {
+    it("should handle validation failures", async () => {
       const mockApiKeys = [
         {
-          provider: 'alpaca',
+          provider: "alpaca",
           hasApiKey: true,
-          connectionStatus: 'disconnected'
-        }
+          connectionStatus: "disconnected",
+        },
       ];
 
       api.get.mockResolvedValue({
-        data: { success: true, apiKeys: mockApiKeys }
+        data: { success: true, apiKeys: mockApiKeys },
       });
 
       api.post.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Invalid credentials'
-          }
-        }
+            error: "Invalid credentials",
+          },
+        },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -265,22 +262,22 @@ describe('ApiKeyManager Component', () => {
     });
   });
 
-  describe('Deleting API Keys', () => {
-    it('should delete API key when delete button is clicked', async () => {
+  describe("Deleting API Keys", () => {
+    it("should delete API key when delete button is clicked", async () => {
       const mockApiKeys = [
         {
-          provider: 'alpaca',
+          provider: "alpaca",
           hasApiKey: true,
-          connectionStatus: 'connected'
-        }
+          connectionStatus: "connected",
+        },
       ];
 
       api.get.mockResolvedValue({
-        data: { success: true, apiKeys: mockApiKeys }
+        data: { success: true, apiKeys: mockApiKeys },
       });
 
       api.delete.mockResolvedValue({
-        data: { success: true, message: 'API key deleted' }
+        data: { success: true, message: "API key deleted" },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -300,30 +297,32 @@ describe('ApiKeyManager Component', () => {
       fireEvent.click(screen.getByText(/Confirm/i));
 
       await waitFor(() => {
-        expect(api.delete).toHaveBeenCalledWith('/api/settings/api-keys/alpaca');
+        expect(api.delete).toHaveBeenCalledWith(
+          "/api/settings/api-keys/alpaca"
+        );
       });
     });
 
-    it('should handle delete errors gracefully', async () => {
+    it("should handle delete errors gracefully", async () => {
       const mockApiKeys = [
         {
-          provider: 'alpaca',
+          provider: "alpaca",
           hasApiKey: true,
-          connectionStatus: 'connected'
-        }
+          connectionStatus: "connected",
+        },
       ];
 
       api.get.mockResolvedValue({
-        data: { success: true, apiKeys: mockApiKeys }
+        data: { success: true, apiKeys: mockApiKeys },
       });
 
       api.delete.mockRejectedValue({
         response: {
           data: {
             success: false,
-            error: 'Delete failed'
-          }
-        }
+            error: "Delete failed",
+          },
+        },
       });
 
       renderWithProviders(<ApiKeyManager />);
@@ -346,8 +345,8 @@ describe('ApiKeyManager Component', () => {
     });
   });
 
-  describe('Provider Selection', () => {
-    it('should support all major financial data providers', async () => {
+  describe("Provider Selection", () => {
+    it("should support all major financial data providers", async () => {
       renderWithProviders(<ApiKeyManager />);
 
       fireEvent.click(screen.getByText(/Add API Key/i));
@@ -357,14 +356,14 @@ describe('ApiKeyManager Component', () => {
       });
 
       const _providerSelect = screen.getByLabelText(/Provider/i);
-      
+
       // Check that major providers are available
-      expect(screen.getByDisplayValue('alpaca')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('polygon')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('finnhub')).toBeInTheDocument();
+      expect(screen.getByDisplayValue("alpaca")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("polygon")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("finnhub")).toBeInTheDocument();
     });
 
-    it('should show provider-specific fields', async () => {
+    it("should show provider-specific fields", async () => {
       renderWithProviders(<ApiKeyManager />);
 
       fireEvent.click(screen.getByText(/Add API Key/i));
@@ -375,7 +374,7 @@ describe('ApiKeyManager Component', () => {
 
       // Select Alpaca
       fireEvent.change(screen.getByLabelText(/Provider/i), {
-        target: { value: 'alpaca' }
+        target: { value: "alpaca" },
       });
 
       await waitFor(() => {
@@ -384,29 +383,46 @@ describe('ApiKeyManager Component', () => {
     });
   });
 
-  describe('Loading States', () => {
-    it('should show loading state while fetching API keys', async () => {
+  describe("Loading States", () => {
+    it("should show loading state while fetching API keys", async () => {
       // Mock delayed response
-      api.get.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
-          data: { success: true, apiKeys: [] }
-        }), 100))
+      api.get.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  data: { success: true, apiKeys: [] },
+                }),
+              100
+            )
+          )
       );
 
       renderWithProviders(<ApiKeyManager />);
 
       expect(screen.getByText(/Loading/i)).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
-      }, { timeout: 200 });
+      await waitFor(
+        () => {
+          expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
+        },
+        { timeout: 200 }
+      );
     });
 
-    it('should show loading state while saving API key', async () => {
-      api.post.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
-          data: { success: true, message: 'Saved' }
-        }), 100))
+    it("should show loading state while saving API key", async () => {
+      api.post.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  data: { success: true, message: "Saved" },
+                }),
+              100
+            )
+          )
       );
 
       renderWithProviders(<ApiKeyManager />);
@@ -418,43 +434,51 @@ describe('ApiKeyManager Component', () => {
       });
 
       fireEvent.change(screen.getByLabelText(/Provider/i), {
-        target: { value: 'alpaca' }
+        target: { value: "alpaca" },
       });
       fireEvent.change(screen.getByLabelText(/API Key/i), {
-        target: { value: 'TEST123' }
+        target: { value: "TEST123" },
       });
 
       fireEvent.click(screen.getByText(/Save/i));
 
       expect(screen.getByText(/Saving/i)).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.queryByText(/Saving/i)).not.toBeInTheDocument();
-      }, { timeout: 200 });
+      await waitFor(
+        () => {
+          expect(screen.queryByText(/Saving/i)).not.toBeInTheDocument();
+        },
+        { timeout: 200 }
+      );
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle network errors gracefully', async () => {
-      api.get.mockRejectedValue(new Error('Network error'));
+  describe("Error Handling", () => {
+    it("should handle network errors gracefully", async () => {
+      api.get.mockRejectedValue(new Error("Network error"));
 
       renderWithProviders(<ApiKeyManager />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Failed to load API keys/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Failed to load API keys/i)
+        ).toBeInTheDocument();
       });
     });
 
-    it('should provide retry functionality', async () => {
-      api.get.mockRejectedValueOnce(new Error('Network error'))
-           .mockResolvedValue({
-             data: { success: true, apiKeys: [] }
-           });
+    it("should provide retry functionality", async () => {
+      api.get
+        .mockRejectedValueOnce(new Error("Network error"))
+        .mockResolvedValue({
+          data: { success: true, apiKeys: [] },
+        });
 
       renderWithProviders(<ApiKeyManager />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Failed to load API keys/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Failed to load API keys/i)
+        ).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText(/Retry/i));
@@ -467,8 +491,8 @@ describe('ApiKeyManager Component', () => {
     });
   });
 
-  describe('Accessibility', () => {
-    it('should have proper ARIA labels', async () => {
+  describe("Accessibility", () => {
+    it("should have proper ARIA labels", async () => {
       renderWithProviders(<ApiKeyManager />);
 
       fireEvent.click(screen.getByText(/Add API Key/i));
@@ -480,11 +504,17 @@ describe('ApiKeyManager Component', () => {
       });
 
       // Check ARIA attributes
-      expect(screen.getByLabelText(/Provider/i)).toHaveAttribute('aria-required', 'true');
-      expect(screen.getByLabelText(/API Key/i)).toHaveAttribute('aria-required', 'true');
+      expect(screen.getByLabelText(/Provider/i)).toHaveAttribute(
+        "aria-required",
+        "true"
+      );
+      expect(screen.getByLabelText(/API Key/i)).toHaveAttribute(
+        "aria-required",
+        "true"
+      );
     });
 
-    it('should be keyboard navigable', async () => {
+    it("should be keyboard navigable", async () => {
       renderWithProviders(<ApiKeyManager />);
 
       // Focus the add button
@@ -492,7 +522,7 @@ describe('ApiKeyManager Component', () => {
       expect(screen.getByText(/Add API Key/i)).toHaveFocus();
 
       // Press Enter to activate
-      fireEvent.keyDown(screen.getByText(/Add API Key/i), { key: 'Enter' });
+      fireEvent.keyDown(screen.getByText(/Add API Key/i), { key: "Enter" });
 
       await waitFor(() => {
         expect(screen.getByLabelText(/Provider/i)).toBeInTheDocument();

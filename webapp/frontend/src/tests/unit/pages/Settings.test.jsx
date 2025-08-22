@@ -68,9 +68,9 @@ describe("Settings Page", () => {
         // Should have tab navigation
         expect(
           screen.getByText(/API Keys/i) ||
-          screen.getByText(/Preferences/i) ||
-          screen.getByText(/Notifications/i) ||
-          screen.getByRole("tab")
+            screen.getByText(/Preferences/i) ||
+            screen.getByText(/Notifications/i) ||
+            screen.getByRole("tab")
         ).toBeTruthy();
       });
     });
@@ -106,8 +106,10 @@ describe("Settings Page", () => {
   describe("API Keys Management", () => {
     it("should display existing API keys", async () => {
       const { api: _api } = await import("../../../services/api.js");
-      const { useApiKeys } = await import("../../../components/ApiKeyProvider.jsx");
-      
+      const { useApiKeys } = await import(
+        "../../../components/ApiKeyProvider.jsx"
+      );
+
       const mockApiKeys = {
         alpaca: {
           keyId: "PK***ABC",
@@ -151,22 +153,24 @@ describe("Settings Page", () => {
       renderWithProviders(<Settings />);
 
       await waitFor(() => {
-        const addButton = screen.getByText(/Add API Key/i) || 
-                         screen.getByRole("button", { name: /add/i });
+        const addButton =
+          screen.getByText(/Add API Key/i) ||
+          screen.getByRole("button", { name: /add/i });
         expect(addButton).toBeTruthy();
       });
 
       // Click add API key button
-      const addButton = screen.getByText(/Add API Key/i) || 
-                       screen.getByRole("button", { name: /add/i });
+      const addButton =
+        screen.getByText(/Add API Key/i) ||
+        screen.getByRole("button", { name: /add/i });
       await user.click(addButton);
 
       await waitFor(() => {
         // Should show API key form
         expect(
           screen.getByText(/Provider/i) ||
-          screen.getByText(/API Key/i) ||
-          screen.getByText(/Secret/i)
+            screen.getByText(/API Key/i) ||
+            screen.getByText(/Secret/i)
         ).toBeTruthy();
       });
     });
@@ -175,19 +179,24 @@ describe("Settings Page", () => {
       const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.testApiKey.mockResolvedValue({ isValid: false, error: "Invalid credentials" });
+      api.testApiKey.mockResolvedValue({
+        isValid: false,
+        error: "Invalid credentials",
+      });
 
       renderWithProviders(<Settings />);
 
       // Simulate filling API key form
-      const apiKeyInput = screen.queryByLabelText(/API Key/i) || 
-                         screen.queryByPlaceholderText(/API Key/i);
-      
+      const apiKeyInput =
+        screen.queryByLabelText(/API Key/i) ||
+        screen.queryByPlaceholderText(/API Key/i);
+
       if (apiKeyInput) {
         await user.type(apiKeyInput, "invalid-key");
-        
-        const testButton = screen.getByText(/Test/i) || 
-                          screen.getByRole("button", { name: /test/i });
+
+        const testButton =
+          screen.getByText(/Test/i) ||
+          screen.getByRole("button", { name: /test/i });
         await user.click(testButton);
 
         await waitFor(() => {
@@ -201,14 +210,16 @@ describe("Settings Page", () => {
         // Should show validation error
         expect(
           screen.getByText(/Invalid credentials/i) ||
-          screen.getByText(/validation failed/i)
+            screen.getByText(/validation failed/i)
         ).toBeTruthy();
       }
     });
 
     it("should allow deleting API keys", async () => {
       const { api } = await import("../../../services/api.js");
-      const { useApiKeys } = await import("../../../components/ApiKeyProvider.jsx");
+      const { useApiKeys } = await import(
+        "../../../components/ApiKeyProvider.jsx"
+      );
       const user = userEvent.setup();
 
       const mockApiKeys = {
@@ -227,21 +238,23 @@ describe("Settings Page", () => {
       renderWithProviders(<Settings />);
 
       await waitFor(() => {
-        const deleteButton = screen.getByText(/Delete/i) || 
-                           screen.getByRole("button", { name: /delete/i });
+        const deleteButton =
+          screen.getByText(/Delete/i) ||
+          screen.getByRole("button", { name: /delete/i });
         expect(deleteButton).toBeTruthy();
       });
 
-      const deleteButton = screen.getByText(/Delete/i) || 
-                          screen.getByRole("button", { name: /delete/i });
+      const deleteButton =
+        screen.getByText(/Delete/i) ||
+        screen.getByRole("button", { name: /delete/i });
       await user.click(deleteButton);
 
       // Should show confirmation dialog
       await waitFor(() => {
         expect(
           screen.getByText(/confirm/i) ||
-          screen.getByText(/are you sure/i) ||
-          screen.getByText(/delete/i)
+            screen.getByText(/are you sure/i) ||
+            screen.getByText(/delete/i)
         ).toBeTruthy();
       });
     });
@@ -267,8 +280,8 @@ describe("Settings Page", () => {
         // Should show notification options
         expect(
           screen.getByText(/Email/i) ||
-          screen.getByText(/Push/i) ||
-          screen.getByText(/Notifications/i)
+            screen.getByText(/Push/i) ||
+            screen.getByText(/Notifications/i)
         ).toBeTruthy();
       });
     });
@@ -285,14 +298,14 @@ describe("Settings Page", () => {
       renderWithProviders(<Settings />);
 
       await waitFor(() => {
-        const emailToggle = screen.getByRole("checkbox") || 
-                          screen.getByRole("switch");
+        const emailToggle =
+          screen.getByRole("checkbox") || screen.getByRole("switch");
         expect(emailToggle).toBeTruthy();
       });
 
       // Toggle email notifications
-      const emailToggle = screen.getByRole("checkbox") || 
-                        screen.getByRole("switch");
+      const emailToggle =
+        screen.getByRole("checkbox") || screen.getByRole("switch");
       await user.click(emailToggle);
 
       await waitFor(() => {
@@ -325,8 +338,8 @@ describe("Settings Page", () => {
         // Should show trading preferences
         expect(
           screen.getByText(/Trading/i) ||
-          screen.getByText(/Orders/i) ||
-          screen.getByText(/Confirm/i)
+            screen.getByText(/Orders/i) ||
+            screen.getByText(/Confirm/i)
         ).toBeTruthy();
       });
     });
@@ -349,8 +362,8 @@ describe("Settings Page", () => {
         // Should show privacy options
         expect(
           screen.getByText(/Privacy/i) ||
-          screen.getByText(/Data/i) ||
-          screen.getByText(/Analytics/i)
+            screen.getByText(/Data/i) ||
+            screen.getByText(/Analytics/i)
         ).toBeTruthy();
       });
     });
@@ -369,34 +382,39 @@ describe("Settings Page", () => {
       renderWithProviders(<Settings />);
 
       await waitFor(() => {
-        const toggle = screen.getByRole("checkbox") || 
-                      screen.getByRole("switch");
+        const toggle =
+          screen.getByRole("checkbox") || screen.getByRole("switch");
         expect(toggle).toBeTruthy();
       });
 
-      const toggle = screen.getByRole("checkbox") || 
-                    screen.getByRole("switch");
+      const toggle = screen.getByRole("checkbox") || screen.getByRole("switch");
       await user.click(toggle);
 
       // Should automatically save after a short delay
-      await waitFor(() => {
-        expect(api.updateSettings).toHaveBeenCalled();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expect(api.updateSettings).toHaveBeenCalled();
+        },
+        { timeout: 2000 }
+      );
     });
 
     it("should show save status indicators", async () => {
       const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.updateSettings.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({ success: true }), 1000))
+      api.updateSettings.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ success: true }), 1000)
+          )
       );
 
       renderWithProviders(<Settings />);
 
-      const toggle = screen.queryByRole("checkbox") || 
-                    screen.queryByRole("switch");
-      
+      const toggle =
+        screen.queryByRole("checkbox") || screen.queryByRole("switch");
+
       if (toggle) {
         await user.click(toggle);
 
@@ -404,8 +422,8 @@ describe("Settings Page", () => {
         await waitFor(() => {
           expect(
             screen.getByText(/Saving/i) ||
-            screen.getByText(/Loading/i) ||
-            screen.getByTestId("saving-indicator")
+              screen.getByText(/Loading/i) ||
+              screen.getByTestId("saving-indicator")
           ).toBeTruthy();
         });
       }
@@ -430,8 +448,7 @@ describe("Settings Page", () => {
       await waitFor(() => {
         // Should show account details
         expect(
-          screen.getByText(/user@example\.com/i) ||
-          screen.getByText(/Account/i)
+          screen.getByText(/user@example\.com/i) || screen.getByText(/Account/i)
         ).toBeTruthy();
       });
     });
@@ -444,17 +461,18 @@ describe("Settings Page", () => {
 
       renderWithProviders(<Settings />);
 
-      const passwordButton = screen.queryByText(/Change Password/i) || 
-                           screen.queryByRole("button", { name: /password/i });
-      
+      const passwordButton =
+        screen.queryByText(/Change Password/i) ||
+        screen.queryByRole("button", { name: /password/i });
+
       if (passwordButton) {
         await user.click(passwordButton);
 
         await waitFor(() => {
           expect(
             screen.getByText(/Current Password/i) ||
-            screen.getByText(/New Password/i) ||
-            screen.getByLabelText(/password/i)
+              screen.getByText(/New Password/i) ||
+              screen.getByLabelText(/password/i)
           ).toBeTruthy();
         });
       }
@@ -468,17 +486,17 @@ describe("Settings Page", () => {
 
       renderWithProviders(<Settings />);
 
-      const exportButton = screen.queryByText(/Export/i) || 
-                          screen.queryByRole("button", { name: /export/i });
-      
+      const exportButton =
+        screen.queryByText(/Export/i) ||
+        screen.queryByRole("button", { name: /export/i });
+
       if (exportButton) {
         await user.click(exportButton);
 
         // Should trigger data export
         await waitFor(() => {
           expect(
-            screen.getByText(/Exporting/i) ||
-            screen.getByText(/Download/i)
+            screen.getByText(/Exporting/i) || screen.getByText(/Download/i)
           ).toBeTruthy();
         });
       }
@@ -495,8 +513,8 @@ describe("Settings Page", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/error/i) ||
-          screen.getByText(/unavailable/i) ||
-          screen.getByText(/failed/i)
+            screen.getByText(/unavailable/i) ||
+            screen.getByText(/failed/i)
         ).toBeTruthy();
       });
     });
@@ -518,8 +536,7 @@ describe("Settings Page", () => {
 
         await waitFor(() => {
           expect(
-            screen.getByText(/Save failed/i) ||
-            screen.getByText(/error/i)
+            screen.getByText(/Save failed/i) || screen.getByText(/error/i)
           ).toBeTruthy();
         });
       }
@@ -547,10 +564,11 @@ describe("Settings Page", () => {
 
       await waitFor(() => {
         // Should have labeled form controls
-        const formControls = screen.getAllByRole("checkbox") || 
-                           screen.getAllByRole("switch") ||
-                           screen.getAllByRole("textbox") ||
-                           [];
+        const formControls =
+          screen.getAllByRole("checkbox") ||
+          screen.getAllByRole("switch") ||
+          screen.getAllByRole("textbox") ||
+          [];
         expect(formControls.length).toBeGreaterThan(0);
       });
     });
@@ -567,7 +585,7 @@ describe("Settings Page", () => {
 
       // Should be able to tab through interactive elements
       await user.tab();
-      
+
       const focusedElement = document.activeElement;
       expect(focusedElement).toBeTruthy();
       expect(focusedElement?.tagName).toMatch(/BUTTON|INPUT|SELECT/i);
@@ -582,7 +600,7 @@ describe("Settings Page", () => {
       });
 
       // Mock mobile viewport
-      Object.defineProperty(window, 'innerWidth', {
+      Object.defineProperty(window, "innerWidth", {
         writable: true,
         configurable: true,
         value: 375,

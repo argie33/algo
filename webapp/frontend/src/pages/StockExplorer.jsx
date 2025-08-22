@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createComponentLogger } from "../utils/errorLogger";
@@ -38,7 +38,7 @@ import {
   TableRow,
   TextField,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   ExpandMore,
@@ -200,7 +200,9 @@ function StockExplorer() {
     queryFn: async () => {
       try {
         const params = buildQueryParams();
-        logger.info("buildQueryParams - Parameters built", { params: params.toString() });
+        logger.info("buildQueryParams - Parameters built", {
+          params: params.toString(),
+        });
         const result = await screenStocks(params);
 
         // Add debug logging to see the actual response structure

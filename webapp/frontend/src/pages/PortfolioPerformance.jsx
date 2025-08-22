@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Alert,
@@ -28,7 +28,7 @@ import {
   TableRow,
   Tabs,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import {
   LineChart,
