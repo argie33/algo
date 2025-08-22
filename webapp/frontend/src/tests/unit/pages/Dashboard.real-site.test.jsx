@@ -3,8 +3,44 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from '../../../pages/Dashboard';
 import AuthContext from '../../../contexts/AuthContext';
+
+// Mock fetch for API calls
+global.fetch = vi.fn(() =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({
+      success: true,
+      data: {
+        marketOverview: {
+          indices: [
+            { symbol: 'SPY', price: 425.50, change: 2.15, changePercent: 0.51 },
+            { symbol: 'QQQ', price: 365.80, change: -1.20, changePercent: -0.33 }
+          ]
+        },
+        topStocks: [
+          { symbol: 'AAPL', price: 189.45, change: 2.34, changePercent: 1.25 },
+          { symbol: 'MSFT', price: 350.00, change: -1.50, changePercent: -0.43 }
+        ],
+        portfolio: {
+          totalValue: 125000,
+          dayChange: 2500,
+          dayChangePercent: 2.04,
+          holdings: []
+        },
+        technicalSignals: {
+          signals: [
+            { symbol: 'AAPL', signal: 'BUY', strength: 0.8 },
+            { symbol: 'MSFT', signal: 'HOLD', strength: 0.6 }
+          ]
+        }
+      }
+    })
+  })
+);
 
 // Mock your actual API functions
 vi.mock('../../../services/api', () => ({
@@ -12,9 +48,34 @@ vi.mock('../../../services/api', () => ({
     apiUrl: 'http://localhost:3001',
     baseURL: 'http://localhost:3001'
   })),
+  getStockPrices: vi.fn(() => Promise.resolve({
+    success: true,
+    data: [
+      { symbol: 'AAPL', price: 189.45, change: 2.34, changePercent: 1.25 },
+      { symbol: 'MSFT', price: 350.00, change: -1.50, changePercent: -0.43 }
+    ]
+  })),
+  getStockMetrics: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      marketCap: '2.5T',
+      volume: '65.2M',
+      peRatio: 28.5
+    }
+  })),
   api: {
-    get: vi.fn(),
-    post: vi.fn()
+    get: vi.fn(() => Promise.resolve({
+      data: {
+        success: true,
+        data: []
+      }
+    })),
+    post: vi.fn(() => Promise.resolve({
+      data: {
+        success: true,
+        data: {}
+      }
+    }))
   }
 }));
 
@@ -26,12 +87,22 @@ const mockAuthContext = {
 };
 
 const renderWithAuth = (component) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+  
   return render(
-    <BrowserRouter>
-      <AuthContext.Provider value={mockAuthContext}>
-        {component}
-      </AuthContext.Provider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthContext.Provider value={mockAuthContext}>
+          {component}
+        </AuthContext.Provider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };
 

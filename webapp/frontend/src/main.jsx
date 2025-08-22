@@ -11,6 +11,46 @@ import { configureAmplify } from "./config/amplify";
 
 console.log("🚀 main.jsx loaded - starting React app");
 
+// Unregister any existing Service Workers to clear old cached API URLs
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    for(let registration of registrations) {
+      registration.unregister().then(function(boolean) {
+        console.log('🧹 Service Worker unregistered:', boolean);
+      });
+    }
+  }).catch(function(error) {
+    console.log('Service Worker unregistration failed:', error);
+  });
+}
+
+// Force reload config.js with cache busting to get latest API URL configuration
+const forceReloadConfig = () => {
+  try {
+    // Remove existing config script if it exists
+    const existingScript = document.querySelector('script[src*="config.js"]');
+    if (existingScript) {
+      existingScript.remove();
+      console.log('🗑️ Removed existing config script');
+    }
+    
+    // Add new config script with cache busting
+    const script = document.createElement('script');
+    script.src = `/config.js?t=${Date.now()}`;
+    script.onload = () => {
+      console.log('✅ Config reloaded with latest values:', window.__CONFIG__);
+    };
+    script.onerror = () => {
+      console.error('❌ Failed to reload config.js');
+    };
+    document.head.appendChild(script);
+  } catch (error) {
+    console.error('❌ Error forcing config reload:', error);
+  }
+};
+
+forceReloadConfig();
+
 // Configure Amplify
 configureAmplify();
 
