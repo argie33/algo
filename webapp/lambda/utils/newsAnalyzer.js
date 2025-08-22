@@ -305,6 +305,62 @@ class NewsAnalyzer {
   }
 
   /**
+   * Calculate reliability score for a news source
+   * @param {string} source - News source name
+   * @returns {number} Reliability score (0-1)
+   */
+  calculateReliabilityScore(source) {
+    try {
+      if (!source || typeof source !== 'string') {
+        return 0.5; // Default neutral score
+      }
+
+      const sourceLower = source.toLowerCase();
+      
+      // High reliability sources
+      const highReliabilitySources = [
+        'reuters', 'bloomberg', 'associated press', 'ap news', 'wall street journal', 
+        'wsj', 'financial times', 'ft', 'cnbc', 'marketwatch', 'yahoo finance',
+        'seeking alpha', 'motley fool', 'benzinga', 'zacks', 'morningstar'
+      ];
+      
+      // Medium reliability sources
+      const mediumReliabilitySources = [
+        'cnn', 'bbc', 'npr', 'usa today', 'washington post', 'new york times',
+        'forbes', 'business insider', 'investopedia', 'thestreet', 'barrons'
+      ];
+      
+      // Check for high reliability (0.8-1.0)
+      for (const highSource of highReliabilitySources) {
+        if (sourceLower.includes(highSource)) {
+          return 0.9;
+        }
+      }
+      
+      // Check for medium reliability (0.6-0.8)
+      for (const mediumSource of mediumReliabilitySources) {
+        if (sourceLower.includes(mediumSource)) {
+          return 0.7;
+        }
+      }
+      
+      // Check for known unreliable patterns
+      const unreliablePatterns = ['blog', 'forum', 'reddit', 'twitter', 'facebook'];
+      for (const pattern of unreliablePatterns) {
+        if (sourceLower.includes(pattern)) {
+          return 0.3;
+        }
+      }
+      
+      // Default for unknown sources
+      return 0.5;
+    } catch (error) {
+      logger.error("Reliability score calculation failed:", error);
+      return 0.5;
+    }
+  }
+
+  /**
    * Get sentiment keywords configuration
    * @returns {Object} Sentiment keywords
    */

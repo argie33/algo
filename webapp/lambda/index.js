@@ -198,7 +198,7 @@ app.use(
 
       // Specific allowed origins
       const allowedOrigins = [
-        "https://d1zb7knau41vl9.cloudfront.net",
+        "https://d1copuy2oqlazx.cloudfront.net",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
@@ -236,6 +236,18 @@ app.use(
 // Request parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// JSON parsing error handler
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+    return res.status(400).json({
+      success: false,
+      error: "Bad Request",
+      message: "Invalid JSON format"
+    });
+  }
+  next(error);
+});
 
 // Note: API Gateway strips the /api prefix before sending to Lambda
 

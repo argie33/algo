@@ -5,7 +5,7 @@ const { success, error } = require("../utils/responseFormatter");
 const { authenticateToken } = require("../middleware/auth");
 let apiKeyService, AlpacaService, validationMiddleware;
 try {
-  apiKeyService = require("../utils/apiKeyServiceResilient");
+  apiKeyService = require("../utils/apiKeyService");
   AlpacaService = require("../utils/alpacaService");
   const validation = require("../middleware/validation");
   validationMiddleware = validation.createValidationMiddleware;

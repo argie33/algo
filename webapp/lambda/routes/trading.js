@@ -80,6 +80,7 @@ router.get("/debug", async (req, res) => {
     }
 
     res.json({
+      success: true,
       status: "ok",
       timestamp: new Date().toISOString(),
       tables: tableStatus,
@@ -89,9 +90,79 @@ router.get("/debug", async (req, res) => {
   } catch (error) {
     console.error("[TRADING] Error in debug endpoint:", error);
     res.status(500).json({
+      success: false,
       error: "Failed to check trading tables",
       message: error.message,
       timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Get all trading signals (without timeframe requirement)
+router.get("/signals", async (req, res) => {
+  try {
+    const { limit = 100, symbol, signal_type } = req.query;
+    
+    // Validate limit parameter
+    const limitNum = parseInt(limit);
+    if (isNaN(limitNum) || limitNum <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Limit must be a positive number"
+      });
+    }
+    if (limitNum > 500) {
+      return res.status(400).json({
+        success: false,
+        error: "Limit cannot exceed 500"
+      });
+    }
+
+    // Build base query for all signal tables
+    let whereClause = "WHERE 1=1";
+    let params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      whereClause += ` AND symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    if (signal_type) {
+      whereClause += ` AND signal_type = $${paramIndex}`;
+      params.push(signal_type);
+      paramIndex++;
+    }
+
+    // Query signals from multiple timeframes
+    const signalsQuery = `
+      (SELECT symbol, signal_type, price, date, 'daily' as timeframe FROM buy_sell_daily ${whereClause})
+      UNION ALL
+      (SELECT symbol, signal_type, price, date, 'weekly' as timeframe FROM buy_sell_weekly ${whereClause})
+      UNION ALL  
+      (SELECT symbol, signal_type, price, date, 'monthly' as timeframe FROM buy_sell_monthly ${whereClause})
+      ORDER BY date DESC
+      LIMIT $${paramIndex}
+    `;
+    
+    params.push(limitNum);
+
+    const result = await query(signalsQuery, params);
+
+    res.json({
+      success: true,
+      data: result.rows || [],
+      count: result.rows ? result.rows.length : 0,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error fetching trading signals:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trading signals",
+      message: error.message
     });
   }
 });
@@ -558,6 +629,107 @@ router.get("/performance", async (req, res) => {
   } catch (error) {
     console.error("Error fetching performance data:", error);
     res.status(500).json({ error: "Failed to fetch performance data" });
+  }
+});
+
+// Get trading positions
+router.get("/positions", async (req, res) => {
+  try {
+    const { summary } = req.query;
+    
+    // Query to get current positions (simplified for testing)
+    const positionsQuery = `
+      SELECT 
+        symbol,
+        SUM(CASE WHEN signal_type = 'buy' THEN 1 WHEN signal_type = 'sell' THEN -1 ELSE 0 END) as position,
+        AVG(price) as avg_price,
+        COUNT(*) as trade_count,
+        MAX(date) as last_trade_date
+      FROM (
+        SELECT symbol, signal_type, price, date FROM buy_sell_daily
+        UNION ALL
+        SELECT symbol, signal_type, price, date FROM buy_sell_weekly  
+        UNION ALL
+        SELECT symbol, signal_type, price, date FROM buy_sell_monthly
+      ) all_signals
+      GROUP BY symbol
+      HAVING SUM(CASE WHEN signal_type = 'buy' THEN 1 WHEN signal_type = 'sell' THEN -1 ELSE 0 END) != 0
+      ORDER BY last_trade_date DESC
+    `;
+
+    const result = await query(positionsQuery, []);
+    const positions = result.rows || [];
+
+    if (summary === 'true') {
+      // Calculate portfolio summary
+      const totalPositions = positions.length;
+      const totalValue = positions.reduce((sum, pos) => sum + (pos.position * pos.avg_price), 0);
+      const longPositions = positions.filter(pos => pos.position > 0).length;
+      const shortPositions = positions.filter(pos => pos.position < 0).length;
+
+      res.json({
+        success: true,
+        data: positions,
+        summary: {
+          total_positions: totalPositions,
+          long_positions: longPositions,
+          short_positions: shortPositions,
+          estimated_value: totalValue
+        },
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        success: true,
+        data: positions,
+        count: positions.length,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    console.error("Error fetching positions:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch positions",
+      message: error.message
+    });
+  }
+});
+
+// Trading orders endpoint (placeholder for future implementation)
+router.get("/orders", async (req, res) => {
+  try {
+    // For now, return empty orders with proper format
+    res.json({
+      success: true,
+      data: [],
+      message: "Orders endpoint not fully implemented",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch orders",
+      message: error.message
+    });
+  }
+});
+
+// Handle POST requests for orders (placeholder)
+router.post("/orders", async (req, res) => {
+  try {
+    res.status(501).json({
+      success: false,
+      error: "Order placement not implemented",
+      message: "This feature will be available in a future release"
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
   }
 });
 

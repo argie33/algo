@@ -1058,19 +1058,6 @@ function calculateEnhancedPositioningScore(
       components++;
     }
 
-    // Options flow analysis (15% weight)
-    if (
-      positioningData.unusual_options_activity !== null &&
-      positioningData.unusual_options_activity !== undefined
-    ) {
-      const optionsActivity = parseFloat(
-        positioningData.unusual_options_activity
-      );
-      // Higher unusual activity can indicate informed positioning
-      const optionsScore = Math.min(optionsActivity / 5.0, 1); // Normalize assuming max 5x normal
-      score += optionsScore * 0.15;
-      components++;
-    }
 
     // Short squeeze potential (10% weight)
     if (

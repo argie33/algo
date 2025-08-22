@@ -1,33 +1,15 @@
-const { CognitoJwtVerifier } = require("aws-jwt-verify");
+const { validateJwtToken } = require("../utils/apiKeyService");
 
-// Create JWT verifier for Cognito User Pool only if environment variables are set
-let verifier = null;
-if (process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID) {
-  try {
-    verifier = CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: "access",
-      clientId: process.env.COGNITO_CLIENT_ID,
-    });
-  } catch (error) {
-    console.warn("Failed to create Cognito JWT verifier:", error.message);
-    console.warn(
-      "Authentication will be disabled. Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID environment variables to enable authentication."
-    );
-  }
-} else {
-  console.warn(
-    "Cognito environment variables not set. Authentication disabled."
-  );
-  console.warn(
-    "Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID environment variables to enable authentication."
-  );
-}
+/**
+ * Enhanced Authentication Middleware with JWT validation and session management
+ * Uses the unified API key service for comprehensive authentication
+ * Consolidated from auth.js and authEnhanced.js for unified authentication system
+ */
 
-// Authentication middleware
+// Enhanced authentication middleware with session management
 const authenticateToken = async (req, res, next) => {
   try {
-    // Skip authentication in development mode or if verifier is not available
+    // Skip authentication in development mode
     if (
       process.env.NODE_ENV === "development" &&
       process.env.SKIP_AUTH === "true"
@@ -37,18 +19,7 @@ const authenticateToken = async (req, res, next) => {
         email: "dev@example.com",
         username: "dev-user",
         role: "admin",
-      };
-      return next();
-    }
-
-    // If no verifier is available, skip authentication with warning
-    if (!verifier) {
-      console.warn("JWT verifier not available, skipping authentication");
-      req.user = {
-        sub: "no-auth-user",
-        email: "no-auth@example.com",
-        username: "no-auth-user",
-        role: "user",
+        sessionId: "dev-session",
       };
       return next();
     }
@@ -60,54 +31,77 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({
         error: "Authentication required",
         message: "Access token is missing from Authorization header",
+        code: "MISSING_TOKEN",
       });
     }
 
-    // Verify the JWT token
-    const payload = await verifier.verify(token);
+    // Validate JWT token using unified service
+    const user = await validateJwtToken(token);
 
-    // Add user information to request
-    req.user = {
-      sub: payload.sub,
-      email: payload.email,
-      username: payload.username,
-      role: payload["custom:role"] || "user",
-      groups: payload["cognito:groups"] || [],
+    // Add user information and token to request
+    req.user = user;
+    req.token = token;
+    req.sessionId = user.sessionId;
+
+    // Add IP address and user agent for audit logging
+    req.clientInfo = {
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get("User-Agent"),
     };
 
     next();
   } catch (error) {
     console.error("Authentication error:", error);
 
-    // Handle specific JWT errors
-    if (error.name === "TokenExpiredError") {
+    // Handle specific error types
+    if (error.message.includes("circuit breaker")) {
+      return res.status(503).json({
+        error: "Service temporarily unavailable",
+        message:
+          "Authentication service is experiencing issues. Please try again shortly.",
+        code: "AUTH_SERVICE_UNAVAILABLE",
+      });
+    }
+
+    if (
+      error.name === "TokenExpiredError" ||
+      error.message.includes("expired")
+    ) {
       return res.status(401).json({
         error: "Token expired",
         message: "Your session has expired. Please log in again.",
+        code: "TOKEN_EXPIRED",
       });
     }
 
-    if (error.name === "JsonWebTokenError") {
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.message.includes("invalid")
+    ) {
       return res.status(401).json({
         error: "Invalid token",
         message: "The provided token is invalid.",
+        code: "INVALID_TOKEN",
       });
     }
 
+    // Generic authentication failure
     return res.status(401).json({
       error: "Authentication failed",
       message: "Could not verify authentication token",
+      code: "AUTH_FAILED",
     });
   }
 };
 
-// Authorization middleware for role-based access
+// Enhanced authorization middleware with detailed role checking
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         error: "Authentication required",
         message: "User must be authenticated to access this resource",
+        code: "AUTH_REQUIRED",
       });
     }
 
@@ -122,6 +116,10 @@ const requireRole = (roles) => {
       return res.status(403).json({
         error: "Insufficient permissions",
         message: `Access denied. Required roles: ${roles.join(", ")}`,
+        code: "INSUFFICIENT_PERMISSIONS",
+        userRole: userRole,
+        userGroups: userGroups,
+        requiredRoles: roles,
       });
     }
 
@@ -129,35 +127,163 @@ const requireRole = (roles) => {
   };
 };
 
-// Optional authentication middleware (doesn't fail if no token)
+// Enhanced optional authentication that works with unified service
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
 
-    if (token && verifier) {
-      const payload = await verifier.verify(token);
-      req.user = {
-        sub: payload.sub,
-        email: payload.email,
-        username: payload.username,
-        role: payload["custom:role"] || "user",
-        groups: payload["cognito:groups"] || [],
-      };
-    } else if (!verifier) {
-      // If no verifier, create a default user
-      req.user = {
-        sub: "no-auth-user",
-        email: "no-auth@example.com",
-        username: "no-auth-user",
-        role: "user",
-        groups: [],
-      };
+    if (token) {
+      try {
+        const user = await validateJwtToken(token);
+        req.user = user;
+        req.token = token;
+        req.sessionId = user.sessionId;
+        req.clientInfo = {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get("User-Agent"),
+        };
+      } catch (error) {
+        // Log the error but don't fail the request
+        console.log("Optional auth failed:", error.message);
+      }
     }
   } catch (error) {
     // Silently continue without authentication
-    console.log("Optional auth failed:", error.message);
+    console.log("Optional auth error:", error.message);
   }
+
+  next();
+};
+
+// Middleware to require API key for specific provider
+const requireApiKey = (provider) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || !req.token) {
+        return res.status(401).json({
+          error: "Authentication required",
+          message: "User must be authenticated to access API keys",
+          code: "AUTH_REQUIRED",
+        });
+      }
+
+      const { getApiKey } = require("../utils/apiKeyService");
+      const apiKey = await getApiKey(req.token, provider);
+
+      if (!apiKey) {
+        return res.status(400).json({
+          error: "API key required",
+          message: `${provider} API key is required for this operation`,
+          code: "API_KEY_REQUIRED",
+          provider: provider,
+        });
+      }
+
+      // Add API key to request for use in route handlers
+      req.apiKey = apiKey;
+      req.provider = provider;
+
+      next();
+    } catch (error) {
+      console.error("API key requirement error:", error);
+      return res.status(500).json({
+        error: "API key validation failed",
+        message: "Could not validate API key configuration",
+        code: "API_KEY_VALIDATION_FAILED",
+      });
+    }
+  };
+};
+
+// Middleware to validate session health
+const validateSession = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return next();
+    }
+
+    const now = Date.now() / 1000; // Convert to seconds
+    const tokenExp = req.user.tokenExpirationTime;
+
+    // Check if token is close to expiration (within 5 minutes)
+    if (tokenExp - now < 300) {
+      res.set("X-Token-Expiring", "true");
+      res.set("X-Token-Expires-At", tokenExp.toString());
+    }
+
+    // Check for suspicious activity (optional)
+    const timeSinceIssue = now - req.user.tokenIssueTime;
+    if (timeSinceIssue > 86400) {
+      // 24 hours
+      console.warn(`Long-lived token detected for user ${req.user.sub}`);
+    }
+
+    next();
+  } catch (error) {
+    console.error("Session validation error:", error);
+    next(); // Continue even if session validation fails
+  }
+};
+
+// Rate limiting based on user ID
+const rateLimitByUser = (requestsPerMinute = 100) => {
+  const userRequests = new Map();
+
+  return (req, res, next) => {
+    const userId = req.user?.sub || req.ip;
+    const now = Date.now();
+    const windowStart = now - 60000; // 1 minute window
+
+    if (!userRequests.has(userId)) {
+      userRequests.set(userId, []);
+    }
+
+    const requests = userRequests.get(userId);
+
+    // Remove old requests
+    while (requests.length > 0 && requests[0] < windowStart) {
+      requests.shift();
+    }
+
+    // Check rate limit
+    if (requests.length >= requestsPerMinute) {
+      return res.status(429).json({
+        error: "Rate limit exceeded",
+        message: `Too many requests. Limit: ${requestsPerMinute} per minute`,
+        code: "RATE_LIMIT_EXCEEDED",
+        retryAfter: Math.ceil((requests[0] - windowStart) / 1000),
+      });
+    }
+
+    // Add current request
+    requests.push(now);
+    userRequests.set(userId, requests);
+
+    next();
+  };
+};
+
+// Middleware to log API access
+const logApiAccess = async (req, res, next) => {
+  const startTime = Date.now();
+
+  // Log request
+  console.log(
+    `${req.method} ${req.path} - User: ${req.user?.sub || "anonymous"} - IP: ${req.ip}`
+  );
+
+  // Override res.end to log response
+  const originalEnd = res.end;
+  res.end = function (chunk, encoding) {
+    const duration = Date.now() - startTime;
+    console.log(
+      `${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`
+    );
+
+    // Call the original end method
+    originalEnd.call(res, chunk, encoding);
+  };
 
   next();
 };
@@ -166,4 +292,8 @@ module.exports = {
   authenticateToken,
   requireRole,
   optionalAuth,
+  requireApiKey,
+  validateSession,
+  rateLimitByUser,
+  logApiAccess,
 };

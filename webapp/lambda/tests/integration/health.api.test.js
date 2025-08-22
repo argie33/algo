@@ -5,9 +5,13 @@ const request = require("supertest");
 jest.mock("../../utils/database", () => ({
   healthCheck: jest.fn(),
   query: jest.fn(),
+  initializeDatabase: jest.fn(),
+  getPool: jest.fn(),
+  closeDatabase: jest.fn(),
+  transaction: jest.fn(),
 }));
 
-const { healthCheck, query } = require("../../utils/database");
+const { healthCheck, query, initializeDatabase, getPool } = require("../../utils/database");
 
 describe("Health API Integration Tests", () => {
   let app;
@@ -22,6 +26,18 @@ describe("Health API Integration Tests", () => {
     process.env.NODE_ENV = "test";
     delete process.env.COGNITO_USER_POOL_ID;
     delete process.env.COGNITO_CLIENT_ID;
+
+    // Set up default mocks for database functions
+    query.mockResolvedValue({ rows: [{ ok: 1 }], rowCount: 1 });
+    initializeDatabase.mockResolvedValue({});
+    getPool.mockReturnValue({
+      query: query,
+      totalCount: 1,
+      idleCount: 0,
+      waitingCount: 0,
+      connect: jest.fn().mockResolvedValue({}),
+      end: jest.fn().mockResolvedValue({})
+    });
 
     // Import app after setting up mocks
     app = require("../../index").app;

@@ -1,102 +1,87 @@
 const express = require("express");
-const cryptoUtils = require("crypto");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
+const {
+  storeApiKey,
+  getApiKey,
+  validateApiKey,
+  deleteApiKey,
+  listProviders,
+  getHealthStatus,
+  getDecryptedApiKey: _getDecryptedApiKey,
+} = require("../utils/apiKeyService");
 
 const router = express.Router();
 
 // Apply authentication middleware to all settings routes
 router.use(authenticateToken);
 
-// Encryption utilities
-const ALGORITHM = "aes-256-gcm";
-
-function encryptApiKey(apiKey, userSalt) {
-  const secretKey =
-    process.env.API_KEY_ENCRYPTION_SECRET ||
-    "default-encryption-key-change-in-production";
-  const key = cryptoUtils.scryptSync(secretKey, userSalt, 32);
-  const iv = cryptoUtils.randomBytes(16);
-  const cipher = cryptoUtils.createCipherGCM(ALGORITHM, key, iv);
-  cipher.setAAD(Buffer.from(userSalt));
-
-  let encrypted = cipher.update(apiKey, "utf8", "hex");
-  encrypted += cipher.final("hex");
-  const authTag = cipher.getAuthTag();
-
-  return {
-    encrypted: encrypted,
-    iv: iv.toString("hex"),
-    authTag: authTag.toString("hex"),
-  };
-}
-
-function decryptApiKey(encryptedData, userSalt) {
-  const secretKey =
-    process.env.API_KEY_ENCRYPTION_SECRET ||
-    "default-encryption-key-change-in-production";
-  const key = cryptoUtils.scryptSync(secretKey, userSalt, 32);
-  const iv = Buffer.from(encryptedData.iv, "hex");
-  const decipher = cryptoUtils.createDecipherGCM(ALGORITHM, key, iv);
-  decipher.setAAD(Buffer.from(userSalt));
-  decipher.setAuthTag(Buffer.from(encryptedData.authTag, "hex"));
-
-  let decrypted = decipher.update(encryptedData.encrypted, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-
-  return decrypted;
-}
-
 // Get all API keys for authenticated user
 router.get("/api-keys", async (req, res) => {
-  const userId = req.user.sub;
-
   try {
-    const result = await query(
-      `
-      SELECT 
-        id,
-        provider,
-        description,
-        is_sandbox as "isSandbox",
-        is_active as "isActive",
-        created_at as "createdAt",
-        last_used as "lastUsed"
-      FROM user_api_keys 
-      WHERE user_id = $1 
-      ORDER BY created_at DESC
-    `,
-      [userId]
-    );
-
-    // Don't return the actual encrypted keys for security
-    const apiKeys = result.rows.map((row) => ({
-      id: row.id,
-      provider: row.provider,
-      description: row.description,
-      isSandbox: row.isSandbox,
-      isActive: row.isActive,
-      createdAt: row.createdAt,
-      lastUsed: row.lastUsed,
-      apiKey: "****", // Masked for security
-    }));
+    const providers = await listProviders(req.token);
 
     res.json({
       success: true,
-      apiKeys,
+      apiKeys: providers,
+      providers: providers,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching API keys:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch API keys",
+      message: error.message,
     });
   }
 });
 
-// Add new API key
+// Get specific API key configuration (masked for security)
+router.get("/api-keys/:provider", async (req, res) => {
+  const { provider } = req.params;
+
+  try {
+    const apiKeyData = await getApiKey(req.token, provider);
+
+    if (!apiKeyData) {
+      return res.status(404).json({
+        success: false,
+        error: "API key not found",
+        provider: provider,
+      });
+    }
+
+    // Return masked data for security
+    const maskedData = {
+      provider: provider,
+      configured: true,
+      isSandbox: apiKeyData.isSandbox,
+      description: apiKeyData.description,
+      // Mask sensitive data
+      apiKey: apiKeyData.apiKey
+        ? `${apiKeyData.apiKey.substring(0, 4)}${"*".repeat(apiKeyData.apiKey.length - 4)}`
+        : undefined,
+      apiSecret: apiKeyData.apiSecret ? "***HIDDEN***" : undefined,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json({
+      success: true,
+      apiKey: maskedData,
+    });
+  } catch (error) {
+    console.error("Error fetching API key:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch API key",
+      message: error.message,
+    });
+  }
+});
+
+// Store new API key configuration
 router.post("/api-keys", async (req, res) => {
-  const userId = req.user.sub;
   const {
     provider,
     apiKey,
@@ -105,368 +90,396 @@ router.post("/api-keys", async (req, res) => {
     description,
   } = req.body;
 
+  // Validation
   if (!provider || !apiKey) {
     return res.status(400).json({
       success: false,
       error: "Provider and API key are required",
+      requiredFields: ["provider", "apiKey"],
+    });
+  }
+
+  // Validate provider
+  const supportedProviders = ["alpaca", "polygon", "finnhub", "alpha_vantage"];
+  if (!supportedProviders.includes(provider)) {
+    return res.status(400).json({
+      success: false,
+      error: "Unsupported provider",
+      supportedProviders: supportedProviders,
     });
   }
 
   try {
-    // Generate user-specific salt
-    const userSalt = cryptoUtils.randomBytes(16).toString("hex");
+    const apiKeyData = {
+      apiKey: apiKey.trim(),
+      apiSecret: apiSecret?.trim(),
+      isSandbox: Boolean(isSandbox),
+      description: description?.trim(),
+      createdAt: new Date().toISOString(),
+    };
 
-    // Encrypt API credentials
-    const encryptedApiKey = encryptApiKey(apiKey, userSalt);
-    const encryptedApiSecret = apiSecret
-      ? encryptApiKey(apiSecret, userSalt)
-      : null;
-
-    // Insert into database
-    const result = await query(
-      `
-      INSERT INTO user_api_keys (
-        user_id, 
-        provider, 
-        encrypted_api_key, 
-        key_iv, 
-        key_auth_tag,
-        encrypted_api_secret,
-        secret_iv,
-        secret_auth_tag,
-        user_salt,
-        is_sandbox, 
-        description,
-        is_active,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW())
-      RETURNING id, provider, description, is_sandbox as "isSandbox", created_at as "createdAt"
-    `,
-      [
-        userId,
-        provider,
-        encryptedApiKey.encrypted,
-        encryptedApiKey.iv,
-        encryptedApiKey.authTag,
-        encryptedApiSecret?.encrypted || null,
-        encryptedApiSecret?.iv || null,
-        encryptedApiSecret?.authTag || null,
-        userSalt,
-        isSandbox,
-        description,
-      ]
-    );
+    const result = await storeApiKey(req.token, provider, apiKeyData);
 
     res.json({
       success: true,
-      message: "API key added successfully",
-      apiKey: result.rows[0],
+      message: `${provider} API key stored successfully`,
+      result: {
+        id: result.id,
+        provider: result.provider,
+        encrypted: result.encrypted,
+        user: result.user,
+      },
     });
   } catch (error) {
-    console.error("Error adding API key:", error);
+    console.error("Error storing API key:", error);
 
-    if (error.code === "23505") {
-      // Unique constraint violation
-      res.status(400).json({
+    if (error.message.includes("circuit breaker")) {
+      return res.status(503).json({
         success: false,
-        error: "API key for this provider already exists",
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: "Failed to add API key",
+        error: "Service temporarily unavailable",
+        message:
+          "API key service is experiencing issues. Please try again shortly.",
       });
     }
+
+    res.status(500).json({
+      success: false,
+      error: "Failed to store API key",
+      message: error.message,
+    });
   }
 });
 
-// Update API key
-router.put("/api-keys/:keyId", async (req, res) => {
-  const userId = req.user.sub;
-  const { keyId } = req.params;
-  const { description, isSandbox } = req.body;
+// Update API key configuration
+router.put("/api-keys/:provider", async (req, res) => {
+  const { provider } = req.params;
+  const { apiKey, apiSecret, isSandbox, description } = req.body;
 
   try {
-    const result = await query(
-      `
-      UPDATE user_api_keys 
-      SET 
-        description = COALESCE($3, description),
-        is_sandbox = COALESCE($4, is_sandbox),
-        updated_at = NOW()
-      WHERE id = $1 AND user_id = $2
-      RETURNING id, provider, description, is_sandbox as "isSandbox"
-    `,
-      [keyId, userId, description, isSandbox]
-    );
+    // Get existing configuration
+    const existingData = await getApiKey(req.token, provider);
 
-    if (result.rows.length === 0) {
+    if (!existingData) {
       return res.status(404).json({
         success: false,
-        error: "API key not found",
+        error: "API key configuration not found",
+        provider: provider,
       });
     }
 
+    // Merge with new data
+    const updatedData = {
+      apiKey: apiKey?.trim() || existingData.apiKey,
+      apiSecret: apiSecret?.trim() || existingData.apiSecret,
+      isSandbox:
+        isSandbox !== undefined ? Boolean(isSandbox) : existingData.isSandbox,
+      description: description?.trim() || existingData.description,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const result = await storeApiKey(req.token, provider, updatedData);
+
     res.json({
       success: true,
-      message: "API key updated successfully",
-      apiKey: result.rows[0],
+      message: `${provider} API key updated successfully`,
+      result: {
+        id: result.id,
+        provider: result.provider,
+        encrypted: result.encrypted,
+      },
     });
   } catch (error) {
     console.error("Error updating API key:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update API key",
+      message: error.message,
     });
   }
 });
 
-// Delete API key
-router.delete("/api-keys/:keyId", async (req, res) => {
-  const userId = req.user.sub;
-  const { keyId } = req.params;
+// Delete API key configuration  
+router.delete("/api-keys/:provider", async (req, res) => {
+  const { provider } = req.params;
 
   try {
-    const result = await query(
-      `
-      DELETE FROM user_api_keys 
-      WHERE id = $1 AND user_id = $2
-      RETURNING id, provider
-    `,
-      [keyId, userId]
-    );
+    const result = await deleteApiKey(req.token, provider);
 
-    if (result.rows.length === 0) {
+    if (!result.deleted) {
       return res.status(404).json({
         success: false,
         error: "API key not found",
+        provider: provider,
       });
     }
 
     res.json({
       success: true,
-      message: "API key deleted successfully",
+      message: `${provider} API key deleted successfully`,
+      provider: provider,
     });
   } catch (error) {
     console.error("Error deleting API key:", error);
     res.status(500).json({
       success: false,
       error: "Failed to delete API key",
+      message: error.message,
     });
   }
 });
 
-// Test API key connection
-router.post("/test-connection/:keyId", async (req, res) => {
-  const userId = req.user.sub;
-  const { keyId } = req.params;
+// Validate API key configuration with optional connection test
+router.post("/api-keys/:provider/validate", async (req, res) => {
+  const { provider } = req.params;
+  const { testConnection = false } = req.body;
 
   try {
-    // Get encrypted API key
-    const result = await query(
-      `
-      SELECT 
-        provider,
-        encrypted_api_key,
-        key_iv,
-        key_auth_tag,
-        encrypted_api_secret,
-        secret_iv,
-        secret_auth_tag,
-        user_salt,
-        is_sandbox
-      FROM user_api_keys 
-      WHERE id = $1 AND user_id = $2 AND is_active = true
-    `,
-      [keyId, userId]
+    const validation = await validateApiKey(
+      req.token,
+      provider,
+      testConnection
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "API key not found",
-      });
-    }
+    res.json({
+      success: true,
+      validation: validation,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error validating API key:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to validate API key",
+      message: error.message,
+    });
+  }
+});
 
-    const keyData = result.rows[0];
+// Test connection to all configured providers
+router.post("/api-keys/test-all", async (req, res) => {
+  try {
+    const providers = await listProviders(req.token);
+    const testResults = [];
 
-    // Decrypt API credentials
-    const apiKey = decryptApiKey(
-      {
-        encrypted: keyData.encrypted_api_key,
-        iv: keyData.key_iv,
-        authTag: keyData.key_auth_tag,
-      },
-      keyData.user_salt
-    );
-
-    const apiSecret = keyData.encrypted_api_secret
-      ? decryptApiKey(
-          {
-            encrypted: keyData.encrypted_api_secret,
-            iv: keyData.secret_iv,
-            authTag: keyData.secret_auth_tag,
-          },
-          keyData.user_salt
-        )
-      : null;
-
-    // Test connection based on provider
-    let connectionResult = { valid: false, error: "Provider not supported" };
-
-    if (keyData.provider === "alpaca") {
-      const AlpacaService = require("../utils/alpacaService");
-      const alpaca = new AlpacaService(apiKey, apiSecret, keyData.is_sandbox);
-
+    for (const provider of providers) {
       try {
-        const account = await alpaca.getAccount();
-        connectionResult = {
-          valid: true,
-          accountInfo: {
-            accountId: account.id,
-            portfolioValue: parseFloat(account.portfolio_value || 0),
-            environment: keyData.is_sandbox ? "sandbox" : "live",
-          },
-        };
-
-        // Update last_used timestamp
-        await query(
-          `
-          UPDATE user_api_keys 
-          SET last_used = NOW() 
-          WHERE id = $1
-        `,
-          [keyId]
+        const validation = await validateApiKey(
+          req.token,
+          provider.provider,
+          true
         );
+        testResults.push({
+          provider: provider.provider,
+          ...validation,
+        });
       } catch (error) {
-        connectionResult = {
+        testResults.push({
+          provider: provider.provider,
           valid: false,
           error: error.message,
-        };
+        });
       }
     }
 
     res.json({
       success: true,
-      connection: connectionResult,
+      testResults: testResults,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error testing connection:", error);
+    console.error("Error testing API keys:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to test connection",
+      error: "Failed to test API keys",
+      message: error.message,
     });
   }
 });
 
-// Onboarding status routes
-router.get("/onboarding-status", async (req, res) => {
+// Get API key service health status
+router.get("/health", async (req, res) => {
   try {
-    const userId = req.user.sub;
-
-    const result = await query(
-      "SELECT onboarding_complete FROM users WHERE cognito_sub = $1",
-      [userId]
-    );
-
-    const isComplete = result.rows[0]?.onboarding_complete || false;
+    const health = getHealthStatus();
 
     res.json({
       success: true,
-      data: {
-        isComplete,
-        userId,
-      },
+      health: health,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error fetching onboarding status:", error);
+    console.error("Error getting health status:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch onboarding status",
+      error: "Failed to get health status",
+      message: error.message,
     });
   }
 });
 
+// Get user profile and settings
+router.get("/profile", async (req, res) => {
+  try {
+    const user = req.user;
+    const providers = await listProviders(req.token);
+
+    res.json({
+      success: true,
+      profile: {
+        id: user.sub,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        groups: user.groups,
+        sessionId: user.sessionId,
+        tokenExpiresAt: new Date(user.tokenExpirationTime * 1000).toISOString(),
+      },
+      settings: {
+        configuredProviders: providers.length,
+        providers: providers.map((p) => ({
+          provider: p.provider,
+          configured: p.configured,
+          lastUsed: p.lastUsed,
+        })),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error getting profile:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get profile",
+      message: error.message,
+    });
+  }
+});
+
+// Get onboarding status
+router.get("/onboarding-status", async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const providers = await listProviders(req.token);
+
+    // Check if user has completed onboarding
+    const userResult = await query(
+      "SELECT onboarding_completed FROM user_profiles WHERE user_id = $1",
+      [userId]
+    );
+
+    const hasApiKeys = providers.length > 0;
+    const onboardingCompleted = userResult.rows[0]?.onboarding_completed || false;
+
+    res.json({
+      success: true,
+      onboarding: {
+        completed: onboardingCompleted,
+        hasApiKeys: hasApiKeys,
+        configuredProviders: providers.length,
+        nextStep: !hasApiKeys ? "configure-api-keys" : "complete",
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error getting onboarding status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get onboarding status",
+      message: error.message,
+    });
+  }
+});
+
+// Mark onboarding as complete
 router.post("/onboarding-complete", async (req, res) => {
   try {
     const userId = req.user.sub;
 
     await query(
-      "UPDATE users SET onboarding_complete = true WHERE cognito_sub = $1",
+      `INSERT INTO user_profiles (user_id, onboarding_completed, created_at)
+       VALUES ($1, true, NOW())
+       ON CONFLICT (user_id) 
+       DO UPDATE SET onboarding_completed = true, updated_at = NOW()`,
       [userId]
     );
 
     res.json({
       success: true,
-      data: {
-        message: "Onboarding marked as complete",
-        isComplete: true,
-      },
+      message: "Onboarding completed successfully",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error marking onboarding complete:", error);
+    console.error("Error completing onboarding:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to update onboarding status",
+      error: "Failed to complete onboarding",
+      message: error.message,
     });
   }
 });
 
-// Preferences routes
+// Get user preferences
 router.get("/preferences", async (req, res) => {
   try {
     const userId = req.user.sub;
 
     const result = await query(
-      "SELECT preferences FROM users WHERE cognito_sub = $1",
+      `SELECT preferences FROM user_profiles WHERE user_id = $1`,
       [userId]
     );
 
-    const preferences = result.rows[0]?.preferences || {};
+    const preferences = result.rows[0]?.preferences || {
+      theme: "light",
+      notifications: true,
+      defaultView: "dashboard",
+    };
 
     res.json({
       success: true,
-      data: preferences,
+      preferences: preferences,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error fetching preferences:", error);
+    console.error("Error getting preferences:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch preferences",
+      error: "Failed to get preferences",
+      message: error.message,
     });
   }
 });
 
+// Update user preferences
 router.post("/preferences", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const preferences = req.body;
+    const { preferences } = req.body;
 
-    // Validate preferences
-    const validPreferences = {
-      riskTolerance: preferences.riskTolerance || "moderate",
-      investmentStyle: preferences.investmentStyle || "growth",
-      notifications: preferences.notifications !== false,
-      autoRefresh: preferences.autoRefresh !== false,
-    };
+    if (!preferences || typeof preferences !== "object") {
+      return res.status(400).json({
+        success: false,
+        error: "Valid preferences object is required",
+      });
+    }
 
-    await query("UPDATE users SET preferences = $1 WHERE cognito_sub = $2", [
-      JSON.stringify(validPreferences),
-      userId,
-    ]);
+    await query(
+      `INSERT INTO user_profiles (user_id, preferences, created_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id) 
+       DO UPDATE SET preferences = $2, updated_at = NOW()`,
+      [userId, JSON.stringify(preferences)]
+    );
 
     res.json({
       success: true,
-      data: {
-        message: "Preferences saved successfully",
-        preferences: validPreferences,
-      },
+      message: "Preferences updated successfully",
+      preferences: preferences,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error saving preferences:", error);
+    console.error("Error updating preferences:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to save preferences",
+      error: "Failed to update preferences",
+      message: error.message,
     });
   }
 });

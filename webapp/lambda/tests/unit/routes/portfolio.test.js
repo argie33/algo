@@ -16,6 +16,13 @@ jest.mock("../../../middleware/auth", () => ({
   },
 }));
 
+// Mock database queries
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+}));
+
+const { query } = require("../../../utils/database");
+
 const portfolioRoutes = require("../../../routes/portfolio");
 const app = express();
 app.use(express.json());
@@ -28,27 +35,33 @@ describe("Portfolio API Routes", () => {
 
   describe("GET /api/portfolio/api-keys", () => {
     it("should return empty api keys array with proper structure", async () => {
+      // Mock database to return empty results
+      query.mockResolvedValue({ rows: [] });
+
       const response = await request(app)
         .get("/api/portfolio/api-keys")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toEqual({
         success: true,
         data: [],
-        message:
-          "Portfolio API keys endpoint available (returning empty for now)",
+        timestamp: expect.any(String),
       });
 
       // Validate response structure
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("data");
-      expect(response.body).toHaveProperty("message");
+      expect(response.body).toHaveProperty("timestamp");
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(typeof response.body.success).toBe("boolean");
-      expect(typeof response.body.message).toBe("string");
+      expect(typeof response.body.timestamp).toBe("string");
     });
 
     it("should return JSON content type", async () => {
+      // Mock database to return empty results
+      query.mockResolvedValue({ rows: [] });
+
       const response = await request(app)
         .get("/api/portfolio/api-keys")
         .expect(200)
@@ -58,8 +71,8 @@ describe("Portfolio API Routes", () => {
     });
 
     it("should handle errors gracefully with proper error structure", async () => {
-      const originalConsoleError = console.error;
-      console.error = jest.fn();
+      // Mock database to return empty results
+      query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
         .get("/api/portfolio/api-keys")
@@ -67,11 +80,12 @@ describe("Portfolio API Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-
-      console.error = originalConsoleError;
     });
 
     it("should be authenticated route (mocked)", async () => {
+      // Mock database to return empty results
+      query.mockResolvedValue({ rows: [] });
+
       // This test verifies the route is using authentication middleware
       const response = await request(app)
         .get("/api/portfolio/api-keys")
@@ -82,169 +96,50 @@ describe("Portfolio API Routes", () => {
     });
   });
 
-  describe("GET /api/portfolio/health", () => {
-    it("should return portfolio service health status", async () => {
+  describe("GET /api/portfolio/analytics", () => {
+    it("should return portfolio analytics with authentication", async () => {
+      // Mock database to return sample portfolio data
+      query.mockResolvedValue({ rows: [] });
+
       const response = await request(app)
-        .get("/api/portfolio/health")
+        .get("/api/portfolio/analytics")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        service: "Portfolio API",
-        status: "healthy",
-        timestamp: expect.any(String),
-      });
-
-      // Verify timestamp is valid ISO string
-      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("holdings");
+      expect(response.body.data).toHaveProperty("totalValue");
     });
   });
 
-  describe("POST /api/portfolio/calculate-var", () => {
-    it("should return demo VaR calculation with valid portfolio data", async () => {
-      const portfolioData = {
-        portfolioValue: 100000,
-        positions: [
-          { symbol: "AAPL", quantity: 100, currentPrice: 150 },
-          { symbol: "GOOGL", quantity: 50, currentPrice: 2800 },
-        ],
+  describe("POST /api/portfolio/api-keys", () => {
+    it("should handle api key creation with authentication", async () => {
+      // Mock successful api key creation
+      query.mockResolvedValue({ rows: [{ id: 1 }] });
+
+      const apiKeyData = {
+        brokerName: "alpaca",
+        apiKey: "test-key-id",
+        apiSecret: "test-secret-key",
+        sandbox: true
       };
 
       const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send(portfolioData)
+        .post("/api/portfolio/api-keys")
+        .set("Authorization", "Bearer test-token")
+        .send(apiKeyData)
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        data: {
-          var: 0.05,
-          confidence: 0.95,
-          message: "Demo VaR calculation",
-        },
-      });
-
-      // Validate response structure
       expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("var");
-      expect(response.body.data).toHaveProperty("confidence");
-      expect(response.body.data).toHaveProperty("message");
-      expect(typeof response.body.data.var).toBe("number");
-      expect(typeof response.body.data.confidence).toBe("number");
+      expect(response.body).toHaveProperty("message");
     });
 
-    it("should handle empty request body gracefully", async () => {
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send({})
-        .expect(200);
-
-      expect(response.body).toEqual({
-        success: true,
-        data: {
-          var: 0.05,
-          confidence: 0.95,
-          message: "Demo VaR calculation",
-        },
-      });
-    });
-
-    it("should handle null request body", async () => {
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send(null)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toBeDefined();
-    });
-
-    it("should handle malformed portfolio data types", async () => {
-      const invalidData = {
-        portfolioValue: "not-a-number",
-        positions: "not-an-array",
-      };
-
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send(invalidData)
-        .expect(200);
-
-      // Current implementation returns demo data regardless of input validation
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.var).toBe(0.05);
-      expect(response.body.data.confidence).toBe(0.95);
-    });
-
-    it("should handle large portfolio values", async () => {
-      const largePortfolio = {
-        portfolioValue: 10000000, // 10M portfolio
-        positions: [
-          { symbol: "AAPL", quantity: 1000, currentPrice: 150 },
-          { symbol: "MSFT", quantity: 500, currentPrice: 300 },
-          { symbol: "GOOGL", quantity: 200, currentPrice: 2800 },
-        ],
-      };
-
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send(largePortfolio)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.var).toBe(0.05);
-    });
-
-    it("should handle empty positions array", async () => {
-      const emptyPositions = {
-        portfolioValue: 50000,
-        positions: [],
-      };
-
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send(emptyPositions)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toBeDefined();
-    });
-
-    it("should return consistent response format", async () => {
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .send({})
-        .expect(200);
-
-      // Verify consistent API response structure
-      expect(response.body).toHaveProperty("success");
-      expect(response.body).toHaveProperty("data");
-      expect(typeof response.body.success).toBe("boolean");
-      expect(typeof response.body.data).toBe("object");
-
-      // VaR-specific structure
-      expect(response.body.data).toHaveProperty("var");
-      expect(response.body.data).toHaveProperty("confidence");
-      expect(response.body.data.var).toBeGreaterThanOrEqual(0);
-      expect(response.body.data.confidence).toBeGreaterThan(0);
-      expect(response.body.data.confidence).toBeLessThanOrEqual(1);
-    });
-
-    it("should handle Content-Type validation", async () => {
-      const response = await request(app)
-        .post("/api/portfolio/calculate-var")
-        .set("Content-Type", "application/json")
-        .send({ portfolioValue: 100000 })
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-    });
   });
 
   describe("Portfolio Route Structure", () => {
     it("should have all required endpoints", () => {
-      const router = require("../routes/portfolio");
+      const router = require("../../../routes/portfolio");
 
       // Verify the router is an Express router
       expect(router).toBeDefined();
@@ -259,12 +154,12 @@ describe("Portfolio API Routes", () => {
         .map((layer) => layer.route?.path)
         .filter(Boolean);
       expect(routePaths).toContain("/api-keys");
-      expect(routePaths).toContain("/health");
-      expect(routePaths).toContain("/calculate-var");
+      expect(routePaths).toContain("/analytics");
+      expect(routePaths).toContain("/risk-metrics");
     });
 
     it("should export a valid Express router", () => {
-      const router = require("../routes/portfolio");
+      const router = require("../../../routes/portfolio");
 
       // Verify it has router methods
       expect(typeof router.get).toBe("function");
@@ -275,14 +170,20 @@ describe("Portfolio API Routes", () => {
 
   describe("Response Format Consistency", () => {
     it("should return consistent success response format", async () => {
+      // Mock database calls for all endpoints
+      query.mockResolvedValue({ rows: [] });
+
       const endpoints = [
-        { method: "get", path: "/api/portfolio/api-keys" },
-        { method: "get", path: "/api/portfolio/health" },
-        { method: "post", path: "/api/portfolio/calculate-var", body: {} },
+        { method: "get", path: "/api/portfolio/api-keys", needsAuth: true },
+        { method: "get", path: "/api/portfolio/analytics", needsAuth: true },
       ];
 
       for (const endpoint of endpoints) {
         const req = request(app)[endpoint.method](endpoint.path);
+
+        if (endpoint.needsAuth) {
+          req.set("Authorization", "Bearer test-token");
+        }
 
         if (endpoint.body) {
           req.send(endpoint.body);
@@ -306,8 +207,12 @@ describe("Portfolio API Routes", () => {
 
   describe("Content-Type Headers", () => {
     it("should return JSON content type", async () => {
+      // Mock database call
+      query.mockResolvedValue({ rows: [] });
+
       const response = await request(app)
-        .get("/api/portfolio/health")
+        .get("/api/portfolio/api-keys")
+        .set("Authorization", "Bearer test-token")
         .expect(200)
         .expect("Content-Type", /json/);
 

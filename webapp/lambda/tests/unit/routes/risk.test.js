@@ -20,6 +20,7 @@ jest.mock("../../../utils/riskEngine", () => {
     performStressTest: jest.fn(),
     calculateCorrelationMatrix: jest.fn(),
     calculatePortfolioRisk: jest.fn(),
+    calculateRiskAttribution: jest.fn(),
     startRealTimeMonitoring: jest.fn(),
     stopRealTimeMonitoring: jest.fn(),
     getMonitoringStatus: jest.fn(),
@@ -39,6 +40,19 @@ describe("Risk Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
+    
+    // JSON parsing error handler
+    app.use((error, req, res, next) => {
+      if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+        return res.status(400).json({
+          success: false,
+          error: "Bad Request",
+          message: "Invalid JSON format"
+        });
+      }
+      next(error);
+    });
+    
     app.use("/risk", riskRouter);
 
     // Get mock instance - create new RiskEngine and it returns our mock
@@ -406,10 +420,19 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe("Alert acknowledged successfully");
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "UPDATE risk_alerts SET status = 'acknowledged'"
-        ),
+      
+      // Verify both database calls were made
+      expect(query).toHaveBeenCalledTimes(2);
+      
+      // First call: verification query
+      expect(query).toHaveBeenNthCalledWith(1,
+        expect.stringContaining("SELECT id FROM risk_alerts"),
+        ["alert-1", "test-user-123"]
+      );
+      
+      // Second call: update query
+      expect(query).toHaveBeenNthCalledWith(2,
+        expect.stringContaining("SET status = 'acknowledged', acknowledged_at = CURRENT_TIMESTAMP"),
         ["alert-1"]
       );
     });
@@ -890,6 +913,7 @@ describe("Risk Routes", () => {
 
       await request(app)
         .put("/risk/limits/portfolio-123")
+        .set('Content-Type', 'application/json')
         .send("invalid json")
         .expect(400);
     });

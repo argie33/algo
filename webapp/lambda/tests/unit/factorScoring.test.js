@@ -22,7 +22,7 @@ describe("Factor Scoring Engine", () => {
 
     // Clear module cache to get fresh instance
     delete require.cache[require.resolve("../../utils/factorScoring")];
-    FactorScoringEngine = require("../../utils/factorScoring");
+    ({ FactorScoringEngine } = require("../../utils/factorScoring"));
 
     // Create fresh instance for each test
     scoringEngine = new FactorScoringEngine();

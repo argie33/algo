@@ -13,7 +13,7 @@
  */
 
 const AlpacaService = require("./alpacaService");
-const apiKeyService = require("./apiKeyServiceResilient");
+const { getDecryptedApiKey } = require("./apiKeyService");
 
 class RealTimeDataService {
   constructor() {
@@ -104,7 +104,7 @@ class RealTimeDataService {
       `🔑 Getting Alpaca credentials for user ${userId.substring(0, 8)}...`
     );
 
-    const credentials = await apiKeyService.getDecryptedApiKey(
+    const credentials = await getDecryptedApiKey(
       userId,
       "alpaca"
     );

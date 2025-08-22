@@ -241,7 +241,8 @@ describe("Settings API Routes", () => {
         .get("/api/settings/onboarding-status")
         .expect(200);
 
-      expect(response.body.data.isComplete).toBe(false);
+      expect(response.body.success).toBe(true);
+      expect(response.body.onboarding.completed).toBe(false);
     });
   });
 
@@ -255,10 +256,8 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        data: {
-          message: "Onboarding marked as complete",
-          isComplete: true,
-        },
+        message: "Onboarding completed successfully",
+        timestamp: expect.any(String),
       });
     });
   });
@@ -281,7 +280,8 @@ describe("Settings API Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        data: mockPreferences,
+        preferences: mockPreferences,
+        timestamp: expect.any(String),
       });
     });
 
@@ -292,7 +292,12 @@ describe("Settings API Routes", () => {
         .get("/api/settings/preferences")
         .expect(200);
 
-      expect(response.body.data).toEqual({});
+      expect(response.body.success).toBe(true);
+      expect(response.body.preferences).toEqual({
+        theme: "light",
+        notifications: true,
+        defaultView: "dashboard",
+      });
     });
   });
 
@@ -309,11 +314,11 @@ describe("Settings API Routes", () => {
 
       const response = await request(app)
         .post("/api/settings/preferences")
-        .send(preferences)
+        .send({ preferences })
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.preferences).toEqual({
+      expect(response.body.preferences).toEqual({
         riskTolerance: "aggressive",
         investmentStyle: "value",
         notifications: false,
@@ -321,12 +326,12 @@ describe("Settings API Routes", () => {
       });
 
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("UPDATE users SET preferences"),
-        [JSON.stringify(response.body.data.preferences), "test-user-id"]
+        expect.stringContaining("INSERT INTO user_profiles"),
+        ["test-user-id", JSON.stringify(preferences)]
       );
     });
 
-    it("should validate and sanitize preferences", async () => {
+    it("should handle invalid preferences format", async () => {
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
@@ -335,11 +340,10 @@ describe("Settings API Routes", () => {
           riskTolerance: "invalid-value",
           maliciousField: '<script>alert("xss")</script>',
         })
-        .expect(200);
+        .expect(400);
 
-      const savedPreferences = response.body.data.preferences;
-      expect(savedPreferences.riskTolerance).toBe("moderate"); // Default fallback
-      expect(savedPreferences.maliciousField).toBeUndefined(); // Filtered out
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Valid preferences object is required");
     });
   });
 });

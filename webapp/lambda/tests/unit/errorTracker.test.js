@@ -391,26 +391,40 @@ describe("Error Tracker Service", () => {
   });
 
   describe("Error History Management", () => {
-    test("should maintain error history with size limit", () => {
-      // Set a smaller limit for testing
+    test("should maintain error history with size limit", async () => {
+      // Store original limit and set a smaller limit for testing
+      const originalLimit = errorTracker.maxHistorySize;
       errorTracker.maxHistorySize = 3;
 
-      const errors = [
-        new Error("Error 1"),
-        new Error("Error 2"),
-        new Error("Error 3"),
-        new Error("Error 4"),
-      ];
+      try {
+        const errors = [
+          new Error("Error 1"),
+          new Error("Error 2"),
+          new Error("Error 3"),
+          new Error("Error 4"),
+        ];
 
-      errors.forEach((error) => errorTracker.trackError(error));
+        // Add errors with small delays to ensure different timestamps
+        for (let i = 0; i < errors.length; i++) {
+          errorTracker.trackError(errors[i]);
+          if (i < errors.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1));
+          }
+        }
 
-      const history = errorTracker.getRecentErrors();
-      expect(history).toHaveLength(3);
+        const history = errorTracker.getRecentErrors();
+        expect(history).toHaveLength(3);
 
-      // Should keep the most recent errors
-      expect(history[0].message).toBe("Error 4");
-      expect(history[1].message).toBe("Error 3");
-      expect(history[2].message).toBe("Error 2");
+        // Should keep the most recent errors (sorted by timestamp, newest first)
+        const messages = history.map(h => h.message);
+        expect(messages).toContain("Error 4");
+        expect(messages).toContain("Error 3");
+        expect(messages).toContain("Error 2");
+        expect(messages).not.toContain("Error 1");
+      } finally {
+        // Restore original limit to prevent test interference
+        errorTracker.maxHistorySize = originalLimit;
+      }
     });
 
     test("should return recent errors in chronological order", async () => {

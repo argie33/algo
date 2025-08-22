@@ -15,13 +15,20 @@ describe("Auth Middleware", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Set test environment variables first
+    process.env.COGNITO_USER_POOL_ID = "test-user-pool";
+    process.env.COGNITO_CLIENT_ID = "test-client-id";
+    process.env.NODE_ENV = "production";
+    delete process.env.SKIP_AUTH;
+
     // Clear module cache
     delete require.cache[require.resolve("../../middleware/auth")];
 
-    // Mock JWT verifier
+    // Mock JWT verifier with fresh mock for each test
     mockVerifier = {
       verify: jest.fn(),
     };
+    CognitoJwtVerifier.create.mockClear();
     CognitoJwtVerifier.create.mockReturnValue(mockVerifier);
 
     // Set up mock request/response/next
@@ -37,13 +44,7 @@ describe("Auth Middleware", () => {
     };
     next = jest.fn();
 
-    // Set test environment variables
-    process.env.COGNITO_USER_POOL_ID = "test-user-pool";
-    process.env.COGNITO_CLIENT_ID = "test-client-id";
-    process.env.NODE_ENV = "production";
-    delete process.env.SKIP_AUTH;
-
-    // Import after setting up mocks
+    // Import after setting up mocks and environment
     const authModule = require("../../middleware/auth");
     authenticateToken = authModule.authenticateToken;
     requireRole = authModule.requireRole;
@@ -265,6 +266,14 @@ describe("Auth Middleware", () => {
   });
 
   describe("optionalAuth middleware", () => {
+    beforeEach(() => {
+      // Reset req.user for each test since optionalAuth modifies it
+      delete req.user;
+      // Clear any leftover mock state
+      jest.clearAllMocks();
+      mockVerifier.verify.mockReset();
+    });
+
     test("should authenticate user when valid token provided", async () => {
       const mockPayload = {
         sub: "user-123",

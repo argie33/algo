@@ -607,7 +607,20 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
    * Update alert configuration
    */
   updateConfig(newConfig) {
-    this.config = { ...this.config, ...newConfig };
+    // Deep merge configuration to preserve nested structures
+    const mergeDeep = (target, source) => {
+      const result = { ...target };
+      for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          result[key] = mergeDeep(target[key] || {}, source[key]);
+        } else {
+          result[key] = source[key];
+        }
+      }
+      return result;
+    };
+
+    this.config = mergeDeep(this.config, newConfig);
     console.log("⚙️ Alert configuration updated");
     this.emit("configUpdated", this.config);
   }

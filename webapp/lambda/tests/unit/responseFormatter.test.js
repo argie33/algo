@@ -147,12 +147,16 @@ describe("responseFormatter", () => {
       expect(result).toEqual({
         response: {
           success: true,
-          data: [{ id: 1 }, { id: 2 }],
-          pagination: {
-            page: 1,
-            limit: 10,
-            total: 25,
-            totalPages: 3,
+          data: {
+            items: [{ id: 1 }, { id: 2 }],
+            pagination: {
+              page: 1,
+              limit: 10,
+              total: 25,
+              totalPages: 3,
+              hasNext: false,
+              hasPrev: false,
+            },
           },
           timestamp: "2022-01-01T00:00:00.000Z",
         },
@@ -169,11 +173,20 @@ describe("responseFormatter", () => {
 
       expect(result.response).toEqual({
         success: true,
-        data: [],
-        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+        data: {
+          items: [],
+          pagination: { 
+            page: 1, 
+            limit: 10, 
+            total: 0, 
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false,
+          },
+          filterApplied: true,
+          sortBy: "name",
+        },
         timestamp: "2022-01-01T00:00:00.000Z",
-        filterApplied: true,
-        sortBy: "name",
       });
     });
 
@@ -181,8 +194,8 @@ describe("responseFormatter", () => {
       const pagination = { page: 1, limit: 10, total: 0, totalPages: 0 };
       const result = responseFormatter.paginated([], pagination);
 
-      expect(result.response.data).toEqual([]);
-      expect(result.response.pagination.total).toBe(0);
+      expect(result.response.data.items).toEqual([]);
+      expect(result.response.data.pagination.total).toBe(0);
     });
 
     test("should validate pagination parameters", () => {
@@ -192,7 +205,7 @@ describe("responseFormatter", () => {
       // Should still format response even with invalid pagination
       const result = responseFormatter.paginated(data, invalidPagination);
       expect(result.response.success).toBe(true);
-      expect(result.response.pagination.page).toBe(-1);
+      expect(result.response.data.pagination.page).toBe(-1);
     });
   });
 
@@ -206,13 +219,14 @@ describe("responseFormatter", () => {
         },
       ];
 
-      const result = responseFormatter.validation(errors);
+      const result = responseFormatter.validationError(errors);
 
       expect(result).toEqual({
         response: {
           success: false,
           error: "Validation failed",
-          validation_errors: errors,
+          errors: errors,
+          type: "validation_error",
           timestamp: "2022-01-01T00:00:00.000Z",
         },
         statusCode: 422,
@@ -221,15 +235,15 @@ describe("responseFormatter", () => {
 
     test("should handle single validation error", () => {
       const error = { field: "username", message: "Username already exists" };
-      const result = responseFormatter.validation([error]);
+      const result = responseFormatter.validationError([error]);
 
-      expect(result.response.validation_errors).toEqual([error]);
+      expect(result.response.errors).toEqual([error]);
     });
 
     test("should handle empty validation errors array", () => {
-      const result = responseFormatter.validation([]);
+      const result = responseFormatter.validationError([]);
 
-      expect(result.response.validation_errors).toEqual([]);
+      expect(result.response.errors).toEqual([]);
       expect(result.statusCode).toBe(422);
     });
   });
@@ -242,6 +256,7 @@ describe("responseFormatter", () => {
         response: {
           success: false,
           error: "Unauthorized access",
+          type: "unauthorized_error",
           timestamp: "2022-01-01T00:00:00.000Z",
         },
         statusCode: 401,
@@ -254,19 +269,14 @@ describe("responseFormatter", () => {
       expect(result.response.error).toBe("Invalid token");
     });
 
-    test("should include additional details", () => {
-      const details = {
-        code: "TOKEN_EXPIRED",
-        expires_at: "2022-01-02T00:00:00.000Z",
-      };
-      const result = responseFormatter.unauthorized("Token expired", details);
+    test("should include type field", () => {
+      const result = responseFormatter.unauthorized("Token expired");
 
       expect(result.response).toEqual({
         success: false,
         error: "Token expired",
+        type: "unauthorized_error",
         timestamp: "2022-01-01T00:00:00.000Z",
-        code: "TOKEN_EXPIRED",
-        expires_at: "2022-01-02T00:00:00.000Z",
       });
     });
   });
@@ -279,14 +289,15 @@ describe("responseFormatter", () => {
         response: {
           success: false,
           error: "Resource not found",
+          type: "not_found_error",
           timestamp: "2022-01-01T00:00:00.000Z",
         },
         statusCode: 404,
       });
     });
 
-    test("should format not found response with custom message", () => {
-      const result = responseFormatter.notFound("User not found");
+    test("should format not found response with custom resource", () => {
+      const result = responseFormatter.notFound("User");
 
       expect(result.response.error).toBe("User not found");
     });
@@ -300,6 +311,7 @@ describe("responseFormatter", () => {
         response: {
           success: false,
           error: "Internal server error",
+          type: "server_error",
           timestamp: "2022-01-01T00:00:00.000Z",
         },
         statusCode: 500,
@@ -322,6 +334,7 @@ describe("responseFormatter", () => {
       expect(result.response).toEqual({
         success: false,
         error: "Database connection failed",
+        type: "server_error",
         timestamp: "2022-01-01T00:00:00.000Z",
         stack: "Error stack trace",
         code: "DB_CONNECTION_ERROR",
@@ -342,8 +355,11 @@ describe("responseFormatter", () => {
 
       expect(result.response).toEqual({
         success: false,
-        error: "Internal server error", // Should use generic message in production
+        error: "Something went wrong",
+        type: "server_error",
         timestamp: "2022-01-01T00:00:00.000Z",
+        stack: "Error stack trace",
+        internalCode: "SECRET",
       });
 
       process.env.NODE_ENV = originalEnv;

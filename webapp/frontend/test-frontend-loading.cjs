@@ -176,7 +176,7 @@ class FrontendLoadingTester {
     this.log('=== Simulating User Flow ===');
     
     // Simulate loading the main page
-    this.log('📱 User opens: https://d1zb7knau41vl9.cloudfront.net');
+    this.log(`📱 User opens: ${this.cdnUrl}`);
     
     // Check if all resources would load
     const indexExists = fs.existsSync(path.join(this.distPath, 'index.html'));

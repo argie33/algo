@@ -5,15 +5,15 @@
 
 const request = require('supertest');
 const { app } = require('../../../index');
-const { query } = require('../../../services/database');
+const { query } = require('../../../utils/database');
 
 describe('Portfolio Calculations Integration', () => {
   let testUserId;
   let testPortfolioData;
 
   beforeAll(async () => {
-    // Setup test user and portfolio data
-    testUserId = 'test-user-portfolio-calc-' + Date.now();
+    // Setup test user and portfolio data - use the same ID that auth middleware provides
+    testUserId = 'no-auth-user'; // This matches what auth middleware sets when no Cognito is configured
     
     // Insert test portfolio data
     testPortfolioData = {
@@ -26,13 +26,20 @@ describe('Portfolio Calculations Integration', () => {
 
     await query(`
       INSERT INTO user_portfolio (user_id, symbol, quantity, avg_cost, last_updated)
-      VALUES ($1, $2, $3, $4, NOW())
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
     `, [testUserId, testPortfolioData.symbol, testPortfolioData.quantity, testPortfolioData.avgCost]);
+
+    // Insert stock price data for the test symbol
+    await query(`
+      INSERT INTO stock_prices (symbol, price, timestamp, volume)
+      VALUES ($1, $2, CURRENT_TIMESTAMP, 1000000)
+    `, [testPortfolioData.symbol, testPortfolioData.currentPrice]);
   });
 
   afterAll(async () => {
     // Cleanup test data
     await query('DELETE FROM user_portfolio WHERE user_id = $1', [testUserId]);
+    await query('DELETE FROM stock_prices WHERE symbol = $1', [testPortfolioData.symbol]);
   });
 
   describe('Portfolio Value Calculations', () => {
@@ -42,13 +49,17 @@ describe('Portfolio Calculations Integration', () => {
         .set('Authorization', `Bearer mock-token`)
         .set('x-user-id', testUserId);
 
+      if (response.status !== 200) {
+        console.error('Portfolio analytics error:', response.body);
+      }
+
       expect(response.status).toBe(200);
       
       const { data } = response.body;
       const expectedValue = testPortfolioData.quantity * testPortfolioData.currentPrice;
       
-      expect(data.totalValue).toBeCloseTo(expectedValue, 2);
-      expect(data.totalValue).toBe(17550.00); // 100 * 175.50
+      expect(data.summary.totalValue).toBeCloseTo(expectedValue, 2);
+      expect(data.summary.totalValue).toBe(17550.00); // 100 * 175.50
     });
 
     test('should calculate accurate profit/loss metrics', async () => {
@@ -265,9 +276,7 @@ describe('Portfolio Calculations Integration', () => {
       // Update price data
       await query(`
         INSERT INTO stock_prices (symbol, price, timestamp, volume)
-        VALUES ('AAPL', 180.00, NOW(), 1000000)
-        ON CONFLICT (symbol, DATE(timestamp)) 
-        DO UPDATE SET price = 180.00, volume = 1000000
+        VALUES ('AAPL', 180.00, CURRENT_TIMESTAMP, 1000000)
       `);
 
       const response = await request(app)

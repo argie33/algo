@@ -441,17 +441,19 @@ async function query(text, params = []) {
   try {
     // Ensure database is initialized
     if (!dbInitialized || !pool) {
-      console.log("Database not initialized, initializing now...");
+      console.log("Database not initialized, attempting initialization...");
       const result = await initializeDatabase();
       if (!result || !pool) {
-        // Database is not available, throw error with specific message
-        throw new Error("Database not available - running in fallback mode");
+        // Database is not available, return null for graceful degradation
+        console.warn("Database not available - operation will return null for graceful fallback");
+        return null;
       }
     }
 
     // Check if pool is still valid
     if (!pool) {
-      throw new Error("Database connection pool not available");
+      console.warn("Database connection pool not available - returning null for graceful fallback");
+      return null;
     }
 
     const start = Date.now();
@@ -473,6 +475,14 @@ async function query(text, params = []) {
       query: text.slice(0, 100) + (text.length > 100 ? "..." : ""),
       params: params,
     });
+    
+    // Check if this is a connection-related error (graceful degradation)
+    if (error.message.includes('connect') || error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+      console.warn("Database connection error - returning null for graceful fallback");
+      return null;
+    }
+    
+    // For other errors, still throw to maintain error handling for genuine issues
     throw error;
   }
 }

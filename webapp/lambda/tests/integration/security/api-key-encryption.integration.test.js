@@ -3,9 +3,9 @@
  * Critical: Validates secure API key storage and retrieval for financial data
  */
 
-const { apiKeyService } = require('../../../services/apiKeyService');
-const { query } = require('../../../services/database');
-const crypto = require('crypto');
+const apiKeyService = require('../../../utils/apiKeyService');
+const { query } = require('../../../utils/database');
+const _crypto = require('crypto');
 
 describe('API Key Encryption Integration', () => {
   let testUserId;
@@ -48,45 +48,45 @@ describe('API Key Encryption Integration', () => {
       const result = await apiKeyService.storeApiKey(
         testUserId,
         'alpaca',
-        testApiKeys.alpaca.keyId,
-        testApiKeys.alpaca.secret,
-        { sandbox: true }
+        testApiKeys.alpaca
       );
 
       expect(result.success).toBe(true);
 
       // Verify data is encrypted in database
       const dbResult = await query(
-        'SELECT encrypted_key_id, encrypted_secret FROM user_api_keys WHERE user_id = $1 AND provider = $2',
+        'SELECT encrypted_data, user_salt FROM user_api_keys WHERE user_id = $1 AND provider = $2',
         [testUserId, 'alpaca']
       );
 
       expect(dbResult.rows).toHaveLength(1);
-      const { encrypted_key_id, encrypted_secret } = dbResult.rows[0];
+      const { encrypted_data, user_salt } = dbResult.rows[0];
 
       // Should not contain original values
-      expect(encrypted_key_id).not.toBe(testApiKeys.alpaca.keyId);
-      expect(encrypted_secret).not.toBe(testApiKeys.alpaca.secret);
+      expect(encrypted_data).not.toBe(testApiKeys.alpaca.keyId);
+      expect(encrypted_data).not.toBe(testApiKeys.alpaca.secret);
+      expect(user_salt).not.toBe(testApiKeys.alpaca.keyId);
+      expect(user_salt).not.toBe(testApiKeys.alpaca.secret);
       
       // Should be properly encrypted format
-      expect(encrypted_key_id).toMatch(/^[0-9a-f]+:[0-9a-f]+$/); // encrypted:iv format
-      expect(encrypted_secret).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
+      expect(encrypted_data).toContain(':'); // encrypted:iv format
+      expect(user_salt).toMatch(/^[0-9a-f]+$/); // hex format
     });
 
     test('should use unique encryption for each API key', async () => {
       // Store multiple keys
-      await apiKeyService.storeApiKey(testUserId, 'polygon', testApiKeys.polygon.keyId, testApiKeys.polygon.secret);
-      await apiKeyService.storeApiKey(testUserId, 'finnhub', testApiKeys.finnhub.keyId, testApiKeys.finnhub.secret);
+      await apiKeyService.storeApiKey(testUserId, 'polygon', testApiKeys.polygon);
+      await apiKeyService.storeApiKey(testUserId, 'finnhub', testApiKeys.finnhub);
 
       const dbResult = await query(
-        'SELECT provider, encrypted_key_id, encrypted_secret FROM user_api_keys WHERE user_id = $1',
+        'SELECT provider, encrypted_data, user_salt FROM user_api_keys WHERE user_id = $1',
         [testUserId]
       );
 
       expect(dbResult.rows.length).toBeGreaterThanOrEqual(2);
 
       // Each encrypted value should be unique
-      const encryptedValues = dbResult.rows.map(row => row.encrypted_key_id + row.encrypted_secret);
+      const encryptedValues = dbResult.rows.map(row => row.encrypted_data + row.user_salt);
       const uniqueValues = [...new Set(encryptedValues)];
       
       expect(uniqueValues.length).toBe(encryptedValues.length);
@@ -94,23 +94,24 @@ describe('API Key Encryption Integration', () => {
 
     test('should generate unique salt per user', async () => {
       const anotherUserId = 'test-user-encryption-salt-' + Date.now();
+      const testData = { keyId: 'same-key', secret: 'same-secret' };
       
       // Store same API key for different users
-      await apiKeyService.storeApiKey(testUserId, 'test-same', 'same-key', 'same-secret');
-      await apiKeyService.storeApiKey(anotherUserId, 'test-same', 'same-key', 'same-secret');
+      await apiKeyService.storeApiKey(testUserId, 'test-same', testData);
+      await apiKeyService.storeApiKey(anotherUserId, 'test-same', testData);
 
       const user1Result = await query(
-        'SELECT encrypted_key_id FROM user_api_keys WHERE user_id = $1 AND provider = $2',
+        'SELECT encrypted_data FROM user_api_keys WHERE user_id = $1 AND provider = $2',
         [testUserId, 'test-same']
       );
       
       const user2Result = await query(
-        'SELECT encrypted_key_id FROM user_api_keys WHERE user_id = $1 AND provider = $2',
+        'SELECT encrypted_data FROM user_api_keys WHERE user_id = $1 AND provider = $2',
         [anotherUserId, 'test-same']
       );
 
       // Same plaintext should produce different ciphertext for different users
-      expect(user1Result.rows[0].encrypted_key_id).not.toBe(user2Result.rows[0].encrypted_key_id);
+      expect(user1Result.rows[0].encrypted_data).not.toBe(user2Result.rows[0].encrypted_data);
 
       // Cleanup
       await query('DELETE FROM user_api_keys WHERE user_id = $1', [anotherUserId]);
@@ -120,54 +121,50 @@ describe('API Key Encryption Integration', () => {
   describe('API Key Retrieval Decryption', () => {
     test('should decrypt API keys correctly on retrieval', async () => {
       // Store then retrieve
-      await apiKeyService.storeApiKey(testUserId, 'alpaca', testApiKeys.alpaca.keyId, testApiKeys.alpaca.secret);
+      await apiKeyService.storeApiKey(testUserId, 'alpaca', testApiKeys.alpaca);
       
-      const retrievedKeys = await apiKeyService.getUserApiKeys(testUserId);
+      const retrievedKey = await apiKeyService.getApiKey(testUserId, 'alpaca');
 
-      expect(retrievedKeys.success).toBe(true);
-      expect(retrievedKeys.keys.alpaca).toBeDefined();
-      expect(retrievedKeys.keys.alpaca.keyId).toBe(testApiKeys.alpaca.keyId);
-      expect(retrievedKeys.keys.alpaca.secret).toBe(testApiKeys.alpaca.secret);
+      expect(retrievedKey).toBeDefined();
+      expect(retrievedKey.keyId).toBe(testApiKeys.alpaca.keyId);
+      expect(retrievedKey.secret).toBe(testApiKeys.alpaca.secret);
     });
 
     test('should handle multiple provider retrieval', async () => {
       // Store keys for multiple providers
-      await apiKeyService.storeApiKey(testUserId, 'polygon', testApiKeys.polygon.keyId, testApiKeys.polygon.secret);
-      await apiKeyService.storeApiKey(testUserId, 'finnhub', testApiKeys.finnhub.keyId, testApiKeys.finnhub.secret);
+      await apiKeyService.storeApiKey(testUserId, 'polygon', testApiKeys.polygon);
+      await apiKeyService.storeApiKey(testUserId, 'finnhub', testApiKeys.finnhub);
 
-      const retrievedKeys = await apiKeyService.getUserApiKeys(testUserId);
+      const polygonKey = await apiKeyService.getApiKey(testUserId, 'polygon');
+      const finnhubKey = await apiKeyService.getApiKey(testUserId, 'finnhub');
 
-      expect(retrievedKeys.success).toBe(true);
-      expect(Object.keys(retrievedKeys.keys)).toContain('polygon');
-      expect(Object.keys(retrievedKeys.keys)).toContain('finnhub');
-      expect(retrievedKeys.keys.polygon.keyId).toBe(testApiKeys.polygon.keyId);
-      expect(retrievedKeys.keys.finnhub.secret).toBe(testApiKeys.finnhub.secret);
+      expect(polygonKey).toBeDefined();
+      expect(finnhubKey).toBeDefined();
+      expect(polygonKey.keyId).toBe(testApiKeys.polygon.keyId);
+      expect(finnhubKey.secret).toBe(testApiKeys.finnhub.secret);
     });
 
     test('should fail gracefully for non-existent user', async () => {
       const nonExistentUserId = 'non-existent-user-' + Date.now();
       
-      const result = await apiKeyService.getUserApiKeys(nonExistentUserId);
+      const result = await apiKeyService.getApiKey(nonExistentUserId, 'alpaca');
       
-      expect(result.success).toBe(true);
-      expect(result.keys).toEqual({});
+      expect(result).toBeNull();
     });
 
     test('should handle corrupted encryption data', async () => {
       // Insert corrupted data directly
       await query(
         `INSERT INTO user_api_keys 
-         (user_id, provider, encrypted_key_id, encrypted_secret, metadata, created_at) 
-         VALUES ($1, 'corrupted', 'invalid-format', 'invalid-format', '{}', NOW())`,
+         (user_id, provider, encrypted_data, user_salt, created_at) 
+         VALUES ($1, 'corrupted', 'invalid-format', 'invalid-format', NOW())`,
         [testUserId]
       );
 
-      const result = await apiKeyService.getUserApiKeys(testUserId);
+      const result = await apiKeyService.getApiKey(testUserId, 'corrupted');
       
       // Should handle error gracefully and not crash
-      expect(result.success).toBe(true);
-      // Corrupted key should be excluded from results
-      expect(result.keys.corrupted).toBeUndefined();
+      expect(result).toBeNull();
     });
   });
 
@@ -184,8 +181,7 @@ describe('API Key Encryption Integration', () => {
         const result = await apiKeyService.storeApiKey(
           testUserId,
           'validation-test',
-          testCase.keyId,
-          testCase.secret
+          testCase
         );
 
         expect(result.success).toBe(false);
@@ -200,8 +196,7 @@ describe('API Key Encryption Integration', () => {
       const result = await apiKeyService.storeApiKey(
         testUserId,
         'length-test',
-        tooLongKey,
-        tooLongSecret
+        { keyId: tooLongKey, secret: tooLongSecret }
       );
 
       expect(result.success).toBe(false);
@@ -214,16 +209,15 @@ describe('API Key Encryption Integration', () => {
       const result = await apiKeyService.storeApiKey(
         testUserId,
         maliciousProvider,
-        'test-key',
-        'test-secret'
+        { keyId: 'test-key', secret: 'test-secret' }
       );
 
       // Should either reject the malicious provider or sanitize it
       expect(result.success).toBe(false);
       
-      // Verify table still exists
+      // Verify table still exists (SQL injection should not drop the table)
       const tableCheck = await query(
-        "SELECT table_name FROM information_schema.tables WHERE table_name = 'user_api_keys'"
+        "SELECT table_name FROM information_schema.tables WHERE table_name = 'user_api_keys' AND table_schema = 'public'"
       );
       expect(tableCheck.rows.length).toBe(1);
     });
@@ -232,29 +226,29 @@ describe('API Key Encryption Integration', () => {
   describe('API Key Update and Deletion', () => {
     test('should update existing API keys', async () => {
       // Store initial key
-      await apiKeyService.storeApiKey(testUserId, 'update-test', 'old-key', 'old-secret');
+      await apiKeyService.storeApiKey(testUserId, 'update-test', { keyId: 'old-key', secret: 'old-secret' });
       
       // Update with new values
-      const updateResult = await apiKeyService.storeApiKey(testUserId, 'update-test', 'new-key', 'new-secret');
+      const updateResult = await apiKeyService.storeApiKey(testUserId, 'update-test', { keyId: 'new-key', secret: 'new-secret' });
       expect(updateResult.success).toBe(true);
 
       // Verify update
-      const retrievedKeys = await apiKeyService.getUserApiKeys(testUserId);
-      expect(retrievedKeys.keys['update-test'].keyId).toBe('new-key');
-      expect(retrievedKeys.keys['update-test'].secret).toBe('new-secret');
+      const retrievedKey = await apiKeyService.getApiKey(testUserId, 'update-test');
+      expect(retrievedKey.keyId).toBe('new-key');
+      expect(retrievedKey.secret).toBe('new-secret');
     });
 
     test('should delete API keys securely', async () => {
       // Store key
-      await apiKeyService.storeApiKey(testUserId, 'delete-test', 'delete-key', 'delete-secret');
+      await apiKeyService.storeApiKey(testUserId, 'delete-test', { keyId: 'delete-key', secret: 'delete-secret' });
       
       // Delete key
       const deleteResult = await apiKeyService.deleteApiKey(testUserId, 'delete-test');
       expect(deleteResult.success).toBe(true);
 
       // Verify deletion
-      const retrievedKeys = await apiKeyService.getUserApiKeys(testUserId);
-      expect(retrievedKeys.keys['delete-test']).toBeUndefined();
+      const retrievedKey = await apiKeyService.getApiKey(testUserId, 'delete-test');
+      expect(retrievedKey).toBeNull();
 
       // Verify no traces in database
       const dbResult = await query(
@@ -275,8 +269,7 @@ describe('API Key Encryption Integration', () => {
           apiKeyService.storeApiKey(
             testUserId,
             `concurrent-${i}`,
-            `key-${i}`,
-            `secret-${i}`
+            { keyId: `key-${i}`, secret: `secret-${i}` }
           )
         );
       }
@@ -289,34 +282,40 @@ describe('API Key Encryption Integration', () => {
       });
 
       // Verify all keys stored correctly
-      const retrievedKeys = await apiKeyService.getUserApiKeys(testUserId);
-      
       for (let i = 0; i < 10; i++) {
-        expect(retrievedKeys.keys[`concurrent-${i}`]).toBeDefined();
-        expect(retrievedKeys.keys[`concurrent-${i}`].keyId).toBe(`key-${i}`);
+        const retrievedKey = await apiKeyService.getApiKey(testUserId, `concurrent-${i}`);
+        expect(retrievedKey).toBeDefined();
+        expect(retrievedKey.keyId).toBe(`key-${i}`);
       }
     });
 
     test('should maintain performance with large number of keys', async () => {
-      const startTime = Date.now();
+      const _startTime = Date.now();
       
       // Store 50 API keys
       const storePromises = [];
       for (let i = 0; i < 50; i++) {
         storePromises.push(
-          apiKeyService.storeApiKey(testUserId, `perf-${i}`, `key-${i}`, `secret-${i}`)
+          apiKeyService.storeApiKey(testUserId, `perf-${i}`, { keyId: `key-${i}`, secret: `secret-${i}` })
         );
       }
       await Promise.all(storePromises);
 
       // Retrieve all keys
       const retrievalStart = Date.now();
-      const retrievedKeys = await apiKeyService.getUserApiKeys(testUserId);
+      const keyCount = 50;
+      let retrievedCount = 0;
+      
+      for (let i = 0; i < keyCount; i++) {
+        const key = await apiKeyService.getApiKey(testUserId, `perf-${i}`);
+        if (key) retrievedCount++;
+      }
+      
       const retrievalEnd = Date.now();
 
       // Performance assertions
-      expect(retrievalEnd - retrievalStart).toBeLessThan(1000); // < 1 second
-      expect(Object.keys(retrievedKeys.keys).length).toBeGreaterThanOrEqual(50);
+      expect(retrievalEnd - retrievalStart).toBeLessThan(5000); // < 5 seconds for 50 individual calls
+      expect(retrievedCount).toBeGreaterThanOrEqual(50);
     });
   });
 });

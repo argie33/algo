@@ -22,8 +22,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'src'),
-        'use-sync-external-store/shim/index.js': resolve(__dirname, 'node_modules/use-sync-external-store/shim/index.js'),
+        '@': resolve(__dirname, 'src')
       }
     },
     build: {
@@ -95,6 +94,8 @@ export default defineConfig(({ mode }) => {
       __MODE__: JSON.stringify(mode),
       __IS_DEV__: JSON.stringify(isDevelopment),
       __IS_PROD__: JSON.stringify(isProduction),
+      // Ensure React production mode
+      'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
     },
     optimizeDeps: {
       // Reduce the number of files opened during optimization
