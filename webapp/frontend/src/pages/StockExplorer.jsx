@@ -200,7 +200,7 @@ function StockExplorer() {
     queryFn: async () => {
       try {
         const params = buildQueryParams();
-        logger.success("buildQueryParams", null, { params: params.toString() });
+        logger.info("buildQueryParams - Parameters built", { params: params.toString() });
         const result = await screenStocks(params);
 
         // Add debug logging to see the actual response structure
@@ -208,7 +208,7 @@ function StockExplorer() {
         console.log("StockExplorer: Data array:", result?.data);
         console.log("StockExplorer: First item structure:", result?.data?.[0]);
 
-        logger.success("screenStocks", result, {
+        logger.info("screenStocks - Request completed", {
           resultCount: result?.data?.length || 0,
           total: result?.total || 0,
           page: page + 1,

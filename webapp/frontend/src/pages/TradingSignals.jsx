@@ -132,7 +132,7 @@ function TradingSignals() {
           params.append("latest_only", "true");
         }
         const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
-        logger.success("fetchTradingSignals", null, {
+        logger.info("fetchTradingSignals - Request started", {
           url,
           signalType,
           timeframe,
@@ -263,7 +263,7 @@ function TradingSignals() {
     queryFn: async () => {
       try {
         const url = `${API_BASE}/api/trading/performance`;
-        logger.success("fetchTradingPerformance", null, { url });
+        logger.info("fetchTradingPerformance - Request started", { url });
 
         const response = await fetch(url);
         if (!response.ok) {
@@ -279,7 +279,7 @@ function TradingSignals() {
         }
 
         const result = await response.json();
-        logger.success("fetchTradingPerformance", result);
+        logger.info("fetchTradingPerformance - Request completed", result);
         return result;
       } catch (err) {
         logger.error("fetchTradingPerformance", err);

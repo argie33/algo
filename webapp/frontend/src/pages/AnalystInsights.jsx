@@ -48,7 +48,7 @@ function AnalystInsights() {
           limit: rowsPerPage,
         });
         const url = `${API_BASE}/analysts/upgrades?${params}`;
-        logger.success("fetchAnalystUpgrades", null, {
+        logger.info("fetchAnalystUpgrades", null, {
           url,
           params: params.toString(),
         });
@@ -70,7 +70,7 @@ function AnalystInsights() {
         }
 
         const result = await response.json();
-        logger.success("fetchAnalystUpgrades", result, {
+        logger.info("fetchAnalystUpgrades", result, {
           resultCount: result?.data?.length || 0,
           total: result?.total || 0,
           page: page + 1,

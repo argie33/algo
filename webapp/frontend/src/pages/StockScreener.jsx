@@ -179,7 +179,7 @@ function StockScreener() {
       try {
         const params = buildQueryParams();
         const result = await screenStocks(params);
-        logger.success("screenStocks", result, {
+        logger.info("screenStocks", result, {
           resultCount: result?.data?.length || 0,
           total: result?.total || 0,
           page: page + 1,
