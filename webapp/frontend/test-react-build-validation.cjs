@@ -269,15 +269,232 @@ class ReactBuildValidator {
     }
   }
 
+  async testSourceCodeImports() {
+    this.log('=== Testing Source Code Imports ===');
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDependencies = {
+        ...packageJson.dependencies || {},
+        ...packageJson.devDependencies || {}
+      };
+      
+      // Get all JS/JSX files in src
+      const srcFiles = this.getAllSourceFiles('src');
+      let conflictingImports = [];
+      let chartJsImports = [];
+      
+      for (const file of srcFiles) {
+        try {
+          const content = fs.readFileSync(file, 'utf8');
+          
+          // Extract all import statements
+          const importMatches = content.match(/^import\s+.*?from\s+['"](.*?)['"];?$/gm) || [];
+          
+          for (const importLine of importMatches) {
+            const packageMatch = importLine.match(/from\s+['"](.*?)['"];?$/);
+            if (packageMatch) {
+              const packageName = packageMatch[1];
+              
+              // Skip relative imports
+              if (packageName.startsWith('.') || packageName.startsWith('/')) {
+                continue;
+              }
+              
+              // Extract base package name (handle scoped packages)
+              const basePackage = packageName.startsWith('@') 
+                ? packageName.split('/').slice(0, 2).join('/')
+                : packageName.split('/')[0];
+              
+              // Check for Chart.js related imports (exclude recharts)
+              if ((packageName.includes('chart') || packageName.includes('Chart')) && 
+                  !packageName.includes('recharts') && 
+                  (packageName.includes('chart.js') || packageName.includes('react-chartjs'))) {
+                chartJsImports.push({
+                  file: file.replace(process.cwd() + '/', ''),
+                  package: packageName,
+                  line: importLine.trim()
+                });
+              }
+              
+              // Check if package exists in dependencies (exclude Node.js built-ins and test files)
+              const nodeBuiltins = ['fs', 'path', 'child_process', 'crypto', 'os', 'util', 'stream', 'events', 'http', 'https', 'url'];
+              const isTestFile = file.includes('/tests/') || file.includes('.test.') || file.includes('.spec.');
+              
+              if (!allDependencies[basePackage] && 
+                  !nodeBuiltins.includes(basePackage) && 
+                  !isTestFile) {
+                conflictingImports.push({
+                  file: file.replace(process.cwd() + '/', ''),
+                  package: basePackage,
+                  fullImport: packageName,
+                  line: importLine.trim()
+                });
+              }
+            }
+          }
+        } catch (error) {
+          // Skip files that can't be read
+          continue;
+        }
+      }
+      
+      // Test 1: No Chart.js imports
+      if (chartJsImports.length === 0) {
+        this.recordResult('No Chart.js imports in source code', true);
+      } else {
+        this.recordResult('No Chart.js imports in source code', false,
+          `Found Chart.js imports: ${chartJsImports.map(imp => imp.file).join(', ')}`);
+        
+        // Log details for debugging
+        this.log('Chart.js imports found:');
+        chartJsImports.forEach(imp => {
+          this.log(`  ${imp.file}: ${imp.line}`, 'error');
+        });
+      }
+      
+      // Test 2: All imports have corresponding dependencies
+      if (conflictingImports.length === 0) {
+        this.recordResult('All imports have corresponding dependencies', true);
+      } else {
+        this.recordResult('All imports have corresponding dependencies', false,
+          `Found imports without dependencies: ${conflictingImports.map(imp => imp.package).join(', ')}`);
+        
+        // Log details for debugging
+        this.log('Missing dependencies:');
+        conflictingImports.forEach(imp => {
+          this.log(`  ${imp.file}: ${imp.fullImport}`, 'error');
+        });
+      }
+      
+    } catch (error) {
+      this.recordResult('Source code import analysis', false, error.message);
+    }
+  }
+
+  getAllSourceFiles(dir) {
+    const files = [];
+    
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          files.push(...this.getAllSourceFiles(fullPath));
+        } else if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.jsx'))) {
+          files.push(fullPath);
+        }
+      }
+    } catch (error) {
+      // Skip directories that can't be read
+    }
+    
+    return files;
+  }
+
+  async testRuntimeConflictDetection() {
+    this.log('=== Testing Runtime Conflict Detection ===');
+    
+    try {
+      // Test 1: Check for Chart.js registration code patterns
+      const srcFiles = this.getAllSourceFiles('src');
+      let hasChartJsRegistration = false;
+      let hasReactChartJsComponents = false;
+      
+      for (const file of srcFiles) {
+        try {
+          const content = fs.readFileSync(file, 'utf8');
+          
+          // Check for Chart.js registration patterns
+          if (content.includes('ChartJS.register') || 
+              content.includes('Chart.register') ||
+              content.includes('CategoryScale') ||
+              content.includes('LinearScale')) {
+            hasChartJsRegistration = true;
+          }
+          
+          // Check for react-chartjs-2 component usage
+          if (content.includes('<Line') && content.includes('react-chartjs-2') ||
+              content.includes('<Bar') && content.includes('react-chartjs-2')) {
+            hasReactChartJsComponents = true;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      
+      if (!hasChartJsRegistration) {
+        this.recordResult('No Chart.js registration code found', true);
+      } else {
+        this.recordResult('No Chart.js registration code found', false,
+          'Found Chart.js registration code that can conflict with React 18');
+      }
+      
+      if (!hasReactChartJsComponents) {
+        this.recordResult('No react-chartjs-2 component usage found', true);
+      } else {
+        this.recordResult('No react-chartjs-2 component usage found', false,
+          'Found react-chartjs-2 components that can cause useSyncExternalStore conflicts');
+      }
+      
+      // Test 2: Check built bundles for problematic library combinations
+      if (fs.existsSync(this.distPath)) {
+        const assetsPath = path.join(this.distPath, 'assets');
+        if (fs.existsSync(assetsPath)) {
+          const jsFiles = fs.readdirSync(assetsPath).filter(file => file.endsWith('.js'));
+          
+          let hasChartJsInBundle = false;
+          let hasReactQueryConflict = false;
+          
+          for (const file of jsFiles) {
+            const content = fs.readFileSync(path.join(assetsPath, file), 'utf8');
+            
+            // Check for Chart.js in bundle (exclude Recharts which contains "Chart" in minified form)
+            if (content.includes('Chart.js') || content.includes('react-chartjs') || content.includes('ChartJS')) {
+              hasChartJsInBundle = true;
+            }
+            
+            // Check for React Query + Chart.js combination (known conflict) - be more specific
+            if (content.includes('useSyncExternalStore') && 
+                (content.includes('Chart.js') || content.includes('react-chartjs') || content.includes('ChartJS'))) {
+              hasReactQueryConflict = true;
+            }
+          }
+          
+          if (!hasChartJsInBundle) {
+            this.recordResult('No Chart.js found in production bundles', true);
+          } else {
+            this.recordResult('No Chart.js found in production bundles', false,
+              'Chart.js detected in production bundle - potential React 18 conflict');
+          }
+          
+          if (!hasReactQueryConflict) {
+            this.recordResult('No React Query + Chart.js conflicts detected', true);
+          } else {
+            this.recordResult('No React Query + Chart.js conflicts detected', false,
+              'Detected potential useSyncExternalStore + Chart.js conflict');
+          }
+        }
+      }
+      
+    } catch (error) {
+      this.recordResult('Runtime conflict detection', false, error.message);
+    }
+  }
+
   async runAllTests() {
     this.log('🚀 Starting React build validation tests...');
     
     try {
       await this.testPackageJsonDependencies();
       await this.testViteConfiguration();
+      await this.testSourceCodeImports();
       await this.testProductionBuild();
       await this.testBundleIntegrity();
       await this.testRuntimeErrors();
+      await this.testRuntimeConflictDetection();
       
       this.log('=== Test Summary ===');
       this.log(`✅ Passed: ${this.testResults.passed}`);

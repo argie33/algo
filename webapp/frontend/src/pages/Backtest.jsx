@@ -61,38 +61,15 @@ import {
   Download,
 } from "@mui/icons-material";
 import Autocomplete from "@mui/material/Autocomplete";
-import { Line } from "react-chartjs-2";
-import { Bar } from "react-chartjs-2";
+import { LineChart, BarChart, ResponsiveContainer, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Bar } from "recharts";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import Tooltip from "@mui/material/Tooltip";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Legend,
-  ArcElement,
-} from "chart.js";
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Legend,
-  ArcElement
-);
+import MuiTooltip from "@mui/material/Tooltip";
+// Charts now use Recharts - no Chart.js registration needed
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -629,8 +606,8 @@ export default function Backtest() {
     });
   };
 
-  // Helper: get trade markers for equity curve
-  const getTradeMarkers = (equity, trades) => {
+  // Helper: get trade markers for equity curve  
+  const _getTradeMarkers = (equity, trades) => {
     if (!equity || !trades) return [];
     return trades
       .map((trade) => {
@@ -893,7 +870,7 @@ export default function Backtest() {
             </Button>
           </Badge>
 
-          <Tooltip title="Save current strategy" arrow>
+          <MuiTooltip title="Save current strategy" arrow>
             <Button
               variant="outlined"
               startIcon={<SaveIcon />}
@@ -910,9 +887,9 @@ export default function Backtest() {
             >
               Save Strategy
             </Button>
-          </Tooltip>
+          </MuiTooltip>
 
-          <Tooltip title="Start a new blank strategy" arrow>
+          <MuiTooltip title="Start a new blank strategy" arrow>
             <Button
               variant="outlined"
               startIcon={<Add />}
@@ -928,7 +905,7 @@ export default function Backtest() {
             >
               New Strategy
             </Button>
-          </Tooltip>
+          </MuiTooltip>
         </Box>
       </Box>
       <Card sx={{ mb: 4 }}>
@@ -954,7 +931,7 @@ export default function Backtest() {
         <CardContent>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
-              <Tooltip title="Choose a symbol to backtest" arrow>
+              <MuiTooltip title="Choose a symbol to backtest" arrow>
                 <Autocomplete
                   options={symbols.map((s) => s.symbol)}
                   value={params.symbol}
@@ -968,10 +945,10 @@ export default function Backtest() {
                     />
                   )}
                 />
-              </Tooltip>
+              </MuiTooltip>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Tooltip title="Select a strategy template or your own" arrow>
+              <MuiTooltip title="Select a strategy template or your own" arrow>
                 <TextField
                   select
                   label="Strategy"
@@ -986,10 +963,10 @@ export default function Backtest() {
                     </MenuItem>
                   ))}
                 </TextField>
-              </Tooltip>
+              </MuiTooltip>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Tooltip title="Backtest start date" arrow>
+              <MuiTooltip title="Backtest start date" arrow>
                 <TextField
                   label="Start Date"
                   type="date"
@@ -999,10 +976,10 @@ export default function Backtest() {
                   size="small"
                   InputLabelProps={{ shrink: true }}
                 />
-              </Tooltip>
+              </MuiTooltip>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Tooltip title="Backtest end date" arrow>
+              <MuiTooltip title="Backtest end date" arrow>
                 <TextField
                   label="End Date"
                   type="date"
@@ -1012,12 +989,12 @@ export default function Backtest() {
                   size="small"
                   InputLabelProps={{ shrink: true }}
                 />
-              </Tooltip>
+              </MuiTooltip>
             </Grid>
             <Grid item xs={12}>
               <Box display="flex" flexWrap="wrap" gap={2}>
                 {paramConfig.map((param) => (
-                  <Tooltip key={param.name} title={param.label} arrow>
+                  <MuiTooltip key={param.name} title={param.label} arrow>
                     <TextField
                       label={param.label}
                       type={param.type}
@@ -1028,7 +1005,7 @@ export default function Backtest() {
                       size="small"
                       sx={{ width: 180 }}
                     />
-                  </Tooltip>
+                  </MuiTooltip>
                 ))}
               </Box>
             </Grid>
@@ -1041,12 +1018,12 @@ export default function Backtest() {
                 >
                   Strategy Code
                 </Typography>
-                <Tooltip
+                <MuiTooltip
                   title="Paste or edit your strategy code here. Python only."
                   arrow
                 >
                   <HelpOutline fontSize="small" color="action" />
-                </Tooltip>
+                </MuiTooltip>
               </Box>
               <Paper sx={{ p: 0, mb: 2, background: "#f7f7f7" }}>
                 <CodeMirror
@@ -1130,7 +1107,7 @@ export default function Backtest() {
                   Reset
                 </Button>
 
-                <Tooltip title="Quick validation check">
+                <MuiTooltip title="Quick validation check">
                   <IconButton
                     onClick={handleValidate}
                     disabled={
@@ -1154,7 +1131,7 @@ export default function Backtest() {
                       <Info />
                     )}
                   </IconButton>
-                </Tooltip>
+                </MuiTooltip>
               </Box>
 
               {validateMsg && (
@@ -1375,69 +1352,29 @@ export default function Backtest() {
         {result && activeTab === "equity" && result.equity && (
           <Box mb={2}>
             <Typography variant="subtitle2">Equity Curve</Typography>
-            <Line
-              data={{
-                labels: result.equity.map((p) => p.date),
-                datasets: [
-                  {
-                    label: "Equity Curve",
-                    data: result.equity.map((p) => p.value),
-                    borderColor: "#1976d2",
-                    fill: false,
-                    pointRadius: 0,
-                  },
-                  ...getTradeMarkers(result.equity, result.trades).map(
-                    (marker) => ({
-                      label: marker.action,
-                      data: [{ x: marker.x, y: marker.y }],
-                      pointBackgroundColor:
-                        marker.action === "BUY" ? "#43a047" : "#e53935",
-                      pointBorderColor:
-                        marker.action === "BUY" ? "#43a047" : "#e53935",
-                      pointRadius: 6,
-                      type: "scatter",
-                      showLine: false,
-                    })
-                  ),
-                ],
-              }}
-              options={{
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { x: { display: false } },
-              }}
-            />
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={result.equity.map(p => ({ date: p.date, value: p.value }))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" hide />
+                <YAxis />
+                <RechartsTooltip />
+                <Line type="monotone" dataKey="value" stroke="#1976d2" strokeWidth={2} dot={false} name="Equity Curve" />
+              </LineChart>
+            </ResponsiveContainer>
           </Box>
         )}
         {result && activeTab === "drawdown" && result.equity && (
           <Box mb={2}>
             <Typography variant="subtitle2">Drawdown Chart</Typography>
-            <Bar
-              data={{
-                labels: getDrawdownSeries(result.equity).map((p) => p.date),
-                datasets: [
-                  {
-                    label: "Drawdown (%)",
-                    data: getDrawdownSeries(result.equity).map(
-                      (p) => p.drawdown
-                    ),
-                    backgroundColor: "#ff7043",
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: {
-                  y: {
-                    min: Math.min(
-                      ...getDrawdownSeries(result.equity).map((p) => p.drawdown)
-                    ),
-                    max: 0,
-                  },
-                },
-              }}
-            />
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={getDrawdownSeries(result.equity)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" hide />
+                <YAxis domain={[Math.min(...getDrawdownSeries(result.equity).map(p => p.drawdown)), 0]} />
+                <RechartsTooltip />
+                <Bar dataKey="drawdown" fill="#ff7043" name="Drawdown (%)" />
+              </BarChart>
+            </ResponsiveContainer>
           </Box>
         )}
         {result &&
@@ -1643,25 +1580,15 @@ export default function Backtest() {
                 <Typography variant="subtitle2">
                   Custom Metric: {metricKey}
                 </Typography>
-                <Line
-                  data={{
-                    labels: metric.map((p) => p.date || p[0]),
-                    datasets: [
-                      {
-                        label: metricKey,
-                        data: metric.map((p) => p.value ?? p[1]),
-                        borderColor: "#8e24aa",
-                        fill: false,
-                        pointRadius: 0,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { display: false } },
-                  }}
-                />
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={metric.map(p => ({ date: p.date || p[0], value: p.value ?? p[1] }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" hide />
+                    <YAxis />
+                    <RechartsTooltip />
+                    <Line type="monotone" dataKey="value" stroke="#8e24aa" strokeWidth={2} dot={false} name={metricKey} />
+                  </LineChart>
+                </ResponsiveContainer>
               </Box>
             );
           })()}
@@ -1993,14 +1920,14 @@ export default function Backtest() {
                 size="small"
                 variant="outlined"
               />
-              <Tooltip
+              <MuiTooltip
                 title="Run a grid search over parameter values. Use comma-separated lists (e.g. 10,20,30) or range (e.g. 10-30:5 for 10,15,20,25,30)."
                 arrow
               >
                 <IconButton size="small">
                   <HelpOutline />
                 </IconButton>
-              </Tooltip>
+              </MuiTooltip>
             </Box>
           }
         />
@@ -2008,7 +1935,7 @@ export default function Backtest() {
           <Grid container spacing={2}>
             {paramConfig.map((param) => (
               <Grid item key={param.name} xs={12} sm={4} md={3}>
-                <Tooltip title={param.label} arrow>
+                <MuiTooltip title={param.label} arrow>
                   <TextField
                     label={param.label}
                     value={sweepParams[param.name] ?? ""}
@@ -2020,7 +1947,7 @@ export default function Backtest() {
                     placeholder={String(param.default)}
                     helperText="List: 10,20,30 or Range: 10-30:5"
                   />
-                </Tooltip>
+                </MuiTooltip>
               </Grid>
             ))}
           </Grid>
@@ -2316,7 +2243,7 @@ export default function Backtest() {
                       </TableCell>
                       <TableCell>
                         <Box display="flex" gap={1}>
-                          <Tooltip title="Load Strategy">
+                          <MuiTooltip title="Load Strategy">
                             <IconButton
                               size="small"
                               onClick={() => {
@@ -2326,16 +2253,16 @@ export default function Backtest() {
                             >
                               <PlayArrow />
                             </IconButton>
-                          </Tooltip>
+                          </MuiTooltip>
                           {(strategy.userId === user?.id ||
                             !isAuthenticated) && (
                             <>
-                              <Tooltip title="Edit Strategy">
+                              <MuiTooltip title="Edit Strategy">
                                 <IconButton size="small">
                                   <Edit />
                                 </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete Strategy">
+                              </MuiTooltip>
+                              <MuiTooltip title="Delete Strategy">
                                 <IconButton
                                   size="small"
                                   color="error"
@@ -2345,14 +2272,14 @@ export default function Backtest() {
                                 >
                                   <Delete />
                                 </IconButton>
-                              </Tooltip>
+                              </MuiTooltip>
                             </>
                           )}
-                          <Tooltip title="Share Strategy">
+                          <MuiTooltip title="Share Strategy">
                             <IconButton size="small">
                               <Share />
                             </IconButton>
-                          </Tooltip>
+                          </MuiTooltip>
                         </Box>
                       </TableCell>
                     </TableRow>
