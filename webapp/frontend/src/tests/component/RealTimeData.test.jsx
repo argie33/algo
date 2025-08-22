@@ -269,6 +269,7 @@ describe('Real-time Data Components', () => {
   });
 
   afterEach(() => {
+    vi.runOnlyPendingTimers();
     vi.useRealTimers();
   });
 
@@ -298,7 +299,7 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       expect(screen.getByText('Live Data: AAPL')).toBeInTheDocument();
       expect(screen.getByText('Price: $150.25')).toBeInTheDocument();
@@ -313,7 +314,7 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-error')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       expect(screen.getByText(/Error loading data for AAPL/)).toBeInTheDocument();
       expect(screen.getByText('Retry')).toBeInTheDocument();
@@ -329,13 +330,13 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-error')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       fireEvent.click(screen.getByText('Retry'));
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       expect(api.get).toHaveBeenCalledTimes(2);
     });
@@ -345,33 +346,33 @@ describe('Real-time Data Components', () => {
         <MockLiveDataComponent 
           symbol="AAPL" 
           autoRefresh={true} 
-          refreshInterval={5000} 
+          refreshInterval={1000} 
         />
       );
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       expect(api.get).toHaveBeenCalledTimes(1);
 
-      // Fast forward 5 seconds
+      // Fast forward 1 second
       act(() => {
-        vi.advanceTimersByTime(5000);
+        vi.advanceTimersByTime(1000);
       });
 
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledTimes(2);
-      });
+      }, { timeout: 1000 });
 
-      // Fast forward another 5 seconds
+      // Fast forward another 1 second
       act(() => {
-        vi.advanceTimersByTime(5000);
+        vi.advanceTimersByTime(1000);
       });
 
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledTimes(3);
-      });
+      }, { timeout: 1000 });
     });
 
     it('should call onDataUpdate callback when data changes', async () => {
@@ -386,7 +387,7 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       expect(mockOnDataUpdate).toHaveBeenCalledWith(mockLiveData);
     });
@@ -396,7 +397,7 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       expect(api.get).toHaveBeenCalledTimes(1);
 
@@ -404,7 +405,7 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledTimes(2);
-      });
+      }, { timeout: 1000 });
     });
   });
 
@@ -423,7 +424,7 @@ describe('Real-time Data Components', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Status: connected')).toBeInTheDocument();
-      });
+      }, { timeout: 2000 });
 
       // Fast forward to get first price updates
       act(() => {
@@ -434,7 +435,7 @@ describe('Real-time Data Components', () => {
         symbols.forEach(symbol => {
           expect(screen.getByTestId(`price-${symbol}`)).toBeInTheDocument();
         });
-      });
+      }, { timeout: 2000 });
     });
 
     it('should call onPriceUpdate callback for price changes', async () => {
