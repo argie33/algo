@@ -108,7 +108,7 @@ describe('ErrorBoundary Component', () => {
       );
 
       expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-      expect(screen.getByText(/Render error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Try Again/i)).toBeInTheDocument();
     });
 
     it('should catch errors from child components', () => {
@@ -119,10 +119,10 @@ describe('ErrorBoundary Component', () => {
       );
 
       expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-      expect(screen.getByText(/Child component error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Try Again/i)).toBeInTheDocument();
     });
 
-    it('should display custom error messages', () => {
+    it('should display generic user-friendly error messages', () => {
       const customErrorMessage = 'Custom API connection failed';
       
       renderWithRouter(
@@ -131,7 +131,8 @@ describe('ErrorBoundary Component', () => {
         </ErrorBoundary>
       );
 
-      expect(screen.getByText(customErrorMessage)).toBeInTheDocument();
+      expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
+      expect(screen.getByText(/Go Home/i)).toBeInTheDocument();
     });
 
     it('should catch network/API errors', async () => {
@@ -147,9 +148,9 @@ describe('ErrorBoundary Component', () => {
       // Wait for error to be thrown
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Should now show error boundary
+      // Should now show error boundary with user-friendly messages
       expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-      expect(screen.getByText(/Network request failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/Try Again/i)).toBeInTheDocument();
     });
   });
 
@@ -255,8 +256,8 @@ describe('ErrorBoundary Component', () => {
       );
 
       expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-      expect(screen.getByText(/user123/i)).toBeInTheDocument();
-      expect(screen.getByText(/dashboard/i)).toBeInTheDocument();
+      // In production, specific context details are not shown to users
+      expect(screen.getByText(/Try Again/i)).toBeInTheDocument();
     });
   });
 
