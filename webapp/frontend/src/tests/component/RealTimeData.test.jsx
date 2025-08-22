@@ -293,13 +293,15 @@ describe('Real-time Data Components', () => {
     });
 
     it('should load and display live data for a symbol', async () => {
-      renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
+      const { rerender } = renderWithRouter(<MockLiveDataComponent symbol="AAPL" />);
 
+      // Check loading state
       expect(screen.getByTestId('live-data-loading')).toBeInTheDocument();
 
+      // Wait for content to load with a shorter timeout
       await waitFor(() => {
-        expect(screen.getByTestId('live-data-content')).toBeInTheDocument();
-      }, { timeout: 3000 });
+        expect(screen.queryByTestId('live-data-content')).toBeInTheDocument();
+      }, { timeout: 1000 });
 
       expect(screen.getByText('Live Data: AAPL')).toBeInTheDocument();
       expect(screen.getByText('Price: $150.25')).toBeInTheDocument();
