@@ -430,6 +430,14 @@ jobs:
           else
             echo "⚠️ No unit tests found or tests failed - continuing deployment"
           fi
+          
+          # React build validation - informational only, does not block deployment
+          echo "Running React build validation..."
+          if node test-react-build-validation.cjs; then
+            echo "✅ React build validation passed - production ready"
+          else
+            echo "⚠️ React build validation issues detected - continuing deployment (informational only)"
+          fi
       - name: Get Cognito configuration
         id: cognito_config
         run: |

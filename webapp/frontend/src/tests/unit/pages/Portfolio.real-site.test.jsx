@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import Portfolio from '../../../pages/Portfolio';
-import AuthContext, { useAuth } from '../../../contexts/AuthContext';
+import AuthContext from '../../../contexts/AuthContext';
 
 // Mock the useAuth hook
 vi.mock('../../../contexts/AuthContext', async () => {

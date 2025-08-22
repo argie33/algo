@@ -233,6 +233,10 @@ const Portfolio = () => {
         }
       );
 
+      if (!response) {
+        throw new Error("Portfolio API request failed - no response received");
+      }
+      
       if (!response.ok) {
         throw new Error(
           `Portfolio API failed: ${response.status} ${response.statusText}`
@@ -1927,7 +1931,7 @@ const Portfolio = () => {
                                 </Typography>
                                 <LinearProgress
                                   variant="determinate"
-                                  value={holding.allocation}
+                                  value={holding.allocation || 0}
                                   sx={{ mt: 0.5, width: 60 }}
                                 />
                               </Box>
@@ -2841,7 +2845,7 @@ const Portfolio = () => {
                     </StepLabel>
                     <StepContent>
                       <Alert severity="info" sx={{ mt: 1 }}>
-                        {aiInsights.marketAnalysis}
+                        {aiInsights?.marketAnalysis || "Market analysis not available"}
                       </Alert>
                     </StepContent>
                   </Step>
@@ -2856,10 +2860,10 @@ const Portfolio = () => {
               <CardContent>
                 <Box textAlign="center" mb={3}>
                   <Typography variant="h2" color="primary">
-                    {aiInsights.confidenceScore}%
+                    {aiInsights?.confidenceScore ?? 0}%
                   </Typography>
                   <Rating
-                    value={aiInsights.confidenceScore / 20}
+                    value={(aiInsights?.confidenceScore ?? 0) / 20}
                     readOnly
                     size="large"
                   />
