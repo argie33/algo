@@ -1,15 +1,17 @@
 const request = require("supertest");
 const express = require("express");
+
 const sectorsRoutes = require("../../../routes/sectors");
 
 // Mock database
 const { query } = require("../../../utils/database");
+
 jest.mock("../../../utils/database");
 
 // Mock authentication middleware
 const { authenticateToken } = require("../../../middleware/auth");
-jest.mock("../../../middleware/auth");
 
+jest.mock("../../../middleware/auth");
 describe("Sectors Routes", () => {
   let app;
 
@@ -17,8 +19,8 @@ describe("Sectors Routes", () => {
     app = express();
     app.use(express.json());
     app.use("/sectors", sectorsRoutes);
-    
-    // Mock authentication to pass for all tests  
+
+    // Mock authentication to pass for all tests
     authenticateToken.mockImplementation((req, res, next) => {
       req.user = { sub: "test-user-123" };
       next();
@@ -31,31 +33,27 @@ describe("Sectors Routes", () => {
 
   describe("GET /sectors/health", () => {
     test("should return health status", async () => {
-      const response = await request(app)
-        .get("/sectors/health")
-        .expect(200);
+      const response = await request(app).get("/sectors/health").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         status: "operational",
         service: "sectors",
         timestamp: expect.any(String),
-        message: "Sectors service is running"
+        message: "Sectors service is running",
       });
     });
   });
 
   describe("GET /sectors/", () => {
     test("should return API status", async () => {
-      const response = await request(app)
-        .get("/sectors/")
-        .expect(200);
+      const response = await request(app).get("/sectors/").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         message: "Sectors API - Ready",
         timestamp: expect.any(String),
-        status: "operational"
+        status: "operational",
       });
     });
   });
@@ -69,10 +67,10 @@ describe("Sectors Routes", () => {
             industry: "Software Infrastructure",
             stock_count: 145,
             priced_stocks: 140,
-            avg_price: 125.50,
+            avg_price: 125.5,
             avg_daily_change: 2.35,
             avg_weekly_change: 8.72,
-            avg_monthly_change: 15.80,
+            avg_monthly_change: 15.8,
             avg_volume: 89500000,
             avg_rsi: 65.2,
             avg_momentum: 0.15,
@@ -80,7 +78,7 @@ describe("Sectors Routes", () => {
             avg_jt_momentum: 0.12,
             avg_momentum_3m: 0.08,
             avg_momentum_6m: 0.06,
-            avg_risk_adj_momentum: 0.10,
+            avg_risk_adj_momentum: 0.1,
             avg_momentum_strength: 85.5,
             avg_volume_momentum: 0.14,
             bullish_stocks: 95,
@@ -89,11 +87,25 @@ describe("Sectors Routes", () => {
             total_dollar_volume: 12500000000,
             performance_rank: 1,
             top_performers: [
-              {symbol: "AAPL", name: "Apple Inc.", price: 175.25, monthly_return: 12.5, momentum: 0.18, jt_momentum: 0.15}
+              {
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                price: 175.25,
+                monthly_return: 12.5,
+                momentum: 0.18,
+                jt_momentum: 0.15,
+              },
             ],
             bottom_performers: [
-              {symbol: "TECH_WORST", name: "Tech Worst Corp", price: 45.30, monthly_return: -8.2, momentum: -0.05, jt_momentum: -0.02}
-            ]
+              {
+                symbol: "TECH_WORST",
+                name: "Tech Worst Corp",
+                price: 45.3,
+                monthly_return: -8.2,
+                momentum: -0.05,
+                jt_momentum: -0.02,
+              },
+            ],
           },
           {
             sector: "Healthcare",
@@ -102,7 +114,7 @@ describe("Sectors Routes", () => {
             priced_stocks: 92,
             avg_price: 98.75,
             avg_daily_change: 1.85,
-            avg_weekly_change: 4.20,
+            avg_weekly_change: 4.2,
             avg_monthly_change: 7.45,
             avg_volume: 65200000,
             avg_rsi: 58.1,
@@ -120,20 +132,32 @@ describe("Sectors Routes", () => {
             total_dollar_volume: 6400000000,
             performance_rank: 2,
             top_performers: [
-              {symbol: "JNJ", name: "Johnson & Johnson", price: 165.80, monthly_return: 9.3, momentum: 0.12, jt_momentum: 0.09}
+              {
+                symbol: "JNJ",
+                name: "Johnson & Johnson",
+                price: 165.8,
+                monthly_return: 9.3,
+                momentum: 0.12,
+                jt_momentum: 0.09,
+              },
             ],
             bottom_performers: [
-              {symbol: "HEALTH_WORST", name: "Health Worst Inc", price: 32.15, monthly_return: -5.4, momentum: -0.03, jt_momentum: -0.01}
-            ]
-          }
-        ]
+              {
+                symbol: "HEALTH_WORST",
+                name: "Health Worst Inc",
+                price: 32.15,
+                monthly_return: -5.4,
+                momentum: -0.03,
+                jt_momentum: -0.01,
+              },
+            ],
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockSectorAnalysis);
 
-      const response = await request(app)
-        .get("/sectors/analysis")
-        .expect(200);
+      const response = await request(app).get("/sectors/analysis").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -145,7 +169,7 @@ describe("Sectors Routes", () => {
             avg_market_return: expect.any(String),
             bullish_sectors: expect.any(Number),
             bearish_sectors: expect.any(Number),
-            neutral_sectors: expect.any(Number)
+            neutral_sectors: expect.any(Number),
           }),
           sectors: expect.arrayContaining([
             expect.objectContaining({
@@ -159,21 +183,21 @@ describe("Sectors Routes", () => {
                   daily_change: expect.any(String),
                   weekly_change: expect.any(String),
                   monthly_change: expect.any(String),
-                  performance_rank: expect.any(Number)
-                })
-              })
+                  performance_rank: expect.any(Number),
+                }),
+              }),
             }),
             expect.objectContaining({
               sector: "Healthcare",
               industry: expect.any(String),
               metrics: expect.objectContaining({
                 stock_count: expect.any(Number),
-                priced_stocks: expect.any(Number)
-              })
-            })
-          ])
+                priced_stocks: expect.any(Number),
+              }),
+            }),
+          ]),
         }),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -187,7 +211,7 @@ describe("Sectors Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: "Invalid timeframe. Must be daily, weekly, or monthly."
+        error: "Invalid timeframe. Must be daily, weekly, or monthly.",
       });
 
       expect(query).not.toHaveBeenCalled();
@@ -209,13 +233,11 @@ describe("Sectors Routes", () => {
     test("should handle database errors", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
 
-      const response = await request(app)
-        .get("/sectors/analysis")
-        .expect(500);
+      const response = await request(app).get("/sectors/analysis").expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Database connection failed"
+        error: "Database connection failed",
       });
     });
   });
@@ -224,19 +246,42 @@ describe("Sectors Routes", () => {
     test("should return list of available sectors", async () => {
       const mockSectorsList = {
         rows: [
-          { sector: "Technology", industry: "Software", company_count: 145, active_companies: 140 },
-          { sector: "Healthcare", industry: "Drug Manufacturers", company_count: 98, active_companies: 92 },
-          { sector: "Financial Services", industry: "Banks", company_count: 87, active_companies: 82 },
-          { sector: "Consumer Discretionary", industry: "Restaurants", company_count: 76, active_companies: 71 },
-          { sector: "Industrials", industry: "Aerospace", company_count: 65, active_companies: 60 }
-        ]
+          {
+            sector: "Technology",
+            industry: "Software",
+            company_count: 145,
+            active_companies: 140,
+          },
+          {
+            sector: "Healthcare",
+            industry: "Drug Manufacturers",
+            company_count: 98,
+            active_companies: 92,
+          },
+          {
+            sector: "Financial Services",
+            industry: "Banks",
+            company_count: 87,
+            active_companies: 82,
+          },
+          {
+            sector: "Consumer Discretionary",
+            industry: "Restaurants",
+            company_count: 76,
+            active_companies: 71,
+          },
+          {
+            sector: "Industrials",
+            industry: "Aerospace",
+            company_count: 65,
+            active_companies: 60,
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockSectorsList);
 
-      const response = await request(app)
-        .get("/sectors/list")
-        .expect(200);
+      const response = await request(app).get("/sectors/list").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -246,23 +291,23 @@ describe("Sectors Routes", () => {
               sector: "Technology",
               industries: expect.any(Array),
               total_companies: expect.any(Number),
-              active_companies: expect.any(Number)
+              active_companies: expect.any(Number),
             }),
             expect.objectContaining({
               sector: "Healthcare",
               industries: expect.any(Array),
               total_companies: expect.any(Number),
-              active_companies: expect.any(Number)
-            })
+              active_companies: expect.any(Number),
+            }),
           ]),
           summary: expect.objectContaining({
             total_sectors: expect.any(Number),
             total_industries: expect.any(Number),
             total_companies: expect.any(Number),
-            active_companies: expect.any(Number)
-          })
+            active_companies: expect.any(Number),
+          }),
         }),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -271,9 +316,7 @@ describe("Sectors Routes", () => {
     test("should handle empty sector list", async () => {
       query.mockResolvedValueOnce({ rows: [] });
 
-      const response = await request(app)
-        .get("/sectors/list")
-        .expect(200);
+      const response = await request(app).get("/sectors/list").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -283,23 +326,21 @@ describe("Sectors Routes", () => {
             total_sectors: 0,
             total_industries: 0,
             total_companies: 0,
-            active_companies: 0
-          })
+            active_companies: 0,
+          }),
         }),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
     test("should handle database errors for sector list", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
 
-      const response = await request(app)
-        .get("/sectors/list")
-        .expect(500);
+      const response = await request(app).get("/sectors/list").expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Database query failed"
+        error: "Database query failed",
       });
     });
   });
@@ -320,41 +361,41 @@ describe("Sectors Routes", () => {
             price_date: "2024-01-15",
             daily_change: 3.25,
             weekly_change: 8.15,
-            monthly_change: 12.50,
+            monthly_change: 12.5,
             rsi: 65.2,
             momentum: 0.15,
             macd: 0.025,
-            macd_signal: 0.020,
-            sma_20: 170.50,
-            sma_50: 165.80,
+            macd_signal: 0.02,
+            sma_20: 170.5,
+            sma_50: 165.8,
             jt_momentum_12_1: 0.12,
             momentum_3m: 0.08,
             momentum_6m: 0.06,
-            risk_adjusted_momentum: 0.10,
+            risk_adjusted_momentum: 0.1,
             momentum_strength: 85.5,
             dollar_volume: 7875000000,
             trend: "bullish",
             rsi_signal: "neutral",
-            macd_signal_type: "bullish"
+            macd_signal_type: "bullish",
           },
           {
-            ticker: "MSFT", 
+            ticker: "MSFT",
             short_name: "Microsoft Corporation",
             long_name: "Microsoft Corporation",
             industry: "Software Infrastructure",
             market: "NASDAQ",
             country: "United States",
-            current_price: 378.50,
+            current_price: 378.5,
             volume: 28000000,
             price_date: "2024-01-15",
-            daily_change: 2.80,
-            weekly_change: 6.90,
+            daily_change: 2.8,
+            weekly_change: 6.9,
             monthly_change: 9.75,
             rsi: 58.1,
             momentum: 0.08,
             macd: 0.015,
             macd_signal: 0.012,
-            sma_20: 375.20,
+            sma_20: 375.2,
             sma_50: 370.15,
             jt_momentum_12_1: 0.06,
             momentum_3m: 0.04,
@@ -364,9 +405,9 @@ describe("Sectors Routes", () => {
             dollar_volume: 10598000000,
             trend: "neutral",
             rsi_signal: "neutral",
-            macd_signal_type: "bullish"
-          }
-        ]
+            macd_signal_type: "bullish",
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockSectorDetails);
@@ -385,7 +426,7 @@ describe("Sectors Routes", () => {
             total_volume: expect.any(Number),
             avg_jt_momentum: expect.any(String),
             trend_distribution: expect.any(Object),
-            industry_count: expect.any(Number)
+            industry_count: expect.any(Number),
           }),
           industries: expect.any(Array),
           stocks: expect.arrayContaining([
@@ -398,7 +439,7 @@ describe("Sectors Routes", () => {
               performance: expect.objectContaining({
                 daily_change: expect.any(String),
                 weekly_change: expect.any(String),
-                monthly_change: expect.any(String)
+                monthly_change: expect.any(String),
               }),
               technicals: expect.objectContaining({
                 rsi: expect.any(String),
@@ -406,24 +447,24 @@ describe("Sectors Routes", () => {
                 macd: expect.any(String),
                 trend: expect.any(String),
                 rsi_signal: expect.any(String),
-                macd_signal: expect.any(String)
+                macd_signal: expect.any(String),
               }),
               momentum: expect.objectContaining({
                 jt_momentum_12_1: expect.any(String),
                 momentum_3m: expect.any(String),
                 momentum_6m: expect.any(String),
                 risk_adjusted: expect.any(String),
-                strength: expect.any(String)
-              })
+                strength: expect.any(String),
+              }),
             }),
             expect.objectContaining({
               symbol: "MSFT",
               name: "Microsoft Corporation",
-              industry: "Software Infrastructure"
-            })
-          ])
+              industry: "Software Infrastructure",
+            }),
+          ]),
         },
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -439,7 +480,8 @@ describe("Sectors Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: "Sector 'NonExistentSector' not found or has no current price data"
+        error:
+          "Sector 'NonExistentSector' not found or has no current price data",
       });
     });
 
@@ -452,7 +494,7 @@ describe("Sectors Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Database connection failed"
+        error: "Database connection failed",
       });
     });
 

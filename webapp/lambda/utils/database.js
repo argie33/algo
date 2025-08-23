@@ -445,14 +445,18 @@ async function query(text, params = []) {
       const result = await initializeDatabase();
       if (!result || !pool) {
         // Database is not available, return null for graceful degradation
-        console.warn("Database not available - operation will return null for graceful fallback");
+        console.warn(
+          "Database not available - operation will return null for graceful fallback"
+        );
         return null;
       }
     }
 
     // Check if pool is still valid
     if (!pool) {
-      console.warn("Database connection pool not available - returning null for graceful fallback");
+      console.warn(
+        "Database connection pool not available - returning null for graceful fallback"
+      );
       return null;
     }
 
@@ -475,13 +479,19 @@ async function query(text, params = []) {
       query: text.slice(0, 100) + (text.length > 100 ? "..." : ""),
       params: params,
     });
-    
+
     // Check if this is a connection-related error (graceful degradation)
-    if (error.message.includes('connect') || error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
-      console.warn("Database connection error - returning null for graceful fallback");
+    if (
+      error.message.includes("connect") ||
+      error.message.includes("ENOTFOUND") ||
+      error.message.includes("ECONNREFUSED")
+    ) {
+      console.warn(
+        "Database connection error - returning null for graceful fallback"
+      );
       return null;
     }
-    
+
     // For other errors, still throw to maintain error handling for genuine issues
     throw error;
   }

@@ -5,7 +5,10 @@
 
 const request = require("supertest");
 const express = require("express");
+
 const backtestRouter = require("../../../routes/backtest");
+
+const { execFile: _execFile } = require("child_process");
 
 // Mock dependencies
 jest.mock("../../../utils/database", () => ({
@@ -40,7 +43,6 @@ jest.mock("fs", () => ({
 
 const { query } = require("../../../utils/database");
 const backtestStore = require("../../../utils/backtestStore");
-const { execFile: _execFile } = require("child_process");
 
 // Create test app
 const app = express();
@@ -65,7 +67,7 @@ describe("Backtest Routes", () => {
       },
       {
         id: "2",
-        name: "RSI Strategy", 
+        name: "RSI Strategy",
         code: "// RSI strategy code",
         language: "python",
         created: "2024-01-02",
@@ -196,7 +198,9 @@ describe("Backtest Routes", () => {
     test("should delete strategy by ID", async () => {
       backtestStore.deleteStrategy.mockReturnValue();
 
-      const response = await request(app).delete("/api/backtest/strategies/123");
+      const response = await request(app).delete(
+        "/api/backtest/strategies/123"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -208,7 +212,9 @@ describe("Backtest Routes", () => {
         throw new Error("Storage error");
       });
 
-      const response = await request(app).delete("/api/backtest/strategies/123");
+      const response = await request(app).delete(
+        "/api/backtest/strategies/123"
+      );
 
       expect(response.status).toBe(500);
       // The implementation doesn't have error handling for this endpoint
@@ -268,9 +274,7 @@ describe("Backtest Routes", () => {
     });
 
     test("should validate required backtest parameters", async () => {
-      const response = await request(app)
-        .post("/api/backtest/run")
-        .send({});
+      const response = await request(app).post("/api/backtest/run").send({});
 
       expect(response.status).toBe(400);
       expect(response.body.error).toContain("required");
@@ -372,7 +376,7 @@ describe("Backtest Routes", () => {
           volume: 1000000,
         },
         {
-          symbol: "MSFT", 
+          symbol: "MSFT",
           date: "2023-01-01",
           open: 300.0,
           close: 302.0,
@@ -443,7 +447,7 @@ describe("Backtest Routes", () => {
         },
         {
           symbol: "MSFT",
-          date: "2023-01-01", 
+          date: "2023-01-01",
           open: 300.0,
           close: 302.0,
           volume: 800000,

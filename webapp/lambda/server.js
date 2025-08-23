@@ -1,27 +1,26 @@
 // Load environment variables first
 require("dotenv").config();
 
-const express = require("express");
 const cors = require("cors");
+const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const { initializeDatabase } = require("./utils/database");
-const _errorHandler = require("./middleware/errorHandler");
 
-// Import routes
+const _errorHandler = require("./middleware/errorHandler");
+const { initializeDatabase } = require("./utils/database");
+const analystRoutes = require("./routes/analysts");
 const authRoutes = require("./routes/auth");
-const stockRoutes = require("./routes/stocks");
-const metricsRoutes = require("./routes/metrics");
+const calendarRoutes = require("./routes/calendar");
+const dashboardRoutes = require("./routes/dashboard");
+const dataRoutes = require("./routes/data");
+const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
 const marketRoutes = require("./routes/market");
-const analystRoutes = require("./routes/analysts");
-const financialRoutes = require("./routes/financials");
-const tradingRoutes = require("./routes/trading");
-const technicalRoutes = require("./routes/technical");
-const calendarRoutes = require("./routes/calendar");
+const metricsRoutes = require("./routes/metrics");
 const signalsRoutes = require("./routes/signals");
-const dataRoutes = require("./routes/data");
-const dashboardRoutes = require("./routes/dashboard");
+const stockRoutes = require("./routes/stocks");
+const technicalRoutes = require("./routes/technical");
+const tradingRoutes = require("./routes/trading");
 
 const app = express();
 const PORT = process.env.PORT || 3001;

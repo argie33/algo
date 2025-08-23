@@ -26,11 +26,13 @@ jest.mock("../../middleware/auth", () => ({
 
 // Mock external API services
 jest.mock("../../utils/realTimeDataService", () => ({
-  getLiveMarketData: jest.fn(() => Promise.resolve({
-    indices: { SP500: { price: 4125.75, change: 25.50 } },
-    topGainers: [],
-    topLosers: [],
-  })),
+  getLiveMarketData: jest.fn(() =>
+    Promise.resolve({
+      indices: { SP500: { price: 4125.75, change: 25.5 } },
+      topGainers: [],
+      topLosers: [],
+    })
+  ),
   getPortfolioUpdates: jest.fn(() => Promise.resolve({})),
 }));
 
@@ -145,8 +147,12 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
 
   async function resetTestData() {
     // Clean up test data
-    await testPool.query("DELETE FROM portfolios WHERE user_id = 'integration-test-user'");
-    await testPool.query("DELETE FROM api_keys WHERE user_id = 'integration-test-user'");
+    await testPool.query(
+      "DELETE FROM portfolios WHERE user_id = 'integration-test-user'"
+    );
+    await testPool.query(
+      "DELETE FROM api_keys WHERE user_id = 'integration-test-user'"
+    );
   }
 
   async function cleanupTestData() {
@@ -158,9 +164,7 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
 
   describe("Health Endpoints", () => {
     it("should return healthy status", async () => {
-      const response = await request(app)
-        .get("/health")
-        .expect(200);
+      const response = await request(app).get("/health").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("status", "healthy");
@@ -169,9 +173,7 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
     });
 
     it("should return detailed health check", async () => {
-      const response = await request(app)
-        .get("/health/detailed")
-        .expect(200);
+      const response = await request(app).get("/health/detailed").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("database");
@@ -203,7 +205,9 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
       expect(response.body.data.positions).toHaveLength(2);
 
       // Verify position data
-      const aaplPosition = response.body.data.positions.find(p => p.symbol === "AAPL");
+      const aaplPosition = response.body.data.positions.find(
+        (p) => p.symbol === "AAPL"
+      );
       expect(aaplPosition).toEqual({
         symbol: "AAPL",
         quantity: 100,
@@ -410,9 +414,12 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
       expect(response.body.success).toBe(true);
 
       // Verify API key was deleted
-      const deletedKey = await testPool.query(`
+      const deletedKey = await testPool.query(
+        `
         SELECT * FROM api_keys WHERE id = $1
-      `, [keyId]);
+      `,
+        [keyId]
+      );
       expect(deletedKey.rows).toHaveLength(0);
     });
   });
@@ -446,7 +453,7 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
         quantity: 5,
         side: "sell",
         type: "limit",
-        price: 385.00,
+        price: 385.0,
       };
 
       const response = await request(app)
@@ -458,7 +465,7 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.side).toBe("sell");
       expect(response.body.data.type).toBe("limit");
-      expect(response.body.data.price).toBe(385.00);
+      expect(response.body.data.price).toBe(385.0);
     });
 
     it("should validate order parameters", async () => {
@@ -591,17 +598,13 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
 
   describe("Error Handling", () => {
     it("should handle 404 for non-existent endpoints", async () => {
-      const response = await request(app)
-        .get("/api/nonexistent")
-        .expect(404);
+      const response = await request(app).get("/api/nonexistent").expect(404);
 
       expect(response.body.success).toBe(false);
     });
 
     it("should handle unauthorized requests", async () => {
-      const response = await request(app)
-        .get("/api/portfolio")
-        .expect(401);
+      const response = await request(app).get("/api/portfolio").expect(401);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("unauthorized");
@@ -676,14 +679,12 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
   describe("Performance Testing", () => {
     it("should handle multiple concurrent requests", async () => {
       const requests = Array.from({ length: 20 }, () =>
-        request(app)
-          .get("/api/market/overview")
-          .expect(200)
+        request(app).get("/api/market/overview").expect(200)
       );
 
       const responses = await Promise.all(requests);
 
-      responses.forEach(response => {
+      responses.forEach((response) => {
         expect(response.body.success).toBe(true);
       });
     });
@@ -708,7 +709,10 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
     it("should validate input parameters", async () => {
       const invalidInputs = [
         { endpoint: "/api/market/quote/", symbol: "" },
-        { endpoint: "/api/market/historical/AAPL", query: { timeframe: "invalid" } },
+        {
+          endpoint: "/api/market/historical/AAPL",
+          query: { timeframe: "invalid" },
+        },
         { endpoint: "/api/trading/orders", body: { quantity: "not-a-number" } },
       ];
 
@@ -716,7 +720,8 @@ describe("Comprehensive API Endpoints Integration Tests", () => {
         let req = request(app);
 
         if (test.body) {
-          req = req.post(test.endpoint)
+          req = req
+            .post(test.endpoint)
             .set("Authorization", "Bearer test-token")
             .send(test.body);
         } else {

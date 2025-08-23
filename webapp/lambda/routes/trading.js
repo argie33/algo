@@ -102,19 +102,19 @@ router.get("/debug", async (req, res) => {
 router.get("/signals", async (req, res) => {
   try {
     const { limit = 100, symbol, signal_type } = req.query;
-    
+
     // Validate limit parameter
     const limitNum = parseInt(limit);
     if (isNaN(limitNum) || limitNum <= 0) {
       return res.status(400).json({
         success: false,
-        error: "Limit must be a positive number"
+        error: "Limit must be a positive number",
       });
     }
     if (limitNum > 500) {
       return res.status(400).json({
         success: false,
-        error: "Limit cannot exceed 500"
+        error: "Limit cannot exceed 500",
       });
     }
 
@@ -145,7 +145,7 @@ router.get("/signals", async (req, res) => {
       ORDER BY date DESC
       LIMIT $${paramIndex}
     `;
-    
+
     params.push(limitNum);
 
     const result = await query(signalsQuery, params);
@@ -154,15 +154,14 @@ router.get("/signals", async (req, res) => {
       success: true,
       data: result.rows || [],
       count: result.rows ? result.rows.length : 0,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching trading signals:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trading signals",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -636,7 +635,7 @@ router.get("/performance", async (req, res) => {
 router.get("/positions", async (req, res) => {
   try {
     const { summary } = req.query;
-    
+
     // Query to get current positions (simplified for testing)
     const positionsQuery = `
       SELECT 
@@ -660,12 +659,15 @@ router.get("/positions", async (req, res) => {
     const result = await query(positionsQuery, []);
     const positions = result.rows || [];
 
-    if (summary === 'true') {
+    if (summary === "true") {
       // Calculate portfolio summary
       const totalPositions = positions.length;
-      const totalValue = positions.reduce((sum, pos) => sum + (pos.position * pos.avg_price), 0);
-      const longPositions = positions.filter(pos => pos.position > 0).length;
-      const shortPositions = positions.filter(pos => pos.position < 0).length;
+      const totalValue = positions.reduce(
+        (sum, pos) => sum + pos.position * pos.avg_price,
+        0
+      );
+      const longPositions = positions.filter((pos) => pos.position > 0).length;
+      const shortPositions = positions.filter((pos) => pos.position < 0).length;
 
       res.json({
         success: true,
@@ -674,25 +676,24 @@ router.get("/positions", async (req, res) => {
           total_positions: totalPositions,
           long_positions: longPositions,
           short_positions: shortPositions,
-          estimated_value: totalValue
+          estimated_value: totalValue,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
         success: true,
         data: positions,
         count: positions.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-
   } catch (error) {
     console.error("Error fetching positions:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch positions",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -705,13 +706,13 @@ router.get("/orders", async (req, res) => {
       success: true,
       data: [],
       message: "Orders endpoint not fully implemented",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch orders",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -720,48 +721,49 @@ router.get("/orders", async (req, res) => {
 router.post("/orders", async (req, res) => {
   try {
     const { symbol, quantity, type, side, limitPrice, stopPrice } = req.body;
-    
+
     // Basic validation
     if (!symbol || !quantity || !type || !side) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields: symbol, quantity, type, side",
-        requiredFields: ["symbol", "quantity", "type", "side"]
+        requiredFields: ["symbol", "quantity", "type", "side"],
       });
     }
-    
+
     // Validate order type
     if (!["market", "limit", "stop", "stop_limit"].includes(type)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid order type. Must be: market, limit, stop, or stop_limit"
+        error:
+          "Invalid order type. Must be: market, limit, stop, or stop_limit",
       });
     }
-    
+
     // Validate side
     if (!["buy", "sell"].includes(side)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid side. Must be: buy or sell"
+        error: "Invalid side. Must be: buy or sell",
       });
     }
-    
+
     // Validate quantity
     if (quantity <= 0) {
       return res.status(400).json({
         success: false,
-        error: "Quantity must be greater than 0"
+        error: "Quantity must be greater than 0",
       });
     }
-    
+
     // Validate limit price for limit orders
     if (type === "limit" && (!limitPrice || limitPrice <= 0)) {
       return res.status(400).json({
         success: false,
-        error: "Limit price required for limit orders"
+        error: "Limit price required for limit orders",
       });
     }
-    
+
     // For now, return success (would integrate with actual broker API in production)
     const order = {
       id: Date.now(),
@@ -774,19 +776,18 @@ router.post("/orders", async (req, res) => {
       status: "pending",
       created_at: new Date().toISOString(),
     };
-    
+
     res.status(201).json({
       success: true,
       message: "Order created successfully",
-      data: order
+      data: order,
     });
-    
   } catch (error) {
     console.error("Order placement error:", error);
     res.status(500).json({
       success: false,
       error: "Internal server error",
-      message: error.message
+      message: error.message,
     });
   }
 });

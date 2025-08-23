@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 
 const router = express.Router();
@@ -532,18 +533,24 @@ router.get("/sectors/analysis", async (req, res) => {
     const summary = {
       totalSectors: sectors.length,
       bestPerforming: sectors.length > 0 ? sectors[0] : null,
-      mostVolatile: sectors.length > 0 ? sectors.reduce((prev, current) =>
-        parseFloat(prev.scoreRange.volatility) >
-        parseFloat(current.scoreRange.volatility)
-          ? prev
-          : current
-      ) : null,
-      averageComposite: sectors.length > 0 ? (
-        sectors.reduce(
-          (sum, s) => sum + parseFloat(s.averageScores.composite),
-          0
-        ) / sectors.length
-      ).toFixed(2) : "0.00",
+      mostVolatile:
+        sectors.length > 0
+          ? sectors.reduce((prev, current) =>
+              parseFloat(prev.scoreRange.volatility) >
+              parseFloat(current.scoreRange.volatility)
+                ? prev
+                : current
+            )
+          : null,
+      averageComposite:
+        sectors.length > 0
+          ? (
+              sectors.reduce(
+                (sum, s) => sum + parseFloat(s.averageScores.composite),
+                0
+              ) / sectors.length
+            ).toFixed(2)
+          : "0.00",
     };
 
     res.json({

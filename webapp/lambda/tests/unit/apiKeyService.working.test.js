@@ -19,38 +19,38 @@ describe("API Key Service Working Tests", () => {
   describe("Module Loading", () => {
     test("should load and export all expected methods", () => {
       expect(apiKeyService).toBeDefined();
-      expect(typeof apiKeyService.validateJwtToken).toBe('function');
-      expect(typeof apiKeyService.getHealthStatus).toBe('function');
-      expect(typeof apiKeyService.storeApiKey).toBe('function');
-      expect(typeof apiKeyService.getApiKey).toBe('function');
-      expect(typeof apiKeyService.deleteApiKey).toBe('function');
-      expect(typeof apiKeyService.clearCaches).toBe('function');
+      expect(typeof apiKeyService.validateJwtToken).toBe("function");
+      expect(typeof apiKeyService.getHealthStatus).toBe("function");
+      expect(typeof apiKeyService.storeApiKey).toBe("function");
+      expect(typeof apiKeyService.getApiKey).toBe("function");
+      expect(typeof apiKeyService.deleteApiKey).toBe("function");
+      expect(typeof apiKeyService.clearCaches).toBe("function");
     });
 
     test("should have working getHealthStatus method", () => {
       const health = apiKeyService.getHealthStatus();
-      
+
       expect(health).toBeDefined();
-      expect(health).toHaveProperty('apiKeyCircuitBreaker');
-      expect(health).toHaveProperty('jwtCircuitBreaker');
-      expect(health).toHaveProperty('cache');
-      expect(health).toHaveProperty('services');
+      expect(health).toHaveProperty("apiKeyCircuitBreaker");
+      expect(health).toHaveProperty("jwtCircuitBreaker");
+      expect(health).toHaveProperty("cache");
+      expect(health).toHaveProperty("services");
     });
   });
 
   describe("JWT Token Validation", () => {
     test("should handle invalid JWT token gracefully", async () => {
-      const result = await apiKeyService.validateJwtToken('invalid-token');
-      
+      const result = await apiKeyService.validateJwtToken("invalid-token");
+
       expect(result).toBeDefined();
       expect(result.valid).toBe(false);
       expect(result.error).toBeDefined();
-      expect(typeof result.error).toBe('string');
+      expect(typeof result.error).toBe("string");
     });
 
     test("should handle undefined token", async () => {
       const result = await apiKeyService.validateJwtToken(undefined);
-      
+
       expect(result).toBeDefined();
       expect(result.valid).toBe(false);
       expect(result.error).toBeDefined();
@@ -58,7 +58,7 @@ describe("API Key Service Working Tests", () => {
 
     test("should handle null token", async () => {
       const result = await apiKeyService.validateJwtToken(null);
-      
+
       expect(result).toBeDefined();
       expect(result.valid).toBe(false);
       expect(result.error).toBeDefined();
@@ -68,11 +68,15 @@ describe("API Key Service Working Tests", () => {
   describe("Circuit Breaker Functionality", () => {
     test("should have circuit breaker states in health status", () => {
       const health = apiKeyService.getHealthStatus();
-      
+
       expect(health.apiKeyCircuitBreaker.state).toBeDefined();
       expect(health.jwtCircuitBreaker.state).toBeDefined();
-      expect(['CLOSED', 'OPEN', 'HALF_OPEN']).toContain(health.apiKeyCircuitBreaker.state);
-      expect(['CLOSED', 'OPEN', 'HALF_OPEN']).toContain(health.jwtCircuitBreaker.state);
+      expect(["CLOSED", "OPEN", "HALF_OPEN"]).toContain(
+        health.apiKeyCircuitBreaker.state
+      );
+      expect(["CLOSED", "OPEN", "HALF_OPEN"]).toContain(
+        health.jwtCircuitBreaker.state
+      );
     });
   });
 
@@ -85,21 +89,27 @@ describe("API Key Service Working Tests", () => {
 
     test("should show cache stats in health status", () => {
       const health = apiKeyService.getHealthStatus();
-      
+
       expect(health.cache).toBeDefined();
-      expect(typeof health.cache.keyCache).toBe('number');
-      expect(typeof health.cache.sessionCache).toBe('number');
-      expect(typeof health.cache.timeout).toBe('number');
+      expect(typeof health.cache.keyCache).toBe("number");
+      expect(typeof health.cache.sessionCache).toBe("number");
+      expect(typeof health.cache.timeout).toBe("number");
     });
   });
 
   describe("Error Handling", () => {
     test("should handle API key operations with invalid tokens gracefully", async () => {
       // These should not throw but return null/error responses
-      const getResult = await apiKeyService.getApiKey('invalid-token', 'alpaca');
+      const getResult = await apiKeyService.getApiKey(
+        "invalid-token",
+        "alpaca"
+      );
       expect(getResult).toBeNull();
 
-      const deleteResult = await apiKeyService.deleteApiKey('invalid-token', 'alpaca');
+      const deleteResult = await apiKeyService.deleteApiKey(
+        "invalid-token",
+        "alpaca"
+      );
       expect(deleteResult).toBeDefined();
       expect(deleteResult.success).toBe(false);
     });

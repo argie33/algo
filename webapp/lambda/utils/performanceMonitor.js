@@ -405,6 +405,301 @@ class PerformanceMonitor {
     this.activeOperations.clear();
     this.performanceHistory = [];
   }
+
+  /**
+   * Get metrics in the format expected by performance routes
+   */
+  getMetrics() {
+    return {
+      system: {
+        totalRequests: this.performanceHistory.length,
+        totalErrors: this.performanceHistory.filter((m) => !m.success).length,
+        errorRate:
+          this.performanceHistory.length > 0
+            ? this.performanceHistory.filter((m) => !m.success).length /
+              this.performanceHistory.length
+            : 0,
+        uptime: process.uptime(),
+        memoryUsage: process.memoryUsage(),
+      },
+      api: {
+        requests: this.getApiRequestMetrics(),
+        responseTimeHistogram: this.getResponseTimeHistogram(),
+      },
+      database: {
+        queries: this.getDatabaseMetrics(),
+      },
+      external: {
+        apis: this.getExternalApiMetrics(),
+      },
+    };
+  }
+
+  /**
+   * Get performance summary in the format expected by routes
+   */
+  getPerformanceSummary() {
+    const systemHealth = this.calculateSystemHealth();
+    const activeRequests = this.activeOperations.size;
+    const totalRequests = this.performanceHistory.length;
+
+    return {
+      status: systemHealth.status,
+      uptime: process.uptime(),
+      activeRequests,
+      totalRequests,
+      errorRate: systemHealth.successRate
+        ? (100 - parseFloat(systemHealth.successRate)) / 100
+        : 0,
+      alerts: this.getActiveAlerts(),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Get API request metrics grouped by endpoint
+   */
+  getApiRequestMetrics() {
+    const apiMetrics = {};
+
+    this.performanceHistory
+      .filter((m) => m.category === "api" || m.category === "dashboard")
+      .forEach((m) => {
+        const endpoint = m.metadata?.path || "unknown";
+        if (!apiMetrics[endpoint]) {
+          apiMetrics[endpoint] = {
+            count: 0,
+            errors: 0,
+            totalTime: 0,
+            minResponseTime: Infinity,
+            maxResponseTime: 0,
+            recentRequests: [],
+          };
+        }
+
+        const stats = apiMetrics[endpoint];
+        stats.count++;
+        if (!m.success) stats.errors++;
+        stats.totalTime += m.duration;
+        stats.minResponseTime = Math.min(stats.minResponseTime, m.duration);
+        stats.maxResponseTime = Math.max(stats.maxResponseTime, m.duration);
+        stats.avgResponseTime = stats.totalTime / stats.count;
+
+        // Keep recent requests (last 10)
+        stats.recentRequests.push({
+          timestamp: m.timestamp,
+          duration: m.duration,
+          success: m.success,
+        });
+        if (stats.recentRequests.length > 10) {
+          stats.recentRequests.shift();
+        }
+      });
+
+    return apiMetrics;
+  }
+
+  /**
+   * Get database metrics grouped by operation type
+   */
+  getDatabaseMetrics() {
+    const dbMetrics = {};
+
+    this.performanceHistory
+      .filter((m) => m.category === "database")
+      .forEach((m) => {
+        const operation = m.metadata?.operation || "query";
+        if (!dbMetrics[operation]) {
+          dbMetrics[operation] = {
+            count: 0,
+            errors: 0,
+            totalTime: 0,
+            minTime: Infinity,
+            maxTime: 0,
+            recentQueries: [],
+          };
+        }
+
+        const stats = dbMetrics[operation];
+        stats.count++;
+        if (!m.success) stats.errors++;
+        stats.totalTime += m.duration;
+        stats.minTime = Math.min(stats.minTime, m.duration);
+        stats.maxTime = Math.max(stats.maxTime, m.duration);
+        stats.avgTime = stats.totalTime / stats.count;
+
+        stats.recentQueries.push({
+          timestamp: m.timestamp,
+          duration: m.duration,
+          success: m.success,
+        });
+        if (stats.recentQueries.length > 10) {
+          stats.recentQueries.shift();
+        }
+      });
+
+    return dbMetrics;
+  }
+
+  /**
+   * Get external API metrics grouped by service
+   */
+  getExternalApiMetrics() {
+    const externalMetrics = {};
+
+    this.performanceHistory
+      .filter((m) => m.category === "external" || m.metadata?.external)
+      .forEach((m) => {
+        const service = m.metadata?.service || m.metadata?.api || "unknown";
+        if (!externalMetrics[service]) {
+          externalMetrics[service] = {
+            count: 0,
+            errors: 0,
+            totalTime: 0,
+            minTime: Infinity,
+            maxTime: 0,
+            recentCalls: [],
+          };
+        }
+
+        const stats = externalMetrics[service];
+        stats.count++;
+        if (!m.success) stats.errors++;
+        stats.totalTime += m.duration;
+        stats.minTime = Math.min(stats.minTime, m.duration);
+        stats.maxTime = Math.max(stats.maxTime, m.duration);
+        stats.avgTime = stats.totalTime / stats.count;
+
+        stats.recentCalls.push({
+          timestamp: m.timestamp,
+          duration: m.duration,
+          success: m.success,
+        });
+        if (stats.recentCalls.length > 10) {
+          stats.recentCalls.shift();
+        }
+      });
+
+    return externalMetrics;
+  }
+
+  /**
+   * Get response time histogram
+   */
+  getResponseTimeHistogram() {
+    const histogram = new Map();
+    const buckets = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+
+    // Initialize buckets
+    buckets.forEach((bucket) => histogram.set(`<${bucket}ms`, 0));
+    histogram.set(">=10000ms", 0);
+
+    this.performanceHistory.forEach((m) => {
+      const duration = m.duration;
+      let placed = false;
+
+      for (const bucket of buckets) {
+        if (duration < bucket) {
+          histogram.set(`<${bucket}ms`, histogram.get(`<${bucket}ms`) + 1);
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        histogram.set(">=10000ms", histogram.get(">=10000ms") + 1);
+      }
+    });
+
+    return histogram;
+  }
+
+  /**
+   * Get performance summary (alias for getPerformanceSummary for test compatibility)
+   */
+  getSummary() {
+    return this.getPerformanceSummary();
+  }
+
+  /**
+   * Get API stats in the format expected by tests
+   */
+  getApiStats() {
+    const metrics = this.getMetrics();
+    return metrics.api.requests;
+  }
+
+  /**
+   * Get database stats in the format expected by tests
+   */
+  getDatabaseStats() {
+    const metrics = this.getMetrics();
+    return metrics.database.queries;
+  }
+
+  /**
+   * Get external API stats in the format expected by tests
+   */
+  getExternalApiStats() {
+    const metrics = this.getMetrics();
+    return metrics.external.apis;
+  }
+
+  /**
+   * Get alerts in the format expected by tests
+   */
+  getAlerts() {
+    return this.getActiveAlerts();
+  }
+
+  /**
+   * Get active performance alerts
+   */
+  getActiveAlerts() {
+    const alerts = [];
+    const now = Date.now();
+    const fiveMinutesAgo = now - 5 * 60 * 1000;
+
+    // Check for recent slow operations
+    const recentSlowOps = this.performanceHistory.filter((m) => {
+      const timestamp = new Date(m.timestamp).getTime();
+      const threshold = this.thresholds[m.category] || this.thresholds.general;
+      return timestamp > fiveMinutesAgo && m.duration > threshold;
+    });
+
+    if (recentSlowOps.length > 0) {
+      alerts.push({
+        type: "performance",
+        severity: "warning",
+        message: `${recentSlowOps.length} slow operations detected in last 5 minutes`,
+        count: recentSlowOps.length,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check error rate
+    const recentOps = this.performanceHistory.filter((m) => {
+      const timestamp = new Date(m.timestamp).getTime();
+      return timestamp > fiveMinutesAgo;
+    });
+
+    if (recentOps.length > 0) {
+      const errorRate =
+        recentOps.filter((m) => !m.success).length / recentOps.length;
+      if (errorRate > 0.1) {
+        // More than 10% error rate
+        alerts.push({
+          type: "errors",
+          severity: errorRate > 0.5 ? "critical" : "warning",
+          message: `High error rate: ${(errorRate * 100).toFixed(1)}%`,
+          errorRate: errorRate,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    return alerts;
+  }
 }
 
 // Create singleton instance

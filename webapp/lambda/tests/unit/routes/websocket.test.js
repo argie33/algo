@@ -23,7 +23,7 @@ jest.mock("../../../utils/database", () => ({
 jest.mock("../../../utils/responseFormatter", () => ({
   success: jest.fn((data) => ({ success: true, ...data })),
   error: jest.fn((message, code, details) => ({
-    response: { success: false, error: message, code, ...details }
+    response: { success: false, error: message, code, ...details },
   })),
 }));
 
@@ -43,7 +43,7 @@ const mockApiKeyService = {
 };
 jest.mock("../../../utils/apiKeyService", () => mockApiKeyService);
 
-// Mock AlpacaService 
+// Mock AlpacaService
 const mockAlpacaInstance = {
   getLatestQuote: jest.fn(),
   getLatestTrade: jest.fn(),
@@ -61,6 +61,7 @@ jest.mock("../../../middleware/validation", () => ({
 jest.useFakeTimers();
 
 const websocketRoutes = require("../../../routes/websocket");
+
 const app = express();
 app.use(express.json());
 app.use("/api/websocket", websocketRoutes);
@@ -136,7 +137,10 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         cached: false,
       });
 
-      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith("test-user-id", "alpaca");
+      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(
+        "test-user-id",
+        "alpaca"
+      );
       expect(mockAlpacaInstance.getLatestQuote).toHaveBeenCalledWith("AAPL");
     });
 
@@ -154,11 +158,16 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         provider: "alpaca",
       });
 
-      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith("test-user-id", "alpaca");
+      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(
+        "test-user-id",
+        "alpaca"
+      );
     });
 
     it("should handle API key retrieval errors", async () => {
-      mockApiKeyService.getDecryptedApiKey.mockRejectedValue(new Error("Database connection failed"));
+      mockApiKeyService.getDecryptedApiKey.mockRejectedValue(
+        new Error("Database connection failed")
+      );
 
       const response = await request(app)
         .get("/api/websocket/stream/AAPL")
@@ -217,7 +226,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       });
 
       mockAlpacaInstance.getLatestTrade.mockResolvedValue({
-        price: 150.30,
+        price: 150.3,
         size: 100,
         timestamp: Date.now(),
         conditions: ["@"],
@@ -230,11 +239,14 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.AAPL).toMatchObject({
         symbol: "AAPL",
-        price: 150.30,
+        price: 150.3,
         size: 100,
       });
 
-      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith("test-user-id", "alpaca");
+      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(
+        "test-user-id",
+        "alpaca"
+      );
       expect(mockAlpacaInstance.getLatestTrade).toHaveBeenCalledWith("AAPL");
     });
 
@@ -263,10 +275,10 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       const mockBarsData = [
         {
           timestamp: Date.now(),
-          open: 150.00,
-          high: 150.50,
-          low: 149.80,
-          close: 150.30,
+          open: 150.0,
+          high: 150.5,
+          low: 149.8,
+          close: 150.3,
           volume: 1000000,
         },
       ];
@@ -280,7 +292,10 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.AAPL).toEqual(mockBarsData);
 
-      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith("test-user-id", "alpaca");
+      expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(
+        "test-user-id",
+        "alpaca"
+      );
       expect(mockAlpacaInstance.getBars).toHaveBeenCalledWith("AAPL", {
         timeframe: "1Min",
         start: expect.any(String),

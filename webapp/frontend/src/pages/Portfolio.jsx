@@ -3827,16 +3827,35 @@ function calculateVaR(holdings, confidence) {
 }
 
 function calculateMaxDrawdown(performanceHistory) {
+  // Defensive checks for invalid or empty data
+  if (!performanceHistory || !Array.isArray(performanceHistory) || performanceHistory.length === 0) {
+    return 0;
+  }
+
+  // Ensure the first data point has a valid portfolioValue
+  if (!performanceHistory[0] || typeof performanceHistory[0].portfolioValue !== 'number') {
+    return 0;
+  }
+
   let maxDrawdown = 0;
   let peak = performanceHistory[0].portfolioValue;
 
   for (let point of performanceHistory) {
+    // Skip invalid data points
+    if (!point || typeof point.portfolioValue !== 'number') {
+      continue;
+    }
+    
     if (point.portfolioValue > peak) {
       peak = point.portfolioValue;
     }
-    const drawdown = (peak - point.portfolioValue) / peak;
-    if (drawdown > maxDrawdown) {
-      maxDrawdown = drawdown;
+    
+    // Avoid division by zero
+    if (peak > 0) {
+      const drawdown = (peak - point.portfolioValue) / peak;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
     }
   }
 

@@ -1,5 +1,7 @@
-const express = require("express");
 const crypto = require("crypto");
+
+const express = require("express");
+
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 
@@ -45,14 +47,14 @@ router.get("/analytics", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
+
     // Calculate derived values
-    const holdings = holdingsResult.rows.map(holding => {
+    const holdings = holdingsResult.rows.map((holding) => {
       const costBasis = holding.quantity * holding.avg_cost;
       const marketValue = holding.quantity * holding.current_price;
       const pnl = marketValue - costBasis;
       const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-      
+
       return {
         symbol: holding.symbol,
         quantity: holding.quantity,
@@ -65,15 +67,16 @@ router.get("/analytics", async (req, res) => {
         last_updated: holding.last_updated,
         currentPrice: holding.current_price, // Add currentPrice field for tests
         avgCost: holding.avg_cost, // Add avgCost field for tests
-        currentValue: marketValue // Add currentValue field for tests (alias for market_value)
+        currentValue: marketValue, // Add currentValue field for tests (alias for market_value)
       };
     });
 
     // Calculate portfolio total and weights
     const totalValue = holdings.reduce((sum, h) => sum + h.market_value, 0);
     const totalCostBasis = holdings.reduce((sum, h) => sum + h.cost_basis, 0);
-    holdings.forEach(holding => {
-      holding.weight = totalValue > 0 ? (holding.market_value / totalValue) * 100 : 0;
+    holdings.forEach((holding) => {
+      holding.weight =
+        totalValue > 0 ? (holding.market_value / totalValue) * 100 : 0;
     });
 
     // Calculate portfolio performance metrics from holdings and price history
@@ -89,16 +92,19 @@ router.get("/analytics", async (req, res) => {
     // Get historical portfolio values by calculating from holdings and price history
     // Since we don't have a portfolio_performance table, calculate basic metrics
     const currentDate = new Date();
-    const _timeframeDays = parseInt((timeframeMap[timeframe] || "365 days").split(' ')[0]);
-    
+    const _timeframeDays = parseInt(
+      (timeframeMap[timeframe] || "365 days").split(" ")[0]
+    );
+
     // Calculate basic performance metrics
     const totalPnl = totalValue - totalCostBasis;
-    const totalPnlPercent = totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
-    
+    const totalPnlPercent =
+      totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
+
     // Create simplified performance data (in a real system, this would come from historical tracking)
     const performance = [
       {
-        date: currentDate.toISOString().split('T')[0],
+        date: currentDate.toISOString().split("T")[0],
         total_value: totalValue,
         daily_pnl: totalPnl,
         daily_pnl_percent: totalPnlPercent,
@@ -109,8 +115,8 @@ router.get("/analytics", async (req, res) => {
         beta: 1,
         sharpe_ratio: 0,
         max_drawdown: 0,
-        volatility: 0
-      }
+        volatility: 0,
+      },
     ];
 
     // Calculate advanced analytics
@@ -131,21 +137,24 @@ router.get("/analytics", async (req, res) => {
 
     // Calculate sector allocation
     const sectorMap = {};
-    holdings.forEach(h => {
-      const sector = h.sector || 'Unknown';
+    holdings.forEach((h) => {
+      const sector = h.sector || "Unknown";
       if (!sectorMap[sector]) {
         sectorMap[sector] = { value: 0, count: 0 };
       }
       sectorMap[sector].value += parseFloat(h.market_value || 0);
       sectorMap[sector].count += 1;
     });
-    
-    const sectorAllocation = Object.entries(sectorMap).map(([sector, data]) => ({
-      sector,
-      value: data.value,
-      percentage: summaryTotalValue > 0 ? (data.value / summaryTotalValue) * 100 : 0,
-      count: data.count
-    }));
+
+    const sectorAllocation = Object.entries(sectorMap).map(
+      ([sector, data]) => ({
+        sector,
+        value: data.value,
+        percentage:
+          summaryTotalValue > 0 ? (data.value / summaryTotalValue) * 100 : 0,
+        count: data.count,
+      })
+    );
 
     res.json({
       success: true,
@@ -157,7 +166,8 @@ router.get("/analytics", async (req, res) => {
         totalValue: summaryTotalValue,
         totalCost: summaryTotalCost,
         totalGainLoss: summaryTotalPnL,
-        totalGainLossPercent: summaryTotalCost > 0 ? (summaryTotalPnL / summaryTotalCost) * 100 : 0,
+        totalGainLossPercent:
+          summaryTotalCost > 0 ? (summaryTotalPnL / summaryTotalCost) * 100 : 0,
         sectorAllocation: sectorAllocation,
         summary: {
           totalValue: summaryTotalValue,
@@ -265,38 +275,50 @@ router.get("/risk-metrics", async (req, res) => {
 
     // Calculate basic risk metrics
     let totalValue = 0;
-    const holdingsWithMetrics = holdings.map(holding => {
+    const holdingsWithMetrics = holdings.map((holding) => {
       const _costBasis = holding.quantity * holding.avg_cost;
       const marketValue = holding.quantity * holding.current_price;
       totalValue += marketValue;
-      
+
       return {
         symbol: holding.symbol,
         quantity: holding.quantity,
         marketValue: marketValue,
         weight: 0, // Will be calculated below
         beta: 1.0, // Default beta
-        volatility: 0.15 // Default volatility 15%
+        volatility: 0.15, // Default volatility 15%
       };
     });
 
     // Calculate weights
-    holdingsWithMetrics.forEach(holding => {
-      holding.weight = totalValue > 0 ? (holding.marketValue / totalValue) * 100 : 0;
+    holdingsWithMetrics.forEach((holding) => {
+      holding.weight =
+        totalValue > 0 ? (holding.marketValue / totalValue) * 100 : 0;
     });
 
     // Calculate portfolio metrics
-    const portfolioBeta = holdingsWithMetrics.reduce((sum, h) => sum + (h.weight/100) * h.beta, 0);
-    const portfolioVolatility = Math.sqrt(holdingsWithMetrics.reduce((sum, h) => sum + Math.pow((h.weight/100) * h.volatility, 2), 0));
+    const portfolioBeta = holdingsWithMetrics.reduce(
+      (sum, h) => sum + (h.weight / 100) * h.beta,
+      0
+    );
+    const portfolioVolatility = Math.sqrt(
+      holdingsWithMetrics.reduce(
+        (sum, h) => sum + Math.pow((h.weight / 100) * h.volatility, 2),
+        0
+      )
+    );
 
     // Simple VaR calculation (95% and 99% confidence levels)
     const var95 = totalValue * portfolioVolatility * 1.645; // 95% VaR
     const var99 = totalValue * portfolioVolatility * 2.326; // 99% VaR
 
     // Risk score based on concentration and volatility
-    const maxWeight = Math.max(...holdingsWithMetrics.map(h => h.weight));
+    const maxWeight = Math.max(...holdingsWithMetrics.map((h) => h.weight));
     const concentrationRisk = maxWeight / 100; // 0-1 scale
-    const riskScore = Math.min(100, (portfolioVolatility * 100 + concentrationRisk * 50));
+    const riskScore = Math.min(
+      100,
+      portfolioVolatility * 100 + concentrationRisk * 50
+    );
 
     res.json({
       success: true,
@@ -310,12 +332,12 @@ router.get("/risk-metrics", async (req, res) => {
         maxDrawdown: 0, // Would need historical data
         portfolioBeta: Math.round(portfolioBeta * 100) / 100, // Keep this for backward compatibility
         portfolioVolatility: Math.round(portfolioVolatility * 10000) / 100,
-        holdings: holdingsWithMetrics.map(h => ({
+        holdings: holdingsWithMetrics.map((h) => ({
           symbol: h.symbol,
           weight: Math.round(h.weight * 100) / 100,
           beta: h.beta,
-          volatility: Math.round(h.volatility * 10000) / 100
-        }))
+          volatility: Math.round(h.volatility * 10000) / 100,
+        })),
       },
       timestamp: new Date().toISOString(),
     });
@@ -368,8 +390,8 @@ router.get("/performance", async (req, res) => {
     // Calculate performance metrics from current holdings
     let totalValue = 0;
     let totalCostBasis = 0;
-    
-    holdings.forEach(holding => {
+
+    holdings.forEach((holding) => {
       const costBasis = holding.quantity * holding.avg_cost;
       const marketValue = holding.quantity * holding.current_price;
       totalCostBasis += costBasis;
@@ -377,13 +399,14 @@ router.get("/performance", async (req, res) => {
     });
 
     const totalPnl = totalValue - totalCostBasis;
-    const totalPnlPercent = totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
+    const totalPnlPercent =
+      totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
 
     // Create simplified performance data (in a real system, this would be historical)
     const currentDate = new Date();
     const performance = [
       {
-        date: currentDate.toISOString().split('T')[0],
+        date: currentDate.toISOString().split("T")[0],
         total_value: totalValue,
         daily_pnl: totalPnl,
         daily_pnl_percent: totalPnlPercent,
@@ -394,8 +417,8 @@ router.get("/performance", async (req, res) => {
         beta: 1,
         sharpe_ratio: 0,
         max_drawdown: 0,
-        volatility: 0
-      }
+        volatility: 0,
+      },
     ];
 
     // Calculate summary metrics from performance data
@@ -490,8 +513,8 @@ router.get("/benchmark", async (req, res) => {
         {
           date: new Date(),
           price: 100,
-          volume: 1000000
-        }
+          volume: 1000000,
+        },
       ];
     }
 
@@ -1817,7 +1840,6 @@ function generateRiskRecommendations(riskAnalysis) {
 // SECURE API KEY MANAGEMENT AND PORTFOLIO IMPORT
 // =======================
 
-
 // Encrypt API keys using AES-256-GCM
 function encryptApiKey(apiKey, userSalt) {
   const algorithm = "aes-256-gcm";
@@ -1850,7 +1872,11 @@ function decryptApiKey(encryptedData, userSalt) {
     "default-dev-secret-key-32-chars!!";
   const key = crypto.scryptSync(secretKey, userSalt, 32);
 
-  const decipher = crypto.createDecipheriv(algorithm, key, Buffer.from(encryptedData.iv, "hex"));
+  const decipher = crypto.createDecipheriv(
+    algorithm,
+    key,
+    Buffer.from(encryptedData.iv, "hex")
+  );
   decipher.setAAD(Buffer.from(userSalt));
   decipher.setAuthTag(Buffer.from(encryptedData.authTag, "hex"));
 
@@ -3447,24 +3473,24 @@ async function getAlpacaRealTimeValuation(userId, apiKey, apiSecret, sandbox) {
 function getSectorForSymbol(symbol) {
   // Simple sector mapping for common symbols
   const sectorMap = {
-    'AAPL': 'Technology',
-    'MSFT': 'Technology',
-    'GOOGL': 'Technology',
-    'AMZN': 'Consumer Discretionary',
-    'TSLA': 'Consumer Discretionary',
-    'META': 'Technology',
-    'NVDA': 'Technology',
-    'JPM': 'Financial Services',
-    'JNJ': 'Healthcare',
-    'V': 'Financial Services',
-    'PG': 'Consumer Staples',
-    'HD': 'Consumer Discretionary',
-    'DIS': 'Consumer Discretionary',
-    'BAC': 'Financial Services',
-    'XOM': 'Energy'
+    AAPL: "Technology",
+    MSFT: "Technology",
+    GOOGL: "Technology",
+    AMZN: "Consumer Discretionary",
+    TSLA: "Consumer Discretionary",
+    META: "Technology",
+    NVDA: "Technology",
+    JPM: "Financial Services",
+    JNJ: "Healthcare",
+    V: "Financial Services",
+    PG: "Consumer Staples",
+    HD: "Consumer Discretionary",
+    DIS: "Consumer Discretionary",
+    BAC: "Financial Services",
+    XOM: "Energy",
   };
-  
-  return sectorMap[symbol.toUpperCase()] || 'Unknown';
+
+  return sectorMap[symbol.toUpperCase()] || "Unknown";
 }
 
 module.exports = router;

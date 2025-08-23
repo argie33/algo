@@ -1,10 +1,12 @@
-const express = require("express");
-const router = express.Router();
-const { query } = require("../utils/database");
 const { execFile } = require("child_process");
-const backtestStore = require("../utils/backtestStore");
 const path = require("path");
-const _fs = require("fs");
+
+const express = require("express");
+
+const { query } = require("../utils/database");
+const backtestStore = require("../utils/backtestStore");
+
+const router = express.Router();
 
 // Backtesting engine class
 class BacktestEngine {
@@ -52,6 +54,7 @@ class BacktestEngine {
 
     try {
       // Execute strategy in isolated context
+      // eslint-disable-next-line no-new-func
       const func = new Function(
         "context",
         `
@@ -637,6 +640,7 @@ router.post("/validate", async (req, res) => {
 
     // Basic syntax validation
     try {
+      // eslint-disable-next-line no-new-func
       new Function("context", `with(context) { ${strategy} }`);
       res.json({ valid: true, message: "Strategy code is valid" });
     } catch (error) {

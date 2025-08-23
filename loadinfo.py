@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
+import gc
+import json
+import logging
+import math
+import os
+import resource
 import sys
 import time
-import logging
-import json
-import os
-import gc
-import resource
-import math
-
-import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
 import boto3
+import psycopg2
 import yfinance as yf
+from psycopg2.extras import RealDictCursor, execute_values
 
 # -------------------------------
 # Script metadata & logging setup
@@ -22,8 +21,9 @@ SCRIPT_NAME = "loadinfo.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
+    stream=sys.stdout,
 )
+
 
 # -------------------------------
 # Memory-logging helper (RSS in MB)
@@ -34,8 +34,10 @@ def get_rss_mb():
         return usage / 1024
     return usage / (1024 * 1024)
 
+
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
 
 # -------------------------------
 # Retry settings
@@ -43,20 +45,23 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 0.2  # seconds between download retries
 
+
 # -------------------------------
 # DB config loader
 # -------------------------------
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    secret_str = boto3.client("secretsmanager").get_secret_value(
+        SecretId=os.environ["DB_SECRET_ARN"]
+    )["SecretString"]
     sec = json.loads(secret_str)
     return {
         "host": sec["host"],
         "port": int(sec.get("port", 5432)),
         "user": sec["username"],
         "password": sec["password"],
-        "dbname": sec["dbname"]
+        "dbname": sec["dbname"],
     }
+
 
 def load_company_info(symbols, cur, conn):
     total = len(symbols)
@@ -66,15 +71,15 @@ def load_company_info(symbols, cur, conn):
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
-        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$','-').upper() for s in batch]
+        batch = symbols[batch_idx * CHUNK_SIZE : (batch_idx + 1) * CHUNK_SIZE]
+        yq_batch = [s.replace(".", "-").replace("$", "-").upper() for s in batch]
         mapping = dict(zip(yq_batch, batch))
 
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
-            for attempt in range(1, MAX_BATCH_RETRIES+1):
+            for attempt in range(1, MAX_BATCH_RETRIES + 1):
                 try:
                     ticker = yf.Ticker(yq_sym)
                     info = ticker.info
@@ -87,10 +92,11 @@ def load_company_info(symbols, cur, conn):
                         failed.append(orig_sym)
                         continue
                     time.sleep(RETRY_DELAY)
-            
+
             try:
                 # Insert into company_profile
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO company_profile (
                         ticker, short_name, long_name, display_name, quote_type, 
                         symbol_type, triggerable, has_pre_post_market_data, price_hint,
@@ -112,50 +118,78 @@ def load_company_info(symbols, cur, conn):
                         long_name = EXCLUDED.long_name,
                         display_name = EXCLUDED.display_name,
                         quote_type = EXCLUDED.quote_type
-                """, (
-                    orig_sym, info.get('shortName'), info.get('longName'),
-                    info.get('displayName'), info.get('quoteType'),
-                    info.get('symbolType'), info.get('triggerable'),
-                    info.get('hasPrePostMarketData'), info.get('priceHint'),
-                    info.get('maxAge'), info.get('language'), info.get('region'),
-                    info.get('financialCurrency'), info.get('currency'),
-                    info.get('market'), info.get('quoteSourceName'),
-                    info.get('customPriceAlertConfidence'),
-                    info.get('address1'), info.get('city'), info.get('state'),
-                    info.get('zip'), info.get('country'), info.get('phone'),
-                    info.get('website'), info.get('irWebsite'),
-                    info.get('messageBoardId'), json.dumps(info.get('corporateActions', {})),
-                    info.get('sector'), info.get('sectorKey'),
-                    info.get('sectorDisp'), info.get('industry'),
-                    info.get('industryKey'), info.get('industryDisp'),
-                    info.get('longBusinessSummary'), info.get('fullTimeEmployees'),
-                    info.get('firstTradeDateEpochUtc'), info.get('gmtOffSetMilliseconds'),
-                    info.get('exchange'), info.get('fullExchangeName'),
-                    info.get('exchangeTimezoneName'),
-                    info.get('exchangeTimezoneShortName'),
-                    info.get('exchangeDataDelayedBy'),
-                    info.get('postMarketTime'), info.get('regularMarketTime')
-                ))
+                """,
+                    (
+                        orig_sym,
+                        info.get("shortName"),
+                        info.get("longName"),
+                        info.get("displayName"),
+                        info.get("quoteType"),
+                        info.get("symbolType"),
+                        info.get("triggerable"),
+                        info.get("hasPrePostMarketData"),
+                        info.get("priceHint"),
+                        info.get("maxAge"),
+                        info.get("language"),
+                        info.get("region"),
+                        info.get("financialCurrency"),
+                        info.get("currency"),
+                        info.get("market"),
+                        info.get("quoteSourceName"),
+                        info.get("customPriceAlertConfidence"),
+                        info.get("address1"),
+                        info.get("city"),
+                        info.get("state"),
+                        info.get("zip"),
+                        info.get("country"),
+                        info.get("phone"),
+                        info.get("website"),
+                        info.get("irWebsite"),
+                        info.get("messageBoardId"),
+                        json.dumps(info.get("corporateActions", {})),
+                        info.get("sector"),
+                        info.get("sectorKey"),
+                        info.get("sectorDisp"),
+                        info.get("industry"),
+                        info.get("industryKey"),
+                        info.get("industryDisp"),
+                        info.get("longBusinessSummary"),
+                        info.get("fullTimeEmployees"),
+                        info.get("firstTradeDateEpochUtc"),
+                        info.get("gmtOffSetMilliseconds"),
+                        info.get("exchange"),
+                        info.get("fullExchangeName"),
+                        info.get("exchangeTimezoneName"),
+                        info.get("exchangeTimezoneShortName"),
+                        info.get("exchangeDataDelayedBy"),
+                        info.get("postMarketTime"),
+                        info.get("regularMarketTime"),
+                    ),
+                )
 
                 # Insert leadership team data
-                if 'companyOfficers' in info:
+                if "companyOfficers" in info:
                     officers_data = []
-                    for officer in info['companyOfficers']:
-                        officers_data.append((
-                            orig_sym,
-                            officer.get('name'),
-                            officer.get('age'),
-                            officer.get('title'),
-                            officer.get('yearBorn'),
-                            officer.get('fiscalYear'),
-                            officer.get('totalPay'),
-                            officer.get('exercisedValue'),
-                            officer.get('unexercisedValue'),
-                            'yahoo'  # role_source
-                        ))
-                    
+                    for officer in info["companyOfficers"]:
+                        officers_data.append(
+                            (
+                                orig_sym,
+                                officer.get("name"),
+                                officer.get("age"),
+                                officer.get("title"),
+                                officer.get("yearBorn"),
+                                officer.get("fiscalYear"),
+                                officer.get("totalPay"),
+                                officer.get("exercisedValue"),
+                                officer.get("unexercisedValue"),
+                                "yahoo",  # role_source
+                            )
+                        )
+
                     if officers_data:
-                        execute_values(cur, """
+                        execute_values(
+                            cur,
+                            """
                             INSERT INTO leadership_team (
                                 ticker, person_name, age, title, birth_year,
                                 fiscal_year, total_pay, exercised_value,
@@ -165,11 +199,16 @@ def load_company_info(symbols, cur, conn):
                                 age = EXCLUDED.age,
                                 title = EXCLUDED.title,
                                 total_pay = EXCLUDED.total_pay
-                        """, officers_data)
+                        """,
+                            officers_data,
+                        )
 
                 # Insert governance scores
-                if any(k in info for k in ['auditRisk', 'boardRisk', 'compensationRisk']):
-                    cur.execute("""
+                if any(
+                    k in info for k in ["auditRisk", "boardRisk", "compensationRisk"]
+                ):
+                    cur.execute(
+                        """
                         INSERT INTO governance_scores (
                             ticker, audit_risk, board_risk, compensation_risk,
                             shareholder_rights_risk, overall_risk,
@@ -179,17 +218,22 @@ def load_company_info(symbols, cur, conn):
                             audit_risk = EXCLUDED.audit_risk,
                             board_risk = EXCLUDED.board_risk,
                             compensation_risk = EXCLUDED.compensation_risk
-                    """, (
-                        orig_sym, info.get('auditRisk'), info.get('boardRisk'),
-                        info.get('compensationRisk'),
-                        info.get('shareHolderRightsRisk'),
-                        info.get('overallRisk'),
-                        info.get('governanceEpochDate'),
-                        info.get('compensationAsOfDate')
-                    ))
+                    """,
+                        (
+                            orig_sym,
+                            info.get("auditRisk"),
+                            info.get("boardRisk"),
+                            info.get("compensationRisk"),
+                            info.get("shareHolderRightsRisk"),
+                            info.get("overallRisk"),
+                            info.get("governanceEpochDate"),
+                            info.get("compensationAsOfDate"),
+                        ),
+                    )
 
                 # Insert market data
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO market_data (
                         ticker, previous_close, regular_market_previous_close,
                         open_price, regular_market_open, day_low,
@@ -214,41 +258,55 @@ def load_company_info(symbols, cur, conn):
                         current_price = EXCLUDED.current_price,
                         volume = EXCLUDED.volume,
                         market_cap = EXCLUDED.market_cap
-                """, (
-                    orig_sym, info.get('previousClose'),
-                    info.get('regularMarketPreviousClose'),
-                    info.get('open'), info.get('regularMarketOpen'),
-                    info.get('dayLow'), info.get('regularMarketDayLow'),
-                    info.get('dayHigh'), info.get('regularMarketDayHigh'),
-                    info.get('regularMarketPrice'), info.get('currentPrice'),
-                    info.get('postMarketPrice'), info.get('postMarketChange'),
-                    info.get('postMarketChangePercent'), info.get('volume'),
-                    info.get('regularMarketVolume'),
-                    info.get('averageVolume'), info.get('averageVolume10days'),
-                    info.get('averageDailyVolume10Day'),
-                    info.get('averageDailyVolume3Month'),
-                    info.get('bid'), info.get('ask'),
-                    info.get('bidSize'), info.get('askSize'),
-                    info.get('marketState'), info.get('fiftyTwoWeekLow'),
-                    info.get('fiftyTwoWeekHigh'),
-                    f"{info.get('fiftyTwoWeekLow')} - {info.get('fiftyTwoWeekHigh')}",
-                    info.get('fiftyTwoWeekLowChange'),
-                    info.get('fiftyTwoWeekLowChangePercent'),
-                    info.get('fiftyTwoWeekHighChange'),
-                    info.get('fiftyTwoWeekHighChangePercent'),
-                    info.get('fiftyTwoWeekChangePercent'),
-                    info.get('fiftyDayAverage'),
-                    info.get('twoHundredDayAverage'),
-                    info.get('fiftyDayAverageChange'),
-                    info.get('fiftyDayAverageChangePercent'),
-                    info.get('twoHundredDayAverageChange'),
-                    info.get('twoHundredDayAverageChangePercent'),
-                    info.get('sourceInterval'),
-                    info.get('marketCap')
-                ))
+                """,
+                    (
+                        orig_sym,
+                        info.get("previousClose"),
+                        info.get("regularMarketPreviousClose"),
+                        info.get("open"),
+                        info.get("regularMarketOpen"),
+                        info.get("dayLow"),
+                        info.get("regularMarketDayLow"),
+                        info.get("dayHigh"),
+                        info.get("regularMarketDayHigh"),
+                        info.get("regularMarketPrice"),
+                        info.get("currentPrice"),
+                        info.get("postMarketPrice"),
+                        info.get("postMarketChange"),
+                        info.get("postMarketChangePercent"),
+                        info.get("volume"),
+                        info.get("regularMarketVolume"),
+                        info.get("averageVolume"),
+                        info.get("averageVolume10days"),
+                        info.get("averageDailyVolume10Day"),
+                        info.get("averageDailyVolume3Month"),
+                        info.get("bid"),
+                        info.get("ask"),
+                        info.get("bidSize"),
+                        info.get("askSize"),
+                        info.get("marketState"),
+                        info.get("fiftyTwoWeekLow"),
+                        info.get("fiftyTwoWeekHigh"),
+                        f"{info.get('fiftyTwoWeekLow')} - {info.get('fiftyTwoWeekHigh')}",
+                        info.get("fiftyTwoWeekLowChange"),
+                        info.get("fiftyTwoWeekLowChangePercent"),
+                        info.get("fiftyTwoWeekHighChange"),
+                        info.get("fiftyTwoWeekHighChangePercent"),
+                        info.get("fiftyTwoWeekChangePercent"),
+                        info.get("fiftyDayAverage"),
+                        info.get("twoHundredDayAverage"),
+                        info.get("fiftyDayAverageChange"),
+                        info.get("fiftyDayAverageChangePercent"),
+                        info.get("twoHundredDayAverageChange"),
+                        info.get("twoHundredDayAverageChangePercent"),
+                        info.get("sourceInterval"),
+                        info.get("marketCap"),
+                    ),
+                )
 
                 # Insert key metrics
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO key_metrics (
                         ticker, trailing_pe, forward_pe, price_to_sales_ttm,
                         price_to_book, book_value, peg_ratio, enterprise_value,
@@ -278,48 +336,66 @@ def load_company_info(symbols, cur, conn):
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
                         eps_trailing = EXCLUDED.eps_trailing
-                """, (
-                    orig_sym, info.get('trailingPE'), info.get('forwardPE'),
-                    info.get('priceToSalesTrailing12Months'),
-                    info.get('priceToBook'), info.get('bookValue'),
-                    info.get('pegRatio'), info.get('enterpriseValue'),
-                    info.get('enterpriseToRevenue'),
-                    info.get('enterpriseToEbitda'),
-                    info.get('totalRevenue'), info.get('netIncomeToCommon'),
-                    info.get('ebitda'), info.get('grossProfits'),
-                    info.get('trailingEps'), info.get('forwardEps'),
-                    info.get('currentYear'), info.get('priceEpsCurrentYear'),
-                    info.get('earningsQuarterlyGrowth'),
-                    info.get('earningsTimestamp'),
-                    info.get('earningsTimestampStart'),
-                    info.get('earningsTimestampEnd'),
-                    info.get('earningsCallTimeStampStart'),
-                    info.get('earningsCallTimeStampEnd'),
-                    info.get('earningsDateIsEstimate'),
-                    info.get('totalCash'), info.get('totalCashPerShare'),
-                    info.get('operatingCashflow'),
-                    info.get('freeCashflow'), info.get('totalDebt'),
-                    info.get('debtToEquity'), info.get('quickRatio'),
-                    info.get('currentRatio'), info.get('profitMargins'),
-                    info.get('grossMargins'), info.get('ebitdaMargins'),
-                    info.get('operatingMargins'),
-                    info.get('returnOnAssets'), info.get('returnOnEquity'),
-                    info.get('revenueGrowth'),
-                    info.get('earningsGrowth'),
-                    info.get('lastSplitFactor'),
-                    info.get('lastSplitDate'), info.get('dividendRate'),
-                    info.get('dividendYield'),
-                    info.get('fiveYearAvgDividendYield'),
-                    info.get('exDividendDate'),
-                    info.get('lastAnnualDividendAmt'),
-                    info.get('lastAnnualDividendYield'),
-                    info.get('lastDividendValue'),
-                    info.get('lastDividendDate'),
-                    info.get('dividendDate'), info.get('payoutRatio')
-                ))
+                """,
+                    (
+                        orig_sym,
+                        info.get("trailingPE"),
+                        info.get("forwardPE"),
+                        info.get("priceToSalesTrailing12Months"),
+                        info.get("priceToBook"),
+                        info.get("bookValue"),
+                        info.get("pegRatio"),
+                        info.get("enterpriseValue"),
+                        info.get("enterpriseToRevenue"),
+                        info.get("enterpriseToEbitda"),
+                        info.get("totalRevenue"),
+                        info.get("netIncomeToCommon"),
+                        info.get("ebitda"),
+                        info.get("grossProfits"),
+                        info.get("trailingEps"),
+                        info.get("forwardEps"),
+                        info.get("currentYear"),
+                        info.get("priceEpsCurrentYear"),
+                        info.get("earningsQuarterlyGrowth"),
+                        info.get("earningsTimestamp"),
+                        info.get("earningsTimestampStart"),
+                        info.get("earningsTimestampEnd"),
+                        info.get("earningsCallTimeStampStart"),
+                        info.get("earningsCallTimeStampEnd"),
+                        info.get("earningsDateIsEstimate"),
+                        info.get("totalCash"),
+                        info.get("totalCashPerShare"),
+                        info.get("operatingCashflow"),
+                        info.get("freeCashflow"),
+                        info.get("totalDebt"),
+                        info.get("debtToEquity"),
+                        info.get("quickRatio"),
+                        info.get("currentRatio"),
+                        info.get("profitMargins"),
+                        info.get("grossMargins"),
+                        info.get("ebitdaMargins"),
+                        info.get("operatingMargins"),
+                        info.get("returnOnAssets"),
+                        info.get("returnOnEquity"),
+                        info.get("revenueGrowth"),
+                        info.get("earningsGrowth"),
+                        info.get("lastSplitFactor"),
+                        info.get("lastSplitDate"),
+                        info.get("dividendRate"),
+                        info.get("dividendYield"),
+                        info.get("fiveYearAvgDividendYield"),
+                        info.get("exDividendDate"),
+                        info.get("lastAnnualDividendAmt"),
+                        info.get("lastAnnualDividendYield"),
+                        info.get("lastDividendValue"),
+                        info.get("lastDividendDate"),
+                        info.get("dividendDate"),
+                        info.get("payoutRatio"),
+                    ),
+                )
 
                 # Prepare averageAnalystRating
-                raw_avg_rating = info.get('averageAnalystRating')
+                raw_avg_rating = info.get("averageAnalystRating")
                 parsed_avg_rating = None
                 if isinstance(raw_avg_rating, (int, float)):
                     parsed_avg_rating = raw_avg_rating
@@ -327,13 +403,13 @@ def load_company_info(symbols, cur, conn):
                     try:
                         # Attempt to convert the first part of the string to a float
                         # Handles cases like "2.3 - Buy" or just "2.3" if it's a string
-                        parsed_avg_rating = float(raw_avg_rating.split(' - ')[0])
+                        parsed_avg_rating = float(raw_avg_rating.split(" - ")[0])
                     except (ValueError, IndexError):
                         logging.warning(
                             f"Could not parse averageAnalystRating '{raw_avg_rating}' for {orig_sym}. Setting to NULL."
                         )
                         # parsed_avg_rating remains None if parsing fails
-                elif raw_avg_rating is not None: # Catch other unexpected types
+                elif raw_avg_rating is not None:  # Catch other unexpected types
                     logging.warning(
                         f"Unexpected type for averageAnalystRating for {orig_sym}: {type(raw_avg_rating)}, value: '{raw_avg_rating}'. Setting to NULL."
                     )
@@ -341,7 +417,8 @@ def load_company_info(symbols, cur, conn):
                 # If raw_avg_rating is None, parsed_avg_rating is already None
 
                 # Insert analyst estimates
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO analyst_estimates (
                         ticker, target_high_price, target_low_price,
                         target_mean_price, target_median_price,
@@ -351,15 +428,19 @@ def load_company_info(symbols, cur, conn):
                     ON CONFLICT (ticker) DO UPDATE SET
                         target_mean_price = EXCLUDED.target_mean_price,
                         recommendation_key = EXCLUDED.recommendation_key
-                """, (
-                    orig_sym, info.get('targetHighPrice'),
-                    info.get('targetLowPrice'), info.get('targetMeanPrice'),
-                    info.get('targetMedianPrice'),
-                    info.get('recommendationKey'),
-                    info.get('recommendationMean'),
-                    info.get('numberOfAnalystOpinions'),
-                    parsed_avg_rating # Use the parsed value here
-                ))
+                """,
+                    (
+                        orig_sym,
+                        info.get("targetHighPrice"),
+                        info.get("targetLowPrice"),
+                        info.get("targetMeanPrice"),
+                        info.get("targetMedianPrice"),
+                        info.get("recommendationKey"),
+                        info.get("recommendationMean"),
+                        info.get("numberOfAnalystOpinions"),
+                        parsed_avg_rating,  # Use the parsed value here
+                    ),
+                )
 
                 conn.commit()
                 processed += 1
@@ -377,6 +458,7 @@ def load_company_info(symbols, cur, conn):
 
     return total, processed, failed
 
+
 # -------------------------------
 # Entrypoint
 # -------------------------------
@@ -386,26 +468,31 @@ if __name__ == "__main__":
     # Connect to DB
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
+        host=cfg["host"],
+        port=cfg["port"],
+        user=cfg["user"],
+        password=cfg["password"],
+        dbname=cfg["dbname"],
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Recreate tables
     logging.info("Recreating company info tables...")
-    cur.execute("""
+    cur.execute(
+        """
         DROP TABLE IF EXISTS analyst_estimates CASCADE;
         DROP TABLE IF EXISTS key_metrics CASCADE;
         DROP TABLE IF EXISTS market_data CASCADE;
         DROP TABLE IF EXISTS governance_scores CASCADE;
         DROP TABLE IF EXISTS leadership_team CASCADE;
         DROP TABLE IF EXISTS company_profile CASCADE;
-    """)
+    """
+    )
 
     # Create tables in correct order (company_profile first as it's referenced by others)
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE company_profile (
             ticker VARCHAR(10) PRIMARY KEY,
             short_name VARCHAR(100),
@@ -452,9 +539,11 @@ if __name__ == "__main__":
             post_market_time_ms BIGINT,
             regular_market_time_ms BIGINT
         );
-    """)
+    """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE leadership_team (
             ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
             person_name VARCHAR(200) NOT NULL,
@@ -468,9 +557,11 @@ if __name__ == "__main__":
             role_source VARCHAR(50),
             PRIMARY KEY(ticker, person_name, role_source)
         );
-    """)
+    """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE governance_scores (
             ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
             audit_risk INT,
@@ -481,9 +572,11 @@ if __name__ == "__main__":
             governance_epoch_ms BIGINT,
             comp_data_as_of_ms BIGINT
         );
-    """)
+    """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE market_data (
             ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
             previous_close NUMERIC,
@@ -527,9 +620,11 @@ if __name__ == "__main__":
             source_interval_sec INT,
             market_cap BIGINT
         );
-    """)
+    """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE key_metrics (
             ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
             trailing_pe NUMERIC,
@@ -585,9 +680,11 @@ if __name__ == "__main__":
             dividend_date_ms BIGINT,
             payout_ratio NUMERIC
         );
-    """)
+    """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE analyst_estimates (
             ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
             target_high_price NUMERIC,
@@ -599,7 +696,8 @@ if __name__ == "__main__":
             analyst_opinion_count INT,
             average_analyst_rating NUMERIC
         );
-    """)
+    """
+    )
 
     conn.commit()
 
@@ -614,12 +712,15 @@ if __name__ == "__main__":
     t_e, p_e, f_e = load_company_info(etf_syms, cur, conn)
 
     # Record last run
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO last_updated (script_name, last_run)
         VALUES (%s, NOW())
         ON CONFLICT (script_name) DO UPDATE
             SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
+    """,
+        (SCRIPT_NAME,),
+    )
     conn.commit()
 
     peak = get_rss_mb()

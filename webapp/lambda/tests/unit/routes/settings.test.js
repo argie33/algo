@@ -5,6 +5,7 @@
 
 const request = require("supertest");
 const express = require("express");
+
 // Mock database before requiring the route
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
@@ -24,7 +25,7 @@ jest.mock("../../../middleware/auth", () => ({
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
   listProviders: jest.fn(),
-  storeApiKey: jest.fn(), 
+  storeApiKey: jest.fn(),
   getApiKey: jest.fn(),
   validateApiKey: jest.fn(),
   deleteApiKey: jest.fn(),
@@ -37,12 +38,11 @@ const {
   getApiKey,
   deleteApiKey,
 } = require("../../../utils/apiKeyService");
-
 const settingsRoutes = require("../../../routes/settings");
+
 const app = express();
 app.use(express.json());
 app.use("/api/settings", settingsRoutes);
-
 describe("Settings API Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();

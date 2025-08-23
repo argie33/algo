@@ -17,14 +17,16 @@ jest.mock("../../utils/apiKeyService", () => ({
 }));
 
 // Import after mocking
-const { query: _mockQuery, healthCheck: mockHealthCheck } = require("../../utils/database");
+const {
+  query: _mockQuery,
+  healthCheck: mockHealthCheck,
+} = require("../../utils/database");
 const {
   storeApiKey,
   listProviders,
   validateJwtToken,
   getHealthStatus,
 } = require("../../utils/apiKeyService");
-
 // Import routes
 const settingsRoutes = require("../../routes/settings");
 const healthRoutes = require("../../routes/health");
@@ -37,7 +39,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
   beforeAll(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add only core routes
     app.use("/api/settings", settingsRoutes);
     app.use("/api/health", healthRoutes);
@@ -45,7 +47,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
     mockUser = {
       sub: "test-user-123",
       email: "test@example.com",
-      role: "admin"
+      role: "admin",
     };
 
     mockToken = "mock-jwt-token";
@@ -56,7 +58,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
     validateJwtToken.mockResolvedValue(mockUser);
     mockHealthCheck.mockResolvedValue({ healthy: true, database: "connected" });
     getHealthStatus.mockReturnValue({
-      apiKeyCircuitBreaker: { state: "CLOSED" }
+      apiKeyCircuitBreaker: { state: "CLOSED" },
     });
   });
 
@@ -82,7 +84,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
         .send({
           provider: "alpaca",
           apiKey: "TEST123",
-          apiSecret: "SECRET123"
+          apiSecret: "SECRET123",
         })
         .expect(200);
 
@@ -93,15 +95,17 @@ describe("Simplified User Workflows - Core Functionality", () => {
         expect.objectContaining({
           apiKey: "TEST123",
           apiSecret: "SECRET123",
-          isSandbox: true
+          isSandbox: true,
         })
       );
 
       // Step 3: List API keys (should show new key)
-      listProviders.mockResolvedValue([{
-        provider: "alpaca",
-        hasApiKey: true
-      }]);
+      listProviders.mockResolvedValue([
+        {
+          provider: "alpaca",
+          hasApiKey: true,
+        },
+      ]);
 
       const updatedListResponse = await request(app)
         .get("/api/settings/api-keys")
@@ -130,7 +134,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
         .send({
           provider: "alpaca",
           apiKey: "TEST123",
-          apiSecret: "SECRET123"
+          apiSecret: "SECRET123",
         })
         .expect(500);
 
@@ -152,9 +156,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
     it("should handle database health failures", async () => {
       mockHealthCheck.mockRejectedValue(new Error("Database down"));
 
-      await request(app)
-        .get("/api/health")
-        .expect(503);
+      await request(app).get("/api/health").expect(503);
     });
   });
 
@@ -176,7 +178,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
         .send({
           provider: "  alpaca  ", // Has spaces, not supported
           apiKey: "TEST123",
-          apiSecret: "SECRET123"
+          apiSecret: "SECRET123",
         })
         .expect(400);
 
@@ -194,7 +196,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
         .send({
           provider: "alpaca", // Valid provider
           apiKey: "  TEST123  ", // Will be trimmed
-          apiSecret: "  SECRET123  " // Will be trimmed
+          apiSecret: "  SECRET123  ", // Will be trimmed
         })
         .expect(200);
 
@@ -205,7 +207,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
         expect.objectContaining({
           apiKey: "TEST123", // Trimmed
           apiSecret: "SECRET123", // Trimmed
-          isSandbox: true
+          isSandbox: true,
         })
       );
     });
@@ -248,9 +250,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
     });
 
     it("should reject unauthenticated requests", async () => {
-      await request(app)
-        .get("/api/settings/api-keys")
-        .expect(401);
+      await request(app).get("/api/settings/api-keys").expect(401);
     });
   });
 
@@ -265,8 +265,8 @@ describe("Simplified User Workflows - Core Functionality", () => {
       );
 
       const responses = await Promise.all(promises);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
       });
@@ -274,9 +274,9 @@ describe("Simplified User Workflows - Core Functionality", () => {
 
     it("should respond within reasonable time", async () => {
       listProviders.mockResolvedValue([]);
-      
+
       const startTime = Date.now();
-      
+
       await request(app)
         .get("/api/settings/api-keys")
         .set("Authorization", `Bearer ${mockToken}`)
@@ -291,14 +291,14 @@ describe("Simplified User Workflows - Core Functionality", () => {
     it("should maintain data consistency", async () => {
       // Store API key
       storeApiKey.mockResolvedValue(true);
-      
+
       await request(app)
         .post("/api/settings/api-keys")
         .set("Authorization", `Bearer ${mockToken}`)
         .send({
           provider: "alpaca",
           apiKey: "TEST123",
-          apiSecret: "SECRET123"
+          apiSecret: "SECRET123",
         })
         .expect(200);
 
@@ -310,7 +310,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
         expect.objectContaining({
           apiKey: "TEST123",
           apiSecret: "SECRET123",
-          isSandbox: true
+          isSandbox: true,
         })
       );
     });
@@ -321,7 +321,7 @@ describe("Simplified User Workflows - Core Functionality", () => {
       const apiKeyData = {
         provider: "alpaca",
         apiKey: "TEST123",
-        apiSecret: "SECRET123"
+        apiSecret: "SECRET123",
       };
 
       // Store same API key twice

@@ -104,10 +104,7 @@ class RealTimeDataService {
       `🔑 Getting Alpaca credentials for user ${userId.substring(0, 8)}...`
     );
 
-    const credentials = await getDecryptedApiKey(
-      userId,
-      "alpaca"
-    );
+    const credentials = await getDecryptedApiKey(userId, "alpaca");
     if (!credentials) {
       throw new Error("No Alpaca API credentials configured for user");
     }

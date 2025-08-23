@@ -27,21 +27,21 @@ class SentimentEngine {
    */
   scoreToLabel(score) {
     try {
-      if (typeof score !== 'number' || isNaN(score)) {
-        return 'neutral';
+      if (typeof score !== "number" || isNaN(score)) {
+        return "neutral";
       }
 
       // Handle different score ranges
       if (score >= 0.6) {
-        return 'positive';
+        return "positive";
       } else if (score <= 0.4) {
-        return 'negative';
+        return "negative";
       } else {
-        return 'neutral';
+        return "neutral";
       }
     } catch (error) {
       logger.error("Score to label conversion failed:", error);
-      return 'neutral';
+      return "neutral";
     }
   }
 
@@ -53,23 +53,43 @@ class SentimentEngine {
    */
   async analyzeSentiment(text, symbol = null) {
     try {
-      if (!text || typeof text !== 'string') {
+      if (!text || typeof text !== "string") {
         throw new Error("Text is required for sentiment analysis");
       }
 
       // Simple keyword-based sentiment analysis (placeholder for real NLP)
-      const positiveWords = ['good', 'great', 'excellent', 'positive', 'bullish', 'up', 'gain', 'profit', 'success'];
-      const negativeWords = ['bad', 'terrible', 'negative', 'bearish', 'down', 'loss', 'decline', 'fail', 'poor'];
-      
+      const positiveWords = [
+        "good",
+        "great",
+        "excellent",
+        "positive",
+        "bullish",
+        "up",
+        "gain",
+        "profit",
+        "success",
+      ];
+      const negativeWords = [
+        "bad",
+        "terrible",
+        "negative",
+        "bearish",
+        "down",
+        "loss",
+        "decline",
+        "fail",
+        "poor",
+      ];
+
       const words = text.toLowerCase().split(/\s+/);
       let positiveCount = 0;
       let negativeCount = 0;
 
-      words.forEach(word => {
-        if (positiveWords.some(pw => word.includes(pw))) {
+      words.forEach((word) => {
+        if (positiveWords.some((pw) => word.includes(pw))) {
           positiveCount++;
         }
-        if (negativeWords.some(nw => word.includes(nw))) {
+        if (negativeWords.some((nw) => word.includes(nw))) {
           negativeCount++;
         }
       });
@@ -80,7 +100,7 @@ class SentimentEngine {
 
       if (totalSentimentWords > 0) {
         score = positiveCount / (positiveCount + negativeCount);
-        confidence = Math.min(0.8, totalSentimentWords / words.length * 5); // higher confidence with more sentiment words
+        confidence = Math.min(0.8, (totalSentimentWords / words.length) * 5); // higher confidence with more sentiment words
       }
 
       const label = this.scoreToLabel(score);
@@ -99,7 +119,7 @@ class SentimentEngine {
       logger.error("Sentiment analysis failed:", error);
       return {
         score: 0.5,
-        label: 'neutral',
+        label: "neutral",
         confidence: 0,
         symbol: symbol || null,
         error: error.message,

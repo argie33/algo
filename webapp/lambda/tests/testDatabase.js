@@ -1,9 +1,9 @@
-const { newDb } = require('pg-mem');
+const { newDb } = require("pg-mem");
 
 // Create in-memory PostgreSQL database for testing
 const createTestDatabase = () => {
   const db = newDb();
-  
+
   // Create test schema
   db.public.none(`
     CREATE TABLE user_portfolio (
@@ -46,9 +46,9 @@ const createTestDatabase = () => {
       acknowledged_at TIMESTAMP NULL
     );
   `);
-  
+
   const adapter = db.adapters.createPg();
-  
+
   // pg-mem returns an object with Pool and Client, we need to create a client
   const client = new adapter.Client();
   return client;

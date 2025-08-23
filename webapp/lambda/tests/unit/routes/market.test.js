@@ -1,9 +1,11 @@
 const request = require("supertest");
 const express = require("express");
+
 const marketRouter = require("../../../routes/market");
 
 // Mock dependencies
 jest.mock("../../../utils/database");
+
 const { query } = require("../../../utils/database");
 
 describe("Market Routes", () => {
@@ -12,26 +14,26 @@ describe("Market Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add response formatter middleware
     app.use((req, res, next) => {
       res.success = (data, status = 200) => {
         res.status(status).json({
           success: true,
-          data: data
+          data: data,
         });
       };
-      
+
       res.error = (message, status = 500) => {
         res.status(status).json({
           success: false,
-          error: message
+          error: message,
         });
       };
-      
+
       next();
     });
-    
+
     app.use("/market", marketRouter);
     jest.clearAllMocks();
   });
@@ -146,7 +148,7 @@ describe("Market Routes", () => {
       query
         .mockResolvedValueOnce({ rows: [{ exists: true }] }) // Table exists check
         .mockResolvedValueOnce({ rows: [] }) // Fear & Greed query
-        .mockResolvedValueOnce({ rows: [] }) // NAAIM query  
+        .mockResolvedValueOnce({ rows: [] }) // NAAIM query
         .mockResolvedValueOnce({ rows: [] }) // AAII query
         .mockResolvedValueOnce({ rows: [] }) // Market breadth query
         .mockResolvedValueOnce({ rows: [] }) // Market cap query
@@ -334,8 +336,8 @@ describe("Market Routes", () => {
       const response = await request(app).get("/market/sentiment").expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('fear_greed');
-      expect(response.body.data).toHaveProperty('naaim');
+      expect(response.body.data).toHaveProperty("fear_greed");
+      expect(response.body.data).toHaveProperty("naaim");
       expect(response.body.data.fear_greed).toEqual(mockSentimentData.rows[0]);
       expect(response.body.data.naaim).toEqual(mockSentimentData.rows[0]);
     });

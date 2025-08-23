@@ -1,8 +1,9 @@
-const AlpacaService = require("../../utils/alpacaService");
-
 // Mock the Alpaca SDK
 jest.mock("@alpacahq/alpaca-trade-api");
+
 const Alpaca = require("@alpacahq/alpaca-trade-api");
+
+const AlpacaService = require("../../utils/alpacaService");
 
 describe("AlpacaService", () => {
   let alpacaService;

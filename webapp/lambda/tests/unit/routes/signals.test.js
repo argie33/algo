@@ -1,9 +1,11 @@
 const request = require("supertest");
 const express = require("express");
+
 const signalsRoutes = require("../../../routes/signals");
 
 // Mock database
 const { query } = require("../../../utils/database");
+
 jest.mock("../../../utils/database");
 
 describe("Signals Routes", () => {
@@ -32,20 +34,20 @@ describe("Signals Routes", () => {
             current_price: 175.25,
             market_cap: 2800000000000,
             trailing_pe: 29.5,
-            dividend_yield: 0.5
+            dividend_yield: 0.5,
           },
           {
             symbol: "MSFT",
-            company_name: "Microsoft Corporation", 
+            company_name: "Microsoft Corporation",
             sector: "Technology",
             signal: "7.8",
             date: "2023-12-15",
-            current_price: 378.50,
+            current_price: 378.5,
             market_cap: 2750000000000,
             trailing_pe: 32.1,
-            dividend_yield: 0.7
-          }
-        ]
+            dividend_yield: 0.7,
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "2" }] };
@@ -54,9 +56,7 @@ describe("Signals Routes", () => {
         .mockResolvedValueOnce(mockBuySignals)
         .mockResolvedValueOnce(mockCount);
 
-      const response = await request(app)
-        .get("/signals/buy")
-        .expect(200);
+      const response = await request(app).get("/signals/buy").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -68,20 +68,20 @@ describe("Signals Routes", () => {
             signal: 8.5,
             date: "2023-12-15",
             currentPrice: 175.25,
-            marketCap: 2800000000000
+            marketCap: 2800000000000,
           }),
           expect.objectContaining({
             symbol: "MSFT",
             companyName: "Microsoft Corporation",
-            signal: 7.8
-          })
+            signal: 7.8,
+          }),
         ]),
         pagination: expect.objectContaining({
           total: 2,
           page: 1,
-          limit: 25
+          limit: 25,
         }),
-        timeframe: "daily"
+        timeframe: "daily",
       });
 
       expect(query).toHaveBeenCalledTimes(2);
@@ -91,9 +91,7 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
       const response = await request(app)
         .get("/signals/buy")
@@ -106,9 +104,9 @@ describe("Signals Routes", () => {
         pagination: expect.objectContaining({
           total: 0,
           page: 2,
-          limit: 10
+          limit: 10,
         }),
-        timeframe: "weekly"
+        timeframe: "weekly",
       });
 
       expect(query).toHaveBeenCalledTimes(2);
@@ -123,7 +121,7 @@ describe("Signals Routes", () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        error: "Invalid timeframe. Must be daily, weekly, or monthly"
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
       });
 
       expect(query).not.toHaveBeenCalled();
@@ -133,9 +131,7 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
       const response = await request(app)
         .get("/signals/buy")
@@ -148,7 +144,7 @@ describe("Signals Routes", () => {
         limit: 50,
         totalPages: 0,
         hasNext: false,
-        hasPrev: true
+        hasPrev: true,
       });
 
       // Verify offset calculation (page 3, limit 50 = offset 100)
@@ -158,14 +154,12 @@ describe("Signals Routes", () => {
     test("should handle database errors", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
 
-      const response = await request(app)
-        .get("/signals/buy")
-        .expect(500);
+      const response = await request(app).get("/signals/buy").expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch buy signals",
-        message: "Database connection failed"
+        message: "Database connection failed",
       });
     });
 
@@ -173,9 +167,7 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
       const response = await request(app)
         .get("/signals/buy")
@@ -190,13 +182,9 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
-      const response = await request(app)
-        .get("/signals/buy")
-        .expect(200);
+      const response = await request(app).get("/signals/buy").expect(200);
 
       expect(response.body).toEqual({
         success: true,
@@ -207,10 +195,10 @@ describe("Signals Routes", () => {
           limit: 25,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         timeframe: "daily",
-        message: "No buy signals found"
+        message: "No buy signals found",
       });
     });
   });
@@ -228,9 +216,9 @@ describe("Signals Routes", () => {
             current_price: 485.75,
             market_cap: 215000000000,
             trailing_pe: 45.8,
-            dividend_yield: 0.0
-          }
-        ]
+            dividend_yield: 0.0,
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "1" }] };
@@ -239,9 +227,7 @@ describe("Signals Routes", () => {
         .mockResolvedValueOnce(mockSellSignals)
         .mockResolvedValueOnce(mockCount);
 
-      const response = await request(app)
-        .get("/signals/sell")
-        .expect(200);
+      const response = await request(app).get("/signals/sell").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -252,15 +238,15 @@ describe("Signals Routes", () => {
             sector: "Communication Services",
             signal: 6.2,
             date: "2023-12-15",
-            currentPrice: 485.75
-          })
+            currentPrice: 485.75,
+          }),
         ]),
         pagination: expect.objectContaining({
           total: 1,
           page: 1,
-          limit: 25
+          limit: 25,
         }),
-        timeframe: "daily"
+        timeframe: "daily",
       });
 
       expect(query).toHaveBeenCalledTimes(2);
@@ -270,9 +256,7 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
       const response = await request(app)
         .get("/signals/sell")
@@ -290,7 +274,7 @@ describe("Signals Routes", () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        error: "Invalid timeframe. Must be daily, weekly, or monthly"
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
       });
 
       expect(query).not.toHaveBeenCalled();
@@ -299,14 +283,12 @@ describe("Signals Routes", () => {
     test("should handle database errors for sell signals", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
 
-      const response = await request(app)
-        .get("/signals/sell")
-        .expect(500);
+      const response = await request(app).get("/signals/sell").expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch sell signals",
-        message: "Database query failed"
+        message: "Database query failed",
       });
     });
 
@@ -314,9 +296,7 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "100" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
       const response = await request(app)
         .get("/signals/sell")
@@ -329,7 +309,7 @@ describe("Signals Routes", () => {
         limit: 25,
         totalPages: 4,
         hasNext: false,
-        hasPrev: true
+        hasPrev: true,
       });
 
       // Verify offset calculation (page 10, limit 25 = offset 225)
@@ -340,20 +320,16 @@ describe("Signals Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockData).mockResolvedValueOnce(mockCount);
 
-      const response = await request(app)
-        .get("/signals/sell")
-        .expect(200);
+      const response = await request(app).get("/signals/sell").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual([]);
-      
+
       // Verify query filters out null/empty signals
-      expect(query.mock.calls[0][0]).toContain("AND bs.signal IS NOT NULL");
-      expect(query.mock.calls[0][0]).toContain("AND bs.signal != ''");
+      expect(query.mock.calls[0][0]).toContain("bs.signal IS NOT NULL");
+      expect(query.mock.calls[0][0]).toContain("bs.signal != ''");
     });
 
     test("should handle missing company data gracefully", async () => {
@@ -368,9 +344,9 @@ describe("Signals Routes", () => {
             current_price: null,
             market_cap: null,
             trailing_pe: null,
-            dividend_yield: null
-          }
-        ]
+            dividend_yield: null,
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "1" }] };
@@ -379,9 +355,7 @@ describe("Signals Routes", () => {
         .mockResolvedValueOnce(mockSellSignals)
         .mockResolvedValueOnce(mockCount);
 
-      const response = await request(app)
-        .get("/signals/sell")
-        .expect(200);
+      const response = await request(app).get("/signals/sell").expect(200);
 
       expect(response.body.data[0]).toMatchObject({
         symbol: "TEST",
@@ -389,7 +363,7 @@ describe("Signals Routes", () => {
         sector: null,
         signal: 5.5,
         currentPrice: null,
-        marketCap: null
+        marketCap: null,
       });
     });
   });

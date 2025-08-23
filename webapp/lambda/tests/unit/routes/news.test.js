@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const newsRouter = require("../../../routes/news");
 
 // Mock dependencies
@@ -22,10 +23,10 @@ jest.mock("../../../middleware/auth", () => ({
 jest.mock("../../../utils/newsAnalyzer", () => ({
   calculateReliabilityScore: jest.fn((source) => {
     const scores = {
-      "Reuters": 0.95,
-      "Bloomberg": 0.92,
-      "CNBC": 0.85,
-      "MarketWatch": 0.80
+      Reuters: 0.95,
+      Bloomberg: 0.92,
+      CNBC: 0.85,
+      MarketWatch: 0.8,
     };
     return scores[source] || 0.75;
   }),
@@ -42,7 +43,7 @@ jest.mock("../../../utils/sentimentEngine", () => ({
     label: "positive",
     confidence: 0.85,
     keywords: ["growth", "profit", "success"],
-    impact_score: 0.8
+    impact_score: 0.8,
   }),
 }));
 
@@ -56,26 +57,26 @@ describe("News Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add response formatter middleware
     app.use((req, res, next) => {
       res.success = (data, status = 200) => {
         res.status(status).json({
           success: true,
-          data: data
+          data: data,
         });
       };
-      
+
       res.error = (message, status = 500) => {
         res.status(status).json({
           success: false,
-          error: message
+          error: message,
         });
       };
-      
+
       next();
     });
-    
+
     app.use("/news", newsRouter);
     jest.clearAllMocks();
   });
@@ -89,7 +90,7 @@ describe("News Routes", () => {
         status: "operational",
         service: "news",
         timestamp: expect.any(String),
-        message: "News service is running"
+        message: "News service is running",
       });
     });
   });
@@ -102,7 +103,7 @@ describe("News Routes", () => {
         success: true,
         message: "News API - Ready",
         timestamp: expect.any(String),
-        status: "operational"
+        status: "operational",
       });
     });
   });
@@ -114,7 +115,8 @@ describe("News Routes", () => {
           {
             id: 1,
             title: "Tech Stocks Rally on Strong Earnings",
-            content: "Technology companies showed strong earnings growth this quarter...",
+            content:
+              "Technology companies showed strong earnings growth this quarter...",
             source: "Reuters",
             author: "John Smith",
             published_at: new Date().toISOString(),
@@ -128,9 +130,9 @@ describe("News Routes", () => {
             summary: "Strong tech earnings drive market optimism",
             impact_score: "0.8",
             relevance_score: "0.9",
-            created_at: new Date().toISOString()
-          }
-        ]
+            created_at: new Date().toISOString(),
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "1" }] };
@@ -158,21 +160,21 @@ describe("News Routes", () => {
               sentiment: {
                 score: 0.75,
                 label: "positive",
-                confidence: 0.85
+                confidence: 0.85,
               },
               keywords: ["tech", "earnings", "growth"],
               impact_score: 0.8,
-              relevance_score: 0.9
-            })
+              relevance_score: 0.9,
+            }),
           ]),
           total: 1,
           limit: 10,
           offset: 0,
           filters: {
             symbol: "AAPL",
-            timeframe: "24h"
-          }
-        }
+            timeframe: "24h",
+          },
+        },
       });
       expect(query).toHaveBeenCalledTimes(2);
     });
@@ -187,14 +189,18 @@ describe("News Routes", () => {
 
       const response = await request(app)
         .get("/news/articles")
-        .query({ category: "technology", sentiment: "positive", timeframe: "1w" })
+        .query({
+          category: "technology",
+          sentiment: "positive",
+          timeframe: "1w",
+        })
         .expect(200);
 
       expect(response.body.data.filters).toEqual({
         symbol: undefined,
         category: "technology",
         sentiment: "positive",
-        timeframe: "1w"
+        timeframe: "1w",
       });
     });
 
@@ -206,7 +212,7 @@ describe("News Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch news articles",
-        message: "Database connection failed"
+        message: "Database connection failed",
       });
     });
   });
@@ -222,9 +228,9 @@ describe("News Routes", () => {
             negative_count: "5",
             neutral_count: "5",
             avg_impact: "0.75",
-            avg_relevance: "0.80"
-          }
-        ]
+            avg_relevance: "0.80",
+          },
+        ],
       };
 
       const mockTrendData = {
@@ -232,16 +238,16 @@ describe("News Routes", () => {
           {
             hour: "2024-01-01T10:00:00.000Z",
             avg_sentiment: "0.70",
-            article_count: "5"
-          }
-        ]
+            article_count: "5",
+          },
+        ],
       };
 
       const mockKeywordData = {
         rows: [
           { keyword: "growth", frequency: "10" },
-          { keyword: "earnings", frequency: "8" }
-        ]
+          { keyword: "earnings", frequency: "8" },
+        ],
       };
 
       query
@@ -265,24 +271,24 @@ describe("News Routes", () => {
             distribution: {
               positive: 15,
               negative: 5,
-              neutral: 5
+              neutral: 5,
             },
             total_articles: 25,
             avg_impact: 0.75,
-            avg_relevance: 0.80
+            avg_relevance: 0.8,
           },
           trend: expect.arrayContaining([
             expect.objectContaining({
               hour: "2024-01-01T10:00:00.000Z",
-              sentiment: 0.70,
-              article_count: 5
-            })
+              sentiment: 0.7,
+              article_count: 5,
+            }),
           ]),
           keywords: expect.arrayContaining([
             { keyword: "growth", frequency: 10 },
-            { keyword: "earnings", frequency: 8 }
-          ])
-        }
+            { keyword: "earnings", frequency: 8 },
+          ]),
+        },
       });
       expect(query).toHaveBeenCalledTimes(3);
       expect(sentimentEngine.scoreToLabel).toHaveBeenCalledWith(0.65);
@@ -291,12 +297,14 @@ describe("News Routes", () => {
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database query failed"));
 
-      const response = await request(app).get("/news/sentiment/AAPL").expect(500);
+      const response = await request(app)
+        .get("/news/sentiment/AAPL")
+        .expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch sentiment analysis",
-        message: "Database query failed"
+        message: "Database query failed",
       });
     });
   });
@@ -310,9 +318,9 @@ describe("News Routes", () => {
             total_articles: "100",
             positive_count: "60",
             negative_count: "25",
-            neutral_count: "15"
-          }
-        ]
+            neutral_count: "15",
+          },
+        ],
       };
 
       const mockCategoryData = {
@@ -320,14 +328,14 @@ describe("News Routes", () => {
           {
             category: "technology",
             avg_sentiment: "0.70",
-            article_count: "30"
+            article_count: "30",
           },
           {
             category: "finance",
             avg_sentiment: "0.40",
-            article_count: "25"
-          }
-        ]
+            article_count: "25",
+          },
+        ],
       };
 
       const mockSymbolData = {
@@ -336,9 +344,9 @@ describe("News Routes", () => {
             symbol: "AAPL",
             avg_sentiment: "0.80",
             article_count: "15",
-            avg_impact: "0.85"
-          }
-        ]
+            avg_impact: "0.85",
+          },
+        ],
       };
 
       const mockTrendData = {
@@ -346,9 +354,9 @@ describe("News Routes", () => {
           {
             hour: "2024-01-01T10:00:00.000Z",
             avg_sentiment: "0.60",
-            article_count: "20"
-          }
-        ]
+            article_count: "20",
+          },
+        ],
       };
 
       query
@@ -372,41 +380,41 @@ describe("News Routes", () => {
             distribution: {
               positive: 60,
               negative: 25,
-              neutral: 15
+              neutral: 15,
             },
-            total_articles: 100
+            total_articles: 100,
           },
           by_category: expect.arrayContaining([
             expect.objectContaining({
               category: "technology",
-              sentiment: 0.70,
+              sentiment: 0.7,
               article_count: 30,
-              label: "positive"
+              label: "positive",
             }),
             expect.objectContaining({
               category: "finance",
-              sentiment: 0.40,
+              sentiment: 0.4,
               article_count: 25,
-              label: "positive"
-            })
+              label: "positive",
+            }),
           ]),
           top_symbols: expect.arrayContaining([
             expect.objectContaining({
               symbol: "AAPL",
-              sentiment: 0.80,
+              sentiment: 0.8,
               article_count: 15,
               impact: 0.85,
-              label: "positive"
-            })
+              label: "positive",
+            }),
           ]),
           trend: expect.arrayContaining([
             expect.objectContaining({
               hour: "2024-01-01T10:00:00.000Z",
-              sentiment: 0.60,
-              article_count: 20
-            })
-          ])
-        }
+              sentiment: 0.6,
+              article_count: 20,
+            }),
+          ]),
+        },
       });
       expect(query).toHaveBeenCalledTimes(4);
     });
@@ -418,7 +426,7 @@ describe("News Routes", () => {
         .post("/news/analyze-sentiment")
         .send({
           text: "The company reported excellent quarterly results with strong growth",
-          symbol: "AAPL"
+          symbol: "AAPL",
         })
         .expect(200);
 
@@ -429,8 +437,8 @@ describe("News Routes", () => {
           label: "positive",
           confidence: 0.85,
           keywords: ["growth", "profit", "success"],
-          impact_score: 0.8
-        }
+          impact_score: 0.8,
+        },
       });
       expect(sentimentEngine.analyzeSentiment).toHaveBeenCalledWith(
         "The company reported excellent quarterly results with strong growth",
@@ -446,12 +454,14 @@ describe("News Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Text is required for sentiment analysis"
+        error: "Text is required for sentiment analysis",
       });
     });
 
     test("should handle sentiment analysis errors", async () => {
-      sentimentEngine.analyzeSentiment.mockRejectedValue(new Error("Analysis failed"));
+      sentimentEngine.analyzeSentiment.mockRejectedValue(
+        new Error("Analysis failed")
+      );
 
       const response = await request(app)
         .post("/news/analyze-sentiment")
@@ -461,7 +471,7 @@ describe("News Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to analyze sentiment",
-        message: "Analysis failed"
+        message: "Analysis failed",
       });
     });
   });
@@ -477,7 +487,7 @@ describe("News Routes", () => {
             avg_impact: "0.75",
             positive_count: "90",
             negative_count: "30",
-            neutral_count: "30"
+            neutral_count: "30",
           },
           {
             source: "Bloomberg",
@@ -486,9 +496,9 @@ describe("News Routes", () => {
             avg_impact: "0.70",
             positive_count: "70",
             negative_count: "25",
-            neutral_count: "25"
-          }
-        ]
+            neutral_count: "25",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockSourcesData);
@@ -507,21 +517,25 @@ describe("News Routes", () => {
               sentiment_distribution: {
                 positive: 90,
                 negative: 30,
-                neutral: 30
+                neutral: 30,
               },
-              reliability_score: 0.95
+              reliability_score: 0.95,
             }),
             expect.objectContaining({
               source: "Bloomberg",
               article_count: 120,
-              reliability_score: 0.92
-            })
+              reliability_score: 0.92,
+            }),
           ]),
-          total: 2
-        }
+          total: 2,
+        },
       });
-      expect(newsAnalyzer.calculateReliabilityScore).toHaveBeenCalledWith("Reuters");
-      expect(newsAnalyzer.calculateReliabilityScore).toHaveBeenCalledWith("Bloomberg");
+      expect(newsAnalyzer.calculateReliabilityScore).toHaveBeenCalledWith(
+        "Reuters"
+      );
+      expect(newsAnalyzer.calculateReliabilityScore).toHaveBeenCalledWith(
+        "Bloomberg"
+      );
     });
   });
 
@@ -533,15 +547,15 @@ describe("News Routes", () => {
             category: "technology",
             article_count: "75",
             avg_sentiment: "0.65",
-            avg_impact: "0.80"
+            avg_impact: "0.80",
           },
           {
             category: "finance",
             article_count: "60",
             avg_sentiment: "0.45",
-            avg_impact: "0.70"
-          }
-        ]
+            avg_impact: "0.70",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockCategoriesData);
@@ -556,19 +570,19 @@ describe("News Routes", () => {
               category: "technology",
               article_count: 75,
               avg_sentiment: 0.65,
-              avg_impact: 0.80,
-              sentiment_label: "positive"
+              avg_impact: 0.8,
+              sentiment_label: "positive",
             }),
             expect.objectContaining({
               category: "finance",
               article_count: 60,
               avg_sentiment: 0.45,
-              avg_impact: 0.70,
-              sentiment_label: "positive"
-            })
+              avg_impact: 0.7,
+              sentiment_label: "positive",
+            }),
           ]),
-          total: 2
-        }
+          total: 2,
+        },
       });
     });
   });
@@ -581,15 +595,15 @@ describe("News Routes", () => {
             keyword: "earnings",
             frequency: "25",
             avg_sentiment: "0.70",
-            avg_impact: "0.85"
+            avg_impact: "0.85",
           },
           {
             keyword: "federal reserve",
             frequency: "20",
             avg_sentiment: "0.30",
-            avg_impact: "0.90"
-          }
-        ]
+            avg_impact: "0.90",
+          },
+        ],
       };
 
       const mockSymbolData = {
@@ -598,15 +612,15 @@ describe("News Routes", () => {
             symbol: "AAPL",
             mention_count: "15",
             avg_sentiment: "0.75",
-            avg_impact: "0.80"
+            avg_impact: "0.80",
           },
           {
             symbol: "TSLA",
             mention_count: "12",
             avg_sentiment: "-0.20",
-            avg_impact: "0.75"
-          }
-        ]
+            avg_impact: "0.75",
+          },
+        ],
       };
 
       query
@@ -626,35 +640,35 @@ describe("News Routes", () => {
             expect.objectContaining({
               keyword: "earnings",
               frequency: 25,
-              avg_sentiment: 0.70,
+              avg_sentiment: 0.7,
               avg_impact: 0.85,
-              sentiment_label: "positive"
+              sentiment_label: "positive",
             }),
             expect.objectContaining({
               keyword: "federal reserve",
               frequency: 20,
-              avg_sentiment: 0.30,
-              avg_impact: 0.90,
-              sentiment_label: "positive"
-            })
+              avg_sentiment: 0.3,
+              avg_impact: 0.9,
+              sentiment_label: "positive",
+            }),
           ]),
           symbols: expect.arrayContaining([
             expect.objectContaining({
               symbol: "AAPL",
               mention_count: 15,
               avg_sentiment: 0.75,
-              avg_impact: 0.80,
-              sentiment_label: "positive"
+              avg_impact: 0.8,
+              sentiment_label: "positive",
             }),
             expect.objectContaining({
               symbol: "TSLA",
               mention_count: 12,
-              avg_sentiment: -0.20,
+              avg_sentiment: -0.2,
               avg_impact: 0.75,
-              sentiment_label: "negative"
-            })
-          ])
-        }
+              sentiment_label: "negative",
+            }),
+          ]),
+        },
       });
       expect(query).toHaveBeenCalledTimes(2);
     });
@@ -676,19 +690,19 @@ describe("News Routes", () => {
             sentiment_distribution: expect.objectContaining({
               positive: expect.any(Number),
               neutral: expect.any(Number),
-              negative: expect.any(Number)
+              negative: expect.any(Number),
             }),
-            avg_impact_score: expect.any(Number)
-          })
+            avg_impact_score: expect.any(Number),
+          }),
         }),
         filters: {
           category: "technology",
           symbol: "ALL",
           sentiment_filter: "ALL",
           source_filter: "ALL",
-          time_range: "24h"
+          time_range: "24h",
         },
-        last_updated: expect.any(String)
+        last_updated: expect.any(String),
       });
 
       expect(response.body.data.articles.length).toBeLessThanOrEqual(5);
@@ -698,12 +712,14 @@ describe("News Routes", () => {
       // Force an error by causing the route to fail
       const originalConsole = console.error;
       console.error = jest.fn();
-      
-      // Since generateEnhancedNewsFeed doesn't use database, 
+
+      // Since generateEnhancedNewsFeed doesn't use database,
       // we need to temporarily break something in the route itself
       // Let's mock Math.random to cause an error
       const originalMathRandom = Math.random;
-      Math.random = () => { throw new Error("Forced error for testing"); };
+      Math.random = () => {
+        throw new Error("Forced error for testing");
+      };
 
       const response = await request(app)
         .get("/news/feed")
@@ -715,7 +731,7 @@ describe("News Routes", () => {
         data: expect.any(Object),
         fallback: true,
         error: expect.any(String),
-        last_updated: expect.any(String)
+        last_updated: expect.any(String),
       });
 
       // Restore original functions
@@ -739,15 +755,15 @@ describe("News Routes", () => {
             total_events: expect.any(Number),
             high_impact_events: expect.any(Number),
             countries_covered: expect.any(Array),
-            next_major_event: expect.any(Object)
-          })
+            next_major_event: expect.any(Object),
+          }),
         }),
         filters: {
           importance: "high",
           country: "US",
-          date_range: "7d"
+          date_range: "7d",
         },
-        last_updated: expect.any(String)
+        last_updated: expect.any(String),
       });
 
       expect(response.body.data.events.length).toBeLessThanOrEqual(10);
@@ -768,24 +784,24 @@ describe("News Routes", () => {
             score: expect.any(Number),
             label: expect.stringMatching(/^(bullish|bearish|neutral)$/),
             confidence: expect.any(Number),
-            change_24h: expect.any(Number)
+            change_24h: expect.any(Number),
           }),
           sentiment_by_sector: expect.any(Array),
           trending_topics: expect.any(Array),
           fear_greed_index: expect.objectContaining({
             value: expect.any(Number),
             label: expect.any(String),
-            change_24h: expect.any(Number)
+            change_24h: expect.any(Number),
           }),
           social_sentiment: expect.any(Object),
           news_sentiment: expect.objectContaining({
             positive_articles: expect.any(Number),
             negative_articles: expect.any(Number),
-            neutral_articles: expect.any(Number)
-          })
+            neutral_articles: expect.any(Number),
+          }),
         }),
         timeframe: "24h",
-        last_updated: expect.any(String)
+        last_updated: expect.any(String),
       });
     });
   });

@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 
 const router = express.Router();
@@ -1057,7 +1058,6 @@ function calculateEnhancedPositioningScore(
       score += insiderScore * 0.2;
       components++;
     }
-
 
     // Short squeeze potential (10% weight)
     if (

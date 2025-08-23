@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const stocksRouter = require("../../../routes/stocks");
 
 // Mock dependencies to match your actual site pattern
@@ -28,12 +29,12 @@ jest.mock("../../../middleware/validation", () => ({
       sector: req.query.sector || "",
       exchange: req.query.exchange || "",
       sortBy: req.query.sortBy || "symbol",
-      sortOrder: req.query.sortOrder || "asc"
+      sortOrder: req.query.sortOrder || "asc",
     };
     next();
   }),
   validationSchemas: { pagination: {} },
-  sanitizers: { string: jest.fn(val => val) }
+  sanitizers: { string: jest.fn((val) => val) },
 }));
 
 const { query } = require("../../../utils/database");
@@ -56,17 +57,30 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
     test("should return sectors data from your database", async () => {
       const mockSectors = {
         rows: [
-          { sector: "Technology", count: "145", avg_market_cap: "500000000000", avg_pe_ratio: "28.5" },
-          { sector: "Healthcare", count: "98", avg_market_cap: "300000000000", avg_pe_ratio: "22.1" },
-          { sector: "Financial Services", count: "87", avg_market_cap: "200000000000", avg_pe_ratio: "15.8" }
-        ]
+          {
+            sector: "Technology",
+            count: "145",
+            avg_market_cap: "500000000000",
+            avg_pe_ratio: "28.5",
+          },
+          {
+            sector: "Healthcare",
+            count: "98",
+            avg_market_cap: "300000000000",
+            avg_pe_ratio: "22.1",
+          },
+          {
+            sector: "Financial Services",
+            count: "87",
+            avg_market_cap: "200000000000",
+            avg_pe_ratio: "15.8",
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockSectors);
 
-      const response = await request(app)
-        .get("/stocks/sectors")
-        .expect(200);
+      const response = await request(app).get("/stocks/sectors").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -75,15 +89,15 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             sector: "Technology",
             count: 145,
             avg_market_cap: 500000000000,
-            avg_pe_ratio: 28.5
+            avg_pe_ratio: 28.5,
           }),
           expect.objectContaining({
-            sector: "Healthcare", 
-            count: 98
-          })
+            sector: "Healthcare",
+            count: 98,
+          }),
         ]),
         count: 3,
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
       // Verify your actual query was called
@@ -95,9 +109,7 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
     test("should handle empty sectors with helpful message", async () => {
       query.mockResolvedValueOnce({ rows: [] });
 
-      const response = await request(app)
-        .get("/stocks/sectors")
-        .expect(200);
+      const response = await request(app).get("/stocks/sectors").expect(200);
 
       expect(response.body).toEqual({
         success: true,
@@ -106,9 +118,9 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
         recommendations: expect.arrayContaining([
           "Run stock symbols data loader to populate basic stock data",
           "Check if ECS data loading tasks are completing successfully",
-          "Verify database connectivity and schema"
+          "Verify database connectivity and schema",
         ]),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -117,10 +129,28 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
     test("should return sample stocks for monitoring", async () => {
       const mockStocks = {
         rows: [
-          { symbol: "AAPL", company_name: "Apple Inc.", sector: "Technology", exchange: "NASDAQ", market_cap: "2800000000000" },
-          { symbol: "MSFT", company_name: "Microsoft Corporation", sector: "Technology", exchange: "NASDAQ", market_cap: "2750000000000" },
-          { symbol: "GOOGL", company_name: "Alphabet Inc.", sector: "Technology", exchange: "NASDAQ", market_cap: "1800000000000" }
-        ]
+          {
+            symbol: "AAPL",
+            company_name: "Apple Inc.",
+            sector: "Technology",
+            exchange: "NASDAQ",
+            market_cap: "2800000000000",
+          },
+          {
+            symbol: "MSFT",
+            company_name: "Microsoft Corporation",
+            sector: "Technology",
+            exchange: "NASDAQ",
+            market_cap: "2750000000000",
+          },
+          {
+            symbol: "GOOGL",
+            company_name: "Alphabet Inc.",
+            sector: "Technology",
+            exchange: "NASDAQ",
+            market_cap: "1800000000000",
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockStocks);
@@ -135,7 +165,7 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
         data: mockStocks.rows,
         count: 3,
         endpoint: "public-sample",
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
       expect(query).toHaveBeenCalledWith(
@@ -147,14 +177,12 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
 
   describe("GET /stocks/ping - Authentication required", () => {
     test("should return ping response", async () => {
-      const response = await request(app)
-        .get("/stocks/ping")
-        .expect(200);
+      const response = await request(app).get("/stocks/ping").expect(200);
 
       expect(response.body).toEqual({
         status: "ok",
         endpoint: "stocks",
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -166,7 +194,7 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
           {
             symbol: "AAPL",
             security_name: "Apple Inc.",
-            exchange: "NASDAQ", 
+            exchange: "NASDAQ",
             market_category: "Q",
             short_name: "Apple",
             long_name: "Apple Inc.",
@@ -177,9 +205,9 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             trailing_pe: "29.5",
             dividend_yield: "0.5",
             target_mean_price: "200.00",
-            recommendation_key: "Buy"
-          }
-        ]
+            recommendation_key: "Buy",
+          },
+        ],
       };
 
       const mockCountResult = { rows: [{ total: "1" }] };
@@ -206,54 +234,51 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             sector: "Technology",
             industry: "Consumer Electronics",
             price: expect.objectContaining({
-              current: "175.25"  // Your site returns strings, not numbers
+              current: "175.25", // Your site returns strings, not numbers
             }),
             financialMetrics: expect.objectContaining({
-              trailingPE: "29.5",  // Your site returns strings, not numbers
-              dividendYield: "0.5"  // Your site returns strings, not numbers
+              trailingPE: "29.5", // Your site returns strings, not numbers
+              dividendYield: "0.5", // Your site returns strings, not numbers
             }),
             analystData: expect.objectContaining({
               targetPrices: expect.objectContaining({
-                mean: "200.00"  // Your site returns strings, not numbers
+                mean: "200.00", // Your site returns strings, not numbers
               }),
               recommendation: expect.objectContaining({
-                key: "Buy"
-              })
+                key: "Buy",
+              }),
             }),
             hasData: true,
-            dataSource: "comprehensive_loadinfo_query"
-          })
+            dataSource: "comprehensive_loadinfo_query",
+          }),
         ]),
         pagination: expect.objectContaining({
           page: 1,
           limit: 50,
           total: 1,
-          totalPages: 1
+          totalPages: 1,
         }),
         metadata: expect.objectContaining({
           dataSources: expect.arrayContaining([
             "stock_symbols",
-            "symbols", 
+            "symbols",
             "market_data",
             "key_metrics",
-            "analyst_estimates"
-          ])
-        })
+            "analyst_estimates",
+          ]),
+        }),
       });
     });
 
     test("should handle search parameter", async () => {
       const mockResults = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
-      
+
       schemaValidator.safeQuery
         .mockResolvedValueOnce(mockResults)
         .mockResolvedValueOnce(mockCount);
 
-      await request(app)
-        .get("/stocks/")
-        .query({ search: "Apple" })
-        .expect(200);
+      await request(app).get("/stocks/").query({ search: "Apple" }).expect(200);
 
       // Verify search was applied in the query
       const queryCall = schemaValidator.safeQuery.mock.calls[0];
@@ -277,9 +302,9 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             market_cap: "2800000000000",
             pe_ratio: "29.5",
             dividend_yield: "0.5",
-            beta: "1.2"
-          }
-        ]
+            beta: "1.2",
+          },
+        ],
       };
 
       query
@@ -292,7 +317,7 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
           sector: "Technology",
           marketCap: "100-5000", // 100B to 5T
           sortBy: "market_cap",
-          sortOrder: "DESC"
+          sortOrder: "DESC",
         })
         .expect(200);
 
@@ -303,20 +328,20 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             expect.objectContaining({
               symbol: "AAPL",
               company_name: "Apple Inc.",
-              sector: "Technology"
-            })
+              sector: "Technology",
+            }),
           ]),
           pagination: expect.objectContaining({
-            total: 50
+            total: 50,
           }),
           filters: expect.objectContaining({
             sector: "Technology",
             marketCap: "100-5000",
             sortBy: "market_cap",
-            sortOrder: "DESC"
-          })
+            sortOrder: "DESC",
+          }),
         }),
-        data_source: "real_database"
+        data_source: "real_database",
       });
     });
   });
@@ -334,20 +359,18 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             etf: "N",
             latest_date: "2025-07-16",
             open: "174.00",
-            high: "176.50", 
+            high: "176.50",
             low: "173.25",
             close: "175.25",
             volume: "45000000",
-            adj_close: "175.25"
-          }
-        ]
+            adj_close: "175.25",
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockStock);
 
-      const response = await request(app)
-        .get("/stocks/AAPL")
-        .expect(200);
+      const response = await request(app).get("/stocks/AAPL").expect(200);
 
       expect(response.body).toMatchObject({
         symbol: "AAPL",
@@ -355,24 +378,24 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
         companyInfo: expect.objectContaining({
           name: "Apple Inc.",
           exchange: "NASDAQ",
-          isETF: false
+          isETF: false,
         }),
         currentPrice: expect.objectContaining({
           date: "2025-07-16",
-          open: 174.00,
-          high: 176.50,
+          open: 174.0,
+          high: 176.5,
           low: 173.25,
           close: 175.25,
-          volume: 45000000
+          volume: 45000000,
         }),
         metadata: expect.objectContaining({
           requestedSymbol: "AAPL",
           resolvedSymbol: "AAPL",
           dataAvailability: expect.objectContaining({
             basicInfo: true,
-            priceData: true
-          })
-        })
+            priceData: true,
+          }),
+        }),
       });
     });
 
@@ -384,9 +407,9 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
         .expect(404);
 
       expect(response.body).toMatchObject({
-        error: "Stock not found", 
+        error: "Stock not found",
         symbol: "NONEXISTENT",
-        message: "Symbol 'NONEXISTENT' not found in database"
+        message: "Symbol 'NONEXISTENT' not found in database",
       });
     });
   });
@@ -399,13 +422,13 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             date: "2025-07-16",
             open: "174.00",
             high: "176.50",
-            low: "173.25", 
+            low: "173.25",
             close: "175.25",
             adj_close: "175.25",
             volume: "45000000",
             prev_close: "173.80",
             price_change: "1.45",
-            price_change_pct: "0.83"
+            price_change_pct: "0.83",
           },
           {
             date: "2025-07-15",
@@ -413,13 +436,13 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
             high: "174.20",
             low: "171.80",
             close: "173.80",
-            adj_close: "173.80", 
+            adj_close: "173.80",
             volume: "38000000",
             prev_close: "172.00",
             price_change: "1.80",
-            price_change_pct: "1.05"
-          }
-        ]
+            price_change_pct: "1.05",
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockPrices);
@@ -437,22 +460,22 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
         data: expect.arrayContaining([
           expect.objectContaining({
             date: "2025-07-16",
-            open: 174.00,
-            high: 176.50,
+            open: 174.0,
+            high: 176.5,
             low: 173.25,
             close: 175.25,
             volume: 45000000,
             priceChange: 1.45,
-            priceChangePct: 0.83
-          })
+            priceChangePct: 0.83,
+          }),
         ]),
         summary: expect.objectContaining({
           latestPrice: 175.25,
           latestDate: "2025-07-16",
           periodReturn: expect.any(Number),
-          latestVolume: 45000000
+          latestVolume: 45000000,
         }),
-        cached: false
+        cached: false,
       });
 
       // Verify your price_daily table query
@@ -469,8 +492,8 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
         rows: [
           { exchange: "NASDAQ", count: "3500" },
           { exchange: "NYSE", count: "2800" },
-          { exchange: "AMEX", count: "300" }
-        ]
+          { exchange: "AMEX", count: "300" },
+        ],
       };
 
       query.mockResolvedValueOnce(mockExchanges);
@@ -484,15 +507,15 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
           expect.objectContaining({
             name: "NASDAQ",
             value: "NASDAQ",
-            count: 3500
+            count: 3500,
           }),
           expect.objectContaining({
-            name: "NYSE", 
+            name: "NYSE",
             value: "NYSE",
-            count: 2800
-          })
+            count: 2800,
+          }),
         ]),
-        total: 3
+        total: 3,
       });
     });
   });
@@ -500,15 +523,17 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
   describe("GET /stocks/screen/stats - Screening statistics", () => {
     test("should return screening ranges for your filters", async () => {
       const mockStats = {
-        rows: [{
-          total_stocks: "8500",
-          min_market_cap: "50000000",
-          max_market_cap: "3000000000000",
-          min_pe_ratio: "5.2",
-          max_pe_ratio: "95.8",
-          min_pb_ratio: "0.1",
-          max_pb_ratio: "18.5"
-        }]
+        rows: [
+          {
+            total_stocks: "8500",
+            min_market_cap: "50000000",
+            max_market_cap: "3000000000000",
+            min_pe_ratio: "5.2",
+            max_pe_ratio: "95.8",
+            min_pb_ratio: "0.1",
+            max_pb_ratio: "18.5",
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockStats);
@@ -524,14 +549,14 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
           ranges: expect.objectContaining({
             market_cap: expect.objectContaining({
               min: 50000000,
-              max: 3000000000000
+              max: 3000000000000,
             }),
             pe_ratio: expect.objectContaining({
               min: 5.2,
-              max: 95.8 // Your site caps at 100
-            })
-          })
-        })
+              max: 95.8, // Your site caps at 100
+            }),
+          }),
+        }),
       });
     });
   });
@@ -547,7 +572,7 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Failed to initialize price_daily table"
+        error: "Failed to initialize price_daily table",
       });
 
       // Verify the route attempts to execute the correct SQL
@@ -564,7 +589,7 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to initialize price_daily table",
-        details: "Database connection failed"
+        details: "Database connection failed",
       });
     });
   });
@@ -573,33 +598,33 @@ describe("Stocks Routes - Testing Your Actual Site", () => {
     test("should handle database errors gracefully", async () => {
       query.mockRejectedValueOnce(new Error("Connection failed"));
 
-      const response = await request(app)
-        .get("/stocks/sectors")
-        .expect(200); // Your site returns 200 with error data
+      const response = await request(app).get("/stocks/sectors").expect(200); // Your site returns 200 with error data
 
       expect(response.body).toMatchObject({
         success: true,
         data: [],
-        message: "No sectors data available - check data loading process"
+        message: "No sectors data available - check data loading process",
       });
     });
 
     test("should handle table missing errors with fallback", async () => {
-      schemaValidator.safeQuery.mockRejectedValueOnce(new Error("relation does not exist"));
-      
+      schemaValidator.safeQuery.mockRejectedValueOnce(
+        new Error("relation does not exist")
+      );
+
       // Mock fallback query
       query
-        .mockResolvedValueOnce({ rows: [{ symbol: "AAPL", security_name: "Apple Inc." }] })
+        .mockResolvedValueOnce({
+          rows: [{ symbol: "AAPL", security_name: "Apple Inc." }],
+        })
         .mockResolvedValueOnce({ rows: [{ total: "1" }] });
 
-      const response = await request(app)
-        .get("/stocks/")
-        .expect(200);
+      const response = await request(app).get("/stocks/").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: expect.any(Array),
-        note: expect.stringContaining("basic stock symbols data")
+        note: expect.stringContaining("basic stock symbols data"),
       });
     });
   });

@@ -9,6 +9,7 @@ jest.mock("../../utils/database", () => ({
 
 const request = require("supertest");
 const express = require("express");
+
 const { query, initializeDatabase, getPool } = require("../../utils/database");
 
 describe("Health Route Unit Tests", () => {

@@ -63,7 +63,6 @@ describe("Lambda Backend - Basic Functionality Tests", () => {
     });
   });
 
-
   describe("Express App", () => {
     test("should create Express app successfully", () => {
       const originalWarn = console.warn;

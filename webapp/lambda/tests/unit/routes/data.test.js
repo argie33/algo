@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const dataRouter = require("../../../routes/data");
 
 // Mock dependencies
@@ -20,26 +21,26 @@ describe("Data Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add response formatter middleware
     app.use((req, res, next) => {
       res.success = (data, status = 200) => {
         res.status(status).json({
           success: true,
-          data: data
+          data: data,
         });
       };
-      
+
       res.error = (message, status = 500) => {
         res.status(status).json({
           success: false,
-          error: message
+          error: message,
         });
       };
-      
+
       next();
     });
-    
+
     app.use("/data", dataRouter);
     jest.clearAllMocks();
   });
@@ -53,13 +54,13 @@ describe("Data Routes", () => {
             period: "Q3 2024",
             current_estimate: 1.25,
             seven_days_ago: 1.23,
-            thirty_days_ago: 1.20,
+            thirty_days_ago: 1.2,
             sixty_days_ago: 1.18,
             ninety_days_ago: 1.15,
             revision_direction: "up",
-            fetched_at: new Date().toISOString()
-          }
-        ]
+            fetched_at: new Date().toISOString(),
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "50" }] };
@@ -79,8 +80,8 @@ describe("Data Routes", () => {
             symbol: "AAPL",
             period: "Q3 2024",
             current_estimate: 1.25,
-            revision_direction: "up"
-          })
+            revision_direction: "up",
+          }),
         ]),
         pagination: {
           page: 1,
@@ -88,8 +89,8 @@ describe("Data Routes", () => {
           total: 50,
           totalPages: 2,
           hasNext: true,
-          hasPrev: false
-        }
+          hasPrev: false,
+        },
       });
       expect(query).toHaveBeenCalledTimes(2);
     });
@@ -101,9 +102,9 @@ describe("Data Routes", () => {
             symbol: "AAPL",
             period: "Q3 2024",
             current_estimate: 1.25,
-            revision_direction: "up"
-          }
-        ]
+            revision_direction: "up",
+          },
+        ],
       };
       const mockCount = { rows: [{ total: "10" }] };
 
@@ -128,21 +129,25 @@ describe("Data Routes", () => {
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: "0" }] });
 
-      const response = await request(app).get("/data/eps-revisions").expect(404);
+      const response = await request(app)
+        .get("/data/eps-revisions")
+        .expect(404);
 
       expect(response.body).toEqual({
-        error: "No data found for this query"
+        error: "No data found for this query",
       });
     });
 
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
 
-      const response = await request(app).get("/data/eps-revisions").expect(500);
+      const response = await request(app)
+        .get("/data/eps-revisions")
+        .expect(500);
 
       expect(response.body).toMatchObject({
         error: "Database error",
-        details: "Database connection failed"
+        details: "Database connection failed",
       });
     });
   });
@@ -154,23 +159,21 @@ describe("Data Routes", () => {
           {
             symbol: "MSFT",
             period: "Q4 2024",
-            current_estimate: 2.50,
+            current_estimate: 2.5,
             seven_days_ago: 2.48,
             thirty_days_ago: 2.45,
-            sixty_days_ago: 2.40,
+            sixty_days_ago: 2.4,
             ninety_days_ago: 2.35,
             number_of_revisions_up: 5,
             number_of_revisions_down: 2,
-            fetched_at: new Date().toISOString()
-          }
-        ]
+            fetched_at: new Date().toISOString(),
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "75" }] };
 
-      query
-        .mockResolvedValueOnce(mockTrend)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockTrend).mockResolvedValueOnce(mockCount);
 
       const response = await request(app).get("/data/eps-trend").expect(200);
 
@@ -179,10 +182,10 @@ describe("Data Routes", () => {
           expect.objectContaining({
             symbol: "MSFT",
             period: "Q4 2024",
-            current_estimate: 2.50,
+            current_estimate: 2.5,
             number_of_revisions_up: 5,
-            number_of_revisions_down: 2
-          })
+            number_of_revisions_down: 2,
+          }),
         ]),
         pagination: {
           page: 1,
@@ -190,8 +193,8 @@ describe("Data Routes", () => {
           total: 75,
           totalPages: 3,
           hasNext: true,
-          hasPrev: false
-        }
+          hasPrev: false,
+        },
       });
     });
 
@@ -199,9 +202,7 @@ describe("Data Routes", () => {
       const mockTrend = { rows: [{ symbol: "MSFT", period: "Q4 2024" }] };
       const mockCount = { rows: [{ total: "8" }] };
 
-      query
-        .mockResolvedValueOnce(mockTrend)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockTrend).mockResolvedValueOnce(mockCount);
 
       const _response = await request(app)
         .get("/data/eps-trend")
@@ -224,21 +225,21 @@ describe("Data Routes", () => {
             period: "2024",
             growth_estimate: 0.15,
             number_of_analysts: 12,
-            low_estimate: 0.10,
-            high_estimate: 0.20,
+            low_estimate: 0.1,
+            high_estimate: 0.2,
             mean_estimate: 0.15,
-            fetched_at: new Date().toISOString()
-          }
-        ]
+            fetched_at: new Date().toISOString(),
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "100" }] };
 
-      query
-        .mockResolvedValueOnce(mockGrowth)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockGrowth).mockResolvedValueOnce(mockCount);
 
-      const response = await request(app).get("/data/growth-estimates").expect(200);
+      const response = await request(app)
+        .get("/data/growth-estimates")
+        .expect(200);
 
       expect(response.body).toMatchObject({
         data: expect.arrayContaining([
@@ -247,15 +248,15 @@ describe("Data Routes", () => {
             period: "2024",
             growth_estimate: 0.15,
             number_of_analysts: 12,
-            low_estimate: 0.10,
-            high_estimate: 0.20,
-            mean_estimate: 0.15
-          })
+            low_estimate: 0.1,
+            high_estimate: 0.2,
+            mean_estimate: 0.15,
+          }),
         ]),
         pagination: expect.objectContaining({
           total: 100,
-          totalPages: 4
-        })
+          totalPages: 4,
+        }),
       });
     });
   });
@@ -271,9 +272,9 @@ describe("Data Routes", () => {
             title: "Gross Domestic Product",
             units: "Billions of Dollars",
             frequency: "Quarterly",
-            last_updated: new Date().toISOString()
-          }
-        ]
+            last_updated: new Date().toISOString(),
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "200" }] };
@@ -291,12 +292,12 @@ describe("Data Routes", () => {
             title: "Gross Domestic Product",
             value: 25000.5,
             units: "Billions of Dollars",
-            frequency: "Quarterly"
-          })
+            frequency: "Quarterly",
+          }),
         ]),
         pagination: expect.objectContaining({
-          total: 200
-        })
+          total: 200,
+        }),
       });
     });
 
@@ -327,14 +328,14 @@ describe("Data Routes", () => {
           {
             series_id: "GDP",
             date: "2024-01-01",
-            value: 25000.5
+            value: 25000.5,
           },
           {
             series_id: "UNEMPLOYMENT",
             date: "2024-01-01",
-            value: 3.7
-          }
-        ]
+            value: 3.7,
+          },
+        ],
       };
 
       query.mockResolvedValue(mockEconomicData);
@@ -349,22 +350,24 @@ describe("Data Routes", () => {
           {
             series_id: "GDP",
             date: "2024-01-01",
-            value: 25000.5
+            value: 25000.5,
           },
           {
             series_id: "UNEMPLOYMENT",
             date: "2024-01-01",
-            value: 3.7
-          }
+            value: 3.7,
+          },
         ]),
         count: 2,
         limit: 50,
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
     test("should enforce maximum limit of 100", async () => {
-      const mockData = { rows: [{ series_id: "GDP", date: "2024-01-01", value: 25000.5 }] };
+      const mockData = {
+        rows: [{ series_id: "GDP", date: "2024-01-01", value: 25000.5 }],
+      };
       query.mockResolvedValue(mockData);
 
       const _response = await request(app)
@@ -384,9 +387,9 @@ describe("Data Routes", () => {
             date: "2024-01-01",
             naaim_number_mean: 65.5,
             bearish: 15.2,
-            bullish: 84.8
-          }
-        ]
+            bullish: 84.8,
+          },
+        ],
       };
 
       query.mockResolvedValue(mockNaaim);
@@ -399,15 +402,17 @@ describe("Data Routes", () => {
             date: "2024-01-01",
             naaim_number_mean: 65.5,
             bearish: 15.2,
-            bullish: 84.8
-          }
+            bullish: 84.8,
+          },
         ]),
-        count: 1
+        count: 1,
       });
     });
 
     test("should handle custom limit for NAAIM data", async () => {
-      const mockData = { rows: [{ date: "2024-01-01", naaim_number_mean: 65.5 }] };
+      const mockData = {
+        rows: [{ date: "2024-01-01", naaim_number_mean: 65.5 }],
+      };
       query.mockResolvedValue(mockData);
 
       const _response = await request(app)
@@ -427,9 +432,9 @@ describe("Data Routes", () => {
             date: "2024-01-01",
             index_value: 75,
             rating: "Greed",
-            fetched_at: new Date().toISOString()
-          }
-        ]
+            fetched_at: new Date().toISOString(),
+          },
+        ],
       };
 
       query.mockResolvedValue(mockFearGreed);
@@ -442,10 +447,10 @@ describe("Data Routes", () => {
             date: "2024-01-01",
             index_value: 75,
             rating: "Greed",
-            fetched_at: expect.any(String)
-          }
+            fetched_at: expect.any(String),
+          },
         ]),
-        count: 1
+        count: 1,
       });
     });
   });
@@ -457,42 +462,44 @@ describe("Data Routes", () => {
           {
             table_name: "stock_symbols",
             record_count: "5000",
-            last_updated: null
+            last_updated: null,
           },
           {
             table_name: "earnings_estimates",
             record_count: "2500",
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
           },
           {
             table_name: "technical_data_daily",
             record_count: "100000",
-            last_updated: new Date().toISOString()
-          }
-        ]
+            last_updated: new Date().toISOString(),
+          },
+        ],
       };
 
       query.mockResolvedValue(mockSummary);
 
-      const response = await request(app).get("/data/validation-summary").expect(200);
+      const response = await request(app)
+        .get("/data/validation-summary")
+        .expect(200);
 
       expect(response.body).toEqual({
         summary: expect.arrayContaining([
           expect.objectContaining({
             table_name: "stock_symbols",
-            record_count: "5000"
+            record_count: "5000",
           }),
           expect.objectContaining({
             table_name: "earnings_estimates",
             record_count: "2500",
-            last_updated: expect.any(String)
+            last_updated: expect.any(String),
           }),
           expect.objectContaining({
             table_name: "technical_data_daily",
-            record_count: "100000"
-          })
+            record_count: "100000",
+          }),
         ]),
-        generated_at: expect.any(String)
+        generated_at: expect.any(String),
       });
     });
   });
@@ -504,14 +511,14 @@ describe("Data Routes", () => {
           {
             date: "2023-12-31",
             item_name: "Total Revenue",
-            value: 25000000000
+            value: 25000000000,
           },
           {
             date: "2023-12-31",
             item_name: "Net Income",
-            value: 5000000000
-          }
-        ]
+            value: 5000000000,
+          },
+        ],
       };
 
       // Mock all 8 financial statement queries
@@ -519,7 +526,9 @@ describe("Data Routes", () => {
         query.mockResolvedValueOnce(mockFinancialData);
       }
 
-      const response = await request(app).get("/data/financials/AAPL").expect(200);
+      const response = await request(app)
+        .get("/data/financials/AAPL")
+        .expect(200);
 
       expect(response.body).toMatchObject({
         symbol: "AAPL",
@@ -529,9 +538,9 @@ describe("Data Routes", () => {
               date: "2023-12-31",
               items: expect.objectContaining({
                 "Total Revenue": 25000000000,
-                "Net Income": 5000000000
-              })
-            })
+                "Net Income": 5000000000,
+              }),
+            }),
           ]),
           "TTM Cash Flow": expect.any(Array),
           "Annual Income Statement": expect.any(Array),
@@ -539,9 +548,9 @@ describe("Data Routes", () => {
           "Balance Sheet": expect.any(Array),
           "Quarterly Income Statement": expect.any(Array),
           "Quarterly Cash Flow": expect.any(Array),
-          "Quarterly Balance Sheet": expect.any(Array)
+          "Quarterly Balance Sheet": expect.any(Array),
         }),
-        limit: 10
+        limit: 10,
       });
       expect(query).toHaveBeenCalledTimes(8);
     });
@@ -549,7 +558,9 @@ describe("Data Routes", () => {
     test("should handle missing tables gracefully", async () => {
       // First query succeeds, rest fail
       query
-        .mockResolvedValueOnce({ rows: [{ date: "2023-12-31", item_name: "Revenue", value: 1000 }] })
+        .mockResolvedValueOnce({
+          rows: [{ date: "2023-12-31", item_name: "Revenue", value: 1000 }],
+        })
         .mockRejectedValue(new Error("Table does not exist"))
         .mockRejectedValue(new Error("Table does not exist"))
         .mockRejectedValue(new Error("Table does not exist"))
@@ -558,7 +569,9 @@ describe("Data Routes", () => {
         .mockRejectedValue(new Error("Table does not exist"))
         .mockRejectedValue(new Error("Table does not exist"));
 
-      const response = await request(app).get("/data/financials/AAPL").expect(200);
+      const response = await request(app)
+        .get("/data/financials/AAPL")
+        .expect(200);
 
       expect(response.body.symbol).toBe("AAPL");
       expect(response.body.data["TTM Income Statement"]).toHaveLength(1);
@@ -571,10 +584,12 @@ describe("Data Routes", () => {
         query.mockResolvedValueOnce({ rows: [] });
       }
 
-      const response = await request(app).get("/data/financials/NONEXISTENT").expect(404);
+      const response = await request(app)
+        .get("/data/financials/NONEXISTENT")
+        .expect(404);
 
       expect(response.body).toEqual({
-        error: "No data found for this query"
+        error: "No data found for this query",
       });
     });
   });
@@ -585,17 +600,17 @@ describe("Data Routes", () => {
         rows: [
           {
             item_name: "Total Revenue",
-            occurrence_count: "500"
+            occurrence_count: "500",
           },
           {
             item_name: "Net Income",
-            occurrence_count: "500"
+            occurrence_count: "500",
           },
           {
             item_name: "Total Assets",
-            occurrence_count: "300"
-          }
-        ]
+            occurrence_count: "300",
+          },
+        ],
       };
 
       // Mock all 8 table queries
@@ -603,15 +618,17 @@ describe("Data Routes", () => {
         query.mockResolvedValueOnce(mockMetrics);
       }
 
-      const response = await request(app).get("/data/financial-metrics").expect(200);
+      const response = await request(app)
+        .get("/data/financial-metrics")
+        .expect(200);
 
       expect(response.body).toMatchObject({
         metrics: expect.objectContaining({
           ttm_income_stmt: expect.arrayContaining([
             expect.objectContaining({
               item_name: "Total Revenue",
-              occurrence_count: "500"
-            })
+              occurrence_count: "500",
+            }),
           ]),
           ttm_cashflow: expect.any(Array),
           income_stmt: expect.any(Array),
@@ -619,7 +636,7 @@ describe("Data Routes", () => {
           balance_sheet: expect.any(Array),
           quarterly_income_stmt: expect.any(Array),
           quarterly_cashflow: expect.any(Array),
-          quarterly_balance_sheet: expect.any(Array)
+          quarterly_balance_sheet: expect.any(Array),
         }),
         tables: expect.arrayContaining([
           "ttm_income_stmt",
@@ -629,9 +646,9 @@ describe("Data Routes", () => {
           "balance_sheet",
           "quarterly_income_stmt",
           "quarterly_cashflow",
-          "quarterly_balance_sheet"
+          "quarterly_balance_sheet",
         ]),
-        generated_at: expect.any(String)
+        generated_at: expect.any(String),
       });
       expect(query).toHaveBeenCalledTimes(8);
     });
@@ -639,16 +656,22 @@ describe("Data Routes", () => {
     test("should handle missing tables gracefully", async () => {
       // Some queries succeed, others fail
       query
-        .mockResolvedValueOnce({ rows: [{ item_name: "Revenue", occurrence_count: "100" }] })
+        .mockResolvedValueOnce({
+          rows: [{ item_name: "Revenue", occurrence_count: "100" }],
+        })
         .mockRejectedValueOnce(new Error("Table does not exist"))
-        .mockResolvedValueOnce({ rows: [{ item_name: "Assets", occurrence_count: "50" }] })
+        .mockResolvedValueOnce({
+          rows: [{ item_name: "Assets", occurrence_count: "50" }],
+        })
         .mockRejectedValueOnce(new Error("Table does not exist"))
         .mockRejectedValueOnce(new Error("Table does not exist"))
         .mockRejectedValueOnce(new Error("Table does not exist"))
         .mockRejectedValueOnce(new Error("Table does not exist"))
         .mockRejectedValueOnce(new Error("Table does not exist"));
 
-      const response = await request(app).get("/data/financial-metrics").expect(200);
+      const response = await request(app)
+        .get("/data/financial-metrics")
+        .expect(200);
 
       expect(response.body.metrics.ttm_income_stmt).toHaveLength(1);
       expect(response.body.metrics.ttm_cashflow).toEqual([]);

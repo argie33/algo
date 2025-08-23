@@ -12,16 +12,16 @@ describe("Alert System", () => {
   beforeEach(() => {
     originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "test";
-    
+
     // Clear module cache and get fresh instance
     delete require.cache[require.resolve("../../utils/alertSystem")];
     alertSystem = require("../../utils/alertSystem");
-    
+
     // Clear any existing state
     alertSystem.activeAlerts.clear();
     alertSystem.alertHistory = [];
     alertSystem.lastNotificationTime.clear();
-    
+
     // Reset configuration to defaults
     alertSystem.config = {
       thresholds: {
@@ -64,7 +64,7 @@ describe("Alert System", () => {
       alertCooldown: 300000,
       escalationTime: 900000,
     };
-    
+
     // Stop any running monitoring
     alertSystem.stopMonitoring();
   });
@@ -110,7 +110,7 @@ describe("Alert System", () => {
       expect(alertSystem.config.thresholds.latency.warning).toBe(150);
       expect(alertSystem.config.thresholds.latency.critical).toBe(300);
       expect(alertSystem.config.alertCooldown).toBe(600000);
-      
+
       // Should preserve other config
       expect(alertSystem.config.thresholds.errorRate.warning).toBe(0.02);
     });
@@ -137,7 +137,7 @@ describe("Alert System", () => {
 
       expect(alertSystem.activeAlerts.size).toBe(1);
       const alert = alertSystem.activeAlerts.get(alertKey);
-      
+
       expect(alert.id).toBe(alertKey);
       expect(alert.severity).toBe(severity);
       expect(alert.title).toBe(title);
@@ -150,10 +150,10 @@ describe("Alert System", () => {
 
     test("should not create duplicate alert within cooldown", () => {
       const alertKey = "duplicate-test";
-      
+
       alertSystem.createAlert(alertKey, "warning", "Test", "Message 1");
       expect(alertSystem.activeAlerts.get(alertKey).count).toBe(1);
-      
+
       // Create same alert immediately (within cooldown)
       alertSystem.createAlert(alertKey, "warning", "Test", "Message 2");
       expect(alertSystem.activeAlerts.get(alertKey).count).toBe(2);
@@ -166,21 +166,26 @@ describe("Alert System", () => {
         done();
       });
 
-      alertSystem.createAlert("event-test", "info", "Event Test", "Testing events");
+      alertSystem.createAlert(
+        "event-test",
+        "info",
+        "Event Test",
+        "Testing events"
+      );
     });
 
     test("should resolve active alert", () => {
       const alertKey = "resolve-test";
-      
+
       alertSystem.createAlert(alertKey, "warning", "Test", "Message");
       expect(alertSystem.activeAlerts.has(alertKey)).toBe(true);
-      
+
       alertSystem.resolveAlert(alertKey);
       expect(alertSystem.activeAlerts.has(alertKey)).toBe(false);
-      
+
       // Should be in history as resolved
       const historyEntry = alertSystem.alertHistory.find(
-        h => h.id === alertKey && h.action === "resolved"
+        (h) => h.id === alertKey && h.action === "resolved"
       );
       expect(historyEntry).toBeDefined();
       expect(historyEntry.resolved).toBe(true);
@@ -188,23 +193,23 @@ describe("Alert System", () => {
 
     test("should emit alertResolved event", (done) => {
       const alertKey = "resolve-event-test";
-      
+
       alertSystem.createAlert(alertKey, "warning", "Test", "Message");
-      
+
       alertSystem.once("alertResolved", (alert) => {
         expect(alert.id).toBe(alertKey);
         expect(alert.resolved).toBe(true);
         done();
       });
-      
+
       alertSystem.resolveAlert(alertKey);
     });
 
     test("should not resolve non-existent alert", () => {
       const initialHistoryLength = alertSystem.alertHistory.length;
-      
+
       alertSystem.resolveAlert("non-existent");
-      
+
       expect(alertSystem.alertHistory.length).toBe(initialHistoryLength);
     });
   });
@@ -218,10 +223,15 @@ describe("Alert System", () => {
         status: "connected",
       };
 
-      await alertSystem.checkProviderHealth("critical-latency-provider", provider);
+      await alertSystem.checkProviderHealth(
+        "critical-latency-provider",
+        provider
+      );
 
       // latency creates alert with key "provider-critical-latency-provider" (base alertKey)
-      const alert = alertSystem.activeAlerts.get("provider-critical-latency-provider");
+      const alert = alertSystem.activeAlerts.get(
+        "provider-critical-latency-provider"
+      );
       expect(alert).toBeDefined();
       expect(alert.severity).toBe("critical");
       expect(alert.title).toBe("High Latency Critical");
@@ -230,16 +240,21 @@ describe("Alert System", () => {
 
     test("should detect warning latency", async () => {
       const provider = {
-        name: "Warning Test Provider", 
+        name: "Warning Test Provider",
         latency: 150, // Above warning threshold (100) but below critical (200)
         successRate: 98, // Low error rate to avoid error rate alerts
         status: "connected",
       };
 
-      await alertSystem.checkProviderHealth("warning-latency-provider", provider);
+      await alertSystem.checkProviderHealth(
+        "warning-latency-provider",
+        provider
+      );
 
       // Should create warning latency alert with base alertKey
-      const alert = alertSystem.activeAlerts.get("provider-warning-latency-provider");
+      const alert = alertSystem.activeAlerts.get(
+        "provider-warning-latency-provider"
+      );
       expect(alert).toBeDefined();
       expect(alert.severity).toBe("warning");
       expect(alert.title).toBe("High Latency Warning");
@@ -255,7 +270,9 @@ describe("Alert System", () => {
 
       await alertSystem.checkProviderHealth("error-rate-provider", provider);
 
-      const alert = alertSystem.activeAlerts.get("provider-error-rate-provider-errors");
+      const alert = alertSystem.activeAlerts.get(
+        "provider-error-rate-provider-errors"
+      );
       expect(alert).toBeDefined();
       expect(alert.severity).toBe("critical");
       expect(alert.title).toBe("High Error Rate Critical");
@@ -272,7 +289,9 @@ describe("Alert System", () => {
 
       await alertSystem.checkProviderHealth("disconnected-provider", provider);
 
-      const alert = alertSystem.activeAlerts.get("provider-disconnected-provider-status");
+      const alert = alertSystem.activeAlerts.get(
+        "provider-disconnected-provider-status"
+      );
       expect(alert).toBeDefined();
       expect(alert.severity).toBe("critical");
       expect(alert.title).toBe("Provider Disconnected");
@@ -289,18 +308,22 @@ describe("Alert System", () => {
       };
 
       await alertSystem.checkProviderHealth("resolve-provider", badProvider);
-      expect(alertSystem.activeAlerts.has("provider-resolve-provider")).toBe(true);
+      expect(alertSystem.activeAlerts.has("provider-resolve-provider")).toBe(
+        true
+      );
 
       // Then check with good latency
       const goodProvider = {
-        name: "Resolve Test Provider", 
+        name: "Resolve Test Provider",
         latency: 50, // Below warning threshold
         successRate: 98,
         status: "connected",
       };
 
       await alertSystem.checkProviderHealth("resolve-provider", goodProvider);
-      expect(alertSystem.activeAlerts.has("provider-resolve-provider-latency")).toBe(false);
+      expect(
+        alertSystem.activeAlerts.has("provider-resolve-provider-latency")
+      ).toBe(false);
     });
   });
 
@@ -422,7 +445,7 @@ describe("Alert System", () => {
       // Temporarily clear test environment and disable flag
       delete process.env.NODE_ENV;
       delete process.env.DISABLE_ALERT_SYSTEM;
-      
+
       const mockLiveDataManager = {
         on: jest.fn(),
         getDashboardStatus: jest.fn().mockReturnValue({
@@ -433,7 +456,9 @@ describe("Alert System", () => {
       };
 
       // Mock setInterval
-      const mockSetInterval = jest.spyOn(global, "setInterval").mockImplementation(() => "mock-interval");
+      const mockSetInterval = jest
+        .spyOn(global, "setInterval")
+        .mockImplementation(() => "mock-interval");
 
       alertSystem.startMonitoring(mockLiveDataManager);
 
@@ -449,7 +474,9 @@ describe("Alert System", () => {
     test("should stop monitoring", () => {
       // Mock an active interval
       alertSystem.healthCheckInterval = "mock-interval";
-      const mockClearInterval = jest.spyOn(global, "clearInterval").mockImplementation();
+      const mockClearInterval = jest
+        .spyOn(global, "clearInterval")
+        .mockImplementation();
 
       alertSystem.stopMonitoring();
 
@@ -478,7 +505,10 @@ describe("Alert System", () => {
       await alertSystem.sendNotifications(alert);
 
       // Should not send notifications due to cooldown
-      expect(emitSpy).not.toHaveBeenCalledWith("notificationSent", expect.any(Object));
+      expect(emitSpy).not.toHaveBeenCalledWith(
+        "notificationSent",
+        expect.any(Object)
+      );
 
       emitSpy.mockRestore();
     });
@@ -504,7 +534,8 @@ describe("Alert System", () => {
       await alertSystem.sendNotifications(alert);
 
       // Should send notifications since cooldown expired
-      expect(emitSpy).toHaveBeenCalledWith("notificationSent", 
+      expect(emitSpy).toHaveBeenCalledWith(
+        "notificationSent",
         expect.objectContaining({ type: "email", alert, success: true })
       );
 
@@ -529,7 +560,8 @@ describe("Alert System", () => {
 
       await alertSystem.sendEmailNotification(alert);
 
-      expect(emitSpy).toHaveBeenCalledWith("notificationSent", 
+      expect(emitSpy).toHaveBeenCalledWith(
+        "notificationSent",
         expect.objectContaining({ type: "email", alert, success: true })
       );
 
@@ -538,7 +570,8 @@ describe("Alert System", () => {
 
     test("should send slack notification when enabled", async () => {
       alertSystem.config.notifications.slack.enabled = true;
-      alertSystem.config.notifications.slack.webhook = "https://hooks.slack.com/test";
+      alertSystem.config.notifications.slack.webhook =
+        "https://hooks.slack.com/test";
 
       const alert = {
         id: "slack-test",
@@ -553,7 +586,8 @@ describe("Alert System", () => {
 
       await alertSystem.sendSlackNotification(alert);
 
-      expect(emitSpy).toHaveBeenCalledWith("notificationSent", 
+      expect(emitSpy).toHaveBeenCalledWith(
+        "notificationSent",
         expect.objectContaining({ type: "slack", alert, success: true })
       );
 
@@ -563,17 +597,18 @@ describe("Alert System", () => {
     test("should handle notification errors", async () => {
       // Force an error by calling with invalid alert
       const emitSpy = jest.spyOn(alertSystem, "emit");
-      
+
       // Mock console.error to avoid test output noise
       const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
       await alertSystem.sendEmailNotification(null);
 
-      expect(emitSpy).toHaveBeenCalledWith("notificationSent", 
-        expect.objectContaining({ 
-          type: "email", 
+      expect(emitSpy).toHaveBeenCalledWith(
+        "notificationSent",
+        expect.objectContaining({
+          type: "email",
           success: false,
-          error: expect.any(Error)
+          error: expect.any(Error),
         })
       );
 
@@ -607,7 +642,7 @@ describe("Alert System", () => {
       const status = alertSystem.getAlertsStatus();
 
       expect(status.recent.length).toBeGreaterThan(0);
-      const recentAlert = status.recent.find(a => a.id === "recent-1");
+      const recentAlert = status.recent.find((a) => a.id === "recent-1");
       expect(recentAlert).toBeDefined();
     });
 
@@ -631,7 +666,7 @@ describe("Alert System", () => {
   describe("Cleanup and Maintenance", () => {
     test("should clean up old alert history", () => {
       const now = Date.now();
-      const oldTime = now - (25 * 60 * 60 * 1000); // 25 hours ago
+      const oldTime = now - 25 * 60 * 60 * 1000; // 25 hours ago
 
       // Add old alert to history
       alertSystem.alertHistory.push({
@@ -655,19 +690,25 @@ describe("Alert System", () => {
 
     test("should clean up old notification times", () => {
       const now = Date.now();
-      const oldTime = now - (25 * 60 * 60 * 1000); // 25 hours ago
+      const oldTime = now - 25 * 60 * 60 * 1000; // 25 hours ago
 
       alertSystem.lastNotificationTime.set("old-notification", oldTime);
       alertSystem.lastNotificationTime.set("recent-notification", now - 60000);
 
       alertSystem.cleanupResolvedAlerts();
 
-      expect(alertSystem.lastNotificationTime.has("old-notification")).toBe(false);
-      expect(alertSystem.lastNotificationTime.has("recent-notification")).toBe(true);
+      expect(alertSystem.lastNotificationTime.has("old-notification")).toBe(
+        false
+      );
+      expect(alertSystem.lastNotificationTime.has("recent-notification")).toBe(
+        true
+      );
     });
 
     test("should test notifications", async () => {
-      const sendNotificationsSpy = jest.spyOn(alertSystem, "sendNotifications").mockResolvedValue();
+      const sendNotificationsSpy = jest
+        .spyOn(alertSystem, "sendNotifications")
+        .mockResolvedValue();
 
       await alertSystem.testNotifications();
 
@@ -708,7 +749,7 @@ describe("Alert System", () => {
 
       // Should not throw and exit early
       await expect(alertSystem.performHealthCheck()).resolves.not.toThrow();
-      
+
       // Should not create any alerts
       expect(alertSystem.activeAlerts.size).toBe(0);
     });

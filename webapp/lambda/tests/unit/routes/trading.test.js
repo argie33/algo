@@ -1,9 +1,11 @@
 const request = require("supertest");
 const express = require("express");
+
 const tradingRouter = require("../../../routes/trading");
 
 // Mock dependencies
 jest.mock("../../../utils/database");
+
 const { query } = require("../../../utils/database");
 
 describe("Trading Routes", () => {
@@ -294,7 +296,9 @@ describe("Trading Routes", () => {
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Invalid order type. Must be: market, limit, stop, or stop_limit");
+      expect(response.body.error).toBe(
+        "Invalid order type. Must be: market, limit, stop, or stop_limit"
+      );
     });
 
     test("should validate quantity is positive", async () => {

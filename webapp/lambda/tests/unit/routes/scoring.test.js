@@ -3,17 +3,22 @@ const express = require("express");
 
 // Mock dependencies BEFORE importing the routes
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn()
+  query: jest.fn(),
 }));
 
 // Mock optional services that may not exist
-jest.mock("../../../utils/factorScoring", () => {
-  return {
-    FactorScoringEngine: jest.fn().mockImplementation(() => ({}))
-  };
-}, { virtual: true });
+jest.mock(
+  "../../../utils/factorScoring",
+  () => {
+    return {
+      FactorScoringEngine: jest.fn().mockImplementation(() => ({})),
+    };
+  },
+  { virtual: true }
+);
 
 // Now import the routes after mocking
+
 const scoringRoutes = require("../../../routes/scoring");
 const { query } = require("../../../utils/database");
 
@@ -32,31 +37,31 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
   describe("GET /scoring/ping - Basic ping endpoint", () => {
     test("should return scoring service ping", async () => {
-      const response = await request(app)
-        .get("/scoring/ping")
-        .expect(200);
+      const response = await request(app).get("/scoring/ping").expect(200);
 
       expect(response.body).toMatchObject({
         status: "ok",
         endpoint: "scoring",
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
 
   describe("GET /scoring/calculate/:symbol - Calculate comprehensive scores", () => {
     test("should return cached scores when available", async () => {
-      const mockScores = [{
-        symbol: "AAPL",
-        quality_score: 0.85,
-        growth_score: 0.78,
-        value_score: 0.65,
-        momentum_score: 0.72,
-        sentiment_score: 0.68,
-        positioning_score: 0.75,
-        composite_score: 0.74,
-        updated_at: new Date().toISOString()
-      }];
+      const mockScores = [
+        {
+          symbol: "AAPL",
+          quality_score: 0.85,
+          growth_score: 0.78,
+          value_score: 0.65,
+          momentum_score: 0.72,
+          sentiment_score: 0.68,
+          positioning_score: 0.75,
+          composite_score: 0.74,
+          updated_at: new Date().toISOString(),
+        },
+      ];
 
       query.mockResolvedValue(mockScores);
 
@@ -69,9 +74,9 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         expect(response.body).toMatchObject({
           success: true,
           scores: expect.objectContaining({
-            symbol: "AAPL"
+            symbol: "AAPL",
           }),
-          cached: expect.any(Boolean)
+          cached: expect.any(Boolean),
         });
       }
     });
@@ -83,7 +88,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .get("/scoring/calculate/aapl")
         .expect([200, 404, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should handle force recalculate parameter", async () => {
@@ -94,7 +99,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .query({ recalculate: "true" })
         .expect([200, 404, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should return 404 for insufficient data", async () => {
@@ -104,7 +109,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .get("/scoring/calculate/INVALID")
         .expect([404, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should handle database errors gracefully", async () => {
@@ -116,7 +121,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });
@@ -130,12 +135,14 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "symbols array is required"
+        error: "symbols array is required",
       });
     });
 
     test("should enforce 50 symbol limit", async () => {
-      const symbols = Array(51).fill(0).map((_, i) => `STOCK${i}`);
+      const symbols = Array(51)
+        .fill(0)
+        .map((_, i) => `STOCK${i}`);
 
       const response = await request(app)
         .post("/scoring/calculate/batch")
@@ -144,7 +151,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Maximum 50 symbols per batch"
+        error: "Maximum 50 symbols per batch",
       });
     });
 
@@ -163,7 +170,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
           results: expect.any(Array),
           errors: expect.any(Array),
           processed: expect.any(Number),
-          failed: expect.any(Number)
+          failed: expect.any(Number),
         });
       }
     });
@@ -177,7 +184,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .send({ symbols, forceRecalculate: true })
         .expect([200, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should handle mixed success and failure in batch", async () => {
@@ -189,7 +196,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .send({ symbols })
         .expect([200, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
   });
 
@@ -201,15 +208,15 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
           composite_score: 0.92,
           company_name: "Apple Inc.",
           sector: "Technology",
-          market_cap: 2750000000000
+          market_cap: 2750000000000,
         },
         {
-          symbol: "MSFT", 
+          symbol: "MSFT",
           composite_score: 0.88,
           company_name: "Microsoft Corporation",
           sector: "Technology",
-          market_cap: 2300000000000
-        }
+          market_cap: 2300000000000,
+        },
       ];
 
       query.mockResolvedValue(mockTopStocks);
@@ -226,8 +233,8 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
           filters: expect.objectContaining({
             sector: expect.any(String),
             marketCapTier: expect.any(String),
-            minScore: expect.any(Number)
-          })
+            minScore: expect.any(Number),
+          }),
         });
       }
     });
@@ -256,7 +263,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .query({ sector: "Technology" })
         .expect([200, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should support marketCapTier filter", async () => {
@@ -267,7 +274,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .query({ marketCapTier: "Large" })
         .expect([200, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should support minScore filter", async () => {
@@ -278,7 +285,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .query({ minScore: 0.7 })
         .expect([200, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
 
     test("should enforce maximum limit of 200", async () => {
@@ -289,34 +296,38 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .query({ limit: 500 })
         .expect([200, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
     });
   });
 
   describe("GET /scoring/stats - Get scoring statistics", () => {
     test("should return overall and sector statistics", async () => {
-      const mockStats = [{
-        total_stocks: 1500,
-        avg_quality: 0.65,
-        avg_growth: 0.58,
-        avg_value: 0.62,
-        avg_momentum: 0.55,
-        avg_sentiment: 0.52,
-        avg_positioning: 0.60,
-        avg_composite: 0.59,
-        q1_composite: 0.45,
-        median_composite: 0.58,
-        q3_composite: 0.72,
-        max_composite: 0.95,
-        min_composite: 0.15
-      }];
+      const mockStats = [
+        {
+          total_stocks: 1500,
+          avg_quality: 0.65,
+          avg_growth: 0.58,
+          avg_value: 0.62,
+          avg_momentum: 0.55,
+          avg_sentiment: 0.52,
+          avg_positioning: 0.6,
+          avg_composite: 0.59,
+          q1_composite: 0.45,
+          median_composite: 0.58,
+          q3_composite: 0.72,
+          max_composite: 0.95,
+          min_composite: 0.15,
+        },
+      ];
 
       const mockSectorStats = [
         { sector: "Technology", count: 350, avg_score: 0.68, max_score: 0.95 },
-        { sector: "Healthcare", count: 280, avg_score: 0.62, max_score: 0.88 }
+        { sector: "Healthcare", count: 280, avg_score: 0.62, max_score: 0.88 },
       ];
 
-      query.mockResolvedValueOnce(mockStats).mockResolvedValueOnce(mockSectorStats);
+      query
+        .mockResolvedValueOnce(mockStats)
+        .mockResolvedValueOnce(mockSectorStats);
 
       const response = await request(app)
         .get("/scoring/stats")
@@ -326,7 +337,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         expect(response.body).toMatchObject({
           success: true,
           overallStats: expect.any(Object),
-          sectorStats: expect.any(Array)
+          sectorStats: expect.any(Array),
         });
       }
     });
@@ -334,13 +345,11 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
     test("should handle database errors in stats", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
 
-      const response = await request(app)
-        .get("/scoring/stats")
-        .expect(500);
+      const response = await request(app).get("/scoring/stats").expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Failed to get scoring statistics"
+        error: "Failed to get scoring statistics",
       });
     });
   });
@@ -357,7 +366,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
 
@@ -369,7 +378,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: expect.stringContaining("symbols array is required")
+        error: expect.stringContaining("symbols array is required"),
       });
     });
   });

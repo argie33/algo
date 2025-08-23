@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { authenticateToken } = require("../middleware/auth");
 const { query } = require("../utils/database");
 const { FactorScoringEngine } = require("../utils/factorScoring");

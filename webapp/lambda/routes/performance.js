@@ -4,8 +4,9 @@
  */
 
 const express = require("express");
+
 const router = express.Router();
-const { performanceMonitor } = require("../utils/performanceMonitor");
+const performanceMonitor = require("../utils/performanceMonitor");
 const { authenticateToken } = require("../middleware/auth");
 
 // Health endpoint (no auth required)
@@ -61,7 +62,7 @@ router.get("/metrics", authenticateToken, async (req, res) => {
  */
 router.get("/summary", authenticateToken, async (req, res) => {
   try {
-    const summary = performanceMonitor.getPerformanceSummary();
+    const summary = performanceMonitor.getSummary();
 
     req.logger?.info("Performance summary requested", {
       requestedBy: req.user?.sub,
@@ -89,7 +90,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
  */
 router.get("/health", async (req, res) => {
   try {
-    const summary = performanceMonitor.getPerformanceSummary();
+    const summary = performanceMonitor.getSummary();
     const memUsage = process.memoryUsage();
 
     // Health check doesn't require auth for monitoring systems
@@ -283,7 +284,7 @@ router.get("/external-api-stats", authenticateToken, async (req, res) => {
  */
 router.get("/alerts", authenticateToken, async (req, res) => {
   try {
-    const summary = performanceMonitor.getPerformanceSummary();
+    const summary = performanceMonitor.getSummary();
 
     req.logger?.info("Performance alerts requested", {
       requestedBy: req.user?.sub,
@@ -324,12 +325,7 @@ router.post("/clear-metrics", authenticateToken, async (req, res) => {
     }
 
     // Reset metrics
-    performanceMonitor.metrics.apiRequests.clear();
-    performanceMonitor.metrics.dbQueryTimes.clear();
-    performanceMonitor.metrics.externalApiCalls.clear();
-    performanceMonitor.metrics.responseTimeHistogram.clear();
-    performanceMonitor.metrics.totalRequests = 0;
-    performanceMonitor.metrics.totalErrors = 0;
+    performanceMonitor.reset();
 
     req.logger?.warn("Performance metrics cleared", {
       clearedBy: req.user?.sub,

@@ -1,7 +1,9 @@
+const _crypto = require("crypto");
+
 const express = require("express");
+
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
-const _crypto = require("crypto");
 
 const router = express.Router();
 

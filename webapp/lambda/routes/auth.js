@@ -8,6 +8,7 @@ const {
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
+
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();

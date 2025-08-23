@@ -175,10 +175,10 @@ describe("responseFormatter", () => {
         success: true,
         data: {
           items: [],
-          pagination: { 
-            page: 1, 
-            limit: 10, 
-            total: 0, 
+          pagination: {
+            page: 1,
+            limit: 10,
+            total: 0,
             totalPages: 0,
             hasNext: false,
             hasPrev: false,

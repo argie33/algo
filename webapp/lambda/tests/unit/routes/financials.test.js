@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const financialsRouter = require("../../../routes/financials");
 
 // Mock dependencies
@@ -20,26 +21,26 @@ describe("Financials Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add response formatter middleware
     app.use((req, res, next) => {
       res.success = (data, status = 200) => {
         res.status(status).json({
           success: true,
-          data: data
+          data: data,
         });
       };
-      
+
       res.error = (message, status = 500) => {
         res.status(status).json({
           success: false,
-          error: message
+          error: message,
         });
       };
-      
+
       next();
     });
-    
+
     app.use("/financials", financialsRouter);
     jest.clearAllMocks();
   });
@@ -51,14 +52,12 @@ describe("Financials Routes", () => {
         rows: [
           { column_name: "symbol", data_type: "text", is_nullable: "NO" },
           { column_name: "date", data_type: "date", is_nullable: "NO" },
-          { column_name: "value", data_type: "numeric", is_nullable: "YES" }
-        ]
+          { column_name: "value", data_type: "numeric", is_nullable: "YES" },
+        ],
       };
       const mockCount = { rows: [{ total: "1000" }] };
       const mockSample = {
-        rows: [
-          { symbol: "AAPL", date: "2023-12-31", value: 1000000 }
-        ]
+        rows: [{ symbol: "AAPL", date: "2023-12-31", value: 1000000 }],
       };
 
       // Mock all 6 tables - each table gets 4 queries (exists, columns, count, sample)
@@ -70,7 +69,9 @@ describe("Financials Routes", () => {
           .mockResolvedValueOnce(mockSample);
       }
 
-      const response = await request(app).get("/financials/debug/tables").expect(200);
+      const response = await request(app)
+        .get("/financials/debug/tables")
+        .expect(200);
 
       expect(response.body).toMatchObject({
         status: "ok",
@@ -81,17 +82,17 @@ describe("Financials Routes", () => {
             columns: expect.arrayContaining([
               expect.objectContaining({
                 column_name: "symbol",
-                data_type: "text"
-              })
+                data_type: "text",
+              }),
             ]),
             sampleData: expect.arrayContaining([
               expect.objectContaining({
-                symbol: "AAPL"
-              })
-            ])
-          }
+                symbol: "AAPL",
+              }),
+            ]),
+          },
         }),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
       expect(query).toHaveBeenCalledTimes(24); // 6 tables × 4 queries each
     });
@@ -104,28 +105,32 @@ describe("Financials Routes", () => {
         query.mockResolvedValueOnce(mockTableNotExists);
       }
 
-      const response = await request(app).get("/financials/debug/tables").expect(200);
+      const response = await request(app)
+        .get("/financials/debug/tables")
+        .expect(200);
 
       expect(response.body.tables.balance_sheet).toMatchObject({
         exists: false,
-        message: "balance_sheet table does not exist"
+        message: "balance_sheet table does not exist",
       });
     });
 
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
 
-      const response = await request(app).get("/financials/debug/tables").expect(200);
+      const response = await request(app)
+        .get("/financials/debug/tables")
+        .expect(200);
 
       expect(response.body).toMatchObject({
         status: "ok",
         tables: expect.objectContaining({
           balance_sheet: {
             exists: false,
-            error: "Database connection failed"
-          }
+            error: "Database connection failed",
+          },
         }),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -138,21 +143,21 @@ describe("Financials Routes", () => {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Total Assets",
-            value: "352755000000"
+            value: "352755000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Total Liabilities Net Minority Interest",
-            value: "290437000000"
+            value: "290437000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Cash And Cash Equivalents",
-            value: "29965000000"
-          }
-        ]
+            value: "29965000000",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockBalanceSheetData);
@@ -174,16 +179,16 @@ describe("Financials Routes", () => {
             items: expect.objectContaining({
               "Total Assets": 352755000000,
               "Total Liabilities Net Minority Interest": 290437000000,
-              "Cash And Cash Equivalents": 29965000000
-            })
-          })
+              "Cash And Cash Equivalents": 29965000000,
+            }),
+          }),
         ]),
         metadata: {
           ticker: "AAPL",
           period: "annual",
           count: 1,
-          timestamp: expect.any(String)
-        }
+          timestamp: expect.any(String),
+        },
       });
     });
 
@@ -194,9 +199,9 @@ describe("Financials Routes", () => {
             symbol: "AAPL",
             date: "2023-09-30",
             item_name: "Total Assets",
-            value: "350000000000"
-          }
-        ]
+            value: "350000000000",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockData);
@@ -221,7 +226,7 @@ describe("Financials Routes", () => {
         .expect(404);
 
       expect(response.body).toEqual({
-        error: "No data found for this query"
+        error: "No data found for this query",
       });
     });
 
@@ -235,7 +240,7 @@ describe("Financials Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch balance sheet data",
-        message: "Table does not exist"
+        message: "Table does not exist",
       });
     });
   });
@@ -248,21 +253,21 @@ describe("Financials Routes", () => {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Total Revenue",
-            value: "394328000000"
+            value: "394328000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Net Income",
-            value: "96995000000"
+            value: "96995000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Gross Profit",
-            value: "169148000000"
-          }
-        ]
+            value: "169148000000",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockIncomeData);
@@ -283,21 +288,30 @@ describe("Financials Routes", () => {
             items: expect.objectContaining({
               "Total Revenue": 394328000000,
               "Net Income": 96995000000,
-              "Gross Profit": 169148000000
-            })
-          })
+              "Gross Profit": 169148000000,
+            }),
+          }),
         ]),
         metadata: {
           ticker: "AAPL",
           period: "annual",
           count: 1,
-          timestamp: expect.any(String)
-        }
+          timestamp: expect.any(String),
+        },
       });
     });
 
     test("should handle TTM period", async () => {
-      const mockData = { rows: [{ symbol: "AAPL", date: "2023-12-31", item_name: "Revenue", value: "400000000000" }] };
+      const mockData = {
+        rows: [
+          {
+            symbol: "AAPL",
+            date: "2023-12-31",
+            item_name: "Revenue",
+            value: "400000000000",
+          },
+        ],
+      };
       query.mockResolvedValue(mockData);
 
       const _response = await request(app)
@@ -312,7 +326,16 @@ describe("Financials Routes", () => {
     });
 
     test("should handle quarterly period", async () => {
-      const mockData = { rows: [{ symbol: "AAPL", date: "2023-09-30", item_name: "Revenue", value: "100000000000" }] };
+      const mockData = {
+        rows: [
+          {
+            symbol: "AAPL",
+            date: "2023-09-30",
+            item_name: "Revenue",
+            value: "100000000000",
+          },
+        ],
+      };
       query.mockResolvedValue(mockData);
 
       const _response = await request(app)
@@ -335,21 +358,21 @@ describe("Financials Routes", () => {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Operating Cash Flow",
-            value: "110543000000"
+            value: "110543000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Free Cash Flow",
-            value: "99584000000"
+            value: "99584000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Capital Expenditure",
-            value: "-10959000000"
-          }
-        ]
+            value: "-10959000000",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockCashFlowData);
@@ -370,21 +393,30 @@ describe("Financials Routes", () => {
             items: expect.objectContaining({
               "Operating Cash Flow": 110543000000,
               "Free Cash Flow": 99584000000,
-              "Capital Expenditure": -10959000000
-            })
-          })
+              "Capital Expenditure": -10959000000,
+            }),
+          }),
         ]),
         metadata: {
           ticker: "AAPL",
           period: "annual",
           count: 1,
-          timestamp: expect.any(String)
-        }
+          timestamp: expect.any(String),
+        },
       });
     });
 
     test("should handle TTM and quarterly periods", async () => {
-      const mockData = { rows: [{ symbol: "AAPL", date: "2023-12-31", item_name: "Operating Cash Flow", value: "100000000000" }] };
+      const mockData = {
+        rows: [
+          {
+            symbol: "AAPL",
+            date: "2023-12-31",
+            item_name: "Operating Cash Flow",
+            value: "100000000000",
+          },
+        ],
+      };
       query.mockResolvedValue(mockData);
 
       // Test TTM
@@ -421,7 +453,7 @@ describe("Financials Routes", () => {
       expect(response.body).toEqual({
         success: true,
         service: "financials",
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -443,9 +475,9 @@ describe("Financials Routes", () => {
             eps_trailing: 6.13,
             profit_margin_pct: 24.6,
             return_on_equity_pct: 147.4,
-            dividend_yield: 0.47
-          }
-        ]
+            dividend_yield: 0.47,
+          },
+        ],
       };
 
       query.mockResolvedValue(mockKeyMetrics);
@@ -465,52 +497,52 @@ describe("Financials Routes", () => {
               "P/E Ratio (Forward)": 25.2,
               "Price/Sales (TTM)": 7.8,
               "Price/Book": 45.6,
-              "PEG Ratio": 2.1
-            })
+              "PEG Ratio": 2.1,
+            }),
           },
           enterprise: {
             title: "Enterprise Metrics",
             icon: "BusinessCenter",
             metrics: expect.objectContaining({
-              "Enterprise Value": 2800000000000
-            })
+              "Enterprise Value": 2800000000000,
+            }),
           },
           financial_performance: {
             title: "Financial Performance",
             icon: "Assessment",
             metrics: expect.objectContaining({
               "Total Revenue": 394328000000,
-              "Net Income": 96995000000
-            })
+              "Net Income": 96995000000,
+            }),
           },
           earnings: {
             title: "Earnings Per Share",
             icon: "MonetizationOn",
             metrics: expect.objectContaining({
-              "EPS (Trailing)": 6.13
-            })
+              "EPS (Trailing)": 6.13,
+            }),
           },
           profitability: {
             title: "Profitability Margins",
             icon: "Percent",
             metrics: expect.objectContaining({
-              "Profit Margin": 24.6
-            })
+              "Profit Margin": 24.6,
+            }),
           },
           returns: {
-            title: "Return Metrics", 
+            title: "Return Metrics",
             icon: "TrendingUp",
             metrics: expect.objectContaining({
-              "Return on Equity": 147.4
-            })
+              "Return on Equity": 147.4,
+            }),
           },
           dividends: {
             title: "Dividend Information",
             icon: "Savings",
             metrics: expect.objectContaining({
-              "Dividend Yield": 0.47
-            })
-          }
+              "Dividend Yield": 0.47,
+            }),
+          },
         }),
         metadata: {
           ticker: "AAPL",
@@ -518,8 +550,8 @@ describe("Financials Routes", () => {
           totalMetrics: expect.any(Number),
           populatedMetrics: expect.any(Number),
           lastUpdated: expect.any(String),
-          source: "key_metrics table via loadinfo"
-        }
+          source: "key_metrics table via loadinfo",
+        },
       });
     });
 
@@ -536,8 +568,8 @@ describe("Financials Routes", () => {
         data: null,
         metadata: {
           ticker: "NONEXISTENT",
-          message: "Key metrics data not available for this ticker"
-        }
+          message: "Key metrics data not available for this ticker",
+        },
       });
     });
 
@@ -551,7 +583,7 @@ describe("Financials Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch key metrics data",
-        message: "Table does not exist"
+        message: "Table does not exist",
       });
     });
   });
@@ -565,23 +597,23 @@ describe("Financials Routes", () => {
             date: "2023-12-31",
             item_name: "Total Revenue",
             value: "394328000000",
-            statement_type: "income_statement"
+            statement_type: "income_statement",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Total Assets",
             value: "352755000000",
-            statement_type: "balance_sheet"
+            statement_type: "balance_sheet",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Operating Cash Flow",
             value: "110543000000",
-            statement_type: "cash_flow"
-          }
-        ]
+            statement_type: "cash_flow",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockFinancialData);
@@ -597,26 +629,26 @@ describe("Financials Routes", () => {
             expect.objectContaining({
               date: "2023-12-31",
               item_name: "Total Assets",
-              value: 352755000000
-            })
+              value: 352755000000,
+            }),
           ]),
           income_statement: expect.arrayContaining([
             expect.objectContaining({
               date: "2023-12-31",
-              item_name: "Total Revenue", 
-              value: 394328000000
-            })
+              item_name: "Total Revenue",
+              value: 394328000000,
+            }),
           ]),
           cash_flow: expect.arrayContaining([
             expect.objectContaining({
               date: "2023-12-31",
               item_name: "Operating Cash Flow",
-              value: 110543000000
-            })
-          ])
+              value: 110543000000,
+            }),
+          ]),
         },
         symbol: "AAPL",
-        count: 3
+        count: 3,
       });
     });
 
@@ -629,7 +661,7 @@ describe("Financials Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "No financial data found for symbol NONEXISTENT"
+        error: "No financial data found for symbol NONEXISTENT",
       });
     });
   });
@@ -646,9 +678,9 @@ describe("Financials Routes", () => {
             surprise_percent: 5.04,
             revenue_actual: 89498000000,
             revenue_estimated: 89280000000,
-            revenue_surprise_percent: 0.24
-          }
-        ]
+            revenue_surprise_percent: 0.24,
+          },
+        ],
       };
 
       query.mockResolvedValue(mockEarningsData);
@@ -668,11 +700,11 @@ describe("Financials Routes", () => {
             surprise_percent: 5.04,
             revenue_actual: 89498000000,
             revenue_estimated: 89280000000,
-            revenue_surprise_percent: 0.24
-          })
+            revenue_surprise_percent: 0.24,
+          }),
         ]),
         count: 1,
-        symbol: "AAPL"
+        symbol: "AAPL",
       });
     });
 
@@ -685,7 +717,7 @@ describe("Financials Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "No earnings data found for symbol NONEXISTENT"
+        error: "No earnings data found for symbol NONEXISTENT",
       });
     });
   });
@@ -698,15 +730,15 @@ describe("Financials Routes", () => {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Operating Cash Flow",
-            value: "110543000000"
+            value: "110543000000",
           },
           {
             symbol: "AAPL",
             date: "2023-12-31",
             item_name: "Free Cash Flow",
-            value: "99584000000"
-          }
-        ]
+            value: "99584000000",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockCashFlowData);
@@ -723,12 +755,12 @@ describe("Financials Routes", () => {
             date: "2023-12-31",
             items: expect.objectContaining({
               "Operating Cash Flow": 110543000000,
-              "Free Cash Flow": 99584000000
-            })
-          })
+              "Free Cash Flow": 99584000000,
+            }),
+          }),
         ]),
         count: 1,
-        symbol: "AAPL"
+        symbol: "AAPL",
       });
     });
 
@@ -741,7 +773,7 @@ describe("Financials Routes", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "No cash flow data found for symbol NONEXISTENT"
+        error: "No cash flow data found for symbol NONEXISTENT",
       });
     });
   });

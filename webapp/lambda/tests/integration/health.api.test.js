@@ -36,7 +36,7 @@ describe("Health API Integration Tests", () => {
       idleCount: 0,
       waitingCount: 0,
       connect: jest.fn().mockResolvedValue({}),
-      end: jest.fn().mockResolvedValue({})
+      end: jest.fn().mockResolvedValue({}),
     });
 
     // Import app after setting up mocks
@@ -72,7 +72,7 @@ describe("Health API Integration Tests", () => {
         }),
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
         memory: expect.any(Object),
         uptime: expect.any(Number),
@@ -97,7 +97,7 @@ describe("Health API Integration Tests", () => {
         }),
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
         memory: expect.any(Object),
         uptime: expect.any(Number),
@@ -119,7 +119,7 @@ describe("Health API Integration Tests", () => {
         database: { status: "not_tested" },
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
       });
 
@@ -151,7 +151,7 @@ describe("Health API Integration Tests", () => {
         }),
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
       });
     });
@@ -173,7 +173,7 @@ describe("Health API Integration Tests", () => {
         }),
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
         memory: expect.any(Object),
         uptime: expect.any(Number),
@@ -186,28 +186,28 @@ describe("Health API Integration Tests", () => {
       // Mock database health status table query
       query.mockResolvedValue({
         rows: [
-          { 
-            table_name: "stock_symbols", 
-            status: "healthy", 
-            record_count: 1500, 
+          {
+            table_name: "stock_symbols",
+            status: "healthy",
+            record_count: 1500,
             missing_data_count: 0,
             last_updated: new Date().toISOString(),
             last_checked: new Date().toISOString(),
             is_stale: false,
-            error: null
+            error: null,
           },
-          { 
-            table_name: "price_daily", 
-            status: "healthy", 
-            record_count: 25000, 
+          {
+            table_name: "price_daily",
+            status: "healthy",
+            record_count: 25000,
             missing_data_count: 0,
             last_updated: new Date().toISOString(),
             last_checked: new Date().toISOString(),
             is_stale: false,
-            error: null
+            error: null,
           },
         ],
-        rowCount: 2
+        rowCount: 2,
       });
 
       const response = await request(app).get("/health/database").expect(200);
@@ -224,7 +224,7 @@ describe("Health API Integration Tests", () => {
               record_count: 1500,
             }),
             price_daily: expect.objectContaining({
-              status: "healthy", 
+              status: "healthy",
               record_count: 25000,
             }),
           }),
@@ -235,7 +235,7 @@ describe("Health API Integration Tests", () => {
         }),
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
         memory: expect.any(Object),
         uptime: expect.any(Number),
@@ -260,7 +260,7 @@ describe("Health API Integration Tests", () => {
         }),
         api: expect.objectContaining({
           version: "1.0.0",
-          environment: "test"
+          environment: "test",
         }),
       });
     });
@@ -269,8 +269,10 @@ describe("Health API Integration Tests", () => {
   describe("Error handling", () => {
     test("should handle malformed quick parameter", async () => {
       query.mockResolvedValue({ rows: [{ ok: 1 }], rowCount: 1 });
-      
-      const response = await request(app).get("/health?quick=invalid").expect(200);
+
+      const response = await request(app)
+        .get("/health?quick=invalid")
+        .expect(200);
 
       // Should treat invalid quick parameter as false and do full health check
       expect(response.body).toMatchObject({
@@ -300,7 +302,7 @@ describe("Health API Integration Tests", () => {
           error: "Unexpected database error",
         }),
       });
-      
+
       // Restore mock
       query.mockImplementation(originalQuery);
     });
@@ -332,7 +334,7 @@ describe("Health API Integration Tests", () => {
 
       // Check that we get the response within reasonable time
       expect(endTime - startTime).toBeLessThan(1000); // Should respond within 1 second
-      
+
       // Verify basic performance-related fields are included
       expect(response.body.uptime).toBeDefined();
       expect(response.body.uptime).toBeGreaterThanOrEqual(0);

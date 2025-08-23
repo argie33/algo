@@ -408,7 +408,7 @@ describe("Error Tracker Service", () => {
         for (let i = 0; i < errors.length; i++) {
           errorTracker.trackError(errors[i]);
           if (i < errors.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1));
+            await new Promise((resolve) => setTimeout(resolve, 1));
           }
         }
 
@@ -416,7 +416,7 @@ describe("Error Tracker Service", () => {
         expect(history).toHaveLength(3);
 
         // Should keep the most recent errors (sorted by timestamp, newest first)
-        const messages = history.map(h => h.message);
+        const messages = history.map((h) => h.message);
         expect(messages).toContain("Error 4");
         expect(messages).toContain("Error 3");
         expect(messages).toContain("Error 2");
@@ -436,10 +436,12 @@ describe("Error Tracker Service", () => {
 
       // Track errors with artificial delay to ensure different timestamps
       for (let i = 0; i < errors.length; i++) {
-        await new Promise(resolve => setTimeout(() => {
-          errorTracker.trackError(errors[i]);
-          resolve();
-        }, i + 1));
+        await new Promise((resolve) =>
+          setTimeout(() => {
+            errorTracker.trackError(errors[i]);
+            resolve();
+          }, i + 1)
+        );
       }
 
       const recentErrors = errorTracker.getRecentErrors();

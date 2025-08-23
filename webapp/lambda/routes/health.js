@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query, initializeDatabase, getPool } = require("../utils/database");
 
 const router = express.Router();
@@ -79,9 +80,9 @@ router.get("/", async (req, res) => {
       });
     }
     // In test environment, use a simplified health check
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === "test") {
       // For test environment, just check if database function exists
-      if (typeof query === 'function') {
+      if (typeof query === "function") {
         try {
           const _result = await query("SELECT 1 as ok");
           if (_result && (_result.rows || _result.length >= 0)) {
@@ -95,9 +96,17 @@ router.get("/", async (req, res) => {
               database: {
                 status: "connected",
                 responseTime: dbTime,
-                tables: { user_portfolio: true, stock_prices: true, risk_alerts: true, user_api_keys: true },
+                tables: {
+                  user_portfolio: true,
+                  stock_prices: true,
+                  risk_alerts: true,
+                  user_api_keys: true,
+                },
               },
-              api: { version: "1.0.0", environment: process.env.NODE_ENV || "development" },
+              api: {
+                version: "1.0.0",
+                environment: process.env.NODE_ENV || "development",
+              },
               memory: process.memoryUsage(),
               uptime: process.uptime(),
             });
@@ -111,18 +120,21 @@ router.get("/", async (req, res) => {
             service: "Financial Dashboard API",
             timestamp: new Date().toISOString(),
             environment: process.env.NODE_ENV || "development",
-            database: { 
-              status: "disconnected", 
+            database: {
+              status: "disconnected",
               error: testDbError.message,
-              lastAttempt: new Date().toISOString()
+              lastAttempt: new Date().toISOString(),
             },
-            api: { version: "1.0.0", environment: process.env.NODE_ENV || "development" },
+            api: {
+              version: "1.0.0",
+              environment: process.env.NODE_ENV || "development",
+            },
             memory: process.memoryUsage(),
             uptime: process.uptime(),
           });
         }
       }
-      
+
       // Test environment fallback - return healthy status
       return res.json({
         status: "healthy",
@@ -130,8 +142,14 @@ router.get("/", async (req, res) => {
         service: "Financial Dashboard API",
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
-        database: { status: "test_mode", note: "Database mocked in test environment" },
-        api: { version: "1.0.0", environment: process.env.NODE_ENV || "development" },
+        database: {
+          status: "test_mode",
+          note: "Database mocked in test environment",
+        },
+        api: {
+          version: "1.0.0",
+          environment: process.env.NODE_ENV || "development",
+        },
         memory: process.memoryUsage(),
         uptime: process.uptime(),
       });
@@ -150,10 +168,12 @@ router.get("/", async (req, res) => {
           )
         ),
       ]);
-      
+
       // Handle graceful fallback when database returns null or invalid result
       if (!_result || !_result.rows) {
-        console.warn("Database query returned invalid result - database not available");
+        console.warn(
+          "Database query returned invalid result - database not available"
+        );
         return res.status(503).json({
           status: "unhealthy",
           healthy: false,

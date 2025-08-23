@@ -22,8 +22,8 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 const { query } = require("../../../utils/database");
-
 const portfolioRoutes = require("../../../routes/portfolio");
+
 const app = express();
 app.use(express.json());
 app.use("/api/portfolio", portfolioRoutes);
@@ -122,7 +122,7 @@ describe("Portfolio API Routes", () => {
         brokerName: "alpaca",
         apiKey: "test-key-id",
         apiSecret: "test-secret-key",
-        sandbox: true
+        sandbox: true,
       };
 
       const response = await request(app)
@@ -134,7 +134,6 @@ describe("Portfolio API Routes", () => {
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("message");
     });
-
   });
 
   describe("Portfolio Route Structure", () => {

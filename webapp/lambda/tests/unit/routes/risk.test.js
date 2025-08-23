@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const riskRouter = require("../../../routes/risk");
 
 // Mock dependencies with explicit implementations
@@ -25,7 +26,7 @@ jest.mock("../../../utils/riskEngine", () => {
     stopRealTimeMonitoring: jest.fn(),
     getMonitoringStatus: jest.fn(),
   };
-  
+
   return jest.fn().mockImplementation(() => mockMethods);
 });
 
@@ -40,19 +41,23 @@ describe("Risk Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    
+
     // JSON parsing error handler
     app.use((error, req, res, next) => {
-      if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+      if (
+        error instanceof SyntaxError &&
+        error.status === 400 &&
+        "body" in error
+      ) {
         return res.status(400).json({
           success: false,
           error: "Bad Request",
-          message: "Invalid JSON format"
+          message: "Invalid JSON format",
         });
       }
       next(error);
     });
-    
+
     app.use("/risk", riskRouter);
 
     // Get mock instance - create new RiskEngine and it returns our mock
@@ -130,11 +135,13 @@ describe("Risk Routes", () => {
         concentrationRisk: 0.15,
         volatilityRisk: 0.25,
         correlationRisk: 0.35,
-        recommendations: ["Consider diversification"]
+        recommendations: ["Consider diversification"],
       };
 
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngineInstance.calculatePortfolioRisk.mockResolvedValue(mockRiskMetrics);
+      mockRiskEngineInstance.calculatePortfolioRisk.mockResolvedValue(
+        mockRiskMetrics
+      );
 
       const response = await request(app)
         .get("/risk/portfolio/portfolio-123")
@@ -155,11 +162,13 @@ describe("Risk Routes", () => {
         concentrationRisk: 0.25,
         volatilityRisk: 0.35,
         correlationRisk: 0.45,
-        recommendations: ["Reduce concentration risk"]
+        recommendations: ["Reduce concentration risk"],
       };
 
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngineInstance.calculatePortfolioRisk.mockResolvedValue(mockRiskMetrics);
+      mockRiskEngineInstance.calculatePortfolioRisk.mockResolvedValue(
+        mockRiskMetrics
+      );
 
       const response = await request(app)
         .get("/risk/portfolio/portfolio-123?timeframe=6M&confidence_level=0.99")
@@ -281,7 +290,9 @@ describe("Risk Routes", () => {
 
     test("should perform stress test", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngineInstance.performStressTest.mockResolvedValue(mockStressTestResults);
+      mockRiskEngineInstance.performStressTest.mockResolvedValue(
+        mockStressTestResults
+      );
 
       const requestBody = {
         scenarios: ["market_crash", "interest_rate_spike"],
@@ -306,7 +317,9 @@ describe("Risk Routes", () => {
 
     test("should handle default parameters", async () => {
       query.mockResolvedValue(mockPortfolioData);
-      mockRiskEngineInstance.performStressTest.mockResolvedValue(mockStressTestResults);
+      mockRiskEngineInstance.performStressTest.mockResolvedValue(
+        mockStressTestResults
+      );
 
       await request(app)
         .post("/risk/stress-test/portfolio-123")
@@ -420,19 +433,23 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe("Alert acknowledged successfully");
-      
+
       // Verify both database calls were made
       expect(query).toHaveBeenCalledTimes(2);
-      
+
       // First call: verification query
-      expect(query).toHaveBeenNthCalledWith(1,
+      expect(query).toHaveBeenNthCalledWith(
+        1,
         expect.stringContaining("SELECT id FROM risk_alerts"),
         ["alert-1", "test-user-123"]
       );
-      
+
       // Second call: update query
-      expect(query).toHaveBeenNthCalledWith(2,
-        expect.stringContaining("SET status = 'acknowledged', acknowledged_at = CURRENT_TIMESTAMP"),
+      expect(query).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining(
+          "SET status = 'acknowledged', acknowledged_at = CURRENT_TIMESTAMP"
+        ),
         ["alert-1"]
       );
     });
@@ -478,10 +495,9 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockCorrelationMatrix);
-      expect(mockRiskEngineInstance.calculateCorrelationMatrix).toHaveBeenCalledWith(
-        "portfolio-123",
-        252
-      );
+      expect(
+        mockRiskEngineInstance.calculateCorrelationMatrix
+      ).toHaveBeenCalledWith("portfolio-123", 252);
     });
 
     test("should handle custom lookback days", async () => {
@@ -494,10 +510,9 @@ describe("Risk Routes", () => {
         .get("/risk/correlation/portfolio-123?lookback_days=500")
         .expect(200);
 
-      expect(mockRiskEngineInstance.calculateCorrelationMatrix).toHaveBeenCalledWith(
-        "portfolio-123",
-        500
-      );
+      expect(
+        mockRiskEngineInstance.calculateCorrelationMatrix
+      ).toHaveBeenCalledWith("portfolio-123", 500);
     });
 
     test("should return 404 for non-existent portfolio", async () => {
@@ -545,10 +560,9 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockAttribution);
-      expect(mockRiskEngineInstance.calculateRiskAttribution).toHaveBeenCalledWith(
-        "portfolio-123",
-        "factor"
-      );
+      expect(
+        mockRiskEngineInstance.calculateRiskAttribution
+      ).toHaveBeenCalledWith("portfolio-123", "factor");
     });
 
     test("should handle custom attribution type", async () => {
@@ -561,10 +575,9 @@ describe("Risk Routes", () => {
         .get("/risk/attribution/portfolio-123?attribution_type=security")
         .expect(200);
 
-      expect(mockRiskEngineInstance.calculateRiskAttribution).toHaveBeenCalledWith(
-        "portfolio-123",
-        "security"
-      );
+      expect(
+        mockRiskEngineInstance.calculateRiskAttribution
+      ).toHaveBeenCalledWith("portfolio-123", "security");
     });
 
     test("should return 404 for non-existent portfolio", async () => {
@@ -797,11 +810,9 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockMonitoringResult);
-      expect(mockRiskEngineInstance.startRealTimeMonitoring).toHaveBeenCalledWith(
-        "test-user-123",
-        portfolioIds,
-        300000
-      );
+      expect(
+        mockRiskEngineInstance.startRealTimeMonitoring
+      ).toHaveBeenCalledWith("test-user-123", portfolioIds, 300000);
     });
 
     test("should handle default parameters", async () => {
@@ -811,11 +822,9 @@ describe("Risk Routes", () => {
 
       await request(app).post("/risk/monitoring/start").send({}).expect(200);
 
-      expect(mockRiskEngineInstance.startRealTimeMonitoring).toHaveBeenCalledWith(
-        "test-user-123",
-        [],
-        300000
-      );
+      expect(
+        mockRiskEngineInstance.startRealTimeMonitoring
+      ).toHaveBeenCalledWith("test-user-123", [], 300000);
     });
 
     test("should return 400 for invalid portfolio ownership", async () => {
@@ -840,7 +849,9 @@ describe("Risk Routes", () => {
     };
 
     test("should stop risk monitoring", async () => {
-      mockRiskEngineInstance.stopRealTimeMonitoring.mockResolvedValue(mockStopResult);
+      mockRiskEngineInstance.stopRealTimeMonitoring.mockResolvedValue(
+        mockStopResult
+      );
 
       const response = await request(app)
         .post("/risk/monitoring/stop")
@@ -848,9 +859,9 @@ describe("Risk Routes", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual(mockStopResult);
-      expect(mockRiskEngineInstance.stopRealTimeMonitoring).toHaveBeenCalledWith(
-        "test-user-123"
-      );
+      expect(
+        mockRiskEngineInstance.stopRealTimeMonitoring
+      ).toHaveBeenCalledWith("test-user-123");
     });
   });
 
@@ -864,7 +875,9 @@ describe("Risk Routes", () => {
     };
 
     test("should return monitoring status", async () => {
-      mockRiskEngineInstance.getMonitoringStatus.mockResolvedValue(mockStatusResult);
+      mockRiskEngineInstance.getMonitoringStatus.mockResolvedValue(
+        mockStatusResult
+      );
 
       const response = await request(app)
         .get("/risk/monitoring/status")
@@ -913,7 +926,7 @@ describe("Risk Routes", () => {
 
       await request(app)
         .put("/risk/limits/portfolio-123")
-        .set('Content-Type', 'application/json')
+        .set("Content-Type", "application/json")
         .send("invalid json")
         .expect(400);
     });

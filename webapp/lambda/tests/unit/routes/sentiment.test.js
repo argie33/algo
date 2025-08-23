@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const sentimentRouter = require("../../../routes/sentiment");
 
 // Mock dependencies
@@ -466,7 +467,7 @@ describe("Sentiment Routes", () => {
       global.Date = jest.fn(() => {
         throw new Error("Date construction failed");
       });
-      
+
       // Keep Date.now() working for other purposes
       global.Date.now = originalDate.now;
       global.Date.parse = originalDate.parse;

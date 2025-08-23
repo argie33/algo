@@ -1,5 +1,6 @@
 const request = require("supertest");
 const express = require("express");
+
 const dashboardRouter = require("../../../routes/dashboard");
 
 // Mock dependencies
@@ -29,26 +30,26 @@ describe("Dashboard Routes", () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add response formatter middleware (consistent with other route tests)
     app.use((req, res, next) => {
       res.success = (data, status = 200) => {
         res.status(status).json({
           success: true,
-          data: data
+          data: data,
         });
       };
-      
+
       res.error = (message, status = 500) => {
         res.status(status).json({
           success: false,
-          error: message
+          error: message,
         });
       };
-      
+
       next();
     });
-    
+
     app.use("/dashboard", dashboardRouter);
     jest.clearAllMocks();
   });
@@ -66,10 +67,10 @@ describe("Dashboard Routes", () => {
             change_amount: 53.4,
             high: 4510.0,
             low: 4480.0,
-            updated_at: new Date().toISOString()
-          }
+            updated_at: new Date().toISOString(),
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockGainersData = {
@@ -80,10 +81,10 @@ describe("Dashboard Routes", () => {
             change_percent: 5.5,
             change_amount: 7.85,
             volume: 2000000,
-            market_cap: 2500000000
-          }
+            market_cap: 2500000000,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockLosersData = {
@@ -94,10 +95,10 @@ describe("Dashboard Routes", () => {
             change_percent: -3.2,
             change_amount: -6.64,
             volume: 1500000,
-            market_cap: 800000000
-          }
+            market_cap: 800000000,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockSectorData = {
@@ -107,10 +108,10 @@ describe("Dashboard Routes", () => {
             stock_count: 50,
             avg_change: 2.1,
             avg_volume: 1200000,
-            total_market_cap: 15000000000
-          }
+            total_market_cap: 15000000000,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockEarningsData = {
@@ -121,10 +122,10 @@ describe("Dashboard Routes", () => {
             estimated_eps: 2.38,
             surprise_percent: 2.9,
             report_date: new Date().toISOString(),
-            company_name: "Microsoft Corp"
-          }
+            company_name: "Microsoft Corp",
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockSentimentData = {
@@ -133,10 +134,10 @@ describe("Dashboard Routes", () => {
             fear_greed_value: 65,
             fear_greed_classification: "Greed",
             fear_greed_text: "Market showing greed",
-            updated_at: new Date().toISOString()
-          }
+            updated_at: new Date().toISOString(),
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockVolumeData = {
@@ -146,10 +147,10 @@ describe("Dashboard Routes", () => {
             close_price: 450.0,
             volume: 50000000,
             change_percent: 0.8,
-            market_cap: 400000000000
-          }
+            market_cap: 400000000000,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockBreadthData = {
@@ -160,22 +161,22 @@ describe("Dashboard Routes", () => {
             declining: 1100,
             unchanged: 100,
             avg_change: 0.45,
-            avg_volume: 1500000
-          }
+            avg_volume: 1500000,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       // Mock all 8 database queries in the order they are called
       query
-        .mockResolvedValueOnce(mockMarketData)    // Market overview
-        .mockResolvedValueOnce(mockGainersData)   // Top gainers
-        .mockResolvedValueOnce(mockLosersData)    // Top losers
-        .mockResolvedValueOnce(mockSectorData)    // Sector performance
-        .mockResolvedValueOnce(mockEarningsData)  // Recent earnings
+        .mockResolvedValueOnce(mockMarketData) // Market overview
+        .mockResolvedValueOnce(mockGainersData) // Top gainers
+        .mockResolvedValueOnce(mockLosersData) // Top losers
+        .mockResolvedValueOnce(mockSectorData) // Sector performance
+        .mockResolvedValueOnce(mockEarningsData) // Recent earnings
         .mockResolvedValueOnce(mockSentimentData) // Market sentiment
-        .mockResolvedValueOnce(mockVolumeData)    // Volume leaders
-        .mockResolvedValueOnce(mockBreadthData);  // Market breadth
+        .mockResolvedValueOnce(mockVolumeData) // Volume leaders
+        .mockResolvedValueOnce(mockBreadthData); // Market breadth
 
       const response = await request(app).get("/dashboard/summary").expect(200);
 
@@ -216,10 +217,10 @@ describe("Dashboard Routes", () => {
             gain_loss_percent: 7.14,
             sector: "Technology",
             company_name: "Apple Inc",
-            updated_at: new Date().toISOString()
-          }
+            updated_at: new Date().toISOString(),
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockSummaryData = {
@@ -229,17 +230,19 @@ describe("Dashboard Routes", () => {
             total_portfolio_value: 50000.0,
             total_gain_loss: 2500.0,
             avg_gain_loss_percent: 5.2,
-            market_value: 52500.0
-          }
+            market_value: 52500.0,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       query
         .mockResolvedValueOnce(mockHoldingsData)
         .mockResolvedValueOnce(mockSummaryData);
 
-      const response = await request(app).get("/dashboard/holdings").expect(200);
+      const response = await request(app)
+        .get("/dashboard/holdings")
+        .expect(200);
 
       expect(response.body).toBeDefined();
       expect(response.body.success).toBe(true);
@@ -259,10 +262,10 @@ describe("Dashboard Routes", () => {
             daily_return: 0.015,
             cumulative_return: 0.12,
             benchmark_return: 0.08,
-            excess_return: 0.04
-          }
+            excess_return: 0.04,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockMetricsData = {
@@ -272,17 +275,19 @@ describe("Dashboard Routes", () => {
             volatility: 0.18,
             max_return: 0.15,
             min_return: -0.08,
-            trading_days: 30
-          }
+            trading_days: 30,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       query
         .mockResolvedValueOnce(mockPerformanceData)
         .mockResolvedValueOnce(mockMetricsData);
 
-      const response = await request(app).get("/dashboard/performance").expect(200);
+      const response = await request(app)
+        .get("/dashboard/performance")
+        .expect(200);
 
       expect(response.body).toBeDefined();
       expect(response.body.success).toBe(true);
@@ -300,10 +305,10 @@ describe("Dashboard Routes", () => {
             indicator_name: "GDP Growth",
             value: 2.8,
             change_percent: 0.3,
-            date: new Date().toISOString()
-          }
+            date: new Date().toISOString(),
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockSectorRotationData = {
@@ -312,19 +317,19 @@ describe("Dashboard Routes", () => {
             sector: "Technology",
             avg_change: 2.1,
             stock_count: 50,
-            total_market_cap: 15000000000
-          }
+            total_market_cap: 15000000000,
+          },
         ],
-        rowCount: 1
+        rowCount: 1,
       };
 
       const mockInternalsData = {
         rows: [
           { type: "advancing", count: 1800 },
           { type: "declining", count: 1100 },
-          { type: "unchanged", count: 100 }
+          { type: "unchanged", count: 100 },
         ],
-        rowCount: 3
+        rowCount: 3,
       };
 
       query
@@ -332,7 +337,9 @@ describe("Dashboard Routes", () => {
         .mockResolvedValueOnce(mockSectorRotationData)
         .mockResolvedValueOnce(mockInternalsData);
 
-      const response = await request(app).get("/dashboard/market-data").expect(200);
+      const response = await request(app)
+        .get("/dashboard/market-data")
+        .expect(200);
 
       expect(response.body).toBeDefined();
       expect(response.body.success).toBe(true);
@@ -347,24 +354,28 @@ describe("Dashboard Routes", () => {
     test("should return debug information", async () => {
       // The debug route has complex validation logic that checks if results are arrays
       // but the actual implementation returns objects. Let's mock it correctly.
-      
+
       // Mock the NOW() query for database connectivity test
-      query.mockResolvedValueOnce({ rows: [{ db_time: new Date().toISOString() }] });
-      
+      query.mockResolvedValueOnce({
+        rows: [{ db_time: new Date().toISOString() }],
+      });
+
       // Mock table count queries (9 tables)
       const mockCount = { rows: [{ count: "100" }] };
       for (let i = 0; i < 9; i++) {
         query.mockResolvedValueOnce(mockCount);
       }
-      
+
       // Mock sample data query
       query.mockResolvedValueOnce({
-        rows: [{
-          price_count: "500",
-          earnings_count: "150",
-          sentiment_count: "30",
-          stocks_count: "1000"
-        }]
+        rows: [
+          {
+            price_count: "500",
+            earnings_count: "150",
+            sentiment_count: "30",
+            stocks_count: "1000",
+          },
+        ],
       });
 
       const response = await request(app).get("/dashboard/debug");

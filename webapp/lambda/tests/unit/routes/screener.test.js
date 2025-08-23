@@ -7,31 +7,36 @@ jest.mock("../../../middleware/auth", () => ({
     req.user = { sub: "test-user-123", role: "user" };
     req.token = "test-jwt-token";
     next();
-  })
+  }),
 }));
 
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn()
+  query: jest.fn(),
 }));
 
 // Mock optional services that may not exist
-jest.mock("../../../utils/factorScoring", () => {
-  return {
-    FactorScoringEngine: jest.fn().mockImplementation(() => ({
-      calculateCompositeScore: jest.fn().mockResolvedValue({
-        compositeScore: 75,
-        grade: "B+",
-        riskLevel: "Medium",
-        recommendation: "Buy"
-      }),
-      getGrade: jest.fn().mockReturnValue("B+"),
-      getRiskLevel: jest.fn().mockReturnValue("Medium"),
-      getRecommendation: jest.fn().mockReturnValue("Buy")
-    }))
-  };
-}, { virtual: true });
+jest.mock(
+  "../../../utils/factorScoring",
+  () => {
+    return {
+      FactorScoringEngine: jest.fn().mockImplementation(() => ({
+        calculateCompositeScore: jest.fn().mockResolvedValue({
+          compositeScore: 75,
+          grade: "B+",
+          riskLevel: "Medium",
+          recommendation: "Buy",
+        }),
+        getGrade: jest.fn().mockReturnValue("B+"),
+        getRiskLevel: jest.fn().mockReturnValue("Medium"),
+        getRecommendation: jest.fn().mockReturnValue("Buy"),
+      })),
+    };
+  },
+  { virtual: true }
+);
 
 // Now import the routes after mocking
+
 const screenerRoutes = require("../../../routes/screener");
 const { authenticateToken } = require("../../../middleware/auth");
 const { query } = require("../../../utils/database");
@@ -43,7 +48,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     app = express();
     app.use(express.json());
     app.use("/screener", screenerRoutes);
-    
+
     // Mock authentication to pass for all tests
     authenticateToken.mockImplementation((req, res, next) => {
       req.user = { sub: "test-user-123", role: "user" };
@@ -58,9 +63,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
   describe("GET /screener/ - Root endpoint", () => {
     test("should return screener API information", async () => {
-      const response = await request(app)
-        .get("/screener/")
-        .expect(200);
+      const response = await request(app).get("/screener/").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -71,10 +74,10 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           available_endpoints: expect.arrayContaining([
             expect.stringContaining("/screener/screen"),
             expect.stringContaining("/screener/templates"),
-            expect.stringContaining("/screener/factors")
+            expect.stringContaining("/screener/factors"),
           ]),
-          timestamp: expect.any(String)
-        })
+          timestamp: expect.any(String),
+        }),
       });
 
       // Root endpoint should not require authentication
@@ -94,18 +97,16 @@ describe("Screener Routes - Testing Your Actual Site", () => {
             volume: "50000000",
             market_cap: "2750000000000",
             pe_ratio: "28.5",
-            factor_score: null
-          }
-        ]
+            factor_score: null,
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "1" }] };
 
       query.mockResolvedValueOnce(mockResults).mockResolvedValueOnce(mockCount);
 
-      const response = await request(app)
-        .get("/screener/screen")
-        .expect(200);
+      const response = await request(app).get("/screener/screen").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -117,27 +118,29 @@ describe("Screener Routes - Testing Your Actual Site", () => {
               sector: "Technology",
               factor_score: expect.any(Number),
               factor_grade: expect.any(String),
-              recommendation: expect.any(String)
-            })
+              recommendation: expect.any(String),
+            }),
           ]),
           pagination: expect.objectContaining({
             page: 1,
             limit: 50,
             totalCount: expect.any(Number),
-            hasMore: expect.any(Boolean)
+            hasMore: expect.any(Boolean),
           }),
           filters: expect.objectContaining({
             applied: expect.any(Number),
-            total: expect.any(Number)
-          })
-        })
+            total: expect.any(Number),
+          }),
+        }),
       });
 
       expect(authenticateToken).toHaveBeenCalled();
     });
 
     test("should handle price filters", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -151,7 +154,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle market cap filters", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -165,7 +170,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle valuation filters", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -179,7 +186,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle sector filter", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -193,7 +202,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle growth filters", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -201,13 +212,17 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("s.revenue_growth >= $1 AND s.earnings_growth >= $2"),
-        expect.arrayContaining([0.15, 0.20])  // Converted to decimal
+        expect.stringContaining(
+          "s.revenue_growth >= $1 AND s.earnings_growth >= $2"
+        ),
+        expect.arrayContaining([0.15, 0.2]) // Converted to decimal
       );
     });
 
     test("should handle technical filters", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -215,13 +230,17 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("td.rsi >= $1 AND td.rsi <= $2 AND sd.volume >= $3"),
+        expect.stringContaining(
+          "td.rsi >= $1 AND td.rsi <= $2 AND sd.volume >= $3"
+        ),
         expect.arrayContaining([30, 70, 1000000])
       );
     });
 
     test("should handle custom sorting", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -235,7 +254,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle pagination", async () => {
-      query.mockResolvedValue({ rows: [] }).mockResolvedValue({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValue({ rows: [] })
+        .mockResolvedValue({ rows: [{ total: "0" }] });
 
       const _response = await request(app)
         .get("/screener/screen")
@@ -251,19 +272,24 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
   describe("GET /screener/filters - Filter options", () => {
     test("should return available filter options", async () => {
-      const mockSectors = { rows: [{ sector: "Technology" }, { sector: "Healthcare" }] };
-      const mockExchanges = { rows: [{ exchange: "NASDAQ" }, { exchange: "NYSE" }] };
-      const mockMarketCap = { rows: [{ min_market_cap: 1000000, max_market_cap: 3000000000000 }] };
+      const mockSectors = {
+        rows: [{ sector: "Technology" }, { sector: "Healthcare" }],
+      };
+      const mockExchanges = {
+        rows: [{ exchange: "NASDAQ" }, { exchange: "NYSE" }],
+      };
+      const mockMarketCap = {
+        rows: [{ min_market_cap: 1000000, max_market_cap: 3000000000000 }],
+      };
       const mockPrice = { rows: [{ min_price: 1.5, max_price: 450.0 }] };
 
-      query.mockResolvedValueOnce(mockSectors)
-           .mockResolvedValueOnce(mockExchanges)
-           .mockResolvedValueOnce(mockMarketCap)
-           .mockResolvedValueOnce(mockPrice);
+      query
+        .mockResolvedValueOnce(mockSectors)
+        .mockResolvedValueOnce(mockExchanges)
+        .mockResolvedValueOnce(mockMarketCap)
+        .mockResolvedValueOnce(mockPrice);
 
-      const response = await request(app)
-        .get("/screener/filters")
-        .expect(200);
+      const response = await request(app).get("/screener/filters").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -272,9 +298,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           exchanges: ["NASDAQ", "NYSE"],
           ranges: expect.objectContaining({
             marketCap: expect.any(Object),
-            price: expect.any(Object)
-          })
-        })
+            price: expect.any(Object),
+          }),
+        }),
       });
 
       expect(authenticateToken).toHaveBeenCalled();
@@ -283,9 +309,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
   describe("GET /screener/presets - Preset screens", () => {
     test("should return preset screening templates", async () => {
-      const response = await request(app)
-        .get("/screener/presets")
-        .expect(200);
+      const response = await request(app).get("/screener/presets").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -296,8 +320,8 @@ describe("Screener Routes - Testing Your Actual Site", () => {
             description: expect.any(String),
             filters: expect.objectContaining({
               peRatioMax: expect.any(Number),
-              pbRatioMax: expect.any(Number)
-            })
+              pbRatioMax: expect.any(Number),
+            }),
           }),
           expect.objectContaining({
             id: "growth_stocks",
@@ -305,10 +329,10 @@ describe("Screener Routes - Testing Your Actual Site", () => {
             description: expect.any(String),
             filters: expect.objectContaining({
               revenueGrowthMin: expect.any(Number),
-              earningsGrowthMin: expect.any(Number)
-            })
-          })
-        ])
+              earningsGrowthMin: expect.any(Number),
+            }),
+          }),
+        ]),
       });
 
       expect(authenticateToken).toHaveBeenCalled();
@@ -327,18 +351,16 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           expect.objectContaining({
             id: "value_stocks",
             name: "Value Stocks Template",
-            filters: expect.any(Object)
-          })
-        ])
+            filters: expect.any(Object),
+          }),
+        ]),
       });
     });
   });
 
   describe("GET /screener/growth - Growth stocks filter", () => {
     test("should return growth stocks criteria", async () => {
-      const response = await request(app)
-        .get("/screener/growth")
-        .expect(200);
+      const response = await request(app).get("/screener/growth").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -347,22 +369,20 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           name: "Growth Stocks",
           filters: expect.objectContaining({
             revenueGrowthMin: 15,
-            earningsGrowthMin: 20
+            earningsGrowthMin: 20,
           }),
           criteria: expect.objectContaining({
             revenueGrowth: expect.any(String),
-            earningsGrowth: expect.any(String)
-          })
-        })
+            earningsGrowth: expect.any(String),
+          }),
+        }),
       });
     });
   });
 
   describe("GET /screener/results - Screener results", () => {
     test("should return mock screening results", async () => {
-      const response = await request(app)
-        .get("/screener/results")
-        .expect(200);
+      const response = await request(app).get("/screener/results").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -373,16 +393,16 @@ describe("Screener Routes - Testing Your Actual Site", () => {
               company_name: expect.any(String),
               sector: expect.any(String),
               factor_score: expect.any(Number),
-              recommendation: expect.any(String)
-            })
+              recommendation: expect.any(String),
+            }),
           ]),
           pagination: expect.objectContaining({
             total: expect.any(Number),
             limit: expect.any(Number),
-            hasMore: expect.any(Boolean)
+            hasMore: expect.any(Boolean),
           }),
-          source: "mock_data"
-        })
+          source: "mock_data",
+        }),
       });
     });
 
@@ -394,7 +414,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
       expect(response.body.data.pagination).toMatchObject({
         limit: 10,
-        offset: 5
+        offset: 5,
       });
     });
   });
@@ -412,9 +432,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           filters: expect.objectContaining({
             peRatioMax: 15,
             pbRatioMax: 1.5,
-            roeMin: 10
-          })
-        })
+            roeMin: 10,
+          }),
+        }),
       });
     });
 
@@ -425,7 +445,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Preset not found"
+        error: "Preset not found",
       });
     });
   });
@@ -438,18 +458,20 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         filters: {
           peRatioMax: 20,
           revenueGrowthMin: 10,
-          marketCapMin: 1000000000
-        }
+          marketCapMin: 1000000000,
+        },
       };
 
       query.mockResolvedValue({
-        rows: [{
-          id: 123,
-          name: screenData.name,
-          description: screenData.description,
-          filters: JSON.stringify(screenData.filters),
-          created_at: new Date()
-        }]
+        rows: [
+          {
+            id: 123,
+            name: screenData.name,
+            description: screenData.description,
+            filters: JSON.stringify(screenData.filters),
+            created_at: new Date(),
+          },
+        ],
       });
 
       const response = await request(app)
@@ -461,8 +483,8 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         success: true,
         data: expect.objectContaining({
           id: 123,
-          name: screenData.name
-        })
+          name: screenData.name,
+        }),
       });
 
       expect(query).toHaveBeenCalledWith(
@@ -479,7 +501,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Name and filters are required"
+        error: "Name and filters are required",
       });
     });
   });
@@ -493,16 +515,14 @@ describe("Screener Routes - Testing Your Actual Site", () => {
             name: "My Growth Screen",
             description: "High growth stocks",
             filters: '{"revenueGrowthMin": 15}',
-            created_at: new Date()
-          }
-        ]
+            created_at: new Date(),
+          },
+        ],
       };
 
       query.mockResolvedValue(mockScreens);
 
-      const response = await request(app)
-        .get("/screener/screens")
-        .expect(200);
+      const response = await request(app).get("/screener/screens").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -510,23 +530,21 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           expect.objectContaining({
             id: 1,
             name: "My Growth Screen",
-            filters: { revenueGrowthMin: 15 }
-          })
-        ])
+            filters: { revenueGrowthMin: 15 },
+          }),
+        ]),
       });
     });
 
     test("should handle database errors gracefully", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
 
-      const response = await request(app)
-        .get("/screener/screens")
-        .expect(200);
+      const response = await request(app).get("/screener/screens").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: [],
-        note: expect.stringContaining("Database unavailable")
+        note: expect.stringContaining("Database unavailable"),
       });
     });
   });
@@ -541,9 +559,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
             description: "Technology stocks to watch",
             filters: '{"sector": "Technology"}',
             created_at: new Date(),
-            updated_at: new Date()
-          }
-        ]
+            updated_at: new Date(),
+          },
+        ],
       };
 
       query.mockResolvedValue(mockScreens);
@@ -558,11 +576,11 @@ describe("Screener Routes - Testing Your Actual Site", () => {
           expect.objectContaining({
             id: 1,
             name: "My Tech Watchlist",
-            type: "screen"
-          })
+            type: "screen",
+          }),
         ]),
         authenticated: true,
-        userId: "test-user-123"
+        userId: "test-user-123",
       });
     });
 
@@ -582,10 +600,10 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         data: expect.arrayContaining([
           expect.objectContaining({
             type: "demo",
-            name: expect.stringContaining("Demo")
-          })
+            name: expect.stringContaining("Demo"),
+          }),
         ]),
-        authenticated: false
+        authenticated: false,
       });
     });
   });
@@ -595,18 +613,20 @@ describe("Screener Routes - Testing Your Actual Site", () => {
       const watchlistData = {
         name: "My New Watchlist",
         description: "Stocks to monitor",
-        symbols: ["AAPL", "MSFT", "GOOGL"]
+        symbols: ["AAPL", "MSFT", "GOOGL"],
       };
 
       query.mockResolvedValue({
-        rows: [{
-          id: 456,
-          name: watchlistData.name,
-          description: watchlistData.description,
-          filters: JSON.stringify({ symbols: watchlistData.symbols }),
-          created_at: new Date(),
-          updated_at: new Date()
-        }]
+        rows: [
+          {
+            id: 456,
+            name: watchlistData.name,
+            description: watchlistData.description,
+            filters: JSON.stringify({ symbols: watchlistData.symbols }),
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ],
       });
 
       const response = await request(app)
@@ -619,8 +639,8 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         data: expect.objectContaining({
           id: 456,
           name: watchlistData.name,
-          type: "watchlist"
-        })
+          type: "watchlist",
+        }),
       });
     });
 
@@ -632,7 +652,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "Watchlist name is required"
+        error: "Watchlist name is required",
       });
     });
   });
@@ -641,7 +661,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
     test("should export results in CSV format", async () => {
       const exportData = {
         symbols: ["AAPL", "MSFT"],
-        format: "csv"
+        format: "csv",
       };
 
       const mockExportData = {
@@ -651,9 +671,9 @@ describe("Screener Routes - Testing Your Actual Site", () => {
             company_name: "Apple Inc.",
             sector: "Technology",
             price: "175.50",
-            market_cap: "2750000000000"
-          }
-        ]
+            market_cap: "2750000000000",
+          },
+        ],
       };
 
       query.mockResolvedValue(mockExportData);
@@ -663,14 +683,16 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         .send(exportData)
         .expect(200);
 
-      expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
-      expect(response.headers['content-disposition']).toMatch(/attachment; filename=stock_screen_/);
+      expect(response.headers["content-type"]).toBe("text/csv; charset=utf-8");
+      expect(response.headers["content-disposition"]).toMatch(
+        /attachment; filename=stock_screen_/
+      );
     });
 
     test("should export results in JSON format", async () => {
       const exportData = {
         symbols: ["AAPL"],
-        format: "json"
+        format: "json",
       };
 
       query.mockResolvedValue({ rows: [] });
@@ -683,7 +705,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
       expect(response.body).toMatchObject({
         success: true,
         data: expect.any(Array),
-        exportedAt: expect.any(String)
+        exportedAt: expect.any(String),
       });
     });
 
@@ -695,7 +717,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: "No symbols provided for export"
+        error: "No symbols provided for export",
       });
     });
   });
@@ -706,9 +728,7 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
 
-      await request(app)
-        .get("/screener/screen")
-        .expect(401);
+      await request(app).get("/screener/screen").expect(401);
 
       expect(query).not.toHaveBeenCalled();
     });
@@ -723,11 +743,11 @@ describe("Screener Routes - Testing Your Actual Site", () => {
         .get("/screener/screen")
         .expect([401, 500]);
 
-      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty("success");
       if (response.status === 500) {
         expect(response.body).toMatchObject({
           success: false,
-          error: expect.any(String)
+          error: expect.any(String),
         });
       }
     });

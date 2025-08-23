@@ -5,6 +5,7 @@
 
 const request = require("supertest");
 const express = require("express");
+
 const analystsRouter = require("../../../routes/analysts");
 
 // Mock dependencies
@@ -156,7 +157,9 @@ describe("Analysts Routes", () => {
     });
 
     test("should handle database table not found", async () => {
-      query.mockRejectedValue(new Error('relation "analyst_upgrade_downgrade" does not exist'));
+      query.mockRejectedValue(
+        new Error('relation "analyst_upgrade_downgrade" does not exist')
+      );
 
       const response = await request(app).get("/api/analysts/upgrades");
 
@@ -241,7 +244,9 @@ describe("Analysts Routes", () => {
     test("should return recommendations for valid ticker", async () => {
       query.mockResolvedValue({ rows: mockRecommendations, rowCount: 2 });
 
-      const response = await request(app).get("/api/analysts/AAPL/recommendations");
+      const response = await request(app).get(
+        "/api/analysts/AAPL/recommendations"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -269,7 +274,9 @@ describe("Analysts Routes", () => {
     test("should handle empty recommendations", async () => {
       query.mockResolvedValue({ rows: [], rowCount: 0 });
 
-      const response = await request(app).get("/api/analysts/XYZ/recommendations");
+      const response = await request(app).get(
+        "/api/analysts/XYZ/recommendations"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.recommendations).toEqual([]);
@@ -278,7 +285,9 @@ describe("Analysts Routes", () => {
     test("should handle database error for recommendations", async () => {
       query.mockRejectedValue(new Error("Table not found"));
 
-      const response = await request(app).get("/api/analysts/AAPL/recommendations");
+      const response = await request(app).get(
+        "/api/analysts/AAPL/recommendations"
+      );
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({
@@ -291,10 +300,9 @@ describe("Analysts Routes", () => {
 
       await request(app).get("/api/analysts/AAPL/recommendations");
 
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT 12"),
-        ["AAPL"]
-      );
+      expect(query).toHaveBeenCalledWith(expect.stringContaining("LIMIT 12"), [
+        "AAPL",
+      ]);
     });
 
     test("should order by collected_date DESC", async () => {
@@ -322,7 +330,9 @@ describe("Analysts Routes", () => {
     test("should handle network timeouts", async () => {
       query.mockRejectedValue(new Error("Connection timeout"));
 
-      const response = await request(app).get("/api/analysts/AAPL/recommendations");
+      const response = await request(app).get(
+        "/api/analysts/AAPL/recommendations"
+      );
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBe("Failed to fetch recommendations");
@@ -357,8 +367,14 @@ describe("Analysts Routes", () => {
 
       const response = await request(app).get("/api/analysts/upgrades");
 
-      expect(response.body.data[0]).toHaveProperty("company", "Test Company Inc.");
-      expect(response.body.data[0]).toHaveProperty("company_name", "Test Company Inc.");
+      expect(response.body.data[0]).toHaveProperty(
+        "company",
+        "Test Company Inc."
+      );
+      expect(response.body.data[0]).toHaveProperty(
+        "company_name",
+        "Test Company Inc."
+      );
     });
 
     test("should handle null company_name", async () => {
@@ -420,10 +436,7 @@ describe("Analysts Routes", () => {
       });
 
       // Offset should be (50-1)*5 = 245
-      expect(query).toHaveBeenCalledWith(
-        expect.any(String),
-        [5, 245]
-      );
+      expect(query).toHaveBeenCalledWith(expect.any(String), [5, 245]);
     });
 
     test("should handle zero total results", async () => {
@@ -448,7 +461,9 @@ describe("Analysts Routes", () => {
       await request(app).get("/api/analysts/upgrades");
 
       const upgradesQuery = query.mock.calls[0][0];
-      expect(upgradesQuery).toContain("LEFT JOIN company_profile cp ON aud.symbol = cp.ticker");
+      expect(upgradesQuery).toContain(
+        "LEFT JOIN company_profile cp ON aud.symbol = cp.ticker"
+      );
       expect(upgradesQuery).toContain("ORDER BY aud.date DESC");
 
       const countQuery = query.mock.calls[1][0];

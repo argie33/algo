@@ -298,12 +298,11 @@ const renderWithRouter = (component) => {
 describe("Real-time Data Components", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
+    // Don't use fake timers globally - only where needed for specific timer tests
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
+    vi.useRealTimers(); // Ensure real timers are restored
   });
 
   describe("Live Data Component", () => {
@@ -392,6 +391,8 @@ describe("Real-time Data Components", () => {
     });
 
     it("should auto-refresh data at specified intervals", async () => {
+      vi.useFakeTimers(); // Use fake timers only for this test
+      
       renderWithRouter(
         <MockLiveDataComponent
           symbol="AAPL"
@@ -400,38 +401,30 @@ describe("Real-time Data Components", () => {
         />
       );
 
-      await waitFor(
-        () => {
-          expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
-        },
-        { timeout: 3000 }
-      );
+      // Wait for initial load without waiting for timers
+      await waitFor(() => {
+        expect(screen.getByTestId("live-data-content")).toBeInTheDocument();
+      });
 
       expect(api.get).toHaveBeenCalledTimes(1);
 
-      // Fast forward 1 second
+      // Fast forward 1 second and flush timers
       act(() => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(
-        () => {
-          expect(api.get).toHaveBeenCalledTimes(2);
-        },
-        { timeout: 1000 }
-      );
+      // Expect second API call after timer
+      expect(api.get).toHaveBeenCalledTimes(2);
 
-      // Fast forward another 1 second
+      // Fast forward another 1 second and flush timers
       act(() => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(
-        () => {
-          expect(api.get).toHaveBeenCalledTimes(3);
-        },
-        { timeout: 1000 }
-      );
+      // Expect third API call after second timer
+      expect(api.get).toHaveBeenCalledTimes(3);
+      
+      vi.useRealTimers(); // Restore real timers
     });
 
     it("should call onDataUpdate callback when data changes", async () => {
@@ -476,40 +469,38 @@ describe("Real-time Data Components", () => {
 
   describe("Price Stream Component", () => {
     it("should establish connection and stream prices for multiple symbols", async () => {
+      vi.useFakeTimers(); // Use fake timers only for this test
+      
       const symbols = ["AAPL", "MSFT", "GOOGL"];
       renderWithRouter(<MockPriceStreamComponent symbols={symbols} />);
 
-      // Should start with disconnected status
+      // Should start with connecting status
       expect(screen.getByText("Status: connecting")).toBeInTheDocument();
 
-      // Fast forward to establish connection
+      // Fast forward to establish connection (1000ms in MockPriceStreamComponent)
       act(() => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("Status: connected")).toBeInTheDocument();
-        },
-        { timeout: 2000 }
-      );
+      // Should now be connected
+      expect(screen.getByText("Status: connected")).toBeInTheDocument();
 
-      // Fast forward to get first price updates
+      // Fast forward to get first price updates (2000ms interval in mock)
       act(() => {
         vi.advanceTimersByTime(2000);
       });
 
-      await waitFor(
-        () => {
-          symbols.forEach((symbol) => {
-            expect(screen.getByTestId(`price-${symbol}`)).toBeInTheDocument();
-          });
-        },
-        { timeout: 2000 }
-      );
+      // Should have price elements for all symbols
+      symbols.forEach((symbol) => {
+        expect(screen.getByTestId(`price-${symbol}`)).toBeInTheDocument();
+      });
+      
+      vi.useRealTimers(); // Restore real timers
     });
 
     it("should call onPriceUpdate callback for price changes", async () => {
+      vi.useFakeTimers(); // Use fake timers only for this test
+      
       const mockOnPriceUpdate = vi.fn();
       const symbols = ["AAPL"];
 
@@ -520,14 +511,13 @@ describe("Real-time Data Components", () => {
         />
       );
 
-      // Establish connection and wait for price updates
+      // Establish connection and trigger price updates (1000ms connection + 2000ms first update)
       act(() => {
         vi.advanceTimersByTime(3000);
       });
 
-      await waitFor(() => {
-        expect(mockOnPriceUpdate).toHaveBeenCalled();
-      });
+      // Should have called onPriceUpdate
+      expect(mockOnPriceUpdate).toHaveBeenCalled();
 
       const callArgs = mockOnPriceUpdate.mock.calls[0][0];
       expect(callArgs).toMatchObject({
@@ -537,6 +527,8 @@ describe("Real-time Data Components", () => {
         changePercent: expect.any(Number),
         timestamp: expect.any(Number),
       });
+      
+      vi.useRealTimers(); // Restore real timers
     });
 
     it("should handle connection failures and provide reconnect functionality", async () => {

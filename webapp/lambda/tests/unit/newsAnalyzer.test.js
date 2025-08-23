@@ -18,13 +18,15 @@ describe("News Analyzer", () => {
   const sampleArticles = [
     {
       title: "Company Reports Strong Growth and Record Profits",
-      description: "The technology company exceeded expectations with bullish quarterly results",
+      description:
+        "The technology company exceeded expectations with bullish quarterly results",
       source: "Reuters",
       publishedAt: new Date().toISOString(),
     },
     {
       title: "Market Decline Continues with Weak Performance",
-      description: "Bearish sentiment drives down stock prices amid economic concerns",
+      description:
+        "Bearish sentiment drives down stock prices amid economic concerns",
       source: "Bloomberg",
       publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
     },
@@ -136,7 +138,8 @@ describe("News Analyzer", () => {
           description: "",
         };
         const lowDensityArticle = {
-          title: "company announces quarterly earnings results today with growth",
+          title:
+            "company announces quarterly earnings results today with growth",
           description: "",
         };
 
@@ -358,7 +361,8 @@ describe("News Analyzer", () => {
         const article = {
           source: "Reuters Financial News",
           publishedAt: new Date().toISOString(), // Now
-          description: "Detailed article with comprehensive analysis that provides extensive coverage of the financial markets and economic indicators with in-depth research and thorough examination of market trends and investment opportunities",
+          description:
+            "Detailed article with comprehensive analysis that provides extensive coverage of the financial markets and economic indicators with in-depth research and thorough examination of market trends and investment opportunities",
         };
 
         const result = newsAnalyzer.calculateImpact(article);
@@ -417,7 +421,7 @@ describe("News Analyzer", () => {
       test("should boost score for credible sources", () => {
         const credibleSources = [
           "Reuters",
-          "Bloomberg News", 
+          "Bloomberg News",
           "CNBC Financial",
           "WSJ Markets",
           "FT Business",
@@ -530,18 +534,30 @@ describe("News Analyzer", () => {
       test("should handle case insensitive matching", () => {
         expect(newsAnalyzer.calculateReliabilityScore("REUTERS")).toBe(0.9);
         expect(newsAnalyzer.calculateReliabilityScore("bloomberg")).toBe(0.9);
-        expect(newsAnalyzer.calculateReliabilityScore("Wall Street Journal")).toBe(0.9);
+        expect(
+          newsAnalyzer.calculateReliabilityScore("Wall Street Journal")
+        ).toBe(0.9);
       });
 
       test("should handle partial matching", () => {
-        expect(newsAnalyzer.calculateReliabilityScore("Reuters Financial News")).toBe(0.9);
-        expect(newsAnalyzer.calculateReliabilityScore("Bloomberg TV")).toBe(0.9);
-        expect(newsAnalyzer.calculateReliabilityScore("CNN Business")).toBe(0.7);
+        expect(
+          newsAnalyzer.calculateReliabilityScore("Reuters Financial News")
+        ).toBe(0.9);
+        expect(newsAnalyzer.calculateReliabilityScore("Bloomberg TV")).toBe(
+          0.9
+        );
+        expect(newsAnalyzer.calculateReliabilityScore("CNN Business")).toBe(
+          0.7
+        );
       });
 
       test("should return default score for unknown sources", () => {
-        expect(newsAnalyzer.calculateReliabilityScore("Unknown News Source")).toBe(0.5);
-        expect(newsAnalyzer.calculateReliabilityScore("Some Random Site")).toBe(0.5);
+        expect(
+          newsAnalyzer.calculateReliabilityScore("Unknown News Source")
+        ).toBe(0.5);
+        expect(newsAnalyzer.calculateReliabilityScore("Some Random Site")).toBe(
+          0.5
+        );
       });
 
       test("should handle invalid inputs", () => {
@@ -664,7 +680,7 @@ describe("News Analyzer", () => {
       test("should handle update errors gracefully", () => {
         // Mock the logger error to simulate an internal error
         const mockLogger = require("../../utils/logger");
-        
+
         // Force an error by corrupting the sentimentKeywords object
         const originalKeywords = newsAnalyzer.sentimentKeywords;
         newsAnalyzer.sentimentKeywords = null;
@@ -674,7 +690,10 @@ describe("News Analyzer", () => {
         });
 
         expect(result).toBe(false);
-        expect(mockLogger.error).toHaveBeenCalledWith("Keywords update failed:", expect.any(Error));
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          "Keywords update failed:",
+          expect.any(Error)
+        );
 
         // Restore original keywords
         newsAnalyzer.sentimentKeywords = originalKeywords;
@@ -686,7 +705,8 @@ describe("News Analyzer", () => {
     test("should work with real news data structure", () => {
       const realNewsArticle = {
         title: "Apple Inc. Reports Strong Q4 Earnings Beat",
-        description: "Technology giant Apple exceeded analyst expectations with bullish quarterly results showing significant growth in iPhone sales and services revenue.",
+        description:
+          "Technology giant Apple exceeded analyst expectations with bullish quarterly results showing significant growth in iPhone sales and services revenue.",
         source: "Reuters Business News",
         publishedAt: new Date().toISOString(),
         url: "https://example.com/news",
@@ -695,7 +715,9 @@ describe("News Analyzer", () => {
 
       const sentiment = newsAnalyzer.analyzeSentiment(realNewsArticle);
       const impact = newsAnalyzer.calculateImpact(realNewsArticle);
-      const reliability = newsAnalyzer.calculateReliabilityScore(realNewsArticle.source);
+      const reliability = newsAnalyzer.calculateReliabilityScore(
+        realNewsArticle.source
+      );
 
       expect(sentiment.sentiment).toBe("positive");
       expect(sentiment.confidence).toBeGreaterThan(0);

@@ -4,40 +4,39 @@ require("dotenv").config();
 // Financial Dashboard API - Lambda Function
 // Updated: 2025-06-25 - Fixed CORS configuration for API Gateway
 
-const serverless = require("serverless-http");
-const express = require("express");
 const cors = require("cors");
+const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const { initializeDatabase } = require("./utils/database");
-const errorHandler = require("./middleware/errorHandler");
+const serverless = require("serverless-http");
 
-// Import routes
-const stockRoutes = require("./routes/stocks");
-const screenerRoutes = require("./routes/screener");
-const websocketRoutes = require("./routes/websocket");
-const scoresRoutes = require("./routes/scores");
-const metricsRoutes = require("./routes/metrics");
-const healthRoutes = require("./routes/health");
-const marketRoutes = require("./routes/market");
+const errorHandler = require("./middleware/errorHandler");
+const { initializeDatabase } = require("./utils/database");
 const analystRoutes = require("./routes/analysts");
-const financialRoutes = require("./routes/financials");
-const tradingRoutes = require("./routes/trading");
-const technicalRoutes = require("./routes/technical");
-const calendarRoutes = require("./routes/calendar");
-const signalsRoutes = require("./routes/signals");
-const dataRoutes = require("./routes/data");
-const backtestRoutes = require("./routes/backtest");
 const authRoutes = require("./routes/auth");
-const portfolioRoutes = require("./routes/portfolio");
-const scoringRoutes = require("./routes/scoring");
-const priceRoutes = require("./routes/price");
-const settingsRoutes = require("./routes/settings");
+const backtestRoutes = require("./routes/backtest");
+const calendarRoutes = require("./routes/calendar");
+const dataRoutes = require("./routes/data");
+const diagnosticsRoutes = require("./routes/diagnostics");
+const financialRoutes = require("./routes/financials");
+const healthRoutes = require("./routes/health");
 const liveDataRoutes = require("./routes/liveData");
 const liveDataAdminRoutes = require("./routes/liveDataAdmin");
-const ordersRoutes = require("./routes/orders");
+const marketRoutes = require("./routes/market");
+const metricsRoutes = require("./routes/metrics");
 const newsRoutes = require("./routes/news");
-const diagnosticsRoutes = require("./routes/diagnostics");
+const ordersRoutes = require("./routes/orders");
+const portfolioRoutes = require("./routes/portfolio");
+const priceRoutes = require("./routes/price");
+const scoringRoutes = require("./routes/scoring");
+const scoresRoutes = require("./routes/scores");
+const screenerRoutes = require("./routes/screener");
+const settingsRoutes = require("./routes/settings");
+const signalsRoutes = require("./routes/signals");
+const stockRoutes = require("./routes/stocks");
+const technicalRoutes = require("./routes/technical");
+const tradingRoutes = require("./routes/trading");
+const websocketRoutes = require("./routes/websocket");
 
 const app = express();
 
@@ -239,11 +238,11 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // JSON parsing error handler
 app.use((error, req, res, next) => {
-  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+  if (error instanceof SyntaxError && error.status === 400 && "body" in error) {
     return res.status(400).json({
       success: false,
       error: "Bad Request",
-      message: "Invalid JSON format"
+      message: "Invalid JSON format",
     });
   }
   next(error);

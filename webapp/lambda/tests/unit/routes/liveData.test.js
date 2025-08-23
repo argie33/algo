@@ -7,14 +7,14 @@ jest.mock("../../../middleware/auth", () => ({
     req.user = { sub: "test-user-123", role: "user" };
     req.token = "test-jwt-token";
     next();
-  })
+  }),
 }));
 
 jest.mock("../../../utils/logger", () => ({
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
-  success: jest.fn()
+  success: jest.fn(),
 }));
 
 jest.mock("../../../utils/realTimeDataService", () => ({
@@ -23,18 +23,20 @@ jest.mock("../../../utils/realTimeDataService", () => ({
   subscribeToSymbol: jest.fn(),
   unsubscribeFromSymbol: jest.fn(),
   watchedSymbols: new Set(),
-  indexSymbols: new Set()
+  indexSymbols: new Set(),
 }));
 
 jest.mock("../../../utils/liveDataManager", () => ({
   getDashboardStatus: jest.fn(),
   getServiceHealth: jest.fn(),
-  getConnectionStats: jest.fn()
+  getConnectionStats: jest.fn(),
 }));
 
 // Now import the routes after mocking
 const liveDataRoutes = require("../../../routes/liveData");
+
 // Auth middleware mocked above
+
 const logger = require("../../../utils/logger");
 const realTimeDataService = require("../../../utils/realTimeDataService");
 const liveDataManager = require("../../../utils/liveDataManager");
@@ -58,25 +60,25 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
         global: {
           totalConnections: 15,
           totalSymbols: 25,
-          dailyCost: 12.50,
+          dailyCost: 12.5,
           performance: {
             avgResponseTime: 145,
             successRate: 98.5,
-            errorRate: 1.5
-          }
+            errorRate: 1.5,
+          },
         },
         providers: {
           alpaca: {
             status: "active",
             connections: 8,
-            symbols: ["AAPL", "MSFT", "TSLA"]
+            symbols: ["AAPL", "MSFT", "TSLA"],
           },
           polygon: {
-            status: "active", 
+            status: "active",
             connections: 7,
-            symbols: ["NVDA", "GOOGL"]
-          }
-        }
+            symbols: ["NVDA", "GOOGL"],
+          },
+        },
       };
 
       const mockCacheStats = {
@@ -84,15 +86,13 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
         freshEntries: 125,
         staleEntries: 25,
         hitRate: 85.2,
-        memoryUsage: 45.8
+        memoryUsage: 45.8,
       };
 
       liveDataManager.getDashboardStatus.mockReturnValue(mockDashboardStatus);
       realTimeDataService.getCacheStats.mockReturnValue(mockCacheStats);
 
-      const response = await request(app)
-        .get("/livedata/status")
-        .expect(200);
+      const response = await request(app).get("/livedata/status").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -105,46 +105,46 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
           global: expect.objectContaining({
             totalConnections: 15,
             totalSymbols: 25,
-            dailyCost: 12.50,
+            dailyCost: 12.5,
             performance: expect.objectContaining({
               avgResponseTime: 145,
               successRate: 98.5,
-              errorRate: 1.5
-            })
+              errorRate: 1.5,
+            }),
           }),
           providers: expect.objectContaining({
             alpaca: expect.objectContaining({
               status: "active",
               connections: 8,
-              symbols: expect.arrayContaining(["AAPL", "MSFT", "TSLA"])
-            })
+              symbols: expect.arrayContaining(["AAPL", "MSFT", "TSLA"]),
+            }),
           }),
           components: expect.objectContaining({
             liveDataManager: expect.objectContaining({
               status: "operational",
               totalConnections: 15,
               totalSymbols: 25,
-              dailyCost: 12.50
+              dailyCost: 12.5,
             }),
             realTimeService: expect.objectContaining({
               status: "operational",
               cacheEntries: 150,
               freshEntries: 125,
-              staleEntries: 25
-            })
-          })
+              staleEntries: 25,
+            }),
+          }),
         }),
         meta: expect.objectContaining({
           correlationId: expect.any(String),
           duration: expect.any(Number),
-          timestamp: expect.any(String)
-        })
+          timestamp: expect.any(String),
+        }),
       });
 
       expect(logger.info).toHaveBeenCalledWith(
         "Processing live data status request",
         expect.objectContaining({
-          correlationId: expect.any(String)
+          correlationId: expect.any(String),
         })
       );
     });
@@ -158,27 +158,25 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
           performance: {
             avgResponseTime: 500,
             successRate: 85.0,
-            errorRate: 15.0
-          }
+            errorRate: 15.0,
+          },
         },
         providers: {
           alpaca: {
             status: "error",
-            error: "Connection timeout"
-          }
-        }
+            error: "Connection timeout",
+          },
+        },
       };
 
       liveDataManager.getDashboardStatus.mockReturnValue(mockDegradedStatus);
       realTimeDataService.getCacheStats.mockReturnValue({
         totalEntries: 50,
         freshEntries: 30,
-        staleEntries: 20
+        staleEntries: 20,
       });
 
-      const response = await request(app)
-        .get("/livedata/status")
-        .expect(200);
+      const response = await request(app).get("/livedata/status").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -188,10 +186,10 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
           providers: expect.objectContaining({
             alpaca: expect.objectContaining({
               status: "error",
-              error: "Connection timeout"
-            })
-          })
-        })
+              error: "Connection timeout",
+            }),
+          }),
+        }),
       });
     });
   });
@@ -202,15 +200,13 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
         throw new Error("Logger failed");
       });
 
-      const response = await request(app)
-        .get("/livedata/status")
-        .expect(500);
+      const response = await request(app).get("/livedata/status").expect(500);
 
       // Should return error when critical components fail
       expect(response.body).toMatchObject({
         error: expect.any(String),
         correlationId: expect.any(String),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -218,17 +214,15 @@ describe("Live Data Routes - Testing Your Actual Site", () => {
       liveDataManager.getDashboardStatus.mockImplementation(() => {
         throw new Error("Live data manager failed");
       });
-      
+
       realTimeDataService.getCacheStats.mockImplementation(() => {
         throw new Error("Cache service failed");
       });
 
-      const response = await request(app)
-        .get("/livedata/status")
-        .expect(500);
+      const response = await request(app).get("/livedata/status").expect(500);
 
       expect(response.body).toMatchObject({
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });

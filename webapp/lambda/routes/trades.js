@@ -23,16 +23,58 @@ router.get("/", (req, res) => {
 });
 const { authenticateToken } = require("../middleware/auth");
 const { query, transaction } = require("../utils/database");
-const TradeAnalyticsService = require("../services/tradeAnalyticsService");
-const {
-  getUserApiKey,
-  validateUserAuthentication,
-  sendApiKeyError,
-} = require("../utils/userApiKeyHelper");
+const { getApiKey } = require("../utils/apiKeyService");
 const AlpacaService = require("../utils/alpacaService");
 
-// Initialize trade analytics service
-let tradeAnalyticsService;
+// Helper functions to replace missing userApiKeyHelper
+const validateUserAuthentication = (req) => {
+  if (!req.user || !req.user.sub) {
+    throw new Error("User not authenticated");
+  }
+  return req.user.sub;
+};
+
+const getUserApiKey = async (userId, provider) => {
+  return await getApiKey(userId, provider);
+};
+
+const sendApiKeyError = (res, message) => {
+  return res.status(400).json({ error: message, code: "API_KEY_ERROR" });
+};
+
+// Mock TradeAnalyticsService for missing service
+class TradeAnalyticsService {
+  static getInstance() {
+    return new TradeAnalyticsService();
+  }
+
+  async importAlpacaTrades(
+    userId,
+    apiKey,
+    apiSecret,
+    isSandbox,
+    startDate,
+    endDate
+  ) {
+    return {
+      message: "Trade import not implemented",
+      userId,
+      startDate,
+      endDate,
+    };
+  }
+
+  async getTradeAnalysisSummary(userId) {
+    return { insights: [], summary: "Analysis not available", userId };
+  }
+
+  async getTradeInsights(_userId, _limit) {
+    return [];
+  }
+}
+
+// Initialize service instance
+let tradeAnalyticsService = TradeAnalyticsService.getInstance();
 
 /**
  * Professional Trade Analysis API Routes

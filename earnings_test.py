@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import yfinance as yf
 import json
 from pprint import pprint
+
+import yfinance as yf
+
 
 def explore_earnings_data(symbol):
     print(f"\n=== Exploring earnings data for {symbol} ===")
     ticker = yf.Ticker(symbol)
-
 
     print("\n--- Earnings Calendar ---")
     pprint(ticker.calendar)  # Historical earnings data
@@ -19,15 +20,15 @@ def explore_earnings_data(symbol):
 
     print("\n--- Earnings History ---")
     pprint(ticker.earnings_history)
-    
+
     print("\n--- EPS Revisions ---")
     pprint(ticker.eps_revisions)  # Upcoming and recent earnings dates
-    
+
     print("\n--- Earnings Trend ---")
     pprint(ticker.eps_trend)  # Earnings trend data
 
 
 # Test with a few different stocks
-symbols = ['AAPL', 'MSFT', 'GOOGL']
+symbols = ["AAPL", "MSFT", "GOOGL"]
 for symbol in symbols:
     explore_earnings_data(symbol)

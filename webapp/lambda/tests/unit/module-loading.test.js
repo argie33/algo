@@ -13,9 +13,9 @@ describe("Module Loading Tests - No Mocks", () => {
       // Clear any existing mock from global setup
       jest.unmock("../../utils/database");
       delete require.cache[require.resolve("../../utils/database")];
-      
+
       const database = require("../../utils/database");
-      
+
       expect(typeof database.initializeDatabase).toBe("function");
       expect(typeof database.query).toBe("function");
       expect(typeof database.healthCheck).toBe("function");
@@ -36,9 +36,9 @@ describe("Module Loading Tests - No Mocks", () => {
       // Clear any existing mock from global setup
       jest.unmock("../../utils/apiKeyService");
       delete require.cache[require.resolve("../../utils/apiKeyService")];
-      
+
       const apiKeyService = require("../../utils/apiKeyService");
-      
+
       // Test all required exports
       expect(typeof apiKeyService.listProviders).toBe("function");
       expect(typeof apiKeyService.storeApiKey).toBe("function");

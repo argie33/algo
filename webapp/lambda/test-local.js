@@ -1,8 +1,9 @@
-#!/usr/bin/env node
 /**
  * Local test script for Lambda function
  * Run with: node test-local.js
  */
+
+/* eslint-disable no-process-exit, node/no-unpublished-require */
 
 // Load environment variables
 require("dotenv").config({ path: ".env.local" });

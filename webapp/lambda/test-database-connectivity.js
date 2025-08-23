@@ -594,10 +594,12 @@ if (require.main === module) {
       console.log(`\n📄 Detailed report saved to: ${reportPath}`);
 
       // Exit with appropriate code
+      // eslint-disable-next-line no-process-exit
       process.exit(results.summary.failed === 0 ? 0 : 1);
     })
     .catch((error) => {
       console.error("Test execution failed:", error);
+      // eslint-disable-next-line no-process-exit
       process.exit(1);
     });
 }

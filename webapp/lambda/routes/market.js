@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 
 const router = express.Router();
@@ -380,7 +381,7 @@ router.get("/overview", async (req, res) => {
     if (date && isNaN(new Date(date).getTime())) {
       return res.status(400).json({
         success: false,
-        error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)."
+        error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).",
       });
     }
     // Check if market_data table exists
@@ -1093,14 +1094,28 @@ router.get("/economic", async (req, res) => {
 
       // Convert to array format expected by tests
       const dataArray = [
-        { indicator: "GDP", value: 2.1, unit: "%", date: new Date().toISOString() },
-        { indicator: "UNEMPLOYMENT_RATE", value: 3.7, unit: "%", date: new Date().toISOString() }
+        {
+          indicator: "GDP",
+          value: 2.1,
+          unit: "%",
+          date: new Date().toISOString(),
+        },
+        {
+          indicator: "UNEMPLOYMENT_RATE",
+          value: 3.7,
+          unit: "%",
+          date: new Date().toISOString(),
+        },
       ];
 
       return res.json({
         success: true,
-        data: indicator ? dataArray.filter(item => item.indicator === indicator) : dataArray,
-        count: indicator ? dataArray.filter(item => item.indicator === indicator).length : dataArray.length,
+        data: indicator
+          ? dataArray.filter((item) => item.indicator === indicator)
+          : dataArray,
+        count: indicator
+          ? dataArray.filter((item) => item.indicator === indicator).length
+          : dataArray.length,
         message: "Using fallback data - economic_data table not available",
       });
     }
@@ -1142,32 +1157,50 @@ router.get("/economic", async (req, res) => {
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.log("No economic data found, using realistic fallback");
 
-      // Convert to array format expected by tests  
+      // Convert to array format expected by tests
       const dataArray = [
-        { indicator: "GDP", value: 2.1, unit: "%", date: new Date().toISOString() },
-        { indicator: "UNEMPLOYMENT_RATE", value: 3.7, unit: "%", date: new Date().toISOString() }
+        {
+          indicator: "GDP",
+          value: 2.1,
+          unit: "%",
+          date: new Date().toISOString(),
+        },
+        {
+          indicator: "UNEMPLOYMENT_RATE",
+          value: 3.7,
+          unit: "%",
+          date: new Date().toISOString(),
+        },
       ];
 
       return res.json({
         success: true,
-        data: indicator ? dataArray.filter(item => item.indicator === indicator) : dataArray,
-        count: indicator ? dataArray.filter(item => item.indicator === indicator).length : dataArray.length,
+        data: indicator
+          ? dataArray.filter((item) => item.indicator === indicator)
+          : dataArray,
+        count: indicator
+          ? dataArray.filter((item) => item.indicator === indicator).length
+          : dataArray.length,
         message: "Using realistic fallback economic data",
       });
     }
 
     // Convert indicators object to array format expected by tests
-    const dataArray = Object.keys(indicators).map(indicatorName => ({
-      indicator: indicatorName.replace(/\s+/g, '_').toUpperCase(),
+    const dataArray = Object.keys(indicators).map((indicatorName) => ({
+      indicator: indicatorName.replace(/\s+/g, "_").toUpperCase(),
       value: indicators[indicatorName][0]?.value || 0,
       unit: indicators[indicatorName][0]?.unit || "",
-      date: indicators[indicatorName][0]?.date || new Date().toISOString()
+      date: indicators[indicatorName][0]?.date || new Date().toISOString(),
     }));
 
     res.json({
       success: true,
-      data: indicator ? dataArray.filter(item => item.indicator === indicator) : dataArray,
-      count: indicator ? dataArray.filter(item => item.indicator === indicator).length : dataArray.length,
+      data: indicator
+        ? dataArray.filter((item) => item.indicator === indicator)
+        : dataArray,
+      count: indicator
+        ? dataArray.filter((item) => item.indicator === indicator).length
+        : dataArray.length,
     });
   } catch (error) {
     console.error("Error fetching economic indicators:", error);
@@ -1175,14 +1208,26 @@ router.get("/economic", async (req, res) => {
 
     // Return error with fallback data in correct format
     const dataArray = [
-      { indicator: "GDP", value: 2.1, unit: "%", date: new Date().toISOString() },
-      { indicator: "UNEMPLOYMENT_RATE", value: 3.7, unit: "%", date: new Date().toISOString() }
+      {
+        indicator: "GDP",
+        value: 2.1,
+        unit: "%",
+        date: new Date().toISOString(),
+      },
+      {
+        indicator: "UNEMPLOYMENT_RATE",
+        value: 3.7,
+        unit: "%",
+        date: new Date().toISOString(),
+      },
     ];
 
     res.status(500).json({
       success: false,
       error: "Database error: " + error.message,
-      data: indicator ? dataArray.filter(item => item.indicator === indicator) : dataArray,
+      data: indicator
+        ? dataArray.filter((item) => item.indicator === indicator)
+        : dataArray,
     });
   }
 });
@@ -1325,24 +1370,24 @@ router.get("/fear-greed", async (req, res) => {
 router.get("/indices", async (req, res) => {
   try {
     const { limit, symbol } = req.query;
-    
+
     // Validate limit parameter
     if (limit !== undefined) {
       const limitNum = parseInt(limit);
       if (isNaN(limitNum) || limitNum <= 0) {
         return res.status(400).json({
           success: false,
-          error: "Limit must be a positive number"
+          error: "Limit must be a positive number",
         });
       }
       if (limitNum > 500) {
         return res.status(400).json({
           success: false,
-          error: "Limit cannot exceed 500"
+          error: "Limit cannot exceed 500",
         });
       }
     }
-    
+
     // Validate symbol parameter for SQL injection
     if (symbol !== undefined) {
       // Check for SQL injection patterns
@@ -1350,30 +1395,31 @@ router.get("/indices", async (req, res) => {
       if (sqlInjectionPattern.test(symbol)) {
         return res.status(400).json({
           success: false,
-          error: "Invalid symbol format"
+          error: "Invalid symbol format",
         });
       }
     }
-    
+
     // Build query with optional symbol filter and limit
-    let whereClause = "WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX')";
+    let whereClause =
+      "WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX')";
     let params = [];
     let paramIndex = 1;
-    
+
     if (symbol) {
       whereClause += ` AND symbol = $${paramIndex}`;
       params.push(symbol);
       paramIndex++;
     }
-    
+
     whereClause += " AND date = (SELECT MAX(date) FROM market_data)";
-    
+
     let limitClause = "";
     if (limit) {
       limitClause = ` LIMIT $${paramIndex}`;
       params.push(parseInt(limit));
     }
-    
+
     const indicesQuery = `
       SELECT 
         symbol,
@@ -1395,13 +1441,16 @@ router.get("/indices", async (req, res) => {
       success: true,
       data: result && result.rows ? result.rows : [],
       count: result && result.rows ? result.rows.length : 0,
-      lastUpdated: result && result.rows && result.rows.length > 0 ? result.rows[0].date : null,
+      lastUpdated:
+        result && result.rows && result.rows.length > 0
+          ? result.rows[0].date
+          : null,
     });
   } catch (error) {
     console.error("Error fetching market indices:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Failed to fetch market indices: " + error.message 
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market indices: " + error.message,
     });
   }
 });
@@ -1409,23 +1458,30 @@ router.get("/indices", async (req, res) => {
 // Get sector performance (alias for sectors/performance)
 router.get("/sectors", async (req, res) => {
   try {
-    const { sort_by = 'avg_change' } = req.query;
-    
+    const { sort_by = "avg_change" } = req.query;
+
     // Validate sort parameter
-    const validSortFields = ['avg_change', 'performance_1d', 'stock_count', 'total_volume', 'avg_market_cap'];
+    const validSortFields = [
+      "avg_change",
+      "performance_1d",
+      "stock_count",
+      "total_volume",
+      "avg_market_cap",
+    ];
     if (!validSortFields.includes(sort_by)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid sort field. Allowed values: " + validSortFields.join(', ')
+        error:
+          "Invalid sort field. Allowed values: " + validSortFields.join(", "),
       });
     }
 
     let result = null;
-    
+
     try {
-      // Build query with safe ORDER BY clause  
+      // Build query with safe ORDER BY clause
       let sectorQuery;
-      if (sort_by === 'performance_1d') {
+      if (sort_by === "performance_1d") {
         sectorQuery = `
           SELECT 
             sector,
@@ -1461,7 +1517,10 @@ router.get("/sectors", async (req, res) => {
 
       result = await query(sectorQuery, []);
     } catch (dbError) {
-      console.log("Database error for sectors query, using fallback:", dbError.message);
+      console.log(
+        "Database error for sectors query, using fallback:",
+        dbError.message
+      );
       result = null;
     }
 
@@ -1473,7 +1532,7 @@ router.get("/sectors", async (req, res) => {
         data: FALLBACK_SECTORS,
         count: FALLBACK_SECTORS.length,
         message: "Using realistic fallback sectors data",
-        source: "fallback"
+        source: "fallback",
       });
     }
 
@@ -1481,18 +1540,18 @@ router.get("/sectors", async (req, res) => {
       success: true,
       data: result.rows,
       count: result.rows.length,
-      source: "database"
+      source: "database",
     });
   } catch (error) {
     console.error("Error in sectors endpoint:", error);
-    
+
     // Graceful fallback even for unexpected errors
     return res.json({
       success: true,
       data: FALLBACK_SECTORS,
       count: FALLBACK_SECTORS.length,
       message: "Using fallback data due to system error",
-      source: "fallback_error"
+      source: "fallback_error",
     });
   }
 });
@@ -1551,13 +1610,16 @@ router.get("/volatility", async (req, res) => {
     res.json({
       success: true,
       data: responseData,
-      lastUpdated: responseData.updated_at || responseData.date || new Date().toISOString(),
+      lastUpdated:
+        responseData.updated_at ||
+        responseData.date ||
+        new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching market volatility:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Failed to fetch market volatility: " + error.message 
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market volatility: " + error.message,
     });
   }
 });

@@ -56,7 +56,7 @@ describe("Risk Engine", () => {
         { value: 1000, volatility: 0.15 }, // 10% of portfolio
         { value: 1500, volatility: 0.12 }, // 15% of portfolio
         { value: 2000, volatility: 0.18 }, // 20% of portfolio
-        { value: 2500, volatility: 0.20 }, // 25% of portfolio
+        { value: 2500, volatility: 0.2 }, // 25% of portfolio
         { value: 3000, volatility: 0.14 }, // 30% of portfolio
       ];
 
@@ -66,7 +66,9 @@ describe("Risk Engine", () => {
       expect(result.riskScore).toBe(0.18); // Actual calculated value
       expect(result.concentrationRisk).toBe(0.3); // Max position is 30%, above 10% threshold
       expect(result.correlationRisk).toBe(0.3); // Multi-position correlation risk
-      expect(result.recommendations).toContain("Consider reducing position concentration");
+      expect(result.recommendations).toContain(
+        "Consider reducing position concentration"
+      );
       expect(result.recommendations).toContain("Review position correlations");
     });
 
@@ -81,7 +83,9 @@ describe("Risk Engine", () => {
 
       expect(result.concentrationRisk).toBeGreaterThan(0);
       expect(result.concentrationRisk).toBeCloseTo(0.8, 1);
-      expect(result.recommendations).toContain("Consider reducing position concentration");
+      expect(result.recommendations).toContain(
+        "Consider reducing position concentration"
+      );
     });
 
     test("should detect high volatility risk", () => {
@@ -97,8 +101,12 @@ describe("Risk Engine", () => {
       expect(result.volatilityRisk).toBe(0.43); // Actual rounded average volatility
       expect(result.concentrationRisk).toBe(0.25); // Equal 25% positions
       expect(result.correlationRisk).toBe(0.3); // Multi-position correlation
-      expect(result.recommendations).toContain("High volatility detected in portfolio");
-      expect(result.recommendations).toContain("Consider reducing position concentration");
+      expect(result.recommendations).toContain(
+        "High volatility detected in portfolio"
+      );
+      expect(result.recommendations).toContain(
+        "Consider reducing position concentration"
+      );
       expect(result.recommendations).toContain("Review position correlations");
     });
 
@@ -107,7 +115,7 @@ describe("Risk Engine", () => {
         { value: 2500, volatility: 0.15 },
         { value: 2500, volatility: 0.18 },
         { value: 2500, volatility: 0.12 },
-        { value: 2500, volatility: 0.20 },
+        { value: 2500, volatility: 0.2 },
       ];
 
       const result = riskEngine.calculatePortfolioRisk(positions);
@@ -155,7 +163,9 @@ describe("Risk Engine", () => {
       expect(result.concentrationRisk).toBe(0);
       expect(result.volatilityRisk).toBe(0);
       expect(result.correlationRisk).toBe(0);
-      expect(result.recommendations).toEqual(["Portfolio risk is within acceptable limits"]);
+      expect(result.recommendations).toEqual([
+        "Portfolio risk is within acceptable limits",
+      ]);
     });
 
     test("should round risk scores to 2 decimal places", () => {
@@ -400,7 +410,7 @@ describe("Risk Engine", () => {
       ];
 
       const result = await riskEngine.performStressTest(
-        "portfolio456", 
+        "portfolio456",
         scenarios,
         0.2,
         true
@@ -410,7 +420,7 @@ describe("Risk Engine", () => {
       expect(result.shockMagnitude).toBe(0.2);
       expect(result.correlationAdjustment).toBe(true);
       expect(result.scenarios).toHaveLength(3);
-      
+
       result.scenarios.forEach((scenario) => {
         expect(scenario.scenario).toBeDefined();
         expect(typeof scenario.impact).toBe("number");
@@ -445,7 +455,8 @@ describe("Risk Engine", () => {
 
   describe("Correlation Matrix Calculation", () => {
     test("should calculate correlation matrix", async () => {
-      const result = await riskEngine.calculateCorrelationMatrix("portfolio123");
+      const result =
+        await riskEngine.calculateCorrelationMatrix("portfolio123");
 
       expect(result.portfolioId).toBe("portfolio123");
       expect(result.lookbackDays).toBe(252);
@@ -460,7 +471,7 @@ describe("Risk Engine", () => {
         result.assets.forEach((asset2) => {
           const correlation = result.correlationMatrix[asset1][asset2];
           expect(typeof correlation).toBe("number");
-          
+
           if (asset1 === asset2) {
             expect(correlation).toBe(1.0); // Self-correlation should be 1
           } else {
@@ -472,7 +483,10 @@ describe("Risk Engine", () => {
     });
 
     test("should calculate correlation matrix with custom lookback", async () => {
-      const result = await riskEngine.calculateCorrelationMatrix("portfolio456", 100);
+      const result = await riskEngine.calculateCorrelationMatrix(
+        "portfolio456",
+        100
+      );
 
       expect(result.portfolioId).toBe("portfolio456");
       expect(result.lookbackDays).toBe(100);
@@ -480,12 +494,15 @@ describe("Risk Engine", () => {
 
     test("should handle correlation matrix calculation errors", async () => {
       const originalMethod = riskEngine.calculateCorrelationMatrix;
-      riskEngine.calculateCorrelationMatrix = jest.fn().mockImplementation(() => {
-        throw new Error("Mock correlation matrix error");
-      });
+      riskEngine.calculateCorrelationMatrix = jest
+        .fn()
+        .mockImplementation(() => {
+          throw new Error("Mock correlation matrix error");
+        });
 
       try {
-        const result = await riskEngine.calculateCorrelationMatrix("error_portfolio");
+        const result =
+          await riskEngine.calculateCorrelationMatrix("error_portfolio");
         expect(result).toBeDefined();
       } catch (error) {
         expect(error.message).toBe("Mock correlation matrix error");
@@ -517,16 +534,25 @@ describe("Risk Engine", () => {
       expect(typeof result.contributions.idiosyncratic).toBe("number");
 
       // Factors should sum to 1
-      const factorSum = Object.values(result.factors).reduce((sum, val) => sum + val, 0);
+      const factorSum = Object.values(result.factors).reduce(
+        (sum, val) => sum + val,
+        0
+      );
       expect(factorSum).toBeCloseTo(1, 1);
 
       // Contributions should sum to 1
-      const contributionSum = Object.values(result.contributions).reduce((sum, val) => sum + val, 0);
+      const contributionSum = Object.values(result.contributions).reduce(
+        (sum, val) => sum + val,
+        0
+      );
       expect(contributionSum).toBeCloseTo(1, 1);
     });
 
     test("should calculate risk attribution with custom type", async () => {
-      const result = await riskEngine.calculateRiskAttribution("portfolio456", "sector");
+      const result = await riskEngine.calculateRiskAttribution(
+        "portfolio456",
+        "sector"
+      );
 
       expect(result.portfolioId).toBe("portfolio456");
       expect(result.attributionType).toBe("sector");
@@ -539,7 +565,8 @@ describe("Risk Engine", () => {
       });
 
       try {
-        const result = await riskEngine.calculateRiskAttribution("error_portfolio");
+        const result =
+          await riskEngine.calculateRiskAttribution("error_portfolio");
         expect(result).toBeDefined();
       } catch (error) {
         expect(error.message).toBe("Mock risk attribution error");
@@ -567,7 +594,9 @@ describe("Risk Engine", () => {
 
       // Validate timestamp formats
       expect(new Date(result.nextCheck).getTime()).toBeGreaterThan(Date.now());
-      expect(new Date(result.timestamp).getTime()).toBeLessThanOrEqual(Date.now());
+      expect(new Date(result.timestamp).getTime()).toBeLessThanOrEqual(
+        Date.now()
+      );
     });
 
     test("should start monitoring with defaults", async () => {

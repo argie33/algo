@@ -1,4 +1,5 @@
 const express = require("express");
+
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const { query } = require("../utils/database");
@@ -604,16 +605,6 @@ router.get("/trending", async (req, res) => {
     });
   }
 });
-
-
-
-
-
-
-
-
-
-
 
 // Enhanced News Feed with Real-time Updates
 router.get("/feed", async (req, res) => {

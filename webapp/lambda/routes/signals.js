@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 
 const router = express.Router();
@@ -59,16 +60,40 @@ router.get("/buy", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (
-      !signalsResult ||
-      !Array.isArray(signalsResult.rows) ||
-      signalsResult.rows.length === 0
-    ) {
-      return res.status(404).json({ error: "No data found for this query" });
+    // Transform data to camelCase and convert signal to number
+    const transformedData = signalsResult.rows.map(row => ({
+      symbol: row.symbol,
+      companyName: row.company_name,
+      sector: row.sector,
+      signal: parseFloat(row.signal),
+      date: row.date,
+      currentPrice: row.current_price,
+      marketCap: row.market_cap,
+      trailingPe: row.trailing_pe,
+      dividendYield: row.dividend_yield,
+    }));
+
+    // Handle empty results with success response
+    if (transformedData.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+        timeframe,
+        message: "No buy signals found",
+      });
     }
 
     res.json({
-      data: signalsResult.rows,
+      success: true,
+      data: transformedData,
       timeframe,
       signal_type: "buy",
       pagination: {
@@ -82,9 +107,11 @@ router.get("/buy", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching buy signals:", error);
-    return res
-      .status(500)
-      .json({ error: "Database error", details: error.message });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch buy signals",
+      message: error.message,
+    });
   }
 });
 
@@ -144,16 +171,40 @@ router.get("/sell", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (
-      !signalsResult ||
-      !Array.isArray(signalsResult.rows) ||
-      signalsResult.rows.length === 0
-    ) {
-      return res.status(404).json({ error: "No data found for this query" });
+    // Transform data to camelCase and convert signal to number
+    const transformedData = signalsResult.rows.map(row => ({
+      symbol: row.symbol,
+      companyName: row.company_name,
+      sector: row.sector,
+      signal: parseFloat(row.signal),
+      date: row.date,
+      currentPrice: row.current_price,
+      marketCap: row.market_cap,
+      trailingPe: row.trailing_pe,
+      dividendYield: row.dividend_yield,
+    }));
+
+    // Handle empty results with success response
+    if (transformedData.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+        timeframe,
+        message: "No sell signals found",
+      });
     }
 
     res.json({
-      data: signalsResult.rows,
+      success: true,
+      data: transformedData,
       timeframe,
       signal_type: "sell",
       pagination: {
@@ -167,9 +218,11 @@ router.get("/sell", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sell signals:", error);
-    return res
-      .status(500)
-      .json({ error: "Database error", details: error.message });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch sell signals",
+      message: error.message,
+    });
   }
 });
 

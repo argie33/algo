@@ -1,11 +1,10 @@
-const realTimeDataService = require("../../utils/realTimeDataService");
-
 // Mock dependencies
 jest.mock("../../utils/alpacaService");
 jest.mock("../../utils/apiKeyService");
 
 const AlpacaService = require("../../utils/alpacaService");
 const apiKeyService = require("../../utils/apiKeyService");
+const realTimeDataService = require("../../utils/realTimeDataService");
 
 describe("RealTimeDataService", () => {
   let realTimeService;
@@ -62,7 +61,7 @@ describe("RealTimeDataService", () => {
   describe("rateLimit", () => {
     test("should not delay if enough time has passed", async () => {
       realTimeService.lastRequestTime = Date.now() - 2000; // 2 seconds ago
-      
+
       const start = Date.now();
       await realTimeService.rateLimit();
       const end = Date.now();
@@ -147,7 +146,9 @@ describe("RealTimeDataService", () => {
       });
       mockAlpacaService.getLatestQuote.mockResolvedValue(mockQuoteData);
 
-      const result = await realTimeService.getLiveMarketData(testUserId, ["AAPL"]);
+      const result = await realTimeService.getLiveMarketData(testUserId, [
+        "AAPL",
+      ]);
 
       expect(result).toBeDefined();
       expect(result).toHaveProperty("data");
@@ -156,7 +157,9 @@ describe("RealTimeDataService", () => {
     });
 
     test("should handle API key service errors", async () => {
-      apiKeyService.getDecryptedApiKey.mockRejectedValue(new Error("No API keys"));
+      apiKeyService.getDecryptedApiKey.mockRejectedValue(
+        new Error("No API keys")
+      );
 
       await expect(
         realTimeService.getLiveMarketData(testUserId, ["AAPL"])
@@ -195,7 +198,10 @@ describe("RealTimeDataService", () => {
 
   describe("clearCache", () => {
     test("should clear all cached data", () => {
-      realTimeService.cache.set("test", { data: "data", timestamp: Date.now() });
+      realTimeService.cache.set("test", {
+        data: "data",
+        timestamp: Date.now(),
+      });
       expect(realTimeService.cache.size).toBeGreaterThan(0);
 
       realTimeService.clearCache();

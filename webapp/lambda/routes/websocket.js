@@ -1,4 +1,6 @@
 const express = require("express");
+
+// eslint-disable-next-line import/order
 const { success, error } = require("../utils/responseFormatter");
 
 // Import dependencies with error handling

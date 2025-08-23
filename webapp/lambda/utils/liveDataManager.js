@@ -11,6 +11,7 @@
  */
 
 const EventEmitter = require("events");
+
 const alertSystem = require("./alertSystem");
 
 class LiveDataManager extends EventEmitter {

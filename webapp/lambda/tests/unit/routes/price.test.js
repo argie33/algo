@@ -1,9 +1,11 @@
 const request = require("supertest");
 const express = require("express");
+
 const priceRoutes = require("../../../routes/price");
 
 // Mock database
 const { query } = require("../../../utils/database");
+
 jest.mock("../../../utils/database");
 
 describe("Price Routes", () => {
@@ -21,14 +23,12 @@ describe("Price Routes", () => {
 
   describe("GET /price/ping", () => {
     test("should return ping status", async () => {
-      const response = await request(app)
-        .get("/price/ping")
-        .expect(200);
+      const response = await request(app).get("/price/ping").expect(200);
 
       expect(response.body).toMatchObject({
         status: "ok",
         endpoint: "price",
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -41,30 +41,30 @@ describe("Price Routes", () => {
             symbol: "AAPL",
             date: "2023-12-15",
             open: 175.25,
-            high: 178.40,
-            low: 174.80,
-            close: 177.50,
+            high: 178.4,
+            low: 174.8,
+            close: 177.5,
             volume: 45000000,
-            adj_close: 177.50
+            adj_close: 177.5,
           },
           {
-            symbol: "AAPL", 
+            symbol: "AAPL",
             date: "2023-12-14",
-            open: 172.10,
-            high: 175.60,
-            low: 171.90,
+            open: 172.1,
+            high: 175.6,
+            low: 171.9,
             close: 175.25,
             volume: 52000000,
-            adj_close: 175.25
-          }
-        ]
+            adj_close: 175.25,
+          },
+        ],
       };
 
       const mockCount = { rows: [{ total: "2" }] };
 
       query
-        .mockResolvedValueOnce(mockPriceData)
-        .mockResolvedValueOnce(mockCount);
+        .mockResolvedValueOnce(mockCount)
+        .mockResolvedValueOnce(mockPriceData);
 
       const response = await request(app)
         .get("/price/history/daily")
@@ -78,18 +78,18 @@ describe("Price Routes", () => {
             symbol: "AAPL",
             date: "2023-12-15",
             open: 175.25,
-            high: 178.40,
-            low: 174.80,
-            close: 177.50,
-            volume: 45000000
-          })
+            high: 178.4,
+            low: 174.8,
+            close: 177.5,
+            volume: 45000000,
+          }),
         ]),
         pagination: expect.objectContaining({
           total: 2,
           page: 1,
-          limit: 10
+          limit: 10,
         }),
-        timeframe: "daily"
+        timeframe: "daily",
       });
 
       expect(query).toHaveBeenCalledTimes(2);
@@ -102,7 +102,7 @@ describe("Price Routes", () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        error: "Invalid timeframe. Use daily, weekly, or monthly."
+        error: "Invalid timeframe. Use daily, weekly, or monthly.",
       });
 
       expect(query).not.toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe("Price Routes", () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        error: "Symbol parameter is required"
+        error: "Symbol parameter is required",
       });
 
       expect(query).not.toHaveBeenCalled();
@@ -124,22 +124,20 @@ describe("Price Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockCount).mockResolvedValueOnce(mockData);
 
       const response = await request(app)
         .get("/price/history/daily")
-        .query({ 
-          symbol: "AAPL", 
-          start_date: "2023-12-01", 
-          end_date: "2023-12-15" 
+        .query({
+          symbol: "AAPL",
+          start_date: "2023-12-01",
+          end_date: "2023-12-15",
         })
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(query).toHaveBeenCalledTimes(2);
-      
+
       // Verify date parameters were included in query
       expect(query.mock.calls[0][1]).toContain("AAPL");
       expect(query.mock.calls[0][1]).toContain("2023-12-01");
@@ -150,9 +148,7 @@ describe("Price Routes", () => {
       const mockData = { rows: [] };
       const mockCount = { rows: [{ total: "0" }] };
 
-      query
-        .mockResolvedValueOnce(mockData)
-        .mockResolvedValueOnce(mockCount);
+      query.mockResolvedValueOnce(mockCount).mockResolvedValueOnce(mockData);
 
       const response = await request(app)
         .get("/price/history/weekly")
@@ -174,7 +170,7 @@ describe("Price Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch price history",
-        message: "Database connection failed"
+        message: "Database connection failed",
       });
     });
   });
@@ -185,8 +181,8 @@ describe("Price Routes", () => {
         rows: [
           { symbol: "AAPL", latest_date: "2023-12-15", price_count: 250 },
           { symbol: "MSFT", latest_date: "2023-12-15", price_count: 248 },
-          { symbol: "GOOGL", latest_date: "2023-12-14", price_count: 245 }
-        ]
+          { symbol: "GOOGL", latest_date: "2023-12-14", price_count: 245 },
+        ],
       };
 
       query.mockResolvedValueOnce(mockSymbols);
@@ -201,16 +197,16 @@ describe("Price Routes", () => {
           expect.objectContaining({
             symbol: "AAPL",
             latestDate: "2023-12-15",
-            priceCount: 250
+            priceCount: 250,
           }),
           expect.objectContaining({
             symbol: "MSFT",
             latestDate: "2023-12-15",
-            priceCount: 248
-          })
+            priceCount: 248,
+          }),
         ]),
         timeframe: "daily",
-        total: 3
+        total: 3,
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -222,7 +218,7 @@ describe("Price Routes", () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        error: "Invalid timeframe. Use daily, weekly, or monthly."
+        error: "Invalid timeframe. Use daily, weekly, or monthly.",
       });
     });
 
@@ -236,7 +232,7 @@ describe("Price Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch symbols",
-        message: "Database query failed"
+        message: "Database query failed",
       });
     });
   });
@@ -249,22 +245,20 @@ describe("Price Routes", () => {
             symbol: "AAPL",
             date: "2023-12-15",
             open: 175.25,
-            high: 178.40,
-            low: 174.80,
-            close: 177.50,
+            high: 178.4,
+            low: 174.8,
+            close: 177.5,
             volume: 45000000,
-            adj_close: 177.50,
+            adj_close: 177.5,
             change: 2.25,
-            change_percent: 1.28
-          }
-        ]
+            change_percent: 1.28,
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockLatestPrice);
 
-      const response = await request(app)
-        .get("/price/latest/AAPL")
-        .expect(200);
+      const response = await request(app).get("/price/latest/AAPL").expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -272,13 +266,13 @@ describe("Price Routes", () => {
           symbol: "AAPL",
           date: "2023-12-15",
           open: 175.25,
-          high: 178.40,
-          low: 174.80,
-          close: 177.50,
+          high: 178.4,
+          low: 174.8,
+          close: 177.5,
           volume: 45000000,
           change: 2.25,
-          changePercent: 1.28
-        })
+          changePercent: 1.28,
+        }),
       });
 
       expect(query).toHaveBeenCalledTimes(1);
@@ -296,21 +290,19 @@ describe("Price Routes", () => {
         success: false,
         error: "Symbol not found",
         symbol: "INVALID",
-        message: "No price data available for symbol"
+        message: "No price data available for symbol",
       });
     });
 
     test("should handle database errors for latest price", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
 
-      const response = await request(app)
-        .get("/price/latest/AAPL")
-        .expect(500);
+      const response = await request(app).get("/price/latest/AAPL").expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch latest price",
-        message: "Database connection failed"
+        message: "Database connection failed",
       });
     });
 
@@ -320,11 +312,11 @@ describe("Price Routes", () => {
           {
             symbol: "BRK.A",
             date: "2023-12-15",
-            close: 520000.00,
-            change: 1500.00,
-            change_percent: 0.29
-          }
-        ]
+            close: 520000.0,
+            change: 1500.0,
+            change_percent: 0.29,
+          },
+        ],
       };
 
       query.mockResolvedValueOnce(mockData);

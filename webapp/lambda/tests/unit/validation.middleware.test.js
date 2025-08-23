@@ -7,9 +7,9 @@ jest.mock("../../utils/responseFormatter", () => ({
     response: {
       success: false,
       error: "Validation failed",
-      details: errors
-    }
-  }))
+      details: errors,
+    },
+  })),
 }));
 
 // Import after mocking
@@ -25,7 +25,7 @@ const {
   sanitizeArray,
   isValidEmail,
   isValidSymbol,
-  isValidDate
+  isValidDate,
 } = require("../../middleware/validation");
 
 describe("Validation Middleware", () => {
@@ -138,7 +138,9 @@ describe("Validation Middleware", () => {
       it("should handle comma-separated symbols", () => {
         const schema = validationSchemas.symbols;
         expect(schema.sanitizer("aapl,msft,googl")).toBe("AAPL,MSFT,GOOGL");
-        expect(schema.sanitizer("  aapl , msft , googl  ")).toBe("AAPL,MSFT,GOOGL");
+        expect(schema.sanitizer("  aapl , msft , googl  ")).toBe(
+          "AAPL,MSFT,GOOGL"
+        );
         expect(schema.validator("AAPL,MSFT")).toBe(true);
         expect(schema.validator("")).toBe(false);
       });
@@ -155,7 +157,7 @@ describe("Validation Middleware", () => {
         expect(validationSchemas.limit.sanitizer("25")).toBe(25);
         expect(validationSchemas.limit.sanitizer("2000")).toBe(1000); // Max limit
         expect(validationSchemas.limit.sanitizer("0")).toBe(1); // Min limit
-        
+
         expect(validationSchemas.offset.sanitizer("10")).toBe(10);
         expect(validationSchemas.offset.sanitizer("-5")).toBe(0); // Min offset
       });
@@ -196,7 +198,7 @@ describe("Validation Middleware", () => {
   describe("createValidationMiddleware", () => {
     it("should validate required fields", async () => {
       const middleware = createValidationMiddleware({
-        symbol: validationSchemas.symbol
+        symbol: validationSchemas.symbol,
       });
 
       app.get("/test-required", middleware, (req, res) => {
@@ -204,35 +206,29 @@ describe("Validation Middleware", () => {
       });
 
       // Missing required field
-      await request(app)
-        .get("/test-required")
-        .expect(422);
+      await request(app).get("/test-required").expect(422);
 
       // Valid required field
-      await request(app)
-        .get("/test-required?symbol=AAPL")
-        .expect(200);
+      await request(app).get("/test-required?symbol=AAPL").expect(200);
     });
 
     it("should apply default values", async () => {
       const middleware = createValidationMiddleware({
-        limit: validationSchemas.limit
+        limit: validationSchemas.limit,
       });
 
       app.get("/test-defaults", middleware, (req, res) => {
         res.json({ validated: req.validated });
       });
 
-      const response = await request(app)
-        .get("/test-defaults")
-        .expect(200);
+      const response = await request(app).get("/test-defaults").expect(200);
 
       expect(response.body.validated.limit).toBe(50); // Default value
     });
 
     it("should sanitize input values", async () => {
       const middleware = createValidationMiddleware({
-        symbol: validationSchemas.symbol
+        symbol: validationSchemas.symbol,
       });
 
       app.get("/test-sanitize", middleware, (req, res) => {
@@ -248,7 +244,7 @@ describe("Validation Middleware", () => {
 
     it("should handle validation failures", async () => {
       const middleware = createValidationMiddleware({
-        symbol: validationSchemas.symbol
+        symbol: validationSchemas.symbol,
       });
 
       app.get("/test-validation", middleware, (req, res) => {
@@ -264,7 +260,7 @@ describe("Validation Middleware", () => {
       const middleware = createValidationMiddleware({
         symbol: validationSchemas.symbol,
         limit: validationSchemas.limit,
-        sortBy: validationSchemas.sortBy
+        sortBy: validationSchemas.sortBy,
       });
 
       app.get("/test-multiple", middleware, (req, res) => {
@@ -278,7 +274,7 @@ describe("Validation Middleware", () => {
       expect(response.body.validated).toEqual({
         symbol: "AAPL",
         limit: 25,
-        sortBy: "price"
+        sortBy: "price",
       });
     });
   });
@@ -290,8 +286,8 @@ describe("Validation Middleware", () => {
           required: true,
           sanitizer: (value) => value.toUpperCase(),
           validator: (value) => /^[A-Z]{1,10}$/.test(value),
-          errorMessage: "Invalid symbol"
-        }
+          errorMessage: "Invalid symbol",
+        },
       };
 
       const middleware = validateBody(schema);
@@ -308,10 +304,7 @@ describe("Validation Middleware", () => {
       expect(response.body.validatedBody.symbol).toBe("AAPL");
 
       // Missing required field
-      await request(app)
-        .post("/test-body")
-        .send({})
-        .expect(422);
+      await request(app).post("/test-body").send({}).expect(422);
 
       // Invalid field
       await request(app)
@@ -328,8 +321,8 @@ describe("Validation Middleware", () => {
           required: false,
           sanitizer: (value) => parseInt(value),
           validator: (value) => value > 0 && value <= 100,
-          default: 10
-        }
+          default: 10,
+        },
       };
 
       const middleware = validateQuery(schema);
@@ -338,30 +331,28 @@ describe("Validation Middleware", () => {
       });
 
       // No query param (should use default)
-      let response = await request(app)
-        .get("/test-query")
-        .expect(200);
+      let response = await request(app).get("/test-query").expect(200);
       expect(response.body.validatedQuery.limit).toBe(10);
 
       // Valid query param
-      response = await request(app)
-        .get("/test-query?limit=25")
-        .expect(200);
+      response = await request(app).get("/test-query?limit=25").expect(200);
       expect(response.body.validatedQuery.limit).toBe(25);
 
       // Invalid query param
-      await request(app)
-        .get("/test-query?limit=200")
-        .expect(422);
+      await request(app).get("/test-query?limit=200").expect(422);
     });
   });
 
   describe("Common Validations", () => {
     describe("pagination", () => {
       it("should validate pagination parameters", async () => {
-        app.get("/test-pagination", commonValidations.pagination, (req, res) => {
-          res.json({ validated: req.validated });
-        });
+        app.get(
+          "/test-pagination",
+          commonValidations.pagination,
+          (req, res) => {
+            res.json({ validated: req.validated });
+          }
+        );
 
         const response = await request(app)
           .get("/test-pagination?limit=25&offset=10")
@@ -369,7 +360,7 @@ describe("Validation Middleware", () => {
 
         expect(response.body.validated).toEqual({
           limit: 25,
-          offset: 10
+          offset: 10,
         });
 
         // Test defaults
@@ -379,7 +370,7 @@ describe("Validation Middleware", () => {
 
         expect(defaultResponse.body.validated).toEqual({
           limit: 50,
-          offset: 0
+          offset: 0,
         });
       });
     });
@@ -396,9 +387,7 @@ describe("Validation Middleware", () => {
 
         expect(response.body.validated.symbol).toBe("AAPL");
 
-        await request(app)
-          .get("/test-symbol")
-          .expect(422); // Missing required symbol
+        await request(app).get("/test-symbol").expect(422); // Missing required symbol
       });
     });
 
@@ -414,9 +403,7 @@ describe("Validation Middleware", () => {
 
         expect(response.body.validated.symbols).toBe("AAPL,MSFT,GOOGL");
 
-        await request(app)
-          .get("/test-symbols")
-          .expect(422); // Missing required symbols
+        await request(app).get("/test-symbols").expect(422); // Missing required symbols
       });
     });
 
@@ -432,24 +419,28 @@ describe("Validation Middleware", () => {
 
         expect(response.body.validated).toEqual({
           startDate: "2023-01-01",
-          endDate: "2023-12-31"
+          endDate: "2023-12-31",
         });
 
         // Optional dates should work
-        await request(app)
-          .get("/test-dates")
-          .expect(200);
+        await request(app).get("/test-dates").expect(200);
       });
     });
 
     describe("screeningFilters", () => {
       it("should validate screening filter parameters", async () => {
-        app.get("/test-screening", commonValidations.screeningFilters, (req, res) => {
-          res.json({ validated: req.validated });
-        });
+        app.get(
+          "/test-screening",
+          commonValidations.screeningFilters,
+          (req, res) => {
+            res.json({ validated: req.validated });
+          }
+        );
 
         const response = await request(app)
-          .get("/test-screening?priceMin=10&priceMax=100&sector=Technology&sortBy=price&sortOrder=desc&limit=25")
+          .get(
+            "/test-screening?priceMin=10&priceMax=100&sector=Technology&sortBy=price&sortOrder=desc&limit=25"
+          )
           .expect(200);
 
         expect(response.body.validated).toMatchObject({
@@ -459,7 +450,7 @@ describe("Validation Middleware", () => {
           sortBy: "price",
           sortOrder: "desc",
           limit: 25,
-          offset: 0 // Default
+          offset: 0, // Default
         });
 
         // Test with minimal parameters
@@ -470,7 +461,7 @@ describe("Validation Middleware", () => {
         expect(minimalResponse.body.validated).toEqual({
           limit: 50,
           offset: 0,
-          sortOrder: "asc"
+          sortOrder: "asc",
         });
       });
     });
@@ -480,7 +471,7 @@ describe("Validation Middleware", () => {
     it("should return structured error responses", async () => {
       const middleware = createValidationMiddleware({
         symbol: validationSchemas.symbol,
-        limit: validationSchemas.limit
+        limit: validationSchemas.limit,
       });
 
       app.get("/test-errors", middleware, (req, res) => {
@@ -497,9 +488,9 @@ describe("Validation Middleware", () => {
         details: expect.arrayContaining([
           expect.objectContaining({
             field: "symbol",
-            code: "VALIDATION_FAILED"
-          })
-        ])
+            code: "VALIDATION_FAILED",
+          }),
+        ]),
       });
     });
   });
@@ -507,7 +498,7 @@ describe("Validation Middleware", () => {
   describe("Edge Cases", () => {
     it("should handle empty strings appropriately", async () => {
       const middleware = createValidationMiddleware({
-        symbol: { ...validationSchemas.symbol, required: false }
+        symbol: { ...validationSchemas.symbol, required: false },
       });
 
       app.get("/test-empty", middleware, (req, res) => {
@@ -526,9 +517,9 @@ describe("Validation Middleware", () => {
       const schema = {
         optionalField: {
           required: false,
-          sanitizer: (value) => value ? value.toString() : null,
-          validator: (value) => value === null || value.length > 0
-        }
+          sanitizer: (value) => (value ? value.toString() : null),
+          validator: (value) => value === null || value.length > 0,
+        },
       };
 
       const middleware = validateBody(schema);

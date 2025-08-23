@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const {
@@ -198,7 +199,7 @@ router.put("/api-keys/:provider", async (req, res) => {
   }
 });
 
-// Delete API key configuration  
+// Delete API key configuration
 router.delete("/api-keys/:provider", async (req, res) => {
   const { provider } = req.params;
 
@@ -366,7 +367,8 @@ router.get("/onboarding-status", async (req, res) => {
     );
 
     const hasApiKeys = providers.length > 0;
-    const onboardingCompleted = userResult.rows[0]?.onboarding_completed || false;
+    const onboardingCompleted =
+      userResult.rows[0]?.onboarding_completed || false;
 
     res.json({
       success: true,

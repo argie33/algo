@@ -1,10 +1,12 @@
+const crypto = require("crypto");
+
 const {
   SecretsManagerClient,
   GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
-const { query } = require("./database");
-const crypto = require("crypto");
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
+
+const { query } = require("./database");
 
 /**
  * Unified API Key Service with JWT Integration
@@ -82,14 +84,14 @@ class ApiKeyService {
     }
 
     // In test environment, bypass JWT validation and return mock user
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === "test") {
       return {
         valid: true,
         user: {
           sub: token, // Use token as user ID for test
           email: `${token}@test.local`,
           sessionId: `session-${token}`,
-        }
+        },
       };
     }
 
@@ -208,8 +210,8 @@ class ApiKeyService {
 
     try {
       // In test environment, use a test key
-      if (process.env.NODE_ENV === 'test') {
-        this.encryptionKey = 'test-encryption-key-for-testing-only-32-chars';
+      if (process.env.NODE_ENV === "test") {
+        this.encryptionKey = "test-encryption-key-for-testing-only-32-chars";
         return this.encryptionKey;
       }
 
@@ -251,7 +253,7 @@ class ApiKeyService {
    */
   checkCircuitBreaker() {
     // In test environment, disable circuit breaker
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === "test") {
       return;
     }
 
@@ -365,18 +367,23 @@ class ApiKeyService {
 
     try {
       // Validate input parameters
-      if (!apiKeyData || typeof apiKeyData !== 'object') {
+      if (!apiKeyData || typeof apiKeyData !== "object") {
         return {
           success: false,
-          error: 'API key data must be a valid object'
+          error: "API key data must be a valid object",
         };
       }
 
       // Validate provider name for SQL injection
-      if (!provider || typeof provider !== 'string' || provider.includes("'") || provider.includes(";")) {
+      if (
+        !provider ||
+        typeof provider !== "string" ||
+        provider.includes("'") ||
+        provider.includes(";")
+      ) {
         return {
           success: false,
-          error: 'Invalid provider name'
+          error: "Invalid provider name",
         };
       }
 
@@ -384,7 +391,7 @@ class ApiKeyService {
       if (!apiKeyData.keyId || !apiKeyData.secret) {
         return {
           success: false,
-          error: 'API key data must include keyId and secret'
+          error: "API key data must include keyId and secret",
         };
       }
 
@@ -392,7 +399,7 @@ class ApiKeyService {
       if (apiKeyData.keyId.length > 500 || apiKeyData.secret.length > 1000) {
         return {
           success: false,
-          error: 'API key data exceeds maximum length limits'
+          error: "API key data exceeds maximum length limits",
         };
       }
 
@@ -894,5 +901,6 @@ module.exports = {
   validateJwtToken: (token) => apiKeyService.validateJwtToken(token),
 
   // Direct user ID access (for internal services like websocket)
-  getDecryptedApiKey: (userId, provider) => apiKeyService.getDecryptedApiKeyByUserId(userId, provider),
+  getDecryptedApiKey: (userId, provider) =>
+    apiKeyService.getDecryptedApiKeyByUserId(userId, provider),
 };

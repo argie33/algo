@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query, initializeDatabase } = require("../utils/database");
 const { authenticateToken, _optionalAuth } = require("../middleware/auth");
 

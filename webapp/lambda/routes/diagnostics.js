@@ -1,8 +1,6 @@
 const express = require("express");
-const {
-  authenticateToken,
-  requireRole,
-} = require("../middleware/auth");
+
+const { authenticateToken, requireRole } = require("../middleware/auth");
 const DatabaseConnectivityTest = require("../test-database-connectivity");
 const { getHealthStatus } = require("../utils/apiKeyService");
 
