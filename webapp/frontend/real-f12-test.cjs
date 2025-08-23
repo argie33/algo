@@ -1,120 +1,97 @@
-const https = require('https');
-const http = require('http');
+const puppeteer = require('puppeteer');
 
 async function testReactApp() {
-  console.log('🔍 F12-Style Browser Console Test');
-  console.log('==================================');
+  console.log('🔍 Real Browser F12 Test');
+  console.log('========================');
+  
+  let browser = null;
   
   try {
-    // Test if server is responding
-    console.log('📡 Testing server response...');
-    const html = await new Promise((resolve, reject) => {
-      const req = http.get('http://localhost:3001', (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => resolve(data));
-      });
-      req.on('error', reject);
-      req.setTimeout(10000, () => reject(new Error('Timeout')));
+    // Launch headless browser
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
     
-    console.log('✅ Server responding');
+    const page = await browser.newPage();
     
-    // Analyze HTML for potential issues
-    const checks = [
-      {
-        name: 'React Bundle Loading',
-        test: () => html.includes('script') && (html.includes('type="module"') || html.includes('.js')),
-        error: 'No JavaScript modules found'
-      },
-      {
-        name: 'React Development Mode',
-        test: () => html.includes('react-refresh') || html.includes('@react-refresh'),
-        error: 'React refresh not detected'
-      },
-      {
-        name: 'HTML Structure',
-        test: () => html.includes('<div id="root">') || html.includes('<div id="app">'),
-        error: 'No React root element found'
-      },
-      {
-        name: 'No Obvious Errors',
-        test: () => !html.toLowerCase().includes('error') && !html.toLowerCase().includes('failed'),
-        error: 'Error text found in HTML'
-      }
-    ];
+    // Capture console errors
+    const consoleErrors = [];
+    const jsErrors = [];
     
-    console.log('\n📊 HTML Analysis:');
-    let allPassed = true;
-    
-    checks.forEach(check => {
-      const passed = check.test();
-      console.log(`   ${passed ? '✅' : '❌'} ${check.name}`);
-      if (!passed) {
-        console.log(`      Issue: ${check.error}`);
-        allPassed = false;
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
       }
     });
     
-    // Specific React Context error patterns to look for
-    const reactContextIssues = [
-      'Cannot set properties of undefined',
-      'ContextConsumer',
-      'react-is',
-      'TypeError: Cannot read properties',
-      'ReferenceError',
-      'undefined (setting \'Context'
-    ];
-    
-    console.log('\n🔍 Scanning for React Context error patterns...');
-    let foundIssues = [];
-    
-    reactContextIssues.forEach(pattern => {
-      if (html.includes(pattern)) {
-        foundIssues.push(pattern);
-      }
+    page.on('pageerror', error => {
+      jsErrors.push(error.message);
     });
     
-    if (foundIssues.length === 0) {
-      console.log('✅ No React Context error patterns detected in HTML');
-    } else {
-      console.log('❌ Found potential React Context issues:');
-      foundIssues.forEach(issue => console.log(`   - ${issue}`));
+    // Navigate to the app
+    console.log('📡 Loading http://localhost:3001...');
+    await page.goto('http://localhost:3001', { 
+      waitUntil: 'networkidle2', 
+      timeout: 10000 
+    });
+    
+    // Wait for React to load
+    await page.waitForTimeout(3000);
+    
+    // Check for React elements
+    const hasReactRoot = await page.$('#root') !== null;
+    const hasReactContent = await page.evaluate(() => {
+      const root = document.getElementById('root');
+      return root && root.children.length > 0;
+    });
+    
+    // Check for specific React Context errors
+    const hasContextError = consoleErrors.some(error => 
+      error.includes('ContextConsumer') || 
+      error.includes('Cannot set properties of undefined') ||
+      error.includes('react-is')
+    ) || jsErrors.some(error =>
+      error.includes('ContextConsumer') || 
+      error.includes('Cannot set properties of undefined') ||
+      error.includes('react-is')
+    );
+    
+    // Report results
+    console.log(`${hasReactRoot ? '✅' : '❌'} React Root: ${hasReactRoot ? 'Found' : 'Missing'}`);
+    console.log(`${hasReactContent ? '✅' : '❌'} React Content: ${hasReactContent ? 'Rendered' : 'Empty'}`);
+    console.log(`${!hasContextError ? '✅' : '❌'} Context Errors: ${hasContextError ? 'DETECTED' : 'None'}`);
+    
+    if (consoleErrors.length > 0) {
+      console.log('\n🚨 CONSOLE ERRORS FOUND:');
+      consoleErrors.forEach(error => console.log(`   ${error}`));
     }
     
-    // Manual testing instructions
-    console.log('\n🌐 MANUAL F12 VERIFICATION:');
-    console.log('============================');
-    console.log('1. Open: http://localhost:3001');
-    console.log('2. Press F12 (Developer Tools)');
-    console.log('3. Click Console tab');
-    console.log('4. Refresh page (Ctrl+R)');
-    console.log('5. Look for RED errors (not warnings)');
-    console.log('');
-    console.log('❌ ERRORS TO WATCH FOR:');
-    console.log('   • Cannot set properties of undefined (setting \'ContextConsumer\')');
-    console.log('   • react-is.production.js:58 errors');
-    console.log('   • TypeError in Context providers');
-    console.log('   • Component mounting failures');
-    console.log('');
-    console.log('✅ GOOD SIGNS:');
-    console.log('   • Page loads without red errors');
-    console.log('   • Components render properly');
-    console.log('   • Navigation works between pages');
-    console.log('   • Only blue info/warnings (no red errors)');
+    if (jsErrors.length > 0) {
+      console.log('\n💥 JAVASCRIPT ERRORS FOUND:');
+      jsErrors.forEach(error => console.log(`   ${error}`));
+    }
     
-    const result = allPassed && foundIssues.length === 0;
-    console.log(`\n📈 AUTOMATED CHECKS: ${result ? 'PASSED' : 'FAILED'}`);
+    if (consoleErrors.length === 0 && jsErrors.length === 0) {
+      console.log('\n✨ No console or JS errors detected');
+    }
     
-    return result;
+    const passed = hasReactRoot && hasReactContent && !hasContextError;
+    console.log(`\n${passed ? '✅ PASSED' : '❌ FAILED'}`);
+    
+    return passed;
     
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error('❌ Browser test failed:', error.message);
     console.log('\n🔧 TROUBLESHOOTING:');
     console.log('   • Make sure dev server is running: npm run dev');
     console.log('   • Check if port 3001 is accessible');
     console.log('   • Verify React app is building without errors');
     return false;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 

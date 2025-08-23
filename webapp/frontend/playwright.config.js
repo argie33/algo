@@ -1,26 +1,45 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// MANUAL TESTING ONLY - NOT FOR CI/CD
 export default defineConfig({
   testDir: './src/tests/e2e',
   fullyParallel: false,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: 1, // Single worker for WSL
-  reporter: 'line',
-  timeout: 180000, // 3 minutes per test
+  forbidOnly: false, // Allow .only() for manual testing
+  retries: 1,
+  workers: 1, // Single worker for local testing
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: 'playwright-report' }]
+  ],
+  timeout: 120000,
+  
   use: {
-    baseURL: 'http://localhost:3002',
-    trace: 'on-first-retry',
+    baseURL: 'http://localhost:3001', // Manual testing assumes dev server running
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    viewport: { width: 1280, height: 720 },
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage',
+            '--disable-web-security'
+          ]
+        }
+      },
     },
   ],
 
-  // Don't start web server - use existing dev server
-  // webServer: undefined,
+  // NO web server - manual testing requires dev server to be running
+  webServer: undefined,
 });

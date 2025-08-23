@@ -4,12 +4,11 @@
  * Specifically targets React Context errors and compatibility issues
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { spawn } from 'child_process';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 describe("Browser Console Error Detection", () => {
   let devServer;
-  let serverUrl = 'http://localhost:3333'; // Use different port to avoid conflicts
+  let _serverUrl = 'http://localhost:3333'; // Use different port to avoid conflicts
 
   beforeAll(async () => {
     // This would ideally start a test server and use Playwright

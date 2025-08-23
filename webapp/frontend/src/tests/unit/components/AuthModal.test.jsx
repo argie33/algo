@@ -115,13 +115,13 @@ describe("AuthModal Component - Authentication Interface", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
+    // Use real timers by default to avoid userEvent timeout issues
+    vi.useRealTimers();
     mockAuthContext.isAuthenticated = false;
     mockAuthContext.user = null;
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -159,7 +159,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should call onClose when close button is clicked", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -186,7 +186,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should switch from login to register mode", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -202,7 +202,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should switch from register to login mode", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -218,7 +218,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should switch to forgot password mode", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -235,7 +235,7 @@ describe("AuthModal Component - Authentication Interface", () => {
 
   describe("Authentication Flow", () => {
     it("should handle login submission", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -252,7 +252,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle successful registration requiring confirmation", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -270,7 +270,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle successful email confirmation", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -287,7 +287,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle forgot password flow", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -312,7 +312,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle password reset completion", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -341,7 +341,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle successful MFA completion", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -356,7 +356,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle MFA cancellation", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -375,6 +375,9 @@ describe("AuthModal Component - Authentication Interface", () => {
 
   describe("Auto-dismiss on Authentication", () => {
     it("should auto-dismiss modal when user becomes authenticated", async () => {
+      // This test specifically needs fake timers for vi.advanceTimersByTime
+      vi.useFakeTimers();
+      
       // Start with modal open and user not authenticated
       const { rerender } = render(
         <TestWrapper>
@@ -408,6 +411,8 @@ describe("AuthModal Component - Authentication Interface", () => {
       await waitFor(() => {
         expect(defaultProps.onClose).toHaveBeenCalled();
       });
+      
+      vi.useRealTimers();
     });
 
     it("should show welcome message with user info", async () => {
@@ -445,7 +450,7 @@ describe("AuthModal Component - Authentication Interface", () => {
 
   describe("State Management and Cleanup", () => {
     it("should reset state when modal closes", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       const { rerender } = render(
         <TestWrapper>
@@ -476,7 +481,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should preserve username across mode switches", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -501,7 +506,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should clear error states when switching modes", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -523,7 +528,7 @@ describe("AuthModal Component - Authentication Interface", () => {
 
   describe("Success Messages and Transitions", () => {
     it("should show success message after registration", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -545,7 +550,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should show success message after confirmation", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -572,6 +577,8 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle success state transitions smoothly", async () => {
+      // This test specifically needs fake timers for vi.advanceTimersByTime
+      vi.useFakeTimers();
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       render(
@@ -604,6 +611,8 @@ describe("AuthModal Component - Authentication Interface", () => {
       await waitFor(() => {
         expect(screen.getByTestId("login-form")).toBeInTheDocument();
       });
+      
+      vi.useRealTimers();
     });
   });
 
@@ -620,7 +629,7 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should support keyboard navigation", async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
@@ -681,6 +690,9 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle component unmounting during async operations", () => {
+      // This test specifically needs fake timers for vi.advanceTimersByTime
+      vi.useFakeTimers();
+      
       const { unmount } = render(
         <TestWrapper>
           <AuthModal {...defaultProps} />
@@ -694,6 +706,7 @@ describe("AuthModal Component - Authentication Interface", () => {
       vi.advanceTimersByTime(5000);
 
       // Test passes if no errors thrown
+      vi.useRealTimers();
     });
   });
 });

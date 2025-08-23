@@ -34,13 +34,19 @@ global.IntersectionObserver = vi.fn().mockImplementation((_callback) => ({
   disconnect: vi.fn(),
 }));
 
-// Mock Web Vitals
+// Mock Web Vitals with proper function implementations
+const mockGetCLS = vi.fn((callback) => callback({ name: "CLS", value: 0.05 }));
+const mockGetFID = vi.fn((callback) => callback({ name: "FID", value: 80 }));
+const mockGetFCP = vi.fn((callback) => callback({ name: "FCP", value: 1200 }));
+const mockGetLCP = vi.fn((callback) => callback({ name: "LCP", value: 2100 }));
+const mockGetTTFB = vi.fn((callback) => callback({ name: "TTFB", value: 400 }));
+
 vi.mock("web-vitals", () => ({
-  getCLS: vi.fn((callback) => callback({ name: "CLS", value: 0.05 })),
-  getFID: vi.fn((callback) => callback({ name: "FID", value: 80 })),
-  getFCP: vi.fn((callback) => callback({ name: "FCP", value: 1200 })),
-  getLCP: vi.fn((callback) => callback({ name: "LCP", value: 2100 })),
-  getTTFB: vi.fn((callback) => callback({ name: "TTFB", value: 400 })),
+  getCLS: mockGetCLS,
+  getFID: mockGetFID,
+  getFCP: mockGetFCP,
+  getLCP: mockGetLCP,
+  getTTFB: mockGetTTFB,
 }));
 
 // Mock components for performance testing
@@ -319,27 +325,21 @@ describe("Performance Monitoring Tests", () => {
 
   describe("Core Web Vitals Monitoring", () => {
     test("should collect Largest Contentful Paint (LCP)", async () => {
-      const {
-        getCLS,
-        _getFID,
-        getFCP,
-        getLCP,
-        _getTTFB,
-      } = require("web-vitals");
-
+      // Use the mocked functions directly
       const MockWebVitalsComponent = () => {
         const [vitals, setVitals] = React.useState({});
 
         React.useEffect(() => {
-          getLCP((metric) => {
+          // Call the mocked functions which will immediately trigger callbacks
+          mockGetLCP((metric) => {
             setVitals((prev) => ({ ...prev, lcp: metric.value }));
           });
 
-          getFCP((metric) => {
+          mockGetFCP((metric) => {
             setVitals((prev) => ({ ...prev, fcp: metric.value }));
           });
 
-          getCLS((metric) => {
+          mockGetCLS((metric) => {
             setVitals((prev) => ({ ...prev, cls: metric.value }));
           });
         }, []);
@@ -373,13 +373,12 @@ describe("Performance Monitoring Tests", () => {
     });
 
     test("should track First Input Delay (FID)", async () => {
-      const { getFID } = require("web-vitals");
-
+      // Use the mocked function directly
       const MockFIDComponent = () => {
         const [fid, setFid] = React.useState(null);
 
         React.useEffect(() => {
-          getFID((metric) => {
+          mockGetFID((metric) => {
             setFid(metric.value);
           });
         }, []);
@@ -575,10 +574,11 @@ describe("Performance Monitoring Tests", () => {
         expect(screen.getByTestId("api-metric-2")).toBeInTheDocument();
       });
 
-      // All API calls should show response times
-      expect(screen.getByText(/\/api\/portfolio: \d+ms/)).toBeInTheDocument();
-      expect(screen.getByText(/\/api\/market-data: \d+ms/)).toBeInTheDocument();
-      expect(screen.getByText(/\/api\/news: \d+ms/)).toBeInTheDocument();
+      // All API calls should show response times - check that all endpoints are present (order may vary)
+      const allText = screen.getByTestId("api-performance-monitor").textContent;
+      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms ✓/);
+      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms ✓/);
+      expect(allText).toMatch(/\/api\/news: [\d.]+ms ✓/);
     });
 
     test("should detect slow API calls", async () => {
@@ -664,11 +664,12 @@ describe("Performance Monitoring Tests", () => {
 
       render(<MockResourceLoadingMonitor />);
 
+      // Wait for the setTimeout to trigger and resource metrics to load
       await waitFor(() => {
-        expect(screen.getByTestId("total-bundle-size")).toBeInTheDocument();
+        expect(screen.getByTestId("total-bundle-size")).toHaveTextContent("Total: 670000 bytes");
       });
 
-      expect(screen.getByText("Total: 670000 bytes")).toBeInTheDocument();
+      expect(screen.getByTestId("total-bundle-size")).toHaveTextContent("Total: 670000 bytes");
       expect(
         screen.getByText("main.js: 245000 bytes, 850ms")
       ).toBeInTheDocument();
