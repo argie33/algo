@@ -5,24 +5,14 @@ import { BrowserRouter } from "react-router-dom";
 import { vi } from "vitest";
 
 // Mock the API service
-vi.mock("../../services/api", () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  },
-  get: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
-  delete: vi.fn(),
-  api: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
+// Mock the API service with comprehensive mock
+vi.mock("../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  return {
+    default: createApiServiceMock(),
+    ...createApiServiceMock()
+  };
+});
 
 // Mock AuthContext
 const mockAuthContext = {

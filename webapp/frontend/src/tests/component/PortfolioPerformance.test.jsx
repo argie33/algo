@@ -4,11 +4,14 @@ import "@testing-library/jest-dom";
 import { BrowserRouter } from "react-router-dom";
 import PortfolioPerformance from "../../pages/PortfolioPerformance";
 
-// Mock the API service
-vi.mock("../../services/api", () => ({
-  get: vi.fn(),
-  post: vi.fn(),
-}));
+// Mock the API service with comprehensive mock
+vi.mock("../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  return {
+    default: createApiServiceMock(),
+    ...createApiServiceMock()
+  };
+});
 
 // Mock AuthContext
 const mockAuthContext = {

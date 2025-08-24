@@ -12,6 +12,140 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// Mock recharts components globally to avoid canvas issues
+import { vi } from 'vitest';
+import React from 'react';
+
+// REAL SITE TESTING - API SERVICE SETUP
+// Mock the API service to handle environment variables properly
+vi.mock('../services/api', () => ({
+  default: {
+    getApiConfig: () => ({
+      apiUrl: 'http://localhost:3001',
+      environment: 'test'
+    }),
+    get: vi.fn(() => Promise.resolve({ data: {} })),
+    post: vi.fn(() => Promise.resolve({ data: {} })),
+    put: vi.fn(() => Promise.resolve({ data: {} })),
+    delete: vi.fn(() => Promise.resolve({ data: {} }))
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: 'http://localhost:3001',
+    environment: 'test'
+  })),
+  getApiKeys: vi.fn(() => 
+    Promise.resolve({
+      success: true,
+      data: {
+        alpaca: { status: 'active' },
+        polygon: { status: 'active' }
+      }
+    })
+  ),
+  testApiConnection: vi.fn(() => Promise.resolve({ success: true })),
+  importPortfolioFromBroker: vi.fn(() => Promise.resolve({ success: true })),
+  api: {
+    getPortfolio: vi.fn(() => 
+      Promise.resolve({
+        totalValue: 0,
+        holdings: []
+      })
+    )
+  }
+}));
+
+// Mock logger globally and as ES module
+const mockLogger = {
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn()
+};
+
+global.logger = mockLogger;
+
+// Mock logger as ES module for imports
+vi.mock('../services/logger', () => ({
+  default: mockLogger,
+  logger: mockLogger
+}));
+
+vi.mock('../utils/logger', () => ({
+  default: mockLogger,
+  logger: mockLogger
+}));
+
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children, ...props }) =>
+    React.createElement('div', { 'data-testid': 'responsive-container', ...props }, children),
+  LineChart: ({ children, data, ...props }) =>
+    React.createElement('div', { 'data-testid': 'line-chart', 'data-chart-data': JSON.stringify(data), ...props }, children),
+  Line: ({ dataKey, stroke, ...props }) =>
+    React.createElement('div', { 'data-testid': 'chart-line', 'data-key': dataKey, 'data-stroke': stroke, ...props }),
+  AreaChart: ({ children, data, ...props }) =>
+    React.createElement('div', { 'data-testid': 'area-chart', 'data-chart-data': JSON.stringify(data), ...props }, children),
+  Area: ({ dataKey, fill, ...props }) =>
+    React.createElement('div', { 'data-testid': 'chart-area', 'data-key': dataKey, 'data-fill': fill, ...props }),
+  BarChart: ({ children, data, ...props }) =>
+    React.createElement('div', { 'data-testid': 'bar-chart', 'data-chart-data': JSON.stringify(data), ...props }, children),
+  Bar: ({ dataKey, fill, ...props }) =>
+    React.createElement('div', { 'data-testid': 'chart-bar', 'data-key': dataKey, 'data-fill': fill, ...props }),
+  PieChart: ({ children, ...props }) =>
+    React.createElement('div', { 'data-testid': 'pie-chart', ...props }, children),
+  Pie: ({ data: _data, dataKey, outerRadius, innerRadius, label: _label, labelLine: _labelLine, ...props }) => {
+    const { cx: _cx, cy: _cy, startAngle: _startAngle, endAngle: _endAngle, fill: _fill, stroke: _stroke, ...safeProps } = props;
+    return React.createElement('div', { 
+      'data-testid': 'pie', 
+      'data-key': dataKey,
+      'data-outer-radius': outerRadius,
+      'data-inner-radius': innerRadius,
+      ...safeProps 
+    });
+  },
+  Cell: ({ fill, value, name, payload: _payload, ...props }) => {
+    const { cx: _cx, cy: _cy, midAngle: _midAngle, innerRadius: _innerRadius, outerRadius: _outerRadius, percent: _percent, index: _index, ...safeProps } = props;
+    return React.createElement('div', { 
+      'data-testid': 'pie-cell', 
+      'data-fill': fill, 
+      'data-value': value,
+      'data-name': name,
+      ...safeProps 
+    });
+  },
+  XAxis: ({ dataKey, ...props }) =>
+    React.createElement('div', { 'data-testid': 'x-axis', 'data-key': dataKey, ...props }),
+  YAxis: ({ domain, ...props }) =>
+    React.createElement('div', { 'data-testid': 'y-axis', 'data-domain': JSON.stringify(domain), ...props }),
+  CartesianGrid: (props) => React.createElement('div', { 'data-testid': 'cartesian-grid', ...props }),
+  Tooltip: ({ content, formatter: _formatter, labelFormatter: _labelFormatter, ...props }) => {
+    const { active, payload: _payload, label: _label, ...safeProps } = props;
+    return React.createElement('div', { 
+      'data-testid': 'chart-tooltip',
+      'data-content': typeof content,
+      'data-active': active,
+      ...safeProps 
+    }, typeof content === 'function' ? 'Custom Tooltip' : 'Default Tooltip');
+  },
+  Legend: (props) => React.createElement('div', { 'data-testid': 'chart-legend', ...props }),
+  ReferenceLine: ({ y, stroke, ...props }) =>
+    React.createElement('div', { 'data-testid': 'reference-line', 'data-y': y, 'data-stroke': stroke, ...props }),
+  ComposedChart: ({ children, data, ...props }) =>
+    React.createElement('div', { 'data-testid': 'composed-chart', 'data-chart-data': JSON.stringify(data), ...props }, children),
+  ScatterChart: ({ children, data, ...props }) =>
+    React.createElement('div', { 'data-testid': 'scatter-chart', 'data-chart-data': JSON.stringify(data), ...props }, children),
+  Scatter: ({ dataKey, fill, ...props }) =>
+    React.createElement('div', { 'data-testid': 'scatter', 'data-key': dataKey, 'data-fill': fill, ...props }),
+  RadarChart: ({ children, data, ...props }) =>
+    React.createElement('div', { 'data-testid': 'radar-chart', 'data-chart-data': JSON.stringify(data), ...props }, children),
+  Radar: ({ dataKey, fill, ...props }) =>
+    React.createElement('div', { 'data-testid': 'radar', 'data-key': dataKey, 'data-fill': fill, ...props }),
+  PolarGrid: (props) => React.createElement('div', { 'data-testid': 'polar-grid', ...props }),
+  PolarAngleAxis: ({ dataKey, ...props }) =>
+    React.createElement('div', { 'data-testid': 'polar-angle-axis', 'data-key': dataKey, ...props }),
+  PolarRadiusAxis: ({ domain, ...props }) =>
+    React.createElement('div', { 'data-testid': 'polar-radius-axis', 'data-domain': JSON.stringify(domain), ...props })
+}));
+
 // Mock window.matchMedia for MUI
 Object.defineProperty(window, "matchMedia", {
   writable: true,

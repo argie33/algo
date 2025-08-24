@@ -54,6 +54,109 @@ vi.mock("@aws-amplify/auth", () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({ email: "test@example.com" })),
 }));
 
+// Mock API service completely
+vi.mock("../services/api.js", () => ({
+  getApiConfig: vi.fn(() => ({
+    baseURL: "http://localhost:3001",
+    isServerless: false,
+    apiUrl: "http://localhost:3001", 
+    isConfigured: true,
+    environment: "test",
+    isDevelopment: true,
+    isProduction: false,
+    baseUrl: "/",
+  })),
+  // Default API client mock
+  default: {
+    get: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+    post: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+    put: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+    delete: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+    patch: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+  },
+  // Mock API functions that components might use
+  testApiConnection: vi.fn(() => Promise.resolve({ 
+    success: true, 
+    data: { status: "healthy", timestamp: new Date().toISOString() } 
+  })),
+  fetchHealthCheck: vi.fn(() => Promise.resolve({ 
+    success: true, 
+    data: { status: "operational", services: {} } 
+  })),
+  fetchPortfolioData: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      totalValue: 10000,
+      dayChange: 150.50,
+      dayChangePercent: 1.53,
+      holdings: [],
+      performance: []
+    }
+  })),
+  fetchMarketData: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      indices: [],
+      sectors: [],
+      movers: []
+    }
+  })),
+  
+  // API Key Management Functions
+  getApiKeys: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      apiKeys: [
+        {
+          id: "test-alpaca-key",
+          provider: "alpaca",
+          status: "active",
+          lastUsed: new Date().toISOString(),
+          created: new Date().toISOString()
+        }
+      ]
+    }
+  })),
+  addApiKey: vi.fn((apiKeyData) => Promise.resolve({
+    success: true,
+    data: { id: "new-key-id", ...apiKeyData }
+  })),
+  updateApiKey: vi.fn((keyId, apiKeyData) => Promise.resolve({
+    success: true,
+    data: { id: keyId, ...apiKeyData }
+  })),
+  deleteApiKey: vi.fn((keyId) => Promise.resolve({
+    success: true,
+    data: { deleted: keyId }
+  })),
+  
+  // Portfolio Functions
+  getPortfolioData: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      totalValue: 10000,
+      dayChange: 150.50,
+      dayChangePercent: 1.53,
+      holdings: [],
+      performance: []
+    }
+  })),
+  importPortfolioFromBroker: vi.fn((broker) => Promise.resolve({
+    success: true,
+    data: { imported: true, broker, holdings: [] }
+  })),
+  
+  // Health Check Functions
+  getHealth: vi.fn(() => Promise.resolve({
+    success: true,
+    data: { status: "healthy", timestamp: new Date().toISOString() }
+  })),
+  healthCheck: vi.fn(() => Promise.resolve({
+    success: true,
+    data: { status: "operational", services: {} }
+  })),
+}));
+
 // Use real AuthProvider with mocked dependencies
 export const TestAuthProvider = ({ children, _initialUser = null }) => {
   return <AuthProvider>{children}</AuthProvider>;

@@ -4,16 +4,14 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryProvider } from "@tanstack/react-query";
 import Dashboard from "../../pages/Dashboard";
 
-// Mock the API service
-vi.mock("../../services/api", () => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "https://test-api.example.com",
-  })),
-  getStockPrices: vi.fn(),
-  getStockMetrics: vi.fn(),
-}));
+// Mock the API service with comprehensive mock
+vi.mock("../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  return {
+    default: createApiServiceMock(),
+    ...createApiServiceMock()
+  };
+});
 
 // Mock data cache service
 vi.mock("../../services/dataCache", () => ({
@@ -59,16 +57,16 @@ vi.mock("recharts", () => ({
 }));
 
 // Mock HistoricalPriceChart component
-vi.mock("../../components/HistoricalPriceChart", () => {
-  return function MockHistoricalPriceChart({ symbol, defaultPeriod }) {
+vi.mock("../../components/HistoricalPriceChart", () => ({
+  default: function MockHistoricalPriceChart({ symbol, defaultPeriod }) {
     return (
       <div data-testid="historical-price-chart">
         <div>Symbol: {symbol}</div>
         <div>Period: {defaultPeriod} days</div>
       </div>
     );
-  };
-});
+  }
+}));
 
 // Mock MarketStatusBar component
 vi.mock("../../components/MarketStatusBar", () => {

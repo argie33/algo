@@ -1,15 +1,17 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { BrowserRouter } from "react-router-dom";
-import PortfolioHoldings from "../../components/PortfolioHoldings";
+import PortfolioHoldings from "../../pages/PortfolioHoldings";
 
 // Mock the API service
-vi.mock("../../services/api", () => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
-  delete: vi.fn(),
-}));
+// Mock the API service with comprehensive mock
+vi.mock("../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  return {
+    default: createApiServiceMock(),
+    ...createApiServiceMock()
+  };
+});
 
 // Mock AuthContext
 const mockAuthContext = {

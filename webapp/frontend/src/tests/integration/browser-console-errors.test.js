@@ -28,15 +28,15 @@ describe("Browser Console Error Detection", () => {
     const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
     
     // Verify react-is is overridden to React 18 compatible version
-    expect(packageJson.overrides['react-is']).toBe('^18.2.0');
+    expect(packageJson.overrides['react-is']).toBe('18.3.1');
     
     // Verify React version is 18.x
-    expect(packageJson.dependencies.react).toMatch(/^\^?18\./);
-    expect(packageJson.dependencies['react-dom']).toMatch(/^\^?18\./);
+    expect(packageJson.dependencies.react).toMatch(/^(\^)?18\./);
+    expect(packageJson.dependencies['react-dom']).toMatch(/^(\^)?18\./);
   });
 
   it("should not have React 19 compatibility issues", async () => {
-    // This test validates the fix we just made
+    // This test validates the fix we made
     const { execSync } = await import('child_process');
     
     try {

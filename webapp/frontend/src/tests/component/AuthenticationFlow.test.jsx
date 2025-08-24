@@ -50,42 +50,45 @@ describe("Authentication Flow Components", () => {
 
   describe("AuthModal Component", () => {
     it("should render login form by default", () => {
-      renderWithRouter(<AuthModal isOpen={true} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={true} onClose={() => {}} />);
 
-      expect(screen.getByText(/Sign In/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Sign In/i)).toHaveLength(3); // header, title, button
+      expect(screen.getByLabelText(/Username or Email/i)).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /Username or Email/i })).toBeInTheDocument();
     });
 
     it("should switch to signup form when requested", () => {
-      renderWithRouter(<AuthModal isOpen={true} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={true} onClose={() => {}} />);
 
-      fireEvent.click(screen.getByText(/Create Account/i));
+      fireEvent.click(screen.getByText(/Sign up here/i));
 
-      expect(screen.getByText(/Sign Up/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Confirm Password/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Create Account/i })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /First Name/i })).toBeInTheDocument();
     });
 
     it("should close modal when close button is clicked", () => {
       const onClose = vi.fn();
-      renderWithRouter(<AuthModal isOpen={true} onClose={onClose} />);
+      renderWithRouter(<AuthModal open={true} onClose={onClose} />);
 
-      fireEvent.click(screen.getByLabelText(/Close/i));
+      // Find close button by CloseIcon testid
+      fireEvent.click(screen.getByTestId('CloseIcon').closest('button'));
 
       expect(onClose).toHaveBeenCalled();
     });
 
     it("should close modal when clicking outside", () => {
       const onClose = vi.fn();
-      renderWithRouter(<AuthModal isOpen={true} onClose={onClose} />);
+      renderWithRouter(<AuthModal open={true} onClose={onClose} />);
 
-      fireEvent.click(screen.getByTestId("modal-backdrop"));
+      // Click on the backdrop (outside the modal content)
+      const backdrop = document.querySelector('.MuiBackdrop-root');
+      fireEvent.click(backdrop);
 
       expect(onClose).toHaveBeenCalled();
     });
 
     it("should not render when isOpen is false", () => {
-      renderWithRouter(<AuthModal isOpen={false} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={false} onClose={() => {}} />);
 
       expect(screen.queryByText(/Sign In/i)).not.toBeInTheDocument();
     });
@@ -95,7 +98,7 @@ describe("Authentication Flow Components", () => {
     it("should render login form fields", () => {
       renderWithRouter(<LoginForm onSuccess={() => {}} />);
 
-      expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Username or Email/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /Sign In/i })
@@ -116,7 +119,7 @@ describe("Authentication Flow Components", () => {
     it("should validate email format", async () => {
       renderWithRouter(<LoginForm onSuccess={() => {}} />);
 
-      fireEvent.change(screen.getByLabelText(/Email/i), {
+      fireEvent.change(screen.getByLabelText(/Username or Email/i), {
         target: { value: "invalid-email" },
       });
 
@@ -150,7 +153,7 @@ describe("Authentication Flow Components", () => {
 
       renderWithRouter(<LoginForm onSuccess={onSuccess} />);
 
-      fireEvent.change(screen.getByLabelText(/Email/i), {
+      fireEvent.change(screen.getByLabelText(/Username or Email/i), {
         target: { value: "test@example.com" },
       });
       fireEvent.change(screen.getByLabelText(/Password/i), {
@@ -302,7 +305,7 @@ describe("Authentication Flow Components", () => {
   describe("Signup Flow", () => {
     it("should render signup form", () => {
       renderWithRouter(
-        <AuthModal isOpen={true} initialMode="signup" onClose={() => {}} />
+        <AuthModal open={true} initialMode="signup" onClose={() => {}} />
       );
 
       expect(screen.getByText(/Sign Up/i)).toBeInTheDocument();
@@ -313,7 +316,7 @@ describe("Authentication Flow Components", () => {
 
     it("should validate password confirmation", async () => {
       renderWithRouter(
-        <AuthModal isOpen={true} initialMode="signup" onClose={() => {}} />
+        <AuthModal open={true} initialMode="signup" onClose={() => {}} />
       );
 
       fireEvent.change(screen.getByLabelText(/^Password$/i), {
@@ -332,7 +335,7 @@ describe("Authentication Flow Components", () => {
 
     it("should validate password strength", async () => {
       renderWithRouter(
-        <AuthModal isOpen={true} initialMode="signup" onClose={() => {}} />
+        <AuthModal open={true} initialMode="signup" onClose={() => {}} />
       );
 
       fireEvent.change(screen.getByLabelText(/^Password$/i), {
@@ -357,7 +360,7 @@ describe("Authentication Flow Components", () => {
       });
 
       renderWithRouter(
-        <AuthModal isOpen={true} initialMode="signup" onClose={() => {}} />
+        <AuthModal open={true} initialMode="signup" onClose={() => {}} />
       );
 
       fireEvent.change(screen.getByLabelText(/Email/i), {
@@ -393,7 +396,7 @@ describe("Authentication Flow Components", () => {
       });
 
       renderWithRouter(
-        <AuthModal isOpen={true} initialMode="signup" onClose={() => {}} />
+        <AuthModal open={true} initialMode="signup" onClose={() => {}} />
       );
 
       fireEvent.change(screen.getByLabelText(/Email/i), {
@@ -424,7 +427,7 @@ describe("Authentication Flow Components", () => {
       });
 
       renderWithRouter(
-        <AuthModal isOpen={true} initialMode="signup" onClose={() => {}} />
+        <AuthModal open={true} initialMode="signup" onClose={() => {}} />
       );
 
       // Complete signup first
@@ -459,7 +462,7 @@ describe("Authentication Flow Components", () => {
       });
 
       renderWithRouter(
-        <AuthModal isOpen={true} onClose={() => {}} onSuccess={onSuccess} />
+        <AuthModal open={true} onClose={() => {}} onSuccess={onSuccess} />
       );
 
       // Simulate being in confirmation state
@@ -483,7 +486,7 @@ describe("Authentication Flow Components", () => {
 
       renderWithRouter(
         <AuthModal
-          isOpen={true}
+          open={true}
           initialMode="confirmation"
           email="test@example.com"
           onClose={() => {}}
@@ -503,7 +506,7 @@ describe("Authentication Flow Components", () => {
     it("should render forgot password form", () => {
       renderWithRouter(
         <AuthModal
-          isOpen={true}
+          open={true}
           initialMode="forgotPassword"
           onClose={() => {}}
         />
@@ -526,7 +529,7 @@ describe("Authentication Flow Components", () => {
 
       renderWithRouter(
         <AuthModal
-          isOpen={true}
+          open={true}
           initialMode="forgotPassword"
           onClose={() => {}}
         />
@@ -551,7 +554,7 @@ describe("Authentication Flow Components", () => {
 
       renderWithRouter(
         <AuthModal
-          isOpen={true}
+          open={true}
           initialMode="resetPassword"
           email="test@example.com"
           onClose={() => {}}
@@ -581,7 +584,7 @@ describe("Authentication Flow Components", () => {
 
   describe("Accessibility", () => {
     it("should have proper ARIA labels and roles", () => {
-      renderWithRouter(<AuthModal isOpen={true} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={true} onClose={() => {}} />);
 
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       expect(screen.getByLabelText(/Email/i)).toHaveAttribute(
@@ -595,7 +598,7 @@ describe("Authentication Flow Components", () => {
     });
 
     it("should trap focus within modal", () => {
-      renderWithRouter(<AuthModal isOpen={true} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={true} onClose={() => {}} />);
 
       const _modal = screen.getByRole("dialog");
       const firstFocusable = screen.getByLabelText(/Email/i);
@@ -615,7 +618,7 @@ describe("Authentication Flow Components", () => {
 
     it("should close modal on Escape key", () => {
       const onClose = vi.fn();
-      renderWithRouter(<AuthModal isOpen={true} onClose={onClose} />);
+      renderWithRouter(<AuthModal open={true} onClose={onClose} />);
 
       fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
 
@@ -625,7 +628,7 @@ describe("Authentication Flow Components", () => {
 
   describe("Form Persistence", () => {
     it("should preserve form data when switching modes", () => {
-      renderWithRouter(<AuthModal isOpen={true} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={true} onClose={() => {}} />);
 
       // Enter email in login form
       fireEvent.change(screen.getByLabelText(/Email/i), {
@@ -640,7 +643,7 @@ describe("Authentication Flow Components", () => {
     });
 
     it("should clear sensitive fields when switching modes", () => {
-      renderWithRouter(<AuthModal isOpen={true} onClose={() => {}} />);
+      renderWithRouter(<AuthModal open={true} onClose={() => {}} />);
 
       // Enter password in login form
       fireEvent.change(screen.getByLabelText(/Password/i), {

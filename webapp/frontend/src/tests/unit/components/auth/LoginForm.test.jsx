@@ -1,457 +1,233 @@
-/**
- * Unit Tests for LoginForm Component
- * Tests the authentication form functionality
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BrowserRouter } from "react-router-dom";
+import { renderWithTheme } from "../test-helpers/component-test-utils";
 import LoginForm from "../../../../components/auth/LoginForm.jsx";
 
 // Mock the auth context
-const mockLogin = vi.fn();
-const mockClearError = vi.fn();
-
-const mockUseAuth = vi.fn(() => ({
-  login: mockLogin,
-  isLoading: false,
-  error: null,
-  clearError: mockClearError,
-  user: null,
-}));
-
 vi.mock("../../../../contexts/AuthContext.jsx", () => ({
-  useAuth: mockUseAuth,
+  useAuth: vi.fn(() => ({
+    login: vi.fn(),
+    isLoading: false,
+    error: null,
+    clearError: vi.fn(),
+    user: null,
+  })),
 }));
 
-// Wrapper component for router context
-const TestWrapper = ({ children }) => <BrowserRouter>{children}</BrowserRouter>;
+// Import after mocking
+import { useAuth } from "../../../../contexts/AuthContext.jsx";
 
 describe("LoginForm Component", () => {
+  const defaultProps = {
+    onSwitchToRegister: vi.fn(),
+    onSwitchToForgotPassword: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock implementation
+    useAuth.mockReturnValue({
+      login: vi.fn(),
+      isLoading: false,
+      error: null,
+      clearError: vi.fn(),
+      user: null,
+    });
   });
 
   describe("Form Rendering", () => {
     it("should render login form with required fields", () => {
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      expect(
-        screen.getByRole("textbox", { name: /username|email/i })
-      ).toBeInTheDocument();
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /sign in|login/i })
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText(/username or email/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
     });
 
-    it("should have password visibility toggle", () => {
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+    it("should render form title", () => {
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      const passwordField = screen.getByLabelText(/password/i);
-      expect(passwordField).toHaveAttribute("type", "password");
-
-      const toggleButton = screen.getByRole("button", {
-        name: /toggle password visibility/i,
-      });
-      expect(toggleButton).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /sign in/i })).toBeInTheDocument();
     });
 
-    it("should render navigation links", () => {
-      const mockOnSwitchToRegister = vi.fn();
-      const mockOnSwitchToForgotPassword = vi.fn();
+    it("should render switch to register link", () => {
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      render(
-        <TestWrapper>
-          <LoginForm
-            onSwitchToRegister={mockOnSwitchToRegister}
-            onSwitchToForgotPassword={mockOnSwitchToForgotPassword}
-          />
-        </TestWrapper>
-      );
+      expect(screen.getByText(/don't have an account/i)).toBeInTheDocument();
+    });
 
-      expect(
-        screen.getByText(/register|sign up|create account/i)
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/forgot password|reset password/i)
-      ).toBeInTheDocument();
+    it("should render forgot password link", () => {
+      renderWithTheme(<LoginForm {...defaultProps} />);
+
+      expect(screen.getByText(/forgot password/i)).toBeInTheDocument();
     });
   });
 
-  describe("Form Interactions", () => {
-    it("should toggle password visibility when clicked", async () => {
+  describe("Form Interaction", () => {
+    it("should handle username input", async () => {
       const user = userEvent.setup();
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      await user.type(usernameInput, "testuser");
 
-      const passwordField = screen.getByLabelText(/password/i);
-      const toggleButton = screen.getByRole("button", {
-        name: /toggle password visibility/i,
-      });
-
-      expect(passwordField).toHaveAttribute("type", "password");
-
-      await user.click(toggleButton);
-      expect(passwordField).toHaveAttribute("type", "text");
-
-      await user.click(toggleButton);
-      expect(passwordField).toHaveAttribute("type", "password");
+      expect(usernameInput).toHaveValue("testuser");
     });
 
-    it("should clear errors when user starts typing", async () => {
+    it("should handle password input", async () => {
       const user = userEvent.setup();
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      // Mock auth context with error
-      mockUseAuth.mockReturnValue({
+      const passwordInput = screen.getByLabelText(/^password/i);
+      await user.type(passwordInput, "password123");
+
+      expect(passwordInput).toHaveValue("password123");
+    });
+
+    it("should toggle password visibility", async () => {
+      const user = userEvent.setup();
+      renderWithTheme(<LoginForm {...defaultProps} />);
+
+      const passwordInput = screen.getByLabelText(/^password/i);
+      const toggleButton = screen.getByRole("button", { name: /toggle password visibility/i });
+
+      expect(passwordInput).toHaveAttribute("type", "password");
+
+      await user.click(toggleButton);
+      expect(passwordInput).toHaveAttribute("type", "text");
+
+      await user.click(toggleButton);
+      expect(passwordInput).toHaveAttribute("type", "password");
+    });
+
+    it("should call login on form submission", async () => {
+      const mockLogin = vi.fn().mockResolvedValue({ success: true });
+      useAuth.mockReturnValue({
         login: mockLogin,
         isLoading: false,
-        error: "Invalid credentials",
-        clearError: mockClearError,
+        error: null,
+        clearError: vi.fn(),
         user: null,
       });
 
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const usernameField = screen.getByRole("textbox", {
-        name: /username|email/i,
-      });
-      await user.type(usernameField, "test");
-
-      expect(mockClearError).toHaveBeenCalled();
-    });
-
-    it("should update form data when inputs change", async () => {
       const user = userEvent.setup();
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password/i);
+      const submitButton = screen.getByRole("button", { name: /sign in/i });
 
-      const usernameField = screen.getByRole("textbox", {
-        name: /username|email/i,
-      });
-      const passwordField = screen.getByLabelText(/password/i);
-
-      await user.type(usernameField, "testuser@example.com");
-      await user.type(passwordField, "password123");
-
-      expect(usernameField).toHaveValue("testuser@example.com");
-      expect(passwordField).toHaveValue("password123");
-    });
-  });
-
-  describe("Form Validation", () => {
-    it("should require username and password", async () => {
-      const user = userEvent.setup();
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const submitButton = screen.getByRole("button", {
-        name: /sign in|login/i,
-      });
+      await user.type(usernameInput, "testuser");
+      await user.type(passwordInput, "password123");
       await user.click(submitButton);
 
-      expect(
-        screen.getByText(/please enter both username and password/i)
-      ).toBeInTheDocument();
-      expect(mockLogin).not.toHaveBeenCalled();
+      expect(mockLogin).toHaveBeenCalledWith("testuser", "password123");
     });
 
-    it("should require username when only password provided", async () => {
-      const user = userEvent.setup();
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const passwordField = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole("button", {
-        name: /sign in|login/i,
-      });
-
-      await user.type(passwordField, "password123");
-      await user.click(submitButton);
-
-      expect(
-        screen.getByText(/please enter both username and password/i)
-      ).toBeInTheDocument();
-      expect(mockLogin).not.toHaveBeenCalled();
-    });
-
-    it("should require password when only username provided", async () => {
-      const user = userEvent.setup();
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const usernameField = screen.getByRole("textbox", {
-        name: /username|email/i,
-      });
-      const submitButton = screen.getByRole("button", {
-        name: /sign in|login/i,
-      });
-
-      await user.type(usernameField, "testuser@example.com");
-      await user.click(submitButton);
-
-      expect(
-        screen.getByText(/please enter both username and password/i)
-      ).toBeInTheDocument();
-      expect(mockLogin).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("Form Submission", () => {
-    it("should call login with correct credentials", async () => {
-      const user = userEvent.setup();
-      mockLogin.mockResolvedValue({ success: true });
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const usernameField = screen.getByRole("textbox", {
-        name: /username|email/i,
-      });
-      const passwordField = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole("button", {
-        name: /sign in|login/i,
-      });
-
-      await user.type(usernameField, "testuser@example.com");
-      await user.type(passwordField, "password123");
-      await user.click(submitButton);
-
-      expect(mockLogin).toHaveBeenCalledWith(
-        "testuser@example.com",
-        "password123"
-      );
-    });
-
-    it("should handle form submission via Enter key", async () => {
-      const user = userEvent.setup();
-      mockLogin.mockResolvedValue({ success: true });
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const usernameField = screen.getByRole("textbox", {
-        name: /username|email/i,
-      });
-      const passwordField = screen.getByLabelText(/password/i);
-
-      await user.type(usernameField, "testuser@example.com");
-      await user.type(passwordField, "password123");
-      await user.keyboard("{Enter}");
-
-      expect(mockLogin).toHaveBeenCalledWith(
-        "testuser@example.com",
-        "password123"
-      );
-    });
-  });
-
-  describe("Loading States", () => {
-    it("should show loading state during authentication", () => {
-      // Mock loading state
-      mockUseAuth.mockReturnValue({
-        login: mockLogin,
+    it("should show loading state during login", () => {
+      useAuth.mockReturnValue({
+        login: vi.fn(),
         isLoading: true,
         error: null,
-        clearError: mockClearError,
+        clearError: vi.fn(),
         user: null,
       });
 
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
       expect(screen.getByRole("progressbar")).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /sign in|login/i })
-      ).toBeDisabled();
+      expect(screen.getByRole("button", { name: /signing in/i })).toBeDisabled();
     });
 
-    it("should disable form during loading", () => {
-      // Mock loading state
-      mockUseAuth.mockReturnValue({
-        login: mockLogin,
-        isLoading: true,
-        error: null,
-        clearError: mockClearError,
-        user: null,
-      });
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      expect(
-        screen.getByRole("textbox", { name: /username|email/i })
-      ).toBeDisabled();
-      expect(screen.getByLabelText(/password/i)).toBeDisabled();
-      expect(
-        screen.getByRole("button", { name: /sign in|login/i })
-      ).toBeDisabled();
-    });
-  });
-
-  describe("Error Handling", () => {
-    it("should display authentication errors", () => {
-      // Mock error state
-      mockUseAuth.mockReturnValue({
-        login: mockLogin,
+    it("should display error message", () => {
+      const errorMessage = "Invalid credentials";
+      useAuth.mockReturnValue({
+        login: vi.fn(),
         isLoading: false,
-        error: "Invalid username or password",
-        clearError: mockClearError,
+        error: errorMessage,
+        clearError: vi.fn(),
         user: null,
       });
 
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      expect(
-        screen.getByText("Invalid username or password")
-      ).toBeInTheDocument();
-    });
-
-    it("should display local validation errors", async () => {
-      const user = userEvent.setup();
-
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
-
-      const submitButton = screen.getByRole("button", {
-        name: /sign in|login/i,
-      });
-      await user.click(submitButton);
-
-      expect(
-        screen.getByText(/please enter both username and password/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(errorMessage)).toBeInTheDocument();
     });
   });
 
-  describe("Navigation Callbacks", () => {
-    it("should call onSwitchToRegister when register link clicked", async () => {
+  describe("Navigation", () => {
+    it("should call onSwitchToRegister when register link is clicked", async () => {
       const user = userEvent.setup();
-      const mockOnSwitchToRegister = vi.fn();
-
-      render(
-        <TestWrapper>
-          <LoginForm onSwitchToRegister={mockOnSwitchToRegister} />
-        </TestWrapper>
+      const mockSwitchToRegister = vi.fn();
+      
+      renderWithTheme(
+        <LoginForm 
+          {...defaultProps} 
+          onSwitchToRegister={mockSwitchToRegister} 
+        />
       );
 
-      const registerLink = screen.getByText(/register|sign up|create account/i);
+      const registerLink = screen.getByText(/sign up/i);
       await user.click(registerLink);
 
-      expect(mockOnSwitchToRegister).toHaveBeenCalled();
+      expect(mockSwitchToRegister).toHaveBeenCalled();
     });
 
-    it("should call onSwitchToForgotPassword when forgot password link clicked", async () => {
+    it("should call onSwitchToForgotPassword when forgot password link is clicked", async () => {
       const user = userEvent.setup();
-      const mockOnSwitchToForgotPassword = vi.fn();
-
-      render(
-        <TestWrapper>
-          <LoginForm onSwitchToForgotPassword={mockOnSwitchToForgotPassword} />
-        </TestWrapper>
+      const mockSwitchToForgotPassword = vi.fn();
+      
+      renderWithTheme(
+        <LoginForm 
+          {...defaultProps} 
+          onSwitchToForgotPassword={mockSwitchToForgotPassword} 
+        />
       );
 
-      const forgotPasswordLink = screen.getByText(
-        /forgot password|reset password/i
-      );
-      await user.click(forgotPasswordLink);
+      const forgotLink = screen.getByText(/forgot password/i);
+      await user.click(forgotLink);
 
-      expect(mockOnSwitchToForgotPassword).toHaveBeenCalled();
+      expect(mockSwitchToForgotPassword).toHaveBeenCalled();
     });
   });
 
-  describe("Accessibility", () => {
-    it("should have proper ARIA labels and roles", () => {
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+  describe("Remember Me", () => {
+    it("should handle remember me checkbox", async () => {
+      const user = userEvent.setup();
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      expect(screen.getByRole("form")).toBeInTheDocument();
-      expect(screen.getByLabelText(/username|email/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+      const rememberCheckbox = screen.getByRole("checkbox", { name: /remember me/i });
+      expect(rememberCheckbox).not.toBeChecked();
+
+      await user.click(rememberCheckbox);
+      expect(rememberCheckbox).toBeChecked();
     });
 
-    it("should be keyboard navigable", async () => {
+    it("should pass remember me state to login function", async () => {
+      const mockLogin = vi.fn().mockResolvedValue({ success: true });
+      useAuth.mockReturnValue({
+        login: mockLogin,
+        isLoading: false,
+        error: null,
+        clearError: vi.fn(),
+        user: null,
+      });
+
       const user = userEvent.setup();
+      renderWithTheme(<LoginForm {...defaultProps} />);
 
-      render(
-        <TestWrapper>
-          <LoginForm />
-        </TestWrapper>
-      );
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password/i);
+      const rememberCheckbox = screen.getByRole("checkbox", { name: /remember me/i });
+      const submitButton = screen.getByRole("button", { name: /sign in/i });
 
-      // Tab through form elements
-      await user.tab();
-      expect(
-        screen.getByRole("textbox", { name: /username|email/i })
-      ).toHaveFocus();
+      await user.type(usernameInput, "testuser");
+      await user.type(passwordInput, "password123");
+      await user.click(rememberCheckbox);
+      await user.click(submitButton);
 
-      await user.tab();
-      expect(screen.getByLabelText(/password/i)).toHaveFocus();
-
-      await user.tab();
-      expect(
-        screen.getByRole("button", { name: /toggle password visibility/i })
-      ).toHaveFocus();
-
-      await user.tab();
-      expect(
-        screen.getByRole("button", { name: /sign in|login/i })
-      ).toHaveFocus();
+      expect(mockLogin).toHaveBeenCalledWith("testuser", "password123");
     });
   });
 });

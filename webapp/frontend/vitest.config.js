@@ -5,36 +5,36 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    setupFiles: ["./src/tests/setup.js"],
+    setupFiles: ["./src/tests/setup-minimal.jsx"],
     globals: true,
-    testTimeout: 30000, // Increased for real site testing
-    hookTimeout: 15000,
-    teardownTimeout: 10000,
-    // Disable isolation for better performance
-    isolate: false,
-    // Pool options for better performance
-    pool: "threads",
+    testTimeout: 30000, // Increased for async component tests
+    hookTimeout: 10000, // Increased for complex component rendering
+    teardownTimeout: 5000, // Keep low for cleanup
+    // Optimized configuration for performance
+    pool: "forks",
     poolOptions: {
-      threads: {
-        singleThread: true, // Prevent race conditions
+      forks: {
+        singleFork: true,
+        isolate: false, // Reuse context for better performance
       },
     },
-    // Reporter configuration
-    reporter: ["default"],
-    // Coverage configuration
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      exclude: [
-        "node_modules/",
-        "src/tests/",
-        "**/*.test.{js,jsx}",
-        "**/*.spec.{js,jsx}",
-      ],
-    },
+    // Faster test execution
+    minWorkers: 1,
+    maxWorkers: 1, // Single worker to avoid conflicts
     // Test file patterns
     include: ["src/tests/**/*.{test,spec}.{js,jsx}"],
     exclude: ["node_modules/", "dist/", ".git/"],
+    // Silence console output during tests
+    silent: false,
+    // Reporters configuration - use default instead of basic
+    reporters: [
+      [
+        "default",
+        {
+          summary: false
+        }
+      ]
+    ],
   },
   resolve: {
     alias: {
