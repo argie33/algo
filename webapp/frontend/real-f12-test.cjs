@@ -55,11 +55,37 @@ async function testReactApp() {
     page.on('console', msg => {
       const text = msg.text();
       if (msg.type() === 'error') {
-        consoleErrors.push(text);
-        console.log(`🔍 CONSOLE ERROR CAPTURED: ${text}`);
+        // Categorize error types
+        const isApiError = text.includes('Failed to load resource') || 
+                          text.includes('[API ERROR]') || 
+                          text.includes('API failed') || 
+                          text.includes('status of 4') ||
+                          text.includes('status of 5') ||
+                          text.includes('unavailable - check API connection');
+        const isCriticalError = !isApiError && (
+          text.includes('Cannot set properties') ||
+          text.includes('ContextConsumer') ||
+          text.includes('react-is') ||
+          text.includes('TypeError') ||
+          text.includes('ReferenceError') ||
+          text.includes('SyntaxError')
+        );
+        
+        consoleErrors.push({
+          text,
+          type: isApiError ? 'api' : isCriticalError ? 'critical' : 'other',
+          severity: isCriticalError ? 'high' : isApiError ? 'expected' : 'medium'
+        });
+        
+        const prefix = isCriticalError ? '🚨 CRITICAL' : isApiError ? '🌐 API' : '🔍 OTHER';
+        console.log(`${prefix} ERROR: ${text}`);
       } else if (msg.type() === 'warning' && text.includes('react')) {
-        consoleErrors.push(`WARNING: ${text}`);
-        console.log(`🔍 REACT WARNING CAPTURED: ${text}`);
+        consoleErrors.push({
+          text: `WARNING: ${text}`,
+          type: 'warning',
+          severity: 'low'
+        });
+        console.log(`⚠️  REACT WARNING: ${text}`);
       }
     });
     
@@ -129,9 +155,14 @@ async function testReactApp() {
       };
     });
     
+    // Categorize errors by type and severity
+    const criticalErrors = consoleErrors.filter(e => e.type === 'critical');
+    const apiErrors = consoleErrors.filter(e => e.type === 'api');
+    const otherErrors = consoleErrors.filter(e => e.type === 'other');
+    
     // Multiple patterns for React Context error detection
-    const allErrors = [...consoleErrors, ...jsErrors];
-    const hasContextError = allErrors.some(error => 
+    const allErrorTexts = [...consoleErrors.map(e => e.text || e), ...jsErrors];
+    const hasContextError = allErrorTexts.some(error => 
       (error.includes('Cannot set properties of undefined') && error.includes('ContextConsumer')) ||
       (error.includes('react-is.production.js') && error.includes('TypeError')) ||
       (error.includes('setting \'ContextConsumer\'')) ||
@@ -139,14 +170,14 @@ async function testReactApp() {
     );
     
     // React-is specific errors with more patterns
-    const hasReactIsError = allErrors.some(error =>
+    const hasReactIsError = allErrorTexts.some(error =>
       error.includes('react-is') && 
       (error.includes('TypeError') || error.includes('Cannot set') || error.includes('undefined'))
     );
     
-    console.log(`🔍 DEBUG: Found ${consoleErrors.length} console errors, ${jsErrors.length} JS errors`);
+    console.log(`🔍 ERROR SUMMARY: ${criticalErrors.length} critical, ${apiErrors.length} API, ${otherErrors.length} other, ${jsErrors.length} JS errors`);
     console.log(`🔍 DEBUG: Checking for Context error patterns...`);
-    allErrors.forEach((error, i) => {
+    allErrorTexts.forEach((error, i) => {
       if (error.includes('react-is') || error.includes('ContextConsumer') || error.includes('hoist-non-react-statics')) {
         console.log(`🔍 POTENTIAL CONTEXT ERROR ${i+1}: ${error}`);
       }
@@ -160,14 +191,29 @@ async function testReactApp() {
     console.log(`${!hasReactIsError ? '✅' : '❌'} React-is Error: ${hasReactIsError ? 'DETECTED!' : 'None'}`);
     console.log(`${!reactAnalysis.hasVisibleErrors ? '✅' : '❌'} Visual Errors: ${reactAnalysis.hasVisibleErrors ? 'Found in DOM' : 'None'}`);
     
-    if (consoleErrors.length > 0) {
-      console.log('\n🚨 CONSOLE ERRORS:');
-      consoleErrors.forEach((error, i) => console.log(`   ${i+1}. ${error}`));
+    // Report errors by category
+    if (criticalErrors.length > 0) {
+      console.log('\n🚨 CRITICAL FRONTEND ERRORS (NEED FIXING):');
+      criticalErrors.forEach((error, i) => console.log(`   ${i+1}. ${error.text}`));
     }
     
     if (jsErrors.length > 0) {
-      console.log('\n💥 JAVASCRIPT ERRORS:');
+      console.log('\n💥 JAVASCRIPT ERRORS (NEED FIXING):');
       jsErrors.forEach((error, i) => console.log(`   ${i+1}. ${error}`));
+    }
+    
+    if (otherErrors.length > 0) {
+      console.log('\n🔍 OTHER CONSOLE ERRORS:');
+      otherErrors.forEach((error, i) => console.log(`   ${i+1}. ${error.text}`));
+    }
+    
+    if (apiErrors.length > 0) {
+      console.log(`\n🌐 API CONNECTIVITY ISSUES (${apiErrors.length} total - EXPECTED when backend offline):`);
+      // Show only first 3 API errors to avoid spam
+      apiErrors.slice(0, 3).forEach((error, i) => console.log(`   ${i+1}. ${error.text}`));
+      if (apiErrors.length > 3) {
+        console.log(`   ... and ${apiErrors.length - 3} more API connectivity errors`);
+      }
     }
     
     if (networkErrors.length > 0 && networkErrors.length < 5) {
@@ -175,12 +221,12 @@ async function testReactApp() {
       networkErrors.forEach((error, i) => console.log(`   ${i+1}. ${error}`));
     }
     
-    if (consoleErrors.length === 0 && jsErrors.length === 0) {
-      console.log('\n✨ No browser errors detected');
+    if (criticalErrors.length === 0 && jsErrors.length === 0 && otherErrors.length === 0) {
+      console.log('\n✨ No critical frontend errors detected');
     }
     
-    const criticalErrors = hasContextError || hasReactIsError;
-    const passed = reactAnalysis.hasRoot && reactAnalysis.hasContent && reactAnalysis.hasReact && !criticalErrors;
+    const hasCriticalIssues = hasContextError || hasReactIsError || criticalErrors.length > 0 || jsErrors.length > 0;
+    const passed = reactAnalysis.hasRoot && reactAnalysis.hasContent && reactAnalysis.hasReact && !hasCriticalIssues;
     
     console.log(`\n${passed ? '🎉 ALL TESTS PASSED' : '💥 CRITICAL ERRORS DETECTED'}`);
     
