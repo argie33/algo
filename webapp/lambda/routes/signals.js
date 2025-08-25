@@ -15,9 +15,7 @@ router.get("/buy", async (req, res) => {
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({
-        error: "Invalid timeframe. Must be daily, weekly, or monthly",
-      });
+      return res.error("Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -60,10 +58,8 @@ router.get("/buy", async (req, res) => {
     // Add null checking for database availability
     if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {
       console.warn("Buy signals query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
-        message: "Trading signals temporarily unavailable - database connection issue",
+      return res.error("Trading signals temporarily unavailable - database connection issue", 500, {
+        type: "service_unavailable",
         data: [],
         timeframe
       });
@@ -87,9 +83,7 @@ router.get("/buy", async (req, res) => {
 
     // Handle empty results with success response
     if (transformedData.length === 0) {
-      return res.json({
-        success: true,
-        data: [],
+      return res.success({data: [],
         pagination: {
           total,
           page,
@@ -103,9 +97,7 @@ router.get("/buy", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: transformedData,
+    res.success({data: transformedData,
       timeframe,
       signal_type: "buy",
       pagination: {
@@ -119,10 +111,8 @@ router.get("/buy", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching buy signals:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch buy signals",
-      message: error.message,
+    return res.error("Failed to fetch buy signals", 500, {
+      details: error.message
     });
   }
 });
@@ -138,9 +128,7 @@ router.get("/sell", async (req, res) => {
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({
-        error: "Invalid timeframe. Must be daily, weekly, or monthly",
-      });
+      return res.error("Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -183,10 +171,8 @@ router.get("/sell", async (req, res) => {
     // Add null checking for database availability
     if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {
       console.warn("Sell signals query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
-        message: "Sell signals temporarily unavailable - database connection issue",
+      return res.error("Sell signals temporarily unavailable - database connection issue", 500, {
+        type: "service_unavailable",
         data: [],
         timeframe
       });
@@ -210,9 +196,7 @@ router.get("/sell", async (req, res) => {
 
     // Handle empty results with success response
     if (transformedData.length === 0) {
-      return res.json({
-        success: true,
-        data: [],
+      return res.success({data: [],
         pagination: {
           total,
           page,
@@ -226,9 +210,7 @@ router.get("/sell", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: transformedData,
+    res.success({data: transformedData,
       timeframe,
       signal_type: "sell",
       pagination: {
@@ -242,10 +224,8 @@ router.get("/sell", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sell signals:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch sell signals",
-      message: error.message,
+    return res.error("Failed to fetch sell signals", 500, {
+      details: error.message
     });
   }
 });
@@ -261,9 +241,7 @@ router.get("/", async (req, res) => {
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({
-        error: "Invalid timeframe. Must be daily, weekly, or monthly",
-      });
+      return res.error("Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -331,10 +309,8 @@ router.get("/", async (req, res) => {
     // Add null checking for database availability
     if (!buyResult || !buyResult.rows || !sellResult || !sellResult.rows || !countResult || !countResult.rows) {
       console.warn("Signals query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
-        message: "Trading signals temporarily unavailable - database connection issue",
+      return res.error("Trading signals temporarily unavailable - database connection issue", 500, {
+        type: "service_unavailable",
         data: {
           buy_signals: [],
           sell_signals: [],
@@ -378,9 +354,7 @@ router.get("/", async (req, res) => {
       signalType: row.signal_type,
     }));
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         buy_signals: buySignals,
         sell_signals: sellSignals,
         summary: {
@@ -401,10 +375,8 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching signals:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch signals",
-      message: error.message,
+    return res.error("Failed to fetch signals", 500, {
+      details: error.message
     });
   }
 });

@@ -25,10 +25,7 @@ router.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({
-        error: "Missing credentials",
-        message: "Username and password are required",
-      });
+      return res.error("Missing credentials", 400);
     }
 
     const command = new InitiateAuthCommand({
@@ -44,7 +41,7 @@ router.post("/login", async (req, res) => {
 
     if (response.ChallengeName) {
       // Handle auth challenges (MFA, password change, etc.)
-      return res.json({
+      return res.success({
         challenge: response.ChallengeName,
         challengeParameters: response.ChallengeParameters,
         session: response.Session,
@@ -52,7 +49,7 @@ router.post("/login", async (req, res) => {
     }
 
     // Successful authentication
-    return res.json({
+    return res.success({
       accessToken: response.AuthenticationResult.AccessToken,
       idToken: response.AuthenticationResult.IdToken,
       refreshToken: response.AuthenticationResult.RefreshToken,
@@ -63,23 +60,14 @@ router.post("/login", async (req, res) => {
     console.error("Login error:", error);
 
     if (error.name === "NotAuthorizedException") {
-      return res.status(401).json({
-        error: "Invalid credentials",
-        message: "The username or password is incorrect",
-      });
+      return res.unauthorized("Invalid credentials");
     }
 
     if (error.name === "UserNotConfirmedException") {
-      return res.status(401).json({
-        error: "Account not confirmed",
-        message: "Please confirm your account before signing in",
-      });
+      return res.unauthorized("Account not confirmed");
     }
 
-    return res.status(500).json({
-      error: "Authentication failed",
-      message: "An error occurred during authentication",
-    });
+    return res.error("Authentication failed", 500);
   }
 });
 
@@ -99,7 +87,7 @@ router.post("/challenge", async (req, res) => {
 
     if (response.ChallengeName) {
       // Another challenge is required
-      return res.json({
+      return res.success({
         challenge: response.ChallengeName,
         challengeParameters: response.ChallengeParameters,
         session: response.Session,
@@ -107,7 +95,7 @@ router.post("/challenge", async (req, res) => {
     }
 
     // Authentication completed
-    return res.json({
+    return res.success({
       accessToken: response.AuthenticationResult.AccessToken,
       idToken: response.AuthenticationResult.IdToken,
       refreshToken: response.AuthenticationResult.RefreshToken,
@@ -116,10 +104,7 @@ router.post("/challenge", async (req, res) => {
     });
   } catch (error) {
     console.error("Challenge response error:", error);
-    return res.status(400).json({
-      error: "Challenge failed",
-      message: "Failed to respond to authentication challenge",
-    });
+    return res.error("Challenge failed", 400);
   }
 });
 
@@ -129,10 +114,7 @@ router.post("/register", async (req, res) => {
     const { username, password, email, firstName, lastName } = req.body;
 
     if (!username || !password || !email) {
-      return res.status(400).json({
-        error: "Missing required fields",
-        message: "Username, password, and email are required",
-      });
+      return res.error("Missing required fields", 400);
     }
 
     const command = new SignUpCommand({
@@ -148,7 +130,7 @@ router.post("/register", async (req, res) => {
 
     const response = await cognitoClient.send(command);
 
-    return res.json({
+    return res.success({
       message: "User registered successfully",
       userSub: response.UserSub,
       codeDeliveryDetails: response.CodeDeliveryDetails,
@@ -157,23 +139,14 @@ router.post("/register", async (req, res) => {
     console.error("Registration error:", error);
 
     if (error.name === "UsernameExistsException") {
-      return res.status(400).json({
-        error: "Username exists",
-        message: "A user with this username already exists",
-      });
+      return res.error("Username exists", 400);
     }
 
     if (error.name === "InvalidParameterException") {
-      return res.status(400).json({
-        error: "Invalid parameters",
-        message: error.message,
-      });
+      return res.error("Invalid parameters", 400);
     }
 
-    return res.status(500).json({
-      error: "Registration failed",
-      message: "An error occurred during registration",
-    });
+    return res.error("Registration failed", 500);
   }
 });
 
@@ -183,10 +156,7 @@ router.post("/confirm", async (req, res) => {
     const { username, confirmationCode } = req.body;
 
     if (!username || !confirmationCode) {
-      return res.status(400).json({
-        error: "Missing parameters",
-        message: "Username and confirmation code are required",
-      });
+      return res.error("Missing parameters", 400);
     }
 
     const command = new ConfirmSignUpCommand({
@@ -197,23 +167,17 @@ router.post("/confirm", async (req, res) => {
 
     await cognitoClient.send(command);
 
-    return res.json({
+    return res.success({
       message: "Account confirmed successfully",
     });
   } catch (error) {
     console.error("Confirmation error:", error);
 
     if (error.name === "CodeMismatchException") {
-      return res.status(400).json({
-        error: "Invalid code",
-        message: "The confirmation code is incorrect",
-      });
+      return res.error("Invalid code", 400);
     }
 
-    return res.status(400).json({
-      error: "Confirmation failed",
-      message: "Failed to confirm account",
-    });
+    return res.error("Confirmation failed", 400);
   }
 });
 
@@ -223,10 +187,7 @@ router.post("/forgot-password", async (req, res) => {
     const { username } = req.body;
 
     if (!username) {
-      return res.status(400).json({
-        error: "Missing username",
-        message: "Username is required",
-      });
+      return res.error("Missing username", 400);
     }
 
     const command = new ForgotPasswordCommand({
@@ -236,16 +197,13 @@ router.post("/forgot-password", async (req, res) => {
 
     const response = await cognitoClient.send(command);
 
-    return res.json({
+    return res.success({
       message: "Password reset code sent",
       codeDeliveryDetails: response.CodeDeliveryDetails,
     });
   } catch (error) {
     console.error("Forgot password error:", error);
-    return res.status(400).json({
-      error: "Password reset failed",
-      message: "Failed to initiate password reset",
-    });
+    return res.error("Password reset failed", 400);
   }
 });
 
@@ -255,10 +213,7 @@ router.post("/reset-password", async (req, res) => {
     const { username, confirmationCode, newPassword } = req.body;
 
     if (!username || !confirmationCode || !newPassword) {
-      return res.status(400).json({
-        error: "Missing parameters",
-        message: "Username, confirmation code, and new password are required",
-      });
+      return res.error("Missing parameters", 400);
     }
 
     const command = new ConfirmForgotPasswordCommand({
@@ -270,15 +225,12 @@ router.post("/reset-password", async (req, res) => {
 
     await cognitoClient.send(command);
 
-    return res.json({
+    return res.success({
       message: "Password reset successfully",
     });
   } catch (error) {
     console.error("Reset password error:", error);
-    return res.status(400).json({
-      error: "Password reset failed",
-      message: "Failed to reset password",
-    });
+    return res.error("Password reset failed", 400);
   }
 });
 
@@ -288,10 +240,7 @@ router.post("/confirm-forgot-password", async (req, res) => {
   const { username, confirmationCode, newPassword } = req.body;
 
   if (!username || !confirmationCode || !newPassword) {
-    return res.status(400).json({
-      error: "Missing required parameters",
-      message: "Username, confirmation code, and new password are required",
-    });
+    return res.error("Missing required parameters", 400);
   }
 
   try {
@@ -303,14 +252,12 @@ router.post("/confirm-forgot-password", async (req, res) => {
     });
 
     await cognitoClient.send(command);
-    res.json({
+    res.success({
       message: "Password reset successfully",
     });
   } catch (error) {
     console.error("Password reset error:", error);
-    res.status(400).json({
-      error: error.message || "Password reset failed",
-    });
+    res.error(error.message || "Password reset failed", 400);
   }
 });
 
@@ -319,10 +266,7 @@ router.post("/respond-to-challenge", async (req, res) => {
   const { challengeName, session, challengeResponses } = req.body;
 
   if (!challengeName || !session) {
-    return res.status(400).json({
-      error: "Missing required parameters",
-      message: "Challenge name and session are required",
-    });
+    return res.error("Missing required parameters", 400);
   }
 
   try {
@@ -336,7 +280,7 @@ router.post("/respond-to-challenge", async (req, res) => {
     const response = await cognitoClient.send(command);
 
     if (response.AuthenticationResult) {
-      res.json({
+      res.success({
         tokens: {
           accessToken: response.AuthenticationResult.AccessToken,
           idToken: response.AuthenticationResult.IdToken,
@@ -345,37 +289,34 @@ router.post("/respond-to-challenge", async (req, res) => {
         user: response.AuthenticationResult.User || {},
       });
     } else if (response.ChallengeName) {
-      res.json({
+      res.success({
         challenge: response.ChallengeName,
         challengeParameters: response.ChallengeParameters,
         session: response.Session,
       });
     } else {
-      res.json({
+      res.success({
         message: "Challenge response processed",
       });
     }
   } catch (error) {
     console.error("Challenge response error:", error);
-    res.status(400).json({
-      error: error.message || "Challenge response failed",
-    });
+    res.error(error.message || "Challenge response failed", 400);
   }
 });
 
 // Get current user info (protected route)
 router.get("/me", authenticateToken, (req, res) => {
-  res.json({
+  res.success({
     user: req.user,
   });
 });
 
 // Health check for auth service
 router.get("/health", (req, res) => {
-  res.json({
+  res.success({
     status: "healthy",
     service: "Authentication Service",
-    timestamp: new Date().toISOString(),
     cognito: {
       userPoolId: process.env.COGNITO_USER_POOL_ID
         ? "configured"

@@ -116,9 +116,7 @@ router.get("/sectors", async (req, res) => {
 
     // If no sectors found, provide helpful message about data loading
     if (sectors.length === 0) {
-      res.json({
-        success: true,
-        data: [],
+      res.success({data: [],
         message: "No sectors data available - check data loading process",
         recommendations: [
           "Run stock symbols data loader to populate basic stock data",
@@ -128,9 +126,7 @@ router.get("/sectors", async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     } else {
-      res.json({
-        success: true,
-        data: sectors,
+      res.success({data: sectors,
         count: sectors.length,
         timestamp: new Date().toISOString(),
       });
@@ -175,9 +171,7 @@ router.get("/sectors", async (req, res) => {
 
     const emptySectors = [];
 
-    res.json({
-      success: true,
-      data: emptySectors,
+    res.success({data: emptySectors,
       message: "No sectors data available - check data loading process",
       timestamp: new Date().toISOString(),
     });
@@ -272,9 +266,7 @@ router.get("/public/sample", async (req, res) => {
       throw dbError; // Re-throw to trigger proper error handling
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       count: result.rows.length,
       endpoint: "public-sample",
       timestamp: new Date().toISOString(),
@@ -799,9 +791,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       },
     }));
 
-    res.json({
-      success: true,
-      performance:
+    res.success({performance:
         "COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables",
       data: formattedStocks,
       pagination: {
@@ -1031,9 +1021,7 @@ router.get("/", stocksListValidation, async (req, res) => {
 
         // Add null checking for database availability
         if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-          return res.json({
-            success: true,
-            data: stocksResult?.rows || [],
+          return res.success({data: stocksResult?.rows || [],
             pagination: {
               page,
               limit,
@@ -1045,9 +1033,7 @@ router.get("/", stocksListValidation, async (req, res) => {
           });
         }
 
-        return res.json({
-          success: true,
-          data: stocksResult.rows,
+        return res.success({data: stocksResult.rows,
           pagination: {
             page,
             limit,
@@ -1062,12 +1048,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       }
     }
 
-    res.status(500).json({
-      error: "Optimized query failed",
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Optimized query failed", 500);
   }
 });
 
@@ -1226,9 +1207,7 @@ router.get("/screen", async (req, res) => {
       `✅ Retrieved ${stocksResult.rows.length} stocks out of ${totalStocks} total matching criteria`
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         stocks: stocksResult.rows,
         pagination: {
           page: parseInt(page),
@@ -1303,12 +1282,7 @@ router.get("/:ticker", async (req, res) => {
     // Add null checking for database availability
     if (!result || !result.rows) {
       console.warn("Database query returned null result, database may be unavailable");
-      return res.status(503).json({
-        error: "Service temporarily unavailable",
-        symbol: tickerUpper,
-        message: "Stock data temporarily unavailable - database connection issue",
-        code: "DATABASE_UNAVAILABLE"
-      });
+      return res.error("Service temporarily unavailable", 500, {type: "service_unavailable"});
     }
 
     if (result.rows.length === 0) {
@@ -1364,13 +1338,7 @@ router.get("/:ticker", async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Error in simplified stock endpoint:", error);
-    res.status(500).json({
-      error: "Failed to fetch stock data",
-      symbol: req.params.ticker,
-      message: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch stock data", 500);
   }
 });
 
@@ -1734,9 +1702,7 @@ router.get("/:ticker/prices/recent", async (req, res) => {
       `📊 [STOCKS] Successfully returning ${pricesWithChange.length} price records for ${ticker}`
     );
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
+    res.success({ticker: ticker.toUpperCase(),
       dataPoints: result.rows.length,
       data: pricesWithChange,
       summary: {
@@ -1798,12 +1764,7 @@ router.get("/filters/sectors", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching stock exchanges:", error);
-    res.status(500).json({
-      error: "Failed to fetch stock exchanges",
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch stock exchanges", 500);
   }
 });
 
@@ -1897,9 +1858,7 @@ router.get("/screen/stats", async (req, res) => {
     if (result && result.rows.length > 0) {
       const stats = result.rows[0];
 
-      res.json({
-        success: true,
-        data: {
+      res.success({data: {
           total_stocks: parseInt(stats.total_stocks) || 8500,
           ranges: {
             market_cap: {
@@ -2106,9 +2065,7 @@ router.post("/init-price-data", async (req, res) => {
     
     const totalRows = countResult.rows[0].count;
 
-    res.json({
-      success: true,
-      message: "price_daily table initialized successfully",
+    res.success({message: "price_daily table initialized successfully",
       details: {
         tableCreated: true,
         indexCreated: true,
@@ -2179,9 +2136,7 @@ router.post("/init-api-keys-table", async (req, res) => {
 
     const columns = await query(verifyQuery);
 
-    res.json({
-      success: true,
-      message: "user_api_keys table initialized successfully",
+    res.success({message: "user_api_keys table initialized successfully",
       details: {
         tableCreated: true,
         indexesCreated: true,

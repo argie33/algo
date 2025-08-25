@@ -9,12 +9,10 @@ router.get("/", async (req, res) => {
   try {
     // Basic health check without database (for quick status)
     if (req.query.quick === "true") {
-      return res.json({
-        success: true,
+      return res.success({
         status: "healthy",
         healthy: true,
         service: "Financial Dashboard API",
-        timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
         memory: process.memoryUsage(),
         uptime: process.uptime(),
@@ -37,11 +35,10 @@ router.get("/", async (req, res) => {
         await initializeDatabase();
       } catch (dbInitError) {
         console.error("Failed to initialize database:", dbInitError.message);
-        return res.status(503).json({
-          status: "unhealthy",
+        return res.error("Database service unavailable", 500, {
+          type: "service_unavailable",
           healthy: false,
           service: "Financial Dashboard API",
-          timestamp: new Date().toISOString(),
           environment: process.env.NODE_ENV || "development",
           database: {
             status: "initialization_failed",
@@ -60,11 +57,10 @@ router.get("/", async (req, res) => {
     }
     // Check if database error was passed from middleware
     if (req.dbError) {
-      return res.status(503).json({
-        status: "unhealthy",
+      return res.error("Database service unavailable", 500, {
+        type: "service_unavailable",
         healthy: false,
         service: "Financial Dashboard API",
-        timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
         database: {
           status: "unavailable",
@@ -88,12 +84,10 @@ router.get("/", async (req, res) => {
           const _result = await query("SELECT 1 as ok");
           if (_result && (_result.rows || _result.length >= 0)) {
             const dbTime = Date.now() - Date.now();
-            return res.json({
-              success: true,
+            return res.success({
               status: "healthy",
               healthy: true,
               service: "Financial Dashboard API",
-              timestamp: new Date().toISOString(),
               environment: process.env.NODE_ENV || "development",
               database: {
                 status: "connected",
@@ -116,33 +110,31 @@ router.get("/", async (req, res) => {
         } catch (testDbError) {
           console.log("Test database error:", testDbError.message);
           // Return unhealthy status when database query fails in test
-          return res.status(503).json({
-            status: "unhealthy",
-            healthy: false,
-            service: "Financial Dashboard API",
-            timestamp: new Date().toISOString(),
-            environment: process.env.NODE_ENV || "development",
-            database: {
-              status: "disconnected",
-              error: testDbError.message,
-              lastAttempt: new Date().toISOString(),
-            },
-            api: {
-              version: "1.0.0",
-              environment: process.env.NODE_ENV || "development",
-            },
-            memory: process.memoryUsage(),
-            uptime: process.uptime(),
-          });
+          return res.error("Database service unavailable", 500, {
+        type: "service_unavailable",
+        healthy: false,
+        service: "Financial Dashboard API",
+        environment: process.env.NODE_ENV || "development",
+        database: {
+          status: "disconnected",
+          error: testDbError.message,
+          lastAttempt: new Date().toISOString(),
+        },
+        api: {
+          version: "1.0.0",
+          environment: process.env.NODE_ENV || "development",
+        },
+        memory: process.memoryUsage(),
+        uptime: process.uptime(),
+      });
         }
       }
 
       // Test environment fallback - return healthy status
-      return res.json({
+      return res.success({
         status: "healthy",
         healthy: true,
         service: "Financial Dashboard API",
-        timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
         database: {
           status: "test_mode",
@@ -176,11 +168,9 @@ router.get("/", async (req, res) => {
         console.warn(
           "Database query returned invalid result - database not available"
         );
-        return res.status(503).json({
-          status: "unhealthy",
+        return res.error("Database not available", 500, {
           healthy: false,
           service: "Financial Dashboard API",
-          timestamp: new Date().toISOString(),
           environment: process.env.NODE_ENV || "development",
           database: {
             status: "not_available",
@@ -199,11 +189,10 @@ router.get("/", async (req, res) => {
     } catch (dbError) {
       // Enhanced error logging
       console.error("Database health check query failed:", dbError);
-      return res.status(503).json({
-        status: "unhealthy",
+      return res.error("Database service unavailable", 500, {
+        type: "service_unavailable",
         healthy: false,
         service: "Financial Dashboard API",
-        timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
         database: {
           status: "disconnected",
@@ -225,11 +214,10 @@ router.get("/", async (req, res) => {
       await query("SELECT COUNT(*) FROM stock_symbols");
     } catch (tableError) {
       console.error("Table query failed:", tableError);
-      return res.status(503).json({
-        status: "unhealthy",
+      return res.error("Database service unavailable", 500, {
+        type: "service_unavailable",
         healthy: false,
         service: "Financial Dashboard API",
-        timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
         database: {
           status: "connected_but_table_error",
@@ -409,7 +397,6 @@ router.get("/", async (req, res) => {
     const health = {
       status: "healthy",
       healthy: true,
-      timestamp: new Date().toISOString(),
       database: {
         status: "connected",
         tables: filteredTables,
@@ -421,13 +408,11 @@ router.get("/", async (req, res) => {
       memory: process.memoryUsage(),
       uptime: process.uptime(),
     };
-    res.json(health);
+    res.success(health);
   } catch (error) {
     console.error("Health check failed:", error);
-    res.status(503).json({
-      status: "unhealthy",
+    return res.error("Health check failed", 500, {
       healthy: false,
-      timestamp: new Date().toISOString(),
       error: error.message,
       database: {
         status: "disconnected",
@@ -456,11 +441,10 @@ router.get("/database", async (req, res) => {
         await initializeDatabase();
       } catch (dbInitError) {
         console.error("Failed to initialize database:", dbInitError.message);
-        return res.status(503).json({
-          status: "unhealthy",
+        return res.error("Database service unavailable", 500, {
+          type: "service_unavailable",
           healthy: false,
           service: "Financial Dashboard API",
-          timestamp: new Date().toISOString(),
           environment: process.env.NODE_ENV || "development",
           database: {
             status: "initialization_failed",
@@ -513,10 +497,9 @@ router.get("/database", async (req, res) => {
     } catch (err) {
       // If health_status table is missing or empty, return fallback
       console.error("Error querying health_status table:", err.message);
-      return res.json({
+      return res.success({
         status: "ok",
         healthy: true,
-        timestamp: new Date().toISOString(),
         database: {
           status: "connected",
           tables: {},
@@ -531,10 +514,9 @@ router.get("/database", async (req, res) => {
         uptime: process.uptime(),
       });
     }
-    return res.json({
+    return res.success({
       status: "ok",
       healthy: true,
-      timestamp: new Date().toISOString(),
       database: {
         status: "connected",
         tables: tables,
@@ -549,11 +531,8 @@ router.get("/database", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in database health check:", error);
-    res.status(500).json({
-      status: "error",
-      error: "Health check failed",
+    return res.error("Database health check failed", 500, {
       message: error.message,
-      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -565,20 +544,17 @@ router.get("/test-connection", async (req, res) => {
       "SELECT NOW() as current_time, version() as postgres_version"
     );
 
-    res.json({
+    res.success({
       status: "ok",
       connection: "successful",
       currentTime: result.rows[0].current_time,
       postgresVersion: result.rows[0].postgres_version,
-      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error testing database connection:", error);
-    res.status(500).json({
-      status: "error",
+    return res.error("Database connection test failed", 500, {
       connection: "failed",
       error: error.message,
-      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -597,7 +573,7 @@ router.get("/debug-secret", async (req, res) => {
 
     const secretArn = process.env.DB_SECRET_ARN;
     if (!secretArn) {
-      return res.json({ error: "DB_SECRET_ARN not set" });
+      return res.error("DB_SECRET_ARN not set", 400);
     }
 
     const command = new GetSecretValueCommand({ SecretId: secretArn });
@@ -631,18 +607,14 @@ router.get("/debug-secret", async (req, res) => {
       debugInfo.parsedKeys = Object.keys(result.SecretString);
     }
 
-    res.json({
+    res.success({
       status: "debug",
       timestamp: new Date().toISOString(),
       debugInfo: debugInfo,
     });
   } catch (error) {
     console.error("Error debugging secret:", error);
-    res.status(500).json({
-      status: "error",
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Internal server error", 500, { details: error.message });
   }
 });
 
@@ -662,31 +634,27 @@ router.get("/database/diagnostics", async (req, res) => {
           "Diagnostics: Failed to initialize database:",
           dbInitError.message
         );
-        return res.status(503).json({
-          status: "error",
+        return res.error("Failed to initialize database connection", 500, {
+          type: "database_initialization_error",
           diagnostics: {
             connection: {
               status: "initialization_failed",
               error: dbInitError.message,
             },
           },
-          message: "Failed to initialize database connection",
-          timestamp: new Date().toISOString(),
         });
       }
     }
     // Now proceed with diagnostics as before
   } catch (fatalInitError) {
-    return res.status(503).json({
-      status: "error",
+    return res.error("Fatal error initializing database connection", 500, {
+      type: "database_fatal_error",
       diagnostics: {
         connection: {
           status: "fatal_init_error",
           error: fatalInitError.message,
         },
       },
-      message: "Fatal error initializing database connection",
-      timestamp: new Date().toISOString(),
     });
   }
   const diagnostics = {
@@ -760,19 +728,7 @@ router.get("/database/diagnostics", async (req, res) => {
       diagnostics.recommendations.push(
         "Database connection failed. Check credentials, network, and DB status."
       );
-      return res.status(500).json({
-        status: "error",
-        overallStatus,
-        diagnostics,
-        summary: {
-          environment: diagnostics.environment.NODE_ENV || "unknown",
-          database: diagnostics.database.name,
-          connection: diagnostics.connection.status,
-          tablesWithData: `${diagnostics.tables.withData}/${diagnostics.tables.total}`,
-          errors: diagnostics.errors.concat(diagnostics.tables.errors),
-          recommendations: diagnostics.recommendations,
-        },
-      });
+      return res.error("Internal server error", 500, { details: err.message });
     }
     // Host info
     try {
@@ -871,7 +827,7 @@ router.get("/database/diagnostics", async (req, res) => {
     if (diagnostics.errors.length > 0 || diagnostics.tables.errors.length > 0) {
       overallStatus = "degraded";
     }
-    res.json({
+    res.success({
       status: diagnostics.connection.status === "connected" ? "ok" : "error",
       overallStatus,
       diagnostics,
@@ -888,14 +844,7 @@ router.get("/database/diagnostics", async (req, res) => {
     diagnostics.errors.push({ step: "fatal", error: error.message });
     overallStatus = "unhealthy";
     console.error("Error in database diagnostics:", error);
-    res.status(500).json({
-      status: "error",
-      overallStatus,
-      diagnostics,
-      message: "Fatal error during diagnostics",
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Internal server error", 500, { details: error.message });
   }
 });
 

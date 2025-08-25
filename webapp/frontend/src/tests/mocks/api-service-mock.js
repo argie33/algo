@@ -127,6 +127,41 @@ export const createApiServiceMock = () => ({
       }
     })
   ),
+  getPortfolioAnalytics: vi.fn((_timeframe = "1Y") => 
+    Promise.resolve({
+      success: true,
+      data: {
+        attribution: {
+          sectorAttribution: [
+            { name: "Technology", contribution: 5.8 },
+            { name: "Healthcare", contribution: 1.2 },
+            { name: "Finance", contribution: 2.1 },
+            { name: "Energy", contribution: -0.5 }
+          ],
+          stockAttribution: [
+            { symbol: "AAPL", weight: 28.5, return: 13.1, contribution: 3.7 },
+            { symbol: "MSFT", weight: 22.9, return: 8.9, contribution: 2.0 },
+            { symbol: "GOOGL", weight: 18.5, return: 7.6, contribution: 1.4 }
+          ]
+        },
+        risk: {
+          var: 0.02,
+          cvar: 0.035,
+          correlation: 0.75,
+          beta: 1.1,
+          alpha: 0.05,
+          sharpeRatio: 1.25
+        },
+        performance: {
+          totalReturn: 0.12,
+          annualizedReturn: 0.15,
+          volatility: 0.18,
+          maxDrawdown: -0.08,
+          calmarRatio: 1.88
+        }
+      }
+    })
+  ),
 
   // Market data
   getMarketOverview: vi.fn(() => 
@@ -402,6 +437,7 @@ export const api = mockInstance;
 export const getPortfolioData = mockInstance.getPortfolioData;
 export const getPortfolioHoldings = mockInstance.getPortfolioHoldings; 
 export const getPortfolioPerformance = mockInstance.getPortfolioPerformance;
+export const getPortfolioAnalytics = mockInstance.getPortfolioAnalytics;
 export const getStockPrices = mockInstance.getStockPrices;
 export const getStockQuote = mockInstance.getStockQuote;
 export const getMarketOverview = mockInstance.getMarketOverview;

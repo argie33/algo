@@ -146,6 +146,43 @@ vi.mock("../services/api.js", () => ({
     data: { imported: true, broker, holdings: [] }
   })),
   
+  // Portfolio Performance Functions
+  getPortfolioPerformance: vi.fn((_timeframe = "1Y") => Promise.resolve({
+    success: true,
+    data: {
+      performance: [
+        { date: "2023-01", value: 100000, returns: 0.05 },
+        { date: "2023-02", value: 105000, returns: 0.07 },
+        { date: "2023-03", value: 110000, returns: 0.1 }
+      ],
+      metrics: {
+        totalReturn: 0.1,
+        annualizedReturn: 0.12,
+        volatility: 0.15,
+        sharpeRatio: 1.2,
+        maxDrawdown: -0.05,
+        beta: 1.1,
+        alpha: 0.02
+      }
+    }
+  })),
+  getPortfolioAnalytics: vi.fn((_timeframe = "1y") => Promise.resolve({
+    success: true,
+    data: {
+      attribution: {
+        sectors: [
+          { name: "Technology", allocation: 0.4, performance: 0.12 },
+          { name: "Healthcare", allocation: 0.3, performance: 0.08 }
+        ]
+      },
+      risk: {
+        var: 0.02,
+        cvar: 0.035,
+        correlation: 0.75
+      }
+    }
+  })),
+  
   // Health Check Functions
   getHealth: vi.fn(() => Promise.resolve({
     success: true,
