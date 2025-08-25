@@ -396,6 +396,22 @@ router.get("/overview", async (req, res) => {
       []
     );
 
+    // Add null checking for database availability
+    if (!tableExists || !tableExists.rows) {
+      console.warn("Table existence query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Market overview temporarily unavailable - database connection issue",
+        data: {
+          indices: [],
+          sectors: [],
+          volatility: { vix: 0, fear_greed: 50 },
+          sentiment: { score: 0, label: "Neutral" }
+        }
+      });
+    }
+
     console.log("Table existence check:", tableExists.rows[0].exists);
 
     if (!tableExists.rows[0].exists) {
@@ -539,6 +555,23 @@ router.get("/overview", async (req, res) => {
           AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
       `;
       const breadthResult = await query(breadthQuery);
+      
+      // Add null checking for database availability
+      if (!breadthResult || !breadthResult.rows) {
+        console.warn("Market breadth query returned null result, database may be unavailable");
+        return res.status(503).json({
+          success: false,
+          error: "Database temporarily unavailable", 
+          message: "Market overview temporarily unavailable - database connection issue",
+          data: {
+            indices: [],
+            sectors: [],
+            volatility: { vix: 0, fear_greed: 50 },
+            sentiment: { score: 0, label: "Neutral" }
+          }
+        });
+      }
+      
       console.log("Market breadth query result:", breadthResult.rows);
 
       if (
@@ -1324,14 +1357,14 @@ router.get("/fear-greed", async (req, res) => {
         });
       }
 
-      return res.json({
+      return res.success({
         data: fallbackData,
         count: fallbackData.length,
         message: "Using realistic fallback fear & greed data",
       });
     }
 
-    res.json({
+    res.success({
       data: result.rows,
       count: result.rows.length,
     });
@@ -1357,7 +1390,7 @@ router.get("/fear-greed", async (req, res) => {
       });
     }
 
-    res.json({
+    res.success({
       data: fallbackData,
       count: fallbackData.length,
       error: "Database error, using fallback data",

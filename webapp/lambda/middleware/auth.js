@@ -9,10 +9,11 @@ const { validateJwtToken } = require("../utils/apiKeyService");
 // Enhanced authentication middleware with session management
 const authenticateToken = async (req, res, next) => {
   try {
-    // Skip authentication in development mode
+    // Skip authentication only when explicitly enabled (not in tests)
     if (
       process.env.NODE_ENV === "development" &&
-      process.env.SKIP_AUTH === "true"
+      process.env.SKIP_AUTH === "true" &&
+      process.env.NODE_ENV !== "test"
     ) {
       req.user = {
         sub: "dev-user",
@@ -29,6 +30,7 @@ const authenticateToken = async (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({
+        success: false,
         error: "Authentication required",
         message: "Access token is missing from Authorization header",
         code: "MISSING_TOKEN",
@@ -36,7 +38,29 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Validate JWT token using unified service
-    const user = await validateJwtToken(token);
+    const result = await validateJwtToken(token);
+
+    // Check if token validation failed
+    if (!result.valid) {
+      // Handle specific token error types
+      if (result.error && result.error.includes("expired")) {
+        return res.status(401).json({
+          success: false,
+          error: "Token expired",
+          message: "Your session has expired. Please log in again.",
+          code: "TOKEN_EXPIRED",
+        });
+      }
+      
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+        message: result.error,
+        code: "INVALID_TOKEN",
+      });
+    }
+
+    const user = result.user;
 
     // Add user information and token to request
     req.user = user;
@@ -135,14 +159,16 @@ const optionalAuth = async (req, res, next) => {
 
     if (token) {
       try {
-        const user = await validateJwtToken(token);
-        req.user = user;
-        req.token = token;
-        req.sessionId = user.sessionId;
-        req.clientInfo = {
-          ipAddress: req.ip || req.connection.remoteAddress,
-          userAgent: req.get("User-Agent"),
-        };
+        const result = await validateJwtToken(token);
+        if (result.valid && result.user) {
+          req.user = result.user;
+          req.token = token;
+          req.sessionId = result.user.sessionId;
+          req.clientInfo = {
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get("User-Agent"),
+          };
+        }
       } catch (error) {
         // Log the error but don't fail the request
         console.log("Optional auth failed:", error.message);

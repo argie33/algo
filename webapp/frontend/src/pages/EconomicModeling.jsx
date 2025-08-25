@@ -399,12 +399,12 @@ const EconomicModeling = () => {
           onChange={handleTabChange}
           aria-label="economic modeling tabs"
         >
-          <Tab label="Leading Indicators" icon={<Analytics />} />
-          <Tab label="Yield Curve" icon={<ShowChart />} />
-          <Tab label="Forecast Models" icon={<Assessment />} />
-          <Tab label="Sectoral Analysis" icon={<BarChartIcon />} />
-          <Tab label="Scenario Planning" icon={<Flag />} />
-          <Tab label="AI Insights" icon={<Psychology />} />
+          <Tab value={0} label="Leading Indicators" icon={<Analytics />} />
+          <Tab value={1} label="Yield Curve" icon={<ShowChart />} />
+          <Tab value={2} label="Forecast Models" icon={<Assessment />} />
+          <Tab value={3} label="Sectoral Analysis" icon={<BarChartIcon />} />
+          <Tab value={4} label="Scenario Planning" icon={<Flag />} />
+          <Tab value={5} label="AI Insights" icon={<Psychology />} />
         </Tabs>
       </Box>
 

@@ -1,6 +1,30 @@
 // Standardized API Service with consistent error handling and logging
 import React from "react";
-import { getApiConfig } from "../services/api";
+
+// Get API configuration - duplicated here to avoid circular dependency
+const getApiConfig = () => {
+  // Dynamic API URL resolution: runtime > build-time > fallback
+  let runtimeApiUrl =
+    typeof window !== "undefined" &&
+    window.__CONFIG__ &&
+    window.__CONFIG__.API_URL
+      ? window.__CONFIG__.API_URL
+      : null;
+  const apiUrl =
+    runtimeApiUrl || import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+  return {
+    baseURL: apiUrl,
+    isServerless: !!apiUrl && !apiUrl.includes("localhost"),
+    apiUrl: apiUrl,
+    isConfigured: !!apiUrl && !apiUrl.includes("localhost"),
+    environment: import.meta.env.MODE,
+    isDevelopment: import.meta.env.DEV,
+    isProduction: import.meta.env.PROD,
+    baseUrl: import.meta.env.BASE_URL,
+    allEnvVars: import.meta.env,
+  };
+};
 
 // Enhanced logging utility
 export const createLogger = (componentName) => ({

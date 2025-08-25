@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const logger = require("../utils/logger");
-const liveDataManager = require("../utils/liveDataManager");
+const liveDataManager = require("../utils/liveDataManager").instance;
 
 /**
  * Live Data Administration Routes
@@ -115,7 +115,7 @@ router.get("/dashboard", authenticateToken, async (req, res) => {
     };
 
     const duration = Date.now() - startTime;
-    logger.success("Admin dashboard request completed", {
+    logger.info("Admin dashboard request completed", {
       correlationId,
       duration,
       providersCount: Object.keys(dashboardStatus.providers || {}).length,
@@ -190,7 +190,7 @@ router.post("/connections", authenticateToken, async (req, res) => {
       symbols
     );
 
-    logger.success("Admin connection created", {
+    logger.info("Admin connection created", {
       correlationId,
       connectionId,
       provider,
@@ -244,7 +244,7 @@ router.delete(
       // Close connection using liveDataManager
       await liveDataManager.closeConnection(connectionId);
 
-      logger.success("Admin connection closed", {
+      logger.info("Admin connection closed", {
         correlationId,
         connectionId,
       });
@@ -300,7 +300,7 @@ router.put(
         await liveDataManager.updateRateLimits(providerId, rateLimits);
       }
 
-      logger.success("Provider settings updated", {
+      logger.info("Provider settings updated", {
         correlationId,
         providerId,
       });
@@ -358,7 +358,7 @@ router.post("/optimize", authenticateToken, async (req, res) => {
     // Run optimization using liveDataManager
     const optimizationResults = await liveDataManager.optimizeConnections();
 
-    logger.success("Cost optimization completed", {
+    logger.info("Cost optimization completed", {
       correlationId,
       appliedCount: optimizationResults.applied?.length || 0,
       recommendationsCount: optimizationResults.recommendations?.length || 0,
@@ -431,7 +431,7 @@ router.get("/analytics/:timeRange", authenticateToken, async (req, res) => {
       generatedAt: new Date().toISOString(),
     };
 
-    logger.success("Analytics request completed", {
+    logger.info("Analytics request completed", {
       correlationId,
       timeRange,
     });
@@ -505,7 +505,7 @@ router.post("/alerts/configure", authenticateToken, async (req, res) => {
     // Update the live data manager alert configuration
     liveDataManager.updateAlertConfig(alertConfig);
 
-    logger.success("Alert configuration updated", {
+    logger.info("Alert configuration updated", {
       correlationId,
     });
 
@@ -548,7 +548,7 @@ router.post("/alerts/test", authenticateToken, async (req, res) => {
     // Test notifications using liveDataManager
     await liveDataManager.testNotifications();
 
-    logger.success("Alert notifications tested", {
+    logger.info("Alert notifications tested", {
       correlationId,
     });
 
@@ -591,7 +591,7 @@ router.post("/alerts/health-check", authenticateToken, async (req, res) => {
     // Force health check using liveDataManager
     const healthStatus = await liveDataManager.forceHealthCheck();
 
-    logger.success("Health check completed", {
+    logger.info("Health check completed", {
       correlationId,
       alertsFound: healthStatus.active?.length || 0,
     });

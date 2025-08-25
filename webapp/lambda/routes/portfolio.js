@@ -48,6 +48,35 @@ router.get("/analytics", async (req, res) => {
 
     const holdingsResult = await query(holdingsQuery, [userId]);
 
+    // Handle database unavailable gracefully
+    if (!holdingsResult || !holdingsResult.rows) {
+      console.warn("Database unavailable, returning empty portfolio analytics");
+      return res.status(200).json({
+        success: true,
+        data: {
+          holdings: [],
+          totalValue: 0,
+          totalPnl: 0,
+          totalPnlPercent: 0,
+          allocation: [],
+          performance: {
+            daily: 0,
+            weekly: 0,
+            monthly: 0,
+            yearly: 0
+          },
+          summary: {
+            positionsCount: 0,
+            gainersCount: 0,
+            losersCount: 0,
+            avgGain: 0,
+            avgLoss: 0
+          }
+        },
+        message: "Portfolio data temporarily unavailable - database connection issue"
+      });
+    }
+
     // Calculate derived values
     const holdings = holdingsResult.rows.map((holding) => {
       const costBasis = holding.quantity * holding.avg_cost;
@@ -218,6 +247,19 @@ router.get("/risk-analysis", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
+    
+    // Handle database unavailable gracefully
+    if (!holdingsResult || !holdingsResult.rows) {
+      console.warn("Database unavailable, returning empty risk analysis");
+      return res.status(200).json({
+        success: true,
+        data: {
+          risk: { level: "unknown", score: 0 },
+          message: "Risk analysis temporarily unavailable - database connection issue"
+        }
+      });
+    }
+    
     const holdings = holdingsResult.rows;
 
     // Calculate risk metrics
@@ -271,6 +313,22 @@ router.get("/risk-metrics", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
+    
+    // Handle database unavailable gracefully
+    if (!holdingsResult || !holdingsResult.rows) {
+      console.warn("Database unavailable, returning empty risk metrics");
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalValue: 0,
+          concentration: { max: 0, mean: 0 },
+          diversification: { stockCount: 0, sectorCount: 0 },
+          volatility: { portfolio: 0, benchmark: 0 },
+          message: "Risk metrics temporarily unavailable - database connection issue"
+        }
+      });
+    }
+    
     const holdings = holdingsResult.rows;
 
     // Calculate basic risk metrics
@@ -385,6 +443,30 @@ router.get("/performance", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
+    
+    // Handle database unavailable gracefully
+    if (!holdingsResult || !holdingsResult.rows) {
+      console.warn("Database unavailable, returning empty performance data");
+      return res.status(200).json({
+        success: true,
+        data: {
+          performance: [],
+          summary: {
+            totalReturn: 0,
+            annualizedReturn: 0,
+            volatility: 0,
+            sharpeRatio: 0,
+            maxDrawdown: 0
+          },
+          benchmark: {
+            totalReturn: 0,
+            annualizedReturn: 0
+          },
+          message: "Performance data temporarily unavailable - database connection issue"
+        }
+      });
+    }
+    
     const holdings = holdingsResult.rows;
 
     // Calculate performance metrics from current holdings
@@ -505,7 +587,15 @@ router.get("/benchmark", async (req, res) => {
     `;
 
     const benchmarkResult = await query(benchmarkQuery, [benchmark]);
-    let benchmarkData = benchmarkResult.rows;
+    
+    // Handle database unavailable gracefully  
+    let benchmarkData;
+    if (!benchmarkResult || !benchmarkResult.rows) {
+      console.warn("Database unavailable, using fallback benchmark data");
+      benchmarkData = [];
+    } else {
+      benchmarkData = benchmarkResult.rows;
+    }
 
     // If no data found, create mock benchmark data
     if (benchmarkData.length === 0) {

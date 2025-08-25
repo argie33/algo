@@ -179,6 +179,28 @@ router.get("/", async (req, res) => {
     `;
 
     const countResult = await query(countQuery, params.slice(0, paramCount));
+
+    // Add null checking for database availability
+    if (!stocksResult || !stocksResult.rows || !countResult || !countResult.rows) {
+      console.warn("Metrics query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock metrics temporarily unavailable - database connection issue",
+        data: {
+          stocks: [],
+          pagination: {
+            page: page,
+            limit: limit,
+            total: 0,
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false
+          }
+        }
+      });
+    }
+
     const totalStocks = parseInt(countResult.rows[0].total);
 
     // Format the response
@@ -327,6 +349,18 @@ router.get("/:symbol", async (req, res) => {
     `;
 
     const metricsResult = await query(metricsQuery, [symbol]);
+
+    // Add null checking for database availability
+    if (!metricsResult || !metricsResult.rows) {
+      console.warn("Metrics query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock metrics temporarily unavailable - database connection issue",
+        symbol,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     if (metricsResult.rows.length === 0) {
       return res.status(404).json({

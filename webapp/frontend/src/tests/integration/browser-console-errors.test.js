@@ -27,15 +27,15 @@ describe("Browser Console Error Detection", () => {
     const fs = await import('fs');
     const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
     
-    // Verify react-is is overridden to React 18 compatible version
-    expect(packageJson.overrides['react-is']).toBe('18.3.1');
+    // Verify react-is is overridden to MUI-compatible version  
+    expect(packageJson.overrides['react-is']).toBe('^19.0.0');
     
     // Verify React version is 18.x
     expect(packageJson.dependencies.react).toMatch(/^(\^)?18\./);
     expect(packageJson.dependencies['react-dom']).toMatch(/^(\^)?18\./);
   });
 
-  it("should not have React 19 compatibility issues", async () => {
+  it("should have proper MUI Material compatibility", async () => {
     // This test validates the fix we made
     const { execSync } = await import('child_process');
     
@@ -44,10 +44,10 @@ describe("Browser Console Error Detection", () => {
       const reactIsVersion = execSync('npm list react-is --depth=0 --json', { encoding: 'utf8' });
       const parsed = JSON.parse(reactIsVersion);
       
-      // Should be using React 18.x compatible version
+      // Should be using MUI Material compatible version (19.x)
       if (parsed.dependencies && parsed.dependencies['react-is']) {
         const version = parsed.dependencies['react-is'].version;
-        expect(version).toMatch(/^18\./);
+        expect(version).toMatch(/^19\./);
       }
       
       console.log("✅ react-is version check passed");

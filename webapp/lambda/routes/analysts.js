@@ -36,15 +36,23 @@ router.get("/upgrades", async (req, res) => {
       query(countQuery),
     ]);
 
-    if (!upgradesResult || !Array.isArray(upgradesResult.rows)) {
-      throw new Error("No rows returned from analyst_upgrade_downgrade query");
-    }
-    if (
-      !countResult ||
-      !Array.isArray(countResult.rows) ||
-      countResult.rows.length === 0
-    ) {
-      throw new Error("No count returned from analyst_upgrade_downgrade query");
+    // Add null checking for database availability - return graceful degradation instead of throwing
+    if (!upgradesResult || !upgradesResult.rows || !countResult || !countResult.rows) {
+      console.warn("Analyst upgrades query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable", 
+        message: "Analyst upgrades temporarily unavailable - database connection issue",
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        }
+      });
     }
 
     // Map company_name to company for frontend compatibility

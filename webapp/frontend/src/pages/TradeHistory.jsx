@@ -463,10 +463,10 @@ const TradeHistory = () => {
             value={tabValue}
             onChange={(e, newValue) => setTabValue(newValue)}
           >
-            <Tab icon={<History />} label="Trade List" />
-            <Tab icon={<ShowChart />} label="Performance Chart" />
-            <Tab icon={<Analytics />} label="Analytics" />
-            <Tab icon={<Insights />} label="AI Insights" />
+            <Tab value={0} icon={<History />} label="Trade List" />
+            <Tab value={1} icon={<ShowChart />} label="Performance Chart" />
+            <Tab value={2} icon={<Analytics />} label="Analytics" />
+            <Tab value={3} icon={<Insights />} label="AI Insights" />
           </Tabs>
         </Box>
 

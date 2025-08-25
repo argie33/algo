@@ -66,6 +66,14 @@ test.describe('Financial Platform Critical Workflows', () => {
     const navigationTimeout = browserName === 'firefox' ? 10000 : 5000;
     const waitTime = browserName === 'firefox' ? 3000 : 1000;
     
+    // Monitor for React Context and other critical errors during navigation
+    const consoleErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+    
     for (const section of sections) {
       try {
         await page.goto(section.path, { 
@@ -90,6 +98,20 @@ test.describe('Financial Platform Critical Workflows', () => {
     
     // Should be able to navigate to at least half the sections
     expect(successfulNavigation).toBeGreaterThanOrEqual(3);
+    
+    // Log console errors for debugging
+    if (consoleErrors.length > 0) {
+      console.log(`❌ Console errors during navigation:`, consoleErrors.slice(0, 3));
+    }
+    
+    // CRITICAL: Fail test if React Context or dependency errors occur during navigation
+    const criticalNavigationErrors = consoleErrors.filter(error => 
+      error.includes('Cannot set properties of undefined') ||
+      error.includes('ContextConsumer') ||
+      error.includes('react-is') ||
+      error.includes('Maximum call stack')
+    );
+    expect(criticalNavigationErrors.length).toBe(0);
   });
 
   test('should handle portfolio data loading', async ({ page }) => {

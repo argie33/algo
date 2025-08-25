@@ -1,9 +1,11 @@
 // Mock dependencies
 jest.mock("../../utils/alpacaService");
-jest.mock("../../utils/apiKeyService");
+jest.mock("../../utils/apiKeyService", () => ({
+  getDecryptedApiKey: jest.fn(),
+}));
 
 const AlpacaService = require("../../utils/alpacaService");
-const apiKeyService = require("../../utils/apiKeyService");
+const { getDecryptedApiKey } = require("../../utils/apiKeyService");
 const realTimeDataService = require("../../utils/realTimeDataService");
 
 describe("RealTimeDataService", () => {
@@ -21,12 +23,14 @@ describe("RealTimeDataService", () => {
     };
 
     AlpacaService.mockImplementation(() => mockAlpacaService);
-    apiKeyService.getDecryptedApiKey = jest.fn();
 
     realTimeService = realTimeDataService;
 
     // Clear cache before each test
     realTimeService.clearCache();
+    
+    // Reset rate limiting state
+    realTimeService.lastRequestTime = 0;
   });
 
   afterEach(() => {
@@ -139,7 +143,7 @@ describe("RealTimeDataService", () => {
     };
 
     test("should get live market data for symbols", async () => {
-      apiKeyService.getDecryptedApiKey.mockResolvedValue({
+      getDecryptedApiKey.mockResolvedValue({
         apiKey: "test-key",
         apiSecret: "test-secret",
         isSandbox: false,
@@ -157,7 +161,7 @@ describe("RealTimeDataService", () => {
     });
 
     test("should handle API key service errors", async () => {
-      apiKeyService.getDecryptedApiKey.mockRejectedValue(
+      getDecryptedApiKey.mockRejectedValue(
         new Error("No API keys")
       );
 
@@ -169,7 +173,7 @@ describe("RealTimeDataService", () => {
 
   describe("getMarketIndices", () => {
     test("should get market indices data", async () => {
-      apiKeyService.getDecryptedApiKey.mockResolvedValue({
+      getDecryptedApiKey.mockResolvedValue({
         apiKey: "test-key",
         apiSecret: "test-secret",
         isSandbox: false,

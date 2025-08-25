@@ -11,11 +11,14 @@ const morgan = require("morgan");
 const serverless = require("serverless-http");
 
 const errorHandler = require("./middleware/errorHandler");
+const responseFormatterMiddleware = require("./middleware/responseFormatter");
 const { initializeDatabase } = require("./utils/database");
 const analystRoutes = require("./routes/analysts");
 const authRoutes = require("./routes/auth");
 const backtestRoutes = require("./routes/backtest");
 const calendarRoutes = require("./routes/calendar");
+const commoditiesRoutes = require("./routes/commodities");
+const dashboardRoutes = require("./routes/dashboard");
 const dataRoutes = require("./routes/data");
 const diagnosticsRoutes = require("./routes/diagnostics");
 const financialRoutes = require("./routes/financials");
@@ -26,16 +29,22 @@ const marketRoutes = require("./routes/market");
 const metricsRoutes = require("./routes/metrics");
 const newsRoutes = require("./routes/news");
 const ordersRoutes = require("./routes/orders");
+const performanceRoutes = require("./routes/performance");
 const portfolioRoutes = require("./routes/portfolio");
 const priceRoutes = require("./routes/price");
+const riskRoutes = require("./routes/risk");
 const scoringRoutes = require("./routes/scoring");
 const scoresRoutes = require("./routes/scores");
 const screenerRoutes = require("./routes/screener");
+const sectorsRoutes = require("./routes/sectors");
+const sentimentRoutes = require("./routes/sentiment");
 const settingsRoutes = require("./routes/settings");
 const signalsRoutes = require("./routes/signals");
 const stockRoutes = require("./routes/stocks");
 const technicalRoutes = require("./routes/technical");
 const tradingRoutes = require("./routes/trading");
+const tradesRoutes = require("./routes/trades");
+const watchlistRoutes = require("./routes/watchlist");
 const websocketRoutes = require("./routes/websocket");
 
 const app = express();
@@ -352,6 +361,9 @@ app.use(async (req, res, next) => {
   }
 });
 
+// Response formatter middleware - adds standard response methods
+app.use(responseFormatterMiddleware);
+
 // Routes (note: API Gateway handles the /api prefix)
 app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
@@ -362,22 +374,30 @@ app.use("/scores", scoresRoutes);
 app.use("/metrics", metricsRoutes);
 app.use("/market", marketRoutes);
 app.use("/analysts", analystRoutes);
+app.use("/commodities", commoditiesRoutes);
 app.use("/financials", financialRoutes);
 app.use("/trading", tradingRoutes);
 app.use("/technical", technicalRoutes);
 app.use("/calendar", calendarRoutes);
+app.use("/dashboard", dashboardRoutes);
 app.use("/signals", signalsRoutes);
 app.use("/data", dataRoutes);
 app.use("/backtest", backtestRoutes);
 app.use("/portfolio", portfolioRoutes);
+app.use("/performance", performanceRoutes);
 app.use("/scoring", scoringRoutes);
 app.use("/price", priceRoutes);
+app.use("/risk", riskRoutes);
+app.use("/sectors", sectorsRoutes);
+app.use("/sentiment", sentimentRoutes);
 app.use("/settings", settingsRoutes);
+app.use("/trades", tradesRoutes);
 app.use("/live-data", liveDataRoutes);
 app.use("/liveDataAdmin", liveDataAdminRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/news", newsRoutes);
 app.use("/diagnostics", diagnosticsRoutes);
+app.use("/watchlist", watchlistRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use("/api/health", healthRoutes);
@@ -389,17 +409,25 @@ app.use("/api/scores", scoresRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/analysts", analystRoutes);
+app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/trading", tradingRoutes);
 app.use("/api/technical", technicalRoutes);
+app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/calendar", calendarRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/data", dataRoutes);
 app.use("/api/backtest", backtestRoutes);
 app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/performance", performanceRoutes);
 app.use("/api/scoring", scoringRoutes);
 app.use("/api/price", priceRoutes);
+app.use("/api/risk", riskRoutes);
+app.use("/api/sectors", sectorsRoutes);
+app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/trades", tradesRoutes);
 app.use("/api/live-data", liveDataRoutes);
 app.use("/api/liveDataAdmin", liveDataAdminRoutes);
 app.use("/api/orders", ordersRoutes);

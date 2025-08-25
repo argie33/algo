@@ -278,6 +278,82 @@ router.get("/sentiment/:symbol", async (req, res) => {
   }
 });
 
+// Get general sentiment overview (root sentiment endpoint)
+router.get("/sentiment", async (req, res) => {
+  try {
+    const { timeframe = "24h", limit: _limit = 10 } = req.query;
+
+    const timeframeMap = {
+      "1h": "1 hour",
+      "6h": "6 hours", 
+      "24h": "24 hours",
+      "3d": "3 days",
+      "1w": "1 week",
+      "1m": "1 month",
+    };
+
+    const intervalClause = timeframeMap[timeframe] || "24 hours";
+
+    // Get overall sentiment
+    const sentimentResult = await query(`
+      SELECT 
+        AVG(sentiment_score) as avg_sentiment,
+        COUNT(*) as total_articles,
+        COUNT(CASE WHEN sentiment_label = 'positive' THEN 1 END) as positive_count,
+        COUNT(CASE WHEN sentiment_label = 'negative' THEN 1 END) as negative_count,
+        COUNT(CASE WHEN sentiment_label = 'neutral' THEN 1 END) as neutral_count
+      FROM news_articles 
+      WHERE created_at >= NOW() - INTERVAL '${intervalClause}'
+    `);
+
+    // Add null checking for database availability
+    if (!sentimentResult || !sentimentResult.rows) {
+      console.warn("Sentiment query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Sentiment data temporarily unavailable - database connection issue",
+        data: {
+          overall_sentiment: {
+            score: 0,
+            label: "neutral",
+            distribution: { positive: 0, negative: 0, neutral: 0 },
+            total_articles: 0
+          }
+        }
+      });
+    }
+
+    const sentiment = sentimentResult.rows[0];
+    const sentimentData = {
+      overall_sentiment: {
+        score: parseFloat(sentiment.avg_sentiment) || 0,
+        label: sentimentEngine.scoreToLabel(parseFloat(sentiment.avg_sentiment) || 0),
+        distribution: {
+          positive: parseInt(sentiment.positive_count) || 0,
+          negative: parseInt(sentiment.negative_count) || 0,
+          neutral: parseInt(sentiment.neutral_count) || 0,
+        },
+        total_articles: parseInt(sentiment.total_articles) || 0,
+      },
+      timeframe,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json({
+      success: true,
+      data: sentimentData,
+    });
+  } catch (error) {
+    console.error("Error fetching sentiment data:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch sentiment data",
+      message: error.message,
+    });
+  }
+});
+
 // Get market sentiment overview
 router.get("/market-sentiment", async (req, res) => {
   try {

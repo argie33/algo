@@ -686,6 +686,7 @@ const ScoresDashboard = () => {
                     onClick={() =>
                       selectedStock && loadScores(selectedStock.symbol)
                     }
+                    aria-label="Refresh scores data"
                   >
                     <Refresh />
                   </IconButton>
@@ -845,6 +846,7 @@ const ScoresDashboard = () => {
                         <IconButton
                           onClick={() => handleCategoryToggle(category.id)}
                           size="small"
+                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${category.title} category`}
                         >
                           {isExpanded ? (
                             <ExpandMore />
@@ -962,7 +964,7 @@ const ScoresDashboard = () => {
                 title="Score Trends"
                 subheader="Historical performance across all factors"
                 action={
-                  <IconButton>
+                  <IconButton aria-label="Download score trends data">
                     <Download />
                   </IconButton>
                 }
@@ -1307,13 +1309,14 @@ const ScoresDashboard = () => {
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-          <Tab label="Dashboard" icon={<Assessment />} iconPosition="start" />
+          <Tab value={0} label="Dashboard" icon={<Assessment />} iconPosition="start" />
           <Tab
+            value={1}
             label="Peer Comparison"
             icon={<CompareArrows />}
             iconPosition="start"
           />
-          <Tab label="Methodology" icon={<School />} iconPosition="start" />
+          <Tab value={2} label="Methodology" icon={<School />} iconPosition="start" />
         </Tabs>
       </Box>
 

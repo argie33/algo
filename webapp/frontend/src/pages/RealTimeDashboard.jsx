@@ -286,25 +286,25 @@ const RealTimeDashboard = () => {
               label="Level II Data"
               color="primary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
             <Chip
               label="Market Microstructure"
               color="success"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
             <Chip
               label="Real-time Analytics"
-              color="info"
+              color="primary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
             <Chip
               label={`${refreshInterval}s refresh`}
-              color="warning"
+              color="secondary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
           </Box>
         </Box>
@@ -344,7 +344,11 @@ const RealTimeDashboard = () => {
             {isStreaming ? "Pause" : "Start"} Stream
           </Button>
 
-          <IconButton onClick={loadMarketData} disabled={isStreaming}>
+          <IconButton 
+            onClick={loadMarketData} 
+            disabled={isStreaming}
+            aria-label="Refresh market data"
+          >
             <Refresh />
           </IconButton>
         </Box>
@@ -622,11 +626,11 @@ const RealTimeDashboard = () => {
               onChange={handleTabChange}
               aria-label="dashboard tabs"
             >
-              <Tab label="Watchlist" icon={<Visibility />} />
-              <Tab label="Market Movers" icon={<TrendingUp />} />
-              <Tab label="Sector Performance" icon={<BarChart />} />
-              <Tab label="Options Flow" icon={<Timeline />} />
-              <Tab label="News Feed" icon={<Notifications />} />
+              <Tab value={0} label="Watchlist" icon={<Visibility />} />
+              <Tab value={1} label="Market Movers" icon={<TrendingUp />} />
+              <Tab value={2} label="Sector Performance" icon={<BarChart />} />
+              <Tab value={3} label="Options Flow" icon={<Timeline />} />
+              <Tab value={4} label="News Feed" icon={<Notifications />} />
             </Tabs>
           </Box>
 
@@ -858,10 +862,15 @@ const RealTimeDashboard = () => {
                                         removeFromWatchlist(stock.symbol)
                                       }
                                       color="error"
+                                      aria-label={`Remove ${stock.symbol} from watchlist`}
                                     >
                                       <Remove />
                                     </IconButton>
-                                    <IconButton size="small" color="primary">
+                                    <IconButton 
+                                      size="small" 
+                                      color="primary"
+                                      aria-label={`View details for ${stock.symbol}`}
+                                    >
                                       <Visibility />
                                     </IconButton>
                                   </Box>
@@ -1235,6 +1244,7 @@ const RealTimeDashboard = () => {
                           loadMarketData();
                         }}
                         disabled={isStreaming || loading}
+                        aria-label="Refresh options activity data"
                       >
                         <Refresh />
                       </IconButton>
@@ -1554,6 +1564,7 @@ const RealTimeDashboard = () => {
                             loadMarketData();
                           }}
                           disabled={isStreaming || loading}
+                          aria-label="Refresh news feed data"
                         >
                           <Refresh />
                         </IconButton>

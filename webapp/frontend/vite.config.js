@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
 
   // API URL configuration
   const apiUrl =
-    process.env.VITE_API_URL || (isDevelopment ? "http://localhost:3001" : "");
+    process.env.VITE_API_URL || (isDevelopment ? "http://localhost:3008" : "");
 
   console.log("Vite Config:", {
     mode,
@@ -20,7 +20,11 @@ export default defineConfig(({ mode }) => {
   });
 
   return {
-    plugins: [react()],
+    plugins: [
+      react({
+        jsxRuntime: 'automatic'
+      })
+    ],
     resolve: {
       alias: {
         "@": resolve(__dirname, "src"),
@@ -118,7 +122,6 @@ export default defineConfig(({ mode }) => {
       ),
     },
     optimizeDeps: {
-      // Reduce the number of files opened during optimization
       esbuildOptions: {
         loader: {
           ".js": "jsx",

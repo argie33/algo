@@ -150,6 +150,19 @@ router.get("/signals", async (req, res) => {
 
     const result = await query(signalsQuery, params);
 
+    // Add null checking for database availability 
+    if (!result || !result.rows) {
+      console.warn("Trading signals query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Trading signals temporarily unavailable - database connection issue",
+        data: [],
+        count: 0,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     res.json({
       success: true,
       data: result.rows || [],

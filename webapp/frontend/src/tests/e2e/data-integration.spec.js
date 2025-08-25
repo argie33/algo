@@ -227,6 +227,35 @@ test.describe('Financial Platform - Data Integration', () => {
     console.log(`🔍 Console errors: ${consoleErrors.length}`);
     console.log(`🌐 Network errors: ${networkErrors.length}`);
     
+    // Log specific console errors for debugging
+    if (consoleErrors.length > 0) {
+      console.log(`❌ Console error details:`, consoleErrors);
+    }
+    
+    // CRITICAL: Filter for critical errors that should cause test failure
+    const criticalErrors = consoleErrors.filter(error => 
+      // React Context and dependency compatibility errors
+      error.includes('Cannot set properties of undefined (setting \'ContextConsumer\')') ||
+      error.includes('react-is') ||
+      error.includes('ContextConsumer') ||
+      // Critical React errors that break functionality
+      error.includes('Cannot read properties of undefined') ||
+      error.includes('Maximum call stack') ||
+      error.includes('ReferenceError') ||
+      error.includes('TypeError') && !error.includes('Warning:') ||
+      // Critical network/API errors that break functionality
+      error.includes('ChunkLoadError') ||
+      error.includes('Script error')
+    );
+    
+    // Log critical errors specifically
+    if (criticalErrors.length > 0) {
+      console.log(`🚨 CRITICAL console errors that will fail the test:`, criticalErrors);
+    }
+    
+    // Only fail for critical errors, not warnings
+    expect(criticalErrors.length).toBe(0);
+    
     // Log some error details (limited)
     if (consoleErrors.length > 0) {
       console.log('Sample console errors:', consoleErrors.slice(0, 2));

@@ -537,12 +537,12 @@ function EarningsCalendar() {
           value={activeTab}
           onChange={(e, newValue) => setActiveTab(newValue)}
         >
-          <Tab label="Calendar Events" icon={<Schedule />} />
-          <Tab label="Earnings Estimates" icon={<ShowChart />} />
-          <Tab label="Earnings History" icon={<Analytics />} />
-          <Tab label="EPS Revisions" icon={<TrendingUp />} />
-          <Tab label="EPS Trend" icon={<TrendingDown />} />
-          <Tab label="Earnings Metrics" icon={<HorizontalRule />} />
+          <Tab value={0} label="Calendar Events" icon={<Schedule />} />
+          <Tab value={1} label="Earnings Estimates" icon={<ShowChart />} />
+          <Tab value={2} label="Earnings History" icon={<Analytics />} />
+          <Tab value={3} label="EPS Revisions" icon={<TrendingUp />} />
+          <Tab value={4} label="EPS Trend" icon={<TrendingDown />} />
+          <Tab value={5} label="Earnings Metrics" icon={<HorizontalRule />} />
         </Tabs>
       </Box>
 

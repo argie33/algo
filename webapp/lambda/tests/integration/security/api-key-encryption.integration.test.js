@@ -3,16 +3,18 @@
  * Critical: Validates secure API key storage and retrieval for financial data
  */
 
-// Unmock the apiKeyService for this test to test real encryption
+// Use real apiKeyService without mocking JWT validation
 jest.unmock("../../../utils/apiKeyService");
 
 const _crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 
 const apiKeyService = require("../../../utils/apiKeyService");
 const { query } = require("../../../utils/database");
 
 describe("API Key Encryption Integration", () => {
   let testUserId;
+  let mockToken;
   const testApiKeys = {
     alpaca: {
       keyId: "test-alpaca-key-id",
@@ -31,16 +33,29 @@ describe("API Key Encryption Integration", () => {
 
   beforeAll(async () => {
     testUserId = "test-user-encryption-" + Date.now();
+    
+    // Create a valid JWT token for testing
+    const jwtSecret = process.env.JWT_SECRET || 'test-secret';
+    mockToken = jwt.sign(
+      { sub: testUserId, email: `${testUserId}@test.local` },
+      jwtSecret,
+      { expiresIn: '1h' }
+    );
 
     // Set up environment variables for API key encryption testing
     process.env.API_KEY_ENCRYPTION_SECRET =
       "test-secret-key-for-integration-testing-32-chars";
     process.env.NODE_ENV = "test";
+    process.env.JWT_SECRET = jwtSecret;
 
     // Ensure API key service is initialized
     if (!apiKeyService.isEnabled) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+  });
+
+  beforeEach(() => {
+    // No mock needed - using real JWT validation with valid token
   });
 
   afterAll(async () => {
@@ -55,7 +70,7 @@ describe("API Key Encryption Integration", () => {
   describe("API Key Storage Encryption", () => {
     test("should encrypt API keys before database storage", async () => {
       const result = await apiKeyService.storeApiKey(
-        testUserId,
+        mockToken,
         "alpaca",
         testApiKeys.alpaca
       );
@@ -83,14 +98,14 @@ describe("API Key Encryption Integration", () => {
     });
 
     test("should use unique encryption for each API key", async () => {
-      // Store multiple keys
+      // Store multiple keys (using mockToken like the previous test)
       await apiKeyService.storeApiKey(
-        testUserId,
+        mockToken,
         "polygon",
         testApiKeys.polygon
       );
       await apiKeyService.storeApiKey(
-        testUserId,
+        mockToken,
         "finnhub",
         testApiKeys.finnhub
       );
@@ -115,9 +130,17 @@ describe("API Key Encryption Integration", () => {
       const anotherUserId = "test-user-encryption-salt-" + Date.now();
       const testData = { keyId: "same-key", secret: "same-secret" };
 
-      // Store same API key for different users
-      await apiKeyService.storeApiKey(testUserId, "test-same", testData);
-      await apiKeyService.storeApiKey(anotherUserId, "test-same", testData);
+      // Create JWT token for second user
+      const jwtSecret = process.env.JWT_SECRET || 'test-secret';
+      const anotherUserToken = jwt.sign(
+        { sub: anotherUserId, email: `${anotherUserId}@test.local` },
+        jwtSecret,
+        { expiresIn: '1h' }
+      );
+
+      // Store same API key for different users (using JWT tokens)
+      await apiKeyService.storeApiKey(mockToken, "test-same", testData);
+      await apiKeyService.storeApiKey(anotherUserToken, "test-same", testData);
 
       const user1Result = await query(
         "SELECT encrypted_data FROM user_api_keys WHERE user_id = $1 AND provider = $2",
@@ -134,19 +157,17 @@ describe("API Key Encryption Integration", () => {
         user2Result.rows[0].encrypted_data
       );
 
-      // Cleanup
-      await query("DELETE FROM user_api_keys WHERE user_id = $1", [
-        anotherUserId,
-      ]);
+      // Cleanup second user data
+      await query("DELETE FROM user_api_keys WHERE user_id = $1", [anotherUserId]);
     });
   });
 
   describe("API Key Retrieval Decryption", () => {
     test("should decrypt API keys correctly on retrieval", async () => {
-      // Store then retrieve
-      await apiKeyService.storeApiKey(testUserId, "alpaca", testApiKeys.alpaca);
+      // Store then retrieve using JWT tokens
+      await apiKeyService.storeApiKey(mockToken, "alpaca", testApiKeys.alpaca);
 
-      const retrievedKey = await apiKeyService.getApiKey(testUserId, "alpaca");
+      const retrievedKey = await apiKeyService.getApiKey(mockToken, "alpaca");
 
       expect(retrievedKey).toBeDefined();
       expect(retrievedKey.keyId).toBe(testApiKeys.alpaca.keyId);
@@ -154,20 +175,20 @@ describe("API Key Encryption Integration", () => {
     });
 
     test("should handle multiple provider retrieval", async () => {
-      // Store keys for multiple providers
+      // Store keys for multiple providers using JWT tokens
       await apiKeyService.storeApiKey(
-        testUserId,
+        mockToken,
         "polygon",
         testApiKeys.polygon
       );
       await apiKeyService.storeApiKey(
-        testUserId,
+        mockToken,
         "finnhub",
         testApiKeys.finnhub
       );
 
-      const polygonKey = await apiKeyService.getApiKey(testUserId, "polygon");
-      const finnhubKey = await apiKeyService.getApiKey(testUserId, "finnhub");
+      const polygonKey = await apiKeyService.getApiKey(mockToken, "polygon");
+      const finnhubKey = await apiKeyService.getApiKey(mockToken, "finnhub");
 
       expect(polygonKey).toBeDefined();
       expect(finnhubKey).toBeDefined();
@@ -256,23 +277,23 @@ describe("API Key Encryption Integration", () => {
 
   describe("API Key Update and Deletion", () => {
     test("should update existing API keys", async () => {
-      // Store initial key
-      await apiKeyService.storeApiKey(testUserId, "update-test", {
+      // Store initial key using JWT token
+      await apiKeyService.storeApiKey(mockToken, "update-test", {
         keyId: "old-key",
         secret: "old-secret",
       });
 
-      // Update with new values
+      // Update with new values using JWT token
       const updateResult = await apiKeyService.storeApiKey(
-        testUserId,
+        mockToken,
         "update-test",
         { keyId: "new-key", secret: "new-secret" }
       );
       expect(updateResult.success).toBe(true);
 
-      // Verify update
+      // Verify update using JWT token
       const retrievedKey = await apiKeyService.getApiKey(
-        testUserId,
+        mockToken,
         "update-test"
       );
       expect(retrievedKey.keyId).toBe("new-key");
@@ -280,22 +301,22 @@ describe("API Key Encryption Integration", () => {
     });
 
     test("should delete API keys securely", async () => {
-      // Store key
-      await apiKeyService.storeApiKey(testUserId, "delete-test", {
+      // Store key using JWT token
+      await apiKeyService.storeApiKey(mockToken, "delete-test", {
         keyId: "delete-key",
         secret: "delete-secret",
       });
 
-      // Delete key
+      // Delete key using JWT token
       const deleteResult = await apiKeyService.deleteApiKey(
-        testUserId,
+        mockToken,
         "delete-test"
       );
       expect(deleteResult.success).toBe(true);
 
-      // Verify deletion
+      // Verify deletion using JWT token
       const retrievedKey = await apiKeyService.getApiKey(
-        testUserId,
+        mockToken,
         "delete-test"
       );
       expect(retrievedKey).toBeNull();
@@ -313,10 +334,10 @@ describe("API Key Encryption Integration", () => {
     test("should handle concurrent API key operations", async () => {
       const concurrentOperations = [];
 
-      // Create 10 concurrent store operations
+      // Create 10 concurrent store operations using JWT token
       for (let i = 0; i < 10; i++) {
         concurrentOperations.push(
-          apiKeyService.storeApiKey(testUserId, `concurrent-${i}`, {
+          apiKeyService.storeApiKey(mockToken, `concurrent-${i}`, {
             keyId: `key-${i}`,
             secret: `secret-${i}`,
           })
@@ -325,15 +346,18 @@ describe("API Key Encryption Integration", () => {
 
       const results = await Promise.all(concurrentOperations);
 
-      // All operations should succeed
-      results.forEach((result) => {
+      // All operations should succeed - debug failures
+      results.forEach((result, index) => {
+        if (!result.success) {
+          console.log(`Concurrent operation ${index} failed:`, result.error || result);
+        }
         expect(result.success).toBe(true);
       });
 
-      // Verify all keys stored correctly
+      // Verify all keys stored correctly using JWT token
       for (let i = 0; i < 10; i++) {
         const retrievedKey = await apiKeyService.getApiKey(
-          testUserId,
+          mockToken,
           `concurrent-${i}`
         );
         expect(retrievedKey).toBeDefined();
@@ -348,7 +372,7 @@ describe("API Key Encryption Integration", () => {
       const storePromises = [];
       for (let i = 0; i < 50; i++) {
         storePromises.push(
-          apiKeyService.storeApiKey(testUserId, `perf-${i}`, {
+          apiKeyService.storeApiKey(mockToken, `perf-${i}`, {
             keyId: `key-${i}`,
             secret: `secret-${i}`,
           })
@@ -362,7 +386,7 @@ describe("API Key Encryption Integration", () => {
       let retrievedCount = 0;
 
       for (let i = 0; i < keyCount; i++) {
-        const key = await apiKeyService.getApiKey(testUserId, `perf-${i}`);
+        const key = await apiKeyService.getApiKey(mockToken, `perf-${i}`);
         if (key) retrievedCount++;
       }
 

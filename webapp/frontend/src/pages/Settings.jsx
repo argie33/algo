@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
   Container,
   Paper,
@@ -69,6 +70,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const Settings = () => {
+  useDocumentTitle("Settings");
   const { user, isAuthenticated, isLoading, logout, checkAuthState } =
     useAuth();
   const navigate = useNavigate();
@@ -676,6 +678,7 @@ const Settings = () => {
                 color="inherit"
                 size="small"
                 onClick={() => window.location.reload()}
+                aria-label="Refresh page"
               >
                 Refresh
               </Button>
@@ -683,6 +686,7 @@ const Settings = () => {
                 color="inherit"
                 size="small"
                 onClick={() => navigate("/login")}
+                aria-label="Navigate to login page"
               >
                 Login
               </Button>
@@ -712,12 +716,13 @@ const Settings = () => {
           variant="scrollable"
           scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: "divider" }}
+          aria-label="Settings navigation tabs"
         >
-          <Tab icon={<AccountCircle />} label="Profile" />
-          <Tab icon={<Api />} label="API Keys" />
-          <Tab icon={<Notifications />} label="Notifications" />
-          <Tab icon={<Palette />} label="Appearance" />
-          <Tab icon={<Security />} label="Security" />
+          <Tab value={0} icon={<AccountCircle />} label="Profile" aria-label="Profile settings" />
+          <Tab value={1} icon={<Api />} label="API Keys" data-testid="api-keys-tab" aria-label="API keys management" />
+          <Tab value={2} icon={<Notifications />} label="Notifications" aria-label="Notification preferences" />
+          <Tab value={3} icon={<Palette />} label="Appearance" aria-label="Appearance and theme settings" />
+          <Tab value={4} icon={<Security />} label="Security" aria-label="Security and account settings" />
         </Tabs>
 
         {/* Profile Tab */}
@@ -823,6 +828,7 @@ const Settings = () => {
                       startIcon={<Save />}
                       onClick={handleSaveProfile}
                       disabled={loading}
+                      aria-label="Save profile changes"
                     >
                       Save Changes
                     </Button>
@@ -830,6 +836,7 @@ const Settings = () => {
                       variant="outlined"
                       startIcon={<Cancel />}
                       onClick={loadUserSettings}
+                      aria-label="Cancel and reset profile changes"
                     >
                       Reset
                     </Button>
@@ -860,7 +867,7 @@ const Settings = () => {
                     </Box>
                   </Box>
                   <Divider sx={{ my: 2 }} />
-                  <List dense>
+                  <List dense aria-label="Account information">
                     <ListItem>
                       <ListItemText
                         primary="Account Status"
@@ -900,6 +907,7 @@ const Settings = () => {
                   startIcon={<Save />}
                   onClick={handleSaveNotifications}
                   disabled={loading}
+                  aria-label="Save notification preferences"
                 >
                   Save
                 </Button>
@@ -1021,6 +1029,7 @@ const Settings = () => {
                   startIcon={<Save />}
                   onClick={handleSaveTheme}
                   disabled={loading}
+                  aria-label="Save appearance settings"
                 >
                   Save
                 </Button>
@@ -1128,6 +1137,7 @@ const Settings = () => {
                     startIcon={<Security />}
                     onClick={handleChangePassword}
                     disabled={loading}
+                    aria-label="Change account password"
                   >
                     Change Password
                   </Button>
@@ -1138,6 +1148,7 @@ const Settings = () => {
                     startIcon={<Security />}
                     onClick={handleToggleTwoFactor}
                     disabled={loading}
+                    aria-label={`${user?.twoFactorEnabled ? "Disable" : "Enable"} two-factor authentication`}
                   >
                     {user?.twoFactorEnabled ? "Disable" : "Enable"} Two-Factor
                     Authentication
@@ -1148,6 +1159,7 @@ const Settings = () => {
                     startIcon={<Download />}
                     onClick={handleDownloadRecoveryCodes}
                     disabled={loading || !user?.twoFactorEnabled}
+                    aria-label="Download two-factor authentication recovery codes"
                   >
                     Download Recovery Codes
                   </Button>
@@ -1164,6 +1176,7 @@ const Settings = () => {
                     onClick={logout}
                     sx={{ mb: 2 }}
                     disabled={loading}
+                    aria-label="Sign out of account"
                   >
                     Sign Out
                   </Button>
@@ -1174,6 +1187,7 @@ const Settings = () => {
                     startIcon={<Warning />}
                     onClick={handleDeleteAccount}
                     disabled={loading}
+                    aria-label="Delete account permanently"
                   >
                     Delete Account
                   </Button>
@@ -1191,7 +1205,7 @@ const Settings = () => {
                   >
                     Manage your active login sessions across different devices.
                   </Typography>
-                  <List>
+                  <List aria-label="Active sessions">
                     <ListItem>
                       <ListItemIcon>
                         <CheckCircle color="success" />
@@ -1211,6 +1225,7 @@ const Settings = () => {
                     startIcon={<Security />}
                     onClick={handleRevokeAllSessions}
                     disabled={loading}
+                    aria-label="Revoke all other active sessions"
                   >
                     Revoke All Other Sessions
                   </Button>
@@ -1240,9 +1255,9 @@ const Settings = () => {
                     setNewApiKey({ ...newApiKey, brokerName: e.target.value })
                   }
                 >
-                  <MenuItem value="alpaca">Alpaca</MenuItem>
-                  <MenuItem value="robinhood">Robinhood</MenuItem>
-                  <MenuItem value="td_ameritrade">TD Ameritrade</MenuItem>
+                  <MenuItem value="alpaca" data-provider="alpaca">Alpaca</MenuItem>
+                  <MenuItem value="robinhood" data-provider="robinhood">Robinhood</MenuItem>
+                  <MenuItem value="td_ameritrade" data-provider="td_ameritrade">TD Ameritrade</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -1252,6 +1267,7 @@ const Settings = () => {
                 label="API Key"
                 type={showApiKeys.apiKey ? "text" : "password"}
                 value={newApiKey.apiKey}
+                data-testid="api-key-input"
                 onChange={(e) =>
                   setNewApiKey({ ...newApiKey, apiKey: e.target.value })
                 }
@@ -1264,6 +1280,7 @@ const Settings = () => {
                           apiKey: !showApiKeys.apiKey,
                         })
                       }
+                      aria-label={showApiKeys.apiKey ? "Hide API key" : "Show API key"}
                     >
                       {showApiKeys.apiKey ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
@@ -1289,6 +1306,7 @@ const Settings = () => {
                           apiSecret: !showApiKeys.apiSecret,
                         })
                       }
+                      aria-label={showApiKeys.apiSecret ? "Hide API secret" : "Show API secret"}
                     >
                       {showApiKeys.apiSecret ? (
                         <VisibilityOff />
@@ -1320,11 +1338,12 @@ const Settings = () => {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddApiKeyDialog(false)}>Cancel</Button>
+          <Button onClick={() => setAddApiKeyDialog(false)} aria-label="Cancel adding API key">Cancel</Button>
           <Button
             onClick={handleAddApiKey}
             variant="contained"
             disabled={!newApiKey.brokerName || !newApiKey.apiKey || loading}
+            aria-label="Add new API key"
           >
             Add API Key
           </Button>

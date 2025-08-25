@@ -747,10 +747,10 @@ function FinancialData() {
         {/* Tabs */}{" "}
         <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab label="Balance Sheet" icon={<AccountBalance />} />
-            <Tab label="Income Statement" icon={<Analytics />} />
-            <Tab label="Cash Flow" icon={<Timeline />} />
-            <Tab label="Key Metrics" icon={<ShowChart />} />
+            <Tab value={0} label="Balance Sheet" icon={<AccountBalance />} />
+            <Tab value={1} label="Income Statement" icon={<Analytics />} />
+            <Tab value={2} label="Cash Flow" icon={<Timeline />} />
+            <Tab value={3} label="Key Metrics" icon={<ShowChart />} />
           </Tabs>
         </Box>
         {/* Tab Panels */}

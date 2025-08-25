@@ -432,10 +432,10 @@ const RiskManagement = () => {
       <Card>
         <CardHeader>
           <Tabs value={activeTab} onChange={handleTabChange}>
-            <Tab label="Position Risk" />
-            <Tab label="VaR Analysis" />
-            <Tab label="Stress Testing" />
-            <Tab label="Risk Alerts" />
+            <Tab value={0} label="Position Risk" />
+            <Tab value={1} label="VaR Analysis" />
+            <Tab value={2} label="Stress Testing" />
+            <Tab value={3} label="Risk Alerts" />
           </Tabs>
         </CardHeader>
 

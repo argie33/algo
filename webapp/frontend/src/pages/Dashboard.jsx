@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
   Alert,
   Autocomplete,
@@ -750,6 +751,7 @@ function EconomicIndicatorsWidget() {
 }
 
 const Dashboard = () => {
+  useDocumentTitle("Dashboard");
   const { isAuthenticated, user } = useAuth();
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [_dashboardView, _setDashboardView] = useState("overview");
@@ -912,7 +914,7 @@ const Dashboard = () => {
 
           <Box display="flex" alignItems="center" gap={2}>
             <Badge badgeContent={safeSignals.length} color="error">
-              <IconButton>
+              <IconButton aria-label="View notifications" tabIndex={0}>
                 <Notifications />
               </IconButton>
             </Badge>
@@ -924,8 +926,18 @@ const Dashboard = () => {
               }
               sx={{ width: 180 }}
               renderInput={(params) => (
-                <TextField {...params} label="Symbol" size="small" />
+                <TextField 
+                  {...params} 
+                  label="Symbol" 
+                  size="small" 
+                  aria-label="Search for stock symbol"
+                  inputProps={{
+                    ...params.inputProps,
+                    'aria-describedby': 'symbol-search-help',
+                  }}
+                />
               )}
+              aria-label="Stock symbol search"
             />
             {user && (
               <Tooltip title={user.email || user.name} arrow>
@@ -1050,7 +1062,7 @@ const Dashboard = () => {
               border: "1px solid #2196f3",
             }}
             action={
-              <Button color="inherit" size="small" variant="outlined">
+              <Button color="inherit" size="small" variant="outlined" aria-label="Sign in to your account" tabIndex={0}>
                 Sign In
               </Button>
             }
@@ -1199,7 +1211,7 @@ const Dashboard = () => {
 
         {/* Market Summary Bar */}
         <Box sx={{ mb: 4, p: 2, bgcolor: "grey.50", borderRadius: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          <Typography variant="h2" component="h2" sx={{ mb: 2, fontWeight: 600, fontSize: "1.5rem" }}>
             Market Summary
           </Typography>
           <Grid container spacing={2}>
@@ -1262,7 +1274,7 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <AccountBalance sx={{ color: "primary.main", mr: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
                     Portfolio Overview
                   </Typography>
                 </Box>
@@ -1324,7 +1336,7 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <ShowChart sx={{ color: "success.main", mr: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
                     Elite Watchlist
                   </Typography>
                 </Box>
@@ -1376,7 +1388,7 @@ const Dashboard = () => {
                             />
                           </TableCell>
                           <TableCell align="center">
-                            <IconButton size="small" color="primary">
+                            <IconButton size="small" color="primary" aria-label="Execute trading strategy" tabIndex={0}>
                               <PlayArrow />
                             </IconButton>
                           </TableCell>
@@ -1423,7 +1435,7 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <LocalFireDepartment sx={{ color: "warning.main", mr: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
                     Trading Signals
                   </Typography>
                   <Chip
@@ -1499,7 +1511,7 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <Event sx={{ color: "info.main", mr: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
                     Economic Calendar
                   </Typography>
                   <Chip
@@ -1552,7 +1564,7 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <Timeline sx={{ color: "success.main", mr: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
                     Trading Activity
                   </Typography>
                   <Chip
@@ -1566,6 +1578,8 @@ const Dashboard = () => {
                     variant="outlined"
                     sx={{ ml: "auto" }}
                     onClick={() => (window.location.href = "/trade-history")}
+                    aria-label="View all market alerts"
+                    tabIndex={0}
                   >
                     View All
                   </Button>
@@ -1631,7 +1645,7 @@ const Dashboard = () => {
                   <Psychology
                     sx={{ color: "primary.main", mr: 1, fontSize: 32 }}
                   />
-                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  <Typography variant="h2" component="h2" sx={{ fontWeight: 700, fontSize: "1.5rem" }}>
                     AI-Powered Intelligence Center
                   </Typography>
                   <Chip
@@ -1740,6 +1754,12 @@ const Dashboard = () => {
                                 variant="determinate"
                                 value={75}
                                 sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                                role="progressbar"
+                                aria-label="Market sentiment score progress"
+                                aria-valuenow={75}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuetext="75% market sentiment score"
                               />
                               <Typography variant="h6">0.95</Typography>
                             </Box>
@@ -1759,6 +1779,12 @@ const Dashboard = () => {
                                 value={60}
                                 color="warning"
                                 sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                                role="progressbar"
+                                aria-label="Value at risk indicator"
+                                aria-valuenow={60}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuetext="60% value at risk"
                               />
                               <Typography variant="h6">-$28K</Typography>
                             </Box>
@@ -1778,6 +1804,12 @@ const Dashboard = () => {
                                 value={85}
                                 color="success"
                                 sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                                role="progressbar"
+                                aria-label="Portfolio diversification score"
+                                aria-valuenow={85}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuetext="85% portfolio diversification"
                               />
                               <Typography variant="h6">1.42</Typography>
                             </Box>
@@ -1797,6 +1829,12 @@ const Dashboard = () => {
                                 value={25}
                                 color="error"
                                 sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                                role="progressbar"
+                                aria-label="Account utilization percentage"
+                                aria-valuenow={25}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuetext="25% account utilization"
                               />
                               <Typography variant="h6">-8.2%</Typography>
                             </Box>
@@ -1841,7 +1879,7 @@ const Dashboard = () => {
                                 primary={`${signal.action} ${signal.symbol}`}
                                 secondary={`${(signal.confidence * 100).toFixed(0)}% confidence • ${signal.type}`}
                               />
-                              <IconButton size="small" color="primary">
+                              <IconButton size="small" color="primary" aria-label="View stock details" tabIndex={0}>
                                 <PlayArrow />
                               </IconButton>
                             </ListItem>
@@ -1876,7 +1914,7 @@ const Dashboard = () => {
         {/* Quick Actions Panel */}
         <Card sx={{ mb: 4, border: "2px solid #e3f2fd" }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            <Typography variant="h2" component="h2" gutterBottom sx={{ fontWeight: 600, fontSize: "1.5rem" }}>
               Quick Actions
             </Typography>
             <Grid container spacing={2}>
@@ -1889,6 +1927,8 @@ const Dashboard = () => {
                   sx={{
                     background: "linear-gradient(45deg, #1976d2, #42a5f5)",
                   }}
+                  aria-label="Add new position to portfolio"
+                  tabIndex={0}
                 >
                   Add Position
                 </Button>
@@ -1902,6 +1942,8 @@ const Dashboard = () => {
                   sx={{
                     background: "linear-gradient(45deg, #43a047, #66bb6a)",
                   }}
+                  aria-label="View trade history"
+                  tabIndex={0}
                 >
                   Trade History
                 </Button>
@@ -1915,6 +1957,8 @@ const Dashboard = () => {
                   sx={{
                     background: "linear-gradient(45deg, #ff5722, #ff7043)",
                   }}
+                  aria-label="Place new trading order"
+                  tabIndex={0}
                 >
                   Place Order
                 </Button>
@@ -1926,6 +1970,8 @@ const Dashboard = () => {
                   startIcon={<Assessment />}
                   fullWidth
                   onClick={() => (window.location.href = "/backtest")}
+                  aria-label="Run strategy backtest"
+                  tabIndex={0}
                 >
                   Run Backtest
                 </Button>
@@ -1937,6 +1983,8 @@ const Dashboard = () => {
                   startIcon={<FilterList />}
                   fullWidth
                   onClick={() => (window.location.href = "/screener")}
+                  aria-label="Screen stocks with filters"
+                  tabIndex={0}
                 >
                   Screen Stocks
                 </Button>
@@ -1948,6 +1996,8 @@ const Dashboard = () => {
                   startIcon={<Notifications />}
                   fullWidth
                   onClick={() => (window.location.href = "/alerts")}
+                  aria-label="Set up price alerts"
+                  tabIndex={0}
                 >
                   Set Alert
                 </Button>
@@ -1958,6 +2008,8 @@ const Dashboard = () => {
                   color="info"
                   startIcon={<Download />}
                   fullWidth
+                  aria-label="Export portfolio data"
+                  tabIndex={0}
                 >
                   Export Data
                 </Button>
@@ -1968,6 +2020,8 @@ const Dashboard = () => {
                   startIcon={<Settings />}
                   fullWidth
                   onClick={() => (window.location.href = "/settings")}
+                  aria-label="Open settings page"
+                  tabIndex={0}
                 >
                   Settings
                 </Button>

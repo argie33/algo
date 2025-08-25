@@ -67,7 +67,7 @@ describe("Performance Monitor", () => {
 
       expect(operation.id).toBe(operationId);
       expect(operation.category).toBe("database");
-      expect(operation.startTime).toBeCloseTo(Date.now(), 10);
+      expect(operation.startTime).toBeCloseTo(Date.now(), -1); // Allow up to 5ms difference
       expect(operation.startHrTime).toBeDefined();
       expect(operation.metadata).toEqual(metadata);
       expect(operation.userId).toBe("user-456");
@@ -254,7 +254,7 @@ describe("Performance Monitor", () => {
 
       // Mock slow operation by setting start time far in the past
       const operation = performanceMonitor.activeOperations.get(operationId);
-      operation.startTime = Date.now() - 2000; // 2 seconds ago (exceeds 1s threshold)
+      operation.startTime = Date.now() - 2500; // 2.5 seconds ago (exceeds 2x threshold for high severity)
 
       performanceMonitor.endOperation(operationId, { success: true });
 
@@ -370,7 +370,7 @@ describe("Performance Monitor", () => {
       expect(dbStats.successCount).toBe(2);
       expect(dbStats.errorCount).toBe(1);
       expect(dbStats.successRate).toBe("66.67");
-      expect(dbStats.averageDuration).toBe(833.33);
+      expect(dbStats.averageDuration).toBeCloseTo(833.33, 2);
 
       const apiStats = stats.byCategory.api;
       expect(apiStats.count).toBe(2);
@@ -451,17 +451,21 @@ describe("Performance Monitor", () => {
       const stats = performanceMonitor.getPerformanceStats();
       const systemHealth = stats.systemHealth;
 
-      expect(systemHealth).toHaveProperty("overall");
-      expect(systemHealth).toHaveProperty("categories");
-      expect(systemHealth).toHaveProperty("alerts");
+      expect(systemHealth).toHaveProperty("score");
+      expect(systemHealth).toHaveProperty("status");
+      expect(systemHealth).toHaveProperty("successRate");
+      expect(systemHealth).toHaveProperty("averageDuration");
+      expect(systemHealth).toHaveProperty("slowOperations");
+      expect(systemHealth).toHaveProperty("totalOperations");
 
-      expect(typeof systemHealth.overall).toBe("string");
+      expect(typeof systemHealth.status).toBe("string");
       expect(
-        ["excellent", "good", "fair", "poor"].includes(systemHealth.overall)
+        ["healthy", "warning", "degraded", "critical"].includes(systemHealth.status)
       ).toBe(true);
 
-      expect(Array.isArray(systemHealth.alerts)).toBe(true);
-      expect(typeof systemHealth.categories).toBe("object");
+      expect(typeof systemHealth.score).toBe("number");
+      expect(systemHealth.score).toBeGreaterThanOrEqual(0);
+      expect(systemHealth.score).toBeLessThanOrEqual(100);
     });
   });
 

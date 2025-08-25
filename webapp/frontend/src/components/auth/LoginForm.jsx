@@ -90,7 +90,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" role="form" onSubmit={handleSubmit} noValidate>
           <TextField
             fullWidth
             id="username"

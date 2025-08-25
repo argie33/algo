@@ -15,38 +15,38 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Mock API service
-vi.mock('../../../services/api', () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  }
-}));
+// Mock the API service with comprehensive mock
+vi.mock("../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  return {
+    default: createApiServiceMock(),
+    ...createApiServiceMock()
+  };
+});
 
 // Test component that uses the hook
 const TestComponent = () => {
-  const { apiKeys, isLoading, error, addApiKey, updateApiKey, deleteApiKey, validateApiKey } = useApiKeys();
+  const { apiKeys, loading, error, setApiKey, removeApiKey, validateApiKeys } = useApiKeys();
   
   return (
     <div>
-      <div data-testid="loading">{isLoading ? 'loading' : 'not loading'}</div>
+      <div data-testid="loading">{loading ? 'loading' : 'not loading'}</div>
       <div data-testid="error">{error || 'no error'}</div>
       <div data-testid="api-keys-count">{Object.keys(apiKeys).length}</div>
       <button 
-        onClick={() => addApiKey('alpaca', { keyId: 'test-key', secret: 'test-secret' })}
+        onClick={() => setApiKey('alpaca', 'test-key-value')}
         data-testid="add-key"
       >
         Add Key
       </button>
       <button 
-        onClick={() => validateApiKey('alpaca')}
+        onClick={() => validateApiKeys()}
         data-testid="validate-key"
       >
         Validate Key
       </button>
       <button 
-        onClick={() => deleteApiKey('alpaca')}
+        onClick={() => removeApiKey('alpaca')}
         data-testid="delete-key"
       >
         Delete Key
@@ -121,9 +121,9 @@ describe('ApiKeyProvider', () => {
       fireEvent.click(screen.getByTestId('add-key'));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/settings/api-keys', {
+        expect(api.post).toHaveBeenCalledWith('/api/settings/api-keys', {
           provider: 'alpaca',
-          credentials: { keyId: 'test-key', secret: 'test-secret' }
+          key: 'test-key-value'
         });
       });
     });
@@ -164,9 +164,7 @@ describe('ApiKeyProvider', () => {
       fireEvent.click(screen.getByTestId('validate-key'));
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/settings/api-keys/validate', {
-          provider: 'alpaca'
-        });
+        expect(api.post).toHaveBeenCalledWith('/api/settings/api-keys/validate');
       });
     });
 
@@ -189,7 +187,7 @@ describe('ApiKeyProvider', () => {
       fireEvent.click(screen.getByTestId('delete-key'));
 
       await waitFor(() => {
-        expect(api.delete).toHaveBeenCalledWith('/settings/api-keys/alpaca');
+        expect(api.delete).toHaveBeenCalledWith('/api/settings/api-keys/alpaca');
       });
     });
   });
@@ -308,10 +306,7 @@ describe('ApiKeyProvider', () => {
       );
 
       await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/settings/api-keys', {
-          provider: 'alpaca',
-          credentials: { keyId: 'local-key', secret: 'local-secret' }
-        });
+        expect(mockLocalStorage.getItem).toHaveBeenCalledWith('api-keys');
       });
     });
 

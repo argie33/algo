@@ -170,8 +170,8 @@ describe("Real API Endpoints Integration Tests", () => {
     it("should handle watchlist request", async () => {
       const response = await request(app).get("/api/watchlist");
 
-      // Route doesn't exist yet - should return 404
-      expect(response.status).toBe(404);
+      // Route exists but requires authentication
+      expect(response.status).toBe(401);
     });
 
     it("should handle add to watchlist", async () => {
@@ -179,8 +179,8 @@ describe("Real API Endpoints Integration Tests", () => {
         .post("/api/watchlist")
         .send({ symbol: "AAPL", name: "Apple Inc." });
 
-      // Route doesn't exist yet - should return 404
-      expect(response.status).toBe(404);
+      // Route exists but requires authentication
+      expect(response.status).toBe(401);
     });
   });
 

@@ -13,6 +13,7 @@ import RegisterForm from "./RegisterForm";
 import ConfirmationForm from "./ConfirmationForm";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 import ResetPasswordForm from "./ResetPasswordForm";
+import MFAChallenge from "./MFAChallenge";
 
 const AUTH_MODES = {
   LOGIN: "login",
@@ -20,6 +21,7 @@ const AUTH_MODES = {
   CONFIRM: "confirm",
   FORGOT_PASSWORD: "forgot_password",
   RESET_PASSWORD: "reset_password",
+  MFA_CHALLENGE: "mfa_challenge",
 };
 
 function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
@@ -53,6 +55,17 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
     setMode(AUTH_MODES.LOGIN);
   };
 
+  const handleMFASuccess = (result) => {
+    setSuccessMessage("Multi-factor authentication successful!");
+    setMode(AUTH_MODES.LOGIN);
+    // In a real app, this would complete the authentication process
+    console.log("MFA Success:", result);
+  };
+
+  const handleMFACancel = () => {
+    setMode(AUTH_MODES.LOGIN);
+  };
+
   const handleClose = () => {
     setMode(initialMode);
     setUsername("");
@@ -72,6 +85,8 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         return "Reset Password";
       case AUTH_MODES.RESET_PASSWORD:
         return "Set New Password";
+      case AUTH_MODES.MFA_CHALLENGE:
+        return "Multi-Factor Authentication";
       default:
         return "Authentication";
     }
@@ -162,6 +177,15 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
               setSuccessMessage("");
               setMode(AUTH_MODES.LOGIN);
             }}
+          />
+        )}
+
+        {mode === AUTH_MODES.MFA_CHALLENGE && (
+          <MFAChallenge
+            challengeType="SMS_MFA"
+            message="Please enter the verification code sent to your device."
+            onSuccess={handleMFASuccess}
+            onCancel={handleMFACancel}
           />
         )}
       </DialogContent>

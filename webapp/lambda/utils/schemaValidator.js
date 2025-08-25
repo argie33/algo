@@ -336,7 +336,13 @@ class SchemaValidator {
   validateData(tableName, data) {
     const schema = this.schemas[tableName];
     if (!schema) {
-      throw new Error(`No schema defined for table: ${tableName}`);
+      return {
+        valid: false,
+        isValid: false,
+        errors: [`Unknown table schema: ${tableName}`],
+        errorDetails: [],
+        data: {},
+      };
     }
 
     const errors = [];
@@ -347,7 +353,7 @@ class SchemaValidator {
       if (data[requiredField] === undefined || data[requiredField] === null) {
         errors.push({
           field: requiredField,
-          message: `Required field '${requiredField}' is missing`,
+          message: `Required field "${requiredField}" is missing`,
           code: "REQUIRED_FIELD_MISSING",
         });
       }
@@ -359,7 +365,7 @@ class SchemaValidator {
       if (!columnDef) {
         errors.push({
           field: fieldName,
-          message: `Unknown field '${fieldName}' for table '${tableName}'`,
+          message: `Unknown field "${fieldName}" for table "${tableName}"`,
           code: "UNKNOWN_FIELD",
         });
         continue;
@@ -378,7 +384,9 @@ class SchemaValidator {
 
     return {
       valid: errors.length === 0,
-      errors: errors,
+      isValid: errors.length === 0, // Add alias for backwards compatibility
+      errors: errors.map(err => err.message), // Convert to string array for tests
+      errorDetails: errors, // Keep detailed errors for advanced usage
       data: validatedData,
     };
   }
@@ -400,13 +408,13 @@ class SchemaValidator {
         if (typeof value !== "string") {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a string`,
+            message: `Field "${fieldName}" must be a string`,
             code: "INVALID_TYPE",
           });
         } else if (columnDef.maxLength && value.length > columnDef.maxLength) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' exceeds maximum length of ${columnDef.maxLength}`,
+            message: `Field "${fieldName}" exceeds maximum length of ${columnDef.maxLength} characters`,
             code: "EXCEEDS_MAX_LENGTH",
           });
         }
@@ -417,7 +425,7 @@ class SchemaValidator {
         if (!Number.isInteger(Number(value))) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be an integer`,
+            message: `Field "${fieldName}" must be an integer`,
             code: "INVALID_TYPE",
           });
         } else {
@@ -425,14 +433,14 @@ class SchemaValidator {
           if (columnDef.min !== undefined && numValue < columnDef.min) {
             errors.push({
               field: fieldName,
-              message: `Field '${fieldName}' must be at least ${columnDef.min}`,
+              message: `Field "${fieldName}" must be at least ${columnDef.min}`,
               code: "BELOW_MINIMUM",
             });
           }
           if (columnDef.max !== undefined && numValue > columnDef.max) {
             errors.push({
               field: fieldName,
-              message: `Field '${fieldName}' must be at most ${columnDef.max}`,
+              message: `Field "${fieldName}" must be at most ${columnDef.max}`,
               code: "ABOVE_MAXIMUM",
             });
           }
@@ -443,7 +451,7 @@ class SchemaValidator {
         if (!Number.isInteger(Number(value))) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a big integer`,
+            message: `Field "${fieldName}" must be a big integer`,
             code: "INVALID_TYPE",
           });
         } else if (
@@ -452,7 +460,7 @@ class SchemaValidator {
         ) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be at least ${columnDef.min}`,
+            message: `Field "${fieldName}" must be at least ${columnDef.min}`,
             code: "BELOW_MINIMUM",
           });
         }
@@ -462,7 +470,7 @@ class SchemaValidator {
         if (isNaN(Number(value))) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a number`,
+            message: `Field "${fieldName}" must be a number`,
             code: "INVALID_TYPE",
           });
         } else {
@@ -470,16 +478,34 @@ class SchemaValidator {
           if (columnDef.min !== undefined && numValue < columnDef.min) {
             errors.push({
               field: fieldName,
-              message: `Field '${fieldName}' must be at least ${columnDef.min}`,
+              message: `Field "${fieldName}" must be at least ${columnDef.min}`,
               code: "BELOW_MINIMUM",
             });
           }
           if (columnDef.max !== undefined && numValue > columnDef.max) {
             errors.push({
               field: fieldName,
-              message: `Field '${fieldName}' must be at most ${columnDef.max}`,
+              message: `Field "${fieldName}" must be at most ${columnDef.max}`,
               code: "ABOVE_MAXIMUM",
             });
+          }
+          
+          // Check precision constraints
+          if (columnDef.precision && columnDef.scale !== undefined) {
+            const valueStr = String(value);
+            const decimalParts = valueStr.split('.');
+            const integerPart = decimalParts[0];
+            const decimalPart = decimalParts[1] || '';
+            
+            const maxIntegerDigits = columnDef.precision - columnDef.scale;
+            
+            if (integerPart.length > maxIntegerDigits || decimalPart.length > columnDef.scale) {
+              errors.push({
+                field: fieldName,
+                message: `Field "${fieldName}" exceeds precision constraints (${columnDef.precision},${columnDef.scale})`,
+                code: "PRECISION_EXCEEDED",
+              });
+            }
           }
         }
         break;
@@ -494,7 +520,7 @@ class SchemaValidator {
         ) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a boolean`,
+            message: `Field "${fieldName}" must be a boolean value`,
             code: "INVALID_TYPE",
           });
         }
@@ -504,7 +530,7 @@ class SchemaValidator {
         if (isNaN(Date.parse(value))) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a valid date`,
+            message: `Field "${fieldName}" must be a valid date format`,
             code: "INVALID_DATE",
           });
         }
@@ -514,7 +540,7 @@ class SchemaValidator {
         if (isNaN(Date.parse(value))) {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a valid timestamp`,
+            message: `Field "${fieldName}" must be a valid timestamp`,
             code: "INVALID_TIMESTAMP",
           });
         }
@@ -524,7 +550,7 @@ class SchemaValidator {
         if (typeof value !== "string") {
           errors.push({
             field: fieldName,
-            message: `Field '${fieldName}' must be a string`,
+            message: `Field "${fieldName}" must be a string`,
             code: "INVALID_TYPE",
           });
         }
@@ -686,7 +712,7 @@ class SchemaValidator {
   generateCreateTableSQL(tableName) {
     const schema = this.schemas[tableName];
     if (!schema) {
-      throw new Error(`No schema defined for table: ${tableName}`);
+      throw new Error(`Unknown table schema: ${tableName}`);
     }
 
     let sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
@@ -703,20 +729,29 @@ class SchemaValidator {
         definition += `(${columnDef.precision}${columnDef.scale ? "," + columnDef.scale : ""})`;
       }
 
-      if (columnDef.primaryKey) {
-        definition += " PRIMARY KEY";
-      }
-
-      if (!columnDef.nullable && columnDef.type !== "SERIAL") {
-        definition += " NOT NULL";
-      }
-
       if (columnDef.unique) {
         definition += " UNIQUE";
       }
 
-      if (columnDef.default) {
-        definition += ` DEFAULT ${columnDef.default}`;
+      if ((schema.required && schema.required.includes(columnName)) || (columnDef.nullable === false && columnDef.type !== "SERIAL")) {
+        definition += " NOT NULL";
+      }
+
+      if (columnDef.primaryKey) {
+        definition += " PRIMARY KEY";
+      }
+
+      if (columnDef.default !== undefined) {
+        if (typeof columnDef.default === 'boolean') {
+          definition += ` DEFAULT ${columnDef.default}`;
+        } else {
+          definition += ` DEFAULT ${columnDef.default}`;
+        }
+      }
+
+      // Add CHECK constraints for min values
+      if (columnDef.min !== undefined && (columnDef.type === "BIGINT" || columnDef.type === "DECIMAL" || columnDef.type === "INTEGER")) {
+        definition += ` CHECK (${columnName} >= ${columnDef.min})`;
       }
 
       columnDefinitions.push(definition);
@@ -755,6 +790,196 @@ class SchemaValidator {
   listTables() {
     return Object.keys(this.schemas);
   }
+
+  /**
+   * Sanitize input to prevent SQL injection and clean data
+   */
+  sanitizeInput(input) {
+    if (input === null || input === undefined) {
+      return input;
+    }
+
+    if (Array.isArray(input)) {
+      return input.map(item => this.sanitizeInput(item));
+    }
+
+    if (typeof input === 'object') {
+      const sanitized = {};
+      for (const [key, value] of Object.entries(input)) {
+        sanitized[key] = this.sanitizeInput(value);
+      }
+      return sanitized;
+    }
+
+    if (typeof input === 'string') {
+      // Remove potential SQL injection attempts
+      return input
+        .trim()
+        .replace(/['"`;\\]/g, '') // Remove quotes, semicolons, backslashes
+        .replace(/--/g, '') // Remove SQL comment syntax
+        .replace(/\b(DROP|DELETE|INSERT|UPDATE|SELECT|UNION|EXEC|EXECUTE)\b/gi, ''); // Remove SQL keywords
+    }
+
+    // Preserve numbers and booleans as-is
+    return input;
+  }
+
+  /**
+   * Map schema type to PostgreSQL data type
+   */
+  mapSchemaTypeToPostgresType(schemaType) {
+    const typeMap = {
+      'VARCHAR': 'character varying',
+      'TEXT': 'text',
+      'INTEGER': 'integer',
+      'BIGINT': 'bigint',
+      'DECIMAL': 'numeric',
+      'BOOLEAN': 'boolean',
+      'DATE': 'date',
+      'TIMESTAMP': 'timestamp without time zone',
+      'SERIAL': 'integer'
+    };
+    return typeMap[schemaType];
+  }
+
+  /**
+   * Check if table exists in database
+   */
+  async validateTableExists(tableName) {
+    try {
+      const tableExists = await query(
+        `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2)`,
+        ["public", tableName]
+      );
+      return tableExists.rows[0].exists;
+    } catch (error) {
+      logger.error("Error validating table existence:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate table columns against schema
+   */
+  async validateColumns(tableName) {
+    const schema = this.schemas[tableName];
+    if (!schema) {
+      throw new Error(`Unknown table schema: ${tableName}`);
+    }
+
+    try {
+      const columns = await query(
+        `SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns 
+         WHERE table_schema = 'public' AND table_name = $1`,
+        [tableName]
+      );
+
+      const actualColumns = new Set(columns.rows.map((col) => col.column_name));
+      const expectedColumns = new Set(Object.keys(schema.columns));
+      const missingColumns = [];
+      const extraColumns = [];
+      const mismatchedTypes = [];
+
+      // Check for missing columns
+      for (const expectedCol of expectedColumns) {
+        if (!actualColumns.has(expectedCol)) {
+          missingColumns.push(expectedCol);
+        }
+      }
+
+      // Check for extra columns (excluding common auto-generated columns)
+      for (const actualCol of actualColumns) {
+        if (!expectedColumns.has(actualCol) && 
+            !['id', 'created_at', 'updated_at'].includes(actualCol)) {
+          extraColumns.push(actualCol);
+        }
+      }
+
+      // Check for type mismatches
+      for (const column of columns.rows) {
+        const expectedColumnDef = schema.columns[column.column_name];
+        if (expectedColumnDef) {
+          const expectedType = this.mapSchemaTypeToPostgresType(expectedColumnDef.type);
+          if (expectedType && column.data_type !== expectedType) {
+            mismatchedTypes.push({
+              column: column.column_name,
+              expected: expectedColumnDef.type,
+              actual: column.data_type,
+            });
+          }
+        }
+      }
+
+      return {
+        valid: missingColumns.length === 0 && mismatchedTypes.length === 0,
+        isValid: missingColumns.length === 0 && mismatchedTypes.length === 0,
+        missingColumns,
+        mismatchedTypes,
+        extraColumns,
+        actualColumns: Array.from(actualColumns),
+        expectedColumns: Array.from(expectedColumns)
+      };
+    } catch (error) {
+      logger.error(`Error validating columns for ${tableName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate table indexes
+   */
+  async validateIndexes(tableName) {
+    const schema = this.schemas[tableName];
+    if (!schema || !schema.indexes) {
+      return { valid: true, missingIndexes: [], actualIndexes: [] };
+    }
+
+    try {
+      const indexes = await query(
+        `SELECT indexname FROM pg_indexes WHERE tablename = $1`,
+        [tableName]
+      );
+
+      const actualIndexes = indexes.rows.map(row => row.indexname);
+      const expectedIndexes = schema.indexes.map(index => 
+        Array.isArray(index) ? `${tableName}_${index.join('_')}_idx` : `${tableName}_${index}_idx`
+      );
+      
+      const missingIndexes = expectedIndexes.filter(expected => 
+        !actualIndexes.some(actual => actual.includes(expected.replace(`${tableName}_`, '').replace('_idx', '')))
+      );
+
+      return {
+        valid: missingIndexes.length === 0,
+        isValid: missingIndexes.length === 0,
+        missingIndexes,
+        actualIndexes,
+        expectedIndexes
+      };
+    } catch (error) {
+      logger.error(`Error validating indexes for ${tableName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Safe query execution with database availability checking
+   * Returns null gracefully when database is unavailable instead of throwing errors
+   */
+  async safeQuery(queryText, params = []) {
+    try {
+      const result = await query(queryText, params);
+      return result;
+    } catch (error) {
+      logger.warn("Safe query failed, database may be unavailable", { 
+        error: error.message, 
+        queryText: queryText.substring(0, 100) + (queryText.length > 100 ? '...' : '')
+      });
+      // Return null when database is unavailable - caller should handle gracefully
+      return null;
+    }
+  }
 }
 
 // Export singleton instance
@@ -770,5 +995,10 @@ module.exports = {
     schemaValidator.generateCreateTableSQL(tableName),
   getTableSchema: (tableName) => schemaValidator.getTableSchema(tableName),
   listTables: () => schemaValidator.listTables(),
+  sanitizeInput: (input) => schemaValidator.sanitizeInput(input),
+  validateTableExists: (tableName) => schemaValidator.validateTableExists(tableName),
+  validateColumns: (tableName) => schemaValidator.validateColumns(tableName),
+  validateIndexes: (tableName) => schemaValidator.validateIndexes(tableName),
+  safeQuery: (queryText, params) => schemaValidator.safeQuery(queryText, params),
   schemas: tableSchemas,
 };

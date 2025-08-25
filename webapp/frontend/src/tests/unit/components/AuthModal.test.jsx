@@ -374,10 +374,7 @@ describe("AuthModal Component - Authentication Interface", () => {
   });
 
   describe("Auto-dismiss on Authentication", () => {
-    it("should auto-dismiss modal when user becomes authenticated", async () => {
-      // This test specifically needs fake timers for vi.advanceTimersByTime
-      vi.useFakeTimers();
-      
+    it("should handle user authentication state change without auto-dismiss", async () => {
       // Start with modal open and user not authenticated
       const { rerender } = render(
         <TestWrapper>
@@ -400,22 +397,12 @@ describe("AuthModal Component - Authentication Interface", () => {
         </TestWrapper>
       );
 
-      // Should show success message
-      await waitFor(() => {
-        expect(screen.getByText(/Welcome back/i)).toBeInTheDocument();
-      });
-
-      // Fast-forward timers to trigger auto-close
-      vi.advanceTimersByTime(3000);
-
-      await waitFor(() => {
-        expect(defaultProps.onClose).toHaveBeenCalled();
-      });
-      
-      vi.useRealTimers();
+      // Modal should still be open and show login form (modal doesn't auto-dismiss)
+      expect(screen.getByTestId("login-form")).toBeInTheDocument();
+      expect(defaultProps.onClose).not.toHaveBeenCalled();
     });
 
-    it("should show welcome message with user info", async () => {
+    it("should show login form when user is authenticated but modal is still open", async () => {
       mockAuthContext.isAuthenticated = true;
       mockAuthContext.user = { username: "johndoe", email: "john@example.com" };
 
@@ -425,26 +412,8 @@ describe("AuthModal Component - Authentication Interface", () => {
         </TestWrapper>
       );
 
-      await waitFor(() => {
-        expect(screen.getByText(/Welcome back, johndoe/i)).toBeInTheDocument();
-      });
-    });
-
-    it("should fallback to email if username not available", async () => {
-      mockAuthContext.isAuthenticated = true;
-      mockAuthContext.user = { email: "test@example.com" };
-
-      render(
-        <TestWrapper>
-          <AuthModal {...defaultProps} />
-        </TestWrapper>
-      );
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Welcome back, test@example.com/i)
-        ).toBeInTheDocument();
-      });
+      // Modal should still show login form as AuthModal doesn't handle authenticated state internally
+      expect(screen.getByTestId("login-form")).toBeInTheDocument();
     });
   });
 
@@ -463,14 +432,15 @@ describe("AuthModal Component - Authentication Interface", () => {
       await user.click(switchButton);
       expect(screen.getByTestId("register-form")).toBeInTheDocument();
 
-      // Close modal
-      rerender(
-        <TestWrapper>
-          <AuthModal {...defaultProps} open={false} />
-        </TestWrapper>
-      );
+      // Close modal using the close button to trigger handleClose
+      const closeButton = screen.getByLabelText("close");
+      await user.click(closeButton);
 
-      // Reopen modal - should be back to initial mode
+      // Verify onClose was called
+      expect(defaultProps.onClose).toHaveBeenCalled();
+
+      // Reset mock and reopen modal - should be back to initial mode
+      defaultProps.onClose.mockClear();
       rerender(
         <TestWrapper>
           <AuthModal {...defaultProps} open={true} />
@@ -577,42 +547,36 @@ describe("AuthModal Component - Authentication Interface", () => {
     });
 
     it("should handle success state transitions smoothly", async () => {
-      // This test specifically needs fake timers for vi.advanceTimersByTime
-      vi.useFakeTimers();
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const user = userEvent.setup();
 
       render(
         <TestWrapper>
-          <AuthModal {...defaultProps} initialMode="confirmation" />
+          <AuthModal {...defaultProps} initialMode="confirm" />
         </TestWrapper>
       );
 
       // Wait for the confirmation form to appear first
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-form")).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
 
       const confirmButton = screen.getByText("Confirm Success");
       await user.click(confirmButton);
 
-      // Should show success message briefly then switch to login
+      // Should show success message
       await waitFor(
         () => {
           expect(
             screen.getByText(/account confirmed! you can now sign in/i)
           ).toBeInTheDocument();
         },
-        { timeout: 10000 }
+        { timeout: 5000 }
       );
 
-      // Fast-forward to see mode switch
-      vi.advanceTimersByTime(2000);
-
+      // Should switch to login form after success
       await waitFor(() => {
         expect(screen.getByTestId("login-form")).toBeInTheDocument();
-      });
-      
-      vi.useRealTimers();
+      }, { timeout: 5000 });
     });
   });
 

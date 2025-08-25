@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { AuthProvider } from "./contexts/AuthContext";
 import { configureAmplify } from "./config/amplify";
@@ -137,6 +138,50 @@ const theme = createTheme({
         root: {
           textTransform: "none",
           fontWeight: 500,
+          '&:focus': {
+            outline: "3px solid #1976d2",
+            outlineOffset: "2px",
+            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
+          },
+          '&:focus-visible': {
+            outline: "3px solid #1976d2",
+            outlineOffset: "2px",
+            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          '&:focus': {
+            outline: "3px solid #1976d2",
+            outlineOffset: "2px",
+            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
+          },
+          '&:focus-visible': {
+            outline: "3px solid #1976d2",
+            outlineOffset: "2px",
+            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            '&.Mui-focused': {
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#1976d2',
+                borderWidth: '2px',
+              },
+            },
+            '&:focus-within': {
+              outline: "3px solid rgba(25, 118, 210, 0.3)",
+              outlineOffset: "2px",
+            },
+          },
         },
       },
     },
@@ -158,7 +203,23 @@ const theme = createTheme({
   },
 });
 
+// Create React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      refetchOnWindowFocus: false,
+      retry: (failureCount, error) => {
+        if (error.status === 404) return false;
+        return failureCount < 3;
+      },
+    },
+  },
+});
+
 console.log("✅ Theme created");
+console.log("✅ QueryClient created");
 console.log("🔍 Looking for root element...");
 
 const rootElement = document.getElementById("root");
@@ -174,12 +235,14 @@ console.log("🚀 Creating React root and rendering app...");
 try {
   ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </BrowserRouter>
   );
   console.log("✅ React app rendered successfully");

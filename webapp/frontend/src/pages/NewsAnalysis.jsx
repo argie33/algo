@@ -382,11 +382,11 @@ const NewsAnalysis = () => {
           onChange={handleTabChange}
           aria-label="news analysis tabs"
         >
-          <Tab label="Breaking News" icon={<Newspaper />} />
-          <Tab label="Market Events" icon={<Event />} />
-          <Tab label="Earnings Calendar" icon={<Assessment />} />
-          <Tab label="Economic Data" icon={<Business />} />
-          <Tab label="AI Insights" icon={<Assessment />} />
+          <Tab value={0} label="Breaking News" icon={<Newspaper />} />
+          <Tab value={1} label="Market Events" icon={<Event />} />
+          <Tab value={2} label="Earnings Calendar" icon={<Assessment />} />
+          <Tab value={3} label="Economic Data" icon={<Business />} />
+          <Tab value={4} label="AI Insights" icon={<Assessment />} />
         </Tabs>
       </Box>
 

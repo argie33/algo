@@ -42,6 +42,22 @@ router.get("/sectors", async (req, res) => {
       );
 
       result = await Promise.race([queryPromise, timeoutPromise]);
+      
+      // Add null checking for database availability
+      if (!result || !result.rows) {
+        console.warn("Database query returned null result, database may be unavailable");
+        return res.status(200).json({
+          success: true,
+          data: [],
+          message: "Sectors data temporarily unavailable - database connection issue",
+          recommendations: [
+            "Database service may be starting up",
+            "Check database connection health",
+            "Try again in a few moments"
+          ]
+        });
+      }
+      
       console.log(
         `✅ Sectors query successful: ${result.rows.length} sectors found`
       );
@@ -79,6 +95,16 @@ router.get("/sectors", async (req, res) => {
         }
       );
       throw dbError; // Re-throw to trigger proper error handling
+    }
+
+    // Final check before processing - result might be null after error handling
+    if (!result || !result.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Sectors data cannot be retrieved - database connection issue",
+        data: []
+      });
     }
 
     const sectors = result.rows.map((row) => ({
@@ -186,6 +212,23 @@ router.get("/public/sample", async (req, res) => {
       );
 
       result = await Promise.race([queryPromise, timeoutPromise]);
+      
+      // Add null checking for database availability
+      if (!result || !result.rows) {
+        console.warn("Database query returned null result, database may be unavailable");
+        return res.status(200).json({
+          success: true,
+          data: [],
+          count: 0,
+          message: "Stock sample data temporarily unavailable - database connection issue",
+          recommendations: [
+            "Database service may be starting up",
+            "Check database connection health", 
+            "Try again in a few moments"
+          ]
+        });
+      }
+      
       console.log(
         `✅ Public stocks sample query successful: ${result.rows.length} stocks found`
       );
@@ -510,19 +553,37 @@ router.get("/", stocksListValidation, async (req, res) => {
 
     // Execute queries with schema validation
     const [stocksResult, countResult] = await Promise.all([
-      schemaValidator.safeQuery(stocksQuery, params, {
-        validateTables: true,
-        throwOnMissingTable: false,
-        timeout: 10000,
-      }),
-      schemaValidator.safeQuery(countQuery, params.slice(0, -2), {
-        validateTables: true,
-        throwOnMissingTable: false,
-        timeout: 5000,
-      }),
+      schemaValidator.safeQuery(stocksQuery, params),
+      schemaValidator.safeQuery(countQuery, params.slice(0, -2)),
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
+    // Add null checking for database availability
+    if (!countResult || !countResult.rows || countResult.rows.length === 0) {
+      console.warn("Count query returned null result, database may be unavailable");
+      return res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        total: 0,
+        totalPages: 0,
+        message: "Stock count data temporarily unavailable - database connection issue"
+      });
+    }
+
+    // Also check stocksResult for null
+    if (!stocksResult || !stocksResult.rows) {
+      console.warn("Stocks query returned null result, database may be unavailable");
+      return res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        total: 0,
+        totalPages: 0,
+        message: "Stocks data temporarily unavailable - database connection issue"
+      });
+    }
+
+    const total = parseInt(countResult.rows[0]?.total || 0);
     const totalPages = Math.ceil(total / limit);
 
     console.log(
@@ -968,14 +1029,30 @@ router.get("/", stocksListValidation, async (req, res) => {
           query(fallbackCountQuery, params.slice(0, -2)),
         ]);
 
+        // Add null checking for database availability
+        if (!countResult || !countResult.rows || countResult.rows.length === 0) {
+          return res.json({
+            success: true,
+            data: stocksResult?.rows || [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+            },
+            message: "Count data temporarily unavailable - database connection issue",
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         return res.json({
           success: true,
           data: stocksResult.rows,
           pagination: {
             page,
             limit,
-            total: parseInt(countResult.rows[0].total),
-            totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
+            total: parseInt(countResult.rows[0]?.total || 0),
+            totalPages: Math.ceil(parseInt(countResult.rows[0]?.total || 0) / limit),
           },
           note: "Using basic stock symbols data. Run stock-symbols loader to enable enhanced data.",
           timestamp: new Date().toISOString(),
@@ -1095,6 +1172,19 @@ router.get("/screen", async (req, res) => {
     `;
 
     const countResult = await query(countQuery, queryParams);
+    
+    // Add null checking for database availability
+    if (!countResult || !countResult.rows) {
+      console.warn("Screen count query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock screening temporarily unavailable - database connection issue",
+        data: { stocks: [] },
+        pagination: { page: 1, limit: limit, total: 0, totalPages: 0 }
+      });
+    }
+    
     const totalStocks = parseInt(countResult.rows[0]?.total || 0);
 
     // Get the actual stocks
@@ -1119,6 +1209,18 @@ router.get("/screen", async (req, res) => {
     queryParams.push(parseInt(limit), offset);
 
     const stocksResult = await query(stocksQuery, queryParams, 10000); // 10 second timeout for complex screening
+
+    // Add null checking for database availability
+    if (!stocksResult || !stocksResult.rows) {
+      console.warn("Stocks query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock data temporarily unavailable - database connection issue",
+        data: { stocks: [] },
+        pagination: { page: parseInt(page), limit: parseInt(limit), total: totalStocks, totalPages: 0 }
+      });
+    }
 
     console.log(
       `✅ Retrieved ${stocksResult.rows.length} stocks out of ${totalStocks} total matching criteria`
@@ -1197,6 +1299,17 @@ router.get("/:ticker", async (req, res) => {
     `;
 
     const result = await query(stockQuery, [tickerUpper]);
+
+    // Add null checking for database availability
+    if (!result || !result.rows) {
+      console.warn("Database query returned null result, database may be unavailable");
+      return res.status(503).json({
+        error: "Service temporarily unavailable",
+        symbol: tickerUpper,
+        message: "Stock data temporarily unavailable - database connection issue",
+        code: "DATABASE_UNAVAILABLE"
+      });
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -1375,7 +1488,19 @@ router.get("/:ticker/prices", async (req, res) => {
 
     const result = await Promise.race([queryPromise, timeoutPromise]);
 
-    if (!result.rows || result.rows.length === 0) {
+    // Add null checking for database availability
+    if (!result || !result.rows) {
+      console.warn("Price data query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Price data temporarily unavailable - database connection issue",
+        data: [],
+        ticker: req.params.ticker
+      });
+    }
+
+    if (result.rows.length === 0) {
       // Return structured empty response with comprehensive diagnostics
       console.error(
         `❌ No historical data found for ${symbol} - comprehensive diagnosis needed`,
@@ -1547,6 +1672,20 @@ router.get("/:ticker/prices/recent", async (req, res) => {
 
     const result = await query(pricesQuery, [ticker, limit]);
 
+    // Add null checking for database availability
+    if (!result || !result.rows) {
+      console.warn("Price data query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        ticker: ticker.toUpperCase(),
+        message: "Price data temporarily unavailable - database connection issue",
+        data: [],
+        code: "DATABASE_UNAVAILABLE",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     if (result.rows.length === 0) {
       console.log(`📊 [STOCKS] No price data found for ${ticker}`);
       return res.status(404).json({
@@ -1636,6 +1775,18 @@ router.get("/filters/sectors", async (req, res) => {
 
     const result = await query(sectorsQuery);
 
+    // Add null checking for database availability
+    if (!result || !result.rows) {
+      console.warn("Stock exchanges query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock exchanges data temporarily unavailable - database connection issue",
+        data: [],
+        total: 0
+      });
+    }
+
     res.json({
       data: result.rows.map((row) => ({
         name: row.exchange,
@@ -1684,6 +1835,21 @@ router.get("/screen/stats", async (req, res) => {
     let result;
     try {
       result = await query(statsQuery);
+      
+      // Add null checking for database availability
+      if (!result || !result.rows) {
+        console.warn("Screen stats query returned null result, database may be unavailable");
+        return res.status(503).json({
+          success: false,
+          error: "Database temporarily unavailable",
+          message: "Screen statistics temporarily unavailable - database connection issue",
+          fallback_data: {
+            total_stocks: 8500,
+            note: "Using fallback statistics - database unavailable"
+          }
+        });
+      }
+      
       console.log(
         `✅ Screen stats query successful: ${result.rows.length} stats found`
       );
@@ -1927,6 +2093,17 @@ router.post("/init-price-data", async (req, res) => {
     const countResult = await query(
       "SELECT COUNT(*) as count FROM price_daily"
     );
+    
+    // Add null checking for database availability
+    if (!countResult || !countResult.rows || countResult.rows.length === 0) {
+      console.warn("Count query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Cannot retrieve row count - database connection issue"
+      });
+    }
+    
     const totalRows = countResult.rows[0].count;
 
     res.json({

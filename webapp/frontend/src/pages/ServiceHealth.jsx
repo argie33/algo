@@ -692,18 +692,20 @@ function ServiceHealth() {
                 <Storage sx={{ mr: 1, verticalAlign: "middle" }} />
                 Database Health
               </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<Refresh />}
-                onClick={refreshHealthStatus}
-                sx={{ ml: "auto", mr: 2 }}
-                disabled={refreshing}
-              >
-                {refreshing ? "Updating..." : "Update All Tables"}
-              </Button>
             </AccordionSummary>
             <AccordionDetails>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<Refresh />}
+                  onClick={refreshHealthStatus}
+                  disabled={refreshing}
+                >
+                  {refreshing ? "Updating..." : "Update All Tables"}
+                </Button>
+              </Box>
+              
               {dbLoading && (
                 <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
                   <CircularProgress size={24} />
@@ -806,7 +808,7 @@ function ServiceHealth() {
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
-                          <Typography variant="body2" color="warning.main">
+                          <Typography variant="body2" color="text.secondary">
                             Stale: {safeDbHealth.database.summary.stale_tables}
                           </Typography>
                         </Grid>
@@ -816,7 +818,7 @@ function ServiceHealth() {
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
-                          <Typography variant="body2" color="info.main">
+                          <Typography variant="body2" color="info.dark">
                             Empty: {safeDbHealth.database.summary.empty_tables}
                           </Typography>
                         </Grid>
@@ -835,7 +837,7 @@ function ServiceHealth() {
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
-                          <Typography variant="body2" color="warning.main">
+                          <Typography variant="body2" color="text.secondary">
                             Missing Data:{" "}
                             {formatNumber(
                               safeDbHealth.database.summary.total_missing_data
@@ -1009,7 +1011,7 @@ function ServiceHealth() {
                                       {tableData.missing_data_count > 0 ? (
                                         <Typography
                                           variant="body2"
-                                          color="warning.main"
+                                          color="text.secondary"
                                           fontWeight={600}
                                         >
                                           {formatNumber(

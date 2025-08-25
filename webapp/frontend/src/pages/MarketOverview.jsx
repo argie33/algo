@@ -128,8 +128,9 @@ const _colorSchemes = {
 // Enhanced custom components
 const AnimatedCard = ({ children, delay = 0, ...props }) => {
   const theme = useTheme();
+  const zoomTimeout = 300 + delay * 100;
   return (
-    <Zoom in={true} timeout={300 + delay * 100}>
+    <Zoom in={true} timeout={zoomTimeout}>
       <Card
         {...props}
         sx={{

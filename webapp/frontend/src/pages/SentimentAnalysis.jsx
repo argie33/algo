@@ -348,12 +348,12 @@ const SentimentAnalysis = () => {
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="Multi-Source Analysis" icon={<Analytics />} />
-          <Tab label="Sentiment Trends" icon={<Timeline />} />
-          <Tab label="Contrarian Signals" icon={<Psychology />} />
-          <Tab label="News Impact" icon={<Newspaper />} />
-          <Tab label="Social Sentiment" icon={<Reddit />} />
-          <Tab label="AI Insights" icon={<Lightbulb />} />
+          <Tab value={0} label="Multi-Source Analysis" icon={<Analytics />} />
+          <Tab value={1} label="Sentiment Trends" icon={<Timeline />} />
+          <Tab value={2} label="Contrarian Signals" icon={<Psychology />} />
+          <Tab value={3} label="News Impact" icon={<Newspaper />} />
+          <Tab value={4} label="Social Sentiment" icon={<Reddit />} />
+          <Tab value={5} label="AI Insights" icon={<Lightbulb />} />
         </Tabs>
       </Box>
 

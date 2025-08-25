@@ -55,7 +55,11 @@ describe("Simplified User Workflows - Core Functionality", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    validateJwtToken.mockResolvedValue(mockUser);
+    // Fix authentication mock to match middleware expectations
+    validateJwtToken.mockResolvedValue({
+      valid: true,
+      user: mockUser,
+    });
     mockHealthCheck.mockResolvedValue({ healthy: true, database: "connected" });
     getHealthStatus.mockReturnValue({
       apiKeyCircuitBreaker: { state: "CLOSED" },
@@ -117,7 +121,10 @@ describe("Simplified User Workflows - Core Functionality", () => {
     });
 
     it("should handle authentication failures", async () => {
-      validateJwtToken.mockRejectedValue(new Error("Invalid token"));
+      validateJwtToken.mockResolvedValue({
+        valid: false,
+        error: "Invalid token",
+      });
 
       await request(app)
         .get("/api/settings/api-keys")

@@ -412,11 +412,11 @@ const PortfolioPerformance = () => {
             value={activeTab}
             onChange={(e, newValue) => setActiveTab(newValue)}
           >
-            <Tab label="Performance Chart" icon={<ShowChart />} />
-            <Tab label="Attribution Analysis" icon={<PieChartIcon />} />
-            <Tab label="Risk Metrics" icon={<Warning />} />
-            <Tab label="Sector Performance" icon={<Analytics />} />
-            <Tab label="Holdings Analysis" icon={<Assessment />} />
+            <Tab value={0} label="Performance Chart" icon={<ShowChart />} />
+            <Tab value={1} label="Attribution Analysis" icon={<PieChartIcon />} />
+            <Tab value={2} label="Risk Metrics" icon={<Warning />} />
+            <Tab value={3} label="Sector Performance" icon={<Analytics />} />
+            <Tab value={4} label="Holdings Analysis" icon={<Assessment />} />
           </Tabs>
         </Box>
 

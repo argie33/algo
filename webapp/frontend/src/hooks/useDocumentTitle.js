@@ -13,11 +13,10 @@ export const useDocumentTitle = (title, suffix = 'Financial Dashboard') => {
       document.title = `${title} | ${suffix}`;
     }
     
-    // Cleanup function to restore previous title
+    // Cleanup function to restore previous title or default
     return () => {
-      if (previousTitle) {
-        document.title = previousTitle;
-      }
+      // Ensure we always have a valid title, fallback to the suffix if previous title is empty
+      document.title = previousTitle && previousTitle.trim() ? previousTitle : suffix;
     };
   }, [title, suffix]);
 };

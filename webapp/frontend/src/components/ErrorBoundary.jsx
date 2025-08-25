@@ -88,8 +88,8 @@ class ErrorBoundary extends React.Component {
       errorId: null,
     });
 
-    // Optionally reload the entire page
-    // window.location.reload();
+    // Reload the entire page to ensure clean state
+    window.location.reload();
   };
 
   handleGoHome = () => {

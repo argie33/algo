@@ -448,6 +448,229 @@ async function getFinancialStatement(ticker, type, period) {
   );
 }
 
+// Get basic financial data for a symbol (for tests)
+router.get("/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching basic financial data for ${symbol}`);
+
+  try {
+    // Get basic financial overview - redirect to data endpoint
+    const dataQuery = `
+      SELECT 
+        symbol,
+        date,
+        item_name,
+        value
+      FROM annual_income_statement
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 10
+    `;
+
+    const result = await query(dataQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No financial data found for symbol ${symbol}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows.slice(0, 5), // Return just a few records
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error(
+      `❌ [FINANCIALS] Error fetching basic financial data for ${symbol}:`,
+      error
+    );
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch financial data",
+      details: error.message,
+    });
+  }
+});
+
+// Get income statement (simple endpoint for tests)
+router.get("/:symbol/income", async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching income data for ${symbol} (test endpoint)`);
+
+  try {
+    const incomeQuery = `
+      SELECT 
+        symbol,
+        date,
+        item_name,
+        value
+      FROM annual_income_statement
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 20
+    `;
+
+    const result = await query(incomeQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No income data found for symbol ${symbol}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching income data for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch income data",
+      details: error.message,
+    });
+  }
+});
+
+// Get balance sheet (simple endpoint for tests)
+router.get("/:symbol/balance", async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching balance data for ${symbol} (test endpoint)`);
+
+  try {
+    const balanceQuery = `
+      SELECT 
+        symbol,
+        date,
+        item_name,
+        value
+      FROM annual_balance_sheet
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 20
+    `;
+
+    const result = await query(balanceQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No balance sheet data found for symbol ${symbol}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching balance data for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch balance data",
+      details: error.message,
+    });
+  }
+});
+
+// Get cash flow (simple endpoint for tests)
+router.get("/:symbol/cashflow", async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching cash flow for ${symbol} (test endpoint)`);
+
+  try {
+    const cashFlowQuery = `
+      SELECT 
+        symbol,
+        date,
+        item_name,
+        value
+      FROM annual_cash_flow
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 20
+    `;
+
+    const result = await query(cashFlowQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No cash flow data found for symbol ${symbol}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      symbol: symbol.toUpperCase(),
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching cash flow for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch cash flow data",
+      details: error.message,
+    });
+  }
+});
+
+// Get financial ratios (simple endpoint for tests)
+router.get("/:symbol/ratios", async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching ratios for ${symbol} (test endpoint)`);
+
+  try {
+    // Use key metrics as ratios data
+    const ratiosQuery = `
+      SELECT 
+        ticker as symbol,
+        trailing_pe,
+        forward_pe,
+        price_to_book,
+        debt_to_equity,
+        current_ratio,
+        quick_ratio,
+        profit_margin_pct,
+        return_on_equity_pct,
+        return_on_assets_pct
+      FROM key_metrics
+      WHERE UPPER(ticker) = UPPER($1)
+    `;
+
+    const result = await query(ratiosQuery, [symbol.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No financial ratios found for symbol ${symbol}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      symbol: symbol.toUpperCase(),
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching ratios for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch ratios data",
+      details: error.message,
+    });
+  }
+});
+
 // Health check
 router.get("/ping", (req, res) => {
   res.json({

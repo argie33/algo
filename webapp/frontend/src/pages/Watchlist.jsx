@@ -196,9 +196,9 @@ const Watchlist = () => {
             />
             <Chip
               label={`Updated ${formatTimeAgo(lastUpdate)}`}
-              color="info"
+              color="primary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
           </Box>
         </Box>
@@ -401,6 +401,7 @@ const Watchlist = () => {
                             size="small"
                             color="error"
                             onClick={() => removeSymbol(symbol)}
+                            aria-label={`Remove ${symbol} from watchlist`}
                           >
                             <Delete />
                           </IconButton>

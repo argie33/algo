@@ -421,12 +421,12 @@ function StockDetail() {
           onChange={handleTabChange}
           aria-label="stock detail tabs"
         >
-          <Tab label="Overview" icon={<Analytics />} />
-          <Tab label="Price & Volume" icon={<Timeline />} />
-          <Tab label="Financials" icon={<AccountBalance />} />
-          <Tab label="Ratios" icon={<Timeline />} />
-          <Tab label="Factor Analysis" icon={<Business />} />
-          <Tab label="Recommendations" icon={<TrendingUp />} />
+          <Tab value={0} label="Overview" icon={<Analytics />} />
+          <Tab value={1} label="Price & Volume" icon={<Timeline />} />
+          <Tab value={2} label="Financials" icon={<AccountBalance />} />
+          <Tab value={3} label="Ratios" icon={<Timeline />} />
+          <Tab value={4} label="Factor Analysis" icon={<Business />} />
+          <Tab value={5} label="Recommendations" icon={<TrendingUp />} />
         </Tabs>
       </Box>
       {/* Tab Panels */}{" "}

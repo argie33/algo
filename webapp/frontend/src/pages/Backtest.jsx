@@ -825,7 +825,7 @@ export default function Backtest() {
               label="Live Execution"
               color="primary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
             <Chip
               label="Risk Analytics"
@@ -835,15 +835,15 @@ export default function Backtest() {
             />
             <Chip
               label="Advanced Metrics"
-              color="info"
+              color="primary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
             <Chip
               label="Multi-Asset"
-              color="warning"
+              color="secondary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
           </Box>
         </Box>
@@ -862,9 +862,9 @@ export default function Backtest() {
           ) : (
             <Chip
               label="Guest Mode"
-              color="warning"
+              color="secondary"
               size="small"
-              variant="outlined"
+              variant="filled"
             />
           )}
 
@@ -1036,13 +1036,27 @@ export default function Backtest() {
                 </MuiTooltip>
               </Box>
               <Paper sx={{ p: 0, mb: 2, background: "#f7f7f7" }}>
-                <CodeMirror
-                  value={pythonCode}
-                  height="300px"
-                  extensions={[python()]}
-                  onChange={(v) => setPythonCode(v)}
-                  theme="light"
-                />
+                <Box 
+                  ref={(ref) => {
+                    if (ref) {
+                      // Add aria-label to CodeMirror content after render
+                      setTimeout(() => {
+                        const cmContent = ref.querySelector('.cm-content');
+                        if (cmContent) {
+                          cmContent.setAttribute('aria-label', 'Python backtest strategy code editor');
+                        }
+                      }, 100);
+                    }
+                  }}
+                >
+                  <CodeMirror
+                    value={pythonCode}
+                    height="300px"
+                    extensions={[python()]}
+                    onChange={(v) => setPythonCode(v)}
+                    theme="light"
+                  />
+                </Box>
               </Paper>
               <Button
                 variant="outlined"

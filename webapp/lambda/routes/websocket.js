@@ -54,21 +54,20 @@ router.get("/health", (req, res) => {
       });
     }
 
-    res.json(
-      success({
-        status: "operational",
-        service: "websocket",
-        timestamp: new Date().toISOString(),
-        message: "WebSocket service is running",
-        type: "http_polling_realtime_data",
-        dependencies: {
-          responseFormatter: true,
-          apiKeyService: !!apiKeyService,
-          alpacaService: !!AlpacaService,
-          validationMiddleware: !!validationMiddleware,
-        },
-      })
-    );
+    const response = success({
+      status: "operational",
+      service: "websocket",
+      timestamp: new Date().toISOString(),
+      message: "WebSocket service is running",
+      type: "http_polling_realtime_data",
+      dependencies: {
+        responseFormatter: true,
+        apiKeyService: !!apiKeyService,
+        alpacaService: !!AlpacaService,
+        validationMiddleware: !!validationMiddleware,
+      },
+    });
+    res.status(response.statusCode).json(response.response);
   } catch (healthError) {
     console.error("WebSocket health check error:", healthError);
     res.status(500).json({
@@ -84,20 +83,19 @@ router.get("/health", (req, res) => {
 // Basic status endpoint
 router.get("/status", (req, res) => {
   try {
-    res.json(
-      success({
-        activeUsers: 0,
-        cachedSymbols: 0,
-        service: "websocket",
-        serverTime: new Date().toISOString(),
-        uptime: process.uptime(),
-        dependencies: {
-          apiKeyService: !!apiKeyService,
-          alpacaService: !!AlpacaService,
-          validationMiddleware: !!validationMiddleware,
-        },
-      })
-    );
+    const response = success({
+      activeUsers: 0,
+      cachedSymbols: 0,
+      service: "websocket",
+      serverTime: new Date().toISOString(),
+      uptime: process.uptime(),
+      dependencies: {
+        apiKeyService: !!apiKeyService,
+        alpacaService: !!AlpacaService,
+        validationMiddleware: !!validationMiddleware,
+      },
+    });
+    res.status(response.statusCode).json(response.response);
   } catch (statusError) {
     console.error("WebSocket status check error:", statusError);
     res.status(500).json({
@@ -560,7 +558,8 @@ router.get("/stream/:symbols", authenticateToken, async (req, res) => {
       },
     };
 
-    res.json(success(responseData));
+    const response = success(responseData);
+    res.status(response.statusCode).json(response.response);
   } catch (streamError) {
     const errorDuration = Date.now() - requestStart;
     console.error(
@@ -638,7 +637,8 @@ router.get("/trades/:symbols", authenticateToken, async (req, res) => {
       }
     }
 
-    res.json(success(tradeData));
+    const response = success(tradeData);
+    res.status(response.statusCode).json(response.response);
   } catch (error) {
     console.error("Trades endpoint error:", error);
     res.status(500).json(createErrorResponse("Failed to get trade data"));
@@ -694,7 +694,8 @@ router.get("/bars/:symbols", authenticateToken, async (req, res) => {
       }
     }
 
-    res.json(success(barsData));
+    const response = success(barsData);
+    res.status(response.statusCode).json(response.response);
   } catch (error) {
     console.error("Bars endpoint error:", error);
     res.status(500).json(createErrorResponse("Failed to get bars data"));
@@ -718,18 +719,17 @@ router.post("/subscribe", authenticateToken, async (req, res) => {
     const userSymbols = symbols.map((s) => s.toUpperCase());
     userSubscriptions.set(userId, new Set(userSymbols));
 
-    res.json(
-      success({
-        subscribed: userSymbols,
-        dataTypes: dataTypes || ["quotes"],
-        message: `Subscribed to ${userSymbols.length} symbols`,
-        streamEndpoints: {
-          quotes: `/api/websocket/stream/${userSymbols.join(",")}`,
-          trades: `/api/websocket/trades/${userSymbols.join(",")}`,
-          bars: `/api/websocket/bars/${userSymbols.join(",")}`,
-        },
-      })
-    );
+    const response = success({
+      subscribed: userSymbols,
+      dataTypes: dataTypes || ["quotes"],
+      message: `Subscribed to ${userSymbols.length} symbols`,
+      streamEndpoints: {
+        quotes: `/api/websocket/stream/${userSymbols.join(",")}`,
+        trades: `/api/websocket/trades/${userSymbols.join(",")}`,
+        bars: `/api/websocket/bars/${userSymbols.join(",")}`,
+      },
+    });
+    res.status(response.statusCode).json(response.response);
   } catch (error) {
     console.error("Subscribe endpoint error:", error);
     res.status(500).json(createErrorResponse("Failed to subscribe"));
@@ -745,20 +745,19 @@ router.get("/subscriptions", authenticateToken, async (req, res) => {
 
     const subscriptions = Array.from(userSubscriptions.get(userId) || []);
 
-    res.json(
-      success({
-        symbols: subscriptions,
-        count: subscriptions.length,
-        streamEndpoints:
-          subscriptions.length > 0
-            ? {
-                quotes: `/api/websocket/stream/${subscriptions.join(",")}`,
-                trades: `/api/websocket/trades/${subscriptions.join(",")}`,
-                bars: `/api/websocket/bars/${subscriptions.join(",")}`,
-              }
-            : null,
-      })
-    );
+    const response = success({
+      symbols: subscriptions,
+      count: subscriptions.length,
+      streamEndpoints:
+        subscriptions.length > 0
+          ? {
+              quotes: `/api/websocket/stream/${subscriptions.join(",")}`,
+              trades: `/api/websocket/trades/${subscriptions.join(",")}`,
+              bars: `/api/websocket/bars/${subscriptions.join(",")}`,
+            }
+          : null,
+    });
+    res.status(response.statusCode).json(response.response);
   } catch (error) {
     console.error("Subscriptions endpoint error:", error);
     res.status(500).json(createErrorResponse("Failed to get subscriptions"));
@@ -784,12 +783,11 @@ router.delete("/subscribe", authenticateToken, async (req, res) => {
       userSubscriptions.delete(userId);
     }
 
-    res.json(
-      success({
-        message: "Unsubscribed successfully",
-        remainingSubscriptions: Array.from(userSubscriptions.get(userId) || []),
-      })
-    );
+    const response = success({
+      message: "Unsubscribed successfully",
+      remainingSubscriptions: Array.from(userSubscriptions.get(userId) || []),
+    });
+    res.status(response.statusCode).json(response.response);
   } catch (error) {
     console.error("Unsubscribe endpoint error:", error);
     res.status(500).json(createErrorResponse("Failed to unsubscribe"));
@@ -813,21 +811,20 @@ router.get("/status", (req, res) => {
     };
   }
 
-  res.json(
-    success({
-      activeUsers: userSubscriptions.size,
-      cachedSymbols: realtimeDataCache.size,
-      cacheDetails,
-      userSubscriptions: Object.fromEntries(
-        Array.from(userSubscriptions.entries()).map(([userId, symbols]) => [
-          userId.substring(0, 8) + "...",
-          Array.from(symbols),
-        ])
-      ),
-      serverTime: new Date().toISOString(),
-      uptime: process.uptime(),
-    })
-  );
+  const response = success({
+    activeUsers: userSubscriptions.size,
+    cachedSymbols: realtimeDataCache.size,
+    cacheDetails,
+    userSubscriptions: Object.fromEntries(
+      Array.from(userSubscriptions.entries()).map(([userId, symbols]) => [
+        userId.substring(0, 8) + "...",
+        Array.from(symbols),
+      ])
+    ),
+    serverTime: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+  res.status(response.statusCode).json(response.response);
 });
 
 // Cleanup expired cache entries periodically (skip in test environment)

@@ -5,10 +5,12 @@ const { authenticateToken, _optionalAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Initialize database on module load
-initializeDatabase().catch((err) => {
-  console.error("Failed to initialize database in dashboard routes:", err);
-});
+// Initialize database on module load (skip in test environment)
+if (process.env.NODE_ENV !== "test") {
+  initializeDatabase().catch((err) => {
+    console.error("Failed to initialize database in dashboard routes:", err);
+  });
+}
 
 /**
  * GET /api/dashboard/summary
@@ -161,6 +163,29 @@ router.get("/summary", async (req, res) => {
       query(volumeQuery),
       query(breadthQuery),
     ]);
+
+    // Add null checking for database availability
+    if (!marketResult || !gainersResult || !losersResult || !sectorResult ||
+        !earningsResult || !sentimentResult || !volumeResult || !breadthResult ||
+        !marketResult.rows || !gainersResult.rows || !losersResult.rows || !sectorResult.rows ||
+        !earningsResult.rows || !sentimentResult.rows || !volumeResult.rows || !breadthResult.rows) {
+      console.warn("Dashboard summary query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Dashboard data temporarily unavailable - database connection issue",
+        data: {
+          market: { indices: [], status: "unavailable" },
+          gainers: [],
+          losers: [],
+          sectors: [],
+          earnings: [],
+          sentiment: { overall: "neutral", articles: 0 },
+          volume: { total: 0, leaders: [] },
+          breadth: { advancing: 0, declining: 0, ratio: 0 }
+        }
+      });
+    }
 
     console.log(
       `✅ Dashboard queries completed: ${marketResult.rowCount} market, ${gainersResult.rowCount} gainers, ${losersResult.rowCount} losers, ${sectorResult.rowCount} sectors, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment, ${volumeResult.rowCount} volume, ${breadthResult.rowCount} breadth`

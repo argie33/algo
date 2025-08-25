@@ -464,12 +464,13 @@ const PatternRecognition = () => {
           onChange={(e, newValue) => setTabValue(newValue)}
         >
           <Tab
+            value={0}
             label={`Detected Patterns (${patterns.length})`}
             icon={<Timeline />}
           />
-          <Tab label="Bullish Signals" icon={<TrendingUp />} />
-          <Tab label="Bearish Signals" icon={<TrendingDown />} />
-          <Tab label="Pattern Analytics" icon={<BarChart />} />
+          <Tab value={1} label="Bullish Signals" icon={<TrendingUp />} />
+          <Tab value={2} label="Bearish Signals" icon={<TrendingDown />} />
+          <Tab value={3} label="Pattern Analytics" icon={<BarChart />} />
         </Tabs>
       </Box>
 

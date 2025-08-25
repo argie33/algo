@@ -21,9 +21,13 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 jest.mock("../../../utils/responseFormatter", () => ({
-  success: jest.fn((data) => ({ success: true, ...data })),
+  success: jest.fn((data) => ({
+    response: { success: true, data },
+    statusCode: 200
+  })),
   error: jest.fn((message, code, details) => ({
     response: { success: false, error: message, code, ...details },
+    statusCode: code || 500
   })),
 }));
 
@@ -57,12 +61,12 @@ jest.mock("../../../middleware/validation", () => ({
   createValidationMiddleware: jest.fn(),
 }));
 
-// Set up timer mocks
-jest.useFakeTimers();
+// Note: Not using fake timers for websocket tests due to timeout/Promise issues
 
 const websocketRoutes = require("../../../routes/websocket");
 
 const app = express();
+app.disable('etag'); // Disable ETags to avoid crypto issues in tests
 app.use(express.json());
 app.use("/api/websocket", websocketRoutes);
 
@@ -72,10 +76,16 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
     mockAlpacaInstance.getLatestQuote.mockReset();
     mockAlpacaInstance.getLatestTrade.mockReset();
     mockAlpacaInstance.getBars.mockReset();
+    mockAlpacaService.mockClear();
+    
+    // Restore default mock implementation for AlpacaService constructor
+    // This is critical because some tests change the mock implementation
+    // (e.g., to simulate errors) and if not reset, subsequent tests fail
+    mockAlpacaService.mockImplementation(() => mockAlpacaInstance);
   });
 
   afterAll(() => {
-    jest.useRealTimers();
+    // No timer cleanup needed since we're not using fake timers
   });
 
   describe("Basic Endpoints", () => {
@@ -94,8 +104,8 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.service).toBe("websocket");
-      expect(response.body.dependencies).toEqual({
+      expect(response.body.data.service).toBe("websocket");
+      expect(response.body.data.dependencies).toEqual({
         responseFormatter: true,
         apiKeyService: true,
         alpacaService: true,
@@ -127,8 +137,8 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.symbols).toEqual(["AAPL"]);
-      expect(response.body.data.AAPL).toMatchObject({
+      expect(response.body.data.symbols).toEqual(["AAPL"]);
+      expect(response.body.data.data.AAPL).toMatchObject({
         symbol: "AAPL",
         bidPrice: 150.25,
         askPrice: 150.27,
@@ -237,7 +247,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.AAPL).toMatchObject({
+      expect(response.body.data.AAPL).toMatchObject({
         symbol: "AAPL",
         price: 150.3,
         size: 100,
@@ -290,7 +300,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.AAPL).toEqual(mockBarsData);
+      expect(response.body.data.AAPL).toEqual(mockBarsData);
 
       expect(mockApiKeyService.getDecryptedApiKey).toHaveBeenCalledWith(
         "test-user-id",
@@ -329,9 +339,11 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
 
       expect(response.body).toMatchObject({
         success: true,
-        subscribed: ["AAPL", "TSLA"],
-        dataTypes: ["quotes", "trades"],
-        message: "Subscribed to 2 symbols",
+        data: {
+          subscribed: ["AAPL", "TSLA"],
+          dataTypes: ["quotes", "trades"],
+          message: "Subscribed to 2 symbols",
+        }
       });
     });
 
@@ -362,8 +374,10 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
 
       expect(response.body).toMatchObject({
         success: true,
-        symbols: ["AAPL", "TSLA"],
-        count: 2,
+        data: {
+          symbols: ["AAPL", "TSLA"],
+          count: 2,
+        }
       });
     });
 
@@ -381,8 +395,10 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
 
       expect(response.body).toMatchObject({
         success: true,
-        message: "Unsubscribed successfully",
-        remainingSubscriptions: ["MSFT"],
+        data: {
+          message: "Unsubscribed successfully",
+          remainingSubscriptions: ["MSFT"],
+        }
       });
     });
   });

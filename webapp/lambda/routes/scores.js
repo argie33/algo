@@ -150,6 +150,28 @@ router.get("/", async (req, res) => {
     `;
 
     const countResult = await query(countQuery, params.slice(0, paramCount));
+
+    // Add null checking for database availability
+    if (!stocksResult || !stocksResult.rows || !countResult || !countResult.rows) {
+      console.warn("Scores query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock scores temporarily unavailable - database connection issue",
+        data: {
+          stocks: [],
+          pagination: {
+            page: page,
+            limit: limit,
+            total: 0,
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false
+          }
+        }
+      });
+    }
+
     const totalStocks = parseInt(countResult.rows[0].total);
 
     // Format the response
@@ -279,6 +301,18 @@ router.get("/:symbol", async (req, res) => {
 
     const scoresResult = await query(scoresQuery, [symbol]);
 
+    // Add null checking for database availability
+    if (!scoresResult || !scoresResult.rows) {
+      console.warn("Scores query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Stock scores temporarily unavailable - database connection issue",
+        symbol,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     if (scoresResult.rows.length === 0) {
       return res.status(404).json({
         error: "Symbol not found or no scores available",
@@ -289,6 +323,7 @@ router.get("/:symbol", async (req, res) => {
 
     const latestScore = scoresResult.rows[0];
     const historicalScores = scoresResult.rows.slice(1);
+    let sectorBenchmark;
 
     // Get sector benchmark data
     const sectorQuery = `
@@ -308,7 +343,20 @@ router.get("/:symbol", async (req, res) => {
       latestScore.sector,
       latestScore.date,
     ]);
-    const sectorBenchmark = sectorResult.rows[0];
+
+    // Add null checking for sector benchmark query
+    if (!sectorResult || !sectorResult.rows || sectorResult.rows.length === 0) {
+      console.warn("Sector benchmark query returned null result");
+      // Use default empty benchmark if sector data unavailable
+      sectorBenchmark = {
+        avg_composite: 0,
+        avg_quality: 0,
+        avg_value: 0,
+        peer_count: 0
+      };
+    } else {
+      sectorBenchmark = sectorResult.rows[0];
+    }
 
     // Format comprehensive response
     const response = {

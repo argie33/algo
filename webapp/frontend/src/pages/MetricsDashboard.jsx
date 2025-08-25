@@ -450,9 +450,9 @@ const MetricsDashboard = () => {
           value={activeTab}
           onChange={(e, newValue) => setActiveTab(newValue)}
         >
-          <Tab label="Stock Metrics" />
-          <Tab label="Sector Analysis" />
-          <Tab label="Top Performers" />
+          <Tab value={0} label="Stock Metrics" />
+          <Tab value={1} label="Sector Analysis" />
+          <Tab value={2} label="Top Performers" />
         </Tabs>
       </Box>
 

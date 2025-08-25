@@ -1,46 +1,38 @@
-// Mock aws-jwt-verify
-jest.mock("aws-jwt-verify", () => ({
-  CognitoJwtVerifier: {
-    create: jest.fn(),
-  },
+// Mock API key service for JWT validation
+jest.mock("../../utils/apiKeyService", () => ({
+  validateJwtToken: jest.fn(),
 }));
 
-const { CognitoJwtVerifier } = require("aws-jwt-verify");
+const { validateJwtToken } = require("../../utils/apiKeyService");
 
 describe("Auth Middleware", () => {
   let authenticateToken, requireRole, optionalAuth;
-  let mockVerifier;
   let req, res, next;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Set test environment variables first
-    process.env.COGNITO_USER_POOL_ID = "test-user-pool";
-    process.env.COGNITO_CLIENT_ID = "test-client-id";
     process.env.NODE_ENV = "production";
     delete process.env.SKIP_AUTH;
 
     // Clear module cache
     delete require.cache[require.resolve("../../middleware/auth")];
 
-    // Mock JWT verifier with fresh mock for each test
-    mockVerifier = {
-      verify: jest.fn(),
-    };
-    CognitoJwtVerifier.create.mockClear();
-    CognitoJwtVerifier.create.mockReturnValue(mockVerifier);
-
     // Set up mock request/response/next
     req = {
       headers: {},
       method: "GET",
       path: "/api/test",
+      ip: "127.0.0.1",
+      get: jest.fn().mockReturnValue("test-agent"),
+      connection: { remoteAddress: "127.0.0.1" },
     };
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
       setHeader: jest.fn(),
+      set: jest.fn(),
     };
     next = jest.fn();
 
@@ -52,34 +44,36 @@ describe("Auth Middleware", () => {
   });
 
   afterEach(() => {
-    delete process.env.COGNITO_USER_POOL_ID;
-    delete process.env.COGNITO_CLIENT_ID;
     delete process.env.NODE_ENV;
     delete process.env.SKIP_AUTH;
   });
 
   describe("authenticateToken middleware", () => {
     test("should authenticate valid JWT token", async () => {
-      const mockPayload = {
-        sub: "user-123",
-        username: "testuser",
-        email: "test@example.com",
-        "custom:role": "admin",
-        "cognito:groups": ["users"],
+      const mockResult = {
+        valid: true,
+        user: {
+          sub: "user-123",
+          username: "testuser",
+          email: "test@example.com",
+          role: "admin",
+          groups: ["users"],
+          sessionId: "session-123",
+        },
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
-      mockVerifier.verify.mockResolvedValue(mockPayload);
+      validateJwtToken.mockResolvedValue(mockResult);
 
       await authenticateToken(req, res, next);
 
-      expect(mockVerifier.verify).toHaveBeenCalledWith("valid-jwt-token");
-      expect(req.user).toEqual({
-        sub: "user-123",
-        username: "testuser",
-        email: "test@example.com",
-        role: "admin",
-        groups: ["users"],
+      expect(validateJwtToken).toHaveBeenCalledWith("valid-jwt-token");
+      expect(req.user).toEqual(mockResult.user);
+      expect(req.token).toBe("valid-jwt-token");
+      expect(req.sessionId).toBe("session-123");
+      expect(req.clientInfo).toEqual({
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
       });
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
@@ -92,29 +86,35 @@ describe("Auth Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         error: "Authentication required",
         message: "Access token is missing from Authorization header",
+        code: "MISSING_TOKEN",
       });
       expect(next).not.toHaveBeenCalled();
     });
 
     test("should reject invalid JWT token", async () => {
       req.headers.authorization = "Bearer invalid-jwt-token";
-      mockVerifier.verify.mockRejectedValue(new Error("Invalid token"));
+      validateJwtToken.mockResolvedValue({
+        valid: false,
+        error: "Invalid token format",
+      });
 
       await authenticateToken(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
-        error: "Authentication failed",
-        message: "Could not verify authentication token",
+        error: "Invalid token",
+        message: "Invalid token format",
+        code: "INVALID_TOKEN",
       });
       expect(next).not.toHaveBeenCalled();
     });
 
     test("should handle expired tokens", async () => {
       req.headers.authorization = "Bearer expired-jwt-token";
-      const expiredError = new Error("Token expired");
-      expiredError.name = "TokenExpiredError";
-      mockVerifier.verify.mockRejectedValue(expiredError);
+      validateJwtToken.mockResolvedValue({
+        valid: false,
+        error: "jwt expired",
+      });
 
       await authenticateToken(req, res, next);
 
@@ -122,22 +122,25 @@ describe("Auth Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         error: "Token expired",
         message: "Your session has expired. Please log in again.",
+        code: "TOKEN_EXPIRED",
       });
       expect(next).not.toHaveBeenCalled();
     });
 
     test("should handle invalid JWT format errors", async () => {
       req.headers.authorization = "Bearer malformed-jwt-token";
-      const jwtError = new Error("Invalid JWT format");
-      jwtError.name = "JsonWebTokenError";
-      mockVerifier.verify.mockRejectedValue(jwtError);
+      validateJwtToken.mockResolvedValue({
+        valid: false,
+        error: "invalid signature",
+      });
 
       await authenticateToken(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         error: "Invalid token",
-        message: "The provided token is invalid.",
+        message: "invalid signature",
+        code: "INVALID_TOKEN",
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -157,42 +160,46 @@ describe("Auth Middleware", () => {
         email: "dev@example.com",
         username: "dev-user",
         role: "admin",
+        sessionId: "dev-session",
       });
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
     });
 
     test("should use no-auth user when verifier not available", async () => {
-      // Clear environment to disable verifier
-      delete process.env.COGNITO_USER_POOL_ID;
-      delete process.env.COGNITO_CLIENT_ID;
-
-      // Clear module cache and reimport
-      delete require.cache[require.resolve("../../middleware/auth")];
-      const authModule = require("../../middleware/auth");
-
-      await authModule.authenticateToken(req, res, next);
-
-      expect(req.user).toEqual({
-        sub: "no-auth-user",
-        email: "no-auth@example.com",
-        username: "no-auth-user",
-        role: "user",
+      // Mock JWT validation to fail (simulating verifier not available)
+      req.headers.authorization = "Bearer some-token";
+      validateJwtToken.mockResolvedValue({
+        valid: false,
+        error: "Verifier not available",
       });
-      expect(next).toHaveBeenCalledWith();
-      expect(res.status).not.toHaveBeenCalled();
+
+      await authenticateToken(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        error: "Invalid token",
+        message: "Verifier not available",
+        code: "INVALID_TOKEN",
+      });
+      expect(next).not.toHaveBeenCalled();
     });
 
     test("should extract user role from custom:role claim", async () => {
-      const mockPayload = {
-        sub: "user-456",
-        username: "testuser",
-        email: "test@example.com",
-        "custom:role": "moderator",
+      const mockResult = {
+        valid: true,
+        user: {
+          sub: "user-456",
+          username: "testuser",
+          email: "test@example.com",
+          role: "moderator",
+          groups: [],
+          sessionId: "session-456",
+        },
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
-      mockVerifier.verify.mockResolvedValue(mockPayload);
+      validateJwtToken.mockResolvedValue(mockResult);
 
       await authenticateToken(req, res, next);
 
@@ -201,14 +208,20 @@ describe("Auth Middleware", () => {
     });
 
     test("should default to user role when no custom role", async () => {
-      const mockPayload = {
-        sub: "user-789",
-        username: "basicuser",
-        email: "basic@example.com",
+      const mockResult = {
+        valid: true,
+        user: {
+          sub: "user-789",
+          username: "basicuser",
+          email: "basic@example.com",
+          role: "user",
+          groups: [],
+          sessionId: "session-789",
+        },
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
-      mockVerifier.verify.mockResolvedValue(mockPayload);
+      validateJwtToken.mockResolvedValue(mockResult);
 
       await authenticateToken(req, res, next);
 
@@ -237,6 +250,10 @@ describe("Auth Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         error: "Insufficient permissions",
         message: "Access denied. Required roles: admin",
+        code: "INSUFFICIENT_PERMISSIONS",
+        userRole: "user",
+        userGroups: [],
+        requiredRoles: ["admin"],
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -250,6 +267,7 @@ describe("Auth Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         error: "Authentication required",
         message: "User must be authenticated to access this resource",
+        code: "AUTH_REQUIRED",
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -271,28 +289,30 @@ describe("Auth Middleware", () => {
       delete req.user;
       // Clear any leftover mock state
       jest.clearAllMocks();
-      mockVerifier.verify.mockReset();
+      validateJwtToken.mockReset();
     });
 
     test("should authenticate user when valid token provided", async () => {
-      const mockPayload = {
-        sub: "user-123",
-        username: "testuser",
-        email: "test@example.com",
+      const mockResult = {
+        valid: true,
+        user: {
+          sub: "user-123",
+          username: "testuser",
+          email: "test@example.com",
+          role: "user",
+          groups: [],
+          sessionId: "session-123",
+        },
       };
 
       req.headers.authorization = "Bearer valid-jwt-token";
-      mockVerifier.verify.mockResolvedValue(mockPayload);
+      validateJwtToken.mockResolvedValue(mockResult);
 
       await optionalAuth(req, res, next);
 
-      expect(req.user).toEqual({
-        sub: "user-123",
-        username: "testuser",
-        email: "test@example.com",
-        role: "user",
-        groups: [],
-      });
+      expect(req.user).toEqual(mockResult.user);
+      expect(req.token).toBe("valid-jwt-token");
+      expect(req.sessionId).toBe("session-123");
       expect(next).toHaveBeenCalledWith();
     });
 
@@ -305,7 +325,7 @@ describe("Auth Middleware", () => {
 
     test("should continue without auth when token verification fails", async () => {
       req.headers.authorization = "Bearer invalid-token";
-      mockVerifier.verify.mockRejectedValue(new Error("Invalid token"));
+      validateJwtToken.mockRejectedValue(new Error("Invalid token"));
 
       await optionalAuth(req, res, next);
 
@@ -314,23 +334,10 @@ describe("Auth Middleware", () => {
     });
 
     test("should set no-auth user when verifier not available", async () => {
-      // Clear environment to disable verifier
-      delete process.env.COGNITO_USER_POOL_ID;
-      delete process.env.COGNITO_CLIENT_ID;
+      // No token provided, optionalAuth should continue without setting user
+      await optionalAuth(req, res, next);
 
-      // Clear module cache and reimport
-      delete require.cache[require.resolve("../../middleware/auth")];
-      const authModule = require("../../middleware/auth");
-
-      await authModule.optionalAuth(req, res, next);
-
-      expect(req.user).toEqual({
-        sub: "no-auth-user",
-        email: "no-auth@example.com",
-        username: "no-auth-user",
-        role: "user",
-        groups: [],
-      });
+      expect(req.user).toBeUndefined();
       expect(next).toHaveBeenCalledWith();
     });
   });

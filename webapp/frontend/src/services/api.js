@@ -61,7 +61,7 @@ export { api };
 export const getPortfolioData = async () => {
   try {
     const response = await api.get("/api/portfolio/holdings");
-    return response.data;
+    return response?.data || null;
   } catch (error) {
     console.error("Error fetching portfolio data:", error);
     throw error;
@@ -481,12 +481,12 @@ export const getMarketOverview = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Market overview error details:", {
-      message: error.message,
+      message: error?.message || 'Unknown error',
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
       config: error.config,
-      stack: error.stack,
+      stack: error?.stack,
     });
     throw new Error(handleApiError(error, "Failed to fetch market overview"));
   }
@@ -3302,18 +3302,18 @@ export const getQuote = async (symbol) => {
 
     const result = {
       symbol: symbol,
-      price: response.data?.price || 0,
-      change: response.data?.change || 0,
-      changePercent: response.data?.changePercent || 0,
-      volume: response.data?.volume || 0,
-      timestamp: response.data?.timestamp || new Date().toISOString(),
+      price: response?.data?.price || 0,
+      change: response?.data?.change || 0,
+      changePercent: response?.data?.changePercent || 0,
+      volume: response?.data?.volume || 0,
+      timestamp: response?.data?.timestamp || new Date().toISOString(),
     };
 
     console.log(`📊 [API] Quote for ${symbol}:`, result);
     return result;
   } catch (error) {
     console.error(`❌ [API] Quote error for ${symbol}:`, error);
-    throw new Error(`Failed to fetch quote for ${symbol}: ${error.message}`);
+    throw new Error(`Failed to fetch quote for ${symbol}: ${error?.message || 'Unknown error'}`);
   }
 };
 
@@ -3323,8 +3323,8 @@ export const placeOrder = async (orderRequest) => {
     const response = await api.post("/api/orders", orderRequest);
 
     const result = {
-      orderId: response.data?.orderId || `order-${Date.now()}`,
-      status: response.data?.status || "pending",
+      orderId: response?.data?.orderId || `order-${Date.now()}`,
+      status: response?.data?.status || "pending",
       symbol: orderRequest.symbol,
       quantity: orderRequest.quantity,
       side: orderRequest.side,
@@ -3336,7 +3336,7 @@ export const placeOrder = async (orderRequest) => {
     return result;
   } catch (error) {
     console.error("❌ [API] Order placement error:", error);
-    throw new Error(`Failed to place order: ${error.message}`);
+    throw new Error(`Failed to place order: ${error?.message || 'Unknown error'}`);
   }
 };
 

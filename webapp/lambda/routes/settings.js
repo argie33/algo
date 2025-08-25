@@ -321,7 +321,26 @@ router.get("/health", async (req, res) => {
 router.get("/profile", async (req, res) => {
   try {
     const user = req.user;
-    const providers = await listProviders(req.token);
+
+    // Add null checking for API key service availability
+    let providers = [];
+    try {
+      providers = await listProviders(req.token);
+    } catch (apiKeyError) {
+      console.warn("API key service unavailable for profile lookup:", apiKeyError.message);
+      // Continue with empty providers array - graceful degradation
+    }
+
+    // Handle token expiration time safely
+    let tokenExpiresAt = null;
+    if (user.tokenExpirationTime && typeof user.tokenExpirationTime === 'number') {
+      try {
+        tokenExpiresAt = new Date(user.tokenExpirationTime * 1000).toISOString();
+      } catch (dateError) {
+        console.warn("Invalid token expiration time:", user.tokenExpirationTime);
+        tokenExpiresAt = null;
+      }
+    }
 
     res.json({
       success: true,
@@ -332,7 +351,7 @@ router.get("/profile", async (req, res) => {
         role: user.role,
         groups: user.groups,
         sessionId: user.sessionId,
-        tokenExpiresAt: new Date(user.tokenExpirationTime * 1000).toISOString(),
+        tokenExpiresAt: tokenExpiresAt,
       },
       settings: {
         configuredProviders: providers.length,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   AppBar,
@@ -398,7 +398,7 @@ function App() {
       </Toolbar>
       <List sx={{ px: 1 }}>
         {Object.entries(groupedMenuItems).map(([category, items]) => (
-          <div key={category}>
+          <React.Fragment key={category}>
             {category === "main" ? (
               // Dashboard gets special treatment - no section header
               items.map((item) => (
@@ -431,6 +431,7 @@ function App() {
                 <ListItem disablePadding>
                   <ListItemButton
                     onClick={() => handleSectionToggle(category)}
+                    aria-label={`${expandedSections[category] ? 'Collapse' : 'Expand'} ${sectionTitles[category]} section`}
                     sx={{
                       py: 0.5,
                       "&:hover": { backgroundColor: "transparent" },
@@ -494,10 +495,9 @@ function App() {
                       </ListItemButton>
                     </ListItem>
                   ))}
-                <Divider sx={{ my: 1 }} />
               </>
             )}
-          </div>
+          </React.Fragment>
         ))}
       </List>
     </div>

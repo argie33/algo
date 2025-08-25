@@ -59,6 +59,22 @@ const ProfessionalChart = ({
   onDownload,
   onFullscreen,
   className,
+  // Extract non-DOM props that shouldn't be passed to Card
+  _defaultIndicators: _defaultIndicators,
+  _enableDrawing: _enableDrawing,
+  _saveShapes: _saveShapes,
+  _realtime: _realtime,
+  _enableCrosshair: _enableCrosshair,
+  _priceAlerts: _priceAlerts,
+  _enableAlerts: _enableAlerts,
+  _onAlertCreate: _onAlertCreate,
+  _onLayoutSave: _onLayoutSave,
+  _enableLayoutSaving: _enableLayoutSaving,
+  _lazyLoad: _lazyLoad,
+  _highContrast: _highContrast,
+  _symbol: _symbol,
+  _interval: _interval,
+  _multitimeframe: _multitimeframe,
   ...props
 }) => {
   const renderChart = () => {

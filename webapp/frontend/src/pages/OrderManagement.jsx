@@ -661,10 +661,10 @@ const OrderManagement = () => {
             value={tabValue}
             onChange={(e, newValue) => setTabValue(newValue)}
           >
-            <Tab icon={<Gavel />} label="Open Orders" />
-            <Tab icon={<Assessment />} label="Order History" />
-            <Tab icon={<ShowChart />} label="Positions" />
-            <Tab icon={<Settings />} label="Settings" />
+            <Tab value={0} icon={<Gavel />} label="Open Orders" />
+            <Tab value={1} icon={<Assessment />} label="Order History" />
+            <Tab value={2} icon={<ShowChart />} label="Positions" />
+            <Tab value={3} icon={<Settings />} label="Settings" />
           </Tabs>
         </Box>
 

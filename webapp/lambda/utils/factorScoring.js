@@ -130,7 +130,7 @@ class FactorScoringEngine {
     } catch (error) {
       logger.error("Composite score calculation error", {
         error,
-        symbol: stockData.symbol,
+        symbol: stockData && stockData.symbol ? stockData.symbol : 'unknown',
       });
       return null;
     }
@@ -205,8 +205,8 @@ class FactorScoringEngine {
         percentile = 1 - percentile;
       }
 
-      // Convert to 0-100 score
-      return Math.max(0, Math.min(100, percentile * 100));
+      // Convert to 0-1 score
+      return Math.max(0, Math.min(1, percentile));
     } catch (error) {
       logger.warn("Percentile score calculation error", {
         error,
@@ -231,12 +231,15 @@ class FactorScoringEngine {
     // Find appropriate range and calculate score
     for (const range of scoringRanges) {
       if (value >= range.min && (range.max === null || value <= range.max)) {
-        return inverse ? 100 - range.score : range.score;
+        // The ranges are already designed with correct scoring direction for each factor
+        // For PE ratio: lower values get higher scores (already inverse-friendly)
+        // For growth factors: higher values get higher scores (regular)
+        return range.score / 100; // Normalize to 0-1 range
       }
     }
 
     // Default score if no range matches
-    return 50;
+    return 0.5; // Normalized to 0-1 range
   }
 
   /**
@@ -293,9 +296,9 @@ class FactorScoringEngine {
    * Simple linear scoring fallback
    */
   linearScore(value, inverse = false) {
-    // Normalize to 0-100 range using sigmoid function
-    const normalized = 100 / (1 + Math.exp(-value * 0.1));
-    return inverse ? 100 - normalized : normalized;
+    // Normalize to 0-1 range using sigmoid function
+    const normalized = 1 / (1 + Math.exp(-value * 0.1));
+    return inverse ? 1 - normalized : normalized;
   }
 
   /**
@@ -303,6 +306,10 @@ class FactorScoringEngine {
    */
   scoreUniverse(stockData, customWeights = null) {
     try {
+      if (!stockData || stockData.length === 0) {
+        return [];
+      }
+      
       logger.info("Starting universe scoring", {
         stockCount: stockData.length,
       });
@@ -397,7 +404,7 @@ class FactorScoringEngine {
           categoryExplanations.push({
             factor: factorName,
             value: value,
-            score: Math.round(score),
+            score: Math.round(score * 100) / 100,
             weight: factorDef.weight,
             interpretation: this.interpretFactorScore(factorName, value, score),
           });
@@ -443,6 +450,262 @@ class FactorScoringEngine {
       description: description,
       weights: categoryWeights,
       created_at: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Rank stocks in universe by composite score
+   */
+  rankUniverse(stockData) {
+    if (!stockData || stockData.length === 0) {
+      return [];
+    }
+    
+    const scoredStocks = this.scoreUniverse(stockData);
+    return scoredStocks.map((stock, index) => {
+      // Ensure the factorScore properties are available at the top level for tests
+      const result = {
+        ...stock,
+        rank: index + 1,
+      };
+      
+      if (stock.factorScore) {
+        result.compositeScore = stock.factorScore.compositeScore;
+        result.percentile = stock.factorScore.percentile;
+        result.categoryScores = stock.factorScore.categoryScores;
+      }
+      
+      return result;
+    });
+  }
+
+  /**
+   * Calculate universe statistics for caching
+   */
+  calculateUniverseStats(universeData) {
+    const stats = new Map();
+    
+    // Calculate statistics for each factor
+    const allFactors = Object.values(this.factors).flatMap(cat => 
+      Object.keys(cat.factors)
+    );
+    
+    for (const factorName of allFactors) {
+      const values = universeData
+        .map(stock => stock[factorName])
+        .filter(val => val !== null && val !== undefined && !isNaN(val));
+      
+      if (values.length > 0) {
+        values.sort((a, b) => a - b);
+        const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+        const variance = this.calculateVariance(values);
+        const std = Math.sqrt(variance);
+        
+        stats.set(factorName, {
+          min: values[0],
+          max: values[values.length - 1],
+          median: values[Math.floor(values.length / 2)],
+          mean: mean,
+          std: std,
+          count: values.length
+        });
+      }
+    }
+    
+    this.universeStats = stats;
+    return stats;
+  }
+
+  /**
+   * Analyze factors across universe
+   */
+  analyzeFactors(universeData) {
+    const stats = this.calculateUniverseStats(universeData);
+    const correlations = this.calculateFactorCorrelations(universeData);
+    
+    // Calculate distributions for each factor
+    const distributions = {};
+    for (const [factorName, factorStats] of stats.entries()) {
+      distributions[factorName] = {
+        min: factorStats.min,
+        max: factorStats.max,
+        mean: factorStats.mean,
+        median: factorStats.median,
+        quartiles: this.calculateQuartiles(universeData, factorName)
+      };
+    }
+    
+    return {
+      factorStats: Object.fromEntries(stats),
+      correlations: correlations,
+      distributions: distributions,
+      sampleSize: universeData.length
+    };
+  }
+
+  /**
+   * Calculate correlations between factors
+   */
+  calculateFactorCorrelations(universeData) {
+    const correlations = {};
+    const allFactors = Object.values(this.factors).flatMap(cat => 
+      Object.keys(cat.factors)
+    );
+    
+    for (const factor1 of allFactors) {
+      correlations[factor1] = {};
+      for (const factor2 of allFactors) {
+        if (factor1 !== factor2) {
+          correlations[factor1][factor2] = this.calculateCorrelation(
+            universeData, factor1, factor2
+          );
+        }
+      }
+    }
+    
+    return correlations;
+  }
+
+  /**
+   * Calculate correlation between two factors
+   */
+  calculateCorrelation(universeData, factor1, factor2) {
+    const pairs = universeData
+      .map(stock => [stock[factor1], stock[factor2]])
+      .filter(([val1, val2]) => 
+        val1 !== null && val1 !== undefined && !isNaN(val1) &&
+        val2 !== null && val2 !== undefined && !isNaN(val2)
+      );
+    
+    if (pairs.length < 2) return 0;
+    
+    const n = pairs.length;
+    const sum1 = pairs.reduce((sum, [val1]) => sum + val1, 0);
+    const sum2 = pairs.reduce((sum, [, val2]) => sum + val2, 0);
+    const sum1Sq = pairs.reduce((sum, [val1]) => sum + val1 * val1, 0);
+    const sum2Sq = pairs.reduce((sum, [, val2]) => sum + val2 * val2, 0);
+    const sumProd = pairs.reduce((sum, [val1, val2]) => sum + val1 * val2, 0);
+    
+    const numerator = n * sumProd - sum1 * sum2;
+    const denominator = Math.sqrt(
+      (n * sum1Sq - sum1 * sum1) * (n * sum2Sq - sum2 * sum2)
+    );
+    
+    return denominator === 0 ? 0 : numerator / denominator;
+  }
+
+  /**
+   * Identify top performing factors
+   */
+  identifyTopFactors(universeData, topN = 5) {
+    const factorPerformance = [];
+    const allFactors = Object.values(this.factors).flatMap(cat => 
+      Object.keys(cat.factors)
+    );
+    
+    for (const factorName of allFactors) {
+      const values = universeData
+        .map(stock => stock[factorName])
+        .filter(val => val !== null && val !== undefined && !isNaN(val));
+      
+      if (values.length > 1) {
+        const variance = this.calculateVariance(values);
+        const range = Math.max(...values) - Math.min(...values);
+        
+        // Find the category and weight for this factor
+        let category = 'unknown';
+        let weight = 0;
+        for (const [catName, catDef] of Object.entries(this.factors)) {
+          if (catDef.factors[factorName]) {
+            category = catName;
+            weight = catDef.factors[factorName].weight || 0;
+            break;
+          }
+        }
+        
+        factorPerformance.push({
+          factor: factorName,
+          name: factorName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          category: category,
+          impact: variance,
+          significance: range,
+          variance: variance,
+          range: range,
+          discriminationPower: variance * range, // Combined metric
+          dataPoints: values.length,
+          weight: weight
+        });
+      }
+    }
+    
+    return factorPerformance
+      .sort((a, b) => b.discriminationPower - a.discriminationPower)
+      .slice(0, topN);
+  }
+
+  /**
+   * Calculate variance of an array of values
+   */
+  calculateVariance(values) {
+    if (values.length < 2) return 0;
+    
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
+    return squaredDiffs.reduce((sum, diff) => sum + diff, 0) / values.length;
+  }
+
+  /**
+   * Normalize an array of factor values to 0-1 range
+   */
+  normalizeFactors(values, inverse = false) {
+    if (!values || values.length === 0) {
+      return [];
+    }
+    
+    if (values.length === 1) {
+      return [0.5]; // Single value normalizes to middle
+    }
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    // Handle identical values
+    if (min === max) {
+      return values.map(() => 0.5);
+    }
+    
+    const range = max - min;
+    return values.map(value => {
+      const normalized = (value - min) / range;
+      return inverse ? 1 - normalized : normalized;
+    });
+  }
+
+  /**
+   * Calculate quartiles for a factor in the universe
+   */
+  calculateQuartiles(universeData, factorName) {
+    const values = universeData
+      .map(stock => stock[factorName])
+      .filter(val => val !== null && val !== undefined && !isNaN(val))
+      .sort((a, b) => a - b);
+    
+    if (values.length < 4) {
+      return {
+        q1: values[0] || 0,
+        q2: values[Math.floor(values.length / 2)] || 0,
+        q3: values[values.length - 1] || 0
+      };
+    }
+    
+    const q1Index = Math.floor(values.length * 0.25);
+    const q2Index = Math.floor(values.length * 0.5);
+    const q3Index = Math.floor(values.length * 0.75);
+    
+    return {
+      q1: values[q1Index],
+      q2: values[q2Index],
+      q3: values[q3Index]
     };
   }
 

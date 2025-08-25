@@ -4,7 +4,7 @@ const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const logger = require("../utils/logger");
 const realTimeDataService = require("../utils/realTimeDataService");
-const liveDataManager = require("../utils/liveDataManager");
+const liveDataManager = require("../utils/liveDataManager").instance;
 
 /**
  * Live Data Management Routes
@@ -88,7 +88,7 @@ router.get("/status", async (req, res) => {
     };
 
     const duration = Date.now() - startTime;
-    logger.success("Live data status request completed", {
+    logger.info("Live data status request completed", {
       correlationId,
       duration,
       cacheEntries: cacheStats.totalEntries,
@@ -273,7 +273,7 @@ router.get("/market", authenticateToken, async (req, res) => {
     });
 
     const duration = Date.now() - startTime;
-    logger.success("Live market data request completed", {
+    logger.info("Live market data request completed", {
       correlationId,
       duration,
       hasIndices: !!marketOverview.indices,
@@ -334,7 +334,7 @@ router.get("/sectors", authenticateToken, async (req, res) => {
       await realTimeDataService.getSectorPerformance(userId);
 
     const duration = Date.now() - startTime;
-    logger.success("Sector performance request completed", {
+    logger.info("Sector performance request completed", {
       correlationId,
       duration,
       sectorCount: sectorPerformance.sectors?.length || 0,
@@ -384,7 +384,7 @@ router.post("/cache/clear", authenticateToken, async (req, res) => {
     realTimeDataService.clearCache();
     const afterStats = realTimeDataService.getCacheStats();
 
-    logger.success("Cache cleared successfully", {
+    logger.info("Cache cleared successfully", {
       correlationId,
       entriesCleared: beforeStats.totalEntries,
       freshEntriesCleared: beforeStats.freshEntries,

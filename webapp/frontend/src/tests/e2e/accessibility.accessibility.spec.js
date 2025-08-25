@@ -34,7 +34,8 @@ test.describe('Accessibility Tests', () => {
 
   test('Dashboard should be accessible', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded', { timeout: 6000 });
+    await page.waitForTimeout(2000); // Wait for React components to mount and set document title
     
     const accessibilityScanResults = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])

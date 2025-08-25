@@ -678,6 +678,61 @@ class AlpacaService {
       annualizedReturn: avgReturn * 252,
     };
   }
+
+  /**
+   * Create trading order (market or limit)
+   */
+  async createOrder(symbol, quantity, side, type = "market", limitPrice = null) {
+    try {
+      // Validate required parameters
+      if (!symbol) {
+        throw new Error("Symbol is required");
+      }
+      if (!quantity || quantity <= 0) {
+        throw new Error("Quantity must be a positive number");
+      }
+      if (!side || !["buy", "sell"].includes(side)) {
+        throw new Error("Side must be buy or sell");
+      }
+      
+      // Validate limit price for limit orders
+      if (type === "limit" && !limitPrice) {
+        throw new Error("Limit price is required for limit orders");
+      }
+
+      this.checkRateLimit();
+
+      const orderParams = {
+        symbol: symbol,
+        qty: quantity,
+        side: side,
+        type: type,
+        time_in_force: "day"
+      };
+
+      if (type === "limit") {
+        orderParams.limit_price = limitPrice;
+      }
+
+      const order = await this.client.createOrder(orderParams);
+
+      return {
+        orderId: order.id,
+        symbol: order.symbol,
+        qty: parseFloat(order.qty),
+        side: order.side,
+        type: order.order_type || type, // Use provided type if order_type is undefined
+        time_in_force: order.time_in_force,
+        status: order.status,
+        createdAt: order.submitted_at,
+        filledQty: parseFloat(order.filled_qty || 0),
+        filledAvgPrice: order.filled_avg_price ? parseFloat(order.filled_avg_price) : null,
+      };
+    } catch (error) {
+      console.error("Alpaca order creation error:", error.message);
+      throw new Error(`Failed to create order: ${error.message}`);
+    }
+  }
 }
 
 module.exports = AlpacaService;

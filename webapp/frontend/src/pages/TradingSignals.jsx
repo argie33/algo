@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
   Badge,
   Box,
@@ -57,6 +58,7 @@ import { createLogger } from "../utils/apiService.jsx";
 const logger = createLogger("TradingSignals");
 
 function TradingSignals() {
+  useDocumentTitle("Trading Signals");
   const { apiUrl: API_BASE } = getApiConfig();
 
   // Add CSS for pulse animation

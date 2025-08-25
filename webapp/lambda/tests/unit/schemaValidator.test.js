@@ -191,25 +191,22 @@ describe("schemaValidator", () => {
   describe("validateColumns", () => {
     const mockColumnsResult = {
       rows: [
-        {
-          column_name: "symbol",
-          data_type: "character varying",
-          character_maximum_length: 10,
-          is_nullable: "NO",
-        },
-        {
-          column_name: "name",
-          data_type: "character varying",
-          character_maximum_length: 200,
-          is_nullable: "NO",
-        },
-        {
-          column_name: "price",
-          data_type: "numeric",
-          numeric_precision: 10,
-          numeric_scale: 2,
-          is_nullable: "YES",
-        },
+        { column_name: "symbol", data_type: "character varying", character_maximum_length: 10, is_nullable: "NO" },
+        { column_name: "name", data_type: "character varying", character_maximum_length: 200, is_nullable: "NO" },
+        { column_name: "sector", data_type: "character varying", character_maximum_length: 100, is_nullable: "YES" },
+        { column_name: "industry", data_type: "character varying", character_maximum_length: 100, is_nullable: "YES" },
+        { column_name: "market_cap", data_type: "bigint", is_nullable: "YES" },
+        { column_name: "price", data_type: "numeric", numeric_precision: 10, numeric_scale: 2, is_nullable: "YES" },
+        { column_name: "volume", data_type: "bigint", is_nullable: "YES" },
+        { column_name: "pe_ratio", data_type: "numeric", numeric_precision: 8, numeric_scale: 2, is_nullable: "YES" },
+        { column_name: "eps", data_type: "numeric", numeric_precision: 8, numeric_scale: 2, is_nullable: "YES" },
+        { column_name: "dividend_yield", data_type: "numeric", numeric_precision: 5, numeric_scale: 4, is_nullable: "YES" },
+        { column_name: "beta", data_type: "numeric", numeric_precision: 6, numeric_scale: 3, is_nullable: "YES" },
+        { column_name: "exchange", data_type: "character varying", character_maximum_length: 20, is_nullable: "YES" },
+        { column_name: "country", data_type: "character varying", character_maximum_length: 50, is_nullable: "YES" },
+        { column_name: "currency", data_type: "character varying", character_maximum_length: 3, is_nullable: "YES" },
+        { column_name: "is_active", data_type: "boolean", is_nullable: "YES" },
+        { column_name: "last_updated", data_type: "timestamp without time zone", is_nullable: "YES" },
       ],
     };
 
