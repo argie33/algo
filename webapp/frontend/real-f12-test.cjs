@@ -6,7 +6,7 @@ async function testReactApp() {
   const http = require('http');
   try {
     const serverCheck = await new Promise((resolve, reject) => {
-      const req = http.get('http://localhost:3005', (res) => {
+      const req = http.get('http://localhost:3000', (res) => {
         resolve(res.statusCode === 200);
       });
       req.on('error', () => resolve(false));
@@ -14,7 +14,7 @@ async function testReactApp() {
     });
     
     if (!serverCheck) {
-      console.log('❌ Dev server not responding at http://localhost:3005');
+      console.log('❌ Dev server not responding at http://localhost:3000');
       console.log('🔧 Start server with: npm run dev');
       return false;
     }
@@ -53,15 +53,20 @@ async function testReactApp() {
     const networkErrors = [];
     
     page.on('console', msg => {
+      const text = msg.text();
       if (msg.type() === 'error') {
-        consoleErrors.push(msg.text());
-      } else if (msg.type() === 'warning' && msg.text().includes('react')) {
-        consoleErrors.push(`WARNING: ${msg.text()}`);
+        consoleErrors.push(text);
+        console.log(`🔍 CONSOLE ERROR CAPTURED: ${text}`);
+      } else if (msg.type() === 'warning' && text.includes('react')) {
+        consoleErrors.push(`WARNING: ${text}`);
+        console.log(`🔍 REACT WARNING CAPTURED: ${text}`);
       }
     });
     
     page.on('pageerror', error => {
       jsErrors.push(error.message);
+      console.log(`🔍 JS ERROR CAPTURED: ${error.message}`);
+      console.log(`🔍 JS ERROR STACK: ${error.stack}`);
     });
     
     page.on('requestfailed', request => {
@@ -70,13 +75,32 @@ async function testReactApp() {
     
     // Navigate with better error handling
     console.log('📡 Loading application...');
-    await page.goto('http://localhost:3005', { 
+    await page.goto('http://localhost:3000', { 
       waitUntil: 'domcontentloaded',
       timeout: 15000 
     });
     
-    // Wait for React to fully initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for React to fully initialize and catch runtime errors
+    console.log('⏳ Waiting for React initialization and error detection...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    // Force React re-renders to trigger Context errors
+    await page.evaluate(() => {
+      console.log('🧪 Triggering React operations to catch Context errors...');
+      // Click around to trigger React Context usage
+      const buttons = document.querySelectorAll('button');
+      buttons.forEach((btn, i) => {
+        if (i < 3) btn.click(); // Click first 3 buttons
+      });
+      
+      // Try to access React contexts
+      if (window.React) {
+        console.log('🧪 React is available, checking Context usage...');
+      }
+    });
+    
+    // Wait more for any delayed errors
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Advanced React checks
     const reactAnalysis = await page.evaluate(() => {
@@ -105,20 +129,28 @@ async function testReactApp() {
       };
     });
     
-    // Specific React Context error detection
-    const hasContextError = consoleErrors.some(error => 
-      error.includes('Cannot set properties of undefined') &&
-      error.includes('ContextConsumer')
-    ) || jsErrors.some(error =>
-      error.includes('Cannot set properties of undefined') &&
-      error.includes('ContextConsumer')
+    // Multiple patterns for React Context error detection
+    const allErrors = [...consoleErrors, ...jsErrors];
+    const hasContextError = allErrors.some(error => 
+      (error.includes('Cannot set properties of undefined') && error.includes('ContextConsumer')) ||
+      (error.includes('react-is.production.js') && error.includes('TypeError')) ||
+      (error.includes('setting \'ContextConsumer\'')) ||
+      (error.includes('hoist-non-react-statics') && error.includes('TypeError'))
     );
     
-    // React-is specific errors
-    const hasReactIsError = [...consoleErrors, ...jsErrors].some(error =>
+    // React-is specific errors with more patterns
+    const hasReactIsError = allErrors.some(error =>
       error.includes('react-is') && 
-      (error.includes('TypeError') || error.includes('Cannot set'))
+      (error.includes('TypeError') || error.includes('Cannot set') || error.includes('undefined'))
     );
+    
+    console.log(`🔍 DEBUG: Found ${consoleErrors.length} console errors, ${jsErrors.length} JS errors`);
+    console.log(`🔍 DEBUG: Checking for Context error patterns...`);
+    allErrors.forEach((error, i) => {
+      if (error.includes('react-is') || error.includes('ContextConsumer') || error.includes('hoist-non-react-statics')) {
+        console.log(`🔍 POTENTIAL CONTEXT ERROR ${i+1}: ${error}`);
+      }
+    });
     
     // Report comprehensive results
     console.log(`${reactAnalysis.hasRoot ? '✅' : '❌'} React Root: ${reactAnalysis.hasRoot ? 'Found' : 'Missing'}`);
@@ -161,7 +193,7 @@ async function testReactApp() {
     // Fallback to basic HTTP check
     try {
       const html = await new Promise((resolve, reject) => {
-        const req = http.get('http://localhost:3005', (res) => {
+        const req = http.get('http://localhost:3000', (res) => {
           let data = '';
           res.on('data', chunk => data += chunk);
           res.on('end', () => resolve(data));

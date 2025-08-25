@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
 
   // API URL configuration
   const apiUrl =
-    process.env.VITE_API_URL || (isDevelopment ? "http://localhost:3008" : "");
+    process.env.VITE_API_URL || (isDevelopment ? "http://localhost:3001" : "");
 
   console.log("Vite Config:", {
     mode,
