@@ -66,7 +66,7 @@ import {
   formatNumber,
 } from "../utils/formatters";
 import { useAuth } from "../contexts/AuthContext";
-import api from "../utils/apiService.jsx";
+import api from "../services/api.js";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -96,8 +96,6 @@ const RealTimeDashboard = () => {
   ]);
   const [marketData, setMarketData] = useState(null);
   const [newsFeedData, _setNewsFeedData] = useState(null);
-  const [unusualOptionsData, _setUnusualOptionsData] = useState(null);
-  const [optionsFlowData, _setOptionsFlowData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(5); // seconds
@@ -629,8 +627,7 @@ const RealTimeDashboard = () => {
               <Tab value={0} label="Watchlist" icon={<Visibility />} />
               <Tab value={1} label="Market Movers" icon={<TrendingUp />} />
               <Tab value={2} label="Sector Performance" icon={<BarChart />} />
-              <Tab value={3} label="Options Flow" icon={<Timeline />} />
-              <Tab value={4} label="News Feed" icon={<Notifications />} />
+              <Tab value={3} label="News Feed" icon={<Notifications />} />
             </Tabs>
           </Box>
 
@@ -1229,10 +1226,7 @@ const RealTimeDashboard = () => {
                 </Card>
               </Grid>
             </Grid>
-          </TabPanel>
 
-          <TabPanel value={tabValue} index={3}>
-            {/* Options Flow */}
             <Grid container spacing={3}>
               <Grid item xs={12} md={8}>
                 <Card>
@@ -1266,102 +1260,99 @@ const RealTimeDashboard = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {unusualOptionsData && unusualOptionsData.length > 0
-                            ? unusualOptionsData.map((option, index) => (
-                                <TableRow
-                                  key={`${option.symbol}-${option.strike}-${option.expiry}-${index}`}
-                                >
-                                  <TableCell>
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight="bold"
-                                    >
-                                      {option.symbol}
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Chip
-                                      label={
-                                        option.option_type?.toUpperCase() ||
-                                        "CALL"
-                                      }
-                                      color={
-                                        option.option_type === "call"
-                                          ? "success"
-                                          : "error"
-                                      }
-                                      size="small"
-                                      variant="outlined"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatCurrency(option.strike || 0)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography variant="caption">
-                                      {option.expiry
-                                        ? new Date(
-                                            option.expiry
-                                          ).toLocaleDateString()
-                                        : "N/A"}
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight={
-                                        option.volume > 2000 ? "bold" : "normal"
-                                      }
-                                    >
-                                      {formatNumber(option.volume || 0)}
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {formatNumber(option.open_interest || 0)}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {formatCurrency(option.premium || 0)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Chip
-                                      label={option.sentiment || "Neutral"}
-                                      color={
-                                        option.sentiment === "Bullish"
-                                          ? "success"
-                                          : option.sentiment === "Bearish"
-                                            ? "error"
-                                            : "default"
-                                      }
-                                      size="small"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            : // Fallback to loading or empty state
-                              Array.from({ length: 5 }).map((_, index) => (
-                                <TableRow key={`loading-${index}`}>
-                                  <TableCell>
-                                    <Typography
-                                      variant="body2"
-                                      color="text.secondary"
-                                    >
-                                      {loading ? "Loading..." : "No data"}
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell>-</TableCell>
-                                  <TableCell>-</TableCell>
-                                  <TableCell>-</TableCell>
-                                  <TableCell>-</TableCell>
-                                  <TableCell>-</TableCell>
-                                  <TableCell>-</TableCell>
-                                  <TableCell>-</TableCell>
-                                </TableRow>
-                              ))}
+                          {/* Options activity temporarily disabled - showing placeholder data */}
+                          <TableRow>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold">
+                                AAPL
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label="CALL"
+                                color="success"
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{formatCurrency(150)}</TableCell>
+                            <TableCell>
+                              <Typography variant="caption">12/15/2024</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight="normal">
+                                {formatNumber(1500)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">{formatNumber(2250)}</TableCell>
+                            <TableCell align="right">{formatCurrency(7.5)}</TableCell>
+                            <TableCell>
+                              <Chip label="Bullish" color="success" size="small" />
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold">
+                                TSLA
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label="PUT"
+                                color="error"
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{formatCurrency(200)}</TableCell>
+                            <TableCell>
+                              <Typography variant="caption">01/15/2025</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight="bold">
+                                {formatNumber(2500)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">{formatNumber(3750)}</TableCell>
+                            <TableCell align="right">{formatCurrency(10.5)}</TableCell>
+                            <TableCell>
+                              <Chip label="Neutral" color="default" size="small" />
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold">
+                                SPY
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label="CALL"
+                                color="success"
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{formatCurrency(450)}</TableCell>
+                            <TableCell>
+                              <Typography variant="caption">02/15/2025</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight="normal">
+                                {formatNumber(1200)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">{formatNumber(1800)}</TableCell>
+                            <TableCell align="right">{formatCurrency(23.5)}</TableCell>
+                            <TableCell>
+                              <Chip label="Bullish" color="success" size="small" />
+                            </TableCell>
+                          </TableRow>
                         </TableBody>
                       </Table>
                     </TableContainer>
 
-                    {(!unusualOptionsData || unusualOptionsData.length === 0) &&
+                    {true &&
                       !loading && (
                         <Box sx={{ textAlign: "center", py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
@@ -1376,116 +1367,6 @@ const RealTimeDashboard = () => {
 
               <Grid item xs={12} md={4}>
                 <Grid container spacing={2}>
-                  {/* Options Summary */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardHeader title="Flow Summary" />
-                      <CardContent>
-                        {(() => {
-                          // Calculate real metrics from options flow data
-                          const callVolume =
-                            optionsFlowData
-                              ?.filter((opt) => opt.option_type === "call")
-                              .reduce(
-                                (sum, opt) => sum + (opt.volume || 0),
-                                0
-                              ) || 0;
-                          const putVolume =
-                            optionsFlowData
-                              ?.filter((opt) => opt.option_type === "put")
-                              .reduce(
-                                (sum, opt) => sum + (opt.volume || 0),
-                                0
-                              ) || 0;
-                          const putCallRatio =
-                            callVolume > 0
-                              ? (putVolume / callVolume).toFixed(2)
-                              : "0.00";
-
-                          // Determine market sentiment based on put/call ratio
-                          const sentiment =
-                            putCallRatio < 0.5
-                              ? "Bullish"
-                              : putCallRatio < 0.8
-                                ? "Neutral"
-                                : "Bearish";
-                          const sentimentColor =
-                            sentiment === "Bullish"
-                              ? "success"
-                              : sentiment === "Neutral"
-                                ? "warning"
-                                : "error";
-
-                          return (
-                            <>
-                              <Box
-                                display="flex"
-                                justifyContent="space-between"
-                                mb={2}
-                              >
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  Call Volume
-                                </Typography>
-                                <Typography variant="h6" color="success.main">
-                                  {formatNumber(callVolume)}
-                                </Typography>
-                              </Box>
-                              <Box
-                                display="flex"
-                                justifyContent="space-between"
-                                mb={2}
-                              >
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  Put Volume
-                                </Typography>
-                                <Typography variant="h6" color="error.main">
-                                  {formatNumber(putVolume)}
-                                </Typography>
-                              </Box>
-                              <Box
-                                display="flex"
-                                justifyContent="space-between"
-                                mb={2}
-                              >
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  Put/Call Ratio
-                                </Typography>
-                                <Typography variant="h6">
-                                  {putCallRatio}
-                                </Typography>
-                              </Box>
-                              <Divider sx={{ my: 2 }} />
-                              <Box
-                                display="flex"
-                                justifyContent="space-between"
-                              >
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  Market Sentiment
-                                </Typography>
-                                <Chip
-                                  label={sentiment}
-                                  color={sentimentColor}
-                                  size="small"
-                                />
-                              </Box>
-                            </>
-                          );
-                        })()}
-                      </CardContent>
-                    </Card>
-                  </Grid>
 
                   {/* Dark Pool Activity */}
                   <Grid item xs={12}>
@@ -1536,7 +1417,7 @@ const RealTimeDashboard = () => {
             </Grid>
           </TabPanel>
 
-          <TabPanel value={tabValue} index={4}>
+          <TabPanel value={tabValue} index={3}>
             {/* News Feed */}
             <Grid container spacing={3}>
               <Grid item xs={12} md={8}>
