@@ -188,11 +188,18 @@ export const TestWrapper = ({ children, _authValue = {} }) => {
     },
   });
 
+  if (!children) {
+    console.warn('TestWrapper received null/undefined children');
+    return null;
+  }
+
   return (
     <BrowserRouter>
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider>{children}</TestAuthProvider>
+          <TestAuthProvider>
+            {children}
+          </TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>

@@ -1,6 +1,7 @@
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { BrowserRouter } from "react-router-dom";
+import { TestWrapper } from '../test-utils';
 import PortfolioHoldings from "../../pages/PortfolioHoldings";
 
 // Mock the API service
@@ -39,8 +40,8 @@ vi.mock("recharts", () => ({
 // Import after mocking
 import api from "../../services/api";
 
-const renderWithRouter = (component) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+const renderWithProviders = (component) => {
+  return render(component, { wrapper: TestWrapper });
 };
 
 describe("PortfolioHoldings Component", () => {
@@ -120,8 +121,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Component Loading", () => {
-    it("should render portfolio holdings interface", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should render portfolio holdings interface", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       expect(screen.getByText(/Portfolio Holdings/i)).toBeInTheDocument();
 
@@ -131,8 +132,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should load holdings data on mount", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should load holdings data on mount", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledWith("/api/portfolio/holdings");
@@ -145,7 +146,7 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should show loading state initially", async () => {
+    test("should show loading state initially", async () => {
       api.get.mockImplementation(
         () =>
           new Promise((resolve) =>
@@ -159,7 +160,7 @@ describe("PortfolioHoldings Component", () => {
           )
       );
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       expect(screen.getByText(/Loading holdings/i)).toBeInTheDocument();
 
@@ -175,8 +176,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Holdings Summary", () => {
-    it("should display portfolio summary metrics", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should display portfolio summary metrics", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("$130,000.00")).toBeInTheDocument(); // Total market value
@@ -186,8 +187,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should display diversification score", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should display diversification score", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("82")).toBeInTheDocument(); // Diversification score
@@ -195,7 +196,7 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should handle negative performance correctly", async () => {
+    test("should handle negative performance correctly", async () => {
       const negativeData = {
         ...mockHoldingsData,
         summary: {
@@ -211,7 +212,7 @@ describe("PortfolioHoldings Component", () => {
         data: { success: true, data: negativeData },
       });
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("-$5,500.00")).toBeInTheDocument();
@@ -223,8 +224,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Holdings Table", () => {
-    it("should display all holdings with correct data", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should display all holdings with correct data", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         // Check for all symbols
@@ -244,8 +245,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should display market values and gains/losses", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should display market values and gains/losses", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         // Market values
@@ -260,8 +261,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should display current prices and day changes", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should display current prices and day changes", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         // Current prices
@@ -276,8 +277,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should show allocation percentages", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should show allocation percentages", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("35.7%")).toBeInTheDocument(); // AAPL allocation
@@ -288,8 +289,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Sorting and Filtering", () => {
-    it("should sort holdings by different criteria", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should sort holdings by different criteria", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -306,8 +307,8 @@ describe("PortfolioHoldings Component", () => {
       expect(rows[2]).toHaveTextContent("AAPL");
     });
 
-    it("should filter holdings by sector", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should filter holdings by sector", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -324,8 +325,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should search holdings by symbol or company name", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should search holdings by symbol or company name", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -342,8 +343,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should show/hide holdings based on minimum value filter", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should show/hide holdings based on minimum value filter", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -362,8 +363,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Sector Allocation Chart", () => {
-    it("should render sector allocation pie chart", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should render sector allocation pie chart", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByTestId("pie-chart")).toBeInTheDocument();
@@ -371,8 +372,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should display sector allocation data", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should display sector allocation data", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("Technology")).toBeInTheDocument();
@@ -382,8 +383,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should toggle chart visibility", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should toggle chart visibility", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByTestId("pie-chart")).toBeInTheDocument();
@@ -406,8 +407,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Individual Holding Actions", () => {
-    it("should show holding details on row click", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should show holding details on row click", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -424,8 +425,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should allow quick trade actions", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should allow quick trade actions", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -442,8 +443,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should show position analysis", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should show position analysis", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -462,9 +463,9 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Export and Sharing", () => {
-    it("should export holdings data to CSV", async () => {
+    test("should export holdings data to CSV", async () => {
       const mockDownload = vi.fn();
-      global.URL.createObjectURL = jest.fn(() => "mock-url");
+      global.URL.createObjectURL = vi.fn(() => "mock-url");
       global.URL.revokeObjectURL = vi.fn();
 
       // Mock link click
@@ -477,7 +478,7 @@ describe("PortfolioHoldings Component", () => {
       vi.spyOn(document.body, "appendChild").mockImplementation(() => {});
       vi.spyOn(document.body, "removeChild").mockImplementation(() => {});
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -491,7 +492,7 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should generate portfolio report", async () => {
+    test("should generate portfolio report", async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
@@ -499,7 +500,7 @@ describe("PortfolioHoldings Component", () => {
         },
       });
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -518,10 +519,10 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Real-time Updates", () => {
-    it("should update prices automatically", async () => {
+    test("should update prices automatically", async () => {
       vi.useFakeTimers();
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("$150.00")).toBeInTheDocument(); // AAPL price
@@ -555,8 +556,8 @@ describe("PortfolioHoldings Component", () => {
       vi.useRealTimers();
     });
 
-    it("should show last updated timestamp", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should show last updated timestamp", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText(/Last updated:/i)).toBeInTheDocument();
@@ -565,7 +566,7 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Error Handling", () => {
-    it("should handle API errors gracefully", async () => {
+    test("should handle API errors gracefully", async () => {
       api.get.mockRejectedValue({
         response: {
           data: {
@@ -575,7 +576,7 @@ describe("PortfolioHoldings Component", () => {
         },
       });
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(
@@ -584,10 +585,10 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should handle network errors", async () => {
+    test("should handle network errors", async () => {
       api.get.mockRejectedValue(new Error("Network error"));
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(
@@ -596,14 +597,14 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should provide retry functionality", async () => {
+    test("should provide retry functionality", async () => {
       api.get
         .mockRejectedValueOnce(new Error("Network error"))
         .mockResolvedValue({
           data: { success: true, data: mockHoldingsData },
         });
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(
@@ -620,7 +621,7 @@ describe("PortfolioHoldings Component", () => {
       expect(api.get).toHaveBeenCalledTimes(2);
     });
 
-    it("should handle empty holdings gracefully", async () => {
+    test("should handle empty holdings gracefully", async () => {
       api.get.mockResolvedValue({
         data: {
           success: true,
@@ -637,7 +638,7 @@ describe("PortfolioHoldings Component", () => {
         },
       });
 
-      renderWithRouter(<PortfolioHoldings />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText(/No holdings found/i)).toBeInTheDocument();
@@ -647,8 +648,8 @@ describe("PortfolioHoldings Component", () => {
   });
 
   describe("Accessibility", () => {
-    it("should have proper table structure and headers", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should have proper table structure and headers", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByRole("table")).toBeInTheDocument();
@@ -664,8 +665,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should have proper ARIA labels", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should have proper ARIA labels", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(
@@ -676,8 +677,8 @@ describe("PortfolioHoldings Component", () => {
       });
     });
 
-    it("should be keyboard navigable", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should be keyboard navigable", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -694,8 +695,8 @@ describe("PortfolioHoldings Component", () => {
       expect(secondRow).toHaveFocus();
     });
 
-    it("should announce updates to screen readers", async () => {
-      renderWithRouter(<PortfolioHoldings />);
+    test("should announce updates to screen readers", async () => {
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
