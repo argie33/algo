@@ -31,6 +31,14 @@ const authenticateToken = async (req, res, next) => {
     if (!token) {
       return res.unauthorized("Access token is missing from Authorization header", {
         code: "MISSING_TOKEN",
+        suggestion: "Include a valid JWT token in the Authorization header",
+        requirements: "Authorization header must be present with format: Bearer <jwt-token>",
+        steps: [
+          "1. Log in to the application to obtain a valid JWT token",
+          "2. Include the token in the Authorization header: 'Bearer your-jwt-token'",
+          "3. Ensure your session hasn't expired - tokens are valid for a limited time",
+          "4. Check that you're using the correct API endpoint"
+        ]
       });
     }
 
@@ -43,11 +51,27 @@ const authenticateToken = async (req, res, next) => {
       if (result.error && result.error.includes("expired")) {
         return res.unauthorized("Your session has expired. Please log in again.", {
           code: "TOKEN_EXPIRED",
+          suggestion: "Your authentication token has expired and needs to be renewed",
+          requirements: "Active session with unexpired JWT token",
+          steps: [
+            "1. Log out of the application completely",
+            "2. Log back in with your credentials",
+            "3. Try your request again with the new token",
+            "4. Consider enabling 'Keep me logged in' if available"
+          ]
         });
       }
       
-      return res.unauthorized(result.error, {
+      return res.unauthorized(result.error || "Authentication token is invalid", {
         code: "INVALID_TOKEN",
+        suggestion: "The provided authentication token could not be validated",
+        requirements: "Valid, properly formatted JWT token from successful login",
+        steps: [
+          "1. Verify you're using the most recent token from login",
+          "2. Check that the token hasn't been corrupted during transmission",
+          "3. Log out and log back in to get a fresh token",
+          "4. Ensure you're accessing the correct API environment"
+        ]
       });
     }
 
@@ -73,6 +97,17 @@ const authenticateToken = async (req, res, next) => {
       return res.error("Authentication service is experiencing issues. Please try again shortly.", 500, {
         type: "service_unavailable",
         code: "AUTH_SERVICE_UNAVAILABLE",
+        service: "financial-platform-auth-circuit-breaker",
+        troubleshooting: {
+          suggestion: "The authentication service is temporarily unavailable due to high load or errors",
+          requirements: "Authentication service must be operational and responsive",
+          steps: [
+            "1. Wait 30-60 seconds for the service to recover automatically",
+            "2. Try logging in again after the brief wait",
+            "3. Check system status page if available",
+            "4. Contact technical support if issues persist beyond 5 minutes"
+          ]
+        }
       });
     }
 
@@ -82,6 +117,14 @@ const authenticateToken = async (req, res, next) => {
     ) {
       return res.unauthorized("Your session has expired. Please log in again.", {
         code: "TOKEN_EXPIRED",
+        suggestion: "Your authentication token has expired and needs to be renewed",
+        requirements: "Active session with unexpired JWT token",
+        steps: [
+          "1. Log out of the application completely",
+          "2. Log back in with your credentials",
+          "3. Try your request again with the new token",
+          "4. Consider enabling 'Keep me logged in' if available"
+        ]
       });
     }
 
@@ -91,12 +134,28 @@ const authenticateToken = async (req, res, next) => {
     ) {
       return res.unauthorized("The provided token is invalid.", {
         code: "INVALID_TOKEN",
+        suggestion: "The authentication token format is incorrect or corrupted",
+        requirements: "Valid, properly formatted JWT token from successful login",
+        steps: [
+          "1. Verify the token was copied correctly if manually entered",
+          "2. Check that you're using the most recent token from login",
+          "3. Log out and log back in to get a fresh token",
+          "4. Clear browser cache if the issue persists"
+        ]
       });
     }
 
     // Generic authentication failure
     return res.unauthorized("Could not verify authentication token", {
       code: "AUTH_FAILED",
+      suggestion: "Authentication verification failed due to an unexpected error",
+      requirements: "Valid authentication token and operational auth service",
+      steps: [
+        "1. Try logging out and back in to refresh your authentication",
+        "2. Check your network connection and try again",
+        "3. Clear browser cache and cookies for this site",
+        "4. Contact technical support if the error continues"
+      ]
     });
   }
 };

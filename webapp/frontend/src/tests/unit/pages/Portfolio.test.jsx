@@ -22,6 +22,20 @@ vi.mock('../../../hooks/useDocumentTitle', () => ({
   useDocumentTitle: vi.fn()
 }));
 
+// Mock API services
+vi.mock('../../../services/api', () => ({
+  getApiConfig: vi.fn(() => ({ apiUrl: 'http://localhost:3001' })),
+  getApiKeys: vi.fn(() => Promise.resolve({ 
+    success: true,
+    apiKeys: [
+      { id: '1', provider: 'alpaca', status: 'active' },
+      { id: '2', provider: 'robinhood', status: 'active' }
+    ]
+  })),
+  testApiConnection: vi.fn(() => Promise.resolve({ success: true })),
+  importPortfolioFromBroker: vi.fn(() => Promise.resolve({ success: true }))
+}));
+
 // Mock API calls
 global.fetch = vi.fn();
 
@@ -108,10 +122,13 @@ describe('Portfolio', () => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue(defaultAuthState);
     
-    // Mock successful API response
+    // Mock successful API response - wrap data in expected structure
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => mockPortfolioData
+      json: async () => ({
+        success: true,
+        data: mockPortfolioData
+      })
     });
   });
 
@@ -189,15 +206,18 @@ describe('Portfolio', () => {
       global.fetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          holdings: [],
-          summary: {
-            totalValue: 0,
-            totalCost: 0,
-            totalReturn: 0,
-            totalReturnPercent: 0,
-            dayChange: 0,
-            dayChangePercent: 0,
-            cash: 10000
+          success: true,
+          data: {
+            holdings: [],
+            summary: {
+              totalValue: 0,
+              totalCost: 0,
+              totalReturn: 0,
+              totalReturnPercent: 0,
+              dayChange: 0,
+              dayChangePercent: 0,
+              cash: 10000
+            }
           }
         })
       });

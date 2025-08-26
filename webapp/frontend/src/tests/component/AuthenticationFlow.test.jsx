@@ -295,11 +295,11 @@ describe("Authentication Flow Components", () => {
       );
 
       expect(screen.getByText(/Sign Up/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Email Address/i)).toBeInTheDocument();
       // Use getAllByLabelText to handle multiple password fields in RegisterForm
       const passwordFields = screen.getAllByLabelText(/Password/i);
       expect(passwordFields.length).toBeGreaterThanOrEqual(2); // Password and Confirm Password
-      expect(screen.getByLabelText(/Confirm Password/i)).toBeInTheDocument();
+      expect(document.getElementById('confirmPassword')).toBeInTheDocument();
     });
 
     it("should validate password confirmation", async () => {
@@ -309,11 +309,14 @@ describe("Authentication Flow Components", () => {
 
       // Get password fields correctly - there are multiple in RegisterForm
       const passwordFields = screen.getAllByLabelText(/Password/i);
-      // First password field is the main password, second is confirm password
+      // First password field is the main password, find confirm password by role
       fireEvent.change(passwordFields[0], {
         target: { value: "password123" },
       });
-      fireEvent.change(screen.getByLabelText(/Confirm Password/i), {
+      
+      // Find confirm password input specifically by ID to avoid ambiguity with toggle button
+      const confirmPasswordInput = document.getElementById('confirmPassword');
+      fireEvent.change(confirmPasswordInput, {
         target: { value: "differentpassword" },
       });
 
@@ -355,14 +358,15 @@ describe("Authentication Flow Components", () => {
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
       );
 
-      fireEvent.change(screen.getByLabelText(/Email/i), {
+      fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
       });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
       });
-      fireEvent.change(screen.getByLabelText(/Confirm Password/i), {
+      const confirmPasswordInput = document.getElementById('confirmPassword');
+      fireEvent.change(confirmPasswordInput, {
         target: { value: "Password123!" },
       });
 
@@ -392,14 +396,15 @@ describe("Authentication Flow Components", () => {
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
       );
 
-      fireEvent.change(screen.getByLabelText(/Email/i), {
+      fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "existing@example.com" },
       });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
       });
-      fireEvent.change(screen.getByLabelText(/Confirm Password/i), {
+      const confirmPasswordInput = document.getElementById('confirmPassword');
+      fireEvent.change(confirmPasswordInput, {
         target: { value: "Password123!" },
       });
 
@@ -425,14 +430,15 @@ describe("Authentication Flow Components", () => {
       );
 
       // Complete signup first
-      fireEvent.change(screen.getByLabelText(/Email/i), {
+      fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
       });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
       });
-      fireEvent.change(screen.getByLabelText(/Confirm Password/i), {
+      const confirmPasswordInput = document.getElementById('confirmPassword');
+      fireEvent.change(confirmPasswordInput, {
         target: { value: "Password123!" },
       });
 
@@ -482,7 +488,7 @@ describe("Authentication Flow Components", () => {
       renderWithProviders(
         <AuthModal
           open={true}
-          initialMode="confirmation"
+          initialMode="confirm"
           email="test@example.com"
           onClose={() => {}}
         />
@@ -550,7 +556,7 @@ describe("Authentication Flow Components", () => {
       renderWithProviders(
         <AuthModal
           open={true}
-          initialMode="resetPassword"
+          initialMode="reset_password"
           email="test@example.com"
           onClose={() => {}}
           onSuccess={onSuccess}
