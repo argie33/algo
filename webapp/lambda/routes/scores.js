@@ -261,11 +261,7 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in scores endpoint:", error);
-    res.status(500).json({
-      error: "Failed to fetch scores",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch scores", 500);
   }
 });
 
@@ -314,11 +310,7 @@ router.get("/:symbol", async (req, res) => {
     }
 
     if (scoresResult.rows.length === 0) {
-      return res.status(404).json({
-        error: "Symbol not found or no scores available",
-        symbol,
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("Symbol not found or no scores available");
     }
 
     const latestScore = scoresResult.rows[0];
@@ -514,12 +506,7 @@ router.get("/:symbol", async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Error getting detailed scores:", error);
-    res.status(500).json({
-      error: "Failed to fetch detailed scores",
-      message: error.message,
-      symbol: req.params.symbol,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch detailed scores", 500);
   }
 });
 
@@ -608,11 +595,7 @@ router.get("/sectors/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sector analysis:", error);
-    res.status(500).json({
-      error: "Failed to fetch sector analysis",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch sector analysis", 500);
   }
 });
 
@@ -632,11 +615,7 @@ router.get("/top/:category", async (req, res) => {
       "positioning",
     ];
     if (!validCategories.includes(category)) {
-      return res.status(400).json({
-        error: "Invalid category",
-        validCategories,
-        timestamp: new Date().toISOString(),
-      });
+      return res.error("Invalid category", 400);
     }
 
     const scoreColumn =
@@ -704,11 +683,7 @@ router.get("/top/:category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting top stocks:", error);
-    res.status(500).json({
-      error: "Failed to fetch top stocks",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch top stocks", 500);
   }
 });
 

@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res.json({
+  res.success({
     status: "ok",
     endpoint: "price",
     timestamp: new Date().toISOString(),
@@ -37,7 +37,7 @@ router.get("/history/:timeframe", async (req, res) => {
 
     // Symbol filter (required)
     if (!symbol || !symbol.trim()) {
-      return res.status(400).json({ error: "Symbol parameter is required" });
+      return res.error("Symbol parameter is required" , 400);
     }
 
     whereClause += ` AND symbol = $${paramIndex}`;
@@ -73,10 +73,9 @@ router.get("/history/:timeframe", async (req, res) => {
       );
 
       if (!tableExists.rows[0].exists) {
-        return res.status(404).json({
-          error: `Price data table for ${timeframe} timeframe not found`,
+        return res.error(`Price data table for ${timeframe} timeframe not found`, {
           availableTimeframes: validTimeframes,
-        });
+        }, 404);
       }
     }
 
@@ -137,14 +136,12 @@ router.get("/history/:timeframe", async (req, res) => {
     console.log(
       `📊 Price history query successful: ${symbol} ${timeframe} - ${dataResult.rows.length} records`
     );
-    res.json(response);
+    res.success(response);
   } catch (error) {
     console.error("❌ Price history query error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch price history",
+    res.error("Failed to fetch price history", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -191,9 +188,7 @@ router.get("/symbols/:timeframe", async (req, res) => {
     params.push(maxLimit);
     const result = await query(symbolQuery, params);
 
-    res.json({
-      success: true,
-      data: result.rows.map((row) => ({
+    res.success({data: result.rows.map((row) => ({
         symbol: row.symbol,
         latestDate: row.latest_date,
         priceCount: parseInt(row.price_count),
@@ -203,11 +198,9 @@ router.get("/symbols/:timeframe", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Symbols query error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch symbols",
+    res.error("Failed to fetch symbols", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -240,19 +233,15 @@ router.get("/latest/:symbol", async (req, res) => {
     const result = await query(latestQuery, [symbol.toUpperCase()]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Symbol not found",
+      return res.error("Symbol not found", {
         symbol: symbol.toUpperCase(),
         message: "No price data available for symbol",
-      });
+      }, 404);
     }
 
     const latestData = result.rows[0];
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         symbol: latestData.symbol,
         date: latestData.date,
         open: parseFloat(latestData.open),
@@ -266,11 +255,9 @@ router.get("/latest/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Latest price query error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch latest price",
+    res.error("Failed to fetch latest price", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 

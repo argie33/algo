@@ -20,12 +20,7 @@ router.get("/dashboard", authenticateToken, async (req, res) => {
   try {
     // Defensive authentication check
     if (!req.user) {
-      return res.status(401).json({
-        error: "Authentication required",
-        message: "User authentication is required for admin endpoints",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     logger.info("Processing admin dashboard request", {
@@ -122,9 +117,7 @@ router.get("/dashboard", authenticateToken, async (req, res) => {
       connectionsCount: mockConnections.length,
     });
 
-    res.json({
-      success: true,
-      data: enhancedDashboard,
+    res.success({data: enhancedDashboard,
       meta: {
         correlationId,
         duration,
@@ -141,12 +134,7 @@ router.get("/dashboard", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to retrieve admin dashboard data",
-      correlationId,
-      timestamp: new Date().toISOString(),
-      duration,
-    });
+    return res.error("Failed to retrieve admin dashboard data", 500);
   }
 });
 
@@ -158,12 +146,7 @@ router.post("/connections", authenticateToken, async (req, res) => {
   try {
     // Defensive authentication check
     if (!req.user) {
-      return res.status(401).json({
-        error: "Authentication required",
-        message: "User authentication is required for admin endpoints",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     const { provider, symbols, autoReconnect } = req.body;
@@ -177,11 +160,7 @@ router.post("/connections", authenticateToken, async (req, res) => {
 
     // Validate request
     if (!provider || !symbols || !Array.isArray(symbols)) {
-      return res.status(400).json({
-        error: "Invalid connection parameters",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.error("Invalid connection parameters", 400);
     }
 
     // Create connection using liveDataManager
@@ -197,9 +176,7 @@ router.post("/connections", authenticateToken, async (req, res) => {
       symbolsCount: symbols.length,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         connectionId,
         provider,
         symbols,
@@ -218,11 +195,7 @@ router.post("/connections", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to create connection",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to create connection", 500);
   }
 });
 
@@ -249,9 +222,7 @@ router.delete(
         connectionId,
       });
 
-      res.json({
-        success: true,
-        data: {
+      res.success({data: {
           connectionId,
           status: "closed",
           closedAt: new Date().toISOString(),
@@ -269,11 +240,7 @@ router.delete(
         stack: error.stack,
       });
 
-      res.status(500).json({
-        error: "Failed to close connection",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.error("Failed to close connection", 500);
     }
   }
 );
@@ -305,9 +272,7 @@ router.put(
         providerId,
       });
 
-      res.json({
-        success: true,
-        data: {
+      res.success({data: {
           providerId,
           settings: req.body,
           updatedAt: new Date().toISOString(),
@@ -325,11 +290,7 @@ router.put(
         stack: error.stack,
       });
 
-      res.status(500).json({
-        error: "Failed to update provider settings",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.error("Failed to update provider settings", 500);
     }
   }
 );
@@ -342,12 +303,7 @@ router.post("/optimize", authenticateToken, async (req, res) => {
   try {
     // Defensive authentication check
     if (!req.user) {
-      return res.status(401).json({
-        error: "Authentication required",
-        message: "User authentication is required for admin endpoints",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     logger.info("Running cost optimization", {
@@ -364,9 +320,7 @@ router.post("/optimize", authenticateToken, async (req, res) => {
       recommendationsCount: optimizationResults.recommendations?.length || 0,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         ...optimizationResults,
         message: "System optimization completed",
         optimizedAt: new Date().toISOString(),
@@ -385,11 +339,7 @@ router.post("/optimize", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to run cost optimization",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to run cost optimization", 500);
   }
 });
 
@@ -402,12 +352,7 @@ router.get("/analytics/:timeRange", authenticateToken, async (req, res) => {
   try {
     // Defensive authentication check
     if (!req.user) {
-      return res.status(401).json({
-        error: "Authentication required",
-        message: "User authentication is required for admin endpoints",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     logger.info("Processing analytics request", {
@@ -436,9 +381,7 @@ router.get("/analytics/:timeRange", authenticateToken, async (req, res) => {
       timeRange,
     });
 
-    res.json({
-      success: true,
-      data: analyticsData,
+    res.success({data: analyticsData,
       meta: {
         correlationId,
         timestamp: new Date().toISOString(),
@@ -452,11 +395,7 @@ router.get("/analytics/:timeRange", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to retrieve analytics data",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to retrieve analytics data", 500);
   }
 });
 
@@ -468,12 +407,7 @@ router.post("/alerts/configure", authenticateToken, async (req, res) => {
   try {
     // Defensive authentication check
     if (!req.user) {
-      return res.status(401).json({
-        error: "Authentication required",
-        message: "User authentication is required for admin endpoints",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     const { thresholds, notifications } = req.body;
@@ -509,9 +443,7 @@ router.post("/alerts/configure", authenticateToken, async (req, res) => {
       correlationId,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         ...alertConfig,
         configuredAt: new Date().toISOString(),
       },
@@ -527,11 +459,7 @@ router.post("/alerts/configure", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to configure alerts",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to configure alerts", 500);
   }
 });
 
@@ -552,9 +480,7 @@ router.post("/alerts/test", authenticateToken, async (req, res) => {
       correlationId,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         message: "Test notifications sent successfully",
         testedAt: new Date().toISOString(),
       },
@@ -570,11 +496,7 @@ router.post("/alerts/test", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to test notifications",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to test notifications", 500);
   }
 });
 
@@ -596,9 +518,7 @@ router.post("/alerts/health-check", authenticateToken, async (req, res) => {
       alertsFound: healthStatus.active?.length || 0,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         ...healthStatus,
         forcedAt: new Date().toISOString(),
       },
@@ -614,11 +534,7 @@ router.post("/alerts/health-check", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to perform health check",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to perform health check", 500);
   }
 });
 

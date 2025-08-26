@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res.json({
+  res.success({
     status: "ok",
     endpoint: "metrics",
     timestamp: new Date().toISOString(),
@@ -183,22 +183,18 @@ router.get("/", async (req, res) => {
     // Add null checking for database availability
     if (!stocksResult || !stocksResult.rows || !countResult || !countResult.rows) {
       console.warn("Metrics query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Stock metrics temporarily unavailable - database connection issue",
-        data: {
-          stocks: [],
-          pagination: {
-            page: page,
-            limit: limit,
-            total: 0,
-            totalPages: 0,
-            hasNext: false,
-            hasPrev: false
-          }
+        stocks: [],
+        pagination: {
+          page: page,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
         }
-      });
+      }, 503);
     }
 
     const totalStocks = parseInt(countResult.rows[0].total);
@@ -256,7 +252,7 @@ router.get("/", async (req, res) => {
       },
     }));
 
-    res.json({
+    res.success({
       stocks,
       pagination: {
         currentPage: page,
@@ -298,11 +294,7 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in metrics endpoint:", error);
-    res.status(500).json({
-      error: "Failed to fetch metrics",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch metrics", 500);
   }
 });
 
@@ -353,21 +345,15 @@ router.get("/:symbol", async (req, res) => {
     // Add null checking for database availability
     if (!metricsResult || !metricsResult.rows) {
       console.warn("Metrics query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Stock metrics temporarily unavailable - database connection issue",
         symbol,
         timestamp: new Date().toISOString()
-      });
+      }, 503);
     }
 
     if (metricsResult.rows.length === 0) {
-      return res.status(404).json({
-        error: "Symbol not found or no metrics available",
-        symbol,
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("Symbol not found or no metrics available");
     }
 
     const latestMetric = metricsResult.rows[0];
@@ -503,15 +489,10 @@ router.get("/:symbol", async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    res.json(response);
+    res.success(response);
   } catch (error) {
     console.error("Error getting detailed metrics:", error);
-    res.status(500).json({
-      error: "Failed to fetch detailed metrics",
-      message: error.message,
-      symbol: req.params.symbol,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch detailed metrics", 500);
   }
 });
 
@@ -562,7 +543,7 @@ router.get("/sectors/analysis", async (req, res) => {
       lastUpdated: row.last_updated,
     }));
 
-    res.json({
+    res.success({
       sectors,
       summary: {
         totalSectors: sectors.length,
@@ -590,11 +571,7 @@ router.get("/sectors/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sector analysis:", error);
-    res.status(500).json({
-      error: "Failed to fetch sector analysis",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch sector analysis", 500);
   }
 });
 
@@ -606,11 +583,7 @@ router.get("/top/:category", async (req, res) => {
 
     const validCategories = ["composite", "quality", "value"];
     if (!validCategories.includes(category)) {
-      return res.status(400).json({
-        error: "Invalid category",
-        validCategories,
-        timestamp: new Date().toISOString(),
-      });
+      return res.error("Invalid category", 400);
     }
 
     let metricColumn, joinClause, orderClause;
@@ -672,7 +645,7 @@ router.get("/top/:category", async (req, res) => {
       lastUpdated: row.updated_at,
     }));
 
-    res.json({
+    res.success({
       category: category.toUpperCase(),
       topStocks,
       summary: {
@@ -695,11 +668,7 @@ router.get("/top/:category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting top stocks:", error);
-    res.status(500).json({
-      error: "Failed to fetch top stocks",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch top stocks", 500);
   }
 });
 

@@ -5,8 +5,8 @@ import Dashboard from '../../../pages/Dashboard';
 
 // Mock API service
 // Mock the API service with comprehensive mock
-vi.mock("../../services/api", async (_importOriginal) => {
-  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+vi.mock("../../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../../mocks/api-service-mock');
   return {
     default: createApiServiceMock(),
     ...createApiServiceMock()

@@ -17,42 +17,61 @@ import { vi } from 'vitest';
 import React from 'react';
 
 // REAL SITE TESTING - API SERVICE SETUP
-// Mock the API service to handle environment variables properly
-vi.mock('../services/api', () => ({
-  default: {
-    getApiConfig: () => ({
+// Mock the API service to handle environment variables properly and avoid ES module cycles
+vi.mock('../services/api', () => {
+  // Create a simple mock that matches the expected axios-like interface
+  const mockApi = {
+    get: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+    post: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    put: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    delete: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    patch: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    request: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    defaults: { baseURL: 'http://localhost:3001' },
+    interceptors: {
+      request: { use: vi.fn() },
+      response: { use: vi.fn() }
+    }
+  };
+
+  // Mock functions that are in the default export
+  const mockApiFunction = vi.fn(() => Promise.resolve({ data: { success: true, data: {} } }));
+  
+  // Create default export object that mimics the actual default export structure
+  // but with the axios instance methods for components that expect `api.get()`
+  const defaultExportMock = {
+    ...mockApi, // Include axios methods for components that use api.get() directly
+    
+    // API functions that are in the default export
+    healthCheck: mockApiFunction,
+    getMarketOverview: mockApiFunction,
+    getPortfolioData: mockApiFunction,
+    getPortfolio: mockApiFunction, // Alias
+    addHolding: mockApiFunction,
+    updateHolding: mockApiFunction,
+    deleteHolding: mockApiFunction,
+    getApiKeys: mockApiFunction,
+    addApiKey: mockApiFunction,
+    updateApiKey: mockApiFunction,
+    deleteApiKey: mockApiFunction,
+    placeOrder: mockApiFunction,
+    getQuote: mockApiFunction,
+  };
+  
+  return {
+    api: mockApi, // Named export for the axios instance
+    default: defaultExportMock, // Default export that includes both axios methods and API functions
+    getApiConfig: vi.fn(() => ({
       apiUrl: 'http://localhost:3001',
-      environment: 'test'
-    }),
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    put: vi.fn(() => Promise.resolve({ data: {} })),
-    delete: vi.fn(() => Promise.resolve({ data: {} }))
-  },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: 'http://localhost:3001',
-    environment: 'test'
-  })),
-  getApiKeys: vi.fn(() => 
-    Promise.resolve({
-      success: true,
-      data: {
-        alpaca: { status: 'active' },
-        polygon: { status: 'active' }
-      }
-    })
-  ),
-  testApiConnection: vi.fn(() => Promise.resolve({ success: true })),
-  importPortfolioFromBroker: vi.fn(() => Promise.resolve({ success: true })),
-  api: {
-    getPortfolio: vi.fn(() => 
-      Promise.resolve({
-        totalValue: 0,
-        holdings: []
-      })
-    )
-  }
-}));
+      environment: 'test',
+      baseURL: 'http://localhost:3001',
+      isServerless: false,
+      isConfigured: true,
+      isDevelopment: true,
+      isProduction: false
+    }))
+  };
+});
 
 // Mock logger globally and as ES module
 const mockLogger = {

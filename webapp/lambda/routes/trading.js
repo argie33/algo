@@ -1,11 +1,10 @@
 const express = require("express");
+const { authenticateToken } = require("../middleware/auth");
 const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "trading",
     timestamp: new Date().toISOString(),
     message: "Trading service is running",
@@ -14,9 +13,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Trading API - Ready",
+  res.success({message: "Trading API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -79,9 +76,7 @@ router.get("/debug", async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      status: "ok",
+    res.success({status: "ok",
       timestamp: new Date().toISOString(),
       tables: tableStatus,
       recordCounts: recordCounts,
@@ -89,12 +84,10 @@ router.get("/debug", async (req, res) => {
     });
   } catch (error) {
     console.error("[TRADING] Error in debug endpoint:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to check trading tables",
+    return res.error("Failed to check trading tables", {
       message: error.message,
       timestamp: new Date().toISOString(),
-    });
+    }, 500);
   }
 });
 
@@ -106,16 +99,10 @@ router.get("/signals", async (req, res) => {
     // Validate limit parameter
     const limitNum = parseInt(limit);
     if (isNaN(limitNum) || limitNum <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Limit must be a positive number",
-      });
+      return res.error("Limit must be a positive number", {}, 400);
     }
     if (limitNum > 500) {
-      return res.status(400).json({
-        success: false,
-        error: "Limit cannot exceed 500",
-      });
+      return res.error("Limit cannot exceed 500", {}, 400);
     }
 
     // Build base query for all signal tables
@@ -153,29 +140,23 @@ router.get("/signals", async (req, res) => {
     // Add null checking for database availability 
     if (!result || !result.rows) {
       console.warn("Trading signals query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Trading signals temporarily unavailable - database connection issue",
         data: [],
         count: 0,
         timestamp: new Date().toISOString()
-      });
+      }, 503);
     }
 
-    res.json({
-      success: true,
-      data: result.rows || [],
+    res.success({data: result.rows || [],
       count: result.rows ? result.rows.length : 0,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching trading signals:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch trading signals",
+    return res.error("Failed to fetch trading signals", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -205,9 +186,7 @@ router.get("/signals/:timeframe", async (req, res) => {
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
       console.warn("[TRADING] Invalid timeframe:", timeframe);
-      return res.status(400).json({
-        error: "Invalid timeframe. Must be daily, weekly, or monthly",
-      });
+      return res.error("Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -223,10 +202,9 @@ router.get("/signals/:timeframe", async (req, res) => {
     );
     if (!tableExistsResult.rows[0].exists) {
       console.error(`[TRADING] Table does not exist: ${tableName}`);
-      return res.status(500).json({
-        error: `Table ${tableName} does not exist in the database.`,
+      return res.error(`Table ${tableName} does not exist in the database.`, {
         details: `Expected table ${tableName} for trading signals. Please check your database schema.`,
-      });
+      }, 500);
     }
 
     // Build WHERE clause
@@ -366,8 +344,7 @@ router.get("/signals/:timeframe", async (req, res) => {
         timeframe,
         params: req.query,
       });
-      return res.status(200).json({
-        success: true,
+      return res.success({
         data: [],
         timeframe,
         count: 0,
@@ -395,9 +372,7 @@ router.get("/signals/:timeframe", async (req, res) => {
       "total"
     );
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       timeframe,
       count: result.rows.length,
       pagination: {
@@ -415,11 +390,7 @@ router.get("/signals/:timeframe", async (req, res) => {
     });
   } catch (error) {
     console.error("[TRADING] Error fetching trading signals:", error);
-    res.status(500).json({
-      error: "Failed to fetch trading signals",
-      message: error.message,
-      stack: error.stack,
-    });
+    return res.error("Failed to fetch trading signals", 500);
   }
 });
 
@@ -430,7 +401,7 @@ router.get("/summary/:timeframe", async (req, res) => {
 
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({ error: "Invalid timeframe" });
+      return res.error("Invalid timeframe" , 400);
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -449,21 +420,16 @@ router.get("/summary/:timeframe", async (req, res) => {
     const result = await query(sqlQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0],
+    res.success({data: result.rows[0],
       timeframe,
       period: "last_30_days",
     });
   } catch (error) {
     console.error("Error fetching signals summary:", error);
-    res.status(500).json({
-      error: "Failed to fetch signals summary",
-      message: error.message,
-    });
+    return res.error("Failed to fetch signals summary", 500);
   }
 });
 
@@ -521,10 +487,10 @@ router.get("/swing-signals", async (req, res) => {
       !Array.isArray(swingResult.rows) ||
       swingResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
+    res.success({
       data: swingResult.rows,
       pagination: {
         page,
@@ -537,7 +503,7 @@ router.get("/swing-signals", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching swing signals:", error);
-    res.status(500).json({ error: "Failed to fetch swing signals" });
+    return res.error("Failed to fetch swing signals" , 500);
   }
 });
 
@@ -577,17 +543,17 @@ router.get("/:ticker/technicals", async (req, res) => {
     const result = await query(techQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
+    res.success({
       ticker: ticker.toUpperCase(),
       timeframe,
       data: result.rows[0],
     });
   } catch (error) {
     console.error("Error fetching technical indicators:", error);
-    res.status(500).json({ error: "Failed to fetch technical indicators" });
+    return res.error("Failed to fetch technical indicators" , 500);
   }
 });
 
@@ -630,17 +596,17 @@ router.get("/performance", async (req, res) => {
     const result = await query(performanceQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
+    res.success({
       period_days: days,
       performance: result.rows,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching performance data:", error);
-    res.status(500).json({ error: "Failed to fetch performance data" });
+    return res.error("Failed to fetch performance data" , 500);
   }
 });
 
@@ -682,9 +648,7 @@ router.get("/positions", async (req, res) => {
       const longPositions = positions.filter((pos) => pos.position > 0).length;
       const shortPositions = positions.filter((pos) => pos.position < 0).length;
 
-      res.json({
-        success: true,
-        data: positions,
+      res.success({data: positions,
         summary: {
           total_positions: totalPositions,
           long_positions: longPositions,
@@ -694,87 +658,121 @@ router.get("/positions", async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     } else {
-      res.json({
-        success: true,
-        data: positions,
+      res.success({data: positions,
         count: positions.length,
         timestamp: new Date().toISOString(),
       });
     }
   } catch (error) {
     console.error("Error fetching positions:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch positions",
+    return res.error("Failed to fetch positions", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
-// Trading orders endpoint (placeholder for future implementation)
-router.get("/orders", async (req, res) => {
+// Trading orders endpoint (requires authentication)
+router.get("/orders", authenticateToken, async (req, res) => {
+  const userId = req.user.sub;
+  
   try {
-    // For now, return empty orders with proper format
-    res.json({
-      success: true,
-      data: [],
-      message: "Orders endpoint not fully implemented",
+    // Check if orders table exists
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'orders'
+      );`
+    );
+    
+    if (!tableExistsResult.rows[0].exists) {
+      return res.error("Trading orders service unavailable", 503, {
+        details: "Orders table not available in database",
+        suggestion: "Trading orders functionality requires proper database schema setup.",
+        service: "trading-orders",
+        requirements: [
+          "Database connectivity must be available",
+          "orders table must exist with proper schema",
+          "User authentication required for order access"
+        ],
+        troubleshooting: [
+          "Verify database schema includes orders table",
+          "Check that trading infrastructure is deployed",
+          "Confirm user has valid authentication"
+        ]
+      });
+    }
+
+    // Query user's orders
+    const ordersQuery = `
+      SELECT 
+        order_id, symbol, side, quantity, order_type,
+        limit_price, stop_price, status, submitted_at,
+        filled_at, filled_quantity, average_price
+      FROM orders 
+      WHERE user_id = $1 
+      ORDER BY submitted_at DESC 
+      LIMIT 100
+    `;
+    
+    const result = await query(ordersQuery, [userId]);
+    
+    res.success({
+      data: result.rows,
+      message: `Found ${result.rows.length} orders for user`,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch orders",
-      message: error.message,
+    console.error("Error fetching trading orders:", error);
+    return res.error("Trading orders service unavailable", 503, {
+      details: error.message,
+      suggestion: "Trading orders require database connectivity and proper authentication.",
+      service: "trading-orders",
+      requirements: [
+        "Database connectivity must be available",
+        "orders table must exist with trading data",
+        "Valid user authentication required"
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify orders table schema and data",
+        "Ensure user_id is valid for order access"
+      ]
     });
   }
 });
 
-// Handle POST requests for orders (placeholder)
-router.post("/orders", async (req, res) => {
+// Handle POST requests for orders (requires authentication)
+router.post("/orders", authenticateToken, async (req, res) => {
+  const userId = req.user.sub;
   try {
     const { symbol, quantity, type, side, limitPrice, stopPrice } = req.body;
 
     // Basic validation
     if (!symbol || !quantity || !type || !side) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields: symbol, quantity, type, side",
+      return res.error("Missing required fields: symbol, quantity, type, side", {
         requiredFields: ["symbol", "quantity", "type", "side"],
-      });
+      }, 400);
     }
 
     // Validate order type
     if (!["market", "limit", "stop", "stop_limit"].includes(type)) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Invalid order type. Must be: market, limit, stop, or stop_limit",
-      });
+      return res.error("Invalid order type. Must be: market, limit, stop, or stop_limit", {}, 400);
     }
 
     // Validate side
     if (!["buy", "sell"].includes(side)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid side. Must be: buy or sell",
-      });
+      return res.error("Invalid side. Must be: buy or sell", {}, 400);
     }
 
     // Validate quantity
     if (quantity <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Quantity must be greater than 0",
-      });
+      return res.error("Quantity must be greater than 0", {}, 400);
     }
 
     // Validate limit price for limit orders
     if (type === "limit" && (!limitPrice || limitPrice <= 0)) {
-      return res.status(400).json({
-        success: false,
-        error: "Limit price required for limit orders",
-      });
+      return res.error("Limit price required for limit orders", {}, 400);
     }
 
     // For now, return success (would integrate with actual broker API in production)
@@ -790,18 +788,15 @@ router.post("/orders", async (req, res) => {
       created_at: new Date().toISOString(),
     };
 
-    res.status(201).json({
-      success: true,
+    return res.success({
       message: "Order created successfully",
       data: order,
     });
   } catch (error) {
     console.error("Order placement error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Internal server error",
+    return res.error("Internal server error", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 

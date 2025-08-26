@@ -24,10 +24,9 @@ import {
   TableRow,
   TableSortLabel,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
-import { PieChart, Pie, Cell, ResponsiveContainer, Treemap } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Treemap, Tooltip } from "recharts";
 import {
   Add,
   Delete,

@@ -38,12 +38,10 @@ router.get("/health", (req, res) => {
   try {
     // Check if responseFormatter is available
     if (typeof success !== "function") {
-      return res.json({
-        success: true,
-        status: "operational",
+      return res.success({status: "operational",
         service: "websocket",
         timestamp: new Date().toISOString(),
-        message: "WebSocket service is running (fallback response)",
+        message: "WebSocket service is running",
         type: "http_polling_realtime_data",
         dependencies: {
           responseFormatter: false,

@@ -63,59 +63,60 @@ describe("PortfolioHoldings Component", () => {
   const mockHoldingsData = {
     holdings: [
       {
+        id: "AAPL",
         symbol: "AAPL",
-        companyName: "Apple Inc.",
+        company: "Apple Inc.",
         quantity: 100,
-        averagePrice: 120.0,
+        avgCost: 120.0,
         currentPrice: 150.0,
         marketValue: 15000.0,
-        costBasis: 12000.0,
-        unrealizedGainLoss: 3000.0,
-        unrealizedGainLossPercent: 25.0,
+        unrealizedPnl: 3000.0,
+        unrealizedPnlPercent: 25.0,
         dayChange: 125.0,
         dayChangePercent: 0.84,
         sector: "Technology",
-        allocation: 35.7,
+        weight: 35.7,
       },
       {
+        id: "GOOGL", 
         symbol: "GOOGL",
-        companyName: "Alphabet Inc.",
+        company: "Alphabet Inc.",
         quantity: 25,
-        averagePrice: 2500.0,
+        avgCost: 2500.0,
         currentPrice: 2800.0,
         marketValue: 70000.0,
-        costBasis: 62500.0,
-        unrealizedGainLoss: 7500.0,
-        unrealizedGainLossPercent: 12.0,
+        unrealizedPnl: 7500.0,
+        unrealizedPnlPercent: 12.0,
         dayChange: -350.0,
         dayChangePercent: -1.25,
         sector: "Technology",
-        allocation: 16.7,
+        weight: 16.7,
       },
       {
-        symbol: "TSLA",
-        companyName: "Tesla Inc.",
+        id: "TSLA",
+        symbol: "TSLA", 
+        company: "Tesla Inc.",
         quantity: 50,
-        averagePrice: 800.0,
+        avgCost: 800.0,
         currentPrice: 900.0,
         marketValue: 45000.0,
-        costBasis: 40000.0,
-        unrealizedGainLoss: 5000.0,
-        unrealizedGainLossPercent: 12.5,
+        unrealizedPnl: 5000.0,
+        unrealizedPnlPercent: 12.5,
         dayChange: 225.0,
         dayChangePercent: 2.56,
         sector: "Consumer Discretionary",
-        allocation: 10.7,
+        weight: 10.7,
       },
     ],
+    totalValue: 130000.0,
     summary: {
-      totalMarketValue: 130000.0,
-      totalCostBasis: 114500.0,
-      totalUnrealizedGainLoss: 15500.0,
-      totalUnrealizedGainLossPercent: 13.54,
-      totalDayChange: 0.0,
-      totalDayChangePercent: 0.0,
-      diversificationScore: 82,
+      totalValue: 130000.0,
+      totalCost: 114500.0,
+      totalPnl: 15500.0,
+      totalPnlPercent: 13.54,
+      dayPnl: 0.0,
+      dayPnlPercent: 0.0,
+      cash: 5000.0,
     },
     sectors: [
       { name: "Technology", value: 85000, percentage: 65.4 },
@@ -148,7 +149,7 @@ describe("PortfolioHoldings Component", () => {
       }, { timeout: 5000 });
       
       await waitFor(() => {
-        expect(screen.getByText(/Total Market Value/i)).toBeInTheDocument();
+        expect(screen.getByText(/Total Value/i)).toBeInTheDocument();
       }, { timeout: 5000 });
     });
 
@@ -200,19 +201,18 @@ describe("PortfolioHoldings Component", () => {
       renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
-        expect(screen.getByText("$130,000.00")).toBeInTheDocument(); // Total market value
-        expect(screen.getByText("$114,500.00")).toBeInTheDocument(); // Total cost basis
-        expect(screen.getByText("+$15,500.00")).toBeInTheDocument(); // Total gain/loss
-        expect(screen.getByText("+13.54%")).toBeInTheDocument(); // Total gain/loss %
+        expect(screen.getByText("$130,000.00")).toBeInTheDocument(); // Total value
+        expect(screen.getByText("$15,500.00")).toBeInTheDocument(); // Total gain/loss 
+        expect(screen.getByText("(13.54%)")).toBeInTheDocument(); // Total gain/loss %
       });
     });
 
-    test("should display diversification score", async () => {
+    test("should display cash balance", async () => {
       renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
-        expect(screen.getByText("82")).toBeInTheDocument(); // Diversification score
-        expect(screen.getByText(/Diversification Score/i)).toBeInTheDocument();
+        expect(screen.getByText("$5,000.00")).toBeInTheDocument(); // Cash balance
+        expect(screen.getByText(/Cash Balance/i)).toBeInTheDocument();
       });
     });
 
@@ -221,24 +221,22 @@ describe("PortfolioHoldings Component", () => {
         ...mockHoldingsData,
         summary: {
           ...mockHoldingsData.summary,
-          totalUnrealizedGainLoss: -5500.0,
-          totalUnrealizedGainLossPercent: -4.8,
-          totalDayChange: -1250.0,
-          totalDayChangePercent: -0.96,
+          totalPnl: -5500.0,
+          totalPnlPercent: -4.8,
+          dayPnl: -1250.0,
+          dayPnlPercent: -0.96,
         },
       };
 
-      mockApi.get.mockResolvedValue({
-        data: { success: true, data: negativeData },
-      });
+      mockGetPortfolioData.mockResolvedValueOnce(negativeData);
 
       renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(() => {
         expect(screen.getByText("-$5,500.00")).toBeInTheDocument();
-        expect(screen.getByText("-4.80%")).toBeInTheDocument();
+        expect(screen.getByText("(-4.80%)")).toBeInTheDocument();
         expect(screen.getByText("-$1,250.00")).toBeInTheDocument();
-        expect(screen.getByText("-0.96%")).toBeInTheDocument();
+        expect(screen.getByText("(-0.96%)")).toBeInTheDocument();
       });
     });
   });

@@ -14,15 +14,7 @@ Object.defineProperty(window, 'localStorage', {
   value: mockLocalStorage
 });
 
-// Mock API service
-// Mock the API service with comprehensive mock
-vi.mock("../../services/api", async (_importOriginal) => {
-  const { createApiServiceMock } = await import('../mocks/api-service-mock');
-  return {
-    default: createApiServiceMock(),
-    ...createApiServiceMock()
-  };
-});
+// Mock API service - use the global mock from setup.js to avoid cycles
 
 // Test component that uses the hook
 const TestComponent = () => {

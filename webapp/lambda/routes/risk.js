@@ -7,9 +7,7 @@ const RiskEngine = require("../utils/riskEngine");
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "risk-analysis",
     timestamp: new Date().toISOString(),
     message: "Risk Analysis service is running",
@@ -18,9 +16,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Risk Analysis API - Ready",
+  res.success({message: "Risk Analysis API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -61,9 +57,7 @@ router.get("/portfolio/:portfolioId", async (req, res) => {
       parseFloat(confidence_level)
     );
 
-    res.json({
-      success: true,
-      data: riskMetrics,
+    res.success({data: riskMetrics,
     });
   } catch (error) {
     console.error("Error calculating portfolio risk:", error);
@@ -111,9 +105,7 @@ router.get("/var/:portfolioId", async (req, res) => {
       parseInt(lookback_days)
     );
 
-    res.json({
-      success: true,
-      data: varAnalysis,
+    res.success({data: varAnalysis,
     });
   } catch (error) {
     console.error("Error calculating VaR:", error);
@@ -159,9 +151,7 @@ router.post("/stress-test/:portfolioId", async (req, res) => {
       correlation_adjustment
     );
 
-    res.json({
-      success: true,
-      data: stressTestResults,
+    res.success({data: stressTestResults,
     });
   } catch (error) {
     console.error("Error performing stress test:", error);
@@ -237,9 +227,7 @@ router.get("/alerts", async (req, res) => {
       params
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         alerts: result.rows,
         total: parseInt(countResult.rows[0].total),
         limit: parseInt(limit),
@@ -287,9 +275,7 @@ router.put("/alerts/:alertId/acknowledge", async (req, res) => {
       [alertId]
     );
 
-    res.json({
-      success: true,
-      message: "Alert acknowledged successfully",
+    res.success({message: "Alert acknowledged successfully",
     });
   } catch (error) {
     console.error("Error acknowledging alert:", error);
@@ -329,9 +315,7 @@ router.get("/correlation/:portfolioId", async (req, res) => {
       parseInt(lookback_days)
     );
 
-    res.json({
-      success: true,
-      data: correlationMatrix,
+    res.success({data: correlationMatrix,
     });
   } catch (error) {
     console.error("Error calculating correlation matrix:", error);
@@ -371,9 +355,7 @@ router.get("/attribution/:portfolioId", async (req, res) => {
       attribution_type
     );
 
-    res.json({
-      success: true,
-      data: attribution,
+    res.success({data: attribution,
     });
   } catch (error) {
     console.error("Error calculating risk attribution:", error);
@@ -425,9 +407,7 @@ router.get("/limits/:portfolioId", async (req, res) => {
       [portfolioId]
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         limits: limitsResult.rows,
         portfolio_id: portfolioId,
       },
@@ -491,9 +471,7 @@ router.put("/limits/:portfolioId", async (req, res) => {
       );
     }
 
-    res.json({
-      success: true,
-      message: "Risk limits updated successfully",
+    res.success({message: "Risk limits updated successfully",
     });
   } catch (error) {
     console.error("Error updating risk limits:", error);
@@ -566,9 +544,7 @@ router.get("/dashboard", async (req, res) => {
       { high: 0, medium: 0, low: 0 }
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         portfolios: portfolioRiskResult.rows,
         alert_counts: alertCounts,
         market_indicators: marketRiskResult.rows,
@@ -625,9 +601,7 @@ router.post("/monitoring/start", async (req, res) => {
       check_interval
     );
 
-    res.json({
-      success: true,
-      data: monitoringResult,
+    res.success({data: monitoringResult,
     });
   } catch (error) {
     console.error("Error starting risk monitoring:", error);
@@ -646,9 +620,7 @@ router.post("/monitoring/stop", async (req, res) => {
 
     const result = await riskEngine.stopRealTimeMonitoring(userId);
 
-    res.json({
-      success: true,
-      data: result,
+    res.success({data: result,
     });
   } catch (error) {
     console.error("Error stopping risk monitoring:", error);
@@ -667,9 +639,7 @@ router.get("/monitoring/status", async (req, res) => {
 
     const status = await riskEngine.getMonitoringStatus(userId);
 
-    res.json({
-      success: true,
-      data: status,
+    res.success({data: status,
     });
   } catch (error) {
     console.error("Error fetching monitoring status:", error);

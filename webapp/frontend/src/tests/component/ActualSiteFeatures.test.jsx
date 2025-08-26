@@ -1,44 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders, screen, fireEvent, waitFor } from "../test-utils";
 import "@testing-library/jest-dom";
-import { BrowserRouter } from "react-router-dom";
-import { QueryClient, QueryProvider } from "@tanstack/react-query";
 import Dashboard from "../../pages/Dashboard";
+import * as api from "../../services/api";
+import { dataCache } from "../../services/dataCache";
 
-// Mock the API service with comprehensive mock
-vi.mock("../../services/api", async (_importOriginal) => {
-  const { createApiServiceMock } = await import('../mocks/api-service-mock');
-  return {
-    default: createApiServiceMock(),
-    ...createApiServiceMock()
-  };
-});
-
-// Mock data cache service
-vi.mock("../../services/dataCache", () => ({
-  get: vi.fn(),
-}));
-
-// Mock AuthContext
-const mockAuthContext = {
-  user: {
-    sub: "test-user",
-    email: "test@protradeanalytics.com",
-    name: "John Trader",
-    firstName: "John",
-  },
-  token: "mock-jwt-token",
-  isAuthenticated: true,
-};
-
-const mockUnauthenticatedContext = {
-  user: null,
-  token: null,
-  isAuthenticated: false,
-};
-
-vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: vi.fn(() => mockAuthContext),
-}));
+// Use TestWrapper which has all the necessary mocking
 
 // Mock recharts components
 vi.mock("recharts", () => ({
@@ -69,110 +35,20 @@ vi.mock("../../components/HistoricalPriceChart", () => ({
 }));
 
 // Mock MarketStatusBar component
-vi.mock("../../components/MarketStatusBar", () => {
-  return function MockMarketStatusBar() {
+vi.mock("../../components/MarketStatusBar", () => ({
+  default: function MockMarketStatusBar() {
     return (
       <div data-testid="market-status-bar">
         <div>Market Status: Open</div>
         <div>Last Update: {new Date().toLocaleTimeString()}</div>
       </div>
     );
-  };
-});
-
-// Import after mocking
-import api from "../../services/api";
-import dataCache from "../../services/dataCache";
-import { useAuth } from "../../contexts/AuthContext";
-
-const renderWithProviders = (component, { authenticated = true } = {}) => {
-  if (!authenticated) {
-    useAuth.mockReturnValue(mockUnauthenticatedContext);
-  } else {
-    useAuth.mockReturnValue(mockAuthContext);
-  }
-
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        staleTime: 0,
-        cacheTime: 0,
-      },
-    },
-  });
-
-  return render(
-    <QueryProvider client={queryClient}>
-      <BrowserRouter>{component}</BrowserRouter>
-    </QueryProvider>
-  );
-};
+  },
+}));
 
 describe("Actual Site Features Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAuth.mockReturnValue(mockAuthContext);
-
-    // Mock successful API responses
-    api.getStockPrices.mockResolvedValue({
-      data: [
-        { date: "2023-06-15", close: 150.25, timestamp: "2023-06-15" },
-        { date: "2023-06-16", close: 152.1, timestamp: "2023-06-16" },
-        { date: "2023-06-17", close: 149.8, timestamp: "2023-06-17" },
-      ],
-    });
-
-    api.getStockMetrics.mockResolvedValue({
-      data: {
-        beta: 1.2,
-        volatility: 0.28,
-        sharpe_ratio: 1.45,
-        max_drawdown: -0.15,
-      },
-    });
-
-    dataCache.get.mockResolvedValue({
-      data: {
-        sentiment: {
-          fearGreed: 72,
-          aaii: { bullish: 45, bearish: 28, neutral: 27 },
-          naaim: 65,
-          vix: 18.5,
-          status: "Bullish",
-        },
-        sectors: [
-          { sector: "Technology", performance: 2.1, color: "#00C49F" },
-          { sector: "Healthcare", performance: 1.8, color: "#0088FE" },
-          { sector: "Finance", performance: -0.5, color: "#FF8042" },
-        ],
-      },
-    });
-
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [
-              {
-                symbol: "AAPL",
-                signal: "Buy",
-                date: "2023-06-17",
-                current_price: 150.25,
-                performance_percent: 2.1,
-              },
-              {
-                symbol: "TSLA",
-                signal: "Sell",
-                date: "2023-06-17",
-                current_price: 710.22,
-                performance_percent: -1.8,
-              },
-            ],
-          }),
-      })
-    );
   });
 
   describe("ProTrade Analytics Dashboard Branding", () => {

@@ -4,65 +4,6 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
-// Fallback data constants
-const FALLBACK_SECTORS = [
-  {
-    sector: "Technology",
-    stock_count: 150,
-    avg_change: 2.5,
-    total_volume: 5000000000,
-    avg_market_cap: 50000000000,
-  },
-  {
-    sector: "Healthcare",
-    stock_count: 120,
-    avg_change: 1.8,
-    total_volume: 3200000000,
-    avg_market_cap: 35000000000,
-  },
-  {
-    sector: "Financial Services",
-    stock_count: 200,
-    avg_change: 2.1,
-    total_volume: 4500000000,
-    avg_market_cap: 45000000000,
-  },
-  {
-    sector: "Consumer Cyclical",
-    stock_count: 180,
-    avg_change: 1.5,
-    total_volume: 2800000000,
-    avg_market_cap: 28000000000,
-  },
-  {
-    sector: "Communication Services",
-    stock_count: 90,
-    avg_change: 3.2,
-    total_volume: 6200000000,
-    avg_market_cap: 75000000000,
-  },
-  {
-    sector: "Industrials",
-    stock_count: 160,
-    avg_change: 1.7,
-    total_volume: 2100000000,
-    avg_market_cap: 22000000000,
-  },
-  {
-    sector: "Consumer Defensive",
-    stock_count: 85,
-    avg_change: 0.8,
-    total_volume: 1500000000,
-    avg_market_cap: 32000000000,
-  },
-  {
-    sector: "Energy",
-    stock_count: 70,
-    avg_change: 4.5,
-    total_volume: 3800000000,
-    avg_market_cap: 18000000000,
-  },
-];
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -88,7 +29,7 @@ async function checkRequiredTables(tableNames) {
 
 // Root endpoint for testing
 router.get("/", (req, res) => {
-  res.json({
+  return res.success({
     status: "ok",
     endpoint: "market",
     available_routes: [
@@ -144,20 +85,14 @@ router.get("/debug", async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      tables: tableStatus,
+    res.success({tables: tableStatus,
       recordCounts: recordCounts,
       endpoint: "market",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("[MARKET] Error in debug endpoint:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to check market tables: " + error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to check market tables: " + error.message, { timestamp: new Date().toISOString() }, 500);
   }
 });
 
@@ -226,7 +161,7 @@ router.get("/overview-fixed", async (req, res) => {
       console.error("Fixed market breadth query error:", e.message);
     }
 
-    res.json({
+    return res.success({
       status: "success",
       message: "Testing fixed database queries",
       results: {
@@ -238,11 +173,7 @@ router.get("/overview-fixed", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in fixed overview test:", error);
-    res.status(500).json({
-      error: "Test failed",
-      details: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Test failed", 500);
   }
 });
 
@@ -297,7 +228,7 @@ router.get("/overview-test", async (req, res) => {
       ],
     };
 
-    res.json({
+    return res.success({
       data: testData,
       timestamp: new Date().toISOString(),
       status: "success",
@@ -305,7 +236,7 @@ router.get("/overview-test", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in overview test:", error);
-    res.status(500).json({ error: "Test failed", details: error.message });
+    return res.error("Test failed", 500);
   }
 });
 
@@ -351,20 +282,20 @@ router.get("/test", async (req, res) => {
       economicData = { error: e.message };
     }
 
-    res.json({
+    return res.success({
       market_data: marketData,
       economic_data: economicData,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in market test:", error);
-    res.status(500).json({ error: "Failed to test market data" });
+    return res.error("Failed to test market data" , 500);
   }
 });
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res.json({
+  return res.success({
     status: "ok",
     endpoint: "market",
     timestamp: new Date().toISOString(),
@@ -379,10 +310,7 @@ router.get("/overview", async (req, res) => {
     // Validate date parameter if provided
     const { date } = req.query;
     if (date && isNaN(new Date(date).getTime())) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).",
-      });
+      return res.error("Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).", {}, 400);
     }
     // Check if market_data table exists
     const tableExists = await query(
@@ -399,9 +327,7 @@ router.get("/overview", async (req, res) => {
     // Add null checking for database availability
     if (!tableExists || !tableExists.rows) {
       console.warn("Table existence query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Market overview temporarily unavailable - database connection issue",
         data: {
           indices: [],
@@ -409,15 +335,13 @@ router.get("/overview", async (req, res) => {
           volatility: { vix: 0, fear_greed: 50 },
           sentiment: { score: 0, label: "Neutral" }
         }
-      });
+      }, 503);
     }
 
     console.log("Table existence check:", tableExists.rows[0].exists);
 
     if (!tableExists.rows[0].exists) {
-      return res
-        .status(500)
-        .json({ error: "Market data table not found in database" });
+      return res.error("Market data table not found in database", {}, 500);
     }
 
     // Get sentiment indicators
@@ -450,21 +374,11 @@ router.get("/overview", async (req, res) => {
           sentimentIndicators.fear_greed
         );
       } else {
-        console.log("No Fear & Greed data found, using realistic fallback");
-        sentimentIndicators.fear_greed = {
-          value: 52,
-          value_text: "Neutral",
-          timestamp: new Date().toISOString(),
-        };
+        throw new Error("No Fear & Greed data available in database");
       }
     } catch (e) {
       console.error("Fear & Greed data error:", e.message);
-      console.log("Using fallback Fear & Greed data");
-      sentimentIndicators.fear_greed = {
-        value: 52,
-        value_text: "Neutral",
-        timestamp: new Date().toISOString(),
-      };
+      throw new Error(`Failed to retrieve Fear & Greed data: ${e.message}`);
     }
 
     // Get NAAIM data
@@ -493,23 +407,11 @@ router.get("/overview", async (req, res) => {
         };
         console.log("NAAIM data processed:", sentimentIndicators.naaim);
       } else {
-        console.log("No NAAIM data found, using realistic fallback");
-        sentimentIndicators.naaim = {
-          average: 47.2,
-          bullish_8100: 22.5,
-          bearish: 15.3,
-          week_ending: new Date().toISOString(),
-        };
+        throw new Error("No NAAIM data available in database");
       }
     } catch (e) {
       console.error("NAAIM data error:", e.message);
-      console.log("Using fallback NAAIM data");
-      sentimentIndicators.naaim = {
-        average: 47.2,
-        bullish_8100: 22.5,
-        bearish: 15.3,
-        week_ending: new Date().toISOString(),
-      };
+      throw new Error(`Failed to retrieve NAAIM data: ${e.message}`);
     }
 
     // Get AAII data (from aaii_sentiment table)
@@ -559,9 +461,7 @@ router.get("/overview", async (req, res) => {
       // Add null checking for database availability
       if (!breadthResult || !breadthResult.rows) {
         console.warn("Market breadth query returned null result, database may be unavailable");
-        return res.status(503).json({
-          success: false,
-          error: "Database temporarily unavailable", 
+        return res.error("Database temporarily unavailable", {
           message: "Market overview temporarily unavailable - database connection issue",
           data: {
             indices: [],
@@ -569,7 +469,7 @@ router.get("/overview", async (req, res) => {
             volatility: { vix: 0, fear_greed: 50 },
             sentiment: { score: 0, label: "Neutral" }
           }
-        });
+        }, 503);
       }
       
       console.log("Market breadth query result:", breadthResult.rows);
@@ -595,28 +495,11 @@ router.get("/overview", async (req, res) => {
         };
         console.log("Market breadth data processed:", marketBreadth);
       } else {
-        console.log("No market breadth data found, using realistic fallback");
-        // Provide realistic fallback data when no market data is available
-        marketBreadth = {
-          total_stocks: 4800,
-          advancing: 2650,
-          declining: 1920,
-          unchanged: 230,
-          advance_decline_ratio: "1.38",
-          average_change_percent: "0.45",
-        };
+        throw new Error("No market breadth data available in database");
       }
     } catch (e) {
       console.error("Market breadth data error:", e.message);
-      console.log("Using fallback breadth data due to error");
-      marketBreadth = {
-        total_stocks: 4800,
-        advancing: 2650,
-        declining: 1920,
-        unchanged: 230,
-        advance_decline_ratio: "1.38",
-        average_change_percent: "0.45",
-      };
+      throw new Error(`Failed to retrieve market breadth data: ${e.message}`);
     }
 
     // Get market cap distribution
@@ -644,23 +527,11 @@ router.get("/overview", async (req, res) => {
           total: parseFloat(marketCapResult.rows[0].total) || 0,
         };
       } else {
-        console.log("No market cap data found, using realistic fallback");
-        // Provide realistic fallback market cap data (approximate US market values in billions)
-        marketCap = {
-          large_cap: 42000000000000, // $42T
-          mid_cap: 8500000000000, // $8.5T
-          small_cap: 3200000000000, // $3.2T
-          total: 53700000000000, // $53.7T total
-        };
+        throw new Error("No market cap data available in database");
       }
     } catch (e) {
-      console.log("Market cap data error, using fallback:", e.message);
-      marketCap = {
-        large_cap: 42000000000000,
-        mid_cap: 8500000000000,
-        small_cap: 3200000000000,
-        total: 53700000000000,
-      };
+      console.error("Market cap data error:", e.message);
+      throw new Error(`Failed to retrieve market cap data: ${e.message}`);
     }
 
     // Get economic indicators
@@ -681,81 +552,44 @@ router.get("/overview", async (req, res) => {
           timestamp: row.timestamp,
         }));
       } else {
-        console.log("No economic data found, using realistic fallback");
-        // Provide realistic fallback economic indicators
-        const currentTime = new Date().toISOString();
-        economicIndicators = [
-          {
-            name: "GDP Growth Rate",
-            value: 2.4,
-            unit: "%",
-            timestamp: currentTime,
-          },
-          {
-            name: "Unemployment Rate",
-            value: 3.7,
-            unit: "%",
-            timestamp: currentTime,
-          },
-          {
-            name: "Inflation Rate (CPI)",
-            value: 3.2,
-            unit: "%",
-            timestamp: currentTime,
-          },
-          {
-            name: "Federal Funds Rate",
-            value: 5.25,
-            unit: "%",
-            timestamp: currentTime,
-          },
-          {
-            name: "Consumer Confidence",
-            value: 102.3,
-            unit: "Index",
-            timestamp: currentTime,
-          },
-          {
-            name: "10-Year Treasury Yield",
-            value: 4.15,
-            unit: "%",
-            timestamp: currentTime,
-          },
-        ];
+        throw new Error("No economic data available in database");
       }
     } catch (e) {
-      console.log("Economic indicators error, using fallback:", e.message);
-      const currentTime = new Date().toISOString();
-      economicIndicators = [
-        {
-          name: "GDP Growth Rate",
-          value: 2.4,
-          unit: "%",
-          timestamp: currentTime,
-        },
-        {
-          name: "Unemployment Rate",
-          value: 3.7,
-          unit: "%",
-          timestamp: currentTime,
-        },
-        {
-          name: "Inflation Rate (CPI)",
-          value: 3.2,
-          unit: "%",
-          timestamp: currentTime,
-        },
-        {
-          name: "Federal Funds Rate",
-          value: 5.25,
-          unit: "%",
-          timestamp: currentTime,
-        },
-      ];
+      console.error("Economic indicators error:", e.message);
+      throw new Error(`Failed to retrieve economic data: ${e.message}`);
+    }
+
+    // Get market indices data (for contract compliance)
+    let indices = [];
+    try {
+      const indicesQuery = `
+        SELECT 
+          symbol,
+          COALESCE(current_price, price, close_price) as price,
+          COALESCE(change_amount, change, daily_change) as change,
+          COALESCE(change_percent, percent_change, pct_change, daily_change_percent) as changePercent
+        FROM market_data 
+        WHERE symbol IN ('SPY', 'QQQ', 'IWM', 'VTI', 'DIA')
+          AND date = (SELECT MAX(date) FROM market_data)
+          AND COALESCE(current_price, price, close_price) IS NOT NULL
+        ORDER BY symbol
+      `;
+      const indicesResult = await query(indicesQuery);
+      
+      indices = indicesResult.rows.map(row => ({
+        symbol: row.symbol,
+        price: parseFloat(row.price) || 0,
+        change: parseFloat(row.change) || 0,
+        changePercent: parseFloat(row.changepercent) || 0
+      }));
+    } catch (e) {
+      console.error("Indices data query failed:", e.message);
+      throw new Error(`Failed to retrieve indices data: ${e.message}`);
     }
 
     // Return comprehensive market overview
     const responseData = {
+      indices: indices,
       sentiment_indicators: sentimentIndicators,
       market_breadth: marketBreadth,
       market_cap: marketCap,
@@ -772,18 +606,12 @@ router.get("/overview", async (req, res) => {
     );
     console.log("AAII in sentiment indicators:", !!sentimentIndicators.aaii);
 
-    res.json({
-      success: true,
-      data: responseData,
+    res.success({data: responseData,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching market overview:", error);
-    res.status(500).json({
-      success: false,
-      error: "Database error: " + error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Database error: " + error.message, { timestamp: new Date().toISOString() }, 500);
   }
 });
 
@@ -811,23 +639,16 @@ router.get("/sentiment/history", async (req, res) => {
       const fearGreedResult = await query(fearGreedQuery);
       fearGreedData = fearGreedResult.rows;
     } catch (e) {
-      console.log("Fear & greed table not available, using fallback data");
-      // Generate fallback fear & greed data
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        fearGreedData.push({
-          date: date.toISOString(),
-          value: Math.floor(Math.random() * 100),
-          classification: [
-            "Extreme Fear",
-            "Fear",
-            "Neutral",
-            "Greed",
-            "Extreme Greed",
-          ][Math.floor(Math.random() * 5)],
-        });
-      }
+      console.error("Fear & greed table not available:", e.message);
+      return res.error("Failed to fetch fear and greed sentiment data", 503, {
+        details: e.message,
+        suggestion: "Fear and greed sentiment data requires market sentiment tables.",
+        service: "sentiment-fear-greed",
+        requirements: [
+          "fear_greed_index table must exist with historical data",
+          "Database connectivity must be available"
+        ]
+      });
     }
 
     // Get NAAIM data
@@ -848,21 +669,19 @@ router.get("/sentiment/history", async (req, res) => {
       const naaimResult = await query(naaimQuery);
       naaimData = naaimResult.rows;
     } catch (e) {
-      console.log("NAAIM table not available, using fallback data");
-      // Generate fallback NAAIM data
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        naaimData.push({
-          date: date.toISOString(),
-          exposure_index: Math.floor(Math.random() * 100),
-          long_exposure: Math.floor(Math.random() * 100),
-          short_exposure: Math.floor(Math.random() * 50),
-        });
-      }
+      console.error("NAAIM table not available:", e.message);
+      return res.error("Failed to fetch NAAIM sentiment data", 503, {
+        details: e.message,
+        suggestion: "NAAIM sentiment data requires market sentiment tables.",
+        service: "sentiment-naaim",
+        requirements: [
+          "naaim table must exist with historical data",
+          "Database connectivity must be available"
+        ]
+      });
     }
 
-    res.json({
+    return res.success({
       data: {
         fear_greed_history: fearGreedData,
         naaim_history: naaimData,
@@ -873,42 +692,14 @@ router.get("/sentiment/history", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sentiment history:", error);
-    // Return fallback data on error
-    const fallbackData = {
-      fear_greed_history: [],
-      naaim_history: [],
-      aaii_history: [],
-    };
-
-    // Generate fallback data
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      fallbackData.fear_greed_history.push({
-        date: date.toISOString(),
-        value: Math.floor(Math.random() * 100),
-        classification: [
-          "Extreme Fear",
-          "Fear",
-          "Neutral",
-          "Greed",
-          "Extreme Greed",
-        ][Math.floor(Math.random() * 5)],
-      });
-      fallbackData.naaim_history.push({
-        date: date.toISOString(),
-        exposure_index: Math.floor(Math.random() * 100),
-        mean_exposure: Math.floor(Math.random() * 100),
-        average: Math.floor(Math.random() * 100),
-      });
-    }
-
-    res.json({
-      data: fallbackData,
-      count: 60,
-      period_days: days,
-      error: "Database error, using fallback data",
+    return res.error("Failed to fetch sentiment history", 503, {
       details: error.message,
+      suggestion: "Sentiment history data requires database connectivity and market sentiment tables.",
+      service: "sentiment-history",
+      requirements: [
+        "Database connectivity must be available",
+        "fear_greed_index and naaim tables must exist with historical data"
+      ]
     });
   }
 });
@@ -931,15 +722,15 @@ router.get("/sectors/performance", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(
-        "Market data table not found, returning fallback sector data"
-      );
-      // Return fallback sector data
-
-      return res.json({
-        data: FALLBACK_SECTORS,
-        count: FALLBACK_SECTORS.length,
-        message: "Using fallback data - market_data table not available",
+      console.error("Market data table not found for sector performance");
+      return res.error("Failed to fetch sector performance data", 503, {
+        details: "market_data table does not exist",
+        suggestion: "Sector performance data requires market data to be loaded into the database.",
+        service: "sector-performance",
+        requirements: [
+          "market_data table must exist with current stock data",
+          "Database initialization must be completed"
+        ]
       });
     }
 
@@ -963,29 +754,32 @@ router.get("/sectors/performance", async (req, res) => {
     const result = await query(sectorQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.log("No sector data found in query, using realistic fallback");
-
-      return res.json({
-        data: FALLBACK_SECTORS,
-        count: FALLBACK_SECTORS.length,
-        message:
-          "Using realistic fallback sector data - no current market data",
+      console.error("No sector data found in database query");
+      return res.error("No sector performance data available", 503, {
+        details: "No sector data found in market_data table",
+        suggestion: "Sector performance requires recent market data to be loaded.",
+        service: "sector-performance", 
+        requirements: [
+          "Recent market data must exist in market_data table",
+          "Stock data must include sector classifications"
+        ]
       });
     }
 
-    res.json({
+    return res.success({
       data: result.rows,
       count: result.rows.length,
     });
   } catch (error) {
     console.error("Error fetching sector performance:", error);
-    // Return fallback data on error
-
-    res.json({
-      data: FALLBACK_SECTORS,
-      count: FALLBACK_SECTORS.length,
-      error: "Database error, using fallback data",
+    return res.error("Failed to fetch sector performance data", 503, {
       details: error.message,
+      suggestion: "Sector performance data requires database connectivity and market data.",
+      service: "sector-performance",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with sector data"
+      ]
     });
   }
 });
@@ -1008,21 +802,15 @@ router.get("/breadth", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(
-        "Market data table not found, returning fallback breadth data"
-      );
-      // Return fallback breadth data
-      return res.json({
-        total_stocks: 5000,
-        advancing: 2800,
-        declining: 2000,
-        unchanged: 200,
-        strong_advancing: 450,
-        strong_declining: 320,
-        advance_decline_ratio: "1.40",
-        avg_change: "0.85",
-        avg_volume: 2500000,
-        message: "Using fallback data - market_data table not available",
+      console.error("Market data table not found for breadth data");
+      return res.error("Failed to fetch market breadth data", 503, {
+        details: "market_data table does not exist",
+        suggestion: "Market breadth data requires market data to be loaded into the database.",
+        service: "market-breadth",
+        requirements: [
+          "market_data table must exist with stock price data",
+          "Database initialization must be completed"
+        ]
       });
     }
 
@@ -1050,24 +838,21 @@ router.get("/breadth", async (req, res) => {
       !result.rows[0].total_stocks ||
       result.rows[0].total_stocks == 0
     ) {
-      console.log("No breadth data found, using realistic fallback");
-      return res.json({
-        total_stocks: 4800,
-        advancing: 2650,
-        declining: 1920,
-        unchanged: 230,
-        strong_advancing: 450,
-        strong_declining: 320,
-        advance_decline_ratio: "1.38",
-        avg_change: "0.45",
-        avg_volume: 2500000,
-        message: "Using realistic fallback breadth data",
+      console.error("No market breadth data found in database");
+      return res.error("No market breadth data available", 503, {
+        details: "No stock data found for breadth calculations",
+        suggestion: "Market breadth requires recent stock price data to be loaded.",
+        service: "market-breadth",
+        requirements: [
+          "Recent stock price data must exist in market_data table",
+          "Stock data must include price change information"
+        ]
       });
     }
 
     const breadth = result.rows[0];
 
-    res.json({
+    return res.success({
       total_stocks: parseInt(breadth.total_stocks),
       advancing: parseInt(breadth.advancing),
       declining: parseInt(breadth.declining),
@@ -1083,19 +868,14 @@ router.get("/breadth", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market breadth:", error);
-    // Return fallback data on error
-    res.json({
-      total_stocks: 5000,
-      advancing: 2800,
-      declining: 2000,
-      unchanged: 200,
-      strong_advancing: 450,
-      strong_declining: 320,
-      advance_decline_ratio: "1.40",
-      avg_change: "0.85",
-      avg_volume: 2500000,
-      error: "Database error, using fallback data",
+    return res.error("Failed to fetch market breadth data", 503, {
       details: error.message,
+      suggestion: "Market breadth data requires database connectivity and stock price data.",
+      service: "market-breadth",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with current stock prices"
+      ]
     });
   }
 });
@@ -1120,36 +900,15 @@ router.get("/economic", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(
-        "Economic data table does not exist, returning fallback data"
-      );
-      // Return fallback economic data
-
-      // Convert to array format expected by tests
-      const dataArray = [
-        {
-          indicator: "GDP",
-          value: 2.1,
-          unit: "%",
-          date: new Date().toISOString(),
-        },
-        {
-          indicator: "UNEMPLOYMENT_RATE",
-          value: 3.7,
-          unit: "%",
-          date: new Date().toISOString(),
-        },
-      ];
-
-      return res.json({
-        success: true,
-        data: indicator
-          ? dataArray.filter((item) => item.indicator === indicator)
-          : dataArray,
-        count: indicator
-          ? dataArray.filter((item) => item.indicator === indicator).length
-          : dataArray.length,
-        message: "Using fallback data - economic_data table not available",
+      console.error("Economic data table does not exist");
+      return res.error("Failed to fetch economic indicators", 503, {
+        details: "economic_data table does not exist",
+        suggestion: "Economic data requires the economic indicators to be loaded into the database.",
+        service: "economic-indicators",
+        requirements: [
+          "economic_data table must exist with historical indicators",
+          "Database initialization must be completed"
+        ]
       });
     }
 
@@ -1188,33 +947,15 @@ router.get("/economic", async (req, res) => {
     );
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.log("No economic data found, using realistic fallback");
-
-      // Convert to array format expected by tests
-      const dataArray = [
-        {
-          indicator: "GDP",
-          value: 2.1,
-          unit: "%",
-          date: new Date().toISOString(),
-        },
-        {
-          indicator: "UNEMPLOYMENT_RATE",
-          value: 3.7,
-          unit: "%",
-          date: new Date().toISOString(),
-        },
-      ];
-
-      return res.json({
-        success: true,
-        data: indicator
-          ? dataArray.filter((item) => item.indicator === indicator)
-          : dataArray,
-        count: indicator
-          ? dataArray.filter((item) => item.indicator === indicator).length
-          : dataArray.length,
-        message: "Using realistic fallback economic data",
+      console.error("No economic data found in database");
+      return res.error("No economic indicators available", 503, {
+        details: "No economic indicators found in economic_data table",
+        suggestion: "Economic indicators require recent economic data to be loaded.",
+        service: "economic-indicators",
+        requirements: [
+          "Recent economic data must exist in economic_data table",
+          "Economic data loading scripts must be executed"
+        ]
       });
     }
 
@@ -1226,9 +967,7 @@ router.get("/economic", async (req, res) => {
       date: indicators[indicatorName][0]?.date || new Date().toISOString(),
     }));
 
-    res.json({
-      success: true,
-      data: indicator
+    res.success({data: indicator
         ? dataArray.filter((item) => item.indicator === indicator)
         : dataArray,
       count: indicator
@@ -1237,30 +976,14 @@ router.get("/economic", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic indicators:", error);
-    // Return fallback data on error
-
-    // Return error with fallback data in correct format
-    const dataArray = [
-      {
-        indicator: "GDP",
-        value: 2.1,
-        unit: "%",
-        date: new Date().toISOString(),
-      },
-      {
-        indicator: "UNEMPLOYMENT_RATE",
-        value: 3.7,
-        unit: "%",
-        date: new Date().toISOString(),
-      },
-    ];
-
-    res.status(500).json({
-      success: false,
-      error: "Database error: " + error.message,
-      data: indicator
-        ? dataArray.filter((item) => item.indicator === indicator)
-        : dataArray,
+    return res.error("Failed to fetch economic indicators", 503, {
+      details: error.message,
+      suggestion: "Economic indicators require database connectivity and economic data tables.",
+      service: "economic-indicators",
+      requirements: [
+        "Database connectivity must be available",
+        "economic_data table must exist with current indicators"
+      ]
     });
   }
 });
@@ -1286,33 +1009,23 @@ router.get("/naaim", async (req, res) => {
     const result = await query(naaimQuery, [parseInt(limit)]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
+    return res.success({
       data: result.rows,
       count: result.rows.length,
     });
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);
-    // Return fallback data on error
-    const fallbackData = [];
-    for (let i = 0; i < Math.min(limit, 30); i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      fallbackData.push({
-        date: date.toISOString(),
-        exposure_index: Math.floor(Math.random() * 100),
-        long_exposure: Math.floor(Math.random() * 100),
-        short_exposure: Math.floor(Math.random() * 50),
-      });
-    }
-
-    res.json({
-      data: fallbackData,
-      count: fallbackData.length,
-      error: "Database error, using fallback data",
+    return res.error("Failed to fetch NAAIM data", 503, {
       details: error.message,
+      suggestion: "NAAIM data requires database connectivity and sentiment tables.",
+      service: "naaim-sentiment",
+      requirements: [
+        "Database connectivity must be available",
+        "naaim table must exist with historical sentiment data"
+      ]
     });
   }
 });
@@ -1337,30 +1050,15 @@ router.get("/fear-greed", async (req, res) => {
     const result = await query(fearGreedQuery, [parseInt(limit)]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.log("No fear & greed data found, using realistic fallback");
-      const fallbackData = [];
-      const classifications = [
-        "Extreme Fear",
-        "Fear",
-        "Neutral",
-        "Greed",
-        "Extreme Greed",
-      ];
-      for (let i = 0; i < Math.min(limit, 30); i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        fallbackData.push({
-          date: date.toISOString(),
-          value: Math.floor(Math.random() * 60) + 20, // 20-80 range
-          classification:
-            classifications[Math.floor(Math.random() * classifications.length)],
-        });
-      }
-
-      return res.success({
-        data: fallbackData,
-        count: fallbackData.length,
-        message: "Using realistic fallback fear & greed data",
+      console.error("No fear & greed data found in database");
+      return res.error("No fear and greed data available", 503, {
+        details: "No fear and greed data found in fear_greed_index table",
+        suggestion: "Fear and greed data requires sentiment data to be loaded.",
+        service: "fear-greed-sentiment",
+        requirements: [
+          "fear_greed_index table must exist with historical data",
+          "Sentiment data loading scripts must be executed"
+        ]
       });
     }
 
@@ -1370,31 +1068,14 @@ router.get("/fear-greed", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching fear & greed data:", error);
-    // Return fallback data on error
-    const fallbackData = [];
-    const classifications = [
-      "Extreme Fear",
-      "Fear",
-      "Neutral",
-      "Greed",
-      "Extreme Greed",
-    ];
-    for (let i = 0; i < Math.min(limit, 30); i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      fallbackData.push({
-        date: date.toISOString(),
-        value: Math.floor(Math.random() * 100),
-        classification:
-          classifications[Math.floor(Math.random() * classifications.length)],
-      });
-    }
-
-    res.success({
-      data: fallbackData,
-      count: fallbackData.length,
-      error: "Database error, using fallback data",
+    return res.error("Failed to fetch fear and greed data", 503, {
       details: error.message,
+      suggestion: "Fear and greed data requires database connectivity and sentiment tables.",
+      service: "fear-greed-sentiment",
+      requirements: [
+        "Database connectivity must be available",
+        "fear_greed_index table must exist with sentiment data"
+      ]
     });
   }
 });
@@ -1470,9 +1151,7 @@ router.get("/indices", async (req, res) => {
 
     const result = await query(indicesQuery, params);
 
-    res.json({
-      success: true,
-      data: result && result.rows ? result.rows : [],
+    res.success({data: result && result.rows ? result.rows : [],
       count: result && result.rows ? result.rows.length : 0,
       lastUpdated:
         result && result.rows && result.rows.length > 0
@@ -1550,41 +1229,45 @@ router.get("/sectors", async (req, res) => {
 
       result = await query(sectorQuery, []);
     } catch (dbError) {
-      console.log(
-        "Database error for sectors query, using fallback:",
-        dbError.message
-      );
-      result = null;
-    }
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.log("No sectors data found, using realistic fallback");
-
-      return res.json({
-        success: true,
-        data: FALLBACK_SECTORS,
-        count: FALLBACK_SECTORS.length,
-        message: "Using realistic fallback sectors data",
-        source: "fallback",
+      console.error("Database error for sectors query:", dbError.message);
+      return res.error("Failed to fetch sectors data", 503, {
+        details: dbError.message,
+        suggestion: "Sectors data requires database connectivity and market data.",
+        service: "sectors",
+        requirements: [
+          "Database connectivity must be available",
+          "market_data table must exist with sector classifications"
+        ]
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.error("No sectors data found in database");
+      return res.error("No sectors data available", 503, {
+        details: "No sector data found in market_data table",
+        suggestion: "Sectors data requires recent market data to be loaded.",
+        service: "sectors",
+        requirements: [
+          "Recent market data must exist in market_data table",
+          "Stock data must include sector classifications"
+        ]
+      });
+    }
+
+    res.success({data: result.rows,
       count: result.rows.length,
       source: "database",
     });
   } catch (error) {
     console.error("Error in sectors endpoint:", error);
-
-    // Graceful fallback even for unexpected errors
-    return res.json({
-      success: true,
-      data: FALLBACK_SECTORS,
-      count: FALLBACK_SECTORS.length,
-      message: "Using fallback data due to system error",
-      source: "fallback_error",
+    return res.error("Failed to fetch sectors data", 503, {
+      details: error.message,
+      suggestion: "Sectors endpoint requires database connectivity and market data tables.",
+      service: "sectors",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with sector data"
+      ]
     });
   }
 });
@@ -1619,30 +1302,22 @@ router.get("/volatility", async (req, res) => {
 
     const _volatilityResult = await query(marketVolatilityQuery);
 
-    // Return the first row directly if available, otherwise provide fallback
-    let responseData;
-    if (result && result.rows && result.rows.length > 0) {
-      responseData = result.rows[0];
-    } else {
-      // Provide fallback volatility data matching test structure
-      responseData = {
-        vix: 18.25,
-        vvix: 95.5,
-        term_structure_1m: 17.5,
-        term_structure_2m: 19.25,
-        term_structure_3m: 20.75,
-        term_structure_6m: 22.5,
-        skew_spy: 115.25,
-        skew_qqq: 108.75,
-        gex_gamma: -2500000000,
-        dex_delta: 0.35,
-        updated_at: new Date().toISOString(),
-      };
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.error("No volatility data found in database");
+      return res.error("No market volatility data available", 503, {
+        details: "No volatility data found in volatility_data table",
+        suggestion: "Market volatility data requires volatility tables to be loaded.",
+        service: "market-volatility",
+        requirements: [
+          "volatility_data table must exist with VIX and volatility metrics",
+          "Market volatility data loading scripts must be executed"
+        ]
+      });
     }
 
-    res.json({
-      success: true,
-      data: responseData,
+    const responseData = result.rows[0];
+
+    res.success({data: responseData,
       lastUpdated:
         responseData.updated_at ||
         responseData.date ||
@@ -1688,7 +1363,7 @@ router.get("/calendar", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic calendar:", error);
-    res.status(500).json({ error: "Failed to fetch economic calendar" });
+    return res.error("Failed to fetch economic calendar" , 500);
   }
 });
 
@@ -1750,12 +1425,10 @@ router.get("/indicators", async (req, res) => {
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         indices: result.rows,
         breadth: {
           total_stocks: parseInt(breadth.total_stocks),
@@ -1827,12 +1500,10 @@ router.get("/sentiment", async (req, res) => {
     }
 
     if (!fearGreed || !naaim) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         fear_greed: fearGreed,
         naaim: naaim,
       },
@@ -2243,9 +1914,7 @@ router.get("/seasonality", async (req, res) => {
       seasonalScore: calculateSeasonalScore(currentDate),
     };
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         currentYear,
         currentYearReturn,
         currentPosition,
@@ -2623,9 +2292,7 @@ router.get("/research-indicators", async (req, res) => {
       },
     };
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         volatility: {
           vix: vixData.current,
           vixAverage: vixData.thirtyDayAvg,

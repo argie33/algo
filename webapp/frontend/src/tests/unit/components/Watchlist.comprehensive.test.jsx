@@ -10,8 +10,8 @@ import { TestWrapper } from '../../test-utils';
 
 // Mock all external dependencies
 // Mock the API service with comprehensive mock
-vi.mock("../../services/api", async (_importOriginal) => {
-  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+vi.mock("../../../services/api", async (_importOriginal) => {
+  const { createApiServiceMock } = await import('../../mocks/api-service-mock');
   return {
     default: createApiServiceMock(),
     ...createApiServiceMock()

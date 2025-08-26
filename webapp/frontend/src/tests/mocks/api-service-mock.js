@@ -107,6 +107,24 @@ export const createApiServiceMock = () => ({
       } 
     })
   ),
+  getStockMetrics: vi.fn((symbol) => 
+    Promise.resolve({ 
+      success: true,
+      data: { 
+        symbol, 
+        marketCap: 2500000000000,
+        pe: 28.5,
+        eps: 5.25,
+        div: 0.88,
+        yield: 0.65,
+        beta: 1.2,
+        vol: 45000000,
+        avgVol: 52000000,
+        weekHigh52: 180.0,
+        weekLow52: 120.0
+      } 
+    })
+  ),
 
   // Portfolio data
   getPortfolio: vi.fn(() => 
@@ -440,6 +458,8 @@ export const getPortfolioPerformance = mockInstance.getPortfolioPerformance;
 export const getPortfolioAnalytics = mockInstance.getPortfolioAnalytics;
 export const getStockPrices = mockInstance.getStockPrices;
 export const getStockQuote = mockInstance.getStockQuote;
+export const getStockProfile = mockInstance.getStockProfile;
+export const getStockMetrics = mockInstance.getStockMetrics;
 export const getMarketOverview = mockInstance.getMarketOverview;
 export const getWatchlist = mockInstance.getWatchlist;
 export const getApiConfig = mockInstance.getApiConfig;

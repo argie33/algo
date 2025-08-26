@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res.json({
+  res.success({
     status: "ok",
     endpoint: "technical",
     timestamp: new Date().toISOString(),
@@ -123,9 +123,7 @@ router.get("/:timeframe", async (req, res) => {
       console.log(
         `Technical data table for ${timeframe} timeframe not found, returning empty data`
       );
-      return res.json({
-        success: true,
-        data: [],
+      return res.success({data: [],
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -218,9 +216,7 @@ router.get("/:timeframe", async (req, res) => {
       !Array.isArray(dataResult.rows) ||
       dataResult.rows.length === 0
     ) {
-      return res.json({
-        success: true,
-        data: [],
+      return res.success({data: [],
         pagination: {
           page: parseInt(page),
           limit: maxLimit,
@@ -246,9 +242,7 @@ router.get("/:timeframe", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: dataResult.rows,
+    res.success({data: dataResult.rows,
       pagination: {
         page: parseInt(page),
         limit: maxLimit,
@@ -274,8 +268,7 @@ router.get("/:timeframe", async (req, res) => {
     });
   } catch (error) {
     console.error("Technical data error:", error);
-    return res.json({
-      success: false,
+    return res.error("Failed to retrieve technical analysis data", {
       data: [],
       pagination: {
         page: parseInt(page) || 1,
@@ -289,7 +282,7 @@ router.get("/:timeframe", async (req, res) => {
         timeframe,
         error: error.message,
       },
-    });
+    }, 500);
   }
 });
 
@@ -318,34 +311,12 @@ router.get("/:timeframe/summary", async (req, res) => {
       console.log(
         `Technical data table for ${timeframe} timeframe not found, returning fallback summary`
       );
-      // Return fallback summary data
-      return res.json({
+      return res.error(`Technical data table for ${timeframe} timeframe not found`, {
         timeframe,
-        summary: {
-          totalRecords: 1000,
-          uniqueSymbols: 50,
-          dateRange: {
-            earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
-            latest: new Date().toISOString().split("T")[0],
-          },
-          averages: {
-            rsi: "45.2",
-            macd: "0.1250",
-            sma20: "150.25",
-            volume: 2500000,
-          },
-        },
-        topSymbols: [
-          { symbol: "AAPL", recordCount: 252 },
-          { symbol: "MSFT", recordCount: 252 },
-          { symbol: "GOOGL", recordCount: 252 },
-          { symbol: "TSLA", recordCount: 252 },
-          { symbol: "NVDA", recordCount: 252 },
-        ],
-        fallback: true,
-      });
+        summary: null,
+        topSymbols: [],
+        error: `No technical data available for timeframe: ${timeframe}`,
+      }, 404);
     }
 
     // Get summary statistics
@@ -377,7 +348,7 @@ router.get("/:timeframe/summary", async (req, res) => {
 
     const topSymbolsResult = await query(topSymbolsQuery);
 
-    res.json({
+    res.success({
       timeframe,
       summary: {
         totalRecords: parseInt(summary.total_records),
@@ -404,35 +375,12 @@ router.get("/:timeframe/summary", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching technical summary:", error);
-    // Return fallback data on error
-    res.json({
+    return res.error("Failed to fetch technical summary", {
       timeframe,
-      summary: {
-        totalRecords: 1000,
-        uniqueSymbols: 50,
-        dateRange: {
-          earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-          latest: new Date().toISOString().split("T")[0],
-        },
-        averages: {
-          rsi: "45.2",
-          macd: "0.1250",
-          sma20: "150.25",
-          volume: 2500000,
-        },
-      },
-      topSymbols: [
-        { symbol: "AAPL", recordCount: 252 },
-        { symbol: "MSFT", recordCount: 252 },
-        { symbol: "GOOGL", recordCount: 252 },
-        { symbol: "TSLA", recordCount: 252 },
-        { symbol: "NVDA", recordCount: 252 },
-      ],
-      fallback: true,
+      summary: null,
+      topSymbols: [],
       error: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -518,9 +466,7 @@ router.get("/", async (req, res) => {
         });
       }
 
-      return res.json({
-        success: true,
-        data: fallbackData,
+      return res.success({data: fallbackData,
         count: fallbackData.length,
         metadata: {
           timeframe,
@@ -543,9 +489,7 @@ router.get("/", async (req, res) => {
       LIMIT 500
     `;
     const result = await query(latestQuery);
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       count: result.rows.length,
       metadata: {
         timeframe,
@@ -596,9 +540,7 @@ router.get("/", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: fallbackData,
+    res.success({data: fallbackData,
       count: fallbackData.length,
       metadata: {
         timeframe: req.query.timeframe || "daily",
@@ -664,9 +606,7 @@ router.get("/data/:symbol", async (req, res) => {
         momentum: -2 + Math.random() * 4,
       };
 
-      return res.json({
-        success: true,
-        data: fallbackData,
+      return res.success({data: fallbackData,
         symbol: symbol.toUpperCase(),
         fallback: true,
       });
@@ -718,9 +658,7 @@ router.get("/data/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0],
+    res.success({data: result.rows[0],
       symbol: symbol.toUpperCase(),
     });
   } catch (error) {
@@ -763,9 +701,7 @@ router.get("/data/:symbol", async (req, res) => {
       momentum: -2 + Math.random() * 4,
     };
 
-    res.json({
-      success: true,
-      data: fallbackData,
+    res.success({data: fallbackData,
       symbol: symbol.toUpperCase(),
       fallback: true,
       error: error.message,
@@ -828,9 +764,7 @@ router.get("/indicators/:symbol", async (req, res) => {
         });
       }
 
-      return res.json({
-        success: true,
-        data: fallbackData,
+      return res.success({data: fallbackData,
         count: fallbackData.length,
         symbol: symbol.toUpperCase(),
         fallback: true,
@@ -878,9 +812,7 @@ router.get("/indicators/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       count: result.rows.length,
       symbol: symbol.toUpperCase(),
     });
@@ -925,9 +857,7 @@ router.get("/indicators/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: fallbackData,
+    res.success({data: fallbackData,
       count: fallbackData.length,
       symbol: symbol.toUpperCase(),
       fallback: true,
@@ -1001,9 +931,7 @@ router.get("/history/:symbol", async (req, res) => {
         });
       }
 
-      return res.json({
-        success: true,
-        data: fallbackData,
+      return res.success({data: fallbackData,
         count: fallbackData.length,
         symbol: symbol.toUpperCase(),
         period_days: numDays,
@@ -1057,9 +985,7 @@ router.get("/history/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       count: result.rows.length,
       symbol: symbol.toUpperCase(),
       period_days: days,
@@ -1112,9 +1038,7 @@ router.get("/history/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: fallbackData,
+    res.success({data: fallbackData,
       count: fallbackData.length,
       symbol: symbol.toUpperCase(),
       period_days: numDays,
@@ -1156,32 +1080,15 @@ router.get("/support-resistance/:symbol", async (req, res) => {
       console.log(
         `Technical data table for ${timeframe} timeframe not found, returning fallback support-resistance for ${symbol}`
       );
-      // Return fallback support-resistance data
-      const currentPrice = 150 + Math.random() * 50;
-      const support = currentPrice * 0.9;
-      const resistance = currentPrice * 1.1;
-
-      return res.json({
+      return res.error(`Technical data table for ${timeframe} timeframe not found`, {
         symbol: symbol.toUpperCase(),
         timeframe,
-        current_price: currentPrice,
-        support_levels: [
-          { level: support, type: "dynamic", strength: "strong" },
-          { level: support * 0.95, type: "bollinger", strength: "medium" },
-          { level: support * 0.85, type: "moving_average", strength: "strong" },
-        ],
-        resistance_levels: [
-          { level: resistance, type: "dynamic", strength: "strong" },
-          { level: resistance * 1.05, type: "bollinger", strength: "medium" },
-          {
-            level: resistance * 1.15,
-            type: "moving_average",
-            strength: "medium",
-          },
-        ],
-        last_updated: new Date().toISOString().split("T")[0],
-        fallback: true,
-      });
+        error: `No technical data available for ${symbol} on timeframe ${timeframe}`,
+        support_levels: [],
+        resistance_levels: [],
+        current_price: null,
+        last_updated: null,
+      }, 404);
     }
 
     // Get recent price data and pivot points
@@ -1223,7 +1130,7 @@ router.get("/support-resistance/:symbol", async (req, res) => {
     const resistance = Math.max(...highs);
     const support = Math.min(...lows);
 
-    res.json({
+    res.success({
       symbol: symbol.toUpperCase(),
       timeframe,
       current_price: latest.close,
@@ -1241,36 +1148,15 @@ router.get("/support-resistance/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching support resistance levels:", error);
-    // Return fallback data on error instead of 500
-    console.log(
-      `Error occurred, returning fallback support-resistance for ${req.params.symbol}`
-    );
-    const currentPrice = 150 + Math.random() * 50;
-    const support = currentPrice * 0.9;
-    const resistance = currentPrice * 1.1;
-
-    res.json({
+    return res.error("Failed to fetch support and resistance levels", {
       symbol: req.params.symbol.toUpperCase(),
       timeframe: req.query.timeframe || "daily",
-      current_price: currentPrice,
-      support_levels: [
-        { level: support, type: "dynamic", strength: "strong" },
-        { level: support * 0.95, type: "bollinger", strength: "medium" },
-        { level: support * 0.85, type: "moving_average", strength: "strong" },
-      ],
-      resistance_levels: [
-        { level: resistance, type: "dynamic", strength: "strong" },
-        { level: resistance * 1.05, type: "bollinger", strength: "medium" },
-        {
-          level: resistance * 1.15,
-          type: "moving_average",
-          strength: "medium",
-        },
-      ],
-      last_updated: new Date().toISOString().split("T")[0],
-      fallback: true,
       error: error.message,
-    });
+      support_levels: [],
+      resistance_levels: [],
+      current_price: null,
+      last_updated: null,
+    }, 500);
   }
 });
 
@@ -1414,9 +1300,7 @@ router.get("/data", async (req, res) => {
         });
       }
 
-      return res.json({
-        success: true,
-        data: fallbackData,
+      return res.success({data: fallbackData,
         total: fallbackData.length,
         pagination: {
           page: parseInt(page),
@@ -1540,9 +1424,7 @@ router.get("/data", async (req, res) => {
       !Array.isArray(dataResult.rows) ||
       dataResult.rows.length === 0
     ) {
-      return res.json({
-        success: true,
-        data: [],
+      return res.success({data: [],
         total: 0,
         pagination: {
           page: parseInt(page),
@@ -1565,9 +1447,7 @@ router.get("/data", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: dataResult.rows,
+    res.success({data: dataResult.rows,
       total: total,
       pagination: {
         page: parseInt(page),
@@ -1648,9 +1528,7 @@ router.get("/data", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: fallbackData,
+    res.success({data: fallbackData,
       total: fallbackData.length,
       pagination: {
         page: parseInt(page),
@@ -1689,9 +1567,7 @@ router.get("/patterns/:symbol", async (req, res) => {
     // Define pattern analysis logic
     const patternAnalysis = await analyzePatterns(symbol, timeframe, limit);
 
-    res.json({
-      success: true,
-      symbol: symbol.toUpperCase(),
+    res.success({symbol: symbol.toUpperCase(),
       timeframe,
       patterns: patternAnalysis.patterns,
       summary: patternAnalysis.summary,
@@ -1707,9 +1583,7 @@ router.get("/patterns/:symbol", async (req, res) => {
     // Return fallback pattern data
     const fallbackPatterns = generateFallbackPatterns(symbol, timeframe);
 
-    res.json({
-      success: true,
-      symbol: symbol.toUpperCase(),
+    res.success({symbol: symbol.toUpperCase(),
       timeframe,
       patterns: fallbackPatterns.patterns,
       summary: fallbackPatterns.summary,

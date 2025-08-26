@@ -46,8 +46,7 @@ router.get("/sectors", async (req, res) => {
       // Add null checking for database availability
       if (!result || !result.rows) {
         console.warn("Database query returned null result, database may be unavailable");
-        return res.status(200).json({
-          success: true,
+        return res.success({
           data: [],
           message: "Sectors data temporarily unavailable - database connection issue",
           recommendations: [
@@ -99,12 +98,10 @@ router.get("/sectors", async (req, res) => {
 
     // Final check before processing - result might be null after error handling
     if (!result || !result.rows) {
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Sectors data cannot be retrieved - database connection issue",
         data: []
-      });
+      }, 503);
     }
 
     const sectors = result.rows.map((row) => ({
@@ -132,48 +129,23 @@ router.get("/sectors", async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error fetching sectors, using fallback data:", error);
+    console.error("❌ Error fetching sectors:", error);
 
-    // Return empty sectors with comprehensive diagnostics
-    console.error(
-      "❌ Sectors data unavailable - comprehensive diagnosis needed",
-      {
-        database_query_failed: true,
-        detailed_diagnostics: {
-          attempted_operations: [
-            "stock_symbols_enhanced_query",
-            "stock_symbols_basic_query",
-          ],
-          potential_causes: [
-            "Database connection failure",
-            "stock_symbols table missing",
-            "stock_symbols_enhanced table missing",
-            "valuation_multiples table missing",
-            "Data loading scripts not executed",
-            "Database tables corrupted or empty",
-          ],
-          troubleshooting_steps: [
-            "Check database connectivity",
-            "Verify stock_symbols table exists",
-            "Verify stock_symbols_enhanced table exists",
-            "Check data loading process status",
-            "Review table structure and data integrity",
-          ],
-          system_checks: [
-            "Database health status",
-            "Table existence validation",
-            "Data freshness assessment",
-            "Schema validation",
-          ],
-        },
-      }
-    );
-
-    const emptySectors = [];
-
-    res.success({data: emptySectors,
-      message: "No sectors data available - check data loading process",
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to fetch sectors data", 503, {
+      details: error.message,
+      suggestion: "Sectors data requires loaded stock symbols database. Please run stock symbol loader and try again.",
+      service: "sectors",
+      requirements: [
+        "Database connectivity must be available",
+        "stock_symbols table must exist with data",
+        "Data loading scripts must have been executed successfully"
+      ],
+      troubleshooting_steps: [
+        "Check database connectivity and health",
+        "Verify stock_symbols table exists and has data",
+        "Run data loading ECS tasks if tables are empty",
+        "Check recent deployment logs for data loading failures"
+      ]
     });
   }
 });
@@ -210,8 +182,7 @@ router.get("/public/sample", async (req, res) => {
       // Add null checking for database availability
       if (!result || !result.rows) {
         console.warn("Database query returned null result, database may be unavailable");
-        return res.status(200).json({
-          success: true,
+        return res.success({
           data: [],
           count: 0,
           message: "Stock sample data temporarily unavailable - database connection issue",
@@ -273,12 +244,10 @@ router.get("/public/sample", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in public stocks sample endpoint:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stock data",
+    return res.error("Failed to fetch stock data", {
       endpoint: "public-sample",
       timestamp: new Date().toISOString(),
-    });
+    }, 500);
   }
 });
 
@@ -287,7 +256,7 @@ router.use(authenticateToken);
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res.json({
+  res.success({
     status: "ok",
     endpoint: "stocks",
     timestamp: new Date().toISOString(),
@@ -552,8 +521,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Add null checking for database availability
     if (!countResult || !countResult.rows || countResult.rows.length === 0) {
       console.warn("Count query returned null result, database may be unavailable");
-      return res.status(200).json({
-        success: true,
+      return res.success({
         data: [],
         count: 0,
         total: 0,
@@ -565,8 +533,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Also check stocksResult for null
     if (!stocksResult || !stocksResult.rows) {
       console.warn("Stocks query returned null result, database may be unavailable");
-      return res.status(200).json({
-        success: true,
+      return res.success({
         data: [],
         count: 0,
         total: 0,
@@ -948,104 +915,10 @@ router.get("/", stocksListValidation, async (req, res) => {
   } catch (error) {
     console.error("OPTIMIZED endpoint error:", error);
 
-    // If symbols table doesn't exist, fallback to stock_symbols only
+    // If symbols table doesn't exist, throw error
     if (error.message && error.message.includes("does not exist")) {
-      console.log(
-        "Symbols table missing, using fallback query with stock_symbols only"
-      );
-      try {
-        // Re-declare variables for fallback scope
-        const page = req.validated.page || 1;
-        const limit = req.validated.limit || 50;
-        const offset = (page - 1) * limit;
-        const sortBy = req.validated.sortBy || "symbol";
-        const sortOrder = req.validated.sortOrder || "asc";
-        const validSortColumns = {
-          symbol: "ss.symbol",
-          security_name: "ss.security_name",
-          exchange: "ss.exchange",
-        };
-        const sortColumn = validSortColumns[sortBy] || "ss.symbol";
-        const sortDirection =
-          sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
-
-        let whereClause = "WHERE 1=1";
-        const params = [];
-        let paramCount = 0;
-        const search = req.validated.search || "";
-        const _sector = req.validated.sector || "";
-        const _exchange = req.validated.exchange || "";
-
-        // Add search filter
-        if (search) {
-          paramCount++;
-          whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
-          params.push(`%${search}%`);
-        }
-        const fallbackQuery = `
-          SELECT 
-            ss.symbol,
-            ss.security_name,
-            ss.exchange,
-            ss.market_category,
-            ss.cqs_symbol,
-            ss.financial_status,
-            ss.round_lot_size,
-            ss.etf,
-            ss.secondary_symbol,
-            ss.test_issue,
-            NULL as short_name,
-            NULL as long_name,
-            NULL as sector,
-            NULL as industry,
-            NULL as market_cap,
-            NULL as current_price
-          FROM stock_symbols ss
-          ${whereClause}
-          ORDER BY ${sortColumn} ${sortDirection}
-          LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-        `;
-
-        const fallbackCountQuery = `
-          SELECT COUNT(*) as total
-          FROM stock_symbols ss
-          ${whereClause}
-        `;
-
-        params.push(limit, offset);
-
-        const [stocksResult, countResult] = await Promise.all([
-          query(fallbackQuery, params.slice(0, -2).concat([limit, offset])),
-          query(fallbackCountQuery, params.slice(0, -2)),
-        ]);
-
-        // Add null checking for database availability
-        if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-          return res.success({data: stocksResult?.rows || [],
-            pagination: {
-              page,
-              limit,
-              total: 0,
-              totalPages: 0,
-            },
-            message: "Count data temporarily unavailable - database connection issue",
-            timestamp: new Date().toISOString(),
-          });
-        }
-
-        return res.success({data: stocksResult.rows,
-          pagination: {
-            page,
-            limit,
-            total: parseInt(countResult.rows[0]?.total || 0),
-            totalPages: Math.ceil(parseInt(countResult.rows[0]?.total || 0) / limit),
-          },
-          note: "Using basic stock symbols data. Run stock-symbols loader to enable enhanced data.",
-          timestamp: new Date().toISOString(),
-        });
-      } catch (fallbackError) {
-        console.error("Fallback query failed:", fallbackError);
-      }
+      console.error("Symbols table missing - database schema incomplete");
+      throw new Error("Database schema incomplete: symbols table does not exist");
     }
 
     return res.error("Optimized query failed", 500);
@@ -1157,13 +1030,11 @@ router.get("/screen", async (req, res) => {
     // Add null checking for database availability
     if (!countResult || !countResult.rows) {
       console.warn("Screen count query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Stock screening temporarily unavailable - database connection issue",
         data: { stocks: [] },
         pagination: { page: 1, limit: limit, total: 0, totalPages: 0 }
-      });
+      }, 503);
     }
     
     const totalStocks = parseInt(countResult.rows[0]?.total || 0);
@@ -1194,13 +1065,11 @@ router.get("/screen", async (req, res) => {
     // Add null checking for database availability
     if (!stocksResult || !stocksResult.rows) {
       console.warn("Stocks query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Stock data temporarily unavailable - database connection issue",
         data: { stocks: [] },
         pagination: { page: parseInt(page), limit: parseInt(limit), total: totalStocks, totalPages: 0 }
-      });
+      }, 503);
     }
 
     console.log(
@@ -1234,11 +1103,9 @@ router.get("/screen", async (req, res) => {
     });
   } catch (error) {
     console.error("Screen endpoint error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to screen stocks",
+    return res.error("Failed to screen stocks", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -1286,12 +1153,11 @@ router.get("/:ticker", async (req, res) => {
     }
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Stock not found",
+      return res.error("Stock not found", {
         symbol: tickerUpper,
         message: `Symbol '${tickerUpper}' not found in database`,
         timestamp: new Date().toISOString(),
-      });
+      }, 404);
     }
 
     const stock = result.rows[0];
@@ -1335,7 +1201,7 @@ router.get("/:ticker", async (req, res) => {
       `✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`
     );
 
-    res.json(response);
+    return res.success(response);
   } catch (error) {
     console.error("Error in simplified stock endpoint:", error);
     return res.error("Failed to fetch stock data", 500);
@@ -1383,7 +1249,7 @@ router.get("/:ticker/prices", async (req, res) => {
       console.log(
         `📦 Cache hit for ${symbol} (${Date.now() - cached.timestamp}ms old)`
       );
-      return res.json({
+      return res.success({
         ...cached.data,
         cached: true,
         cacheAge: Date.now() - cached.timestamp,
@@ -1459,13 +1325,11 @@ router.get("/:ticker/prices", async (req, res) => {
     // Add null checking for database availability
     if (!result || !result.rows) {
       console.warn("Price data query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Price data temporarily unavailable - database connection issue",
         data: [],
         ticker: req.params.ticker
-      });
+      }, 503);
     }
 
     if (result.rows.length === 0) {
@@ -1504,9 +1368,7 @@ router.get("/:ticker/prices", async (req, res) => {
         }
       );
 
-      return res.status(404).json({
-        success: false,
-        error: "Historical data not available",
+      return res.error("Historical data not available", {
         ticker: symbol,
         dataPoints: 0,
         data: [],
@@ -1520,7 +1382,7 @@ router.get("/:ticker/prices", async (req, res) => {
         message: "No historical data available for this symbol",
         timestamp: new Date().toISOString(),
         queryTime: Date.now() - startTime,
-      });
+      }, 404);
     }
 
     // Process results efficiently
@@ -1586,36 +1448,22 @@ router.get("/:ticker/prices", async (req, res) => {
     console.log(
       `✅ ${symbol} prices fetched: ${prices.length} records in ${Date.now() - startTime}ms`
     );
-    res.json(responseData);
+    return res.success(responseData);
   } catch (error) {
     console.error(`❌ Error fetching ${symbol} prices:`, error);
 
-    // Graceful fallback - try to return cached data even if expired
-    const cached = priceCache.get(cacheKey);
-    if (cached) {
-      console.log(`🔄 Returning stale cache for ${symbol} due to error`);
-      return res.json({
-        ...cached.data,
-        cached: true,
-        stale: true,
-        cacheAge: Date.now() - cached.timestamp,
-        error: "Live data unavailable, showing cached data",
-      });
-    }
-
-    // Final fallback with helpful error response
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stock prices",
-      details: error.message.includes("timeout")
-        ? "Database query timed out"
-        : "Database error",
+    return res.error("Failed to fetch stock prices", 503, {
+      details: error.message,
+      suggestion: "Stock price data requires database connectivity and loaded price history. Please ensure data loading tasks have completed successfully.",
+      service: "stock-prices",
       ticker: symbol,
-      data: [],
-      queryTime: Date.now() - startTime,
-      timestamp: new Date().toISOString(),
-      fallback: true,
-      suggestion: "Try again with a smaller limit or different timeframe",
+      requirements: [
+        "Database connectivity must be available",
+        "price_daily or stock_prices tables must exist with data", 
+        "Price history data loading scripts must have been executed",
+        "Historical price data must be current (within acceptable time range)"
+      ],
+      retry_after: 30
     });
   }
 });
@@ -1643,27 +1491,23 @@ router.get("/:ticker/prices/recent", async (req, res) => {
     // Add null checking for database availability
     if (!result || !result.rows) {
       console.warn("Price data query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         ticker: ticker.toUpperCase(),
         message: "Price data temporarily unavailable - database connection issue",
         data: [],
         code: "DATABASE_UNAVAILABLE",
         timestamp: new Date().toISOString(),
-      });
+      }, 503);
     }
 
     if (result.rows.length === 0) {
       console.log(`📊 [STOCKS] No price data found for ${ticker}`);
-      return res.status(404).json({
-        success: false,
-        error: "No price data found",
+      return res.error("No price data found", {
         ticker: ticker.toUpperCase(),
         message: "Price data not available for this symbol",
         data: [],
         timestamp: new Date().toISOString(),
-      });
+      }, 404);
     }
 
     // Process the data
@@ -1715,14 +1559,12 @@ router.get("/:ticker/prices/recent", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ [STOCKS] Error fetching recent stock prices:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch recent stock prices",
+    return res.error("Failed to fetch recent stock prices", {
       details: error.message,
       data: [], // Always return data as an array for frontend safety
       ticker: req.params.ticker,
       timestamp: new Date().toISOString(),
-    });
+    }, 500);
   }
 });
 
@@ -1744,16 +1586,14 @@ router.get("/filters/sectors", async (req, res) => {
     // Add null checking for database availability
     if (!result || !result.rows) {
       console.warn("Stock exchanges query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Stock exchanges data temporarily unavailable - database connection issue",
         data: [],
         total: 0
-      });
+      }, 503);
     }
 
-    res.json({
+    return res.success({
       data: result.rows.map((row) => ({
         name: row.exchange,
         value: row.exchange,
@@ -1800,14 +1640,15 @@ router.get("/screen/stats", async (req, res) => {
       // Add null checking for database availability
       if (!result || !result.rows) {
         console.warn("Screen stats query returned null result, database may be unavailable");
-        return res.status(503).json({
-          success: false,
-          error: "Database temporarily unavailable",
-          message: "Screen statistics temporarily unavailable - database connection issue",
-          fallback_data: {
-            total_stocks: 8500,
-            note: "Using fallback statistics - database unavailable"
-          }
+        return res.error("Screen statistics unavailable", 503, {
+          details: "Database connection issue prevents loading screening statistics",
+          suggestion: "Screen statistics require database connectivity and loaded stock data. Please ensure stock symbol loading tasks have completed successfully.",
+          service: "screen-stats",
+          requirements: [
+            "Database connectivity must be available",
+            "stock_symbols table must exist with statistical data",
+            "Data loading scripts must have populated market cap, PE ratio, and other metrics"
+          ]
         });
       }
       
@@ -1859,15 +1700,15 @@ router.get("/screen/stats", async (req, res) => {
       const stats = result.rows[0];
 
       res.success({data: {
-          total_stocks: parseInt(stats.total_stocks) || 8500,
+          total_stocks: parseInt(stats.total_stocks) || 0,
           ranges: {
             market_cap: {
-              min: parseInt(stats.min_market_cap) || 50000000,
-              max: parseInt(stats.max_market_cap) || 3000000000000,
+              min: parseInt(stats.min_market_cap) || 0,
+              max: parseInt(stats.max_market_cap) || 0,
             },
             pe_ratio: {
-              min: parseFloat(stats.min_pe_ratio) || 5,
-              max: Math.min(parseFloat(stats.max_pe_ratio) || 100, 100),
+              min: parseFloat(stats.min_pe_ratio) || 0,
+              max: Math.min(parseFloat(stats.max_pe_ratio) || 0, 100),
             },
             price_to_book: {
               min: parseFloat(stats.min_pb_ratio) || 0.1,
@@ -1921,23 +1762,19 @@ router.get("/screen/stats", async (req, res) => {
         }
       );
 
-      return res.status(503).json({
-        success: false,
-        error: "Screener statistics unavailable",
+      return res.error("Screener statistics unavailable", {
         message:
           "Unable to retrieve screener statistics due to database issues",
         timestamp: new Date().toISOString(),
         data_source: "error",
-      });
+      }, 503);
     }
   } catch (error) {
     console.error("Error in screen stats endpoint:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to retrieve screener statistics",
+    return res.error("Failed to retrieve screener statistics", {
       details: error.message,
       timestamp: new Date().toISOString(),
-    });
+    }, 500);
   }
 });
 
@@ -2056,11 +1893,9 @@ router.post("/init-price-data", async (req, res) => {
     // Add null checking for database availability
     if (!countResult || !countResult.rows || countResult.rows.length === 0) {
       console.warn("Count query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
+      return res.error("Database temporarily unavailable", {
         message: "Cannot retrieve row count - database connection issue"
-      });
+      }, 503);
     }
     
     const totalRows = countResult.rows[0].count;
@@ -2076,12 +1911,10 @@ router.post("/init-price-data", async (req, res) => {
     });
   } catch (error) {
     console.error("Error initializing price_daily table:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to initialize price_daily table",
+    return res.error("Failed to initialize price_daily table", {
       details: error.message,
       timestamp: new Date().toISOString(),
-    });
+    }, 500);
   }
 });
 
@@ -2156,12 +1989,10 @@ router.post("/init-api-keys-table", async (req, res) => {
     });
   } catch (error) {
     console.error("Error initializing user_api_keys table:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to initialize API keys table",
+    return res.error("Failed to initialize API keys table", {
       details: error.message,
       timestamp: new Date().toISOString(),
-    });
+    }, 500);
   }
 });
 

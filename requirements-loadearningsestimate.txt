@@ -1,5 +1,5 @@
-boto3
-psycopg2-binary
-yfinance
-requests
-pandas
+boto3==1.34.69
+psycopg2-binary==2.9.9
+yfinance==0.2.64
+requests==2.31.0
+pandas==2.1.4

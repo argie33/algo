@@ -34,7 +34,8 @@ const createTestDatabase = () => {
       change_amount REAL DEFAULT 0,
       change_percent REAL DEFAULT 0,
       volume INTEGER DEFAULT 0,
-      last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE price_daily (
@@ -138,7 +139,18 @@ const createTestDatabase = () => {
       user_id VARCHAR(255) NOT NULL,
       symbol VARCHAR(20) NOT NULL,
       quantity REAL NOT NULL DEFAULT 0,
-      avg_price REAL NOT NULL DEFAULT 0,
+      average_entry_price REAL DEFAULT 0,
+      current_price REAL DEFAULT 0,
+      market_value REAL DEFAULT 0,
+      cost_basis REAL DEFAULT 0,
+      pnl REAL DEFAULT 0,
+      pnl_percent REAL DEFAULT 0,
+      day_change REAL DEFAULT 0,
+      day_change_percent REAL DEFAULT 0,
+      weight REAL DEFAULT 0,
+      sector VARCHAR(50),
+      asset_class VARCHAR(20) DEFAULT 'equity',
+      broker VARCHAR(50) DEFAULT 'manual',
       last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 

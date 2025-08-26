@@ -3,9 +3,7 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "trades",
     timestamp: new Date().toISOString(),
     message: "Trade History service is running",
@@ -14,9 +12,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Trade History API - Ready",
+  res.success({message: "Trade History API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -39,7 +35,7 @@ const getUserApiKey = async (userId, provider) => {
 };
 
 const sendApiKeyError = (res, message) => {
-  return res.status(400).json({ error: message, code: "API_KEY_ERROR" });
+  return res.error(message, 400);
 };
 
 // Mock TradeAnalyticsService for missing service
@@ -115,9 +111,7 @@ router.get("/import/status", authenticateToken, async (req, res) => {
         totalTradesImported: row.total_trades_imported || 0,
       }));
 
-      res.json({
-        success: true,
-        brokerStatus,
+      res.success({brokerStatus,
         totalBrokers: brokerStatus.length,
         activeBrokers: brokerStatus.filter((b) => b.isActive && b.keyActive)
           .length,
@@ -164,9 +158,7 @@ router.get("/import/status", authenticateToken, async (req, res) => {
 
       const emptyBrokerStatus = [];
 
-      res.json({
-        success: true,
-        brokerStatus: emptyBrokerStatus,
+      res.success({brokerStatus: emptyBrokerStatus,
         totalBrokers: 0,
         activeBrokers: 0,
         message:
@@ -175,9 +167,7 @@ router.get("/import/status", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching import status:", error);
-    res.json({
-      success: true,
-      brokerStatus: [],
+    res.success({brokerStatus: [],
       totalBrokers: 0,
       activeBrokers: 0,
       note: "Unable to fetch import status",
@@ -248,9 +238,7 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
       endDate
     );
 
-    res.json({
-      success: true,
-      message: "Trade import completed successfully",
+    res.success({message: "Trade import completed successfully",
       data: importResult,
     });
   } catch (error) {
@@ -277,9 +265,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
 
     const summary = await tradeAnalyticsService.getTradeAnalysisSummary(userId);
 
-    res.json({
-      success: true,
-      data: summary,
+    res.success({data: summary,
     });
   } catch (error) {
     console.error("Error fetching trade summary:", error);
@@ -340,9 +326,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         positions: result.rows,
         pagination: {
           total: parseInt(countResult.rows[0].total),
@@ -416,9 +400,7 @@ router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
       ]
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         position,
         executions: executionsResult.rows,
         analytics: {
@@ -461,9 +443,7 @@ router.get("/insights", authenticateToken, async (req, res) => {
       parseInt(limit)
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         insights,
         total: insights.length,
       },
@@ -518,9 +498,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         benchmarks: benchmarkResult.rows,
         portfolio: portfolioResult.rows[0] || null,
         attribution: attributionResult.rows,
@@ -656,9 +634,7 @@ router.get("/history", authenticateToken, async (req, res) => {
 
         console.log(`✅ Retrieved ${total} trades from Alpaca API`);
 
-        return res.json({
-          success: true,
-          data: {
+        return res.success({data: {
             trades: paginatedTrades,
             pagination: {
               total,
@@ -677,74 +653,16 @@ router.get("/history", authenticateToken, async (req, res) => {
       );
     }
 
-    // Fallback to mock trade history data
-    console.log("📝 Using mock trade history data");
-    const mockTrades = [
-      {
-        id: "mock-1",
-        symbol: "AAPL",
-        side: "buy",
-        quantity: 100,
-        price: 150.0,
-        execution_time: new Date(Date.now() - 86400000 * 7).toISOString(), // 7 days ago
-        order_type: "market",
-        status: "filled",
-        filled_qty: 100,
-        gross_pnl: 2500,
-        net_pnl: 2500,
-        return_percentage: 16.67,
-        holding_period_days: 7,
-        commission: 0,
-        source: "mock_data",
-      },
-      {
-        id: "mock-2",
-        symbol: "MSFT",
-        side: "buy",
-        quantity: 50,
-        price: 280.0,
-        execution_time: new Date(Date.now() - 86400000 * 14).toISOString(), // 14 days ago
-        order_type: "limit",
-        status: "filled",
-        filled_qty: 50,
-        gross_pnl: 1512,
-        net_pnl: 1512,
-        return_percentage: 10.8,
-        holding_period_days: 14,
-        commission: 0,
-        source: "mock_data",
-      },
-      {
-        id: "mock-3",
-        symbol: "TSLA",
-        side: "sell",
-        quantity: 25,
-        price: 220.0,
-        execution_time: new Date(Date.now() - 86400000 * 21).toISOString(), // 21 days ago
-        order_type: "market",
-        status: "filled",
-        filled_qty: 25,
-        gross_pnl: -500,
-        net_pnl: -500,
-        return_percentage: -8.33,
-        holding_period_days: 30,
-        commission: 0,
-        source: "mock_data",
-      },
-    ];
-
-    res.json({
-      success: true,
-      data: {
-        trades: mockTrades,
-        pagination: {
-          total: mockTrades.length,
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          hasMore: false,
-        },
-        source: "mock_data",
-      },
+    // No trade data available - return proper error response
+    return res.error("Trade history unavailable", 503, {
+      details: "Unable to retrieve trade history from broker APIs or database",
+      suggestion: "Trade history requires valid broker API credentials. Please check your API key configuration in Settings and ensure your broker account is properly connected.",
+      service: "trade-history",
+      requirements: [
+        "Valid broker API credentials (Alpaca, Interactive Brokers, etc.)",
+        "Active trading account with broker", 
+        "API permissions enabled for trade data access"
+      ]
     });
   } catch (error) {
     console.error("❌ Error fetching trade history:", error);
@@ -1272,9 +1190,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       res.send(csv);
     } else {
       // Return JSON
-      res.json({
-        success: true,
-        data: result.rows,
+      res.success({data: result.rows,
       });
     }
   } catch (error) {
@@ -1328,9 +1244,7 @@ router.delete("/data", authenticateToken, async (req, res) => {
       ]);
     });
 
-    res.json({
-      success: true,
-      message: "All trade data deleted successfully",
+    res.success({message: "All trade data deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting trade data:", error);

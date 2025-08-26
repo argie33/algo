@@ -8,12 +8,16 @@ jest.mock("../../utils/apiKeyService", () => ({
 
 const portfolioRoutes = require("../../routes/portfolio");
 const { validateJwtToken } = require("../../utils/apiKeyService");
+const responseFormatterMiddleware = require("../../middleware/responseFormatter");
 // Mock database with your actual schema
 const mockDatabase = require("../testDatabase");
 
 // Create express app for testing
 const app = express();
 app.use(express.json());
+
+// Add response formatter middleware (required by routes)
+app.use(responseFormatterMiddleware);
 
 // Add portfolio routes (they include authenticateToken middleware)
 app.use("/api/portfolio", portfolioRoutes);

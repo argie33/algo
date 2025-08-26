@@ -95,9 +95,7 @@ router.get("/status", async (req, res) => {
       totalConnections: dashboardStatus.global?.totalConnections || 0,
     });
 
-    res.json({
-      success: true,
-      data: status,
+    res.success({data: status,
       meta: {
         correlationId,
         duration,
@@ -113,12 +111,7 @@ router.get("/status", async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to retrieve live data status",
-      correlationId,
-      timestamp: new Date().toISOString(),
-      duration,
-    });
+    return res.error("Failed to retrieve live data status", 500);
   }
 });
 
@@ -258,11 +251,7 @@ router.get("/market", authenticateToken, async (req, res) => {
 
     const userId = req.user?.sub;
     if (!userId) {
-      return res.status(401).json({
-        error: "Authentication required",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     const { includeIndices = "true", includeWatchlist = "true" } = req.query;
@@ -281,9 +270,7 @@ router.get("/market", authenticateToken, async (req, res) => {
       errors: marketOverview.errors?.length || 0,
     });
 
-    res.json({
-      success: true,
-      data: marketOverview,
+    res.success({data: marketOverview,
       meta: {
         correlationId,
         duration,
@@ -300,12 +287,7 @@ router.get("/market", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to fetch live market data",
-      correlationId,
-      timestamp: new Date().toISOString(),
-      duration,
-    });
+    return res.error("Failed to fetch live market data", 500);
   }
 });
 
@@ -323,11 +305,7 @@ router.get("/sectors", authenticateToken, async (req, res) => {
 
     const userId = req.user?.sub;
     if (!userId) {
-      return res.status(401).json({
-        error: "Authentication required",
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
+      return res.unauthorized("Authentication required");
     }
 
     const sectorPerformance =
@@ -341,9 +319,7 @@ router.get("/sectors", authenticateToken, async (req, res) => {
       marketSentiment: sectorPerformance.summary?.marketSentiment,
     });
 
-    res.json({
-      success: true,
-      data: sectorPerformance,
+    res.success({data: sectorPerformance,
       meta: {
         correlationId,
         duration,
@@ -360,12 +336,7 @@ router.get("/sectors", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to fetch sector performance data",
-      correlationId,
-      timestamp: new Date().toISOString(),
-      duration,
-    });
+    return res.error("Failed to fetch sector performance data", 500);
   }
 });
 
@@ -390,9 +361,7 @@ router.post("/cache/clear", authenticateToken, async (req, res) => {
       freshEntriesCleared: beforeStats.freshEntries,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         message: "Cache cleared successfully",
         before: beforeStats,
         after: afterStats,
@@ -411,11 +380,7 @@ router.post("/cache/clear", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    res.status(500).json({
-      error: "Failed to clear cache",
-      correlationId,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to clear cache", 500);
   }
 });
 

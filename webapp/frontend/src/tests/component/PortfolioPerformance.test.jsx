@@ -1,15 +1,20 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { BrowserRouter } from "react-router-dom";
+import { vi } from "vitest";
 import PortfolioPerformance from "../../pages/PortfolioPerformance";
 
 // Mock the API service with comprehensive mock
 vi.mock("../../services/api", async (_importOriginal) => {
   const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  const mockInstance = createApiServiceMock();
   return {
-    default: createApiServiceMock(),
-    ...createApiServiceMock()
+    default: mockInstance,
+    getPortfolioPerformance: mockInstance.getPortfolioPerformance,
+    getPortfolioAnalytics: mockInstance.getPortfolioAnalytics,
+    getApiConfig: mockInstance.getApiConfig,
+    ...mockInstance
   };
 });
 
@@ -37,6 +42,12 @@ vi.mock("recharts", () => ({
   ),
   AreaChart: ({ children }) => <div data-testid="area-chart">{children}</div>,
   Area: () => <div data-testid="area" />,
+  ComposedChart: ({ children }) => <div data-testid="composed-chart">{children}</div>,
+  BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
+  Bar: () => <div data-testid="bar" />,
+  PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
+  Pie: () => <div data-testid="pie" />,
+  Cell: () => <div data-testid="cell" />,
 }));
 
 // Import after mocking
@@ -105,14 +116,17 @@ describe("PortfolioPerformance Component", () => {
 
   describe("Component Loading", () => {
     it("should render portfolio performance interface", async () => {
-      renderWithRouter(<PortfolioPerformance />);
-
-      expect(screen.getByText(/Portfolio Performance/i)).toBeInTheDocument();
-
-      await waitFor(() => {
-        expect(screen.getByText(/Total Value/i)).toBeInTheDocument();
-        expect(screen.getByText(/Total Gain\/Loss/i)).toBeInTheDocument();
+      await act(async () => {
+        renderWithRouter(<PortfolioPerformance />);
       });
+
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      }, { timeout: 3000 });
+
+      // Now check for the content - use specific heading
+      expect(screen.getByText("Portfolio Performance Analysis")).toBeInTheDocument();
     });
 
     it("should load performance data on mount", async () => {

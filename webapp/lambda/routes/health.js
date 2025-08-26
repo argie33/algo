@@ -14,8 +14,10 @@ router.get("/", async (req, res) => {
         healthy: true,
         service: "Financial Dashboard API",
         environment: process.env.NODE_ENV || "development",
+        timestamp: new Date().toISOString(),
         memory: process.memoryUsage(),
         uptime: process.uptime(),
+        version: "1.0.0",
         note: "Quick health check - database not tested",
         database: { status: "not_tested" },
         api: {
@@ -89,6 +91,8 @@ router.get("/", async (req, res) => {
               healthy: true,
               service: "Financial Dashboard API",
               environment: process.env.NODE_ENV || "development",
+              timestamp: new Date().toISOString(),
+              version: "1.0.0",
               database: {
                 status: "connected",
                 responseTime: dbTime,
@@ -136,6 +140,8 @@ router.get("/", async (req, res) => {
         healthy: true,
         service: "Financial Dashboard API",
         environment: process.env.NODE_ENV || "development",
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
         database: {
           status: "test_mode",
           note: "Database mocked in test environment",
@@ -397,6 +403,8 @@ router.get("/", async (req, res) => {
     const health = {
       status: "healthy",
       healthy: true,
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
       database: {
         status: "connected",
         tables: filteredTables,
@@ -500,6 +508,8 @@ router.get("/database", async (req, res) => {
       return res.success({
         status: "ok",
         healthy: true,
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
         database: {
           status: "connected",
           tables: {},
@@ -517,6 +527,8 @@ router.get("/database", async (req, res) => {
     return res.success({
       status: "ok",
       healthy: true,
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
       database: {
         status: "connected",
         tables: tables,

@@ -6,9 +6,7 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "economic-calendar",
     timestamp: new Date().toISOString(),
     message: "Economic Calendar service is running",
@@ -17,9 +15,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Economic Calendar API - Ready",
+  res.success({message: "Economic Calendar API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -73,11 +69,7 @@ router.get("/debug", async (req, res) => {
     }
   } catch (error) {
     console.error("Error in calendar debug:", error);
-    res.status(500).json({
-      error: "Debug check failed",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Debug check failed", 500);
   }
 });
 
@@ -101,22 +93,16 @@ router.get("/test", async (req, res) => {
     const result = await query(testQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
-      success: true,
-      count: result.rows.length,
+    res.success({count: result.rows.length,
       data: result.rows,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in calendar test:", error);
-    res.status(500).json({
-      error: "Test failed",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Test failed", 500);
   }
 });
 
@@ -192,7 +178,7 @@ router.get("/events", async (req, res) => {
       !Array.isArray(eventsResult.rows) ||
       eventsResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -214,11 +200,7 @@ router.get("/events", async (req, res) => {
   } catch (error) {
     console.error("Error fetching calendar events:", error);
     console.error("Error stack:", error.stack);
-    res.status(500).json({
-      error: "Failed to fetch calendar events",
-      details: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch calendar events", 500);
   }
 });
 
@@ -238,7 +220,7 @@ router.get("/summary", async (req, res) => {
     const result = await query(summaryQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -247,7 +229,7 @@ router.get("/summary", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching calendar summary:", error);
-    res.status(500).json({ error: "Failed to fetch calendar summary" });
+    return res.error("Failed to fetch calendar summary" , 500);
   }
 });
 
@@ -327,7 +309,7 @@ router.get("/earnings-estimates", async (req, res) => {
       !Array.isArray(estimatesResult.rows) ||
       estimatesResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -344,7 +326,7 @@ router.get("/earnings-estimates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching earnings estimates:", error);
-    res.status(500).json({ error: "Failed to fetch earnings estimates" });
+    return res.error("Failed to fetch earnings estimates" , 500);
   }
 });
 
@@ -429,7 +411,7 @@ router.get("/earnings-history", async (req, res) => {
       !Array.isArray(historyResult.rows) ||
       historyResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -446,7 +428,7 @@ router.get("/earnings-history", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching earnings history:", error);
-    res.status(500).json({ error: "Failed to fetch earnings history" });
+    return res.error("Failed to fetch earnings history" , 500);
   }
 });
 
@@ -541,7 +523,7 @@ router.get("/earnings-metrics", async (req, res) => {
       !Array.isArray(metricsResult.rows) ||
       metricsResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({

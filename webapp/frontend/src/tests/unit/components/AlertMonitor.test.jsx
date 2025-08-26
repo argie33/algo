@@ -1,7 +1,7 @@
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders } from '../../test-utils';
-import AlertMonitor from '../../../components/AlertMonitor';
+import AlertMonitor from '../../../components/admin/AlertMonitor';
 
 // Mock API service
 vi.mock('../../../services/api', () => ({

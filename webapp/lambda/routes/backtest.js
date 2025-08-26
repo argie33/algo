@@ -298,7 +298,7 @@ router.post("/run", async (req, res) => {
 
     // Validate input
     if (!strategy) {
-      return res.status(400).json({ error: "Strategy code is required" });
+      return res.error("Strategy code is required" , 400);
     }
 
     if (!startDate || !endDate) {
@@ -308,7 +308,7 @@ router.post("/run", async (req, res) => {
     }
 
     if (symbols.length === 0) {
-      return res.status(400).json({ error: "At least one symbol is required" });
+      return res.error("At least one symbol is required" , 400);
     }
 
     // Initialize backtest engine
@@ -362,11 +362,7 @@ router.post("/run", async (req, res) => {
       try {
         await engine.executeStrategy(strategy, currentData);
       } catch (error) {
-        return res.status(400).json({
-          error: "Strategy execution failed",
-          details: error.message,
-          date: date,
-        });
+        return res.error("Strategy execution failed", 400);
       }
 
       // Update portfolio value
@@ -377,9 +373,7 @@ router.post("/run", async (req, res) => {
     const metrics = engine.calculateMetrics();
 
     // Return results
-    res.json({
-      success: true,
-      config: backtestConfig,
+    res.success({config: backtestConfig,
       metrics,
       equity: engine.equity,
       trades: engine.trades,
@@ -392,10 +386,7 @@ router.post("/run", async (req, res) => {
     });
   } catch (error) {
     console.error("Backtest error:", error);
-    res.status(500).json({
-      error: "Backtest execution failed",
-      details: error.message,
-    });
+    return res.error("Backtest execution failed", 500);
   }
 });
 
@@ -403,7 +394,7 @@ router.post("/run", async (req, res) => {
 router.post("/run-python", async (req, res) => {
   const { strategy, input: _input } = req.body;
   if (!strategy) {
-    return res.status(400).json({ error: "Python strategy code is required" });
+    return res.error("Python strategy code is required" , 400);
   }
   // Write code to temp file
   const tempFile = path.join(__dirname, `temp_strategy_${Date.now()}.py`);
@@ -416,38 +407,35 @@ router.post("/run-python", async (req, res) => {
     (err, stdout, stderr) => {
       require("fs").unlinkSync(tempFile);
       if (err) {
-        return res.status(400).json({
-          error: "Python execution failed",
-          details: stderr || err.message,
-        });
+        return res.error("Python execution failed", 400);
       }
-      res.json({ success: true, output: stdout, error: stderr });
+      res.success({output: stdout, error: stderr });
     }
   );
 });
 
 // User strategy management endpoints
 router.get("/strategies", (req, res) => {
-  res.json({ strategies: backtestStore.loadStrategies() });
+  return res.success({ strategies: backtestStore.loadStrategies() });
 });
 
 router.post("/strategies", (req, res) => {
   const { name, code, language } = req.body;
   if (!name || !code)
-    return res.status(400).json({ error: "Name and code required" });
+    return res.error("Name and code required" , 400);
   const strategy = backtestStore.addStrategy({ name, code, language });
-  res.json({ strategy });
+  return res.success({ strategy });
 });
 
 router.get("/strategies/:id", (req, res) => {
   const strategy = backtestStore.getStrategy(req.params.id);
-  if (!strategy) return res.status(404).json({ error: "Not found" });
-  res.json({ strategy });
+  if (!strategy) return res.notFound("Not found" );
+  return res.success({ strategy });
 });
 
 router.delete("/strategies/:id", (req, res) => {
   backtestStore.deleteStrategy(req.params.id);
-  res.json({ success: true });
+  res.success({});
 });
 
 // Get historical data for a symbol
@@ -496,15 +484,15 @@ router.get("/symbols", async (req, res) => {
     const result = await query(sqlQuery, [`%${search}%`, limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
-    res.json({
+    return res.success({
       symbols: result.rows,
     });
   } catch (error) {
     console.error("Error fetching symbols:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -622,10 +610,10 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
       },
     ];
 
-    res.json({ templates });
+    return res.success({ templates });
   } catch (error) {
     console.error("Error fetching templates:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -635,16 +623,16 @@ router.post("/validate", async (req, res) => {
     const { strategy } = req.body;
 
     if (!strategy) {
-      return res.status(400).json({ error: "Strategy code is required" });
+      return res.error("Strategy code is required" , 400);
     }
 
     // Basic syntax validation
     try {
       // eslint-disable-next-line no-new-func
       new Function("context", `with(context) { ${strategy} }`);
-      res.json({ valid: true, message: "Strategy code is valid" });
+      return res.success({ valid: true, message: "Strategy code is valid" });
     } catch (error) {
-      res.json({
+      return res.success({
         valid: false,
         error: error.message,
         type: "syntax_error",
@@ -652,7 +640,7 @@ router.post("/validate", async (req, res) => {
     }
   } catch (error) {
     console.error("Validation error:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -664,19 +652,13 @@ router.get("/", async (req, res) => {
     // Get some sample backtest results from the backtestStore
     const results = backtestStore.getAllResults();
     
-    res.json({
-      success: true,
-      data: results.slice(0, 10), // Return up to 10 results
+    res.success({data: results.slice(0, 10), // Return up to 10 results
       count: results.length,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching backtest results:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch backtest results",
-      details: error.message,
-    });
+    return res.error("Failed to fetch backtest results", { details: error.message }, 500);
   }
 });
 
@@ -703,18 +685,12 @@ router.post("/", async (req, res) => {
     // Store it using backtestStore
     backtestStore.saveResult(backtestId, backtest);
     
-    res.json({
-      success: true,
-      data: backtest,
+    res.success({data: backtest,
       message: "Backtest created successfully",
     });
   } catch (error) {
     console.error("Error creating backtest:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to create backtest",
-      details: error.message,
-    });
+    return res.error("Failed to create backtest", { details: error.message }, 500);
   }
 });
 
@@ -728,24 +704,14 @@ router.get("/:id", async (req, res) => {
     const backtest = backtestStore.getResult(id);
     
     if (!backtest) {
-      return res.status(404).json({
-        success: false,
-        error: "Backtest not found",
-        message: `No backtest found with ID ${id}`,
-      });
+      return res.error("Backtest not found", { message: `No backtest found with ID ${id}` }, 404);
     }
     
-    res.json({
-      success: true,
-      data: backtest,
+    res.success({data: backtest,
     });
   } catch (error) {
     console.error("Error fetching backtest:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch backtest",
-      details: error.message,
-    });
+    return res.error("Failed to fetch backtest", { details: error.message }, 500);
   }
 });
 
@@ -759,28 +725,18 @@ router.delete("/:id", async (req, res) => {
     const backtest = backtestStore.getResult(id);
     
     if (!backtest) {
-      return res.status(404).json({
-        success: false,
-        error: "Backtest not found",
-        message: `No backtest found with ID ${id}`,
-      });
+      return res.error("Backtest not found", { message: `No backtest found with ID ${id}` }, 404);
     }
     
     // Delete from backtestStore (this will just remove from memory)
     // In a real implementation, this would delete from database
     
-    res.json({
-      success: true,
-      message: `Backtest ${id} deleted successfully`,
+    res.success({message: `Backtest ${id} deleted successfully`,
       deletedId: id,
     });
   } catch (error) {
     console.error("Error deleting backtest:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to delete backtest",
-      details: error.message,
-    });
+    return res.error("Failed to delete backtest", { details: error.message }, 500);
   }
 });
 

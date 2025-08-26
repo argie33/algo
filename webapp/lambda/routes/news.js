@@ -8,9 +8,7 @@ const sentimentEngine = require("../utils/sentimentEngine");
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "news",
     timestamp: new Date().toISOString(),
     message: "News service is running",
@@ -19,9 +17,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "News API - Ready",
+  res.success({message: "News API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -140,9 +136,7 @@ router.get("/articles", async (req, res) => {
       created_at: row.created_at,
     }));
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         articles,
         total: parseInt(countResult.rows[0].total),
         limit: parseInt(limit),
@@ -264,9 +258,7 @@ router.get("/sentiment/:symbol", async (req, res) => {
       })),
     };
 
-    res.json({
-      success: true,
-      data: sentimentAnalysis,
+    res.success({data: sentimentAnalysis,
     });
   } catch (error) {
     console.error("Error fetching sentiment analysis:", error);
@@ -340,9 +332,7 @@ router.get("/sentiment", async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    res.json({
-      success: true,
-      data: sentimentData,
+    res.success({data: sentimentData,
     });
   } catch (error) {
     console.error("Error fetching sentiment data:", error);
@@ -457,9 +447,7 @@ router.get("/market-sentiment", async (req, res) => {
       })),
     };
 
-    res.json({
-      success: true,
-      data: marketSentiment,
+    res.success({data: marketSentiment,
     });
   } catch (error) {
     console.error("Error fetching market sentiment:", error);
@@ -485,9 +473,7 @@ router.post("/analyze-sentiment", async (req, res) => {
 
     const analysis = await sentimentEngine.analyzeSentiment(text, symbol);
 
-    res.json({
-      success: true,
-      data: analysis,
+    res.success({data: analysis,
     });
   } catch (error) {
     console.error("Error analyzing sentiment:", error);
@@ -530,9 +516,7 @@ router.get("/sources", async (req, res) => {
       reliability_score: newsAnalyzer.calculateReliabilityScore(row.source),
     }));
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         sources,
         total: sources.length,
       },
@@ -572,9 +556,7 @@ router.get("/categories", async (req, res) => {
       ),
     }));
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         categories,
         total: categories.length,
       },
@@ -668,9 +650,7 @@ router.get("/trending", async (req, res) => {
       })),
     };
 
-    res.json({
-      success: true,
-      data: trending,
+    res.success({data: trending,
     });
   } catch (error) {
     console.error("Error fetching trending topics:", error);
@@ -712,9 +692,7 @@ router.get("/feed", async (req, res) => {
       time_range,
     });
 
-    res.json({
-      success: true,
-      data: newsFeed,
+    res.success({data: newsFeed,
       filters: {
         category,
         symbol: symbol || "ALL",
@@ -727,12 +705,11 @@ router.get("/feed", async (req, res) => {
   } catch (error) {
     console.error("❌ [NEWS-FEED] Error fetching enhanced news feed:", error);
 
-    res.json({
-      success: true,
-      data: generateFallbackNewsFeed(),
-      fallback: true,
-      error: error.message,
-      last_updated: new Date().toISOString(),
+    return res.error("Failed to fetch news feed", 503, {
+      details: error.message,
+      suggestion: "News service is temporarily unavailable. Please try again in a few moments.",
+      service: "news-feed",
+      retry_after: 30
     });
   }
 });
@@ -761,9 +738,7 @@ router.get("/economic-calendar", async (req, res) => {
       limit: parseInt(limit),
     });
 
-    res.json({
-      success: true,
-      data: economicEvents,
+    res.success({data: economicEvents,
       filters: {
         importance,
         country,
@@ -777,12 +752,11 @@ router.get("/economic-calendar", async (req, res) => {
       error
     );
 
-    res.json({
-      success: true,
-      data: generateFallbackEconomicCalendar(),
-      fallback: true,
-      error: error.message,
-      last_updated: new Date().toISOString(),
+    return res.error("Failed to fetch economic calendar", 503, {
+      details: error.message,
+      suggestion: "Economic data service is temporarily unavailable. Please check back later for scheduled economic events.",
+      service: "economic-calendar",
+      retry_after: 60
     });
   }
 });
@@ -798,9 +772,7 @@ router.get("/sentiment-dashboard", async (req, res) => {
 
     const sentimentDashboard = await generateSentimentDashboardData(timeframe);
 
-    res.json({
-      success: true,
-      data: sentimentDashboard,
+    res.success({data: sentimentDashboard,
       timeframe,
       last_updated: new Date().toISOString(),
     });
@@ -810,12 +782,11 @@ router.get("/sentiment-dashboard", async (req, res) => {
       error
     );
 
-    res.json({
-      success: true,
-      data: generateFallbackSentimentDashboard(),
-      fallback: true,
-      error: error.message,
-      last_updated: new Date().toISOString(),
+    return res.error("Failed to generate sentiment dashboard", 503, {
+      details: error.message,
+      suggestion: "Market sentiment analysis is temporarily unavailable. Data aggregation services may be experiencing issues.",
+      service: "sentiment-dashboard",
+      retry_after: 45
     });
   }
 });
@@ -1060,58 +1031,6 @@ function generateRelatedSymbols(category) {
   return symbolsByCategory[category] || symbolsByCategory.markets;
 }
 
-function generateFallbackNewsFeed() {
-  return {
-    articles: [
-      {
-        id: "news_fallback_1",
-        headline: "Market Opens Higher on Strong Economic Data",
-        summary:
-          "Stock markets opened with gains following positive economic indicators and strong corporate earnings.",
-        category: "markets",
-        source: "Reuters",
-        author: "John Smith",
-        published_at: new Date().toISOString(),
-        sentiment: { score: 0.75, label: "positive", confidence: 0.85 },
-        impact_score: 0.8,
-        related_symbols: ["SPY", "QQQ"],
-      },
-    ],
-    summary: {
-      total_articles: 1,
-      sentiment_distribution: { positive: 1, neutral: 0, negative: 0 },
-      avg_impact_score: 0.8,
-    },
-  };
-}
-
-function generateFallbackEconomicCalendar() {
-  return {
-    events: [
-      {
-        id: "econ_fallback_1",
-        title: "US Non-Farm Payrolls",
-        country: "US",
-        importance: "high",
-        date: new Date().toISOString().split("T")[0],
-        time: "08:30",
-        forecast_value: "200K",
-        previous_value: "185K",
-      },
-    ],
-    summary: {
-      total_events: 1,
-      high_impact_events: 1,
-    },
-  };
-}
-
-function generateFallbackSentimentDashboard() {
-  return {
-    overall_sentiment: { score: 0.65, label: "bullish", confidence: 0.82 },
-    fear_greed_index: { value: 75, label: "Greed", change_24h: 5 },
-  };
-}
 
 // Helper functions for news and economic data generation
 function generateNewsSummary(headline, category) {

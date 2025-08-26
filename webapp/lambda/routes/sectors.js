@@ -7,9 +7,7 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "sectors",
     timestamp: new Date().toISOString(),
     message: "Sectors service is running",
@@ -18,9 +16,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Sectors API - Ready",
+  res.success({message: "Sectors API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -377,9 +373,7 @@ router.get("/list", async (req, res) => {
       `✅ Found ${sectors.length} sectors with ${result.rows.length} industries`
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         sectors,
         summary: {
           total_sectors: sectors.length,
@@ -547,9 +541,7 @@ router.get("/:sector/details", async (req, res) => {
 
     console.log(`✅ Found ${stocks.length} stocks in ${sector} sector`);
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         sector,
         summary: {
           stock_count: stocks.length,

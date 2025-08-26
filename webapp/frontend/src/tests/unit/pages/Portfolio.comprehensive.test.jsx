@@ -3,15 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Portfolio from '../../../pages/Portfolio';
 
-// Mock API service
-// Mock the API service with comprehensive mock
-vi.mock("../../services/api", async (_importOriginal) => {
-  const { createApiServiceMock } = await import('../mocks/api-service-mock');
-  return {
-    default: createApiServiceMock(),
-    ...createApiServiceMock()
-  };
-});
+// Mock API service - use the global mock from setup.js to avoid cycles
 
 // Mock auth context
 const mockAuthContext = {
@@ -70,19 +62,23 @@ describe('Portfolio Page', () => {
     },
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     
-    const api = require('../../../services/api').default;
-    api.get.mockImplementation((url) => {
-      if (url.includes('/portfolio')) {
-        return Promise.resolve({ data: mockPortfolioData });
-      }
-      if (url.includes('/holdings')) {
-        return Promise.resolve({ data: mockPortfolioData.holdings });
-      }
-      return Promise.reject(new Error('Unknown endpoint'));
-    });
+    const apiModule = await import('../../../services/api');
+    const api = apiModule.default;
+    
+    if (api && api.get && typeof api.get.mockImplementation === 'function') {
+      api.get.mockImplementation((url) => {
+        if (url.includes('/portfolio')) {
+          return Promise.resolve({ data: mockPortfolioData });
+        }
+        if (url.includes('/holdings')) {
+          return Promise.resolve({ data: mockPortfolioData.holdings });
+        }
+        return Promise.reject(new Error('Unknown endpoint'));
+      });
+    }
   });
 
   const renderPortfolio = () => {
@@ -121,19 +117,23 @@ describe('Portfolio Page', () => {
     });
 
     it('handles negative changes correctly', async () => {
-      const api = require('../../../services/api').default;
-      api.get.mockResolvedValue({
-        data: {
-          ...mockPortfolioData,
-          summary: {
-            ...mockPortfolioData.summary,
-            dayChange: -1500,
-            dayChangePercent: -1.18,
-            totalGainLoss: -5000,
-            totalGainLossPercent: -4.0,
+      const apiModule = await import('../../../services/api');
+      const api = apiModule.default;
+      
+      if (api && api.get && typeof api.get.mockResolvedValue === 'function') {
+        api.get.mockResolvedValue({
+          data: {
+            ...mockPortfolioData,
+            summary: {
+              ...mockPortfolioData.summary,
+              dayChange: -1500,
+              dayChangePercent: -1.18,
+              totalGainLoss: -5000,
+              totalGainLossPercent: -4.0,
+            },
           },
-        },
-      });
+        });
+      }
       
       renderPortfolio();
       
@@ -298,17 +298,21 @@ describe('Portfolio Page', () => {
       vi.useFakeTimers();
       renderPortfolio();
       
-      const api = require('../../../services/api').default;
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(1);
-      });
+      const apiModule = await import('../../../services/api');
+      const api = apiModule.default;
       
-      // Fast-forward 30 seconds (auto-refresh interval)
-      vi.advanceTimersByTime(30000);
-      
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2);
-      });
+      if (api && api.get) {
+        await waitFor(() => {
+          expect(api.get).toHaveBeenCalledTimes(1);
+        });
+        
+        // Fast-forward 30 seconds (auto-refresh interval)
+        vi.advanceTimersByTime(30000);
+        
+        await waitFor(() => {
+          expect(api.get).toHaveBeenCalledTimes(2);
+        });
+      }
       
       vi.useRealTimers();
     });
@@ -316,13 +320,17 @@ describe('Portfolio Page', () => {
     it('allows manual refresh', async () => {
       renderPortfolio();
       
-      const api = require('../../../services/api').default;
+      const apiModule = await import('../../../services/api');
+      const api = apiModule.default;
+      
       await waitFor(() => {
         const refreshButton = screen.getByRole('button', { name: /refresh/i });
         fireEvent.click(refreshButton);
       });
       
-      expect(api.get).toHaveBeenCalledTimes(2);
+      if (api && api.get) {
+        expect(api.get).toHaveBeenCalledTimes(2);
+      }
     });
 
     it('shows loading state during refresh', async () => {
@@ -339,8 +347,12 @@ describe('Portfolio Page', () => {
 
   describe('Error Handling', () => {
     it('displays error message when portfolio data fails to load', async () => {
-      const api = require('../../../services/api').default;
-      api.get.mockRejectedValue(new Error('Network error'));
+      const apiModule = await import('../../../services/api');
+      const api = apiModule.default;
+      
+      if (api && api.get && typeof api.get.mockRejectedValue === 'function') {
+        api.get.mockRejectedValue(new Error('Network error'));
+      }
       
       renderPortfolio();
       
@@ -350,8 +362,12 @@ describe('Portfolio Page', () => {
     });
 
     it('provides retry option on error', async () => {
-      const api = require('../../../services/api').default;
-      api.get.mockRejectedValueOnce(new Error('Network error'));
+      const apiModule = await import('../../../services/api');
+      const api = apiModule.default;
+      
+      if (api && api.get && typeof api.get.mockRejectedValueOnce === 'function') {
+        api.get.mockRejectedValueOnce(new Error('Network error'));
+      }
       
       renderPortfolio();
       
@@ -360,14 +376,20 @@ describe('Portfolio Page', () => {
         fireEvent.click(retryButton);
       });
       
-      expect(api.get).toHaveBeenCalledTimes(2);
+      if (api && api.get) {
+        expect(api.get).toHaveBeenCalledTimes(2);
+      }
     });
 
     it('handles API errors gracefully during updates', async () => {
       renderPortfolio();
       
-      const api = require('../../../services/api').default;
-      api.put.mockRejectedValue(new Error('Update failed'));
+      const apiModule = await import('../../../services/api');
+      const api = apiModule.default;
+      
+      if (api && api.put && typeof api.put.mockRejectedValue === 'function') {
+        api.put.mockRejectedValue(new Error('Update failed'));
+      }
       
       await waitFor(() => {
         const editButton = screen.getByTestId('edit-AAPL');

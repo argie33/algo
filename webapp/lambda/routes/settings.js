@@ -22,8 +22,7 @@ router.get("/api-keys", async (req, res) => {
   try {
     const providers = await listProviders(req.token);
 
-    res.json({
-      success: true,
+    res.success({
       apiKeys: providers,
       providers: providers,
       timestamp: new Date().toISOString(),
@@ -67,8 +66,7 @@ router.get("/api-keys/:provider", async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    res.json({
-      success: true,
+    res.success({
       apiKey: maskedData,
     });
   } catch (error) {
@@ -121,8 +119,7 @@ router.post("/api-keys", async (req, res) => {
 
     const result = await storeApiKey(req.token, provider, apiKeyData);
 
-    res.json({
-      success: true,
+    res.success({
       message: `${provider} API key stored successfully`,
       result: {
         id: result.id,
@@ -180,8 +177,7 @@ router.put("/api-keys/:provider", async (req, res) => {
 
     const result = await storeApiKey(req.token, provider, updatedData);
 
-    res.json({
-      success: true,
+    res.success({
       message: `${provider} API key updated successfully`,
       result: {
         id: result.id,
@@ -214,8 +210,7 @@ router.delete("/api-keys/:provider", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
+    res.success({
       message: `${provider} API key deleted successfully`,
       provider: provider,
     });
@@ -241,8 +236,7 @@ router.post("/api-keys/:provider/validate", async (req, res) => {
       testConnection
     );
 
-    res.json({
-      success: true,
+    res.success({
       validation: validation,
       timestamp: new Date().toISOString(),
     });
@@ -282,8 +276,7 @@ router.post("/api-keys/test-all", async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
+    res.success({
       testResults: testResults,
       timestamp: new Date().toISOString(),
     });
@@ -302,8 +295,7 @@ router.get("/health", async (req, res) => {
   try {
     const health = getHealthStatus();
 
-    res.json({
-      success: true,
+    res.success({
       health: health,
       timestamp: new Date().toISOString(),
     });
@@ -342,8 +334,7 @@ router.get("/profile", async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
+    res.success({
       profile: {
         id: user.sub,
         email: user.email,
@@ -389,8 +380,7 @@ router.get("/onboarding-status", async (req, res) => {
     const onboardingCompleted =
       userResult.rows[0]?.onboarding_completed || false;
 
-    res.json({
-      success: true,
+    res.success({
       onboarding: {
         completed: onboardingCompleted,
         hasApiKeys: hasApiKeys,
@@ -422,8 +412,7 @@ router.post("/onboarding-complete", async (req, res) => {
       [userId]
     );
 
-    res.json({
-      success: true,
+    res.success({
       message: "Onboarding completed successfully",
       timestamp: new Date().toISOString(),
     });
@@ -453,8 +442,7 @@ router.get("/preferences", async (req, res) => {
       defaultView: "dashboard",
     };
 
-    res.json({
-      success: true,
+    res.success({
       preferences: preferences,
       timestamp: new Date().toISOString(),
     });
@@ -489,8 +477,7 @@ router.post("/preferences", async (req, res) => {
       [userId, JSON.stringify(preferences)]
     );
 
-    res.json({
-      success: true,
+    res.success({
       message: "Preferences updated successfully",
       preferences: preferences,
       timestamp: new Date().toISOString(),

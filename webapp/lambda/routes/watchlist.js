@@ -37,9 +37,7 @@ router.get("/", authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: watchlists.rows,
+    res.success({data: watchlists.rows,
       total: watchlists.rows.length,
     });
   } catch (error) {
@@ -149,9 +147,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      data: watchlist,
+    res.success({data: watchlist,
     });
   } catch (error) {
     console.error("Error fetching watchlist:", error);
@@ -265,9 +261,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0],
+    res.success({data: result.rows[0],
     });
   } catch (error) {
     console.error("Error updating watchlist:", error);
@@ -331,9 +325,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: "Watchlist deleted successfully",
+    res.success({message: "Watchlist deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting watchlist:", error);
@@ -559,9 +551,7 @@ router.delete("/:id/items/:symbol", authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: "removed successfully",
+    res.success({message: "removed successfully",
     });
   } catch (error) {
     console.error("Error removing item from watchlist:", error);

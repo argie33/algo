@@ -39,9 +39,7 @@ router.get("/upgrades", async (req, res) => {
     // Add null checking for database availability - return graceful degradation instead of throwing
     if (!upgradesResult || !upgradesResult.rows || !countResult || !countResult.rows) {
       console.warn("Analyst upgrades query returned null result, database may be unavailable");
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable", 
+      return res.error("Database temporarily unavailable", {
         message: "Analyst upgrades temporarily unavailable - database connection issue",
         data: [],
         pagination: {
@@ -52,7 +50,7 @@ router.get("/upgrades", async (req, res) => {
           hasNext: false,
           hasPrev: false
         }
-      });
+      }, 503);
     }
 
     // Map company_name to company for frontend compatibility
@@ -64,7 +62,7 @@ router.get("/upgrades", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    res.json({
+    res.success({
       data: mappedRows,
       pagination: {
         page,
@@ -77,10 +75,7 @@ router.get("/upgrades", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching analyst upgrades:", error);
-    res.status(500).json({
-      error: "Failed to fetch analyst upgrades",
-      message: error.message,
-    });
+    return res.error("Failed to fetch analyst upgrades", 500);
   }
 });
 
@@ -106,13 +101,13 @@ router.get("/:ticker/recommendations", async (req, res) => {
 
     const result = await query(recQuery, [ticker.toUpperCase()]);
 
-    res.json({
+    res.success({
       ticker: ticker.toUpperCase(),
       recommendations: result.rows,
     });
   } catch (error) {
     console.error("Error fetching recommendations:", error);
-    res.status(500).json({ error: "Failed to fetch recommendations" });
+    return res.error("Failed to fetch recommendations" , 500);
   }
 });
 
@@ -137,13 +132,13 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
 
     const result = await query(estimatesQuery, [ticker.toUpperCase()]);
 
-    res.json({
+    res.success({
       ticker: ticker.toUpperCase(),
       estimates: result.rows,
     });
   } catch (error) {
     console.error("Error fetching earnings estimates:", error);
-    res.status(500).json({ error: "Failed to fetch earnings estimates" });
+    return res.error("Failed to fetch earnings estimates" , 500);
   }
 });
 
@@ -167,13 +162,13 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
 
     const result = await query(revenueQuery, [ticker.toUpperCase()]);
 
-    res.json({
+    res.success({
       ticker: ticker.toUpperCase(),
       estimates: result.rows,
     });
   } catch (error) {
     console.error("Error fetching revenue estimates:", error);
-    res.status(500).json({ error: "Failed to fetch revenue estimates" });
+    return res.error("Failed to fetch revenue estimates" , 500);
   }
 });
 
@@ -198,13 +193,13 @@ router.get("/:ticker/earnings-history", async (req, res) => {
 
     const result = await query(historyQuery, [ticker.toUpperCase()]);
 
-    res.json({
+    res.success({
       ticker: ticker.toUpperCase(),
       history: result.rows,
     });
   } catch (error) {
     console.error("Error fetching earnings history:", error);
-    res.status(500).json({ error: "Failed to fetch earnings history" });
+    return res.error("Failed to fetch earnings history" , 500);
   }
 });
 
@@ -236,9 +231,7 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
 
     const result = await query(revisionsQuery, [ticker]);
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
+    res.success({ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
@@ -247,11 +240,9 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
     });
   } catch (error) {
     console.error("EPS revisions fetch error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch EPS revisions",
+    return res.error("Failed to fetch EPS revisions", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -284,9 +275,7 @@ router.get("/:ticker/eps-trend", async (req, res) => {
 
     const result = await query(trendQuery, [ticker]);
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
+    res.success({ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
@@ -295,11 +284,9 @@ router.get("/:ticker/eps-trend", async (req, res) => {
     });
   } catch (error) {
     console.error("EPS trend fetch error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch EPS trend",
+    return res.error("Failed to fetch EPS trend", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -330,9 +317,7 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
 
     const result = await query(growthQuery, [ticker]);
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
+    res.success({ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
@@ -341,11 +326,9 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     });
   } catch (error) {
     console.error("Growth estimates fetch error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch growth estimates",
+    return res.error("Failed to fetch growth estimates", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -373,9 +356,7 @@ router.get("/:ticker/recommendations", async (req, res) => {
 
     const result = await query(recommendationsQuery, [ticker]);
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
+    res.success({ticker: ticker.toUpperCase(),
       data: result.rows,
       metadata: {
         count: result.rows.length,
@@ -384,11 +365,9 @@ router.get("/:ticker/recommendations", async (req, res) => {
     });
   } catch (error) {
     console.error("Analyst recommendations fetch error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch analyst recommendations",
+    return res.error("Failed to fetch analyst recommendations", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -437,9 +416,7 @@ router.get("/:ticker/overview", async (req, res) => {
       ),
     ]);
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
+    res.success({ticker: ticker.toUpperCase(),
       data: {
         earnings_estimates: earningsEstimates.rows,
         revenue_estimates: revenueEstimates.rows,
@@ -455,11 +432,9 @@ router.get("/:ticker/overview", async (req, res) => {
     });
   } catch (error) {
     console.error("Analyst overview fetch error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch analyst overview",
+    return res.error("Failed to fetch analyst overview", {
       message: error.message,
-    });
+    }, 500);
   }
 });
 
@@ -479,7 +454,7 @@ router.get("/recent-actions", async (req, res) => {
     const recentDateResult = await query(recentDateQuery);
 
     if (!recentDateResult.rows || recentDateResult.rows.length === 0) {
-      return res.json({
+      return res.success({
         data: [],
         summary: {
           date: null,
@@ -533,7 +508,7 @@ router.get("/recent-actions", async (req, res) => {
       (action) => action.action_type === "neutral"
     );
 
-    res.json({
+    res.success({
       data: actions,
       summary: {
         date: mostRecentDate,
@@ -548,10 +523,7 @@ router.get("/recent-actions", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching recent analyst actions:", error);
-    res.status(500).json({
-      error: "Failed to fetch recent analyst actions",
-      message: error.message,
-    });
+    return res.error("Failed to fetch recent analyst actions", 500);
   }
 });
 

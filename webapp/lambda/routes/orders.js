@@ -73,9 +73,7 @@ router.get("/", async (req, res) => {
     const countResult = await query(countQuery, params.slice(0, -2));
     const totalCount = parseInt(countResult.rows[0].count);
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         orders: orders,
         pagination: {
           total: totalCount,
@@ -88,87 +86,21 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
-    console.log("Falling back to mock order data...");
 
-    // Return mock order data when database is not available
-    const mockOrders = [
-      {
-        order_id: "ORD-001",
-        symbol: "AAPL",
-        side: "buy",
-        quantity: 100,
-        order_type: "limit",
-        limit_price: 185.5,
-        status: "pending",
-        time_in_force: "gtc",
-        submitted_at: new Date().toISOString(),
-        filled_quantity: 0,
-        average_price: 0,
-        estimated_value: 18550,
-        broker: "alpaca",
-        client_order_id: null,
-        notes: "Long-term position",
-        extended_hours: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        order_id: "ORD-002",
-        symbol: "MSFT",
-        side: "sell",
-        quantity: 50,
-        order_type: "market",
-        status: "filled",
-        time_in_force: "day",
-        submitted_at: new Date(Date.now() - 3600000).toISOString(),
-        filled_at: new Date(Date.now() - 3500000).toISOString(),
-        filled_quantity: 50,
-        average_price: 308.25,
-        estimated_value: 15412.5,
-        commission: 0,
-        broker: "alpaca",
-        client_order_id: null,
-        notes: "Profit taking",
-        extended_hours: false,
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date(Date.now() - 3500000).toISOString(),
-      },
-      {
-        order_id: "ORD-003",
-        symbol: "GOOGL",
-        side: "buy",
-        quantity: 25,
-        order_type: "stop_limit",
-        limit_price: 140.0,
-        stop_price: 142.0,
-        status: "pending",
-        time_in_force: "gtc",
-        submitted_at: new Date(Date.now() - 7200000).toISOString(),
-        filled_quantity: 0,
-        average_price: 0,
-        estimated_value: 3500,
-        broker: "alpaca",
-        client_order_id: null,
-        notes: "Stop loss protection",
-        extended_hours: false,
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        updated_at: new Date(Date.now() - 7200000).toISOString(),
-      },
-    ];
-
-    res.json({
-      success: true,
-      data: {
-        orders: mockOrders,
-        pagination: {
-          total: mockOrders.length,
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          hasMore: false,
-        },
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true,
+    return res.error("Orders service unavailable", 503, {
+      details: error.message,
+      suggestion: "Order history requires database connectivity to retrieve user orders.",
+      service: "orders-list",
+      requirements: [
+        "Database connectivity must be available",
+        "orders table must exist with user order data",
+        "Valid user authentication required"
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify orders table schema and data",
+        "Ensure user_id is valid and has orders"
+      ]
     });
   }
 });
@@ -307,51 +239,28 @@ router.post("/preview", async (req, res) => {
       },
     };
 
-    res.json({
-      success: true,
-      data: preview,
+    res.success({data: preview,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error generating order preview:", error);
-
-    // Return mock preview data
-    const mockPreview = {
-      symbol: symbol,
-      side: side,
-      quantity: parseFloat(quantity),
-      orderType: orderType,
-      currentPrice: 185.5,
-      estimatedPrice:
-        orderType === "market"
-          ? 185.5
-          : parseFloat(limitPrice || stopPrice || 185.5),
-      estimatedValue:
-        parseFloat(quantity) *
-        (orderType === "market"
-          ? 185.5
-          : parseFloat(limitPrice || stopPrice || 185.5)),
-      estimatedCommission: 0,
-      buyingPowerRequired:
-        parseFloat(quantity) *
-        (orderType === "market"
-          ? 185.5
-          : parseFloat(limitPrice || stopPrice || 185.5)),
-      availableBuyingPower: 50000,
-      warningMessages: [],
-      riskAssessment: "Low",
-      marketConditions: {
-        spread: 0.02,
-        isMarketOpen: isMarketOpen(),
-        extendedHours: extendedHours || false,
-      },
-    };
-
-    res.json({
-      success: true,
-      data: mockPreview,
-      timestamp: new Date().toISOString(),
-      isMockData: true,
+    
+    return res.error("Order preview service unavailable", 503, {
+      details: error.message,
+      suggestion: "Order preview requires market data and account information to be available.",
+      service: "order-preview",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data_realtime table must exist with current prices",
+        "account table must exist with user buying power data",
+        "Real-time market data service must be operational"
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify market data tables are populated",
+        "Ensure account data is available for user",
+        "Check real-time data service health"
+      ]
     });
   }
 });
@@ -472,9 +381,7 @@ router.post("/", async (req, res) => {
       "Order submitted successfully"
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         orderId: orderId,
         clientOrderId: clientOrderId,
         brokerOrderId: brokerOrderId,
@@ -487,23 +394,23 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error submitting order:", error);
-
-    // Return mock success response
-    const mockOrderId = `ORD-${Date.now()}`;
-    res.json({
-      success: true,
-      data: {
-        orderId: mockOrderId,
-        clientOrderId: `CLIENT-${Date.now()}`,
-        brokerOrderId: `ALPACA-${mockOrderId}`,
-        status: "pending",
-        submittedAt: new Date().toISOString(),
-        estimatedValue:
-          parseFloat(quantity) * parseFloat(limitPrice || stopPrice || 185.5),
-        message: "Order submitted successfully (mock)",
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true,
+    
+    return res.error("Order submission service unavailable", 503, {
+      details: error.message,
+      suggestion: "Order submission requires database connectivity and broker integration to be available.",
+      service: "orders-submit",
+      requirements: [
+        "Database connectivity must be available",
+        "orders table must exist for order storage", 
+        "Broker API integration must be functional",
+        "Valid user authentication and API keys required"
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify broker API credentials and connectivity",
+        "Ensure user has valid API keys configured",
+        "Check order validation logic and market conditions"
+      ]
     });
   }
 });
@@ -567,9 +474,7 @@ router.post("/:orderId/cancel", async (req, res) => {
       "Order cancelled by user"
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         orderId: orderId,
         status: "cancelled",
         cancelledAt: new Date().toISOString(),
@@ -693,9 +598,7 @@ router.patch("/:orderId", async (req, res) => {
       "Order modified by user"
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         order: updatedOrder,
         message: "Order modified successfully",
       },
@@ -751,9 +654,7 @@ router.get("/updates", async (req, res) => {
     const executionResult = await query(executionsQuery, [userId]);
     const executions = executionResult.rows;
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         updates: updates.reduce((acc, update) => {
           acc[update.order_id] = update;
           return acc;
@@ -768,9 +669,7 @@ router.get("/updates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching order updates:", error);
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         updates: {},
         executions: [],
       },
@@ -797,9 +696,7 @@ router.get("/account", async (req, res) => {
 
     if (result.rows.length === 0) {
       // Return mock account data
-      return res.json({
-        success: true,
-        data: {
+      return res.success({data: {
           accountId: "ACC-12345",
           buyingPower: 50000,
           cash: 25000,
@@ -814,16 +711,12 @@ router.get("/account", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0],
+    res.success({data: result.rows[0],
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching account info:", error);
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         accountId: "ACC-12345",
         buyingPower: 50000,
         cash: 25000,

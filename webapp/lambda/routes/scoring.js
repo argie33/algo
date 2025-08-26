@@ -33,9 +33,7 @@ router.get("/calculate/:symbol", async (req, res) => {
       );
 
       if (existingScore.length > 0) {
-        return res.json({
-          success: true,
-          scores: existingScore[0],
+        return res.success({scores: existingScore[0],
           cached: true,
         });
       }
@@ -54,9 +52,7 @@ router.get("/calculate/:symbol", async (req, res) => {
     // Store scores in database
     await storeComprehensiveScores(symbol, scores);
 
-    res.json({
-      success: true,
-      scores: scores,
+    res.success({scores: scores,
       cached: false,
     });
   } catch (error) {
@@ -142,9 +138,7 @@ router.post("/calculate/batch", async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      results: results,
+    res.success({results: results,
       errors: errors,
       processed: results.length,
       failed: errors.length,
@@ -196,9 +190,7 @@ router.get("/top", async (req, res) => {
       params
     );
 
-    res.json({
-      success: true,
-      stocks: topStocks,
+    res.success({stocks: topStocks,
       count: topStocks.length,
       filters: {
         sector: sector || "all",
@@ -251,9 +243,7 @@ router.get("/stats", async (req, res) => {
       ORDER BY avg_score DESC
     `);
 
-    res.json({
-      success: true,
-      overallStats: stats[0],
+    res.success({overallStats: stats[0],
       sectorStats: sectorStats,
     });
   } catch (error) {

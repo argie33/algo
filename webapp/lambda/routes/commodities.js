@@ -4,9 +4,7 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "commodities",
     timestamp: new Date().toISOString(),
     message: "Commodities service is running",
@@ -15,9 +13,7 @@ router.get("/health", (req, res) => {
 
 // Root commodities endpoint for health checks
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    data: {
+  res.success({data: {
       system: "Commodities API",
       version: "1.0.0",
       status: "operational",
@@ -109,9 +105,7 @@ router.get("/categories", (req, res) => {
       },
     ];
 
-    res.json({
-      success: true,
-      data: categories,
+    res.success({data: categories,
       metadata: {
         totalCategories: categories.length,
         lastUpdated: new Date().toISOString(),
@@ -220,9 +214,7 @@ router.get("/prices", (req, res) => {
       commodities = commodities.filter((c) => c.symbol === symbol);
     }
 
-    res.json({
-      success: true,
-      data: commodities,
+    res.success({data: commodities,
       filters: {
         category: category || null,
         symbol: symbol || null,
@@ -278,9 +270,7 @@ router.get("/market-summary", (req, res) => {
       ],
     };
 
-    res.json({
-      success: true,
-      data: summary,
+    res.success({data: summary,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -320,9 +310,7 @@ router.get("/correlations", (req, res) => {
       },
     };
 
-    res.json({
-      success: true,
-      data: correlations,
+    res.success({data: correlations,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

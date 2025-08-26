@@ -45,9 +45,7 @@ router.get("/api-key-service", async (req, res) => {
   try {
     const health = getHealthStatus();
 
-    res.json({
-      success: true,
-      health: health,
+    res.success({health: health,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -134,9 +132,7 @@ router.get("/system-info", async (req, res) => {
       },
     };
 
-    res.json({
-      success: true,
-      systemInfo: systemInfo,
+    res.success({systemInfo: systemInfo,
     });
   } catch (error) {
     console.error("System info error:", error);
@@ -267,9 +263,7 @@ router.get("/lambda-info", async (req, res) => {
         : "not-lambda",
     };
 
-    res.json({
-      success: true,
-      lambdaInfo: lambdaInfo,
+    res.success({lambdaInfo: lambdaInfo,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

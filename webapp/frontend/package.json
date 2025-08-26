@@ -87,7 +87,12 @@
     "setup-dev": "node scripts/setup-dev.js",
     "setup-prod": "node scripts/setup-prod.js",
     "start": "npm run setup-dev && npm run dev",
-    "build-prod": "npm run setup-prod && npm run build"
+    "build-prod": "npm run setup-prod && npm run build",
+    "dep:analyze": "node comprehensive-dep-analyzer.cjs",
+    "dep:fix": "node dependency-fix-strategy.cjs",
+    "dep:update": "npx npm-check-updates",
+    "dep:audit": "npm audit --audit-level=high",
+    "dep:validate": "node enhanced-dep-test.cjs && npm run dep:analyze"
   },
   "overrides": {
     "use-sync-external-store": false,

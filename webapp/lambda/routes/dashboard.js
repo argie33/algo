@@ -218,14 +218,14 @@ router.get("/summary", async (req, res) => {
       !Array.isArray(gainersResult.rows) ||
       gainersResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for top gainers" });
+      return res.notFound("No data found for top gainers" );
     }
     if (
       !losersResult ||
       !Array.isArray(losersResult.rows) ||
       losersResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for top losers" });
+      return res.notFound("No data found for top losers" );
     }
     if (
       !sectorResult ||
@@ -272,9 +272,7 @@ router.get("/summary", async (req, res) => {
         .status(404)
         .json({ error: "No data found for market breadth" });
     }
-    res.json({
-      success: true,
-      data: summary,
+    res.success({data: summary,
     });
   } catch (error) {
     console.error("❌ Dashboard summary error:", error);
@@ -296,7 +294,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.status(401).json({ error: "User authentication required" });
+      return res.unauthorized("User authentication required" );
     }
 
     const holdingsQuery = `
@@ -344,7 +342,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
       !Array.isArray(holdingsResult.rows) ||
       holdingsResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for holdings" });
+      return res.notFound("No data found for holdings" );
     }
     if (
       !summaryResult ||
@@ -355,9 +353,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
         .status(404)
         .json({ error: "No data found for portfolio summary" });
     }
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         holdings: holdingsResult.rows,
         summary: summaryResult.rows[0] || null,
         count: holdingsResult.rowCount,
@@ -383,7 +379,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.status(401).json({ error: "User authentication required" });
+      return res.unauthorized("User authentication required" );
     }
 
     const performanceQuery = `
@@ -426,7 +422,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
       !Array.isArray(performanceResult.rows) ||
       performanceResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for performance" });
+      return res.notFound("No data found for performance" );
     }
     if (
       !metricsResult ||
@@ -437,9 +433,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
         .status(404)
         .json({ error: "No data found for performance metrics" });
     }
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         performance: performanceResult.rows,
         metrics: metricsResult.rows[0] || null,
         count: performanceResult.rowCount,
@@ -465,7 +459,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.status(401).json({ error: "User authentication required" });
+      return res.unauthorized("User authentication required" );
     }
 
     const alertsQuery = `
@@ -511,18 +505,16 @@ router.get("/alerts", authenticateToken, async (req, res) => {
       !Array.isArray(alertsResult.rows) ||
       alertsResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for alerts" });
+      return res.notFound("No data found for alerts" );
     }
     if (
       !summaryResult ||
       !Array.isArray(summaryResult.rows) ||
       summaryResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for alert summary" });
+      return res.notFound("No data found for alert summary" );
     }
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         alerts: alertsResult.rows,
         summary: summaryResult.rows,
         count: alertsResult.rowCount,
@@ -633,9 +625,7 @@ router.get("/market-data", async (req, res) => {
         .status(404)
         .json({ error: "No data found for market internals" });
     }
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         economic_indicators: econResult.rows,
         sector_rotation: sectorResult.rows,
         market_internals: internalsResult.rows,
@@ -720,18 +710,16 @@ router.get("/debug", async (req, res) => {
       !Array.isArray(debugData.table_counts) ||
       Object.keys(debugData.table_counts).length === 0
     ) {
-      return res.status(404).json({ error: "No table counts found" });
+      return res.notFound("No table counts found" );
     }
     if (
       !debugData ||
       !Array.isArray(debugData.sample_data) ||
       Object.keys(debugData.sample_data).length === 0
     ) {
-      return res.status(404).json({ error: "No sample data found" });
+      return res.notFound("No sample data found" );
     }
-    res.json({
-      success: true,
-      data: debugData,
+    res.success({data: debugData,
     });
   } catch (error) {
     console.error("❌ Debug error:", error);

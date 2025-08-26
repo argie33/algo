@@ -1,6 +1,6 @@
 # requirements-loadpricedaily.txt
 
-psycopg2-binary
-boto3
-pandas
-yfinance
+psycopg2-binary==2.9.9
+boto3==1.34.69
+pandas==2.1.4
+yfinance==0.2.64

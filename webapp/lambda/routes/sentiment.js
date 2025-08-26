@@ -7,9 +7,7 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "sentiment",
     timestamp: new Date().toISOString(),
     message: "Sentiment analysis service is running",
@@ -18,9 +16,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Sentiment API - Ready",
+  res.success({message: "Sentiment API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -113,10 +109,7 @@ router.get("/social/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching social sentiment data:", error);
-    res.status(500).json({
-      error: "Failed to fetch social sentiment data",
-      message: error.message,
-    });
+    return res.error("Failed to fetch social sentiment data", 500);
   }
 });
 
@@ -170,10 +163,7 @@ router.get("/trending", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching trending stocks:", error);
-    res.status(500).json({
-      error: "Failed to fetch trending stocks",
-      message: error.message,
-    });
+    return res.error("Failed to fetch trending stocks", 500);
   }
 });
 
@@ -183,10 +173,7 @@ router.post("/batch", async (req, res) => {
     const { symbols, timeframe = "7d" } = req.body;
 
     if (!symbols || !Array.isArray(symbols)) {
-      return res.status(400).json({
-        error: "Invalid request",
-        message: "symbols array is required",
-      });
+      return res.error("Invalid request", 400);
     }
 
     // Return empty batch sentiment data with comprehensive diagnostics
@@ -239,10 +226,7 @@ router.post("/batch", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching batch sentiment data:", error);
-    res.status(500).json({
-      error: "Failed to fetch batch sentiment data",
-      message: error.message,
-    });
+    return res.error("Failed to fetch batch sentiment data", 500);
   }
 });
 
@@ -277,10 +261,7 @@ router.get("/market-summary", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market sentiment summary:", error);
-    res.status(500).json({
-      error: "Failed to fetch market sentiment summary",
-      message: error.message,
-    });
+    return res.error("Failed to fetch market sentiment summary", 500);
   }
 });
 

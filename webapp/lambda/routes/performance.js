@@ -11,9 +11,7 @@ const { authenticateToken } = require("../middleware/auth");
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "operational",
+  res.success({status: "operational",
     service: "performance-analytics",
     timestamp: new Date().toISOString(),
     message: "Performance Analytics service is running",
@@ -22,9 +20,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Performance Analytics API - Ready",
+  res.success({message: "Performance Analytics API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -42,9 +38,7 @@ router.get("/metrics", authenticateToken, async (req, res) => {
       metricsSize: JSON.stringify(metrics).length,
     });
 
-    res.json({
-      success: true,
-      data: metrics,
+    res.success({data: metrics,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -70,9 +64,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
       activeRequests: summary.activeRequests,
     });
 
-    res.json({
-      success: true,
-      data: summary,
+    res.success({data: summary,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -162,9 +154,7 @@ router.get("/api-stats", authenticateToken, async (req, res) => {
       endpointCount: apiStats.length,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         endpoints: apiStats,
         responseTimeHistogram: Object.fromEntries(
           metrics.api.responseTimeHistogram
@@ -214,9 +204,7 @@ router.get("/database-stats", authenticateToken, async (req, res) => {
       operationCount: dbStats.length,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         operations: dbStats,
         slowestQueries: dbStats.slice(0, 10), // Top 10 slowest
       },
@@ -261,9 +249,7 @@ router.get("/external-api-stats", authenticateToken, async (req, res) => {
       serviceCount: externalStats.length,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         services: externalStats,
         mostProblematic: externalStats.slice(0, 5), // Top 5 most problematic
       },
@@ -291,9 +277,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
       alertCount: summary.alerts.length,
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         alerts: summary.alerts,
         systemStatus: summary.status,
         alertCount: summary.alerts.length,
@@ -331,9 +315,7 @@ router.post("/clear-metrics", authenticateToken, async (req, res) => {
       clearedBy: req.user?.sub,
     });
 
-    res.json({
-      success: true,
-      message: "Performance metrics cleared successfully",
+    res.success({message: "Performance metrics cleared successfully",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

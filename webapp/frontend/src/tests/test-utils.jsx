@@ -54,145 +54,164 @@ vi.mock("@aws-amplify/auth", () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({ email: "test@example.com" })),
 }));
 
-// Mock API service completely
-vi.mock("../services/api.js", () => ({
-  getApiConfig: vi.fn(() => ({
-    baseURL: "http://localhost:3001",
-    isServerless: false,
-    apiUrl: "http://localhost:3001", 
-    isConfigured: true,
-    environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-    baseUrl: "/",
-  })),
-  // Default API client mock
-  default: {
-    get: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    post: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    put: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    delete: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    patch: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-  },
-  // Mock API functions that components might use
-  testApiConnection: vi.fn(() => Promise.resolve({ 
-    success: true, 
-    data: { status: "healthy", timestamp: new Date().toISOString() } 
-  })),
-  fetchHealthCheck: vi.fn(() => Promise.resolve({ 
-    success: true, 
-    data: { status: "operational", services: {} } 
-  })),
-  fetchPortfolioData: vi.fn(() => Promise.resolve({
-    success: true,
-    data: {
-      totalValue: 10000,
-      dayChange: 150.50,
-      dayChangePercent: 1.53,
-      holdings: [],
-      performance: []
-    }
-  })),
-  fetchMarketData: vi.fn(() => Promise.resolve({
-    success: true,
-    data: {
-      indices: [],
-      sectors: [],
-      movers: []
-    }
-  })),
+// Mock API service with reliable responses that match real API structure
+vi.mock("../services/api", async (importOriginal) => {
+  const actual = await importOriginal();
   
-  // API Key Management Functions
-  getApiKeys: vi.fn(() => Promise.resolve({
-    success: true,
+  // Mock API response data that matches your actual backend structure
+  const mockPortfolioData = {
+    data: [
+      {
+        id: "1",
+        symbol: "AAPL",
+        quantity: 100,
+        averageCost: 150.25,
+        currentPrice: 175.50,
+        marketValue: 17550.00,
+        totalReturn: 2525.00,
+        totalReturnPercent: 16.79,
+        dayChange: 2.50,
+        dayChangePercent: 1.44
+      },
+      {
+        id: "2", 
+        symbol: "GOOGL",
+        quantity: 50,
+        averageCost: 2200.00,
+        currentPrice: 2350.75,
+        marketValue: 117537.50,
+        totalReturn: 7537.50,
+        totalReturnPercent: 6.84,
+        dayChange: -15.25,
+        dayChangePercent: -0.64
+      }
+    ]
+  };
+
+  const mockMarketOverview = {
     data: {
-      apiKeys: [
-        {
-          id: "test-alpaca-key",
-          provider: "alpaca",
-          status: "active",
-          lastUsed: new Date().toISOString(),
-          created: new Date().toISOString()
-        }
+      indices: {
+        SPX: { value: 4500.25, change: 15.75, changePercent: 0.35 },
+        DJI: { value: 35000.50, change: -125.25, changePercent: -0.36 },
+        NDX: { value: 15250.75, change: 45.50, changePercent: 0.30 }
+      },
+      sectors: [
+        { name: "Technology", performance: 1.25, volume: 125000000 },
+        { name: "Healthcare", performance: -0.75, volume: 95000000 },
+        { name: "Financials", performance: 0.45, volume: 105000000 }
+      ],
+      sentiment: {
+        overall: 0.65,
+        fearGreed: 58,
+        trend: "bullish"
+      }
+    }
+  };
+
+  const mockPerformanceData = {
+    data: {
+      totalValue: 135087.50,
+      totalReturn: 10062.50,
+      totalReturnPercent: 8.04,
+      dayChange: -12.75,
+      dayChangePercent: -0.09,
+      performance: [
+        { date: "2024-01-01", value: 125025.00 },
+        { date: "2024-02-01", value: 128500.25 },
+        { date: "2024-03-01", value: 135087.50 }
       ]
     }
-  })),
-  addApiKey: vi.fn((apiKeyData) => Promise.resolve({
-    success: true,
-    data: { id: "new-key-id", ...apiKeyData }
-  })),
-  updateApiKey: vi.fn((keyId, apiKeyData) => Promise.resolve({
-    success: true,
-    data: { id: keyId, ...apiKeyData }
-  })),
-  deleteApiKey: vi.fn((keyId) => Promise.resolve({
-    success: true,
-    data: { deleted: keyId }
-  })),
-  
-  // Portfolio Functions
-  getPortfolioData: vi.fn(() => Promise.resolve({
-    success: true,
-    data: {
-      totalValue: 10000,
-      dayChange: 150.50,
-      dayChangePercent: 1.53,
-      holdings: [],
-      performance: []
-    }
-  })),
-  importPortfolioFromBroker: vi.fn((broker) => Promise.resolve({
-    success: true,
-    data: { imported: true, broker, holdings: [] }
-  })),
-  
-  // Portfolio Performance Functions
-  getPortfolioPerformance: vi.fn((_timeframe = "1Y") => Promise.resolve({
-    success: true,
-    data: {
-      performance: [
-        { date: "2023-01", value: 100000, returns: 0.05 },
-        { date: "2023-02", value: 105000, returns: 0.07 },
-        { date: "2023-03", value: 110000, returns: 0.1 }
-      ],
-      metrics: {
-        totalReturn: 0.1,
-        annualizedReturn: 0.12,
-        volatility: 0.15,
-        sharpeRatio: 1.2,
-        maxDrawdown: -0.05,
-        beta: 1.1,
-        alpha: 0.02
+  };
+
+  const mockApiKeys = {
+    data: [
+      {
+        id: "1",
+        provider: "alpaca",
+        keyId: "PKTEST***",
+        status: "active",
+        sandbox: true,
+        createdAt: "2024-01-15T10:00:00Z"
       }
-    }
-  })),
-  getPortfolioAnalytics: vi.fn((_timeframe = "1y") => Promise.resolve({
-    success: true,
-    data: {
-      attribution: {
-        sectors: [
-          { name: "Technology", allocation: 0.4, performance: 0.12 },
-          { name: "Healthcare", allocation: 0.3, performance: 0.08 }
-        ]
-      },
-      risk: {
-        var: 0.02,
-        cvar: 0.035,
-        correlation: 0.75
+    ]
+  };
+
+  return {
+    ...actual,
+    // Configuration
+    getApiConfig: vi.fn(() => ({
+      baseURL: "http://localhost:3001",
+      isServerless: false,
+      apiUrl: "http://localhost:3001", 
+      isConfigured: true,
+      environment: "test",
+      isDevelopment: true,
+      isProduction: false,
+      baseUrl: "/",
+    })),
+    
+    // Portfolio API functions
+    getPortfolioData: vi.fn(() => Promise.resolve(mockPortfolioData)),
+    getPortfolioPerformance: vi.fn(() => Promise.resolve(mockPerformanceData)),
+    getBenchmarkData: vi.fn(() => Promise.resolve(mockPerformanceData)),
+    getPortfolioOptimizationData: vi.fn(() => Promise.resolve({ data: {} })),
+    runPortfolioOptimization: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    getRebalancingRecommendations: vi.fn(() => Promise.resolve({ data: [] })),
+    getRiskAnalysis: vi.fn(() => Promise.resolve({ data: { riskScore: 0.65 } })),
+    
+    // Holdings management
+    addHolding: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    updateHolding: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    deleteHolding: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    importPortfolioFromBroker: vi.fn(() => Promise.resolve({ data: { imported: 5 } })),
+    
+    // API Keys management
+    getApiKeys: vi.fn(() => Promise.resolve(mockApiKeys)),
+    addApiKey: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    updateApiKey: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    deleteApiKey: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    
+    // Market data
+    getMarketOverview: vi.fn(() => Promise.resolve(mockMarketOverview)),
+    getMarketSentimentHistory: vi.fn(() => Promise.resolve({ data: [] })),
+    
+    // Stock data functions used by Dashboard
+    getStockPrices: vi.fn(() => Promise.resolve({
+      data: [
+        { date: "2024-01-01", open: 175.00, high: 177.50, low: 174.25, close: 176.50, volume: 1250000 },
+        { date: "2024-01-02", open: 176.50, high: 178.75, low: 175.80, close: 177.25, volume: 1100000 },
+        { date: "2024-01-03", open: 177.25, high: 179.00, low: 176.50, close: 178.80, volume: 1350000 }
+      ]
+    })),
+    getStockMetrics: vi.fn(() => Promise.resolve({
+      data: {
+        symbol: "AAPL",
+        price: 178.80,
+        change: 2.30,
+        changePercent: 1.30,
+        volume: 1350000,
+        marketCap: 2800000000000,
+        pe: 28.5,
+        beta: 1.2,
+        dividend: 0.96,
+        yield: 0.54
       }
+    })),
+    
+    // Utility functions
+    getCurrentBaseURL: vi.fn(() => "http://localhost:3001"),
+    updateApiBaseUrl: vi.fn(),
+    
+    // Export mock axios instance
+    api: {
+      get: vi.fn(() => Promise.resolve({ data: { success: true } })),
+      post: vi.fn(() => Promise.resolve({ data: { success: true } })),
+      put: vi.fn(() => Promise.resolve({ data: { success: true } })),
+      delete: vi.fn(() => Promise.resolve({ data: { success: true } })),
+      defaults: { baseURL: "http://localhost:3001" }
     }
-  })),
-  
-  // Health Check Functions
-  getHealth: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { status: "healthy", timestamp: new Date().toISOString() }
-  })),
-  healthCheck: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { status: "operational", services: {} }
-  })),
-}));
+  };
+});
 
 // Use real AuthProvider with mocked dependencies
 export const TestAuthProvider = ({ children, _initialUser = null }) => {
@@ -263,5 +282,5 @@ export const renderWithProviders = (ui, options = {}) => {
 };
 
 // Re-export commonly used testing utilities
-export { render, screen, waitFor, fireEvent } from "@testing-library/react";
+export { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 export { userEvent } from "@testing-library/user-event";

@@ -8,9 +8,7 @@ const router = express.Router();
 
 // Root screener endpoint for health checks
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    data: {
+  res.success({data: {
       system: "Stock Screener API",
       version: "1.0.0",
       status: "operational",
@@ -380,9 +378,7 @@ router.get("/screen", async (req, res) => {
       })
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         stocks: stocksWithScores,
         pagination: {
           page,
@@ -456,9 +452,7 @@ router.get("/filters", async (req, res) => {
       )
     `);
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         sectors: sectorsResult.rows.map((row) => row.sector),
         exchanges: exchangesResult.rows.map((row) => row.exchange),
         ranges: {
@@ -553,9 +547,7 @@ router.get("/presets", (req, res) => {
     },
   ];
 
-  res.json({
-    success: true,
-    data: presets,
+  res.success({data: presets,
   });
 });
 
@@ -635,17 +627,13 @@ router.get("/templates", (req, res) => {
     },
   ];
 
-  res.json({
-    success: true,
-    data: templates,
+  res.success({data: templates,
   });
 });
 
 // Growth stocks endpoint (specific growth filter)
 router.get("/growth", (req, res) => {
-  res.json({
-    success: true,
-    data: {
+  res.success({data: {
       id: "growth_stocks",
       name: "Growth Stocks",
       description: "High revenue and earnings growth stocks",
@@ -671,93 +659,33 @@ router.get("/results", async (req, res) => {
     console.log("📊 Screener results endpoint called");
     const { limit = 20, offset = 0, _filters = "{}" } = req.query;
 
-    // Mock screener results for ServiceHealth testing
-    const mockResults = [
-      {
-        symbol: "AAPL",
-        company_name: "Apple Inc.",
-        sector: "Technology",
-        price: 175.5,
-        market_cap: 2750000000000,
-        pe_ratio: 28.5,
-        peg_ratio: 1.8,
-        pb_ratio: 39.2,
-        roe: 0.96,
-        roa: 0.22,
-        revenue_growth: 0.08,
-        earnings_growth: 0.12,
-        dividend_yield: 0.005,
-        factor_score: 85,
-        factor_grade: "A",
-        recommendation: "Buy",
-      },
-      {
-        symbol: "MSFT",
-        company_name: "Microsoft Corporation",
-        sector: "Technology",
-        price: 310.25,
-        market_cap: 2300000000000,
-        pe_ratio: 32.1,
-        peg_ratio: 1.9,
-        pb_ratio: 12.8,
-        roe: 0.47,
-        roa: 0.18,
-        revenue_growth: 0.11,
-        earnings_growth: 0.15,
-        dividend_yield: 0.007,
-        factor_score: 82,
-        factor_grade: "A",
-        recommendation: "Buy",
-      },
-      {
-        symbol: "GOOGL",
-        company_name: "Alphabet Inc.",
-        sector: "Technology",
-        price: 125.75,
-        market_cap: 1570000000000,
-        pe_ratio: 24.8,
-        peg_ratio: 1.2,
-        pb_ratio: 5.9,
-        roe: 0.26,
-        roa: 0.14,
-        revenue_growth: 0.07,
-        earnings_growth: 0.09,
-        dividend_yield: 0.0,
-        factor_score: 78,
-        factor_grade: "B+",
-        recommendation: "Buy",
-      },
-    ];
-
-    // Apply pagination
-    const paginatedResults = mockResults.slice(
-      parseInt(offset),
-      parseInt(offset) + parseInt(limit)
-    );
-
-    res.json({
-      success: true,
-      data: {
-        stocks: paginatedResults,
-        pagination: {
-          total: mockResults.length,
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          hasMore: parseInt(offset) + parseInt(limit) < mockResults.length,
-        },
-        filters: {
-          applied: 0,
-          total: 0,
-        },
-        source: "mock_data",
-      },
+    // Stock screener requires database and algorithms implementation
+    return res.error("Stock screener functionality not yet implemented", 503, {
+      details: "Stock screener requires database connectivity and screening algorithms",
+      suggestion: "Stock screener functionality requires implementation of filtering logic and database queries.",
+      service: "stock-screener",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with stock fundamental data",
+        "Screening algorithms must be implemented for filtering stocks"
+      ]
     });
   } catch (error) {
     console.error("❌ Error in screener results:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch screener results",
+    return res.error("Screener service unavailable", 503, {
       details: error.message,
+      suggestion: "Stock screening functionality requires system resources to be available.",
+      service: "screener-general",
+      requirements: [
+        "System must be operational",
+        "Database service must be running",
+        "Screening algorithms must be implemented"
+      ],
+      troubleshooting: [
+        "Check overall system health",
+        "Verify database connectivity",  
+        "Review application logs for errors"
+      ]
     });
   }
 });
@@ -818,9 +746,7 @@ router.post("/presets/:presetId/apply", (req, res) => {
     });
   }
 
-  res.json({
-    success: true,
-    data: {
+  res.success({data: {
       presetId,
       filters: preset,
     },
@@ -849,9 +775,7 @@ router.post("/screens/save", async (req, res) => {
       [userId, name, description, JSON.stringify(filters)]
     );
 
-    res.json({
-      success: true,
-      data: result.rows[0],
+    res.success({data: result.rows[0],
     });
   } catch (error) {
     console.error("Error saving screen:", error);
@@ -901,9 +825,7 @@ router.get("/screens", async (req, res) => {
         `✅ Found ${screens.length} saved screens for user ${userId}`
       );
 
-      res.json({
-        success: true,
-        data: screens,
+      res.success({data: screens,
       });
     } catch (dbError) {
       console.log(
@@ -912,9 +834,7 @@ router.get("/screens", async (req, res) => {
       );
 
       // Return empty array if database fails
-      res.json({
-        success: true,
-        data: [],
+      res.success({data: [],
         note: "Database unavailable - returning empty screens list",
       });
     }
@@ -1012,9 +932,7 @@ router.post("/export", async (req, res) => {
       res.send(csvContent);
     } else {
       // JSON format
-      res.json({
-        success: true,
-        data: result.rows,
+      res.success({data: result.rows,
         exportedAt: new Date().toISOString(),
       });
     }
@@ -1043,49 +961,15 @@ router.get("/watchlists", async (req, res) => {
 
     if (!userId) {
       console.error("❌ No user ID found in watchlists request");
-      console.error("❌ Auth header:", req.headers.authorization);
-      console.error("❌ User object:", req.user);
-
-      // Instead of returning 401, let's provide a helpful fallback
-      console.log(
-        "🔄 Providing fallback watchlists for unauthenticated request"
-      );
-
-      const fallbackWatchlists = [
-        {
-          id: "guest-1",
-          name: "Growth Stocks Demo",
-          description: "Sample growth stocks watchlist",
-          filters: {
-            marketCapMin: 1000000000,
-            revenueGrowthMin: 15,
-            earningsGrowthMin: 20,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          type: "demo",
-        },
-        {
-          id: "guest-2",
-          name: "Value Picks Demo",
-          description: "Sample value stocks watchlist",
-          filters: {
-            peRatioMax: 15,
-            pbRatioMax: 1.5,
-            roeMin: 10,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          type: "demo",
-        },
-      ];
-
-      return res.json({
-        success: true,
-        data: fallbackWatchlists,
-        note: "Demo watchlists - please log in for personal watchlists",
-        authenticated: false,
-        timestamp: new Date().toISOString(),
+      return res.error("Authentication required for watchlist access", 401, {
+        details: "User authentication is required to access watchlists",
+        suggestion: "Please log in to view and manage your personal watchlists.",
+        service: "watchlists",
+        requirements: [
+          "Valid JWT authentication token required",
+          "User must be logged in to access watchlist functionality"
+        ],
+        authenticated: false
       });
     }
 
@@ -1120,67 +1004,49 @@ router.get("/watchlists", async (req, res) => {
         type: "screen",
       }));
 
-      res.json({
-        success: true,
-        data: watchlists,
+      res.success({data: watchlists,
         authenticated: true,
         userId: userId,
         timestamp: new Date().toISOString(),
       });
     } catch (dbError) {
-      console.log(
-        "Database query failed for watchlists, using fallback:",
-        dbError.message
-      );
-
-      // Return mock watchlists if database fails
-      const fallbackWatchlists = [
-        {
-          id: "sample-1",
-          name: "My Growth Stocks",
-          description: "High growth potential stocks",
-          filters: {
-            marketCapMin: 1000000000,
-            revenueGrowthMin: 15,
-            earningsGrowthMin: 20,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          type: "screen",
-        },
-        {
-          id: "sample-2",
-          name: "Value Picks",
-          description: "Undervalued stocks with strong fundamentals",
-          filters: {
-            peRatioMax: 15,
-            pbRatioMax: 1.5,
-            roeMin: 10,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          type: "screen",
-        },
-      ];
-
-      res.json({
-        success: true,
-        data: fallbackWatchlists,
-        note: "Using sample watchlists - database connectivity issue",
+      console.error("Database query failed for watchlists:", dbError.message);
+      
+      return res.error("Failed to retrieve watchlists", 503, {
+        details: dbError.message,
+        suggestion: "Database connectivity is required to access saved watchlists.",
+        service: "watchlists-database",
+        requirements: [
+          "Database connectivity must be available",
+          "saved_screens table must exist",
+          "Valid user_id mapping required"
+        ],
         authenticated: true,
         userId: userId,
-        timestamp: new Date().toISOString(),
+        troubleshooting: [
+          "Check database connection status",
+          "Verify saved_screens table schema",
+          "Ensure user_id exists in database"
+        ]
       });
     }
   } catch (error) {
     console.error("Error in watchlists endpoint:", error);
 
-    // Final fallback - return empty array
-    res.json({
-      success: true,
-      data: [],
-      note: "No watchlists available",
-      timestamp: new Date().toISOString(),
+    return res.error("Watchlists service unavailable", 503, {
+      details: error.message,
+      suggestion: "Watchlists functionality requires system resources to be available.",
+      service: "watchlists-general",
+      requirements: [
+        "System must be operational",
+        "Database service must be running",
+        "User authentication must be functional"
+      ],
+      troubleshooting: [
+        "Check overall system health",
+        "Verify authentication service status",
+        "Review application logs for errors"
+      ]
     });
   }
 });
@@ -1221,41 +1087,45 @@ router.post("/watchlists", async (req, res) => {
         type: "watchlist",
       };
 
-      res.json({
-        success: true,
-        data: watchlist,
+      res.success({data: watchlist,
         timestamp: new Date().toISOString(),
       });
     } catch (dbError) {
-      console.log(
-        "Database save failed for watchlist, returning mock response:",
-        dbError.message
-      );
-
-      // Return mock success response
-      const mockWatchlist = {
-        id: `mock-${Date.now()}`,
-        name,
-        description,
-        filters: { symbols },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        type: "watchlist",
-      };
-
-      res.json({
-        success: true,
-        data: mockWatchlist,
-        note: "Watchlist created in memory only - database connectivity issue",
-        timestamp: new Date().toISOString(),
+      console.error("Database save failed for watchlist:", dbError.message);
+      
+      return res.error("Failed to create watchlist", 503, {
+        details: dbError.message,
+        suggestion: "Database connectivity is required to create and save watchlists.",
+        service: "watchlists-create",
+        requirements: [
+          "Database connectivity must be available",
+          "saved_screens table must exist",
+          "Valid user authentication required"
+        ],
+        troubleshooting: [
+          "Check database connection status",
+          "Verify saved_screens table schema",
+          "Ensure user_id is valid"
+        ]
       });
     }
   } catch (error) {
     console.error("Error creating watchlist:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to create watchlist",
-      message: error.message,
+    
+    return res.error("Watchlist creation service unavailable", 503, {
+      details: error.message,
+      suggestion: "Watchlist creation requires system resources to be available.",
+      service: "watchlists-service",
+      requirements: [
+        "System must be operational",
+        "Database service must be running",
+        "User authentication must be functional"
+      ],
+      troubleshooting: [
+        "Check overall system health",
+        "Verify authentication service status", 
+        "Review application logs for errors"
+      ]
     });
   }
 });

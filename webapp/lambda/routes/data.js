@@ -58,7 +58,7 @@ router.get("/eps-revisions", async (req, res) => {
       !Array.isArray(revisionsResult.rows) ||
       revisionsResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -74,7 +74,7 @@ router.get("/eps-revisions", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching EPS revisions:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -133,7 +133,7 @@ router.get("/eps-trend", async (req, res) => {
       !Array.isArray(trendResult.rows) ||
       trendResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -149,7 +149,7 @@ router.get("/eps-trend", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching EPS trend:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -206,7 +206,7 @@ router.get("/growth-estimates", async (req, res) => {
       !Array.isArray(growthResult.rows) ||
       growthResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -222,7 +222,7 @@ router.get("/growth-estimates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching growth estimates:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -278,7 +278,7 @@ router.get("/economic", async (req, res) => {
       !Array.isArray(economicResult.rows) ||
       economicResult.rows.length === 0
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -294,7 +294,7 @@ router.get("/economic", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic data:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -314,7 +314,7 @@ router.get("/economic/data", async (req, res) => {
     const result = await query(economicQuery, [limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -325,11 +325,7 @@ router.get("/economic/data", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic data:", error);
-    res.status(500).json({
-      error: "Database error",
-      details: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Database error", 500);
   }
 });
 
@@ -351,7 +347,7 @@ router.get("/naaim", async (req, res) => {
     const result = await query(naaimQuery, [limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -360,7 +356,7 @@ router.get("/naaim", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -382,7 +378,7 @@ router.get("/fear-greed", async (req, res) => {
     const result = await query(fearGreedQuery, [limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -391,7 +387,7 @@ router.get("/fear-greed", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching Fear & Greed data:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -464,7 +460,7 @@ router.get("/validation-summary", async (req, res) => {
     const result = await query(summaryQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -473,7 +469,7 @@ router.get("/validation-summary", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching validation summary:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -535,7 +531,7 @@ router.get("/financials/:symbol", async (req, res) => {
     }
 
     if (Object.values(results).every((tableData) => tableData.length === 0)) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -545,7 +541,7 @@ router.get("/financials/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching comprehensive financial data:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 
@@ -585,7 +581,7 @@ router.get("/financial-metrics", async (req, res) => {
     if (
       Object.values(metrics).every((tableMetrics) => tableMetrics.length === 0)
     ) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     res.json({
@@ -595,7 +591,7 @@ router.get("/financial-metrics", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching financial metrics:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+    return res.error("Database error", 500);
   }
 });
 

@@ -466,10 +466,7 @@ app.get("/", (req, res) => {
 
 // 404 handler
 app.use("*", (req, res) => {
-  res.status(404).json({
-    error: "Endpoint not found",
-    message: `The requested endpoint ${req.originalUrl} does not exist`,
-  });
+  res.notFound(`Endpoint ${req.originalUrl}`);
 });
 
 // Error handling middleware (should be last)

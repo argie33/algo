@@ -29,10 +29,7 @@ const authenticateToken = async (req, res, next) => {
     const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-        message: "Access token is missing from Authorization header",
+      return res.unauthorized("Access token is missing from Authorization header", {
         code: "MISSING_TOKEN",
       });
     }
@@ -44,18 +41,12 @@ const authenticateToken = async (req, res, next) => {
     if (!result.valid) {
       // Handle specific token error types
       if (result.error && result.error.includes("expired")) {
-        return res.status(401).json({
-          success: false,
-          error: "Token expired",
-          message: "Your session has expired. Please log in again.",
+        return res.unauthorized("Your session has expired. Please log in again.", {
           code: "TOKEN_EXPIRED",
         });
       }
       
-      return res.status(401).json({
-        success: false,
-        error: "Invalid token",
-        message: result.error,
+      return res.unauthorized(result.error, {
         code: "INVALID_TOKEN",
       });
     }
@@ -79,10 +70,8 @@ const authenticateToken = async (req, res, next) => {
 
     // Handle specific error types
     if (error.message.includes("circuit breaker")) {
-      return res.status(503).json({
-        error: "Service temporarily unavailable",
-        message:
-          "Authentication service is experiencing issues. Please try again shortly.",
+      return res.error("Authentication service is experiencing issues. Please try again shortly.", 500, {
+        type: "service_unavailable",
         code: "AUTH_SERVICE_UNAVAILABLE",
       });
     }
@@ -91,9 +80,7 @@ const authenticateToken = async (req, res, next) => {
       error.name === "TokenExpiredError" ||
       error.message.includes("expired")
     ) {
-      return res.status(401).json({
-        error: "Token expired",
-        message: "Your session has expired. Please log in again.",
+      return res.unauthorized("Your session has expired. Please log in again.", {
         code: "TOKEN_EXPIRED",
       });
     }
@@ -102,17 +89,13 @@ const authenticateToken = async (req, res, next) => {
       error.name === "JsonWebTokenError" ||
       error.message.includes("invalid")
     ) {
-      return res.status(401).json({
-        error: "Invalid token",
-        message: "The provided token is invalid.",
+      return res.unauthorized("The provided token is invalid.", {
         code: "INVALID_TOKEN",
       });
     }
 
     // Generic authentication failure
-    return res.status(401).json({
-      error: "Authentication failed",
-      message: "Could not verify authentication token",
+    return res.unauthorized("Could not verify authentication token", {
       code: "AUTH_FAILED",
     });
   }
@@ -122,9 +105,7 @@ const authenticateToken = async (req, res, next) => {
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({
-        error: "Authentication required",
-        message: "User must be authenticated to access this resource",
+      return res.unauthorized("User must be authenticated to access this resource", {
         code: "AUTH_REQUIRED",
       });
     }
@@ -137,9 +118,7 @@ const requireRole = (roles) => {
     const hasGroup = roles.some((role) => userGroups.includes(role));
 
     if (!hasRole && !hasGroup) {
-      return res.status(403).json({
-        error: "Insufficient permissions",
-        message: `Access denied. Required roles: ${roles.join(", ")}`,
+      return res.forbidden(`Access denied. Required roles: ${roles.join(", ")}`, {
         code: "INSUFFICIENT_PERMISSIONS",
         userRole: userRole,
         userGroups: userGroups,
@@ -187,9 +166,7 @@ const requireApiKey = (provider) => {
   return async (req, res, next) => {
     try {
       if (!req.user || !req.token) {
-        return res.status(401).json({
-          error: "Authentication required",
-          message: "User must be authenticated to access API keys",
+        return res.unauthorized("User must be authenticated to access API keys", {
           code: "AUTH_REQUIRED",
         });
       }
@@ -198,9 +175,7 @@ const requireApiKey = (provider) => {
       const apiKey = await getApiKey(req.token, provider);
 
       if (!apiKey) {
-        return res.status(400).json({
-          error: "API key required",
-          message: `${provider} API key is required for this operation`,
+        return res.error(`${provider} API key is required for this operation`, 400, {
           code: "API_KEY_REQUIRED",
           provider: provider,
         });
@@ -213,9 +188,7 @@ const requireApiKey = (provider) => {
       next();
     } catch (error) {
       console.error("API key requirement error:", error);
-      return res.status(500).json({
-        error: "API key validation failed",
-        message: "Could not validate API key configuration",
+      return res.error("Could not validate API key configuration", 500, {
         code: "API_KEY_VALIDATION_FAILED",
       });
     }
@@ -274,9 +247,7 @@ const rateLimitByUser = (requestsPerMinute = 100) => {
 
     // Check rate limit
     if (requests.length >= requestsPerMinute) {
-      return res.status(429).json({
-        error: "Rate limit exceeded",
-        message: `Too many requests. Limit: ${requestsPerMinute} per minute`,
+      return res.error(`Too many requests. Limit: ${requestsPerMinute} per minute`, 429, {
         code: "RATE_LIMIT_EXCEEDED",
         retryAfter: Math.ceil((requests[0] - windowStart) / 1000),
       });

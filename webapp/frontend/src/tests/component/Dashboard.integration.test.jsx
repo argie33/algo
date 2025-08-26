@@ -1,10 +1,11 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { vi } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import Dashboard from "../../pages/Dashboard";
+import { TestWrapper } from "../test-utils";
 import { AuthProvider } from "../../contexts/AuthContext";
 
-// Mock the API service
 // Mock the API service with comprehensive mock
 vi.mock("../../services/api", async (_importOriginal) => {
   const { createApiServiceMock } = await import('../mocks/api-service-mock');
@@ -21,6 +22,8 @@ vi.mock("recharts", () => ({
   ),
   LineChart: ({ children }) => <div data-testid="line-chart">{children}</div>,
   Line: () => <div data-testid="line" />,
+  BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
+  Bar: () => <div data-testid="bar" />,
   XAxis: () => <div data-testid="x-axis" />,
   YAxis: () => <div data-testid="y-axis" />,
   CartesianGrid: () => <div data-testid="grid" />,
@@ -33,29 +36,19 @@ vi.mock("recharts", () => ({
   Area: () => <div data-testid="area" />,
 }));
 
-// Mock AuthContext
-const mockAuthContext = {
-  user: {
-    sub: "test-user-123",
-    email: "test@example.com",
-    name: "Test User",
-    "custom:role": "user",
-  },
-  token: "mock-jwt-token",
-  isAuthenticated: true,
-  login: vi.fn(),
-  logout: vi.fn(),
-};
-
 // Import after mocking
 import api from "../../services/api";
 
 const renderWithProviders = (component) => {
-  return render(
-    <BrowserRouter>
-      <AuthProvider value={mockAuthContext}>{component}</AuthProvider>
-    </BrowserRouter>
-  );
+  return render(component, { wrapper: TestWrapper });
+};
+
+const mockAuthContext = {
+  user: { id: 'test-user', email: 'test@example.com' },
+  isAuthenticated: true,
+  login: vi.fn(),
+  logout: vi.fn(),
+  loading: false
 };
 
 describe("Dashboard Integration Tests", () => {

@@ -51,9 +51,7 @@ router.get("/analytics", async (req, res) => {
     // Handle database unavailable gracefully
     if (!holdingsResult || !holdingsResult.rows) {
       console.warn("Database unavailable, returning empty portfolio analytics");
-      return res.status(200).json({
-        success: true,
-        data: {
+      return res.success({
           holdings: [],
           totalValue: 0,
           totalPnl: 0,
@@ -72,9 +70,9 @@ router.get("/analytics", async (req, res) => {
             avgGain: 0,
             avgLoss: 0
           }
-        },
-        message: "Portfolio data temporarily unavailable - database connection issue"
-      });
+        }, 200, {
+          message: "Portfolio data temporarily unavailable - database connection issue"
+        });
     }
 
     // Calculate derived values
@@ -185,18 +183,40 @@ router.get("/analytics", async (req, res) => {
       })
     );
 
-    res.json({
-      success: true,
-      data: {
+    // Calculate day gain/loss from holdings day_change
+    const summaryDayGainLoss = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.day_change || 0),
+      0
+    );
+    const summaryDayGainLossPercent = summaryTotalValue > 0 
+      ? (summaryDayGainLoss / (summaryTotalValue - summaryDayGainLoss)) * 100 
+      : 0;
+
+    // Calculate top performers for contract compliance
+    const topPerformers = holdings
+      .filter(h => h.pnl && h.cost_basis && parseFloat(h.cost_basis) > 0)
+      .map(h => ({
+        symbol: h.symbol,
+        gainLossPercent: parseFloat(h.cost_basis) > 0 
+          ? (parseFloat(h.pnl || 0) / parseFloat(h.cost_basis)) * 100 
+          : 0
+      }))
+      .sort((a, b) => b.gainLossPercent - a.gainLossPercent)
+      .slice(0, 5);
+
+    res.success({
         holdings: holdings,
         performance: performance,
         analytics: analytics,
-        // Legacy fields for backward compatibility
+        // Contract-required fields at top level
         totalValue: summaryTotalValue,
         totalCost: summaryTotalCost,
         totalGainLoss: summaryTotalPnL,
         totalGainLossPercent:
           summaryTotalCost > 0 ? (summaryTotalPnL / summaryTotalCost) * 100 : 0,
+        dayGainLoss: summaryDayGainLoss,
+        dayGainLossPercent: summaryDayGainLossPercent,
+        topPerformers: topPerformers,
         sectorAllocation: sectorAllocation,
         summary: {
           totalValue: summaryTotalValue,
@@ -206,20 +226,14 @@ router.get("/analytics", async (req, res) => {
           concentration: calculateConcentration(holdings),
           riskScore: analytics.riskScore,
         },
-      },
-      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching portfolio analytics:", error);
 
     // Return proper error response instead of mock data
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch portfolio analytics",
+    return res.error("Failed to fetch portfolio analytics", 500, {
       details: error.message,
-      timestamp: new Date().toISOString(),
-      suggestion:
-        "Please ensure you have portfolio positions configured or try again later",
+      suggestion: "Please ensure you have portfolio positions configured or try again later"
     });
   }
 });
@@ -251,8 +265,7 @@ router.get("/risk-analysis", async (req, res) => {
     // Handle database unavailable gracefully
     if (!holdingsResult || !holdingsResult.rows) {
       console.warn("Database unavailable, returning empty risk analysis");
-      return res.status(200).json({
-        success: true,
+      return res.success({
         data: {
           risk: { level: "unknown", score: 0 },
           message: "Risk analysis temporarily unavailable - database connection issue"
@@ -265,9 +278,7 @@ router.get("/risk-analysis", async (req, res) => {
     // Calculate risk metrics
     const riskAnalysis = calculateRiskMetrics(holdings);
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         portfolioBeta: riskAnalysis.portfolioBeta,
         portfolioVolatility: riskAnalysis.portfolioVolatility,
         var95: riskAnalysis.var95,
@@ -284,13 +295,9 @@ router.get("/risk-analysis", async (req, res) => {
     console.error("Error performing portfolio risk analysis:", error);
 
     // Return proper error response instead of mock data
-    res.status(500).json({
-      success: false,
-      error: "Failed to perform portfolio risk analysis",
+    return res.error("Failed to perform portfolio risk analysis", 500, {
       details: error.message,
-      timestamp: new Date().toISOString(),
-      suggestion:
-        "Ensure you have portfolio holdings with sector and beta data available",
+      suggestion: "Ensure you have portfolio holdings with sector and beta data available"
     });
   }
 });
@@ -317,8 +324,7 @@ router.get("/risk-metrics", async (req, res) => {
     // Handle database unavailable gracefully
     if (!holdingsResult || !holdingsResult.rows) {
       console.warn("Database unavailable, returning empty risk metrics");
-      return res.status(200).json({
-        success: true,
+      return res.success({
         data: {
           totalValue: 0,
           concentration: { max: 0, mean: 0 },
@@ -378,9 +384,7 @@ router.get("/risk-metrics", async (req, res) => {
       portfolioVolatility * 100 + concentrationRisk * 50
     );
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         beta: Math.round(portfolioBeta * 100) / 100, // Match test expectations
         volatility: Math.round(portfolioVolatility * 10000) / 100, // as percentage
         var95: Math.round(var95 * 100) / 100,
@@ -402,11 +406,8 @@ router.get("/risk-metrics", async (req, res) => {
   } catch (error) {
     console.error("Error calculating portfolio risk metrics:", error);
 
-    res.status(500).json({
-      success: false,
-      error: "Failed to calculate portfolio risk metrics",
-      details: error.message,
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to calculate portfolio risk metrics", 500, {
+      details: error.message
     });
   }
 });
@@ -447,8 +448,7 @@ router.get("/performance", async (req, res) => {
     // Handle database unavailable gracefully
     if (!holdingsResult || !holdingsResult.rows) {
       console.warn("Database unavailable, returning empty performance data");
-      return res.status(200).json({
-        success: true,
+      return res.success({
         data: {
           performance: [],
           summary: {
@@ -531,9 +531,7 @@ router.get("/performance", async (req, res) => {
       };
     }
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         performance: performance,
         metrics: metrics,
         timeframe,
@@ -545,12 +543,9 @@ router.get("/performance", async (req, res) => {
     });
   } catch (error) {
     console.error("Portfolio performance error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch portfolio performance",
+    return res.error("Failed to fetch portfolio performance", 500, {
       details: error.message,
-      suggestion:
-        "Ensure portfolio performance data has been recorded or import from broker",
+      suggestion: "Ensure portfolio performance data has been recorded or import from broker"
     });
   }
 });
@@ -589,23 +584,14 @@ router.get("/benchmark", async (req, res) => {
     const benchmarkResult = await query(benchmarkQuery, [benchmark]);
     
     // Handle database unavailable gracefully  
-    let benchmarkData;
     if (!benchmarkResult || !benchmarkResult.rows) {
-      console.warn("Database unavailable, using fallback benchmark data");
-      benchmarkData = [];
-    } else {
-      benchmarkData = benchmarkResult.rows;
+      throw new Error("Database unavailable for benchmark data");
     }
+    const benchmarkData = benchmarkResult.rows;
 
-    // If no data found, create mock benchmark data
+    // Ensure we have benchmark data
     if (benchmarkData.length === 0) {
-      benchmarkData = [
-        {
-          date: new Date(),
-          price: 100,
-          volume: 1000000,
-        },
-      ];
+      throw new Error(`No benchmark data available for ${benchmark}`);
     }
 
     // Calculate benchmark performance metrics
@@ -630,9 +616,7 @@ router.get("/benchmark", async (req, res) => {
       };
     });
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         benchmark: benchmark,
         performance: performance,
         totalReturn: Math.round(totalReturn * 100) / 100,
@@ -643,11 +627,8 @@ router.get("/benchmark", async (req, res) => {
     });
   } catch (error) {
     console.error("Portfolio benchmark error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch benchmark data",
-      details: error.message,
-      suggestion: `Ensure ${req.query.benchmark || "SPY"} price data is available in the database`,
+    return res.error("Failed to fetch benchmark data", 500, {
+      details: error.message
     });
   }
 });
@@ -685,14 +666,13 @@ router.get("/holdings", async (req, res) => {
         ss.market_cap,
         ss.market_cap_tier,
         ss.industry,
-        -- Get latest price data
-        pd.close_price as latest_price,
-        pd.change_percent as latest_change_percent,
-        pd.volume as latest_volume
+        -- Get latest price data - prefer stock_prices table in test environment
+        COALESCE(sp.price, ph.current_price) as latest_price,
+        COALESCE(sp.change_percent, ph.day_change_percent) as latest_change_percent,
+        COALESCE(sp.volume, 0) as latest_volume
       FROM portfolio_holdings ph
       LEFT JOIN stock_symbols_enhanced ss ON ph.symbol = ss.symbol
-      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      LEFT JOIN stock_prices sp ON ph.symbol = sp.symbol
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC
     `;
@@ -724,12 +704,15 @@ router.get("/holdings", async (req, res) => {
         symbol: holding.symbol,
         name: holding.company_name || `${holding.symbol} Corp.`,
         quantity: quantity,
-        avgCost: averageEntryPrice,
+        avgPrice: averageEntryPrice, // Contract field name
         currentPrice: latestPrice,
         marketValue: Math.round(marketValue * 100) / 100,
+        totalValue: Math.round(marketValue * 100) / 100, // Contract field name (alias for marketValue)
         totalCost: Math.round(totalCost * 100) / 100,
         unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+        gainLoss: Math.round(unrealizedPnl * 100) / 100, // Contract field name (alias for unrealizedPnl)
         unrealizedPnlPercent: Math.round(unrealizedPnlPercent * 100) / 100,
+        gainLossPercent: Math.round(unrealizedPnlPercent * 100) / 100, // Contract field name (alias)
         dayChange: Math.round(dayChange * 100) / 100,
         dayChangePercent: Math.round(dayChangePercent * 100) / 100,
         weight: parseFloat(holding.weight || 0),
@@ -764,9 +747,7 @@ router.get("/holdings", async (req, res) => {
           : 0,
     }));
 
-    res.json({
-      success: true,
-      data: {
+    res.success({
         holdings: updatedHoldings,
         summary: {
           totalValue: Math.round(totalValue * 100) / 100,
@@ -777,14 +758,10 @@ router.get("/holdings", async (req, res) => {
           dayPnlPercent: Math.round(dayPnlPercent * 100) / 100,
           positions: updatedHoldings.length,
         },
-      },
-      timestamp: new Date().toISOString(),
-    });
+      });
   } catch (error) {
     console.error("Portfolio holdings error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch portfolio holdings",
+    return res.error("Failed to fetch portfolio holdings", 500, {
       details: error.message,
       suggestion:
         "Ensure you have portfolio positions or import from your broker",
@@ -826,9 +803,7 @@ router.get("/rebalance", async (req, res) => {
     const holdings = holdingsResult.rows;
 
     if (holdings.length === 0) {
-      return res.json({
-        success: true,
-        data: {
+      return res.success({data: {
           recommendations: [],
           rebalanceScore: 0,
           estimatedCost: 0,
@@ -939,9 +914,7 @@ router.get("/rebalance", async (req, res) => {
     const lastRebalanceResult = await query(lastRebalanceQuery, [userId]);
     const lastRebalance = lastRebalanceResult.rows[0]?.last_rebalance || null;
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         recommendations,
         rebalanceScore: Math.round(rebalanceScore * 100) / 100,
         estimatedCost: recommendations.length * 7.95, // Estimated trading fees
@@ -958,11 +931,9 @@ router.get("/rebalance", async (req, res) => {
     });
   } catch (error) {
     console.error("Portfolio rebalance error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to generate rebalance suggestions",
+    return res.error("Failed to generate rebalance suggestions", 500, {
       details: error.message,
-      suggestion: "Ensure portfolio holdings and price data are available",
+      suggestion: "Ensure portfolio holdings and price data are available"
     });
   }
 });
@@ -1000,9 +971,7 @@ router.get("/risk", async (req, res) => {
     const holdings = holdingsResult.rows;
 
     if (holdings.length === 0) {
-      return res.json({
-        success: true,
-        data: {
+      return res.success({data: {
           riskScore: 0,
           riskLevel: "No Holdings",
           metrics: {
@@ -1132,9 +1101,7 @@ router.get("/risk", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         riskScore: Math.round(riskScore * 100) / 100,
         riskLevel,
         metrics: {
@@ -1172,12 +1139,9 @@ router.get("/risk", async (req, res) => {
     });
   } catch (error) {
     console.error("Portfolio risk error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch risk analysis",
+    return res.error("Failed to fetch risk analysis", 500, {
       details: error.message,
-      suggestion:
-        "Ensure portfolio holdings with beta and volatility data are available",
+      suggestion: "Ensure portfolio holdings with beta and volatility data are available"
     });
   }
 });
@@ -1203,12 +1167,7 @@ router.post("/sync/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No API key found for this broker. Please connect your account first.",
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("No API key found for this broker. Please connect your account first.");
     }
 
     const keyData = keyResult.rows[0];
@@ -1251,12 +1210,14 @@ router.post("/sync/:brokerName", async (req, res) => {
         );
         break;
       default:
-        return res.status(400).json({
-          success: false,
-          error: `Real-time sync not supported for broker '${brokerName}' yet`,
-          supportedBrokers: ["alpaca"],
-          timestamp: new Date().toISOString(),
-        });
+        return res.error(
+          `Real-time sync not supported for broker '${brokerName}' yet`,
+          {
+            supportedBrokers: ["alpaca"],
+            timestamp: new Date().toISOString(),
+          },
+          400
+        );
     }
 
     // Update last used timestamp
@@ -1267,9 +1228,7 @@ router.post("/sync/:brokerName", async (req, res) => {
 
     console.log(`Portfolio sync completed successfully for user ${userId}`);
 
-    res.json({
-      success: true,
-      message: "Portfolio synchronized successfully",
+    res.success({message: "Portfolio synchronized successfully",
       data: syncResult,
       timestamp: new Date().toISOString(),
     });
@@ -1278,12 +1237,8 @@ router.post("/sync/:brokerName", async (req, res) => {
       `Portfolio sync error for broker ${req.params.brokerName}:`,
       error.message
     );
-    res.status(500).json({
-      success: false,
-      error:
-        "Failed to sync portfolio. Please check your API credentials and try again.",
-      details: error.message,
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to sync portfolio. Please check your API credentials and try again.", 500, {
+      details: error.message
     });
   }
 });
@@ -1310,12 +1265,7 @@ router.get("/transactions/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No API key found for this broker. Please connect your account first.",
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("No API key found for this broker. Please connect your account first.");
     }
 
     const keyData = keyResult.rows[0];
@@ -1361,20 +1311,20 @@ router.get("/transactions/:brokerName", async (req, res) => {
         );
         break;
       default:
-        return res.status(400).json({
-          success: false,
-          error: `Transaction history not supported for broker '${brokerName}' yet`,
-          supportedBrokers: ["alpaca"],
-          timestamp: new Date().toISOString(),
-        });
+        return res.error(
+          `Transaction history not supported for broker '${brokerName}' yet`,
+          {
+            supportedBrokers: ["alpaca"],
+            timestamp: new Date().toISOString(),
+          },
+          400
+        );
     }
 
     // Store transactions in database
     await storePortfolioTransactions(userId, brokerName, transactions);
 
-    res.json({
-      success: true,
-      message: "Transactions retrieved successfully",
+    res.success({message: "Transactions retrieved successfully",
       data: {
         transactions: transactions,
         count: transactions.length,
@@ -1387,12 +1337,8 @@ router.get("/transactions/:brokerName", async (req, res) => {
       `Portfolio transactions error for broker ${req.params.brokerName}:`,
       error.message
     );
-    res.status(500).json({
-      success: false,
-      error:
-        "Failed to retrieve transactions. Please check your API credentials and try again.",
-      details: error.message,
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to retrieve transactions. Please check your API credentials and try again.", 500, {
+      details: error.message
     });
   }
 });
@@ -1418,12 +1364,7 @@ router.get("/valuation/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No API key found for this broker. Please connect your account first.",
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("No API key found for this broker. Please connect your account first.");
     }
 
     const keyData = keyResult.rows[0];
@@ -1466,17 +1407,17 @@ router.get("/valuation/:brokerName", async (req, res) => {
         );
         break;
       default:
-        return res.status(400).json({
-          success: false,
-          error: `Real-time valuation not supported for broker '${brokerName}' yet`,
-          supportedBrokers: ["alpaca"],
-          timestamp: new Date().toISOString(),
-        });
+        return res.error(
+          `Real-time valuation not supported for broker '${brokerName}' yet`,
+          {
+            supportedBrokers: ["alpaca"],
+            timestamp: new Date().toISOString(),
+          },
+          400
+        );
     }
 
-    res.json({
-      success: true,
-      message: "Portfolio valuation retrieved successfully",
+    res.success({message: "Portfolio valuation retrieved successfully",
       data: valuation,
       timestamp: new Date().toISOString(),
     });
@@ -1485,12 +1426,8 @@ router.get("/valuation/:brokerName", async (req, res) => {
       `Portfolio valuation error for broker ${req.params.brokerName}:`,
       error.message
     );
-    res.status(500).json({
-      success: false,
-      error:
-        "Failed to retrieve portfolio valuation. Please check your API credentials and try again.",
-      details: error.message,
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to retrieve portfolio valuation. Please check your API credentials and try again.", 500, {
+      details: error.message
     });
   }
 });
@@ -1525,9 +1462,7 @@ router.get("/optimization", async (req, res) => {
     // Generate optimization suggestions
     const optimizations = generateOptimizationSuggestions(holdings);
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         currentAllocation: calculateCurrentAllocation(holdings),
         suggestedAllocation: optimizations.suggestedAllocation,
         rebalanceNeeded: optimizations.rebalanceNeeded,
@@ -1540,97 +1475,17 @@ router.get("/optimization", async (req, res) => {
     });
   } catch (error) {
     console.error("Error generating portfolio optimization:", error);
-    console.log("Falling back to mock optimization data...");
-
-    // Return mock optimization data
-    const mockOptimizationData = {
-      success: true,
-      data: {
-        currentAllocation: [
-          {
-            symbol: "AAPL",
-            currentWeight: 28.5,
-            optimalWeight: 20.0,
-            action: "reduce",
-            amount: -8500,
-          },
-          {
-            symbol: "MSFT",
-            currentWeight: 22.9,
-            optimalWeight: 25.0,
-            action: "increase",
-            amount: 2100,
-          },
-          {
-            symbol: "GOOGL",
-            currentWeight: 18.5,
-            optimalWeight: 15.0,
-            action: "reduce",
-            amount: -3500,
-          },
-          {
-            symbol: "AMZN",
-            currentWeight: 15.6,
-            optimalWeight: 18.0,
-            action: "increase",
-            amount: 2400,
-          },
-          {
-            symbol: "TSLA",
-            currentWeight: 14.5,
-            optimalWeight: 12.0,
-            action: "reduce",
-            amount: -2500,
-          },
-        ],
-        optimizationObjective: "max_sharpe",
-        expectedImprovement: {
-          sharpeRatio: { current: 1.24, optimized: 1.45, improvement: 0.21 },
-          expectedReturn: { current: 12.5, optimized: 14.2, improvement: 1.7 },
-          volatility: { current: 18.5, optimized: 16.8, improvement: -1.7 },
-          maxDrawdown: { current: 12.3, optimized: 10.5, improvement: -1.8 },
-        },
-        recommendations: [
-          {
-            type: "rebalancing",
-            priority: "high",
-            message:
-              "Reduce AAPL concentration to improve risk-adjusted returns",
-            action: "Sell $8,500 worth of AAPL shares",
-            impact: "Expected to reduce portfolio volatility by 1.2%",
-          },
-          {
-            type: "diversification",
-            priority: "medium",
-            message: "Add exposure to healthcare and financial sectors",
-            action:
-              "Consider allocating 15% to healthcare ETF (VHT) and 10% to financial ETF (XLF)",
-            impact: "Expected to improve Sharpe ratio by 0.15",
-          },
-          {
-            type: "risk_management",
-            priority: "medium",
-            message: "Current correlation between tech holdings is high (0.72)",
-            action: "Consider defensive positions during market volatility",
-            impact: "Reduce correlation risk by 25%",
-          },
-        ],
-        efficientFrontier: generateMockEfficientFrontier(),
-        backtestResults: {
-          timeframe: "2Y",
-          optimizedReturn: 15.8,
-          currentReturn: 12.5,
-          optimizedVolatility: 16.2,
-          currentVolatility: 18.5,
-          optimizedSharpe: 1.52,
-          currentSharpe: 1.24,
-        },
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true,
-    };
-
-    res.json(mockOptimizationData);
+    
+    return res.error("Portfolio optimization failed", 503, {
+      details: error.message,
+      suggestion: "Portfolio optimization requires sufficient position data and market data feeds. Please ensure your portfolio has holdings and try again later.",
+      service: "portfolio-optimization",
+      requirements: [
+        "Active portfolio positions with current market values",
+        "Historical price data for risk calculations",
+        "Market data connectivity for real-time analysis"
+      ]
+    });
   }
 });
 
@@ -1984,11 +1839,7 @@ router.post("/api-keys", async (req, res) => {
 
     // Validate required fields
     if (!brokerName || !apiKey) {
-      return res.status(400).json({
-        success: false,
-        error: "Broker name and API key are required",
-        timestamp: new Date().toISOString(),
-      });
+      return res.error("Broker name and API key are required", 400);
     }
 
     // Create user-specific salt
@@ -2039,20 +1890,14 @@ router.post("/api-keys", async (req, res) => {
       `API key stored securely for user ${userId}, broker: ${brokerName}`
     );
 
-    res.json({
-      success: true,
-      message: "API key stored securely",
+    res.success({message: "API key stored securely",
       broker: brokerName,
       sandbox,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error storing API key:", error.message); // Don't log full error which might contain keys
-    res.status(500).json({
-      success: false,
-      error: "Failed to store API key securely",
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to store API key securely", 500, {});
   }
 });
 
@@ -2070,9 +1915,7 @@ router.get("/api-keys", async (req, res) => {
 
     const result = await query(selectQuery, [userId]);
 
-    res.json({
-      success: true,
-      data: result.rows.map((row) => ({
+    res.success({data: result.rows.map((row) => ({
         broker: row.broker_name,
         sandbox: row.is_sandbox,
         connected: true,
@@ -2083,11 +1926,7 @@ router.get("/api-keys", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching API keys:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch connected brokers",
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to fetch connected brokers", 500, {});
   }
 });
 
@@ -2105,28 +1944,18 @@ router.delete("/api-keys/:brokerName", async (req, res) => {
     const result = await query(deleteQuery, [userId, brokerName]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "API key not found",
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("API key not found");
     }
 
     console.log(`API key deleted for user ${userId}, broker: ${brokerName}`);
 
-    res.json({
-      success: true,
-      message: "API key deleted successfully",
+    res.success({message: "API key deleted successfully",
       broker: brokerName,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error deleting API key:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to delete API key",
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Failed to delete API key", 500, {});
   }
 });
 
@@ -2149,12 +1978,7 @@ router.post("/test-connection/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No API key found for this broker. Please connect your account first.",
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("No API key found for this broker. Please connect your account first.");
     }
 
     const keyData = keyResult.rows[0];
@@ -2208,12 +2032,14 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       }
 
       default:
-        return res.status(400).json({
-          success: false,
-          error: `Broker '${brokerName}' connection testing not yet implemented`,
-          supportedBrokers: ["alpaca"],
-          timestamp: new Date().toISOString(),
-        });
+        return res.error(
+          `Broker '${brokerName}' connection testing not yet implemented`,
+          {
+            supportedBrokers: ["alpaca"],
+            timestamp: new Date().toISOString(),
+          },
+          400
+        );
     }
 
     // Update last used timestamp if connection successful
@@ -2224,9 +2050,7 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       );
     }
 
-    res.json({
-      success: true,
-      connection: connectionResult,
+    res.success({connection: connectionResult,
       broker: brokerName,
       timestamp: new Date().toISOString(),
     });
@@ -2235,11 +2059,8 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       `Connection test error for broker ${req.params.brokerName}:`,
       error.message
     );
-    res.status(500).json({
-      success: false,
-      error: "Failed to test broker connection",
-      details: error.message,
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to test broker connection", 500, {
+      details: error.message
     });
   }
 });
@@ -2265,12 +2086,7 @@ router.post("/import/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No API key found for this broker. Please connect your account first.",
-        timestamp: new Date().toISOString(),
-      });
+      return res.notFound("No API key found for this broker. Please connect your account first.");
     }
 
     const keyData = keyResult.rows[0];
@@ -2326,12 +2142,14 @@ router.post("/import/:brokerName", async (req, res) => {
         );
         break;
       default:
-        return res.status(400).json({
-          success: false,
-          error: `Broker '${brokerName}' is not supported yet`,
-          supportedBrokers: ["alpaca", "robinhood", "td_ameritrade"],
-          timestamp: new Date().toISOString(),
-        });
+        return res.error(
+          `Broker '${brokerName}' is not supported yet`,
+          {
+            supportedBrokers: ["alpaca", "robinhood", "td_ameritrade"],
+            timestamp: new Date().toISOString(),
+          },
+          400
+        );
     }
 
     // Store imported portfolio data
@@ -2347,9 +2165,7 @@ router.post("/import/:brokerName", async (req, res) => {
       `Portfolio import completed successfully for user ${userId}, ${portfolioData.holdings.length} positions imported`
     );
 
-    res.json({
-      success: true,
-      message: "Portfolio imported successfully",
+    res.success({message: "Portfolio imported successfully",
       data: {
         broker: brokerName,
         holdingsCount: portfolioData.holdings.length,
@@ -2364,12 +2180,8 @@ router.post("/import/:brokerName", async (req, res) => {
       `Portfolio import error for broker ${req.params.brokerName}:`,
       error.message
     );
-    res.status(500).json({
-      success: false,
-      error:
-        "Failed to import portfolio. Please check your API credentials and try again.",
-      details: error.message,
-      timestamp: new Date().toISOString(),
+    return res.error("Failed to import portfolio. Please check your API credentials and try again.", 500, {
+      details: error.message
     });
   }
 });
@@ -2680,7 +2492,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
     const holdings = await query(holdingsQuery, [userId]);
 
     if (holdings.length === 0) {
-      return res.json({
+      return res.success({
         var: 0,
         cvar: 0,
         message: "No portfolio holdings found",
@@ -2694,9 +2506,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
       timeHorizon
     );
 
-    res.json({
-      success: true,
-      var: portfolioVar.var,
+    res.success({var: portfolioVar.var,
       cvar: portfolioVar.cvar,
       confidence: confidence,
       timeHorizon: timeHorizon,
@@ -2705,21 +2515,16 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Portfolio VaR calculation error:", error);
-    console.log("Falling back to mock VaR data...");
 
-    res.json({
-      success: true,
-      data: {
-        var95: { value: 4275.0, percentage: 4.28 },
-        var99: { value: 6850.0, percentage: 6.85 },
-        expectedShortfall: { value: 5200.0, percentage: 5.2 },
-        confidence: 0.95,
-        timeHorizon: 252,
-        portfolioValue: 100000.0,
-        methodology: "Monte Carlo Simulation (Mock Data)",
-        asOfDate: new Date().toISOString().split("T")[0],
-      },
-      isMockData: true,
+    return res.error("VaR calculation failed", 503, {
+      details: error.message,
+      suggestion: "Value at Risk calculation requires portfolio positions with sufficient price history. Please ensure you have active positions and try again later.",
+      service: "portfolio-var",
+      requirements: [
+        "Portfolio with active positions",
+        "Historical price data for risk calculations",
+        "Market volatility data access"
+      ]
     });
   }
 });
@@ -2744,7 +2549,7 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
     const holdings = await query(holdingsQuery, [userId]);
 
     if (holdings.length === 0) {
-      return res.json({ impact: 0, message: "No portfolio holdings found" });
+      return res.success({ impact: 0, message: "No portfolio holdings found" });
     }
 
     // Define stress scenarios
@@ -2758,9 +2563,7 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
 
     const stressTest = calculateStressTestImpact(holdings, scenarios[scenario]);
 
-    res.json({
-      success: true,
-      scenario: scenario,
+    res.success({scenario: scenario,
       description: getScenarioDescription(scenario),
       impact: stressTest.impact,
       newValue: stressTest.newValue,
@@ -2771,22 +2574,16 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Stress test error:", error);
-    console.log("Falling back to mock stress test data...");
 
-    res.json({
-      success: true,
-      scenario: req.query.scenario || "market_crash",
-      description: "Severe market decline (-20%) with increased volatility",
-      impact: { value: -20000.0, percentage: -20.0 },
-      newValue: 80000.0,
-      currentValue: 100000.0,
-      worstHolding: { symbol: "TSLA", impact: -35.2 },
-      bestHolding: { symbol: "GOOGL", impact: -12.8 },
-      sectorImpacts: {
-        Technology: -18.5,
-        "Consumer Discretionary": -25.2,
-      },
-      isMockData: true,
+    return res.error("Portfolio stress test failed", 503, {
+      details: error.message,
+      suggestion: "Stress testing requires portfolio positions with sector classification and market beta data. Please ensure your holdings have complete metadata.",
+      service: "portfolio-stress-test",
+      requirements: [
+        "Portfolio positions with sector data",
+        "Historical volatility and beta calculations",
+        "Market scenario modeling data"
+      ]
     });
   }
 });
@@ -2806,7 +2603,7 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
     const holdings = await query(holdingsQuery, [userId]);
 
     if (holdings.length < 2) {
-      return res.json({
+      return res.success({
         correlations: [],
         message: "Need at least 2 holdings for correlation analysis",
       });
@@ -2818,9 +2615,7 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
       period
     );
 
-    res.json({
-      success: true,
-      correlations: correlationMatrix,
+    res.success({correlations: correlationMatrix,
       symbols: holdings.map((h) => h.symbol),
       period: period,
       highCorrelations: correlationMatrix.filter(
@@ -2832,24 +2627,16 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Correlation analysis error:", error);
-    console.log("Falling back to mock correlation data...");
 
-    res.json({
-      success: true,
-      correlations: [
-        { symbol1: "AAPL", symbol2: "MSFT", correlation: 0.65 },
-        { symbol1: "AAPL", symbol2: "GOOGL", correlation: 0.58 },
-        { symbol1: "MSFT", symbol2: "GOOGL", correlation: 0.72 },
-        { symbol1: "AMZN", symbol2: "TSLA", correlation: 0.45 },
-        { symbol1: "AAPL", symbol2: "AMZN", correlation: 0.52 },
-      ],
-      symbols: ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"],
-      period: req.query.period || "1y",
-      highCorrelations: [
-        { symbol1: "MSFT", symbol2: "GOOGL", correlation: 0.72 },
-      ],
-      averageCorrelation: 0.58,
-      isMockData: true,
+    return res.error("Correlation analysis failed", 503, {
+      details: error.message,
+      suggestion: "Correlation analysis requires at least 2 portfolio positions with sufficient price history. Please ensure you have multiple holdings with adequate historical data.",
+      service: "portfolio-correlation",
+      requirements: [
+        "At least 2 active portfolio positions",
+        "Historical price data for correlation calculations",
+        "Sufficient data points for statistical significance"
+      ]
     });
   }
 });
@@ -2874,7 +2661,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
     const holdings = await query(holdingsQuery, [userId]);
 
     if (holdings.length === 0) {
-      return res.json({
+      return res.success({
         concentration: {},
         message: "No portfolio holdings found",
       });
@@ -2882,56 +2669,23 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
 
     const concentrationAnalysis = calculateConcentrationRisk(holdings);
 
-    res.json({
-      success: true,
-      ...concentrationAnalysis,
+    res.success({...concentrationAnalysis,
       recommendations: generateConcentrationRecommendations(
         concentrationAnalysis
       ),
     });
   } catch (error) {
     console.error("Concentration analysis error:", error);
-    console.log("Falling back to mock concentration data...");
 
-    res.json({
-      success: true,
-      positionConcentration: {
-        largestPosition: { symbol: "AAPL", weight: 0.285 },
-        top5Weight: 1.0,
-        top10Weight: 1.0,
-        herfindahlIndex: 0.245,
-        positions: [
-          { symbol: "AAPL", weight: 0.285 },
-          { symbol: "MSFT", weight: 0.229 },
-          { symbol: "GOOGL", weight: 0.185 },
-          { symbol: "AMZN", weight: 0.156 },
-          { symbol: "TSLA", weight: 0.145 },
-        ],
-      },
-      sectorConcentration: {
-        topSector: { sector: "Technology", weight: 0.699 },
-        top3Weight: 1.0,
-        herfindahlIndex: 0.568,
-        sectors: [
-          { sector: "Technology", weight: 0.699 },
-          { sector: "Consumer Discretionary", weight: 0.301 },
-        ],
-      },
-      overallRiskScore: 7.2,
-      recommendations: [
-        {
-          type: "position_concentration",
-          severity: "high",
-          message: "Consider reducing AAPL position (28.5% of portfolio)",
-        },
-        {
-          type: "sector_concentration",
-          severity: "medium",
-          message:
-            "Consider diversifying beyond Technology sector (69.9% of portfolio)",
-        },
-      ],
-      isMockData: true,
+    return res.error("Portfolio concentration analysis failed", 503, {
+      details: error.message,
+      suggestion: "Concentration risk analysis requires portfolio positions with sector and industry classification. Please ensure your holdings have complete metadata and current market values.",
+      service: "portfolio-concentration",
+      requirements: [
+        "Portfolio holdings with sector classification",
+        "Current market values for all positions", 
+        "Industry and market cap data for risk scoring"
+      ]
     });
   }
 });
@@ -3240,7 +2994,7 @@ function _generateMockPerformance() {
 }
 
 // Generate mock efficient frontier data
-function generateMockEfficientFrontier() {
+function _generateMockEfficientFrontier() {
   const points = [];
   for (let risk = 8; risk <= 25; risk += 0.5) {
     const expectedReturn = Math.max(5, risk * 0.6 + Math.random() * 3 - 1.5);

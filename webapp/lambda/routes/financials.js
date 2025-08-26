@@ -79,11 +79,7 @@ router.get("/debug/tables", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in financials debug:", error);
-    res.status(500).json({
-      error: "Debug check failed",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return res.error("Debug check failed", 500);
   }
 });
 
@@ -117,7 +113,7 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
     const result = await query(balanceSheetQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     // Transform the normalized data into a structured format
@@ -157,9 +153,7 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
       items: period.items, // Include all raw items for debugging
     }));
 
-    res.json({
-      success: true,
-      data: transformedData,
+    res.success({data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
         period,
@@ -212,7 +206,7 @@ router.get("/:ticker/income-statement", async (req, res) => {
     const result = await query(incomeQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     // Transform the normalized data into a structured format
@@ -244,9 +238,7 @@ router.get("/:ticker/income-statement", async (req, res) => {
       items: period.items, // Include all raw items for debugging
     }));
 
-    res.json({
-      success: true,
-      data: transformedData,
+    res.success({data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
         period,
@@ -299,7 +291,7 @@ router.get("/:ticker/cash-flow", async (req, res) => {
     const result = await query(cashFlowQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: "No data found for this query" });
+      return res.notFound("No data found for this query" );
     }
 
     // Transform the normalized data into a structured format
@@ -342,9 +334,7 @@ router.get("/:ticker/cash-flow", async (req, res) => {
       items: period.items, // Include all raw items for debugging
     }));
 
-    res.json({
-      success: true,
-      data: transformedData,
+    res.success({data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
         period,
@@ -378,9 +368,7 @@ router.get("/:ticker/financials", async (req, res) => {
       getFinancialStatement(ticker, "cash_flow", period),
     ]);
 
-    res.json({
-      success: true,
-      data: {
+    res.success({data: {
         balance_sheet: balanceSheet,
         income_statement: incomeStatement,
         cash_flow: cashFlow,
@@ -476,9 +464,7 @@ router.get("/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows.slice(0, 5), // Return just a few records
+    res.success({data: result.rows.slice(0, 5), // Return just a few records
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
@@ -522,9 +508,7 @@ router.get("/:symbol/income", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
@@ -565,9 +549,7 @@ router.get("/:symbol/balance", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
@@ -608,9 +590,7 @@ router.get("/:symbol/cashflow", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
@@ -656,9 +636,7 @@ router.get("/:symbol/ratios", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0],
+    res.success({data: result.rows[0],
       symbol: symbol.toUpperCase(),
     });
   } catch (error) {
@@ -673,9 +651,7 @@ router.get("/:symbol/ratios", async (req, res) => {
 
 // Health check
 router.get("/ping", (req, res) => {
-  res.json({
-    success: true,
-    service: "financials",
+  res.success({service: "financials",
     timestamp: new Date().toISOString(),
   });
 });
@@ -903,9 +879,7 @@ router.get("/:ticker/key-metrics", async (req, res) => {
     const dataQuality =
       totalFields > 0 ? ((populatedFields / totalFields) * 100).toFixed(1) : 0;
 
-    res.json({
-      success: true,
-      data: organizedMetrics,
+    res.success({data: organizedMetrics,
       metadata: {
         ticker: ticker.toUpperCase(),
         dataQuality: `${dataQuality}%`,
@@ -983,9 +957,7 @@ router.get("/data/:symbol", async (req, res) => {
       });
     });
 
-    res.json({
-      success: true,
-      data: groupedData,
+    res.success({data: groupedData,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
@@ -1034,9 +1006,7 @@ router.get("/earnings/:symbol", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: result.rows,
+    res.success({data: result.rows,
       count: result.rows.length,
       symbol: symbol.toUpperCase(),
     });
@@ -1096,9 +1066,7 @@ router.get("/cash-flow/:symbol", async (req, res) => {
       groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
     });
 
-    res.json({
-      success: true,
-      data: Object.values(groupedData),
+    res.success({data: Object.values(groupedData),
       count: Object.keys(groupedData).length,
       symbol: symbol.toUpperCase(),
     });
