@@ -1,0 +1,31 @@
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install PostgreSQL client for database operations
+RUN apk add --no-cache postgresql-client
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application files
+COPY populate-demo-portfolios.js ./
+COPY webapp/lambda/package*.json ./lambda/
+COPY webapp/lambda/utils ./lambda/utils/
+
+# Install lambda dependencies for database utilities
+WORKDIR /app/lambda
+RUN npm ci --only=production
+
+# Switch back to main directory  
+WORKDIR /app
+
+# Make script executable
+RUN chmod +x populate-demo-portfolios.js
+
+# Default command
+CMD ["node", "populate-demo-portfolios.js"]
