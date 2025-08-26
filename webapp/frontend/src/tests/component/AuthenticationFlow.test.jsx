@@ -1,5 +1,8 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, beforeEach, expect, vi } from "vitest";
 import { renderWithProviders, screen, fireEvent, waitFor, act } from "../test-utils";
-import "@testing-library/jest-dom";
 import AuthModal from "../../components/auth/AuthModal";
 import LoginForm from "../../components/auth/LoginForm";
 
@@ -19,40 +22,25 @@ vi.mock("aws-amplify", () => ({
   configure: vi.fn(),
 }));
 
-// Mock AuthContext
-const mockAuthContext = {
-  user: null,
-  tokens: null,
-  isAuthenticated: false,
-  isLoading: false,
-  error: null,
-  login: vi.fn(() => Promise.resolve({ success: true })),
-  logout: vi.fn(() => Promise.resolve()),
-  clearError: vi.fn(),
-};
-
-vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => mockAuthContext,
-  AuthProvider: ({ children }) => children,
-}));
+// AuthContext is provided by the real AuthProvider in test-utils.jsx
 
 // Import after mocking
 import { Auth } from "aws-amplify";
+import devAuth from "../../services/devAuth";
 
 // Use TestWrapper from test-utils for consistent rendering
+
+const mockAuthContext = {
+  user: { id: 'test-user', email: 'test@example.com' },
+  isAuthenticated: true,
+  login: vi.fn(),
+  logout: vi.fn(),
+  loading: false
+};
 
 describe("Authentication Flow Components", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset mockAuthContext state
-    mockAuthContext.user = null;
-    mockAuthContext.tokens = null;
-    mockAuthContext.isAuthenticated = false;
-    mockAuthContext.isLoading = false;
-    mockAuthContext.error = null;
-    mockAuthContext.login = vi.fn(() => Promise.resolve({ success: true }));
-    mockAuthContext.logout = vi.fn(() => Promise.resolve());
-    mockAuthContext.clearError = vi.fn();
   });
 
   describe("AuthModal Component", () => {
@@ -307,6 +295,14 @@ describe("Authentication Flow Components", () => {
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
       );
 
+      // Fill in all required fields first
+      fireEvent.change(screen.getByLabelText(/Email Address/i), {
+        target: { value: "test@example.com" },
+      });
+      fireEvent.change(document.getElementById('username'), {
+        target: { value: "testuser" },
+      });
+
       // Get password fields correctly - there are multiple in RegisterForm
       const passwordFields = screen.getAllByLabelText(/Password/i);
       // First password field is the main password, find confirm password by role
@@ -332,34 +328,44 @@ describe("Authentication Flow Components", () => {
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
       );
 
+      // Fill in required fields first
+      fireEvent.change(screen.getByLabelText(/Email Address/i), {
+        target: { value: "test@example.com" },
+      });
+      fireEvent.change(document.getElementById('username'), {
+        target: { value: "testuser" },
+      });
+
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "weak" },
       });
+      
+      // Also fill confirm password to avoid that validation error
+      const confirmPasswordInput = document.getElementById('confirmPassword');
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "weak" },
+      });
 
-      fireEvent.blur(passwordFields[0]);
+      fireEvent.click(screen.getByRole("button", { name: /Create Account/i }));
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Password must be at least 8 characters/i)
+          screen.getByText(/Password must be at least 8 characters long/i)
         ).toBeInTheDocument();
       });
     });
 
     it("should handle successful signup", async () => {
-      Auth.signUp.mockResolvedValue({
-        user: {
-          username: "testuser",
-        },
-        userConfirmed: false,
-      });
-
       renderWithProviders(
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
       );
 
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
+      });
+      fireEvent.change(document.getElementById('username'), {
+        target: { value: "testuser" },
       });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
@@ -373,13 +379,13 @@ describe("Authentication Flow Components", () => {
       fireEvent.click(screen.getByRole("button", { name: /Create Account/i }));
 
       await waitFor(() => {
-        expect(Auth.signUp).toHaveBeenCalledWith({
-          username: "test@example.com",
-          password: "Password123!",
-          attributes: {
-            email: "test@example.com",
-          },
-        });
+        expect(devAuth.signUp).toHaveBeenCalledWith(
+          "testuser",
+          "Password123!",
+          "test@example.com",
+          "", // firstName (empty)
+          "" // lastName (empty)
+        );
         expect(
           screen.getByText(/Please check your email/i)
         ).toBeInTheDocument();
@@ -387,10 +393,7 @@ describe("Authentication Flow Components", () => {
     });
 
     it("should handle signup errors", async () => {
-      Auth.signUp.mockRejectedValue({
-        code: "UsernameExistsException",
-        message: "An account with the given email already exists.",
-      });
+      devAuth.signUp.mockRejectedValue(new Error("Username already exists"));
 
       renderWithProviders(
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
@@ -399,6 +402,9 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "existing@example.com" },
       });
+      fireEvent.change(document.getElementById('username'), {
+        target: { value: "existing" },
+      });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
@@ -412,7 +418,7 @@ describe("Authentication Flow Components", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/An account with the given email already exists/i)
+          screen.getByText(/Username already exists/i)
         ).toBeInTheDocument();
       });
     });
@@ -644,8 +650,19 @@ describe("Authentication Flow Components", () => {
       }
     });
 
-    it("should clear sensitive fields when switching modes", () => {
-      renderWithProviders(<AuthModal open={true} onClose={() => {}} />);
+    it("should clear sensitive fields when switching modes", async () => {
+      await act(async () => {
+        renderWithProviders(<AuthModal open={true} onClose={() => {}} />);
+      });
+
+      // Start in login mode - verify we're in login mode
+      expect(screen.getByText(/Sign In/i)).toBeInTheDocument();
+
+      // Wait for authentication to complete and forms to be enabled
+      await waitFor(() => {
+        const passwordFields = screen.getAllByLabelText(/Password/i);
+        expect(passwordFields[0]).not.toBeDisabled();
+      }, { timeout: 10000 });
 
       // Enter password in login form
       const passwordFields = screen.getAllByLabelText(/Password/i);
@@ -653,14 +670,22 @@ describe("Authentication Flow Components", () => {
         target: { value: "password123" },
       });
 
-      // Switch to signup
-      fireEvent.click(screen.getByText(/Sign up here/i));
+      expect(passwordFields[0]).toHaveValue("password123");
 
-      // Password should be cleared or form should be reset
+      // Switch to signup - wrap in act to handle React state updates
+      await act(async () => {
+        fireEvent.click(screen.getByText(/Sign up here/i));
+      });
+
+      // Wait for form to switch and verify we're now in signup mode
+      await waitFor(() => {
+        expect(screen.getByText(/Create Account/i)).toBeInTheDocument();
+      });
+
+      // Get password fields in signup form - should be different components with empty state
       const newPasswordFields = screen.getAllByLabelText(/Password/i);
-      if (newPasswordFields.length > 0) {
-        expect(newPasswordFields[0]).toHaveValue("");
-      }
+      // The first password field should be empty (new RegisterForm component state)
+      expect(newPasswordFields[0]).toHaveValue("");
     });
   });
 });

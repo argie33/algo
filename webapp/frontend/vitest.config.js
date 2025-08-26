@@ -3,6 +3,12 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Define Vite environment variables for tests to match development mode
+    "import.meta.env.DEV": true,
+    "import.meta.env.PROD": false,
+    "import.meta.env.MODE": '"test"',
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./src/tests/setup-minimal.jsx"],

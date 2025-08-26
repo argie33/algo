@@ -13,23 +13,55 @@ import { vi } from "vitest";
 
 // Import the real AuthContext
 import { AuthProvider } from "../contexts/AuthContext";
+import AuthContext from "../contexts/AuthContext";
 
-// Mock for dev auth
+// Mock for dev auth with debug logging
 vi.mock("../services/devAuth", () => ({
   default: {
-    login: vi.fn(() =>
-      Promise.resolve({ user: { email: "test@example.com" }, tokens: {} })
-    ),
-    logout: vi.fn(() => Promise.resolve()),
-    register: vi.fn(() => Promise.resolve()),
-    getCurrentUser: vi.fn(() => Promise.resolve({ email: "test@example.com" })),
-    refreshSession: vi.fn(() => Promise.resolve()),
+    signIn: vi.fn(() => {
+      console.log('🧪 devAuth.signIn called in test');
+      return Promise.resolve({ user: { email: "test@example.com" }, tokens: {} });
+    }),
+    signOut: vi.fn(() => Promise.resolve()),
+    signUp: vi.fn(() => Promise.resolve({
+      isSignUpComplete: false,
+      nextStep: { signUpStep: 'CONFIRM_SIGN_UP' }
+    })),
+    confirmSignUp: vi.fn(() => Promise.resolve({
+      isSignUpComplete: true
+    })),
+    resetPassword: vi.fn(() => Promise.resolve({
+      nextStep: { resetPasswordStep: 'CONFIRM_RESET_PASSWORD_WITH_CODE' }
+    })),
+    confirmResetPassword: vi.fn(() => Promise.resolve()),
+    getCurrentUser: vi.fn(() => {
+      console.log('🧪 devAuth.getCurrentUser called in test');
+      return Promise.resolve({ 
+        username: "testuser",
+        userId: "dev-testuser",
+        email: "test@example.com",
+        firstName: "Test",
+        lastName: "User"
+      });
+    }),
+    fetchAuthSession: vi.fn(() => {
+      console.log('🧪 devAuth.fetchAuthSession called in test');
+      return Promise.resolve({ 
+        tokens: {
+          accessToken: "dev-access-testuser-1234567890",
+          idToken: "dev-id-testuser-1234567890",
+          refreshToken: "dev-refresh-testuser-1234567890"
+        }
+      });
+    }),
   },
 }));
 
 // Mock session manager
 vi.mock("../services/sessionManager", () => ({
   default: {
+    initialize: vi.fn(),
+    setCallbacks: vi.fn(),
     startSession: vi.fn(),
     endSession: vi.fn(),
     extendSession: vi.fn(),
@@ -213,9 +245,34 @@ vi.mock("../services/api", async (importOriginal) => {
   };
 });
 
-// Use real AuthProvider with mocked dependencies
-export const TestAuthProvider = ({ children, _initialUser = null }) => {
-  return <AuthProvider>{children}</AuthProvider>;
+// Test-specific AuthProvider that doesn't trigger side effects during tests
+export const TestAuthProvider = ({ children, initialUser = null }) => {
+  const mockAuthValue = {
+    user: initialUser || { 
+      id: 'test-user', 
+      email: 'test@example.com',
+      name: 'Test User'
+    },
+    isAuthenticated: !!initialUser,
+    isLoading: false,
+    tokens: initialUser ? { 
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token'
+    } : null,
+    error: null,
+    login: vi.fn().mockResolvedValue({ success: true }),
+    logout: vi.fn().mockResolvedValue(undefined),
+    register: vi.fn().mockResolvedValue({ success: true }),
+    refreshSession: vi.fn().mockResolvedValue({ success: true }),
+    clearError: vi.fn(),
+    updateTokens: vi.fn()
+  };
+
+  return (
+    <AuthContext.Provider value={mockAuthValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 // Remove mock auth hook since we're using real AuthProvider
@@ -253,9 +310,9 @@ export const TestWrapper = ({ children, _authValue = {} }) => {
     <BrowserRouter>
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider>
+          <AuthProvider>
             {children}
-          </TestAuthProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>

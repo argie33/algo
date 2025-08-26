@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material/styles';
 import { createTheme } from '@mui/material/styles';
@@ -224,7 +224,7 @@ describe('ResetPasswordForm', () => {
     });
 
     it('should prevent submission while loading', async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       mockUseAuth.mockReturnValue({
         ...defaultAuthState,
         isLoading: true
