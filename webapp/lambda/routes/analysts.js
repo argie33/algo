@@ -4,6 +4,27 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Root endpoint - provides overview of available analyst endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Analysts API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational", 
+    endpoints: [
+      "/upgrades - Get analyst upgrades/downgrades",
+      "/recent-actions - Get recent analyst actions",
+      "/:ticker/recommendations - Get analyst recommendations for ticker",
+      "/:ticker/earnings-estimates - Get earnings estimates",
+      "/:ticker/revenue-estimates - Get revenue estimates",
+      "/:ticker/earnings-history - Get earnings history",
+      "/:ticker/eps-revisions - Get EPS revisions",
+      "/:ticker/eps-trend - Get EPS trend data",
+      "/:ticker/growth-estimates - Get growth estimates",
+      "/:ticker/overview - Get comprehensive analyst overview"
+    ]
+  });
+});
+
 // Get analyst upgrades/downgrades
 router.get("/upgrades", async (req, res) => {
   try {
@@ -12,23 +33,29 @@ router.get("/upgrades", async (req, res) => {
     const offset = (page - 1) * limit;
     const upgradesQuery = `
       SELECT 
-        aud.symbol,
-        cp.short_name AS company_name,
-        aud.from_grade,
-        aud.to_grade,
-        aud.action,
-        aud.firm,
-        aud.date,
-        aud.details
-      FROM analyst_upgrade_downgrade aud
-      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
-      ORDER BY aud.date DESC
+        asa.symbol,
+        cp.company_name,
+        asa.upgrades_last_30d,
+        asa.downgrades_last_30d,
+        asa.date,
+        CASE 
+          WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'Upgrade'
+          WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'Downgrade' 
+          ELSE 'Neutral'
+        END as action,
+        'Analyst Consensus' as firm,
+        CONCAT('Recent activity: ', asa.upgrades_last_30d, ' upgrades, ', asa.downgrades_last_30d, ' downgrades') as details
+      FROM analyst_sentiment_analysis asa
+      LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
+      WHERE (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
+      ORDER BY asa.date DESC, (asa.upgrades_last_30d + asa.downgrades_last_30d) DESC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM analyst_upgrade_downgrade
+      FROM analyst_sentiment_analysis
+      WHERE (upgrades_last_30d > 0 OR downgrades_last_30d > 0)
     `;
 
     const [upgradesResult, countResult] = await Promise.all([
@@ -39,7 +66,7 @@ router.get("/upgrades", async (req, res) => {
     // Add null checking for database availability - return graceful degradation instead of throwing
     if (!upgradesResult || !upgradesResult.rows || !countResult || !countResult.rows) {
       console.warn("Analyst upgrades query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
+      return res.error("Database temporarily unavailable", 503, {
         message: "Analyst upgrades temporarily unavailable - database connection issue",
         data: [],
         pagination: {
@@ -50,7 +77,7 @@ router.get("/upgrades", async (req, res) => {
           hasNext: false,
           hasPrev: false
         }
-      }, 503);
+      });
     }
 
     // Map company_name to company for frontend compatibility
@@ -86,20 +113,35 @@ router.get("/:ticker/recommendations", async (req, res) => {
 
     const recQuery = `
       SELECT 
-        period,
-        strong_buy,
-        buy,
-        hold,
-        sell,
-        strong_sell,
-        collected_date
-      FROM analyst_recommendations
-      WHERE symbol = $1
-      ORDER BY collected_date DESC
+        'current' as period,
+        asa.strong_buy_count as strong_buy,
+        asa.buy_count as buy,
+        asa.hold_count as hold,
+        asa.sell_count as sell,
+        asa.strong_sell_count as strong_sell,
+        asa.date as collected_date,
+        asa.recommendation_mean,
+        asa.total_analysts,
+        asa.avg_price_target,
+        asa.high_price_target,
+        asa.low_price_target,
+        asa.price_target_vs_current
+      FROM analyst_sentiment_analysis asa
+      WHERE UPPER(asa.symbol) = UPPER($1)
+      ORDER BY asa.date DESC
       LIMIT 12
     `;
 
     const result = await query(recQuery, [ticker.toUpperCase()]);
+
+    // Add null safety check
+    if (!result || !result.rows) {
+      return res.error("Database temporarily unavailable", 503, {
+        message: "Analyst recommendations temporarily unavailable - database connection issue",
+        ticker: ticker.toUpperCase(),
+        recommendations: []
+      });
+    }
 
     res.success({
       ticker: ticker.toUpperCase(),
@@ -118,15 +160,15 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
 
     const estimatesQuery = `
       SELECT 
-        period,
-        estimate,
-        actual,
-        difference,
-        surprise_percent,
-        reported_date
-        FROM earnings_estimates
-      WHERE symbol = $1
-      ORDER BY reported_date DESC
+        CONCAT('Q', er.quarter, ' ', er.year) as period,
+        er.eps_estimate as estimate,
+        er.eps_reported as actual,
+        (er.eps_reported - er.eps_estimate) as difference,
+        er.surprise_percent,
+        er.report_date as reported_date
+      FROM earnings_reports er
+      WHERE UPPER(er.symbol) = UPPER($1)
+      ORDER BY er.report_date DESC
       LIMIT 8
     `;
 
@@ -149,14 +191,15 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
 
     const revenueQuery = `
       SELECT 
-        period,
-        estimate,
-        actual,
-        difference,
-        surprise_percent,
-        reported_date      FROM revenue_estimates
-      WHERE symbol = $1
-      ORDER BY reported_date DESC
+        CONCAT('Q', er.quarter, ' ', er.year) as period,
+        NULL as estimate,
+        er.revenue as actual,
+        NULL as difference,
+        NULL as surprise_percent,
+        er.report_date as reported_date
+      FROM earnings_reports er
+      WHERE UPPER(er.symbol) = UPPER($1)
+      ORDER BY er.report_date DESC
       LIMIT 8
     `;
 
@@ -179,15 +222,15 @@ router.get("/:ticker/earnings-history", async (req, res) => {
 
     const historyQuery = `
       SELECT 
-        quarter,
-        estimate,
-        actual,
-        difference,
-        surprise_percent,
-        earnings_date
-      FROM earnings_history
-      WHERE symbol = $1
-      ORDER BY earnings_date DESC
+        CONCAT('Q', er.quarter, ' ', er.year) as quarter,
+        er.eps_estimate as estimate,
+        er.eps_reported as actual,
+        (er.eps_reported - er.eps_estimate) as difference,
+        er.surprise_percent,
+        er.report_date as earnings_date
+      FROM earnings_reports er
+      WHERE UPPER(er.symbol) = UPPER($1)
+      ORDER BY er.report_date DESC
       LIMIT 12
     `;
 
@@ -210,23 +253,17 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
 
     const revisionsQuery = `
       SELECT 
-        symbol,
-        period,
-        up_last7days,
-        up_last30days,
-        down_last30days,
-        down_last7days,
-        fetched_at
-      FROM eps_revisions
-      WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY 
-        CASE 
-          WHEN period = '0q' THEN 1
-          WHEN period = '+1q' THEN 2
-          WHEN period = '0y' THEN 3
-          WHEN period = '+1y' THEN 4
-          ELSE 5
-        END
+        asa.symbol,
+        '0q' as period,
+        0 as up_last7days,
+        asa.eps_revisions_up_last_30d as up_last30days,
+        asa.eps_revisions_down_last_30d as down_last30days,
+        0 as down_last7days,
+        asa.created_at as fetched_at
+      FROM analyst_sentiment_analysis asa
+      WHERE UPPER(asa.symbol) = UPPER($1)
+      ORDER BY asa.date DESC
+      LIMIT 1
     `;
 
     const result = await query(revisionsQuery, [ticker]);
@@ -240,9 +277,9 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
     });
   } catch (error) {
     console.error("EPS revisions fetch error:", error);
-    return res.error("Failed to fetch EPS revisions", {
+    return res.error("Failed to fetch EPS revisions", 500, {
       message: error.message,
-    }, 500);
+    });
   }
 });
 
@@ -251,26 +288,21 @@ router.get("/:ticker/eps-trend", async (req, res) => {
   try {
     const { ticker } = req.params;
 
+    // Return trend data based on earnings reports historical data
     const trendQuery = `
       SELECT 
-        symbol,
-        period,
-        current,
-        days7ago,
-        days30ago,
-        days60ago,
-        days90ago,
-        fetched_at
-      FROM eps_trend
-      WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY 
-        CASE 
-          WHEN period = '0q' THEN 1
-          WHEN period = '+1q' THEN 2
-          WHEN period = '0y' THEN 3
-          WHEN period = '+1y' THEN 4
-          ELSE 5
-        END
+        er.symbol,
+        '0q' as period,
+        er.eps_reported as current,
+        NULL as days7ago,
+        NULL as days30ago,
+        NULL as days60ago,
+        NULL as days90ago,
+        er.report_date as fetched_at
+      FROM earnings_reports er
+      WHERE UPPER(er.symbol) = UPPER($1)
+      ORDER BY er.report_date DESC
+      LIMIT 1
     `;
 
     const result = await query(trendQuery, [ticker]);
@@ -284,9 +316,9 @@ router.get("/:ticker/eps-trend", async (req, res) => {
     });
   } catch (error) {
     console.error("EPS trend fetch error:", error);
-    return res.error("Failed to fetch EPS trend", {
+    return res.error("Failed to fetch EPS trend", 500, {
       message: error.message,
-    }, 500);
+    });
   }
 });
 
@@ -295,24 +327,18 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
+    // Return placeholder growth estimates based on available data
     const growthQuery = `
       SELECT 
-        symbol,
-        period,
-        stock_trend,
-        index_trend,
-        fetched_at
-      FROM growth_estimates
-      WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY 
-        CASE 
-          WHEN period = '0q' THEN 1 
-          WHEN period = '+1q' THEN 2
-          WHEN period = '0y' THEN 3
-          WHEN period = '+1y' THEN 4
-          WHEN period = '+5y' THEN 5
-          ELSE 6
-        END
+        er.symbol,
+        '0q' as period,
+        'N/A' as stock_trend,
+        'N/A' as index_trend,
+        er.report_date as fetched_at
+      FROM earnings_reports er
+      WHERE UPPER(er.symbol) = UPPER($1)
+      ORDER BY er.report_date DESC
+      LIMIT 1
     `;
 
     const result = await query(growthQuery, [ticker]);
@@ -322,119 +348,126 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       metadata: {
         count: result.rows.length,
         timestamp: new Date().toISOString(),
+        note: "Growth estimates not available - showing placeholder data"
       },
     });
   } catch (error) {
     console.error("Growth estimates fetch error:", error);
-    return res.error("Failed to fetch growth estimates", {
+    return res.error("Failed to fetch growth estimates", 500, {
       message: error.message,
-    }, 500);
-  }
-});
-
-// Get analyst recommendations for a ticker
-router.get("/:ticker/recommendations", async (req, res) => {
-  try {
-    const { ticker } = req.params;
-
-    const recommendationsQuery = `
-      SELECT 
-        symbol,
-        period,
-        strong_buy,
-        buy,
-        hold,
-        sell,
-        strong_sell,
-        collected_date,
-        created_at
-      FROM analyst_recommendations
-      WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY collected_date DESC, period
-      LIMIT 10
-    `;
-
-    const result = await query(recommendationsQuery, [ticker]);
-
-    res.success({ticker: ticker.toUpperCase(),
-      data: result.rows,
-      metadata: {
-        count: result.rows.length,
-        timestamp: new Date().toISOString(),
-      },
     });
-  } catch (error) {
-    console.error("Analyst recommendations fetch error:", error);
-    return res.error("Failed to fetch analyst recommendations", {
-      message: error.message,
-    }, 500);
   }
 });
+
+// NOTE: Duplicate recommendations endpoint removed - using the one at line 89
 
 // Get comprehensive analyst overview for a ticker
 router.get("/:ticker/overview", async (req, res) => {
   try {
     const { ticker } = req.params;
 
-    // Get all analyst data in parallel
+    // Get all analyst data in parallel using existing tables
     const [
-      earningsEstimates,
-      revenueEstimates,
-      earningsHistory,
-      epsRevisions,
-      epsTrend,
-      growthEstimates,
-      recommendations,
+      earningsData,
+      revenueData, 
+      analystData
     ] = await Promise.all([
       query(
-        `SELECT * FROM earnings_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        `SELECT 
+          CONCAT('Q', er.quarter, ' ', er.year) as period,
+          er.eps_estimate as estimate,
+          er.eps_reported as actual,
+          (er.eps_reported - er.eps_estimate) as difference,
+          er.surprise_percent,
+          er.report_date as reported_date
+        FROM earnings_reports er
+        WHERE UPPER(er.symbol) = UPPER($1)
+        ORDER BY er.report_date DESC
+        LIMIT 8`,
         [ticker]
       ),
       query(
-        `SELECT * FROM revenue_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
+        `SELECT 
+          CONCAT('Q', er.quarter, ' ', er.year) as period,
+          NULL as estimate,
+          er.revenue as actual,
+          NULL as difference,
+          NULL as surprise_percent,
+          er.report_date as reported_date
+        FROM earnings_reports er
+        WHERE UPPER(er.symbol) = UPPER($1)
+        ORDER BY er.report_date DESC
+        LIMIT 8`,
         [ticker]
       ),
       query(
-        `SELECT * FROM earnings_history WHERE UPPER(symbol) = UPPER($1) ORDER BY quarter DESC LIMIT 20`,
+        `SELECT 
+          'current' as period,
+          asa.strong_buy_count as strong_buy,
+          asa.buy_count as buy,
+          asa.hold_count as hold,
+          asa.sell_count as sell,
+          asa.strong_sell_count as strong_sell,
+          asa.date as collected_date,
+          asa.recommendation_mean,
+          asa.total_analysts,
+          asa.avg_price_target,
+          asa.high_price_target,
+          asa.low_price_target,
+          asa.price_target_vs_current,
+          asa.eps_revisions_up_last_30d,
+          asa.eps_revisions_down_last_30d
+        FROM analyst_sentiment_analysis asa
+        WHERE UPPER(asa.symbol) = UPPER($1)
+        ORDER BY asa.date DESC
+        LIMIT 1`,
         [ticker]
-      ),
-      query(
-        `SELECT * FROM eps_revisions WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
-        [ticker]
-      ),
-      query(
-        `SELECT * FROM eps_trend WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
-        [ticker]
-      ),
-      query(
-        `SELECT * FROM growth_estimates WHERE UPPER(symbol) = UPPER($1) ORDER BY fetched_at DESC`,
-        [ticker]
-      ),
-      query(
-        `SELECT * FROM analyst_recommendations WHERE UPPER(symbol) = UPPER($1) ORDER BY collected_date DESC LIMIT 10`,
-        [ticker]
-      ),
+      )
     ]);
 
     res.success({ticker: ticker.toUpperCase(),
       data: {
-        earnings_estimates: earningsEstimates.rows,
-        revenue_estimates: revenueEstimates.rows,
-        earnings_history: earningsHistory.rows,
-        eps_revisions: epsRevisions.rows,
-        eps_trend: epsTrend.rows,
-        growth_estimates: growthEstimates.rows,
-        recommendations: recommendations.rows,
+        earnings_estimates: earningsData.rows,
+        revenue_estimates: revenueData.rows,
+        earnings_history: earningsData.rows,
+        eps_revisions: analystData.rows.map(row => ({
+          symbol: ticker.toUpperCase(),
+          period: '0q',
+          up_last7days: 0,
+          up_last30days: row.eps_revisions_up_last_30d,
+          down_last30days: row.eps_revisions_down_last_30d,
+          down_last7days: 0,
+          fetched_at: row.collected_date
+        })),
+        eps_trend: analystData.rows.map(row => ({
+          symbol: ticker.toUpperCase(),
+          period: '0q',
+          current: null,
+          days7ago: null,
+          days30ago: null,
+          days60ago: null,
+          days90ago: null,
+          fetched_at: row.collected_date
+        })),
+        growth_estimates: [{
+          symbol: ticker.toUpperCase(),
+          period: '0q',
+          stock_trend: 'N/A',
+          index_trend: 'N/A',
+          fetched_at: new Date().toISOString()
+        }],
+        recommendations: analystData.rows,
       },
       metadata: {
         timestamp: new Date().toISOString(),
+        note: "Overview data adapted from existing tables"
       },
     });
   } catch (error) {
     console.error("Analyst overview fetch error:", error);
-    return res.error("Failed to fetch analyst overview", {
+    return res.error("Failed to fetch analyst overview", 500, {
       message: error.message,
-    }, 500);
+    });
   }
 });
 
@@ -443,10 +476,11 @@ router.get("/recent-actions", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
 
-    // Get the most recent date with analyst actions
+    // Get the most recent date with analyst actions from sentiment analysis
     const recentDateQuery = `
       SELECT DISTINCT date 
-      FROM analyst_upgrade_downgrade 
+      FROM analyst_sentiment_analysis 
+      WHERE (upgrades_last_30d > 0 OR downgrades_last_30d > 0)
       ORDER BY date DESC 
       LIMIT 1
     `;
@@ -468,26 +502,31 @@ router.get("/recent-actions", async (req, res) => {
 
     const mostRecentDate = recentDateResult.rows[0].date;
 
-    // Get all actions for the most recent date
+    // Get all actions for the most recent date from sentiment analysis
     const recentActionsQuery = `
       SELECT 
-        aud.symbol,
-        cp.short_name AS company_name,
-        aud.from_grade,
-        aud.to_grade,
-        aud.action,
-        aud.firm,
-        aud.date,
-        aud.details,
+        asa.symbol,
+        cp.company_name,
+        NULL as from_grade,
+        NULL as to_grade,
         CASE 
-          WHEN LOWER(aud.action) LIKE '%up%' OR LOWER(aud.action) LIKE '%buy%' OR LOWER(aud.action) LIKE '%positive%' THEN 'upgrade'
-          WHEN LOWER(aud.action) LIKE '%down%' OR LOWER(aud.action) LIKE '%sell%' OR LOWER(aud.action) LIKE '%negative%' THEN 'downgrade'
+          WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'Upgrade'
+          WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'Downgrade' 
+          ELSE 'Neutral'
+        END as action,
+        'Analyst Consensus' as firm,
+        asa.date,
+        CONCAT('Recent activity: ', asa.upgrades_last_30d, ' upgrades, ', asa.downgrades_last_30d, ' downgrades') as details,
+        CASE 
+          WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'upgrade'
+          WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'downgrade'
           ELSE 'neutral'
         END as action_type
-      FROM analyst_upgrade_downgrade aud
-      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
-      WHERE aud.date = $1
-      ORDER BY aud.date DESC, aud.symbol ASC
+      FROM analyst_sentiment_analysis asa
+      LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
+      WHERE asa.date = $1
+        AND (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
+      ORDER BY asa.date DESC, asa.symbol ASC
       LIMIT $2
     `;
 

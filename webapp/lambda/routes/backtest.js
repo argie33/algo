@@ -650,7 +650,7 @@ router.get("/", async (req, res) => {
     console.log("📊 [BACKTEST] Getting user backtest results");
     
     // Get some sample backtest results from the backtestStore
-    const results = backtestStore.getAllResults();
+    const results = backtestStore.loadStrategies();
     
     res.success({data: results.slice(0, 10), // Return up to 10 results
       count: results.length,
@@ -658,7 +658,7 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching backtest results:", error);
-    return res.error("Failed to fetch backtest results", { details: error.message }, 500);
+    return res.error("Failed to fetch backtest results", 500, { details: error.message });
   }
 });
 
@@ -690,7 +690,7 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating backtest:", error);
-    return res.error("Failed to create backtest", { details: error.message }, 500);
+    return res.error("Failed to create backtest", 500, { details: error.message });
   }
 });
 
@@ -701,17 +701,17 @@ router.get("/:id", async (req, res) => {
     console.log(`📊 [BACKTEST] Getting backtest ${id}`);
     
     // Try to get from backtestStore
-    const backtest = backtestStore.getResult(id);
+    const backtest = backtestStore.getStrategy(id);
     
     if (!backtest) {
-      return res.error("Backtest not found", { message: `No backtest found with ID ${id}` }, 404);
+      return res.error("Backtest not found", 404, { message: `No backtest found with ID ${id}` });
     }
     
     res.success({data: backtest,
     });
   } catch (error) {
     console.error("Error fetching backtest:", error);
-    return res.error("Failed to fetch backtest", { details: error.message }, 500);
+    return res.error("Failed to fetch backtest", 500, { details: error.message });
   }
 });
 
@@ -722,10 +722,10 @@ router.delete("/:id", async (req, res) => {
     console.log(`📊 [BACKTEST] Deleting backtest ${id}`);
     
     // Check if backtest exists
-    const backtest = backtestStore.getResult(id);
+    const backtest = backtestStore.getStrategy(id);
     
     if (!backtest) {
-      return res.error("Backtest not found", { message: `No backtest found with ID ${id}` }, 404);
+      return res.error("Backtest not found", 404, { message: `No backtest found with ID ${id}` });
     }
     
     // Delete from backtestStore (this will just remove from memory)
@@ -736,7 +736,7 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting backtest:", error);
-    return res.error("Failed to delete backtest", { details: error.message }, 500);
+    return res.error("Failed to delete backtest", 500, { details: error.message });
   }
 });
 

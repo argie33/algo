@@ -4,6 +4,27 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Root endpoint - provides overview of available data endpoints  
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Data API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    endpoints: [
+      "/eps-revisions - Get EPS revisions data",
+      "/eps-trend - Get EPS trend data",
+      "/growth-estimates - Get growth estimates",
+      "/economic - Get economic data",
+      "/economic/data - Get economic data (DataValidation compatible)",
+      "/naaim - Get NAAIM exposure data", 
+      "/fear-greed - Get Fear & Greed Index data",
+      "/validation-summary - Get data validation summary",
+      "/financials/:symbol - Get comprehensive financial data for symbol",
+      "/financial-metrics - Get available financial metrics across all tables"
+    ]
+  });
+});
+
 // Get EPS revisions data
 router.get("/eps-revisions", async (req, res) => {
   try {
@@ -50,11 +71,27 @@ router.get("/eps-revisions", async (req, res) => {
       query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
+    // Add null safety check BEFORE accessing .rows
+    if (!revisionsResult || !revisionsResult.rows || !countResult || !countResult.rows) {
+      console.warn("EPS revisions query returned null result, database may be unavailable");
+      return res.error("Database temporarily unavailable", 503, {
+        message: "EPS revisions data temporarily unavailable - database connection issue",
+        data: [],
+        pagination: {
+          page: page,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        }
+      });
+    }
+
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
     if (
-      !revisionsResult ||
       !Array.isArray(revisionsResult.rows) ||
       revisionsResult.rows.length === 0
     ) {

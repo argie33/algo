@@ -21,17 +21,17 @@ router.get("/", (req, res) => {
   });
 });
 
-// Debug endpoint to check calendar table status
+// Debug endpoint to check earnings_reports table status (used for calendar functionality)
 router.get("/debug", async (req, res) => {
   try {
     console.log("Calendar debug endpoint called");
 
-    // Check if table exists
+    // Check if earnings_reports table exists (our calendar data source)
     const tableExistsQuery = `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'calendar_events'
+        AND table_name = 'earnings_reports'
       );
     `;
 
@@ -40,15 +40,17 @@ router.get("/debug", async (req, res) => {
 
     if (tableExists.rows[0].exists) {
       // Count total records
-      const countQuery = `SELECT COUNT(*) as total FROM calendar_events`;
+      const countQuery = `SELECT COUNT(*) as total FROM earnings_reports`;
       const countResult = await query(countQuery);
-      console.log("Total calendar events:", countResult.rows[0]);
+      console.log("Total earnings reports:", countResult.rows[0]);
 
       // Get sample records
       const sampleQuery = `
-        SELECT symbol, event_type, start_date, title, fetched_at
-        FROM calendar_events 
-        ORDER BY fetched_at DESC 
+        SELECT symbol, 'earnings' as event_type, report_date as start_date, 
+               CONCAT('Q', quarter, ' ', year, ' Earnings Report') as title, 
+               eps_estimate, eps_reported
+        FROM earnings_reports 
+        ORDER BY report_date DESC 
         LIMIT 5
       `;
       const sampleResult = await query(sampleQuery);
@@ -56,14 +58,16 @@ router.get("/debug", async (req, res) => {
 
       res.json({
         tableExists: true,
+        tableName: "earnings_reports",
         totalRecords: parseInt(countResult.rows[0].total),
         sampleRecords: sampleResult.rows,
+        note: "Using earnings_reports table for calendar functionality",
         timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
         tableExists: false,
-        message: "calendar_events table does not exist",
+        message: "earnings_reports table does not exist",
         timestamp: new Date().toISOString(),
       });
     }
@@ -73,7 +77,7 @@ router.get("/debug", async (req, res) => {
   }
 });
 
-// Simple test endpoint that returns raw data
+// Simple test endpoint that returns raw data from earnings_reports
 router.get("/test", async (req, res) => {
   try {
     console.log("Calendar test endpoint called");
@@ -81,23 +85,26 @@ router.get("/test", async (req, res) => {
     const testQuery = `
       SELECT 
         symbol,
-        event_type,
-        start_date,
-        end_date,
-        title
-      FROM calendar_events
-      ORDER BY start_date ASC
+        'earnings' as event_type,
+        report_date as start_date,
+        report_date as end_date,
+        CONCAT('Q', quarter, ' ', year, ' Earnings Report') as title,
+        eps_estimate,
+        eps_reported
+      FROM earnings_reports
+      ORDER BY report_date ASC
       LIMIT 10
     `;
 
     const result = await query(testQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No earnings data found for this query" );
     }
 
     res.success({count: result.rows.length,
       data: result.rows,
+      note: "Using earnings_reports table for calendar test data",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -107,6 +114,7 @@ router.get("/test", async (req, res) => {
 });
 
 // Get calendar events (earnings, dividends, splits, etc.)
+// Note: Using earnings_reports table since calendar_events doesn't exist
 router.get("/events", async (req, res) => {
   try {
     console.log("Calendar events endpoint called with params:", req.query);
@@ -117,20 +125,20 @@ router.get("/events", async (req, res) => {
     const timeFilter = req.query.type || "upcoming";
 
     let whereClause = "WHERE 1=1";
-    const _params = []; // Apply time filters (convert CURRENT_DATE to timestamp for proper comparison)
+    const _params = []; // Apply time filters using report_date from earnings_reports
     switch (timeFilter) {
       case "this_week":
-        whereClause += ` AND start_date >= CURRENT_DATE::timestamp AND start_date < (CURRENT_DATE + INTERVAL '7 days')::timestamp`;
+        whereClause += ` AND er.report_date >= CURRENT_DATE AND er.report_date < (CURRENT_DATE + INTERVAL '7 days')`;
         break;
       case "next_week":
-        whereClause += ` AND start_date >= (CURRENT_DATE + INTERVAL '7 days')::timestamp AND start_date < (CURRENT_DATE + INTERVAL '14 days')::timestamp`;
+        whereClause += ` AND er.report_date >= (CURRENT_DATE + INTERVAL '7 days') AND er.report_date < (CURRENT_DATE + INTERVAL '14 days')`;
         break;
       case "this_month":
-        whereClause += ` AND start_date >= CURRENT_DATE::timestamp AND start_date < (CURRENT_DATE + INTERVAL '30 days')::timestamp`;
+        whereClause += ` AND er.report_date >= CURRENT_DATE AND er.report_date < (CURRENT_DATE + INTERVAL '30 days')`;
         break;
       case "upcoming":
       default:
-        whereClause += ` AND start_date >= CURRENT_DATE::timestamp`;
+        whereClause += ` AND er.report_date >= CURRENT_DATE`;
         break;
     }
 
@@ -138,22 +146,25 @@ router.get("/events", async (req, res) => {
 
     const eventsQuery = `
       SELECT 
-        ce.symbol,
-        ce.event_type,
-        ce.start_date,
-        ce.end_date,
-        ce.title,
-        cp.short_name as company_name
-      FROM calendar_events ce
-      LEFT JOIN company_profile cp ON ce.symbol = cp.ticker
+        er.symbol,
+        'earnings' as event_type,
+        er.report_date as start_date,
+        er.report_date as end_date,
+        CONCAT('Q', er.quarter, ' ', er.year, ' Earnings Report') as title,
+        cp.company_name,
+        er.eps_estimate,
+        er.eps_reported,
+        er.revenue
+      FROM earnings_reports er
+      LEFT JOIN company_profile cp ON er.symbol = cp.ticker
       ${whereClause}
-      ORDER BY ce.start_date ASC
+      ORDER BY er.report_date ASC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM calendar_events ce
+      FROM earnings_reports er
       ${whereClause}
     `;
     console.log("Executing queries with limit:", limit, "offset:", offset);
@@ -162,6 +173,28 @@ router.get("/events", async (req, res) => {
       query(eventsQuery, [limit, offset]),
       query(countQuery, []),
     ]);
+
+    // Add null safety check BEFORE accessing .rows
+    if (
+      !eventsResult ||
+      !eventsResult.rows ||
+      !countResult ||
+      !countResult.rows
+    ) {
+      console.warn("Calendar events query returned null result, database may be unavailable");
+      return res.error("Database temporarily unavailable", 503, {
+        message: "Calendar events temporarily unavailable - database connection issue",
+        data: [],
+        pagination: {
+          page: page,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        }
+      });
+    }
 
     console.log(
       "Query results - events:",
@@ -174,11 +207,10 @@ router.get("/events", async (req, res) => {
     const totalPages = Math.ceil(total / limit);
 
     if (
-      !eventsResult ||
       !Array.isArray(eventsResult.rows) ||
       eventsResult.rows.length === 0
     ) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No earnings events found for this query" );
     }
 
     res.json({
@@ -243,7 +275,7 @@ router.get("/earnings-estimates", async (req, res) => {
     const estimatesQuery = `
       SELECT 
         ee.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         ee.period,
         ee.avg_estimate,
         ee.low_estimate,
@@ -340,7 +372,7 @@ router.get("/earnings-history", async (req, res) => {
     const historyQuery = `
       SELECT 
         eh.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         eh.quarter,
         eh.eps_actual,
         eh.eps_estimate,
@@ -442,7 +474,7 @@ router.get("/earnings-metrics", async (req, res) => {
     const metricsQuery = `
       SELECT 
         em.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         em.report_date,
         em.eps_growth_1q,
         em.eps_growth_2q,

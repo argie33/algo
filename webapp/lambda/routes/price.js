@@ -4,6 +4,21 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Root endpoint - provides overview of available price endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Price API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    endpoints: [
+      "/ping - Health check endpoint",
+      "/:symbol - Get current price for symbol",
+      "/:symbol/history - Get historical price data",
+      "/realtime/:symbols - Get real-time price data for multiple symbols"
+    ]
+  });
+});
+
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
   res.success({
@@ -72,10 +87,10 @@ router.get("/history/:timeframe", async (req, res) => {
         [tableName]
       );
 
-      if (!tableExists.rows[0].exists) {
-        return res.error(`Price data table for ${timeframe} timeframe not found`, {
+      if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
+        return res.error(`Price data table for ${timeframe} timeframe not found`, 404, {
           availableTimeframes: validTimeframes,
-        }, 404);
+        });
       }
     }
 
@@ -94,12 +109,12 @@ router.get("/history/:timeframe", async (req, res) => {
       SELECT 
         symbol,
         date,
-        open,
-        high,
-        low,
-        close,
+        open_price as open,
+        high_price as high,
+        low_price as low,
+        close_price as close,
         volume,
-        adj_close
+        adj_close_price as adj_close
       FROM ${tableName}
       ${whereClause}
       ORDER BY date DESC
@@ -216,12 +231,12 @@ router.get("/latest/:symbol", async (req, res) => {
       SELECT 
         symbol,
         date,
-        open,
-        high,
-        low,
-        close,
+        open_price as open,
+        high_price as high,
+        low_price as low,
+        close_price as close,
         volume,
-        adj_close,
+        adj_close_price as adj_close,
         change,
         change_percent
       FROM ${tableName}
@@ -232,11 +247,11 @@ router.get("/latest/:symbol", async (req, res) => {
 
     const result = await query(latestQuery, [symbol.toUpperCase()]);
 
-    if (result.rows.length === 0) {
-      return res.error("Symbol not found", {
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.error("Symbol not found", 404, {
         symbol: symbol.toUpperCase(),
         message: "No price data available for symbol",
-      }, 404);
+      });
     }
 
     const latestData = result.rows[0];
@@ -255,9 +270,9 @@ router.get("/latest/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Latest price query error:", error);
-    res.error("Failed to fetch latest price", {
+    res.error("Failed to fetch latest price", 500, {
       message: error.message,
-    }, 500);
+    });
   }
 });
 

@@ -4,6 +4,32 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Root endpoint - provides overview of available financial endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Financials API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    endpoints: [
+      "/:ticker/balance-sheet - Get balance sheet data",
+      "/:ticker/income-statement - Get income statement data", 
+      "/:ticker/cash-flow - Get cash flow statement data",
+      "/:ticker/financials - Get all financial statements combined",
+      "/:ticker/key-metrics - Get comprehensive financial metrics",
+      "/:symbol - Get basic financial overview",
+      "/:symbol/income - Get income data (simple)",
+      "/:symbol/balance - Get balance sheet data (simple)",
+      "/:symbol/cashflow - Get cash flow data (simple)",
+      "/:symbol/ratios - Get financial ratios",
+      "/data/:symbol - Get comprehensive financial data",
+      "/earnings/:symbol - Get earnings history",
+      "/cash-flow/:symbol - Get cash flow data (alias)",
+      "/debug/tables - Debug table structure",
+      "/ping - Health check"
+    ]
+  });
+});
+
 // Debug endpoint to check table structure
 router.get("/debug/tables", async (req, res) => {
   try {
@@ -456,6 +482,15 @@ router.get("/:symbol", async (req, res) => {
     `;
 
     const result = await query(dataQuery, [symbol.toUpperCase()]);
+
+    // Add null safety check
+    if (!result || !result.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        details: "Financial data temporarily unavailable - database connection issue",
+      });
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({

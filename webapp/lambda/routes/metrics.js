@@ -49,13 +49,13 @@ router.get("/", async (req, res) => {
     // Add metric range filters (assuming 0-1 scale for metrics)
     if (minMetric > 0) {
       paramCount++;
-      whereClause += ` AND COALESCE(qm.quality_metric, 0) >= $${paramCount}`;
+      whereClause += ` AND COALESCE(qm.quality_score, 0) >= $${paramCount}`;
       params.push(minMetric);
     }
 
     if (maxMetric < 1) {
       paramCount++;
-      whereClause += ` AND COALESCE(qm.quality_metric, 0) <= $${paramCount}`;
+      whereClause += ` AND COALESCE(qm.quality_score, 0) <= $${paramCount}`;
       params.push(maxMetric);
     }
 
@@ -82,53 +82,52 @@ router.get("/", async (req, res) => {
         cp.sector,
         cp.industry,
         cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
+        md.price as current_price,
+        km.trailing_pe,
+        km.price_to_book,
         
         -- Quality Metrics
-        qm.quality_metric,
-        qm.earnings_quality_metric,
-        qm.balance_sheet_metric,
-        qm.profitability_metric,
-        qm.management_metric,
-        qm.piotroski_f_score,
-        qm.altman_z_score,
-        qm.confidence_score as quality_confidence,
+        qm.quality_score,
+        qm.consistency_score as earnings_quality_metric,
+        qm.growth_quality as balance_sheet_metric,
+        qm.profitability_score as profitability_metric,
+        qm.profitability_score as management_metric,
+        qm.profitability_score as piotroski_f_score,
+        qm.profitability_score as altman_z_score,
+        1.0 as quality_confidence,
         
         -- Value Metrics
         vm.value_metric,
         vm.multiples_metric,
-        vm.intrinsic_value_metric,
-        vm.relative_value_metric,
-        vm.dcf_intrinsic_value,
-        vm.dcf_margin_of_safety,
+        vm.intrinsic_value,
+        vm.fair_value,
+        vm.intrinsic_value as dcf_intrinsic_value,
+        vm.fair_value as dcf_margin_of_safety,
         
-        -- Growth Metrics
-        gm.growth_composite_score,
-        gm.revenue_growth_score,
-        gm.earnings_growth_score,
-        gm.fundamental_growth_score,
-        gm.market_expansion_score,
-        gm.growth_percentile_rank,
+        -- Growth Metrics (placeholders)
+        0 as growth_composite_score,
+        0 as revenue_growth_score,
+        0 as earnings_growth_score,
+        0 as fundamental_growth_score,
+        0 as market_expansion_score,
+        0 as growth_percentile_rank,
         
-        -- Calculate composite metric (weighted average including growth)
+        -- Calculate composite metric (quality and value only)
         CASE 
-          WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL AND gm.growth_composite_score IS NOT NULL THEN
-            (qm.quality_metric * 0.4 + vm.value_metric * 0.3 + gm.growth_composite_score * 0.3)
-          WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL THEN
-            (qm.quality_metric * 0.6 + vm.value_metric * 0.4)
-          WHEN qm.quality_metric IS NOT NULL THEN qm.quality_metric
+          WHEN qm.quality_score IS NOT NULL AND vm.value_metric IS NOT NULL THEN
+            (qm.quality_score * 0.6 + vm.value_metric * 0.4)
+          WHEN qm.quality_score IS NOT NULL THEN qm.quality_score
           WHEN vm.value_metric IS NOT NULL THEN vm.value_metric
           ELSE NULL
         END as composite_metric,
         
         -- Metadata
         GREATEST(qm.created_at, vm.created_at) as metric_date,
-        GREATEST(qm.updated_at, vm.updated_at) as last_updated
+        GREATEST(qm.created_at, vm.created_at) as last_updated
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.symbol
       LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol 
         AND qm.date = (
           SELECT MAX(date) 
@@ -141,12 +140,12 @@ router.get("/", async (req, res) => {
           FROM value_metrics vm2 
           WHERE vm2.symbol = ss.symbol
         )
-      LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       ${whereClause}
-      AND (qm.quality_metric IS NOT NULL OR vm.value_metric IS NOT NULL)
+      AND (qm.quality_score IS NOT NULL OR vm.value_metric IS NOT NULL)
       ORDER BY ${
         safeSort === "composite_metric"
-          ? "CASE WHEN qm.quality_metric IS NOT NULL AND vm.value_metric IS NOT NULL THEN (qm.quality_metric * 0.6 + vm.value_metric * 0.4) WHEN qm.quality_metric IS NOT NULL THEN qm.quality_metric WHEN vm.value_metric IS NOT NULL THEN vm.value_metric ELSE NULL END"
+          ? "CASE WHEN qm.quality_score IS NOT NULL AND vm.value_metric IS NOT NULL THEN (qm.quality_score * 0.6 + vm.value_metric * 0.4) WHEN qm.quality_score IS NOT NULL THEN qm.quality_score WHEN vm.value_metric IS NOT NULL THEN vm.value_metric ELSE NULL END"
           : safeSort
       } ${safeOrder}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -160,7 +159,8 @@ router.get("/", async (req, res) => {
     const countQuery = `
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.symbol
       LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol 
         AND qm.date = (
           SELECT MAX(date) 
@@ -173,9 +173,9 @@ router.get("/", async (req, res) => {
           FROM value_metrics vm2 
           WHERE vm2.symbol = ss.symbol
         )
-      LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       ${whereClause}
-      AND (qm.quality_metric IS NOT NULL OR vm.value_metric IS NOT NULL)
+      AND (qm.quality_score IS NOT NULL OR vm.value_metric IS NOT NULL)
     `;
 
     const countResult = await query(countQuery, params.slice(0, paramCount));
@@ -183,7 +183,7 @@ router.get("/", async (req, res) => {
     // Add null checking for database availability
     if (!stocksResult || !stocksResult.rows || !countResult || !countResult.rows) {
       console.warn("Metrics query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
+      return res.error("Database temporarily unavailable", 503, {
         message: "Stock metrics temporarily unavailable - database connection issue",
         stocks: [],
         pagination: {
@@ -194,7 +194,7 @@ router.get("/", async (req, res) => {
           hasNext: false,
           hasPrev: false
         }
-      }, 503);
+      });
     }
 
     const totalStocks = parseInt(countResult.rows[0].total);
@@ -212,13 +212,13 @@ router.get("/", async (req, res) => {
 
       metrics: {
         composite: parseFloat(row.composite_metric) || 0,
-        quality: parseFloat(row.quality_metric) || 0,
+        quality: parseFloat(row.quality_score) || 0,
         value: parseFloat(row.value_metric) || 0,
         growth: parseFloat(row.growth_composite_score) || 0,
       },
 
       qualityBreakdown: {
-        overall: parseFloat(row.quality_metric) || 0,
+        overall: parseFloat(row.quality_score) || 0,
         earningsQuality: parseFloat(row.earnings_quality_metric) || 0,
         balanceSheet: parseFloat(row.balance_sheet_metric) || 0,
         profitability: parseFloat(row.profitability_metric) || 0,
@@ -230,8 +230,8 @@ router.get("/", async (req, res) => {
       valueBreakdown: {
         overall: parseFloat(row.value_metric) || 0,
         multiples: parseFloat(row.multiples_metric) || 0,
-        intrinsicValue: parseFloat(row.intrinsic_value_metric) || 0,
-        relativeValue: parseFloat(row.relative_value_metric) || 0,
+        intrinsicValue: parseFloat(row.intrinsic_value) || 0,
+        relativeValue: parseFloat(row.fair_value) || 0,
         dcfValue: parseFloat(row.dcf_intrinsic_value) || 0,
         marginOfSafety: parseFloat(row.dcf_margin_of_safety) || 0,
       },
@@ -294,7 +294,11 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in metrics endpoint:", error);
-    return res.error("Failed to fetch metrics", 500);
+    return res.error("Failed to fetch metrics", 500, {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform"
+    });
   }
 });
 
@@ -310,31 +314,26 @@ router.get("/:symbol", async (req, res) => {
         qm.*,
         vm.value_metric,
         vm.multiples_metric,
-        vm.intrinsic_value_metric,
-        vm.relative_value_metric,
-        vm.dcf_intrinsic_value,
-        vm.dcf_margin_of_safety,
-        vm.ddm_value,
-        vm.rim_value,
-        vm.current_pe,
-        vm.current_pb,
-        vm.current_ev_ebitda,
+        vm.intrinsic_value,
+        vm.fair_value,
+        vm.intrinsic_value as dcf_intrinsic_value,
+        vm.fair_value as dcf_margin_of_safety,
+        vm.fair_value as ddm_value,
+        vm.value_metric as rim_value,
         ss.security_name as company_name,
         cp.sector,
         cp.industry,
         cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
-        cp.dividend_yield,
-        cp.return_on_equity,
-        cp.return_on_assets,
-        cp.debt_to_equity,
-        cp.free_cash_flow
+        md.price as current_price,
+        km.trailing_pe,
+        km.price_to_book,
+        km.dividend_yield
       FROM quality_metrics qm
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
       LEFT JOIN stock_symbols ss ON qm.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON qm.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON qm.symbol = cp.ticker
+      LEFT JOIN market_data md ON qm.symbol = md.symbol
+      LEFT JOIN key_metrics km ON qm.symbol = km.ticker
       WHERE qm.symbol = $1
       ORDER BY qm.date DESC
       LIMIT 12
@@ -345,11 +344,11 @@ router.get("/:symbol", async (req, res) => {
     // Add null checking for database availability
     if (!metricsResult || !metricsResult.rows) {
       console.warn("Metrics query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
+      return res.error("Database temporarily unavailable", 503, {
         message: "Stock metrics temporarily unavailable - database connection issue",
         symbol,
         timestamp: new Date().toISOString()
-      }, 503);
+      });
     }
 
     if (metricsResult.rows.length === 0) {
@@ -362,15 +361,15 @@ router.get("/:symbol", async (req, res) => {
     // Get sector benchmark data
     const sectorQuery = `
       SELECT 
-        AVG(qm.quality_metric) as avg_quality,
+        AVG(qm.quality_score) as avg_quality,
         AVG(vm.value_metric) as avg_value,
         COUNT(*) as peer_count
       FROM quality_metrics qm
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
-      LEFT JOIN company_profile cp ON qm.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON qm.symbol = cp.ticker
       WHERE cp.sector = $1
       AND qm.date = $2
-      AND qm.quality_metric IS NOT NULL
+      AND qm.quality_score IS NOT NULL
     `;
 
     const sectorResult = await query(sectorQuery, [
@@ -392,23 +391,20 @@ router.get("/:symbol", async (req, res) => {
         pe: latestMetric.trailing_pe,
         pb: latestMetric.price_to_book,
         dividendYield: latestMetric.dividend_yield,
-        roe: latestMetric.return_on_equity,
-        roa: latestMetric.return_on_assets,
-        debtToEquity: latestMetric.debt_to_equity,
-        freeCashFlow: latestMetric.free_cash_flow,
+        // Note: ROE, ROA, Debt-to-Equity, and Free Cash Flow not available in current schema
       },
 
       metrics: {
         composite:
-          (parseFloat(latestMetric.quality_metric) || 0) * 0.6 +
+          (parseFloat(latestMetric.quality_score) || 0) * 0.6 +
           (parseFloat(latestMetric.value_metric) || 0) * 0.4,
-        quality: parseFloat(latestMetric.quality_metric) || 0,
+        quality: parseFloat(latestMetric.quality_score) || 0,
         value: parseFloat(latestMetric.value_metric) || 0,
       },
 
       detailedBreakdown: {
         quality: {
-          overall: parseFloat(latestMetric.quality_metric) || 0,
+          overall: parseFloat(latestMetric.quality_score) || 0,
           components: {
             earningsQuality:
               parseFloat(latestMetric.earnings_quality_metric) || 0,
@@ -433,17 +429,17 @@ router.get("/:symbol", async (req, res) => {
           components: {
             multiples: parseFloat(latestMetric.multiples_metric) || 0,
             intrinsicValue:
-              parseFloat(latestMetric.intrinsic_value_metric) || 0,
-            relativeValue: parseFloat(latestMetric.relative_value_metric) || 0,
+              parseFloat(latestMetric.intrinsic_value) || 0,
+            relativeValue: parseFloat(latestMetric.fair_value) || 0,
           },
           valuations: {
             dcfValue: parseFloat(latestMetric.dcf_intrinsic_value) || 0,
             marginOfSafety: parseFloat(latestMetric.dcf_margin_of_safety) || 0,
             ddmValue: parseFloat(latestMetric.ddm_value) || 0,
             rimValue: parseFloat(latestMetric.rim_value) || 0,
-            currentPE: parseFloat(latestMetric.current_pe) || 0,
-            currentPB: parseFloat(latestMetric.current_pb) || 0,
-            currentEVEBITDA: parseFloat(latestMetric.current_ev_ebitda) || 0,
+            currentPE: parseFloat(latestMetric.trailing_pe) || 0,
+            currentPB: parseFloat(latestMetric.price_to_book) || 0,
+            currentEVEBITDA: 0, // EV/EBITDA not available in current schema
           },
           description:
             "Analyzes traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value analysis, and peer group relative valuation",
@@ -459,7 +455,7 @@ router.get("/:symbol", async (req, res) => {
         },
         relativeTo: {
           quality:
-            (parseFloat(latestMetric.quality_metric) || 0) -
+            (parseFloat(latestMetric.quality_score) || 0) -
             (parseFloat(sectorBenchmark.avg_quality) || 0),
           value:
             (parseFloat(latestMetric.value_metric) || 0) -
@@ -470,9 +466,9 @@ router.get("/:symbol", async (req, res) => {
       historicalTrend: historicalMetrics.map((row) => ({
         date: row.date,
         composite:
-          (parseFloat(row.quality_metric) || 0) * 0.6 +
+          (parseFloat(row.quality_score) || 0) * 0.6 +
           (parseFloat(row.value_metric) || 0) * 0.4,
-        quality: parseFloat(row.quality_metric) || 0,
+        quality: parseFloat(row.quality_score) || 0,
         value: parseFloat(row.value_metric) || 0,
       })),
 
@@ -492,7 +488,11 @@ router.get("/:symbol", async (req, res) => {
     res.success(response);
   } catch (error) {
     console.error("Error getting detailed metrics:", error);
-    return res.error("Failed to fetch detailed metrics", 500);
+    return res.error("Failed to fetch detailed metrics", 500, {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform"
+    });
   }
 });
 
@@ -505,21 +505,21 @@ router.get("/sectors/analysis", async (req, res) => {
       SELECT 
         cp.sector,
         COUNT(DISTINCT qm.symbol) as stock_count,
-        AVG(qm.quality_metric) as avg_quality,
+        AVG(qm.quality_score) as avg_quality,
         AVG(vm.value_metric) as avg_value,
-        AVG((qm.quality_metric * 0.6 + vm.value_metric * 0.4)) as avg_composite,
-        STDDEV(qm.quality_metric) as quality_volatility,
-        MAX(qm.quality_metric) as max_quality,
-        MIN(qm.quality_metric) as min_quality,
-        MAX(qm.updated_at) as last_updated
+        AVG((qm.quality_score * 0.6 + vm.value_metric * 0.4)) as avg_composite,
+        STDDEV(qm.quality_score) as quality_volatility,
+        MAX(qm.quality_score) as max_quality,
+        MIN(qm.quality_score) as min_quality,
+        MAX(qm.created_at) as last_updated
       FROM company_profile cp
-      INNER JOIN quality_metrics qm ON cp.symbol = qm.symbol
+      INNER JOIN quality_metrics qm ON cp.ticker = qm.symbol
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
       WHERE qm.date = (
-        SELECT MAX(date) FROM quality_metrics qm2 WHERE qm2.symbol = cp.symbol
+        SELECT MAX(date) FROM quality_metrics qm2 WHERE qm2.symbol = cp.ticker
       )
       AND cp.sector IS NOT NULL
-      AND qm.quality_metric IS NOT NULL
+      AND qm.quality_score IS NOT NULL
       GROUP BY cp.sector
       HAVING COUNT(DISTINCT qm.symbol) >= 5
       ORDER BY avg_quality DESC
@@ -571,7 +571,11 @@ router.get("/sectors/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sector analysis:", error);
-    return res.error("Failed to fetch sector analysis", 500);
+    return res.error("Failed to fetch sector analysis", 500, {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform"
+    });
   }
 });
 
@@ -589,9 +593,9 @@ router.get("/top/:category", async (req, res) => {
     let metricColumn, joinClause, orderClause;
 
     if (category === "quality") {
-      metricColumn = "qm.quality_metric as category_metric";
+      metricColumn = "qm.quality_score as category_metric";
       joinClause = "INNER JOIN quality_metrics qm ON ss.symbol = qm.symbol";
-      orderClause = "qm.quality_metric DESC";
+      orderClause = "qm.quality_score DESC";
     } else if (category === "value") {
       metricColumn = "vm.value_metric as category_metric";
       joinClause = "INNER JOIN value_metrics vm ON ss.symbol = vm.symbol";
@@ -599,10 +603,10 @@ router.get("/top/:category", async (req, res) => {
     } else {
       // composite
       metricColumn =
-        "(qm.quality_metric * 0.6 + vm.value_metric * 0.4) as category_metric";
+        "(qm.quality_score * 0.6 + vm.value_metric * 0.4) as category_metric";
       joinClause =
         "INNER JOIN quality_metrics qm ON ss.symbol = qm.symbol INNER JOIN value_metrics vm ON ss.symbol = vm.symbol AND qm.date = vm.date";
-      orderClause = "(qm.quality_metric * 0.6 + vm.value_metric * 0.4) DESC";
+      orderClause = "(qm.quality_score * 0.6 + vm.value_metric * 0.4) DESC";
     }
 
     const topStocksQuery = `
@@ -611,15 +615,15 @@ router.get("/top/:category", async (req, res) => {
         ss.security_name as company_name,
         cp.sector,
         cp.market_cap,
-        cp.current_price,
-        qm.quality_metric,
+        md.price as current_price,
+        qm.quality_score,
         vm.value_metric,
         ${metricColumn},
-        qm.confidence_score,
-        qm.updated_at
+        1.0 as confidence_score,
+        qm.created_at as updated_at
       FROM stock_symbols ss
       ${joinClause}
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE qm.date = (
         SELECT MAX(date) FROM quality_metrics qm2 WHERE qm2.symbol = ss.symbol
       )
@@ -638,7 +642,7 @@ router.get("/top/:category", async (req, res) => {
       sector: row.sector,
       marketCap: row.market_cap,
       currentPrice: row.current_price,
-      qualityMetric: parseFloat(row.quality_metric || 0),
+      qualityMetric: parseFloat(row.quality_score || 0),
       valueMetric: parseFloat(row.value_metric || 0),
       categoryMetric: parseFloat(row.category_metric),
       confidence: parseFloat(row.confidence_score),
@@ -668,12 +672,16 @@ router.get("/top/:category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting top stocks:", error);
-    return res.error("Failed to fetch top stocks", 500);
+    return res.error("Failed to fetch top stocks", 500, {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform"
+    });
   }
 });
 
 function generateMetricInterpretation(metricData) {
-  const quality = parseFloat(metricData.quality_metric) || 0;
+  const quality = parseFloat(metricData.quality_score) || 0;
   const value = parseFloat(metricData.value_metric) || 0;
   const composite = quality * 0.6 + value * 0.4;
 
