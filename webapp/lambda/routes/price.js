@@ -236,9 +236,7 @@ router.get("/latest/:symbol", async (req, res) => {
         low_price as low,
         close_price as close,
         volume,
-        adj_close_price as adj_close,
-        change,
-        change_percent
+        adj_close_price as adj_close
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY date DESC
@@ -264,8 +262,6 @@ router.get("/latest/:symbol", async (req, res) => {
         low: parseFloat(latestData.low),
         close: parseFloat(latestData.close),
         volume: parseInt(latestData.volume),
-        change: latestData.change ? parseFloat(latestData.change) : null,
-        changePercent: latestData.change_percent ? parseFloat(latestData.change_percent) : null,
       },
     });
   } catch (error) {
