@@ -235,6 +235,23 @@ router.get("/growth-estimates", async (req, res) => {
       query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
+    // Add null safety check
+    if (!countResult || !countResult.rows || countResult.rows.length === 0) {
+      console.warn("Growth estimates count query returned null result, database may be unavailable");
+      return res.error("Database temporarily unavailable", 503, {
+        message: "Growth estimates data temporarily unavailable - database connection issue",
+        data: [],
+        pagination: {
+          page: page,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        }
+      });
+    }
+    
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
@@ -307,6 +324,23 @@ router.get("/economic", async (req, res) => {
       query(countQuery, queryParams.slice(0, paramCount)),
     ]);
 
+    // Add null safety check
+    if (!countResult || !countResult.rows || countResult.rows.length === 0) {
+      console.warn("Economic data count query returned null result, database may be unavailable");
+      return res.error("Database temporarily unavailable", 503, {
+        message: "Economic data temporarily unavailable - database connection issue",
+        data: [],
+        pagination: {
+          page: page,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        }
+      });
+    }
+    
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
