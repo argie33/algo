@@ -614,12 +614,12 @@ router.get("/benchmark", async (req, res) => {
     // Since we don't have price_daily table, get benchmark data from stock_prices
     const benchmarkQuery = `
       SELECT 
-        timestamp::date as date,
-        price,
+        date,
+        close as price,
         volume
       FROM stock_prices
       WHERE symbol = $1
-      ORDER BY timestamp ASC
+      ORDER BY date ASC
       LIMIT 100
     `;
 

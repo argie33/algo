@@ -119,7 +119,7 @@ router.get("/:timeframe", async (req, res) => {
       [tableName]
     );
 
-    if (!tableExists.rows[0].exists) {
+    if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
       console.log(
         `Technical data table for ${timeframe} timeframe not found, returning empty data`
       );
@@ -157,7 +157,7 @@ router.get("/:timeframe", async (req, res) => {
       ${whereClause}
     `;
     const countResult = await query(countQuery, params);
-    const total = parseInt(countResult.rows[0].total);
+    const total = countResult && countResult.rows ? parseInt(countResult.rows[0].total) : 0;
 
     // Get technical data
     const dataQuery = `
@@ -268,7 +268,7 @@ router.get("/:timeframe", async (req, res) => {
     });
   } catch (error) {
     console.error("Technical data error:", error);
-    return res.error("Failed to retrieve technical analysis data", {
+    return res.error("Failed to retrieve technical analysis data", 500, {
       data: [],
       pagination: {
         page: parseInt(page) || 1,
@@ -282,7 +282,7 @@ router.get("/:timeframe", async (req, res) => {
         timeframe,
         error: error.message,
       },
-    }, 500);
+    });
   }
 });
 
@@ -466,13 +466,15 @@ router.get("/", async (req, res) => {
         });
       }
 
-      return res.success({data: fallbackData,
-        count: fallbackData.length,
-        metadata: {
-          timeframe,
-          timestamp: new Date().toISOString(),
-          fallback: true,
-        },
+      return res.error(`Technical data table for ${timeframe} timeframe not found`, 404, {
+        type: "table_not_found",
+        timeframe,
+        error: `No technical data available for timeframe: ${timeframe}`,
+        troubleshooting: {
+          "Database Connection": "Verify technical data tables exist",
+          "Data Loading": "Check if technical data has been populated",
+          "Table Schema": `Expected table: technical_data_${timeframe}`
+        }
       });
     }
 
@@ -540,14 +542,15 @@ router.get("/", async (req, res) => {
       });
     }
 
-    res.success({data: fallbackData,
-      count: fallbackData.length,
-      metadata: {
-        timeframe: req.query.timeframe || "daily",
-        timestamp: new Date().toISOString(),
-        fallback: true,
-        error: error.message,
-      },
+    return res.error("Failed to retrieve technical overview data", 500, {
+      type: "database_error",
+      timeframe: req.query.timeframe || "daily",
+      error: error.message,
+      troubleshooting: {
+        "Database Connection": "Check database connectivity and table existence",
+        "Query Execution": "Verify technical_data_daily table schema and data",
+        "Error Details": error.message
+      }
     });
   }
 });
@@ -571,44 +574,17 @@ router.get("/data/:symbol", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(
-        `Technical data table not found, returning fallback data for ${symbol}`
-      );
-      // Return fallback data
-      const fallbackData = {
+      console.log(`Technical data table not found for symbol ${symbol}`);
+      
+      return res.error(`Technical data table not found for symbol ${symbol}`, 404, {
+        type: "table_not_found",
         symbol: symbol.toUpperCase(),
-        date: new Date().toISOString().split("T")[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4,
-      };
-
-      return res.success({data: fallbackData,
-        symbol: symbol.toUpperCase(),
-        fallback: true,
+        error: "No technical data table available",
+        troubleshooting: {
+          "Database Connection": "Verify technical_data_daily table exists",
+          "Data Loading": "Check if technical data has been populated for this symbol",
+          "Symbol Validation": "Ensure symbol is valid and active"
+        }
       });
     }
 
@@ -666,45 +642,18 @@ router.get("/data/:symbol", async (req, res) => {
       `❌ [TECHNICAL] Error fetching technical data for ${symbol}:`,
       error
     );
-    // Return fallback data on error instead of 500
-    console.log(
-      `Error occurred, returning fallback technical data for ${symbol}`
-    );
-    const fallbackData = {
-      symbol: symbol.toUpperCase(),
-      date: new Date().toISOString().split("T")[0],
-      open: 150 + Math.random() * 50,
-      high: 160 + Math.random() * 50,
-      low: 140 + Math.random() * 50,
-      close: 150 + Math.random() * 50,
-      volume: 1000000 + Math.random() * 5000000,
-      rsi: 30 + Math.random() * 40,
-      macd: -2 + Math.random() * 4,
-      macd_signal: -1 + Math.random() * 2,
-      macd_histogram: -1 + Math.random() * 2,
-      sma_20: 145 + Math.random() * 10,
-      sma_50: 140 + Math.random() * 15,
-      ema_12: 148 + Math.random() * 8,
-      ema_26: 142 + Math.random() * 12,
-      bollinger_upper: 155 + Math.random() * 10,
-      bollinger_lower: 145 + Math.random() * 10,
-      bollinger_middle: 150 + Math.random() * 5,
-      stochastic_k: 20 + Math.random() * 60,
-      stochastic_d: 25 + Math.random() * 50,
-      williams_r: -80 + Math.random() * 40,
-      cci: -100 + Math.random() * 200,
-      adx: 15 + Math.random() * 25,
-      atr: 2 + Math.random() * 3,
-      obv: 1000000 + Math.random() * 5000000,
-      mfi: 20 + Math.random() * 60,
-      roc: -5 + Math.random() * 10,
-      momentum: -2 + Math.random() * 4,
-    };
+    console.log(`Database error retrieving technical data for ${symbol}: ${error.message}`);
 
-    res.success({data: fallbackData,
+    return res.error(`Failed to retrieve technical data for ${symbol}`, 500, {
+      type: "database_error",
       symbol: symbol.toUpperCase(),
-      fallback: true,
       error: error.message,
+      troubleshooting: {
+        "Database Connection": "Check database connectivity",
+        "Query Execution": "Verify technical_data_daily table and data integrity",
+        "Symbol Data": `Ensure technical data exists for symbol: ${symbol}`,
+        "Error Details": error.message
+      }
     });
   }
 });
@@ -727,7 +676,7 @@ router.get("/indicators/:symbol", async (req, res) => {
       []
     );
 
-    if (!tableExists.rows[0].exists) {
+    if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
       console.log(
         `Technical data table not found, returning fallback indicators for ${symbol}`
       );
@@ -764,10 +713,15 @@ router.get("/indicators/:symbol", async (req, res) => {
         });
       }
 
-      return res.success({data: fallbackData,
-        count: fallbackData.length,
+      return res.error(`Technical indicators table not found for symbol ${symbol}`, 404, {
+        type: "table_not_found",
         symbol: symbol.toUpperCase(),
-        fallback: true,
+        error: "No technical indicators data table available",
+        troubleshooting: {
+          "Database Connection": "Verify technical_data_daily table exists",
+          "Data Loading": "Check if technical indicators have been calculated",
+          "Symbol Coverage": "Ensure symbol is included in technical analysis"
+        }
       });
     }
 
@@ -805,7 +759,7 @@ router.get("/indicators/:symbol", async (req, res) => {
 
     const result = await query(indicatorsQuery, [symbol.toUpperCase()]);
 
-    if (result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: `No technical indicators found for symbol ${symbol}`,
@@ -857,11 +811,16 @@ router.get("/indicators/:symbol", async (req, res) => {
       });
     }
 
-    res.success({data: fallbackData,
-      count: fallbackData.length,
+    return res.error(`Failed to retrieve technical indicators for ${symbol}`, 500, {
+      type: "database_error",
       symbol: symbol.toUpperCase(),
-      fallback: true,
       error: error.message,
+      troubleshooting: {
+        "Database Connection": "Check database connectivity",
+        "Indicators Calculation": "Verify technical indicators have been calculated",
+        "Data Integrity": "Check technical_data_daily table for corrupted data",
+        "Error Details": error.message
+      }
     });
   }
 });
@@ -931,11 +890,16 @@ router.get("/history/:symbol", async (req, res) => {
         });
       }
 
-      return res.success({data: fallbackData,
-        count: fallbackData.length,
+      return res.error(`Technical history table not found for symbol ${symbol}`, 404, {
+        type: "table_not_found",
         symbol: symbol.toUpperCase(),
         period_days: numDays,
-        fallback: true,
+        error: "No technical history data table available",
+        troubleshooting: {
+          "Database Connection": "Verify technical_data_daily table exists",
+          "Historical Data": "Check if historical technical data has been loaded",
+          "Date Range": `Verify data exists for requested ${numDays} day period`
+        }
       });
     }
 
@@ -1038,12 +1002,17 @@ router.get("/history/:symbol", async (req, res) => {
       });
     }
 
-    res.success({data: fallbackData,
-      count: fallbackData.length,
+    return res.error(`Failed to retrieve technical history for ${symbol}`, 500, {
+      type: "database_error",
       symbol: symbol.toUpperCase(),
       period_days: numDays,
-      fallback: true,
       error: error.message,
+      troubleshooting: {
+        "Database Connection": "Check database connectivity",
+        "Historical Query": "Verify technical data exists for the requested time period",
+        "Data Consistency": "Check for gaps or corruption in historical data",
+        "Error Details": error.message
+      }
     });
   }
 });
@@ -1148,7 +1117,7 @@ router.get("/support-resistance/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching support resistance levels:", error);
-    return res.error("Failed to fetch support and resistance levels", {
+    return res.error("Failed to fetch support and resistance levels", 500, {
       symbol: req.params.symbol.toUpperCase(),
       timeframe: req.query.timeframe || "daily",
       error: error.message,
@@ -1156,7 +1125,7 @@ router.get("/support-resistance/:symbol", async (req, res) => {
       resistance_levels: [],
       current_price: null,
       last_updated: null,
-    }, 500);
+    });
   }
 });
 
@@ -1300,27 +1269,21 @@ router.get("/data", async (req, res) => {
         });
       }
 
-      return res.success({data: fallbackData,
-        total: fallbackData.length,
-        pagination: {
-          page: parseInt(page),
-          limit: maxLimit,
-          total: fallbackData.length,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false,
-        },
+      return res.error(`Technical data table for ${timeframe} timeframe not found`, 404, {
+        type: "table_not_found",
+        timeframe,
         filters: {
           symbol: symbol || null,
-          timeframe,
           startDate: startDate || null,
-          endDate: endDate || null,
+          endDate: endDate || null
         },
-        sorting: {
-          sortBy: sortBy,
-          sortOrder: sortOrder,
-        },
-        fallback: true,
+        error: `No technical data available for timeframe: ${timeframe}`,
+        troubleshooting: {
+          "Database Connection": "Verify technical data tables exist",
+          "Data Population": "Check if technical data has been loaded",
+          "Table Schema": `Expected table: technical_data_${timeframe}`,
+          "Supported Timeframes": "daily, weekly, monthly"
+        }
       });
     }
 
@@ -1528,28 +1491,22 @@ router.get("/data", async (req, res) => {
       });
     }
 
-    res.success({data: fallbackData,
-      total: fallbackData.length,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit) || 25,
-        total: fallbackData.length,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false,
-      },
+    return res.error("Failed to retrieve filtered technical data", 500, {
+      type: "database_error",
+      timeframe,
       filters: {
         symbol: symbol || null,
-        timeframe,
         startDate: startDate || null,
-        endDate: endDate || null,
+        endDate: endDate || null
       },
-      sorting: {
-        sortBy: sortBy,
-        sortOrder: sortOrder,
-      },
-      fallback: true,
       error: error.message,
+      troubleshooting: {
+        "Database Connection": "Check database connectivity",
+        "Query Execution": "Verify technical data query and parameters",
+        "Data Integrity": "Check for corrupted or missing technical data",
+        "Filter Validation": "Ensure filter parameters are valid",
+        "Error Details": error.message
+      }
     });
   }
 });
@@ -1580,17 +1537,17 @@ router.get("/patterns/:symbol", async (req, res) => {
       error
     );
 
-    // Return fallback pattern data
-    const fallbackPatterns = generateFallbackPatterns(symbol, timeframe);
-
-    res.success({symbol: symbol.toUpperCase(),
+    return res.error(`Failed to analyze patterns for ${symbol}`, 500, {
+      type: "pattern_analysis_error",
+      symbol: symbol.toUpperCase(),
       timeframe,
-      patterns: fallbackPatterns.patterns,
-      summary: fallbackPatterns.summary,
-      confidence_score: fallbackPatterns.overallConfidence,
-      last_updated: new Date().toISOString(),
-      fallback: true,
       error: error.message,
+      troubleshooting: {
+        "Data Availability": "Verify sufficient price data exists for pattern analysis",
+        "Analysis Engine": "Check technical analysis algorithms and data processing",
+        "Symbol Validation": "Ensure symbol is valid and has trading history",
+        "Error Details": error.message
+      }
     });
   }
 });
@@ -1763,48 +1720,5 @@ function generateFallbackPriceHistory(currentPrice) {
   return history;
 }
 
-// Generate fallback patterns for error cases
-function generateFallbackPatterns(symbol, timeframe) {
-  const patterns = [
-    {
-      type: "bullish_flag",
-      direction: "bullish",
-      confidence: 0.78,
-      timeframe: timeframe,
-      detected_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      target_price: 165.5,
-      stop_loss: 148.2,
-      time_to_target: 12,
-      support_levels: [148.2, 152.1],
-      resistance_levels: [162.8, 168.9],
-    },
-    {
-      type: "ascending_triangle",
-      direction: "bullish",
-      confidence: 0.65,
-      timeframe: timeframe,
-      detected_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      target_price: 172.3,
-      stop_loss: 145.6,
-      time_to_target: 18,
-      support_levels: [145.6, 150.4],
-      resistance_levels: [160.2, 172.3],
-    },
-  ];
-
-  return {
-    patterns,
-    summary: {
-      total_patterns: patterns.length,
-      bullish_patterns: patterns.filter((p) => p.direction === "bullish")
-        .length,
-      bearish_patterns: patterns.filter((p) => p.direction === "bearish")
-        .length,
-      average_confidence: 0.72,
-      market_sentiment: "bullish",
-    },
-    overallConfidence: 0.72,
-  };
-}
 
 module.exports = router;

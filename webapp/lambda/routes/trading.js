@@ -621,19 +621,19 @@ router.get("/positions", async (req, res) => {
     const positionsQuery = `
       SELECT 
         symbol,
-        SUM(CASE WHEN signal_type = 'buy' THEN 1 WHEN signal_type = 'sell' THEN -1 ELSE 0 END) as position,
+        SUM(position_value) as position,
         AVG(price) as avg_price,
         COUNT(*) as trade_count,
         MAX(date) as last_trade_date
       FROM (
-        SELECT symbol, signal_type, price, date FROM buy_sell_daily
+        SELECT symbol, 1 as position_value, price, date FROM buy_sell_daily
         UNION ALL
-        SELECT symbol, signal_type, price, date FROM buy_sell_weekly  
+        SELECT symbol, -1 as position_value, price, date FROM buy_sell_weekly  
         UNION ALL
-        SELECT symbol, signal_type, price, date FROM buy_sell_monthly
+        SELECT symbol, 0 as position_value, price, date FROM buy_sell_monthly
       ) all_signals
       GROUP BY symbol
-      HAVING SUM(CASE WHEN signal_type = 'buy' THEN 1 WHEN signal_type = 'sell' THEN -1 ELSE 0 END) != 0
+      HAVING SUM(position_value) != 0
       ORDER BY last_trade_date DESC
     `;
 
@@ -724,12 +724,11 @@ router.get("/orders", authenticateToken, async (req, res) => {
     // Query user's orders
     const ordersQuery = `
       SELECT 
-        order_id, symbol, side, quantity, order_type,
-        limit_price, stop_price, status, submitted_at,
-        filled_at, filled_quantity, average_price
+        id as order_id, symbol, quantity, status,
+        created_at as submitted_at
       FROM orders 
       WHERE user_id = $1 
-      ORDER BY submitted_at DESC 
+      ORDER BY created_at DESC 
       LIMIT 100
     `;
     
