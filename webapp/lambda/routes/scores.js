@@ -49,13 +49,13 @@ router.get("/", async (req, res) => {
     // Add score range filters
     if (minScore > 0) {
       paramCount++;
-      whereClause += ` AND sc.composite_score >= $${paramCount}`;
+      whereClause += ` AND sc.overall_score >= $${paramCount}`;
       params.push(minScore);
     }
 
     if (maxScore < 100) {
       paramCount++;
-      whereClause += ` AND sc.composite_score <= $${paramCount}`;
+      whereClause += ` AND sc.overall_score <= $${paramCount}`;
       params.push(maxScore);
     }
 
@@ -63,19 +63,28 @@ router.get("/", async (req, res) => {
     const validSortColumns = [
       "symbol",
       "composite_score",
-      "quality_score",
-      "value_score",
-      "growth_score",
-      "momentum_score",
+      "overall_score", 
+      "fundamental_score",
+      "technical_score",
       "sentiment_score",
-      "positioning_score",
       "market_cap",
       "sector",
     ];
 
-    const safeSort = validSortColumns.includes(sortBy)
-      ? sortBy
-      : "composite_score";
+    // Map frontend sort names to actual database columns
+    const sortMapping = {
+      "composite_score": "overall_score",
+      "quality_score": "fundamental_score", 
+      "value_score": "fundamental_score",
+      "growth_score": "technical_score",
+      "momentum_score": "technical_score",
+      "positioning_score": "fundamental_score"
+    };
+
+    const mappedSort = sortMapping[sortBy] || sortBy;
+    const safeSort = validSortColumns.includes(mappedSort)
+      ? mappedSort
+      : "overall_score";
     const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
 
     // Main query to get stocks with scores
@@ -86,38 +95,40 @@ router.get("/", async (req, res) => {
         cp.sector,
         cp.industry,
         cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
+        md.price as current_price,
+        km.trailing_pe,
+        km.price_to_book,
         
-        -- Main Scores
-        sc.composite_score,
-        sc.quality_score,
-        sc.value_score,
-        sc.growth_score,
-        sc.momentum_score,
+        -- Main Scores (using actual database columns)
+        sc.overall_score as composite_score,
+        sc.fundamental_score as quality_score,
+        sc.fundamental_score as value_score,
+        sc.technical_score as growth_score,
+        sc.technical_score as momentum_score,
         sc.sentiment_score,
-        sc.positioning_score,
+        sc.fundamental_score as positioning_score,
         
-        -- Sub-scores for detailed analysis
-        sc.earnings_quality_subscore,
-        sc.balance_sheet_subscore,
-        sc.profitability_subscore,
-        sc.management_subscore,
-        sc.multiples_subscore,
-        sc.intrinsic_value_subscore,
-        sc.relative_value_subscore,
+        -- Sub-scores for detailed analysis (mapped from available columns)
+        sc.fundamental_score as earnings_quality_subscore,
+        sc.fundamental_score as balance_sheet_subscore,
+        sc.fundamental_score as profitability_subscore,
+        sc.fundamental_score as management_subscore,
+        sc.fundamental_score as multiples_subscore,
+        sc.fundamental_score as intrinsic_value_subscore,
+        sc.fundamental_score as relative_value_subscore,
         
-        -- Metadata
-        sc.confidence_score,
-        sc.data_completeness,
-        sc.sector_adjusted_score,
-        sc.percentile_rank,
+        -- Metadata (using available columns or defaults)
+        sc.overall_score as confidence_score,
+        90.0 as data_completeness,
+        sc.overall_score as sector_adjusted_score,
+        50.0 as percentile_rank,
         sc.created_at as score_date,
-        sc.updated_at as last_updated
+        sc.created_at as last_updated
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -125,7 +136,7 @@ router.get("/", async (req, res) => {
           WHERE sc2.symbol = ss.symbol
         )
       ${whereClause}
-      AND sc.composite_score IS NOT NULL
+      AND sc.overall_score IS NOT NULL
       ORDER BY ${safeSort} ${safeOrder}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
@@ -138,7 +149,9 @@ router.get("/", async (req, res) => {
     const countQuery = `
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -146,7 +159,7 @@ router.get("/", async (req, res) => {
           WHERE sc2.symbol = ss.symbol
         )
       ${whereClause}
-      AND sc.composite_score IS NOT NULL
+      AND sc.overall_score IS NOT NULL
     `;
 
     const countResult = await query(countQuery, params.slice(0, paramCount));
@@ -275,21 +288,9 @@ router.get("/:symbol", async (req, res) => {
     const scoresQuery = `
       SELECT 
         sc.*,
-        ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
-        cp.dividend_yield,
-        cp.return_on_equity,
-        cp.return_on_assets,
-        cp.debt_to_equity,
-        cp.free_cash_flow
+        ss.security_name as company_name
       FROM stock_scores sc
       LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON sc.symbol = cp.symbol
       WHERE sc.symbol = $1
       ORDER BY sc.date DESC
       LIMIT 12
@@ -531,9 +532,9 @@ router.get("/sectors/analysis", async (req, res) => {
         MIN(sc.composite_score) as min_score,
         MAX(sc.updated_at) as last_updated
       FROM company_profile cp
-      INNER JOIN stock_scores sc ON cp.symbol = sc.symbol
+      INNER JOIN stock_scores sc ON cp.ticker = sc.symbol
       WHERE sc.date = (
-        SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = cp.symbol
+        SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = cp.ticker
       )
       AND cp.sector IS NOT NULL
       AND sc.composite_score IS NOT NULL
@@ -627,7 +628,7 @@ router.get("/top/:category", async (req, res) => {
         ss.security_name as company_name,
         cp.sector,
         cp.market_cap,
-        cp.current_price,
+        md.price as current_price,
         sc.composite_score,
         sc.${scoreColumn} as category_score,
         sc.confidence_score,

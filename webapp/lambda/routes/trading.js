@@ -1,5 +1,8 @@
 const express = require("express");
+
 const { authenticateToken } = require("../middleware/auth");
+const { query } = require("../utils/database");
+
 const router = express.Router();
 
 // Health endpoint (no auth required)
@@ -18,7 +21,6 @@ router.get("/", (req, res) => {
     status: "operational",
   });
 });
-const { query } = require("../utils/database");
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -99,10 +101,10 @@ router.get("/signals", async (req, res) => {
     // Validate limit parameter
     const limitNum = parseInt(limit);
     if (isNaN(limitNum) || limitNum <= 0) {
-      return res.error("Limit must be a positive number", {}, 400);
+      return res.error("Limit must be a positive number", 400);
     }
     if (limitNum > 500) {
-      return res.error("Limit cannot exceed 500", {}, 400);
+      return res.error("Limit cannot exceed 500", 400);
     }
 
     // Build base query for all signal tables
@@ -154,9 +156,9 @@ router.get("/signals", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching trading signals:", error);
-    return res.error("Failed to fetch trading signals", {
+    return res.error("Failed to fetch trading signals", 500, {
       message: error.message,
-    }, 500);
+    });
   }
 });
 
@@ -202,9 +204,9 @@ router.get("/signals/:timeframe", async (req, res) => {
     );
     if (!tableExistsResult.rows[0].exists) {
       console.error(`[TRADING] Table does not exist: ${tableName}`);
-      return res.error(`Table ${tableName} does not exist in the database.`, {
+      return res.error(`Table ${tableName} does not exist in the database.`, 500, {
         details: `Expected table ${tableName} for trading signals. Please check your database schema.`,
-      }, 500);
+      });
     }
 
     // Build WHERE clause
@@ -242,22 +244,22 @@ router.get("/signals/:timeframe", async (req, res) => {
             bs.buylevel as price,
             bs.stoplevel,
             bs.inposition,
-            md.current_price,
-            cp.short_name as company_name,
+            md.price as current_price,
+            cp.company_name,
             cp.sector,
             md.market_cap,
             km.trailing_pe,
             km.dividend_yield,
             CASE 
-              WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel 
-              THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
-              WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel 
-              THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
+              WHEN bs.signal = 'Buy' AND md.price > bs.buylevel 
+              THEN ((md.price - bs.buylevel) / bs.buylevel * 100)
+              WHEN bs.signal = 'Sell' AND md.price < bs.buylevel 
+              THEN ((bs.buylevel - md.price) / bs.buylevel * 100)
               ELSE 0
             END as performance_percent,
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
-          LEFT JOIN market_data md ON bs.symbol = md.ticker
+          LEFT JOIN market_data md ON bs.symbol = md.symbol
           LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
           LEFT JOIN key_metrics km ON bs.symbol = km.ticker
           ${whereClause}
@@ -276,21 +278,21 @@ router.get("/signals/:timeframe", async (req, res) => {
           bs.buylevel as price,
           bs.stoplevel,
           bs.inposition,
-          md.current_price,
-          cp.short_name as company_name,
+          md.price as current_price,
+          cp.company_name,
           cp.sector,
           md.market_cap,
           km.trailing_pe,
           km.dividend_yield,
           CASE 
-            WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel 
-            THEN ((md.regular_market_price - bs.buylevel) / bs.buylevel * 100)
-            WHEN bs.signal = 'Sell' AND md.current_price < bs.buylevel 
-            THEN ((bs.buylevel - md.regular_market_price) / bs.buylevel * 100)
+            WHEN bs.signal = 'Buy' AND md.price > bs.buylevel 
+            THEN ((md.price - bs.buylevel) / bs.buylevel * 100)
+            WHEN bs.signal = 'Sell' AND md.price < bs.buylevel 
+            THEN ((bs.buylevel - md.price) / bs.buylevel * 100)
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
-        LEFT JOIN market_data md ON bs.symbol = md.ticker
+        LEFT JOIN market_data md ON bs.symbol = md.symbol
         LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
         LEFT JOIN key_metrics km ON bs.symbol = km.ticker
         ${whereClause}
@@ -443,28 +445,28 @@ router.get("/swing-signals", async (req, res) => {
     const swingQuery = `
       SELECT 
         st.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         st.signal,
         st.entry_price,
         st.stop_loss,
         st.target_price,
         st.risk_reward_ratio,
         st.date,
-        md.current_price,
+        md.price as current_price,
         CASE 
-          WHEN st.signal = 'BUY' AND md.current_price >= st.target_price 
+          WHEN st.signal = 'BUY' AND md.price >= st.target_price 
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'BUY' AND md.current_price <= st.stop_loss 
+          WHEN st.signal = 'BUY' AND md.price <= st.stop_loss 
           THEN 'STOP_LOSS_HIT'
-          WHEN st.signal = 'SELL' AND md.current_price <= st.target_price 
+          WHEN st.signal = 'SELL' AND md.price <= st.target_price 
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'SELL' AND md.current_price >= st.stop_loss 
+          WHEN st.signal = 'SELL' AND md.price >= st.stop_loss 
           THEN 'STOP_LOSS_HIT'
           ELSE 'ACTIVE'
         END as status
       FROM swing_trader st
       JOIN company_profile cp ON st.symbol = cp.ticker
-      LEFT JOIN market_data md ON st.symbol = md.ticker
+      LEFT JOIN market_data md ON st.symbol = md.symbol
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -568,27 +570,27 @@ router.get("/performance", async (req, res) => {
         COUNT(*) as total_signals,
         AVG(
           CASE 
-            WHEN signal = 'BUY' AND md.current_price > bs.price 
-            THEN ((md.current_price - bs.price) / bs.price * 100)
-            WHEN signal = 'SELL' AND md.current_price < bs.price 
-            THEN ((bs.price - md.current_price) / bs.price * 100)
+            WHEN signal = 'BUY' AND md.price > bs.price 
+            THEN ((md.price - bs.price) / bs.price * 100)
+            WHEN signal = 'SELL' AND md.price < bs.price 
+            THEN ((bs.price - md.price) / bs.price * 100)
             ELSE 0
           END
         ) as avg_performance,
         COUNT(
           CASE 
-            WHEN signal = 'BUY' AND md.current_price > bs.price THEN 1
-            WHEN signal = 'SELL' AND md.current_price < bs.price THEN 1
+            WHEN signal = 'BUY' AND md.price > bs.price THEN 1
+            WHEN signal = 'SELL' AND md.price < bs.price THEN 1
           END
         ) as winning_trades,
         (COUNT(
           CASE 
-            WHEN signal = 'BUY' AND md.current_price > bs.price THEN 1
-            WHEN signal = 'SELL' AND md.current_price < bs.price THEN 1
+            WHEN signal = 'BUY' AND md.price > bs.price THEN 1
+            WHEN signal = 'SELL' AND md.price < bs.price THEN 1
           END
         ) * 100.0 / COUNT(*)) as win_rate
       FROM buy_sell_daily bs
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       WHERE bs.date >= NOW() - INTERVAL '${days} days'
       GROUP BY signal
     `;
@@ -636,6 +638,22 @@ router.get("/positions", async (req, res) => {
     `;
 
     const result = await query(positionsQuery, []);
+    
+    // Add null safety check
+    if (!result || !result.rows) {
+      console.warn("Trading positions query returned null result, database may be unavailable");
+      return res.error("Database temporarily unavailable", 503, {
+        message: "Trading positions temporarily unavailable - database connection issue",
+        positions: [],
+        summary: {
+          totalPositions: 0,
+          totalValue: 0,
+          longPositions: 0,
+          shortPositions: 0
+        }
+      });
+    }
+    
     const positions = result.rows || [];
 
     if (summary === "true") {
@@ -665,9 +683,9 @@ router.get("/positions", async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching positions:", error);
-    return res.error("Failed to fetch positions", {
+    return res.error("Failed to fetch positions", 500, {
       message: error.message,
-    }, 500);
+    });
   }
 });
 
@@ -744,7 +762,7 @@ router.get("/orders", authenticateToken, async (req, res) => {
 
 // Handle POST requests for orders (requires authentication)
 router.post("/orders", authenticateToken, async (req, res) => {
-  const userId = req.user.sub;
+  const _userId = req.user.sub;
   try {
     const { symbol, quantity, type, side, limitPrice, stopPrice } = req.body;
 
@@ -757,22 +775,22 @@ router.post("/orders", authenticateToken, async (req, res) => {
 
     // Validate order type
     if (!["market", "limit", "stop", "stop_limit"].includes(type)) {
-      return res.error("Invalid order type. Must be: market, limit, stop, or stop_limit", {}, 400);
+      return res.error("Invalid order type. Must be: market, limit, stop, or stop_limit", 400);
     }
 
     // Validate side
     if (!["buy", "sell"].includes(side)) {
-      return res.error("Invalid side. Must be: buy or sell", {}, 400);
+      return res.error("Invalid side. Must be: buy or sell", 400);
     }
 
     // Validate quantity
     if (quantity <= 0) {
-      return res.error("Quantity must be greater than 0", {}, 400);
+      return res.error("Quantity must be greater than 0", 400);
     }
 
     // Validate limit price for limit orders
     if (type === "limit" && (!limitPrice || limitPrice <= 0)) {
-      return res.error("Limit price required for limit orders", {}, 400);
+      return res.error("Limit price required for limit orders", 400);
     }
 
     // For now, return success (would integrate with actual broker API in production)
