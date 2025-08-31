@@ -61,26 +61,24 @@ class DataCacheService {
     if (cached && !options.forceRefresh) {
       const age = Date.now() - cached.timestamp;
       if (age < cacheDuration) {
-        console.log(
-          `[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`
-        );
-        return cached.data;
+        // console.log(`[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`);
+        return cached?.data;
       }
     }
 
     // Check rate limiting
     if (!this.checkRateLimit(options.apiType || "default")) {
-      console.warn(`[Rate Limit] Blocked request to ${endpoint}`);
+      // console.warn(`[Rate Limit] Blocked request to ${endpoint}`);
       if (cached) {
-        console.log(`[Cache Fallback] Using stale cache for ${endpoint}`);
-        return cached.data;
+        // console.log(`[Cache Fallback] Using stale cache for ${endpoint}`);
+        return cached?.data;
       }
       throw new Error("Rate limit exceeded - please try again later");
     }
 
     // Fetch fresh data
     try {
-      console.log(`[API Call] Fetching ${endpoint}`);
+      // console.log(`[API Call] Fetching ${endpoint}`);
       const fetchFunction = options.fetchFunction;
       if (!fetchFunction) {
         throw new Error("No fetch function provided");
@@ -102,14 +100,12 @@ class DataCacheService {
 
       return data;
     } catch (error) {
-      console.error(`[API Error] ${endpoint}:`, error.message);
+      // console.error(`[API Error] ${endpoint}:`, error.message);
 
       // Return stale cache if available
       if (cached) {
-        console.log(
-          `[Cache Fallback] Using stale cache after error for ${endpoint}`
-        );
-        return cached.data;
+        // console.log(`[Cache Fallback] Using stale cache after error for ${endpoint}`);
+        return cached?.data;
       }
 
       throw error;
@@ -156,7 +152,7 @@ class DataCacheService {
   // Batch fetch to reduce API calls
   async batchFetch(requests, options = {}) {
     const results = await Promise.allSettled(
-      requests.map((req) =>
+      (requests || []).map((req) =>
         this.get(req.endpoint, req.params, {
           ...options,
           ...req.options,
@@ -164,7 +160,7 @@ class DataCacheService {
       )
     );
 
-    return results.map((result, index) => ({
+    return (results || []).map((result, index) => ({
       ...requests[index],
       success: result.status === "fulfilled",
       data: result.status === "fulfilled" ? result.value : null,
@@ -175,7 +171,7 @@ class DataCacheService {
   // Preload common data during low-activity periods
   async preloadCommonData() {
     if (!this.isMarketHours()) {
-      console.log("[Cache] Preloading common data during off-hours");
+      // console.log("[Cache] Preloading common data during off-hours");
 
       const commonEndpoints = [
         { endpoint: "/api/market/overview", cacheType: "marketData" },
@@ -197,7 +193,7 @@ class DataCacheService {
           );
           await new Promise((resolve) => setTimeout(resolve, 2000)); // 2s delay
         } catch (error) {
-          console.error("[Preload Error]", endpoint.endpoint, error);
+          // console.error("[Preload Error]", endpoint.endpoint, error);
         }
       }
     }
@@ -229,7 +225,7 @@ class DataCacheService {
       const recentCalls = calls.filter((timestamp) => timestamp > windowStart);
 
       stats.apiCallCounts[apiType] = {
-        recent: recentCalls.length,
+        recent: (recentCalls?.length || 0),
         limit: limit.calls,
         window: limit.window / 1000 + "s",
       };
@@ -242,9 +238,9 @@ class DataCacheService {
 // Create singleton instance
 const dataCache = new DataCacheService();
 
-// Start preloading during off-hours
-if (!dataCache.isMarketHours()) {
-  setTimeout(() => dataCache.preloadCommonData(), 5000);
-}
+// Start preloading during off-hours - DISABLED in development to prevent console errors
+// if (!dataCache.isMarketHours()) {
+//   setTimeout(() => dataCache.preloadCommonData(), 5000);
+// }
 
 export default dataCache;

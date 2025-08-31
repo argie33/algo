@@ -1055,30 +1055,18 @@
 <a name='L990'></a><a href='#L990'>990</a>
 <a name='L991'></a><a href='#L991'>991</a>
 <a name='L992'></a><a href='#L992'>992</a>
-<a name='L993'></a><a href='#L993'>993</a>
-<a name='L994'></a><a href='#L994'>994</a>
-<a name='L995'></a><a href='#L995'>995</a>
-<a name='L996'></a><a href='#L996'>996</a>
-<a name='L997'></a><a href='#L997'>997</a>
-<a name='L998'></a><a href='#L998'>998</a>
-<a name='L999'></a><a href='#L999'>999</a>
-<a name='L1000'></a><a href='#L1000'>1000</a>
-<a name='L1001'></a><a href='#L1001'>1001</a>
-<a name='L1002'></a><a href='#L1002'>1002</a>
-<a name='L1003'></a><a href='#L1003'>1003</a>
-<a name='L1004'></a><a href='#L1004'>1004</a>
-<a name='L1005'></a><a href='#L1005'>1005</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L993'></a><a href='#L993'>993</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1384,25 +1372,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2052,9 +2028,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2194,30 +2170,6 @@ const tableSchemas = {
     primaryKey: ["symbol", "report_date"],
   },
 &nbsp;
-  stock_symbols_enhanced: {
-    required: ["symbol", "company_name"],
-    columns: {
-      symbol: { type: "VARCHAR", maxLength: 20, unique: true },
-      company_name: { type: "VARCHAR", maxLength: 200 },
-      exchange: { type: "VARCHAR", maxLength: 50 },
-      sector: { type: "VARCHAR", maxLength: 100 },
-      industry: { type: "VARCHAR", maxLength: 150 },
-      market_cap: { type: "BIGINT" },
-      market_cap_tier: { type: "VARCHAR", maxLength: 20 },
-      country: { type: "VARCHAR", maxLength: 50, default: "US" },
-      currency: { type: "VARCHAR", maxLength: 10, default: "USD" },
-      beta: { type: "DECIMAL", precision: 10, scale: 4 },
-      volatility_30d: { type: "DECIMAL", precision: 10, scale: 4 },
-      avg_volume_30d: { type: "BIGINT" },
-      price_to_earnings: { type: "DECIMAL", precision: 10, scale: 4 },
-      price_to_book: { type: "DECIMAL", precision: 10, scale: 4 },
-      dividend_yield: { type: "DECIMAL", precision: 10, scale: 4 },
-      is_active: { type: "BOOLEAN", default: true },
-      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-    },
-    indexes: ["symbol", "sector", "market_cap_tier"],
-  },
 &nbsp;
   price_daily: {
     required: ["symbol", "date"],
@@ -2300,7 +2252,7 @@ const tableSchemas = {
       weight: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
       sector: { type: "VARCHAR", maxLength: 100 },
       current_price: { type: "DECIMAL", precision: 12, scale: 4 },
-      average_entry_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      average_cost: { type: "DECIMAL", precision: 12, scale: 4 },
       day_change: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
       day_change_percent: {
         type: "DECIMAL",
@@ -2395,6 +2347,18 @@ const tableSchemas = {
       updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
     indexes: ["user_id", "symbol", "is_active"],
+  },
+&nbsp;
+  user_profiles: {
+    required: ["user_id"],
+    columns: {
+      user_id: { type: "VARCHAR", maxLength: 255, primaryKey: true },
+      onboarding_completed: { type: "BOOLEAN", default: false },
+      preferences: { type: "JSONB", default: "'{}'" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+    },
+    indexes: ["user_id"],
   },
 };
 &nbsp;
@@ -3082,7 +3046,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-25T22:51:57.989Z
+                at 2025-08-30T00:17:13.046Z
             </div>
         <script src="../prettify.js"></script>
         <script>

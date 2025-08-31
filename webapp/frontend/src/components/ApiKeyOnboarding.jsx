@@ -288,7 +288,7 @@ const ApiKeyOnboarding = ({ onComplete }) => {
         </Typography>
         
         <Stepper activeStep={activeStep} orientation="vertical">
-          {steps.map((step, index) => (
+          {(steps || []).map((step, index) => (
             <Step key={step.label}>
               <StepLabel>
                 <Typography variant="h6">{step.label}</Typography>

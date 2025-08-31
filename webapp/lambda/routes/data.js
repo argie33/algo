@@ -204,28 +204,28 @@ router.get("/growth-estimates", async (req, res) => {
 
     if (symbol) {
       paramCount++;
-      whereClause = `WHERE symbol = $${paramCount}`;
+      whereClause = `WHERE ticker = $${paramCount}`;
       queryParams.push(symbol.toUpperCase());
     }
 
     const growthQuery = `
       SELECT 
-        symbol,
-        period,
-        growth_estimate,
-        number_of_analysts,
-        low_estimate,
-        high_estimate,
-        mean_estimate,
-        fetched_at
-      FROM growth_estimates
+        ticker as symbol,
+        'current' as period,
+        target_mean_price as growth_estimate,
+        analyst_opinion_count as number_of_analysts,
+        target_low_price as low_estimate,
+        target_high_price as high_estimate,
+        target_mean_price as mean_estimate,
+        CURRENT_TIMESTAMP as fetched_at
+      FROM analyst_estimates
       ${whereClause}
-      ORDER BY symbol, period DESC
+      ORDER BY ticker
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
     const countQuery = `
-      SELECT COUNT(*) as total FROM growth_estimates ${whereClause}
+      SELECT COUNT(*) as total FROM analyst_estimates ${whereClause}
     `;
 
     queryParams.push(limit, offset);
@@ -508,34 +508,86 @@ router.get("/financials/:symbol", async (req, res) => {
     const { symbol } = req.params;
     const limit = parseInt(req.query.limit) || 10;
 
-    // Query all financial statement types
+    // Query existing financial data tables
     const queries = [
-      { name: "TTM Income Statement", table: "ttm_income_stmt" },
-      { name: "TTM Cash Flow", table: "ttm_cashflow" },
-      { name: "Annual Income Statement", table: "income_stmt" },
-      { name: "Annual Cash Flow", table: "cash_flow" },
-      { name: "Balance Sheet", table: "balance_sheet" },
-      { name: "Quarterly Income Statement", table: "quarterly_income_stmt" },
-      { name: "Quarterly Cash Flow", table: "quarterly_cashflow" },
-      { name: "Quarterly Balance Sheet", table: "quarterly_balance_sheet" },
+      { name: "Key Metrics", table: "key_metrics", symbolCol: "ticker" },
+      { name: "Value Metrics", table: "value_metrics", symbolCol: "symbol" },
+      { name: "Analyst Estimates", table: "analyst_estimates", symbolCol: "ticker" },
     ];
 
     const results = {};
 
-    for (const { name, table } of queries) {
+    for (const { name, table, symbolCol } of queries) {
       try {
-        const financialQuery = `
-          SELECT date, item_name, value
-          FROM ${table}
-          WHERE symbol = $1
-          ORDER BY date DESC, item_name
-          LIMIT $2
-        `;
+        let financialQuery = '';
+        let queryParams = [];
+        
+        if (table === 'key_metrics') {
+          financialQuery = `
+            SELECT 
+              created_at::date as date,
+              'trailing_pe' as item_name,
+              trailing_pe as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND trailing_pe IS NOT NULL
+            UNION ALL
+            SELECT 
+              created_at::date as date,
+              'forward_pe' as item_name,
+              forward_pe as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND forward_pe IS NOT NULL
+            UNION ALL
+            SELECT 
+              created_at::date as date,
+              'dividend_yield' as item_name,
+              dividend_yield as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND dividend_yield IS NOT NULL
+            ORDER BY date DESC
+            LIMIT $2
+          `;
+          queryParams = [symbol.toUpperCase(), limit * 3];
+        } else if (table === 'value_metrics') {
+          financialQuery = `
+            SELECT 
+              date,
+              'value_metric' as item_name,
+              value_metric as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND value_metric IS NOT NULL
+            UNION ALL
+            SELECT 
+              date,
+              'intrinsic_value' as item_name,
+              intrinsic_value as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND intrinsic_value IS NOT NULL
+            ORDER BY date DESC
+            LIMIT $2
+          `;
+          queryParams = [symbol.toUpperCase(), limit * 2];
+        } else if (table === 'analyst_estimates') {
+          financialQuery = `
+            SELECT 
+              CURRENT_DATE as date,
+              'target_mean_price' as item_name,
+              target_mean_price as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND target_mean_price IS NOT NULL
+            UNION ALL
+            SELECT 
+              CURRENT_DATE as date,
+              'recommendation_mean' as item_name,
+              recommendation_mean as value
+            FROM ${table}
+            WHERE ${symbolCol} = $1 AND recommendation_mean IS NOT NULL
+            LIMIT $2
+          `;
+          queryParams = [symbol.toUpperCase(), limit * 2];
+        }
 
-        const result = await query(financialQuery, [
-          symbol.toUpperCase(),
-          limit * 50,
-        ]); // Get more items per date
+        const result = await query(financialQuery, queryParams);
 
         // Transform the data by date
         const transformedData = {};

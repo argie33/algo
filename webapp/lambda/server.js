@@ -7,20 +7,40 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const _errorHandler = require("./middleware/errorHandler");
+const responseFormatter = require("./middleware/responseFormatter");
 const { initializeDatabase } = require("./utils/database");
 const analystRoutes = require("./routes/analysts");
 const authRoutes = require("./routes/auth");
+const backtestRoutes = require("./routes/backtest");
 const calendarRoutes = require("./routes/calendar");
+const commoditiesRoutes = require("./routes/commodities");
 const dashboardRoutes = require("./routes/dashboard");
 const dataRoutes = require("./routes/data");
+const diagnosticsRoutes = require("./routes/diagnostics");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
+const liveDataRoutes = require("./routes/liveData");
 const marketRoutes = require("./routes/market");
 const metricsRoutes = require("./routes/metrics");
+const newsRoutes = require("./routes/news");
+const ordersRoutes = require("./routes/orders");
+const performanceRoutes = require("./routes/performance");
+const portfolioRoutes = require("./routes/portfolio");
+const priceRoutes = require("./routes/price");
+const riskRoutes = require("./routes/risk");
+const scoringRoutes = require("./routes/scoring");
+const scoresRoutes = require("./routes/scores");
+const screenerRoutes = require("./routes/screener");
+const sectorsRoutes = require("./routes/sectors");
+const sentimentRoutes = require("./routes/sentiment");
+const settingsRoutes = require("./routes/settings");
 const signalsRoutes = require("./routes/signals");
 const stockRoutes = require("./routes/stocks");
 const technicalRoutes = require("./routes/technical");
 const tradingRoutes = require("./routes/trading");
+const tradesRoutes = require("./routes/trades");
+const watchlistRoutes = require("./routes/watchlist");
+const websocketRoutes = require("./routes/websocket");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -28,7 +48,18 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(helmet());
 // Dynamic CORS configuration
-const allowedOrigins = ["http://localhost:3000", "http://127.0.0.1:3000"];
+const allowedOrigins = [
+  "http://localhost:3000", 
+  "http://127.0.0.1:3000",
+  "http://localhost:3001", 
+  "http://localhost:3002", 
+  "http://localhost:3003", 
+  "http://localhost:5173", // Common Vite port
+  "http://127.0.0.1:3001",
+  "http://127.0.0.1:3002",
+  "http://127.0.0.1:3003",
+  "http://127.0.0.1:5173"
+];
 
 // Add API Gateway URL if available
 if (process.env.API_GATEWAY_URL) {
@@ -63,6 +94,9 @@ if (process.env.NODE_ENV !== "production") {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Response formatter middleware (adds res.success and res.error)
+app.use(responseFormatter);
+
 // Initialize database connection
 initializeDatabase();
 
@@ -71,15 +105,35 @@ app.use("/api/auth", authRoutes);
 app.use("/api/stocks", stockRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/health", healthRoutes);
+app.use("/health", healthRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/analysts", analystRoutes);
-app.use("/api/financials", financialRoutes);
-app.use("/api/trading", tradingRoutes);
-app.use("/api/technical", technicalRoutes);
+app.use("/api/backtest", backtestRoutes);
 app.use("/api/calendar", calendarRoutes);
-app.use("/api/signals", signalsRoutes);
-app.use("/api/data", dataRoutes);
+app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/data", dataRoutes);
+app.use("/api/diagnostics", diagnosticsRoutes);
+app.use("/api/financials", financialRoutes);
+app.use("/api/live-data", liveDataRoutes);
+app.use("/api/news", newsRoutes);
+app.use("/api/orders", ordersRoutes);
+app.use("/api/performance", performanceRoutes);
+app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/price", priceRoutes);
+app.use("/api/risk", riskRoutes);
+app.use("/api/scoring", scoringRoutes);
+app.use("/api/scores", scoresRoutes);
+app.use("/api/screener", screenerRoutes);
+app.use("/api/sectors", sectorsRoutes);
+app.use("/api/sentiment", sentimentRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/signals", signalsRoutes);
+app.use("/api/technical", technicalRoutes);
+app.use("/api/trading", tradingRoutes);
+app.use("/api/trades", tradesRoutes);
+app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/websocket", websocketRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

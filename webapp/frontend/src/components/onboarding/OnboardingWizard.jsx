@@ -195,7 +195,7 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
   const savePreferences = async () => {
     setLoading(true);
     try {
-      await api.post("/api/settings/preferences", preferences);
+      await api.post("/api/settings/preferences", { preferences });
       return true;
     } catch (error) {
       console.error("Failed to save preferences:", error);
@@ -665,20 +665,20 @@ const OnboardingWizard = ({ open, onClose, onComplete }) => {
           </Typography>
           <LinearProgress
             variant="determinate"
-            value={(activeStep / (steps.length - 1)) * 100}
+            value={(activeStep / ((steps?.length || 0) - 1)) * 100}
             sx={{ height: 6, borderRadius: 3 }}
           />
         </Box>
 
         <Stepper activeStep={activeStep} orientation="vertical">
-          {steps.map((step, index) => (
+          {(steps || []).map((step, index) => (
             <Step key={step.label}>
               <StepLabel
                 icon={step.icon}
                 optional={
                   index === activeStep ? (
                     <Typography variant="caption">
-                      Step {index + 1} of {steps.length}
+                      Step {index + 1} of {(steps?.length || 0)}
                     </Typography>
                   ) : null
                 }

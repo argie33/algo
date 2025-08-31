@@ -43,7 +43,7 @@ class SessionManager {
     this.startSessionTracking();
     this.scheduleTokenRefresh();
 
-    console.log("🔐 Session manager initialized");
+    // Session manager initialized
   }
 
   /**
@@ -73,7 +73,7 @@ class SessionManager {
     this.startSessionTracking();
     this.scheduleTokenRefresh();
 
-    console.log(`🔐 Session started (remember me: ${rememberMe})`);
+    // Session started
   }
 
   /**
@@ -83,7 +83,7 @@ class SessionManager {
     this.clearAllTimers();
     this.clearSessionStorage();
 
-    console.log("🔐 Session ended");
+    // Session ended
   }
 
   /**
@@ -111,7 +111,7 @@ class SessionManager {
       await this.refreshTokens();
     }, this.config.tokenRefreshInterval);
 
-    console.log("🔄 Token refresh scheduled");
+    // Token refresh scheduled
   }
 
   /**
@@ -125,13 +125,13 @@ class SessionManager {
     this.isRefreshing = true;
 
     try {
-      console.log("🔄 Refreshing tokens...");
+      // Refreshing tokens
 
       const result = await this.authContext.refreshSession();
 
       if (result.success) {
         this.sessionData.refreshAttempts = 0;
-        console.log("✅ Tokens refreshed successfully");
+        // Tokens refreshed successfully
 
         if (this.callbacks.onTokenRefresh) {
           this.callbacks.onTokenRefresh(result);
@@ -205,7 +205,7 @@ class SessionManager {
    * Handle session warning
    */
   handleSessionWarning() {
-    console.log("⚠️ Session expiring soon");
+    // Session expiring soon
 
     if (this.callbacks.onSessionWarning) {
       this.callbacks.onSessionWarning({
@@ -219,7 +219,7 @@ class SessionManager {
    * Handle session expired
    */
   async handleSessionExpired() {
-    console.log("❌ Session expired");
+    // Session expired
 
     if (this.callbacks.onSessionExpired) {
       this.callbacks.onSessionExpired();
@@ -237,7 +237,7 @@ class SessionManager {
    * Extend session when user is active
    */
   extendSession() {
-    console.log("🔄 Extending session");
+    // Extending session
     this.updateActivity();
 
     // Restart timers

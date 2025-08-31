@@ -471,12 +471,28 @@ router.get("/:symbol", async (req, res) => {
     // Get basic financial overview - redirect to data endpoint
     const dataQuery = `
       SELECT 
-        symbol,
-        date,
-        item_name,
-        value
-      FROM annual_income_statement
-      WHERE symbol = $1
+        ticker as symbol,
+        created_at::date as date,
+        'trailing_pe' as item_name,
+        trailing_pe as value
+      FROM key_metrics
+      WHERE ticker = $1 AND trailing_pe IS NOT NULL
+      UNION ALL
+      SELECT 
+        ticker as symbol,
+        created_at::date as date,
+        'forward_pe' as item_name,
+        forward_pe as value
+      FROM key_metrics
+      WHERE ticker = $1 AND forward_pe IS NOT NULL
+      UNION ALL
+      SELECT 
+        ticker as symbol,
+        created_at::date as date,
+        'dividend_yield' as item_name,
+        dividend_yield as value
+      FROM key_metrics
+      WHERE ticker = $1 AND dividend_yield IS NOT NULL
       ORDER BY date DESC
       LIMIT 10
     `;

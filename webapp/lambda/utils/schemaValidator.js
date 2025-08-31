@@ -121,30 +121,6 @@ const tableSchemas = {
     primaryKey: ["symbol", "report_date"],
   },
 
-  stock_symbols_enhanced: {
-    required: ["symbol", "company_name"],
-    columns: {
-      symbol: { type: "VARCHAR", maxLength: 20, unique: true },
-      company_name: { type: "VARCHAR", maxLength: 200 },
-      exchange: { type: "VARCHAR", maxLength: 50 },
-      sector: { type: "VARCHAR", maxLength: 100 },
-      industry: { type: "VARCHAR", maxLength: 150 },
-      market_cap: { type: "BIGINT" },
-      market_cap_tier: { type: "VARCHAR", maxLength: 20 },
-      country: { type: "VARCHAR", maxLength: 50, default: "US" },
-      currency: { type: "VARCHAR", maxLength: 10, default: "USD" },
-      beta: { type: "DECIMAL", precision: 10, scale: 4 },
-      volatility_30d: { type: "DECIMAL", precision: 10, scale: 4 },
-      avg_volume_30d: { type: "BIGINT" },
-      price_to_earnings: { type: "DECIMAL", precision: 10, scale: 4 },
-      price_to_book: { type: "DECIMAL", precision: 10, scale: 4 },
-      dividend_yield: { type: "DECIMAL", precision: 10, scale: 4 },
-      is_active: { type: "BOOLEAN", default: true },
-      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-    },
-    indexes: ["symbol", "sector", "market_cap_tier"],
-  },
 
   price_daily: {
     required: ["symbol", "date"],
@@ -227,7 +203,7 @@ const tableSchemas = {
       weight: { type: "DECIMAL", precision: 10, scale: 4, default: 0 },
       sector: { type: "VARCHAR", maxLength: 100 },
       current_price: { type: "DECIMAL", precision: 12, scale: 4 },
-      average_entry_price: { type: "DECIMAL", precision: 12, scale: 4 },
+      average_cost: { type: "DECIMAL", precision: 12, scale: 4 },
       day_change: { type: "DECIMAL", precision: 15, scale: 2, default: 0 },
       day_change_percent: {
         type: "DECIMAL",
@@ -322,6 +298,18 @@ const tableSchemas = {
       updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
     indexes: ["user_id", "symbol", "is_active"],
+  },
+
+  user_profiles: {
+    required: ["user_id"],
+    columns: {
+      user_id: { type: "VARCHAR", maxLength: 255, primaryKey: true },
+      onboarding_completed: { type: "BOOLEAN", default: false },
+      preferences: { type: "JSONB", default: "'{}'" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+      updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+    },
+    indexes: ["user_id"],
   },
 };
 

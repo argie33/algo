@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Box,
@@ -262,25 +262,25 @@ export default function Backtest() {
 
   useEffect(() => {
     // Fetch symbols
-    fetch(`${API_BASE}/backtest/symbols`)
+    fetch(`${API_BASE}/api/backtest/symbols`)
       .then((r) => r.json())
       .then((d) => setSymbols(d.symbols || []))
       .catch(() => {
         // Fallback data
         setSymbols([
-          "AAPL",
-          "MSFT",
-          "GOOGL",
-          "TSLA",
-          "NVDA",
-          "AMZN",
-          "META",
-          "SPY",
-          "QQQ",
+          { symbol: "AAPL" },
+          { symbol: "MSFT" },
+          { symbol: "GOOGL" },
+          { symbol: "TSLA" },
+          { symbol: "NVDA" },
+          { symbol: "AMZN" },
+          { symbol: "META" },
+          { symbol: "SPY" },
+          { symbol: "QQQ" },
         ]);
       });
     // Fetch strategies/templates
-    fetch(`${API_BASE}/backtest/templates`)
+    fetch(`${API_BASE}/api/backtest/templates`)
       .then((r) => r.json())
       .then((d) => setStrategies(d.templates || []))
       .catch(() => {
@@ -303,28 +303,17 @@ export default function Backtest() {
           },
         ]);
       });
-    // Fetch user strategies from backend (only if authenticated)
-    if (isAuthenticated && user) {
-      fetchUserStrategies();
-    } else {
-      // Load from localStorage for non-authenticated users
-      const localStrategies = JSON.parse(
-        localStorage.getItem("backtester_strategies") || "[]"
-      );
-      setSavedStrategies(localStrategies);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user]);
+  }, []);
 
-  // Enhanced: Fetch user-specific strategies
-  const fetchUserStrategies = async () => {
+  // Enhanced: Fetch user-specific strategies (moved before useEffect to fix hoisting)
+  const fetchUserStrategies = useCallback(async () => {
     try {
       const headers = { "Content-Type": "application/json" };
       if (user?.token) {
         headers["Authorization"] = `Bearer ${user.token}`;
       }
 
-      const response = await fetch(`${API_BASE}/backtest/strategies`, {
+      const response = await fetch(`${API_BASE}/api/backtest/strategies`, {
         headers,
       });
       if (response.ok) {
@@ -339,12 +328,26 @@ export default function Backtest() {
       );
       setSavedStrategies(localStrategies);
     }
-  };
+  }, [user]);
+
+  // Load strategies on mount or when authentication status changes
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchUserStrategies();
+    } else {
+      // Load from localStorage for non-authenticated users
+      const localStrategies = JSON.parse(
+        localStorage.getItem("backtester_strategies") || "[]"
+      );
+      setSavedStrategies(localStrategies);
+    }
+  }, [isAuthenticated, user, fetchUserStrategies]);
 
   // Enhanced: Save strategy with authentication support
   const handleSaveStrategy = async () => {
     if (!newStrategy.name.trim()) {
-      alert("Please enter a strategy name");
+      console.warn("⚠️ Backtest: Strategy name validation failed");
+      setError("Please enter a strategy name");
       return;
     }
 
@@ -365,7 +368,7 @@ export default function Backtest() {
           headers["Authorization"] = `Bearer ${user.token}`;
         }
 
-        const response = await fetch(`${API_BASE}/backtest/strategies`, {
+        const response = await fetch(`${API_BASE}/api/backtest/strategies`, {
           method: "POST",
           headers,
           body: JSON.stringify(strategyData),
@@ -394,7 +397,7 @@ export default function Backtest() {
       setNewStrategy({ name: "", description: "", code: "", isPublic: false });
     } catch (error) {
       console.error("Error saving strategy:", error);
-      alert("Failed to save strategy. Please try again.");
+      setError("Failed to save strategy. Please try again.");
     }
   };
 
@@ -485,7 +488,7 @@ export default function Backtest() {
       let res, data;
       if (useCustomCode) {
         // Custom code mode: send to /run-python
-        res = await fetch(`${API_BASE}/backtest/run-python`, {
+        res = await fetch(`${API_BASE}/api/backtest/run-python`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ strategy: pythonCode }),
@@ -497,7 +500,7 @@ export default function Backtest() {
           ...strategyParams,
           strategy: params.strategy,
         };
-        res = await fetch(`${API_BASE}/backtest/run`, {
+        res = await fetch(`${API_BASE}/api/backtest/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -584,7 +587,7 @@ export default function Backtest() {
     setValidateStatus("pending");
     setValidateMsg("");
     try {
-      const res = await fetch(`${API_BASE}/backtest/validate`, {
+      const res = await fetch(`${API_BASE}/api/backtest/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ strategy: pythonCode }),
@@ -643,8 +646,8 @@ export default function Backtest() {
     );
     if (!newName || newName === strategy.name) return;
     // Update backend (simulate PATCH by delete+add)
-    await fetch(`${API_BASE}/backtest/strategies/${id}`, { method: "DELETE" });
-    const res = await fetch(`${API_BASE}/backtest/strategies`, {
+    await fetch(`${API_BASE}/api/backtest/strategies/${id}`, { method: "DELETE" });
+    const res = await fetch(`${API_BASE}/api/backtest/strategies`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -713,7 +716,7 @@ export default function Backtest() {
       const combo = combos[i];
       const body = { ...params, ...combo, strategy: params.strategy };
       try {
-        const res = await fetch(`${API_BASE}/backtest/run`, {
+        const res = await fetch(`${API_BASE}/api/backtest/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -765,7 +768,7 @@ export default function Backtest() {
         )
       );
       try {
-        const res = await fetch(`${API_BASE}/backtest/run`, {
+        const res = await fetch(`${API_BASE}/api/backtest/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...paramGrid[i], strategy: params.strategy }),
@@ -943,9 +946,10 @@ export default function Backtest() {
             <Grid item xs={12} sm={6}>
               <MuiTooltip title="Choose a symbol to backtest" arrow>
                 <Autocomplete
-                  options={symbols.map((s) => s.symbol)}
-                  value={params.symbol}
+                  options={symbols.map((s) => typeof s === 'string' ? s : s.symbol || s)}
+                  value={params.symbol || null}
                   onChange={(_, v) => handleChange("symbol", v || "")}
+                  isOptionEqualToValue={(option, value) => option === value}
                   renderInput={(props) => (
                     <TextField
                       {...props}
@@ -1066,15 +1070,19 @@ export default function Backtest() {
               >
                 Save Strategy
               </Button>
-              <Button
-                variant="outlined"
-                startIcon={<ContentCopyIcon />}
-                sx={{ mb: 2, mr: 2 }}
-                onClick={() => setPythonCode(strategyCode)}
-                disabled={!strategyCode}
-              >
-                Clone from Selected
-              </Button>
+              <MuiTooltip title={!strategyCode ? "Select a strategy to clone" : "Clone the selected strategy code"} arrow>
+                <span>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ContentCopyIcon />}
+                    sx={{ mb: 2, mr: 2 }}
+                    onClick={() => setPythonCode(strategyCode)}
+                    disabled={!strategyCode}
+                  >
+                    Clone from Selected
+                  </Button>
+                </span>
+              </MuiTooltip>
               <Button
                 variant="outlined"
                 startIcon={<ContentCopyIcon />}
@@ -1132,29 +1140,31 @@ export default function Backtest() {
                 </Button>
 
                 <MuiTooltip title="Quick validation check">
-                  <IconButton
-                    onClick={handleValidate}
-                    disabled={
-                      !pythonCode.trim() || validateStatus === "pending"
-                    }
-                    color={
-                      validateStatus === "success"
-                        ? "success"
-                        : validateStatus === "error"
-                          ? "error"
-                          : "default"
-                    }
-                  >
-                    {validateStatus === "pending" ? (
-                      <CircularProgress size={20} />
-                    ) : validateStatus === "success" ? (
-                      <CheckCircle />
-                    ) : validateStatus === "error" ? (
-                      <Warning />
-                    ) : (
-                      <Info />
-                    )}
-                  </IconButton>
+                  <span>
+                    <IconButton
+                      onClick={handleValidate}
+                      disabled={
+                        !pythonCode.trim() || validateStatus === "pending"
+                      }
+                      color={
+                        validateStatus === "success"
+                          ? "success"
+                          : validateStatus === "error"
+                            ? "error"
+                            : "default"
+                      }
+                    >
+                      {validateStatus === "pending" ? (
+                        <CircularProgress size={20} />
+                      ) : validateStatus === "success" ? (
+                        <CheckCircle />
+                      ) : validateStatus === "error" ? (
+                        <Warning />
+                      ) : (
+                        <Info />
+                      )}
+                    </IconButton>
+                  </span>
                 </MuiTooltip>
               </Box>
 
@@ -1947,11 +1957,11 @@ export default function Backtest() {
                     <TableCell>
                       <Button
                         size="small"
-                        onClick={() =>
-                          alert(
-                            JSON.stringify(strategyHistory[s.id] || [], null, 2)
-                          )
-                        }
+                        onClick={() => {
+                          console.log("📊 Strategy History for", s.name, ":", strategyHistory[s.id] || []);
+                          // In production, this would open a dialog or modal
+                          setError(`Strategy history logged to console for ${s.name}`);
+                        }}
                       >
                         Show Versions
                       </Button>

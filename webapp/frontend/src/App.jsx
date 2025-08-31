@@ -47,7 +47,6 @@ import {
   AccountCircle as AccountCircleIcon,
   Login as LoginIcon,
   Logout as LogoutIcon,
-  NetworkCheck as NetworkIcon,
 } from "@mui/icons-material";
 
 // All real page imports
@@ -88,19 +87,13 @@ import TestApiPage from "./pages/TestApiPage";
 import PortfolioPerformanceSimple from "./pages/PortfolioPerformanceSimple";
 import PortfolioPerformanceDebug from "./pages/PortfolioPerformanceDebug";
 import AuthTest from "./pages/AuthTest";
-import LiveDataAdmin from "./components/admin/LiveDataAdmin";
+import AIAssistant from "./pages/AIAssistant";
 
 const drawerWidth = 240;
 
 const menuItems = [
   // Dashboard Section
   { text: "Dashboard", icon: <DashboardIcon />, path: "/", category: "main" },
-  {
-    text: "Real-Time Data",
-    icon: <PlayArrow />,
-    path: "/realtime",
-    category: "main",
-  },
 
   // Markets Section
   {
@@ -251,14 +244,26 @@ const menuItems = [
     path: "/financial-data",
     category: "research",
   },
+
+  // Tools Section
   {
-    text: "Service Health",
+    text: "Real-Time Data",
+    icon: <PlayArrow />,
+    path: "/realtime",
+    category: "tools",
+  },
+  {
+    text: "Settings",
+    icon: <SettingsIcon />,
+    path: "/settings",
+    category: "tools",
+  },
+  {
+    text: "Health",
     icon: <HealthAndSafetyIcon />,
     path: "/service-health",
-    category: "research",
+    category: "tools",
   },
-
-  // Tools Section (Premium Only)
   {
     text: "Pattern Recognition",
     icon: <AnalyticsIcon />,
@@ -281,22 +286,6 @@ const menuItems = [
     premium: true,
   },
 
-  // Admin Section
-  {
-    text: "Live Data Admin",
-    icon: <NetworkIcon />,
-    path: "/admin/live-data",
-    category: "admin",
-    premium: true,
-  },
-
-  // Settings Section
-  {
-    text: "Settings",
-    icon: <SettingsIcon />,
-    path: "/settings",
-    category: "settings",
-  },
 ];
 
 function App() {
@@ -310,8 +299,6 @@ function App() {
     portfolio: true,
     research: false,
     tools: false,
-    admin: false,
-    settings: false,
   });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -321,6 +308,7 @@ function App() {
   const {
     showOnboarding,
     completeOnboarding,
+    skipOnboarding,
     loading: onboardingLoading,
   } = useOnboarding();
 
@@ -381,7 +369,6 @@ function App() {
     portfolio: "Portfolio",
     research: "Research & Education",
     tools: "Tools",
-    admin: "Administration",
   };
 
   const drawer = (
@@ -401,7 +388,7 @@ function App() {
           <React.Fragment key={category}>
             {category === "main" ? (
               // Dashboard gets special treatment - no section header
-              items.map((item) => (
+              (items || []).map((item) => (
                 <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
                   <ListItemButton
                     selected={location.pathname === item.path}
@@ -457,7 +444,7 @@ function App() {
 
                 {/* Section Items */}
                 {expandedSections[category] &&
-                  items.map((item) => (
+                  (items || []).map((item) => (
                     <ListItem key={item.text} disablePadding sx={{ pl: 2 }}>
                       <ListItemButton
                         selected={location.pathname === item.path}
@@ -639,6 +626,7 @@ function App() {
         <Container maxWidth="xl">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/realtime" element={<RealTimeDashboard />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/trade-history" element={<TradeHistory />} />
@@ -658,10 +646,13 @@ function App() {
             <Route path="/economic" element={<EconomicModeling />} />
             <Route path="/metrics" element={<MetricsDashboard />} />
             <Route path="/stocks" element={<StockExplorer />} />
+            <Route path="/stock-explorer" element={<StockExplorer />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
             <Route path="/screener" element={<StockExplorer />} />
             <Route path="/trading" element={<TradingSignals />} />
+            <Route path="/trading-signals" element={<TradingSignals />} />
             <Route path="/technical" element={<TechnicalAnalysis />} />
+            <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
             <Route path="/analysts" element={<AnalystInsights />} />
             <Route path="/earnings" element={<EarningsCalendar />} />
             <Route path="/backtest" element={<Backtest />} />
@@ -682,7 +673,6 @@ function App() {
               path="/technical-history/:symbol"
               element={<TechnicalHistory />}
             />
-            <Route path="/admin/live-data" element={<LiveDataAdmin />} />
 
             {/* Missing pages - Coming Soon */}
             <Route path="/sectors" element={<SectorAnalysis />} />
@@ -718,15 +708,7 @@ function App() {
               }
             />
             <Route path="/tools/patterns" element={<PatternRecognition />} />
-            <Route
-              path="/tools/ai"
-              element={
-                <ComingSoon
-                  pageName="AI Assistant"
-                  description="Your personal AI-powered investment assistant."
-                />
-              }
-            />
+            <Route path="/tools/ai" element={<AIAssistant />} />
           </Routes>
         </Container>
       </Box>
@@ -738,7 +720,7 @@ function App() {
       {isAuthenticated && showOnboarding && !onboardingLoading && (
         <OnboardingWizard
           open={true}
-          onClose={() => {}}
+          onClose={skipOnboarding}
           onComplete={completeOnboarding}
         />
       )}

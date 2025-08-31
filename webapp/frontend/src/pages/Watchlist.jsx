@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Container,
   Typography,
@@ -47,17 +47,6 @@ const Watchlist = () => {
   const [newSymbol, setNewSymbol] = useState("");
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  useEffect(() => {
-    loadWatchlist();
-  }, []);
-
-  useEffect(() => {
-    if (watchlist.length > 0) {
-      loadMarketData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchlist]);
-
   const loadWatchlist = async () => {
     try {
       // For now, use a default watchlist stored locally
@@ -78,27 +67,27 @@ const Watchlist = () => {
     }
   };
 
-  const loadMarketData = async () => {
+  const loadMarketData = useCallback(async () => {
     try {
       setError(null);
 
-      if (!user || watchlist.length === 0) {
+      if (!user || (watchlist?.length || 0) === 0) {
         return;
       }
 
-      console.log(`Loading market data for ${watchlist.length} symbols`);
+      console.log(`Loading market data for ${(watchlist?.length || 0)} symbols`);
 
       const response = await api.get(
         `/api/websocket/stream/${watchlist.join(",")}`
       );
 
-      if (response.data.success) {
-        const liveData = response.data.data;
+      if (response?.data.success) {
+        const liveData = response?.data.data;
 
         // Transform API data for display
         const transformedData = {};
         for (const symbol of watchlist) {
-          const symbolData = liveData.data[symbol];
+          const symbolData = liveData?.data[symbol];
           if (symbolData && !symbolData.error) {
             const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
             transformedData[symbol] = {
@@ -130,7 +119,7 @@ const Watchlist = () => {
         setLastUpdate(new Date());
 
         console.log("✅ Watchlist market data loaded successfully", {
-          symbols: watchlist.length,
+          symbols: (watchlist?.length || 0),
           successful: Object.values(transformedData).filter((d) => !d.error)
             .length,
           failed: Object.values(transformedData).filter((d) => d.error).length,
@@ -144,7 +133,19 @@ const Watchlist = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, watchlist]);
+
+  // Initialize watchlist on component mount
+  useEffect(() => {
+    loadWatchlist();
+  }, []);
+
+  // Load market data when watchlist changes
+  useEffect(() => {
+    if (watchlist.length > 0) {
+      loadMarketData();
+    }
+  }, [watchlist, loadMarketData]);
 
   const addSymbol = () => {
     const symbol = newSymbol.toUpperCase().trim();
@@ -184,7 +185,7 @@ const Watchlist = () => {
           </Typography>
           <Box display="flex" gap={1} mt={1}>
             <Chip
-              label={`${watchlist.length} symbols`}
+              label={`${(watchlist?.length || 0)} symbols`}
               color="primary"
               size="small"
             />
@@ -287,7 +288,7 @@ const Watchlist = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {watchlist.map((symbol) => {
+                  {(watchlist || []).map((symbol) => {
                     const data = marketData[symbol] || {};
                     const hasError = data.error;
                     const isPositive = data.change >= 0;
@@ -417,7 +418,7 @@ const Watchlist = () => {
       )}
 
       {/* Empty State */}
-      {!loading && watchlist.length === 0 && (
+      {!loading && (watchlist?.length || 0) === 0 && (
         <Card>
           <CardContent sx={{ textAlign: "center", py: 6 }}>
             <Typography variant="h5" gutterBottom color="text.secondary">

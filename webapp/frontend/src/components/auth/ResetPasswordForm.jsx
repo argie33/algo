@@ -57,7 +57,7 @@ function ResetPasswordForm({
       return false;
     }
 
-    if (formData.newPassword.length < 8) {
+    if ((formData.newPassword?.length || 0) < 8) {
       setLocalError("Password must be at least 8 characters long");
       return false;
     }

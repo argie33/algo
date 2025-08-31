@@ -198,8 +198,8 @@ function PriceHistory() {
       console.log("🔍 Fetching price history:", { timeframe, params });
       const result = await getPriceHistory(timeframe, params);
 
-      if (result && result.data) {
-        setData(result.data);
+      if (result && result?.data) {
+        setData(result?.data);
         setTotal(result.pagination?.total || 0);
       } else {
         setData([]);
@@ -276,9 +276,9 @@ function PriceHistory() {
   };
 
   const exportData = () => {
-    if (!filteredData.length) return;
+    if (!(filteredData?.length || 0)) return;
 
-    const headers = displayColumns.map((col) => col.label).join(",");
+    const headers = (displayColumns || []).map((col) => col.label).join(",");
     const rows = filteredData
       .map((row) =>
         displayColumns
@@ -302,7 +302,7 @@ function PriceHistory() {
 
   // Render summary stats
   const renderSummaryStats = () => {
-    if (!data.length) return null;
+    if (!(data?.length || 0)) return null;
 
     const latest = data[0];
     const dayChange = data.length > 1 ? latest.close - data[1].close : 0;
@@ -335,7 +335,7 @@ function PriceHistory() {
             Latest Data ({formatDate(latest.date)})
           </Typography>
           <Grid container spacing={2}>
-            {stats.map((stat, index) => (
+            {(stats || []).map((stat, index) => (
               <Grid item xs={6} sm={3} key={index}>
                 <Box textAlign="center">
                   <Typography variant="h6" color={`${stat.color}.main`}>
@@ -360,7 +360,7 @@ function PriceHistory() {
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {displayColumns.map((column) => (
+              {(displayColumns || []).map((column) => (
                 <TableCell
                   key={column.id}
                   sx={{ fontWeight: "bold", minWidth: 100 }}
@@ -371,9 +371,9 @@ function PriceHistory() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredData.map((row, index) => (
+            {(filteredData || []).map((row, index) => (
               <TableRow hover key={`${row.date}-${index}`}>
-                {displayColumns.map((column) => {
+                {(displayColumns || []).map((column) => {
                   const value = row[column.id];
 
                   return (
@@ -406,7 +406,7 @@ function PriceHistory() {
   const renderCardView = () => (
     <Box>
       <Grid container spacing={2}>
-        {filteredData.map((row, index) => (
+        {(filteredData || []).map((row, index) => (
           <Grid item xs={12} sm={6} md={4} key={`${row.date}-${index}`}>
             <Card>
               <CardContent>
@@ -482,7 +482,7 @@ function PriceHistory() {
 
         <Box display="flex" gap={1}>
           <Tooltip title="Export Data">
-            <IconButton onClick={exportData} disabled={!data.length}>
+            <IconButton onClick={exportData} disabled={!(data?.length || 0)}>
               <GetApp />
             </IconButton>
           </Tooltip>
@@ -680,7 +680,7 @@ function PriceHistory() {
                     ([category, columns], categoryIndex) =>
                       activeTab === categoryIndex && (
                         <Grid container spacing={1} key={category}>
-                          {columns.map((column) => (
+                          {(columns || []).map((column) => (
                             <Grid item xs={6} key={column.id}>
                               <FormControlLabel
                                 control={
@@ -724,14 +724,14 @@ function PriceHistory() {
             Retry
           </Button>
         </Alert>
-      ) : !data.length ? (
+      ) : !(data?.length || 0) ? (
         <Alert severity="info">
           No technical data found for {symbol} in the {timeframe} timeframe.
         </Alert>
       ) : (
         <>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Showing {filteredData.length} of {total} records
+            Showing {(filteredData?.length || 0)} of {total} records
           </Typography>
           {viewMode === "table" ? renderTableView() : renderCardView()}
         </>

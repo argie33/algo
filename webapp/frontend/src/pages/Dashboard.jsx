@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import ErrorBoundary from "../components/ErrorBoundary";
 import {
   Alert,
   Autocomplete,
@@ -73,12 +74,13 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
-import { getStockPrices, getStockMetrics } from "../services/api";
+import { getStockPrices, getStockMetrics, getMarketOverview, getTopStocks, getPortfolioAnalytics, getTradingSignalsDaily, getCurrentUser } from "../services/api";
 import { format } from "date-fns";
 import { getApiConfig } from "../services/api";
 import HistoricalPriceChart from "../components/HistoricalPriceChart";
 import dataCache from "../services/dataCache";
 import MarketStatusBar from "../components/MarketStatusBar";
+import useDevelopmentMode from "../hooks/useDevelopmentMode";
 
 // Logo import with fallback
 let _logoSrc = null;
@@ -283,9 +285,10 @@ const marketSummary = [
 ];
 
 // Enhanced data fetching hooks
-function useMarketOverview() {
+function useMarketOverview(enabled = true) {
   return useQuery({
     queryKey: ["market-overview"],
+    enabled,
     queryFn: async () => {
       return dataCache.get(
         "/api/market/overview",
@@ -294,11 +297,16 @@ function useMarketOverview() {
           cacheType: "marketData",
           fetchFunction: async () => {
             try {
-              const res = await fetch(`${API_BASE}/api/market/overview`);
-              if (!res.ok) throw new Error("Failed to fetch market overview");
-              return res.json();
+              const result = await getMarketOverview();
+              return result?.data;
             } catch (err) {
-              console.error("Market overview API failed:", err);
+              // Use console.warn for expected backend offline errors
+              const isExpectedError = err.message?.includes('503') || err.message?.includes('Service Unavailable') || err.message?.includes('Network Error');
+              if (isExpectedError) {
+                console.warn("⚠️ Market overview API unavailable:", err.message);
+              } else {
+                console.error("❌ Market overview API failed:", err);
+              }
               throw new Error("Market data unavailable - check API connection");
             }
           },
@@ -310,9 +318,10 @@ function useMarketOverview() {
   });
 }
 
-function useTopStocks() {
+function useTopStocks(enabled = true) {
   return useQuery({
     queryKey: ["top-stocks"],
+    enabled,
     queryFn: async () => {
       return dataCache.get(
         "/api/scores",
@@ -321,13 +330,20 @@ function useTopStocks() {
           cacheType: "marketData",
           fetchFunction: async () => {
             try {
-              const res = await fetch(
-                `${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`
-              );
-              if (!res.ok) throw new Error("Failed to fetch top stocks");
-              return res.json();
+              const result = await getTopStocks({
+                limit: 10,
+                sortBy: 'composite_score',
+                sortOrder: 'desc'
+              });
+              return result?.data;
             } catch (err) {
-              console.error("Top stocks API failed:", err);
+              // Use console.warn for expected backend offline errors
+              const isExpectedError = err.message?.includes('503') || err.message?.includes('Service Unavailable') || err.message?.includes('Network Error');
+              if (isExpectedError) {
+                console.warn("⚠️ Top stocks API unavailable:", err.message);
+              } else {
+                console.error("❌ Top stocks API failed:", err);
+              }
               throw new Error(
                 "Stock scoring data unavailable - check API connection"
               );
@@ -341,25 +357,22 @@ function useTopStocks() {
   });
 }
 
-function usePortfolioData() {
+function usePortfolioData(enabled = true) {
   const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ["portfolio-data"],
+    enabled,
     queryFn: async () => {
       if (!isAuthenticated) return { data: mockPortfolio };
       try {
-        const res = await fetch(`${API_BASE}/api/portfolio/analytics`, {
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error("Failed to fetch portfolio");
-        return res.json();
+        const result = await getPortfolioAnalytics();
+        return result?.data;
       } catch (err) {
         console.warn("Portfolio API failed, using mock data:", err);
         return { data: mockPortfolio };
       }
     },
     staleTime: 2 * 60 * 1000,
-    enabled: true,
   });
 }
 
@@ -368,11 +381,8 @@ function _useUser() {
     queryKey: ["dashboard-user"],
     queryFn: async () => {
       try {
-        const res = await fetch(`${API_BASE}/auth/me`, {
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error("Failed to fetch user info");
-        return res.json();
+        const result = await getCurrentUser();
+        return result?.data;
       } catch (err) {
         console.warn("User fetch failed:", err);
         return null;
@@ -390,16 +400,17 @@ function _useUser() {
   };
 }
 
-function TechnicalSignalsWidget() {
+function TechnicalSignalsWidget({ enabled = true }) {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-technical-signals"],
+    enabled,
     queryFn: async () => {
       try {
-        const url = `${API_BASE}/api/trading/signals/daily?limit=10`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          console.warn("Trading signals API failed, using mock data");
-          return {
+        const result = await getTradingSignalsDaily({ limit: 10 });
+        return result?.data;
+      } catch (err) {
+        console.warn("Trading signals API failed, using mock data:", err);
+        return {
             data: [
               {
                 symbol: "AAPL",
@@ -424,28 +435,6 @@ function TechnicalSignalsWidget() {
               },
             ],
           };
-        }
-        return await res.json();
-      } catch (err) {
-        console.warn("Technical signals error, using mock data:", err);
-        return {
-          data: [
-            {
-              symbol: "AAPL",
-              signal: "Buy",
-              date: "2025-07-03",
-              current_price: 195.12,
-              performance_percent: 2.1,
-            },
-            {
-              symbol: "TSLA",
-              signal: "Sell",
-              date: "2025-07-02",
-              current_price: 710.22,
-              performance_percent: -1.8,
-            },
-          ],
-        };
       }
     },
     refetchInterval: 300000,
@@ -453,7 +442,7 @@ function TechnicalSignalsWidget() {
     retryDelay: 1000,
   });
 
-  const signals = data?.data || [];
+  const signals = (data?.data && Array.isArray(data?.data)) ? data?.data : [];
 
   return (
     <Card sx={{ height: "100%" }}>
@@ -482,7 +471,7 @@ function TechnicalSignalsWidget() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {signals.map((sig, idx) => (
+                {Array.isArray(signals) && (signals || []).map((sig, idx) => (
                   <TableRow key={sig.symbol + sig.date + idx}>
                     <TableCell>{sig.symbol}</TableCell>
                     <TableCell>
@@ -493,7 +482,7 @@ function TechnicalSignalsWidget() {
                       />
                     </TableCell>
                     <TableCell align="right">
-                      ${sig.current_price?.toFixed(2) || "--"}
+                      {sig.current_price ? `$${Number(sig.current_price).toFixed(2)}` : "--"}
                     </TableCell>
                     <TableCell align="right">
                       <Typography
@@ -505,7 +494,7 @@ function TechnicalSignalsWidget() {
                         }
                       >
                         {sig.performance_percent
-                          ? sig.performance_percent.toFixed(1) + "%"
+                          ? Number(sig.performance_percent).toFixed(1) + "%"
                           : "--"}
                       </Typography>
                     </TableCell>
@@ -630,7 +619,7 @@ function SectorPerformanceWidget() {
             <YAxis tick={{ fontSize: 12 }} />
             <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
             <Bar dataKey="performance" fill="#8884d8">
-              {sectors.map((entry, index) => (
+              {(sectors || []).map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={entry.performance >= 0 ? "#00C49F" : "#FF8042"}
@@ -726,7 +715,7 @@ function EconomicIndicatorsWidget() {
         </Box>
 
         <Stack spacing={2}>
-          {indicators.map((indicator, idx) => (
+          {(indicators || []).map((indicator, idx) => (
             <Box
               key={idx}
               sx={{
@@ -755,6 +744,7 @@ const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [_dashboardView, _setDashboardView] = useState("overview");
+  const { shouldEnableQueries } = useDevelopmentMode();
 
   const SYMBOL_OPTIONS = [
     "AAPL",
@@ -766,13 +756,14 @@ const Dashboard = () => {
     "QQQ",
   ];
 
-  // Enhanced data fetching
-  const { data: portfolioData } = usePortfolioData();
-  const { data: _marketData } = useMarketOverview();
-  const { data: _topStocksData } = useTopStocks();
+  // Enhanced data fetching - conditionally enabled based on API availability
+  const { data: portfolioData } = usePortfolioData(shouldEnableQueries && isAuthenticated);
+  const { data: _marketData } = useMarketOverview(shouldEnableQueries && isAuthenticated);
+  const { data: _topStocksData } = useTopStocks(shouldEnableQueries && isAuthenticated);
 
   const { data: priceData, isLoading: _priceLoading } = useQuery({
     queryKey: ["stock-prices", selectedSymbol],
+    enabled: shouldEnableQueries && isAuthenticated,
     queryFn: async () => {
       try {
         return await getStockPrices(selectedSymbol, "daily", 30);
@@ -793,6 +784,7 @@ const Dashboard = () => {
 
   const { data: metricsData, isLoading: _metricsLoading } = useQuery({
     queryKey: ["stock-metrics", selectedSymbol],
+    enabled: shouldEnableQueries && isAuthenticated,
     queryFn: async () => {
       try {
         return await getStockMetrics(selectedSymbol);
@@ -820,7 +812,7 @@ const Dashboard = () => {
   const safeSignals = mockSignals;
 
   const _chartData = priceData?.data
-    ? priceData.data
+    ? priceData?.data
         .map((p) => ({
           date: p.date || p.timestamp,
           equity: p.close || p.price,
@@ -830,21 +822,21 @@ const Dashboard = () => {
 
   const _metricsDisplay = metricsData?.data
     ? [
-        { label: "Beta", value: metricsData.data.beta ?? "N/A" },
+        { label: "Beta", value: metricsData?.data.beta ?? "N/A" },
         {
           label: "Volatility",
-          value: metricsData.data.volatility
-            ? (metricsData.data.volatility * 100).toFixed(2) + "%"
+          value: metricsData?.data.volatility
+            ? (metricsData?.data.volatility * 100).toFixed(2) + "%"
             : "N/A",
         },
         {
           label: "Sharpe Ratio",
-          value: metricsData.data.sharpe_ratio ?? "N/A",
+          value: metricsData?.data.sharpe_ratio ?? "N/A",
         },
         {
           label: "Max Drawdown",
-          value: metricsData.data.max_drawdown
-            ? (metricsData.data.max_drawdown * 100).toFixed(2) + "%"
+          value: metricsData?.data.max_drawdown
+            ? (metricsData?.data.max_drawdown * 100).toFixed(2) + "%"
             : "N/A",
         },
       ]
@@ -913,7 +905,7 @@ const Dashboard = () => {
           </Box>
 
           <Box display="flex" alignItems="center" gap={2}>
-            <Badge badgeContent={safeSignals.length} color="error">
+            <Badge badgeContent={(safeSignals?.length || 0)} color="error">
               <IconButton aria-label="View notifications" tabIndex={0}>
                 <Notifications />
               </IconButton>
@@ -1010,7 +1002,7 @@ const Dashboard = () => {
                         Active Signals
                       </Typography>
                       <Typography variant="h5" fontWeight="bold">
-                        {safeSignals.length}
+                        {(safeSignals?.length || 0)}
                       </Typography>
                     </Box>
                     <Box textAlign="center">
@@ -1215,12 +1207,12 @@ const Dashboard = () => {
             Market Summary
           </Typography>
           <Grid container spacing={2}>
-            {marketSummary.map((mkt, idx) => (
+            {(marketSummary || []).map((mkt, idx) => (
               <Grid item xs={12} sm={6} md={2} key={mkt.name}>
                 <Card
                   sx={{
                     boxShadow: 1,
-                    borderTop: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}`,
+                    borderTop: `4px solid ${WIDGET_COLORS[idx % (WIDGET_COLORS?.length || 0)]}`,
                   }}
                 >
                   <CardContent sx={{ textAlign: "center", py: 1 }}>
@@ -1312,10 +1304,10 @@ const Dashboard = () => {
                       dataKey="value"
                       label={({ name, value }) => `${name} ${value}%`}
                     >
-                      {safePortfolio.allocation.map((entry, idx) => (
+                      {(safePortfolio.allocation || []).map((entry, idx) => (
                         <Cell
                           key={`cell-${idx}`}
-                          fill={WIDGET_COLORS[idx % WIDGET_COLORS.length]}
+                          fill={WIDGET_COLORS[idx % (WIDGET_COLORS?.length || 0)]}
                         />
                       ))}
                     </Pie>
@@ -1352,7 +1344,7 @@ const Dashboard = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {safeWatchlist.map((item, idx) => (
+                      {(safeWatchlist || []).map((item, idx) => (
                         <TableRow key={item.symbol || idx}>
                           <TableCell>
                             <Typography variant="body2" fontWeight="bold">
@@ -1421,10 +1413,14 @@ const Dashboard = () => {
         {/* Technical Signals & Performance */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} md={6}>
-            <TechnicalSignalsWidget />
+            <ErrorBoundary componentName="TechnicalSignalsWidget">
+              <TechnicalSignalsWidget enabled={shouldEnableQueries && isAuthenticated} />
+            </ErrorBoundary>
           </Grid>
           <Grid item xs={12} md={6}>
-            <HistoricalPriceChart symbol={selectedSymbol} defaultPeriod={30} />
+            <ErrorBoundary componentName="HistoricalPriceChart">
+              <HistoricalPriceChart symbol={selectedSymbol} defaultPeriod={30} />
+            </ErrorBoundary>
           </Grid>
         </Grid>
 
@@ -1446,7 +1442,7 @@ const Dashboard = () => {
                   />
                 </Box>
                 <Stack spacing={2}>
-                  {safeSignals.map((sig, idx) => (
+                  {(safeSignals || []).map((sig, idx) => (
                     <Box
                       key={sig.symbol || idx}
                       sx={{
@@ -1522,7 +1518,7 @@ const Dashboard = () => {
                   />
                 </Box>
                 <Stack spacing={2}>
-                  {safeCalendar.map((ev, idx) => (
+                  {(safeCalendar || []).map((ev, idx) => (
                     <Box
                       key={ev.event || idx}
                       sx={{
@@ -1585,7 +1581,7 @@ const Dashboard = () => {
                   </Button>
                 </Box>
                 <Stack spacing={2}>
-                  {safeActivity.map((act, idx) => (
+                  {(safeActivity || []).map((act, idx) => (
                     <Box
                       key={act.type + act.desc + idx}
                       sx={{
@@ -1855,7 +1851,7 @@ const Dashboard = () => {
                           Algorithm Signals
                         </Typography>
                         <List dense>
-                          {safeSignals.map((signal, idx) => (
+                          {(safeSignals || []).map((signal, idx) => (
                             <ListItem key={idx}>
                               <ListItemAvatar>
                                 <Avatar

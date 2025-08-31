@@ -56,6 +56,7 @@ import {
   ResponsiveContainer,
   Area,
   AreaChart,
+  Tooltip as RechartsTooltip,
 } from "recharts";
 
 // Create component-specific logger
@@ -306,27 +307,27 @@ function StockExplorer() {
       // Use the proper API service method
       const result = await getStockPriceHistory(symbol, 90);
 
-      if (result && result.data) {
+      if (result && result?.data) {
         console.log(
           "Comprehensive price history loaded for",
           symbol,
-          result.data.length,
+          (result.data?.length || 0),
           "records"
         );
 
         // Calculate summary statistics from the data
-        const priceData = result.data;
+        const priceData = result?.data;
         const summary = {
-          dataPoints: priceData.length,
+          dataPoints: (priceData?.length || 0),
           priceStats: {
             current: priceData[0]?.close || 0,
-            periodHigh: Math.max(...priceData.map((d) => d.high || 0)),
+            periodHigh: Math.max(...((priceData || []).map((d) => d.high || 0))),
             periodLow: Math.min(
               ...priceData.filter((d) => d.low > 0).map((d) => d.low)
             ),
           },
           dateRange: {
-            start: priceData[priceData.length - 1]?.date,
+            start: priceData[(priceData?.length || 0) - 1]?.date,
             end: priceData[0]?.date,
           },
         };
@@ -383,10 +384,10 @@ function StockExplorer() {
   // Normalize stocks list to handle both { data: [...] } and { data: { data: [...] } } API responses
   let stocksList = [];
   if (stocksData) {
-    if (Array.isArray(stocksData.data)) {
-      stocksList = stocksData.data;
-    } else if (stocksData.data && Array.isArray(stocksData.data.data)) {
-      stocksList = stocksData.data.data;
+    if (Array.isArray(stocksData?.data)) {
+      stocksList = stocksData?.data;
+    } else if (stocksData?.data && Array.isArray(stocksData?.data.data)) {
+      stocksList = stocksData?.data.data;
     } else if (Array.isArray(stocksData)) {
       stocksList = stocksData;
     }
@@ -563,7 +564,7 @@ function StockExplorer() {
                       fullWidth
                     >
                       <MenuItem value="">All Sectors</MenuItem>
-                      {SECTORS.map((sector) => (
+                      {(SECTORS || []).map((sector) => (
                         <MenuItem key={sector} value={sector}>
                           {sector}
                         </MenuItem>
@@ -581,7 +582,7 @@ function StockExplorer() {
                       fullWidth
                     >
                       <MenuItem value="">All Exchanges</MenuItem>
-                      {EXCHANGES.map((exchange) => (
+                      {(EXCHANGES || []).map((exchange) => (
                         <MenuItem key={exchange} value={exchange}>
                           {exchange}
                         </MenuItem>
@@ -661,7 +662,7 @@ function StockExplorer() {
                   )}
                   {stocksList.length > 0 && (
                     <Chip
-                      label={`Showing ${stocksList.length}`}
+                      label={`Showing ${(stocksList?.length || 0)}`}
                       color="secondary"
                       variant="outlined"
                       sx={{ ml: 1 }}
@@ -737,7 +738,7 @@ function StockExplorer() {
                 <>
                   {/* Accordion Display */}
                   <Box sx={{ width: "100%" }}>
-                    {stocksList.map((stock) => (
+                    {(stocksList || []).map((stock) => (
                       <Accordion
                         key={stock.symbol}
                         expanded={expandedStock === stock.symbol}
@@ -1298,7 +1299,7 @@ function StockExplorer() {
               )}
 
               {/* No Results State */}
-              {stocksData && stocksList.length === 0 && !isLoading && (
+              {stocksData && (stocksList?.length || 0) === 0 && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
@@ -1380,7 +1381,7 @@ function StockExplorer() {
                     valid.
                   </small>
                 </Alert>
-              ) : priceHistoryModal.data.length > 0 ? (
+              ) : priceHistoryModal?.data.length > 0 ? (
                 <>
                   {/* Price Summary */}
                   {priceHistoryModal.summary && (
@@ -1442,7 +1443,7 @@ function StockExplorer() {
                       <Box sx={{ width: "100%", height: 400 }}>
                         <ResponsiveContainer>
                           <AreaChart
-                            data={[...priceHistoryModal.data].reverse()}
+                            data={[...priceHistoryModal?.data].reverse()}
                           >
                             <defs>
                               <linearGradient
@@ -1479,7 +1480,7 @@ function StockExplorer() {
                               domain={["dataMin", "dataMax"]}
                               tickFormatter={(value) => `$${value.toFixed(2)}`}
                             />
-                            <Tooltip
+                            <RechartsTooltip
                               formatter={(value) => [
                                 `$${value.toFixed(2)}`,
                                 "Close",
@@ -1542,7 +1543,7 @@ function StockExplorer() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {priceHistoryModal.data.map((row, index) => (
+                        {(priceHistoryModal.data || []).map((row, index) => (
                           <TableRow key={index} hover>
                             <TableCell>
                               {new Date(row.date).toLocaleDateString()}
@@ -1602,7 +1603,7 @@ function StockExplorer() {
                       color: "text.secondary",
                     }}
                   >
-                    Showing {priceHistoryModal.data.length} price records from
+                    Showing {(priceHistoryModal.data?.length || 0)} price records from
                     your database tables
                   </Typography>
                 </>

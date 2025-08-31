@@ -262,7 +262,7 @@ function AnalystInsights() {
         <Grid item xs={12} md={3}>
           <SummaryCard
             title="Upgrades"
-            value={upgrades.length}
+            value={(upgrades?.length || 0)}
             subtitle="Recent upgrades"
             icon={<TrendingUp />}
             color="#10B981"
@@ -271,7 +271,7 @@ function AnalystInsights() {
         <Grid item xs={12} md={3}>
           <SummaryCard
             title="Downgrades"
-            value={downgrades.length}
+            value={(downgrades?.length || 0)}
             subtitle="Recent downgrades"
             icon={<TrendingDown />}
             color="#DC2626"
@@ -280,7 +280,7 @@ function AnalystInsights() {
         <Grid item xs={12} md={3}>
           <SummaryCard
             title="Initiates"
-            value={initiates.length}
+            value={(initiates?.length || 0)}
             subtitle="New coverage"
             icon={<Analytics />}
             color="#8B5CF6"

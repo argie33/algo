@@ -9,7 +9,6 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -25,6 +24,7 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  Tooltip,
 } from "recharts";
 import { getStockPrices } from "../services/api";
 import { format } from "date-fns";
@@ -76,7 +76,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
 
   const chartData = priceData?.data || [];
   const latestPrice = chartData[0];
-  const oldestPrice = chartData[chartData.length - 1];
+  const oldestPrice = chartData[(chartData?.length || 0) - 1];
 
   const priceChange =
     latestPrice && oldestPrice ? latestPrice.close - oldestPrice.close : 0;
@@ -86,7 +86,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
       : 0;
 
   const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
+    if (active && payload && (payload?.length || 0)) {
       const data = payload[0].payload;
       return (
         <Box
@@ -100,7 +100,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
           }}
         >
           <Typography variant="subtitle2" gutterBottom>
-            {formatTooltipDate(label)}
+            {formatTooltipDate(label) || "No Date"}
           </Typography>
           <Typography variant="body2">
             <strong>Open:</strong> {formatPrice(data.open)}
@@ -120,7 +120,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         </Box>
       );
     }
-    return null;
+    return <Box />;
   };
 
   return (
@@ -197,7 +197,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         </Box>
 
         {/* Price Summary */}
-        {latestPrice && (
+        {latestPrice && oldestPrice && (
           <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
             <Chip
               label={`Current: ${formatPrice(latestPrice.close)}`}
@@ -246,7 +246,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         {/* Chart */}
         {!isLoading && !error && chartData.length > 0 && (
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData.reverse()}>
+            <LineChart data={[...chartData].reverse()}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
@@ -272,7 +272,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         )}
 
         {/* No Data State */}
-        {!isLoading && !error && chartData.length === 0 && (
+        {!isLoading && !error && (chartData?.length || 0) === 0 && (
           <Alert severity="info">
             <Typography variant="subtitle2">No price data available</Typography>
             <Typography variant="body2">
@@ -286,7 +286,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         {chartData.length > 0 && (
           <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
             <Typography variant="caption" color="text.secondary">
-              Showing {chartData.length} {timeframe} data points for {symbol}
+              Showing {(chartData?.length || 0)} {timeframe} data points for {symbol}
               {latestPrice && ` • Latest: ${formatDate(latestPrice.date)}`}
             </Typography>
           </Box>

@@ -92,7 +92,7 @@ const PortfolioPerformanceSimple = () => {
         <Card>
           <CardContent>
             <Typography variant="h6">Debug Information:</Typography>
-            {debugInfo.map((info, index) => (
+            {(debugInfo || []).map((info, index) => (
               <Typography
                 key={index}
                 variant="body2"
@@ -133,7 +133,7 @@ const PortfolioPerformanceSimple = () => {
                 ✅ Performance data loaded successfully
               </Typography>
               <Typography>
-                Data points: {performanceData.data?.performance?.length || 0}
+                Data points: {performanceData?.data?.performance?.length || 0}
               </Typography>
               <Typography>
                 Success: {performanceData.success ? "true" : "false"}
@@ -156,7 +156,7 @@ const PortfolioPerformanceSimple = () => {
                 ✅ Analytics data loaded successfully
               </Typography>
               <Typography>
-                Holdings: {analyticsData.data?.holdings?.length || 0}
+                Holdings: {analyticsData?.data?.holdings?.length || 0}
               </Typography>
               <Typography>
                 Success: {analyticsData.success ? "true" : "false"}
@@ -173,7 +173,7 @@ const PortfolioPerformanceSimple = () => {
           <Typography variant="h6" gutterBottom>
             Debug Information:
           </Typography>
-          {debugInfo.map((info, index) => (
+          {(debugInfo || []).map((info, index) => (
             <Typography
               key={index}
               variant="body2"

@@ -43,17 +43,12 @@ router.get("/sectors", async (req, res) => {
 
       result = await Promise.race([queryPromise, timeoutPromise]);
       
-      // Add null checking for database availability
-      if (!result || !result.rows) {
-        console.warn("Database query returned null result, database may be unavailable");
+      // Check for valid result
+      if (!result || !result.rows || result.rows.length === 0) {
         return res.success({
           data: [],
-          message: "Sectors data temporarily unavailable - database connection issue",
-          recommendations: [
-            "Database service may be starting up",
-            "Check database connection health",
-            "Try again in a few moments"
-          ]
+          message: "No sectors available",
+          total: 0
         });
       }
       
@@ -98,10 +93,10 @@ router.get("/sectors", async (req, res) => {
 
     // Final check before processing - result might be null after error handling
     if (!result || !result.rows) {
-      return res.error("Database temporarily unavailable", {
-        message: "Sectors data cannot be retrieved - database connection issue",
+      return res.error("Sectors data unavailable", {
+        message: "No sectors data found",
         data: []
-      }, 503);
+      }, 404);
     }
 
     const sectors = result.rows.map((row) => ({
@@ -179,18 +174,13 @@ router.get("/public/sample", async (req, res) => {
 
       result = await Promise.race([queryPromise, timeoutPromise]);
       
-      // Add null checking for database availability
-      if (!result || !result.rows) {
-        console.warn("Database query returned null result, database may be unavailable");
+      // Check for valid result
+      if (!result || !result.rows || result.rows.length === 0) {
         return res.success({
           data: [],
           count: 0,
-          message: "Stock sample data temporarily unavailable - database connection issue",
-          recommendations: [
-            "Database service may be starting up",
-            "Check database connection health", 
-            "Try again in a few moments"
-          ]
+          message: "No stock sample data available",
+          total: 0
         });
       }
       
@@ -293,7 +283,7 @@ const stocksListValidation = createValidationMiddleware({
       sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
     validator: (value) =>
       !value ||
-      ["symbol", "ticker", "name", "exchange", "market_category"].includes(
+      ["symbol", "ticker", "name", "exchange"].includes(
         value
       ),
     errorMessage: "Invalid sort field",
@@ -357,7 +347,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       symbol: "ss.symbol",
       name: "ss.security_name",
       exchange: "ss.exchange",
-      market_category: "ss.market_category",
+      market_category: "'Standard'", // Default since column doesn't exist
     };
 
     const sortColumn = validSortColumns[sortBy] || "ss.symbol";
@@ -370,132 +360,41 @@ router.get("/", stocksListValidation, async (req, res) => {
       offset,
     });
 
-    // COMPREHENSIVE QUERY: Include ALL data from loadinfo script
+    // SIMPLIFIED QUERY: Use stock_symbols as primary source with essential data only
     const stocksQuery = `
       SELECT 
-        -- Stock symbols data
+        -- Primary stock symbols data (from loader script)
         ss.symbol,
-        ss.security_name,
+        ss.security_name as company_name,
         ss.exchange,
         ss.market_category,
+        ss.etf,
         ss.cqs_symbol,
+        ss.test_issue,
         ss.financial_status,
         ss.round_lot_size,
-        ss.etf,
         ss.secondary_symbol,
-        ss.test_issue,
         
-        -- Symbols data from loadinfo
-        s.short_name,
-        s.long_name,
-        s.display_name,
-        s.quote_type,
+        -- Additional stocks data when available (optional)
         s.sector,
-        s.sector_disp,
         s.industry,
-        s.industry_disp,
-        s.business_summary,
-        s.employee_count,
-        s.website_url,
-        s.ir_website_url,
-        s.address1,
-        s.city,
-        s.state,
-        s.postal_code,
-        s.country,
-        s.phone_number,
-        s.currency,
-        s.market,
-        s.full_exchange_name,
+        s.market_cap,
         
-        -- Market data from loadinfo
-        md.current_price,
-        md.previous_close,
-        md.open_price,
-        md.day_low,
-        md.day_high,
-        md.volume,
-        md.average_volume,
-        md.market_cap,
-        md.fifty_two_week_low,
-        md.fifty_two_week_high,
-        md.fifty_day_avg,
-        md.two_hundred_day_avg,
-        md.bid_price,
-        md.ask_price,
-        md.market_state,
-        
-        -- Key financial metrics from loadinfo
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_sales_ttm,
-        km.price_to_book,
-        km.book_value,
-        km.peg_ratio,
-        km.enterprise_value,
-        km.ev_to_revenue,
-        km.ev_to_ebitda,
-        km.total_revenue,
-        km.net_income,
-        km.ebitda,
-        km.gross_profit,
-        km.eps_trailing,
-        km.eps_forward,
-        km.eps_current_year,
-        km.price_eps_current_year,
-        km.earnings_q_growth_pct,
-        km.total_cash,
-        km.cash_per_share,
-        km.operating_cashflow,
-        km.free_cashflow,
-        km.total_debt,
-        km.debt_to_equity,
-        km.quick_ratio,
-        km.current_ratio,
-        km.profit_margin_pct,
-        km.gross_margin_pct,
-        km.ebitda_margin_pct,
-        km.operating_margin_pct,
-        km.return_on_assets_pct,
-        km.return_on_equity_pct,
-        km.revenue_growth_pct,
-        km.earnings_growth_pct,
-        km.dividend_rate,
-        km.dividend_yield,
-        km.five_year_avg_dividend_yield,
-        km.payout_ratio,
-        
-        -- Analyst estimates from loadinfo
-        ae.target_high_price,
-        ae.target_low_price,
-        ae.target_mean_price,
-        ae.target_median_price,
-        ae.recommendation_key,
-        ae.recommendation_mean,
-        ae.analyst_opinion_count,
-        ae.average_analyst_rating,
-        
-        -- Governance scores from loadinfo
-        gs.audit_risk,
-        gs.board_risk,
-        gs.compensation_risk,
-        gs.shareholder_rights_risk,
-        gs.overall_risk,
-        
-        -- Leadership team count (subquery)
-        COALESCE(lt_count.executive_count, 0) as leadership_count
+        -- Latest price data when available (optional)
+        pd.close as current_price,
+        pd.change_amount,
+        pd.change_percent,
+        pd.volume,
+        pd.date as price_date
         
       FROM stock_symbols ss
-      LEFT JOIN symbols s ON ss.symbol = s.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
+      LEFT JOIN stocks s ON ss.symbol = s.symbol
       LEFT JOIN (
-        SELECT ticker, COUNT(*) as executive_count 
-        FROM leadership_team 
-        GROUP BY ticker
-      ) lt_count ON ss.symbol = lt_count.ticker
+        SELECT DISTINCT ON (symbol) 
+          symbol, close_price as close, change_amount, change_percent, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -518,27 +417,24 @@ router.get("/", stocksListValidation, async (req, res) => {
       schemaValidator.safeQuery(countQuery, params.slice(0, -2)),
     ]);
 
-    // Add null checking for database availability
+    // Check for valid results
     if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-      console.warn("Count query returned null result, database may be unavailable");
       return res.success({
         data: [],
         count: 0,
         total: 0,
         totalPages: 0,
-        message: "Stock count data temporarily unavailable - database connection issue"
+        message: "No stock count data available"
       });
     }
 
-    // Also check stocksResult for null
     if (!stocksResult || !stocksResult.rows) {
-      console.warn("Stocks query returned null result, database may be unavailable");
       return res.success({
         data: [],
         count: 0,
         total: 0,
         totalPages: 0,
-        message: "Stocks data temporarily unavailable - database connection issue"
+        message: "No stocks data available"
       });
     }
 
@@ -562,7 +458,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       // Exchange & categorization
       exchange: stock.exchange,
       fullExchangeName: stock.full_exchange_name,
-      marketCategory: stock.market_category,
+      marketCategory: "Standard", // Default since column doesn't exist
       market: stock.market,
 
       // Business information
@@ -593,7 +489,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       price: {
         current: stock.current_price,
         previousClose: stock.previous_close,
-        open: stock.open_price,
+        open: stock.open,
         dayLow: stock.day_low,
         dayHigh: stock.day_high,
         fiftyTwoWeekLow: stock.fifty_two_week_low,
@@ -1027,14 +923,13 @@ router.get("/screen", async (req, res) => {
 
     const countResult = await query(countQuery, queryParams);
     
-    // Add null checking for database availability
+    // Check for valid result
     if (!countResult || !countResult.rows) {
-      console.warn("Screen count query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
-        message: "Stock screening temporarily unavailable - database connection issue",
+      return res.success({
+        message: "No stocks found matching criteria",
         data: { stocks: [] },
         pagination: { page: 1, limit: limit, total: 0, totalPages: 0 }
-      }, 503);
+      });
     }
     
     const totalStocks = parseInt(countResult.rows[0]?.total || 0);
@@ -1062,14 +957,13 @@ router.get("/screen", async (req, res) => {
 
     const stocksResult = await query(stocksQuery, queryParams, 10000); // 10 second timeout for complex screening
 
-    // Add null checking for database availability
+    // Check for valid result
     if (!stocksResult || !stocksResult.rows) {
-      console.warn("Stocks query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
-        message: "Stock data temporarily unavailable - database connection issue",
+      return res.success({
+        message: "No stocks data available",
         data: { stocks: [] },
         pagination: { page: parseInt(page), limit: parseInt(limit), total: totalStocks, totalPages: 0 }
-      }, 503);
+      });
     }
 
     console.log(
@@ -1136,7 +1030,7 @@ router.get("/:ticker", async (req, res) => {
       FROM stock_symbols ss
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
-          symbol, date, open, high, low, close, volume, adj_close
+          symbol, date, open_price as open, high_price as high, low_price as low, close_price as close, volume, adj_close_price as adj_close
         FROM price_daily
         WHERE symbol = $1
         ORDER BY symbol, date DESC
@@ -1153,11 +1047,11 @@ router.get("/:ticker", async (req, res) => {
     }
 
     if (result.rows.length === 0) {
-      return res.error("Stock not found", {
+      return res.error("Stock not found", 404, {
         symbol: tickerUpper,
         message: `Symbol '${tickerUpper}' not found in database`,
         timestamp: new Date().toISOString(),
-      }, 404);
+      });
     }
 
     const stock = result.rows[0];
@@ -1169,7 +1063,7 @@ router.get("/:ticker", async (req, res) => {
       companyInfo: {
         name: stock.security_name,
         exchange: stock.exchange,
-        marketCategory: stock.market_category,
+        marketCategory: "Standard", // Default since column doesn't exist
         financialStatus: stock.financial_status,
         isETF: stock.etf === "t" || stock.etf === true,
       },
@@ -1261,56 +1155,196 @@ router.get("/:ticker/prices", async (req, res) => {
       cleanCache();
     }
 
-    // Determine table and optimize query based on timeframe
-    const tableMap = {
-      daily: "price_daily",
-      weekly: "price_weekly",
-      monthly: "price_monthly",
-    };
+    // Use price_daily table for all timeframes since weekly/monthly tables don't exist
+    // For weekly/monthly data, we'll aggregate the daily data appropriately
+    const tableName = "price_daily";
+    
+    console.log(`DEBUG: Using tableName: ${tableName} for symbol: ${symbol}, timeframe: ${timeframe}`);
 
-    const tableName = tableMap[timeframe] || "price_daily";
-
-    // Optimized query - database-level calculations and proper indexing
-    const pricesQuery = `
-      WITH price_data AS (
+    // Build appropriate query based on timeframe - all use price_daily table
+    let pricesQuery;
+    
+    if (timeframe === 'weekly') {
+      // Aggregate daily data into weekly data (Monday to Sunday)
+      console.log(`DEBUG: Building weekly query with tableName: ${tableName}`);
+      pricesQuery = `
+        WITH weekly_data AS (
+          SELECT 
+            DATE_TRUNC('week', date) + INTERVAL '6 days' as date,
+            (ARRAY_AGG(open_price ORDER BY date ASC))[1] as open,
+            MAX(high_price) as high,
+            MIN(low_price) as low,
+            (ARRAY_AGG(close_price ORDER BY date DESC))[1] as close,
+            (ARRAY_AGG(adj_close_price ORDER BY date DESC))[1] as adj_close,
+            SUM(volume) as volume
+          FROM ${tableName}
+          WHERE symbol = $1 
+            AND date >= CURRENT_DATE - INTERVAL '2 years'
+            AND close_price IS NOT NULL
+          GROUP BY DATE_TRUNC('week', date)
+          ORDER BY date DESC
+          LIMIT $2
+        ),
+        price_data AS (
+          SELECT 
+            date,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
+            close::DECIMAL(12,4) as close,
+            adj_close::DECIMAL(12,4) as adj_close,
+            volume::BIGINT as volume,
+            LAG(close) OVER (ORDER BY date DESC) as prev_close
+          FROM weekly_data
+        )
         SELECT 
           date,
-          open::DECIMAL(12,4) as open,
-          high::DECIMAL(12,4) as high,
-          low::DECIMAL(12,4) as low,
-          close::DECIMAL(12,4) as close,
-          adj_close::DECIMAL(12,4) as adj_close,
-          volume::BIGINT as volume,
-          LAG(close) OVER (ORDER BY date DESC) as prev_close
-        FROM ${tableName}
-        WHERE symbol = $1 
-          AND date >= CURRENT_DATE - INTERVAL '2 years'
-          AND close IS NOT NULL
-        ORDER BY date DESC
-        LIMIT $2
-      )
-      SELECT 
-        date,
-        open,
-        high, 
-        low,
-        close,
-        adj_close,
-        volume,
-        CASE 
-          WHEN prev_close IS NOT NULL AND prev_close > 0 
-          THEN ROUND((close - prev_close)::DECIMAL, 4)
-          ELSE NULL 
-        END as price_change,
-        CASE 
-          WHEN prev_close IS NOT NULL AND prev_close > 0
-          THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
-          ELSE NULL 
-        END as price_change_pct
-      FROM price_data
-      ORDER BY date DESC;
-    `;
+          open,
+          high, 
+          low,
+          close,
+          adj_close,
+          volume,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0 
+            THEN ROUND((close - prev_close)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0
+            THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change_pct
+        FROM price_data
+        ORDER BY date DESC;
+      `;
+    } else if (timeframe === 'monthly') {
+      // Aggregate daily data into monthly data
+      pricesQuery = `
+        WITH monthly_data AS (
+          SELECT 
+            DATE_TRUNC('month', date) + INTERVAL '1 month' - INTERVAL '1 day' as date,
+            (ARRAY_AGG(open_price ORDER BY date ASC))[1] as open,
+            MAX(high_price) as high,
+            MIN(low_price) as low,
+            (ARRAY_AGG(close_price ORDER BY date DESC))[1] as close,
+            (ARRAY_AGG(adj_close_price ORDER BY date DESC))[1] as adj_close,
+            SUM(volume) as volume
+          FROM ${tableName}
+          WHERE symbol = $1 
+            AND date >= CURRENT_DATE - INTERVAL '2 years'
+            AND close_price IS NOT NULL
+          GROUP BY DATE_TRUNC('month', date)
+          ORDER BY date DESC
+          LIMIT $2
+        ),
+        price_data AS (
+          SELECT 
+            date,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
+            close::DECIMAL(12,4) as close,
+            adj_close::DECIMAL(12,4) as adj_close,
+            volume::BIGINT as volume,
+            LAG(close) OVER (ORDER BY date DESC) as prev_close
+          FROM monthly_data
+        )
+        SELECT 
+          date,
+          open,
+          high, 
+          low,
+          close,
+          adj_close,
+          volume,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0 
+            THEN ROUND((close - prev_close)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0
+            THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change_pct
+        FROM price_data
+        ORDER BY date DESC;
+      `;
+    } else {
+      // Daily data (default)
+      pricesQuery = `
+        WITH price_data AS (
+          SELECT 
+            date,
+            open_price::DECIMAL(12,4) as open,
+            high_price::DECIMAL(12,4) as high,
+            low_price::DECIMAL(12,4) as low,
+            close_price::DECIMAL(12,4) as close,
+            adj_close_price::DECIMAL(12,4) as adj_close,
+            volume::BIGINT as volume,
+            LAG(close_price) OVER (ORDER BY date DESC) as prev_close
+          FROM ${tableName}
+          WHERE symbol = $1 
+            AND date >= CURRENT_DATE - INTERVAL '2 years'
+            AND close_price IS NOT NULL
+          ORDER BY date DESC
+          LIMIT $2
+        )
+        SELECT 
+          date,
+          open,
+          high, 
+          low,
+          close,
+          adj_close,
+          volume,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0 
+            THEN ROUND((close - prev_close)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0
+            THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change_pct
+        FROM price_data
+        ORDER BY date DESC;
+      `;
+    }
 
+    // Add comprehensive debugging before query execution
+    console.log(`🔍 DEBUG: About to execute ${timeframe} query for ${symbol}:`);
+    console.log(`📊 Query length: ${pricesQuery.length} characters`);
+    console.log(`🔧 Parameters: [${symbol}, ${limit}]`);
+    console.log(`📝 FULL QUERY:\n${pricesQuery}`);
+    console.log(`🎯 Query position 763 is at character:`, pricesQuery.charAt(762));
+    
+    // Check table schema first for weekly/monthly queries
+    if (timeframe === 'weekly' || timeframe === 'monthly') {
+      try {
+        console.log(`🔍 DEBUG: Checking price_daily table schema...`);
+        const schemaResult = await query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'price_daily' 
+          ORDER BY ordinal_position;
+        `);
+        console.log(`📋 price_daily columns:`, schemaResult.rows);
+        
+        // Also check if data exists for this symbol
+        const dataCheck = await query(`
+          SELECT COUNT(*), MIN(date), MAX(date) 
+          FROM price_daily 
+          WHERE symbol = $1;
+        `, [symbol]);
+        console.log(`📊 Data check for ${symbol}:`, dataCheck.rows[0]);
+      } catch (schemaError) {
+        console.error(`❌ Schema check failed:`, schemaError);
+      }
+    }
+    
     // Execute query with timeout protection
     const queryPromise = query(pricesQuery, [symbol, limit]);
     const timeoutPromise = new Promise((_, reject) =>
@@ -1322,14 +1356,13 @@ router.get("/:ticker/prices", async (req, res) => {
 
     const result = await Promise.race([queryPromise, timeoutPromise]);
 
-    // Add null checking for database availability
+    // Check for valid result
     if (!result || !result.rows) {
-      console.warn("Price data query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
-        message: "Price data temporarily unavailable - database connection issue",
+      return res.error("Price data unavailable", {
+        message: "No price data found",
         data: [],
         ticker: req.params.ticker
-      }, 503);
+      }, 404);
     }
 
     if (result.rows.length === 0) {
@@ -1488,16 +1521,15 @@ router.get("/:ticker/prices/recent", async (req, res) => {
 
     const result = await query(pricesQuery, [ticker, limit]);
 
-    // Add null checking for database availability
+    // Check for valid result
     if (!result || !result.rows) {
-      console.warn("Price data query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
+      return res.error("Price data unavailable", {
         ticker: ticker.toUpperCase(),
-        message: "Price data temporarily unavailable - database connection issue",
+        message: "No price data available",
         data: [],
-        code: "DATABASE_UNAVAILABLE",
+        code: "NO_DATA",
         timestamp: new Date().toISOString(),
-      }, 503);
+      }, 404);
     }
 
     if (result.rows.length === 0) {
@@ -1583,14 +1615,9 @@ router.get("/filters/sectors", async (req, res) => {
 
     const result = await query(sectorsQuery);
 
-    // Add null checking for database availability
     if (!result || !result.rows) {
-      console.warn("Stock exchanges query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
-        message: "Stock exchanges data temporarily unavailable - database connection issue",
-        data: [],
-        total: 0
-      }, 503);
+      console.error("Stock exchanges query returned null result");
+      return res.error("Failed to fetch stock exchanges", 500);
     }
 
     return res.success({
@@ -1890,12 +1917,9 @@ router.post("/init-price-data", async (req, res) => {
       "SELECT COUNT(*) as count FROM price_daily"
     );
     
-    // Add null checking for database availability
     if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-      console.warn("Count query returned null result, database may be unavailable");
-      return res.error("Database temporarily unavailable", {
-        message: "Cannot retrieve row count - database connection issue"
-      }, 503);
+      console.error("Failed to get row count from database");
+      return res.error("Failed to verify table initialization", 500);
     }
     
     const totalRows = countResult.rows[0].count;

@@ -22,8 +22,8 @@ export const ApiKeyProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await api.get('/api/settings/api-keys');
-      if (response.data.success) {
-        setApiKeys(response.data.data || {});
+      if (response?.data.success) {
+        setApiKeys(response?.data.data || {});
       }
     } catch (err) {
       console.error('Failed to load API keys:', err);
@@ -49,7 +49,7 @@ export const ApiKeyProvider = ({ children }) => {
         key
       });
       
-      if (response.data.success) {
+      if (response?.data.success) {
         setApiKeys(prev => ({ ...prev, [provider]: key }));
         // Update localStorage as backup
         localStorage.setItem('api-keys', JSON.stringify({ ...apiKeys, [provider]: key }));
@@ -67,7 +67,7 @@ export const ApiKeyProvider = ({ children }) => {
     try {
       const response = await api.delete(`/api/settings/api-keys/${provider}`);
       
-      if (response.data.success) {
+      if (response?.data.success) {
         setApiKeys(prev => {
           const updated = { ...prev };
           delete updated[provider];
@@ -94,7 +94,7 @@ export const ApiKeyProvider = ({ children }) => {
   const validateApiKeys = async () => {
     try {
       const response = await api.post('/api/settings/api-keys/validate');
-      return response.data;
+      return response?.data;
     } catch (err) {
       console.error('Failed to validate API keys:', err);
       return { success: false, error: err.message };

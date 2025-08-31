@@ -36,7 +36,7 @@ router.get("/", async (req, res) => {
 
     const ordersQuery = `
       SELECT 
-        order_id,
+        id as order_id,
         symbol,
         side,
         quantity,
@@ -49,10 +49,10 @@ router.get("/", async (req, res) => {
         filled_at,
         filled_quantity,
         average_price,
-        estimated_value,
-        commission,
+        0 as estimated_value,
+        0 as commission,
         broker,
-        client_order_id,
+        '' as client_order_id,
         notes,
         extended_hours,
         created_at,
@@ -66,12 +66,12 @@ router.get("/", async (req, res) => {
     params.push(limit, offset);
 
     const result = await query(ordersQuery, params);
-    const orders = result.rows;
+    const orders = result && result.rows ? result.rows : [];
 
     // Get total count for pagination
     const countQuery = `SELECT COUNT(*) FROM orders ${whereClause}`;
     const countResult = await query(countQuery, params.slice(0, -2));
-    const totalCount = parseInt(countResult.rows[0].count);
+    const totalCount = countResult && countResult.rows ? parseInt(countResult.rows[0].count) : 0;
 
     res.success({data: {
         orders: orders,
@@ -322,16 +322,15 @@ router.post("/", async (req, res) => {
     // Store order in database
     const insertOrderQuery = `
       INSERT INTO orders (
-        order_id, user_id, symbol, side, quantity, order_type,
+        user_id, symbol, side, quantity, order_type,
         limit_price, stop_price, time_in_force, status, submitted_at,
-        filled_quantity, average_price, estimated_value, commission,
-        broker, client_order_id, notes, extended_hours, all_or_none
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        filled_quantity, average_price, 
+        broker, notes, extended_hours, all_or_none
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `;
 
     const _orderResult = await query(insertOrderQuery, [
-      orderId,
       userId,
       symbol,
       side,
@@ -344,10 +343,7 @@ router.post("/", async (req, res) => {
       new Date().toISOString(),
       0,
       0,
-      estimatedValue,
-      0,
       broker,
-      clientOrderId,
       notes,
       extendedHours || false,
       allOrNone || false,
@@ -368,7 +364,7 @@ router.post("/", async (req, res) => {
     // Update order with broker ID if available
     if (brokerOrderId) {
       await query(
-        "UPDATE orders SET broker_order_id = $1 WHERE order_id = $2",
+        "UPDATE orders SET broker = $1 WHERE id = $2",
         [brokerOrderId, orderId]
       );
     }
@@ -426,7 +422,7 @@ router.post("/:orderId/cancel", async (req, res) => {
     // Get order details
     const orderQuery = `
       SELECT * FROM orders 
-      WHERE order_id = $1 AND user_id = $2
+      WHERE id = $1 AND user_id = $2
     `;
 
     const orderResult = await query(orderQuery, [orderId, userId]);
@@ -462,7 +458,7 @@ router.post("/:orderId/cancel", async (req, res) => {
 
     // Update order status
     await query(
-      "UPDATE orders SET status = $1, updated_at = $2 WHERE order_id = $3",
+      "UPDATE orders SET status = $1, updated_at = $2 WHERE id = $3",
       ["cancelled", new Date().toISOString(), orderId]
     );
 
@@ -505,7 +501,7 @@ router.patch("/:orderId", async (req, res) => {
     // Get existing order
     const orderQuery = `
       SELECT * FROM orders 
-      WHERE order_id = $1 AND user_id = $2
+      WHERE id = $1 AND user_id = $2
     `;
 
     const orderResult = await query(orderQuery, [orderId, userId]);
@@ -583,7 +579,7 @@ router.patch("/:orderId", async (req, res) => {
     const updateQuery = `
       UPDATE orders 
       SET ${updates.join(", ")}
-      WHERE order_id = $${paramCount}
+      WHERE id = $${paramCount}
       RETURNING *
     `;
 
@@ -630,7 +626,7 @@ router.get("/updates", async (req, res) => {
     }
 
     const updatesQuery = `
-      SELECT order_id, status, filled_quantity, average_price, updated_at
+      SELECT id as order_id, status, filled_quantity, average_price, updated_at
       FROM orders
       ${whereClause}
       ORDER BY updated_at DESC

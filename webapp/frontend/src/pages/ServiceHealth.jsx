@@ -26,7 +26,7 @@ import {
 import {
   ExpandMore,
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   Warning,
   Info,
   Refresh,
@@ -122,20 +122,24 @@ function ServiceHealth() {
           validateStatus: (status) => status < 500, // Don't throw on 4xx errors
         });
 
-        console.log("Database health response:", response.data);
+        console.log("Database health response:", response?.data);
+        
+        // Extract the actual data from the success wrapper
+        const healthData = response?.data?.success ? response?.data.data : response?.data;
+        
         console.log("Response structure:", {
-          hasData: !!response.data,
-          hasDatabase: !!response.data?.database,
-          hasTables: !!response.data?.database?.tables,
-          hasSummary: !!response.data?.database?.summary,
-          tableCount: response.data?.database?.tables
-            ? Object.keys(response.data.database.tables).length
+          hasData: !!healthData,
+          hasDatabase: !!healthData?.database,
+          hasTables: !!healthData?.database?.tables,
+          hasSummary: !!healthData?.database?.summary,
+          tableCount: healthData?.database?.tables
+            ? Object.keys(healthData.database.tables).length
             : 0,
         });
 
         // Ensure we return a proper object structure
-        if (response.data && typeof response.data === "object") {
-          return response.data;
+        if (healthData && typeof healthData === "object") {
+          return healthData;
         } else {
           throw new Error(
             "Invalid response structure from database health endpoint"
@@ -281,8 +285,8 @@ function ServiceHealth() {
       console.log("Fetching service health...");
       try {
         const response = await api.get("/health");
-        console.log("Service health response:", response.data);
-        return response.data;
+        console.log("Service health response:", response?.data);
+        return response?.data;
       } catch (error) {
         console.error("Service health error:", error);
         throw error;
@@ -336,7 +340,7 @@ function ServiceHealth() {
       case "success":
         return <CheckCircle color="success" />;
       case "error":
-        return <Error color="error" />;
+        return <ErrorIcon color="error" />;
       case "warning":
         return <Warning color="warning" />;
       default:
@@ -390,10 +394,8 @@ function ServiceHealth() {
     try {
       setRefreshing(true);
 
-      // Use the standard api instance to trigger background update
-      await api.post("/health/update-status");
-
-      // Use React Query's refetch to get updated data
+      // Just refetch the health data since there's no update-status endpoint
+      // The health endpoint already provides comprehensive status
       await refetchDb();
     } catch (error) {
       console.error("Failed to refresh health status:", error);
@@ -474,7 +476,7 @@ function ServiceHealth() {
                 <CircularProgress />
               ) : healthError ? (
                 <>
-                  <Error color="error" sx={{ fontSize: 40, mb: 1 }} />
+                  <ErrorIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
                   <Typography variant="h6" color="error">
                     Service Down
                   </Typography>
@@ -1274,7 +1276,7 @@ function ServiceHealth() {
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMore />}>
                 <Typography variant="h6" color="error">
-                  <Error sx={{ mr: 1, verticalAlign: "middle" }} />
+                  <ErrorIcon sx={{ mr: 1, verticalAlign: "middle" }} />
                   Error Details
                 </Typography>
               </AccordionSummary>

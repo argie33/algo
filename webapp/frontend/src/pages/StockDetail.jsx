@@ -209,7 +209,7 @@ function StockDetail() {
     );
   }
 
-  if (!profile || profile.length === 0) {
+  if (!profile || (profile?.length || 0) === 0) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Alert severity="warning">Stock not found: {symbol}</Alert>
@@ -442,7 +442,7 @@ function StockDetail() {
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
-                      {keyStats.map((stat, index) => (
+                      {(keyStats || []).map((stat, index) => (
                         <TableRow key={index}>
                           <TableCell component="th" scope="row">
                             {stat.label}
@@ -478,7 +478,7 @@ function StockDetail() {
                           paddingAngle={5}
                           dataKey="value"
                         >
-                          {recData.map((entry, index) => (
+                          {(recData || []).map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
@@ -487,7 +487,7 @@ function StockDetail() {
                     </ResponsiveContainer>
                   </Box>
                   <Box mt={2}>
-                    {recData.map((rec, index) => (
+                    {(recData || []).map((rec, index) => (
                       <Box
                         key={index}
                         display="flex"
@@ -533,13 +533,13 @@ function StockDetail() {
                     <CircularProgress />
                   </Box>
                 ) : recentPrices &&
-                  recentPrices.data &&
-                  recentPrices.data.data &&
-                  recentPrices.data.data.length > 0 ? (
+                  recentPrices?.data &&
+                  recentPrices?.data.data &&
+                  recentPrices?.data.data.length > 0 ? (
                   <Box height={300}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
-                        data={recentPrices.data.data.reverse()}
+                        data={recentPrices?.data.data.reverse()}
                         margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
@@ -596,7 +596,7 @@ function StockDetail() {
         </Grid>
 
         {/* Price Summary */}
-        {recentPrices && recentPrices.data && recentPrices.data.summary && (
+        {recentPrices && recentPrices?.data && recentPrices?.data.summary && (
           <Grid container spacing={3} sx={{ mb: 3 }}>
             <Grid item xs={12}>
               <Card>
@@ -612,7 +612,7 @@ function StockDetail() {
                         </Typography>
                         <Typography variant="h6" fontWeight="bold">
                           {formatCurrency(
-                            recentPrices.data.summary.latestPrice
+                            recentPrices?.data.summary.latestPrice
                           )}
                         </Typography>
                       </Box>
@@ -626,12 +626,12 @@ function StockDetail() {
                           variant="h6"
                           fontWeight="bold"
                           color={
-                            recentPrices.data.summary.periodReturn >= 0
+                            recentPrices?.data.summary.periodReturn >= 0
                               ? "success.main"
                               : "error.main"
                           }
                         >
-                          {recentPrices.data.summary.periodReturn.toFixed(2)}%
+                          {recentPrices?.data.summary.periodReturn.toFixed(2)}%
                         </Typography>
                       </Box>
                     </Grid>
@@ -641,7 +641,7 @@ function StockDetail() {
                           Latest Volume
                         </Typography>
                         <Typography variant="h6" fontWeight="bold">
-                          {formatNumber(recentPrices.data.summary.latestVolume)}
+                          {formatNumber(recentPrices?.data.summary.latestVolume)}
                         </Typography>
                       </Box>
                     </Grid>
@@ -651,7 +651,7 @@ function StockDetail() {
                           Data Points
                         </Typography>
                         <Typography variant="h6" fontWeight="bold">
-                          {recentPrices.data.dataPoints} days
+                          {recentPrices?.data.dataPoints} days
                         </Typography>
                       </Box>
                     </Grid>
@@ -671,9 +671,9 @@ function StockDetail() {
                   Recent Price & Volume Data (OHLCV)
                 </Typography>
                 {recentPrices &&
-                recentPrices.data &&
-                recentPrices.data.data &&
-                recentPrices.data.data.length > 0 ? (
+                recentPrices?.data &&
+                recentPrices?.data.data &&
+                recentPrices?.data.data.length > 0 ? (
                   <TableContainer>
                     <Table size="small">
                       <TableBody>
@@ -697,7 +697,7 @@ function StockDetail() {
                             <strong>Volume</strong>
                           </TableCell>
                         </TableRow>
-                        {recentPrices.data.data
+                        {recentPrices?.data.data
                           .slice(0, 15)
                           .map((dayData, index) => (
                             <TableRow key={index}>
@@ -775,7 +775,7 @@ function StockDetail() {
 
                     {incomeStatement?.data?.length > 0 ? (
                       <Box>
-                        {incomeStatement.data
+                        {incomeStatement?.data
                           .slice(0, 3)
                           .map((period, periodIndex) => (
                             <Box key={period.date} sx={{ mb: 3 }}>
@@ -857,7 +857,7 @@ function StockDetail() {
 
                     {balanceSheet?.data?.length > 0 ? (
                       <Box>
-                        {balanceSheet.data
+                        {balanceSheet?.data
                           .slice(0, 3)
                           .map((period, periodIndex) => (
                             <Box key={period.date} sx={{ mb: 3 }}>
@@ -939,7 +939,7 @@ function StockDetail() {
 
                     {cashFlowStatement?.data?.length > 0 ? (
                       <Box>
-                        {cashFlowStatement.data
+                        {cashFlowStatement?.data
                           .slice(0, 3)
                           .map((period, periodIndex) => (
                             <Box key={period.date} sx={{ mb: 3 }}>
@@ -1110,7 +1110,7 @@ function StockDetail() {
                 Financial Ratios
               </Typography>
               <Grid container spacing={2}>
-                {ratios.map((ratio, index) => (
+                {(ratios || []).map((ratio, index) => (
                   <Grid item xs={12} sm={6} md={3} key={index}>
                     <Box
                       p={2}
@@ -1439,7 +1439,7 @@ function StockDetail() {
 
                           <Typography variant="caption" color="text.secondary">
                             Components:{" "}
-                            {factor.components.map((c) => c.name).join(", ")}
+                            {(factor.components || []).map((c) => c.name).join(", ")}
                           </Typography>
                         </CardContent>
                       </Card>
@@ -2001,7 +2001,7 @@ function StockDetail() {
                       <TableContainer>
                         <Table size="small">
                           <TableBody>
-                            {analystOverview.data.earnings_estimates.map(
+                            {(analystOverview?.data.earnings_estimates || []).map(
                               (estimate) => (
                                 <TableRow key={estimate.period}>
                                   <TableCell sx={{ fontWeight: "bold" }}>
@@ -2055,7 +2055,7 @@ function StockDetail() {
                       <TableContainer>
                         <Table size="small">
                           <TableBody>
-                            {analystOverview.data.revenue_estimates.map(
+                            {(analystOverview?.data.revenue_estimates || []).map(
                               (estimate) => (
                                 <TableRow key={estimate.period}>
                                   <TableCell sx={{ fontWeight: "bold" }}>
@@ -2109,7 +2109,7 @@ function StockDetail() {
                       <TableContainer>
                         <Table size="small">
                           <TableBody>
-                            {analystOverview.data.eps_revisions.map(
+                            {(analystOverview?.data.eps_revisions || []).map(
                               (revision) => (
                                 <TableRow key={revision.period}>
                                   <TableCell sx={{ fontWeight: "bold" }}>
@@ -2167,7 +2167,7 @@ function StockDetail() {
                       <TableContainer>
                         <Table size="small">
                           <TableBody>
-                            {analystOverview.data.growth_estimates.map(
+                            {(analystOverview?.data.growth_estimates || []).map(
                               (growth) => (
                                 <TableRow key={growth.period}>
                                   <TableCell sx={{ fontWeight: "bold" }}>
@@ -2226,7 +2226,7 @@ function StockDetail() {
 
                     {analystOverview?.data?.recommendations?.length > 0 ? (
                       <Box>
-                        {analystOverview.data.recommendations
+                        {analystOverview?.data.recommendations
                           .slice(0, 3)
                           .map((rec, index) => (
                             <Box key={index} sx={{ mb: 2 }}>
@@ -2307,7 +2307,7 @@ function StockDetail() {
                       <TableContainer>
                         <Table>
                           <TableBody>
-                            {analystOverview.data.earnings_history
+                            {analystOverview?.data.earnings_history
                               .slice(0, 8)
                               .map((history) => (
                                 <TableRow key={history.quarter}>

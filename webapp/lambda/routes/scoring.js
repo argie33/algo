@@ -4,6 +4,22 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Root endpoint - provides overview of available scoring endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Scoring API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    endpoints: [
+      "/ping - Health check endpoint",
+      "/:symbol - Get scoring metrics for symbol",
+      "/:symbol/factors - Get factor-based scoring breakdown",
+      "/compare - Compare scores between multiple symbols",
+      "/sectors - Get sector-based scoring analysis"
+    ]
+  });
+});
+
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
   res.json({
@@ -179,9 +195,9 @@ router.get("/top", async (req, res) => {
 
     const topStocks = await query(
       `
-      SELECT cs.*, se.company_name, se.sector, se.market_cap, se.market_cap_tier
+      SELECT cs.*, s.security_name as company_name, NULL as sector, NULL as market_cap, NULL as market_cap_tier
       FROM comprehensive_scores cs
-      JOIN stock_symbols_enhanced se ON cs.symbol = se.symbol
+      JOIN stock_symbols s ON cs.symbol = s.symbol
       ${whereClause}
       AND cs.updated_at > NOW() - INTERVAL '24 hours'
       ORDER BY cs.composite_score DESC
@@ -232,14 +248,14 @@ router.get("/stats", async (req, res) => {
 
     const sectorStats = await query(`
       SELECT 
-        se.sector,
+        'General' as sector,
         COUNT(*) as count,
         AVG(cs.composite_score) as avg_score,
         MAX(cs.composite_score) as max_score
       FROM comprehensive_scores cs
-      JOIN stock_symbols_enhanced se ON cs.symbol = se.symbol
+      JOIN stock_symbols s ON cs.symbol = s.symbol
       WHERE cs.updated_at > NOW() - INTERVAL '24 hours'
-      GROUP BY se.sector
+      GROUP BY 'General'
       ORDER BY avg_score DESC
     `);
 
@@ -1126,7 +1142,9 @@ async function getBasicInfo(symbol) {
   try {
     const result = await query(
       `
-      SELECT * FROM stock_symbols_enhanced 
+      SELECT symbol, security_name as company_name, exchange, 
+             NULL as sector, NULL as market_cap, NULL as market_cap_tier
+      FROM stock_symbols 
       WHERE symbol = $1
     `,
       [symbol]

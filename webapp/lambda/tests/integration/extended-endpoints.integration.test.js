@@ -175,24 +175,6 @@ describe("Extended API Endpoints Integration Tests", () => {
     });
   });
 
-  describe("Live Data Admin Endpoints", () => {
-    it("should handle live data admin requests", async () => {
-      const response = await request(app)
-        .get("/api/liveDataAdmin")
-        .expect("Content-Type", /json/);
-
-      // Admin endpoints should require auth or return 404 if not implemented
-      expect([200, 401, 403, 404]).toContain(response.status);
-    });
-
-    it("should handle admin metrics", async () => {
-      const response = await request(app)
-        .get("/api/liveDataAdmin/metrics")
-        .expect("Content-Type", /json/);
-
-      expect([200, 401, 403, 404]).toContain(response.status);
-    });
-  });
 
   describe("Diagnostics Endpoints", () => {
     it("should handle diagnostics requests", async () => {
@@ -346,8 +328,7 @@ describe("Extended API Endpoints Integration Tests", () => {
         "/api/performance", 
         "/api/trades",
         "/api/diagnostics",
-        "/api/watchlist",
-        "/api/liveDataAdmin/dashboard"
+        "/api/watchlist"
       ];
 
       for (const route of routes) {

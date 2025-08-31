@@ -90,7 +90,7 @@ const PortfolioHoldings = () => {
 
       if (data?.holdings && Array.isArray(data.holdings)) {
         // Transform API data to component format
-        const transformedHoldings = data.holdings.map((holding) => ({
+        const transformedHoldings = (data.holdings || []).map((holding) => ({
           id: holding.id || holding.symbol,
           symbol: holding.symbol,
           companyName: holding.name || holding.company || holding.companyName,
@@ -479,7 +479,7 @@ const PortfolioHoldings = () => {
                     dataKey="value"
                     label={({ name, percentage }) => `${name} ${percentage}%`}
                   >
-                    {sectorData.map((entry, index) => (
+                    {(sectorData || []).map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={getSectorColor(entry.name)}
@@ -613,7 +613,7 @@ const PortfolioHoldings = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {paginatedHoldings.map((holding) => (
+              {(paginatedHoldings || []).map((holding) => (
                 <TableRow key={holding.id || holding.symbol}>
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">
@@ -700,7 +700,7 @@ const PortfolioHoldings = () => {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
-          count={filteredHoldings.length}
+          count={(filteredHoldings?.length || 0)}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(event, newPage) => setPage(newPage)}

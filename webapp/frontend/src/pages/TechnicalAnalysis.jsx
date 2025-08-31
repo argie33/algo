@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "../hooks/useData";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
@@ -56,6 +56,45 @@ function TechnicalAnalysis() {
   const [indicatorMin, setIndicatorMin] = useState("");
   const [indicatorMax, setIndicatorMax] = useState("");
 
+  // Memoize the query function to prevent infinite loops
+  const queryFn = useCallback(async () => {
+    // Map frontend parameters to backend parameters
+    const params = {
+      page: page + 1,
+      limit: rowsPerPage,
+      symbol: symbolFilter || undefined,
+      sortBy: orderBy,
+      sortOrder: order,
+    };
+
+    // Map indicator filters to backend parameter names
+    if (indicatorFilter) {
+      switch (indicatorFilter) {
+        case "rsi":
+          if (indicatorMin) params.rsi_min = indicatorMin;
+          if (indicatorMax) params.rsi_max = indicatorMax;
+          break;
+        case "macd":
+          if (indicatorMin) params.macd_min = indicatorMin;
+          if (indicatorMax) params.macd_max = indicatorMax;
+          break;
+        case "sma_20":
+          if (indicatorMin) params.sma_min = indicatorMin;
+          if (indicatorMax) params.sma_max = indicatorMax;
+          break;
+        default:
+          // For other indicators, we'll need to add specific mappings
+          break;
+      }
+    }
+
+    const result = await getTechnicalData(timeframe, params);
+
+    if (Array.isArray(result)) return { data: result };
+    if (!Array.isArray(result?.data)) return { ...result, data: [] };
+    return result;
+  }, [timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order]);
+
   // Fetch technical data
   const {
     data: technicalData,
@@ -75,48 +114,7 @@ function TechnicalAnalysis() {
       orderBy,
       order,
     ],
-    queryFn: async () => {
-      // Map frontend parameters to backend parameters
-      const params = {
-        page: page + 1,
-        limit: rowsPerPage,
-        symbol: symbolFilter || undefined,
-        sortBy: orderBy,
-        sortOrder: order,
-      };
-
-      // Map indicator filters to backend parameter names
-      if (indicatorFilter) {
-        switch (indicatorFilter) {
-          case "rsi":
-            if (indicatorMin) params.rsi_min = indicatorMin;
-            if (indicatorMax) params.rsi_max = indicatorMax;
-            break;
-          case "macd":
-            if (indicatorMin) params.macd_min = indicatorMin;
-            if (indicatorMax) params.macd_max = indicatorMax;
-            break;
-          case "sma_20":
-            if (indicatorMin) params.sma_min = indicatorMin;
-            if (indicatorMax) params.sma_max = indicatorMax;
-            break;
-          default:
-            // For other indicators, we'll need to add specific mappings
-            break;
-        }
-      }
-
-      console.log(
-        "TechnicalAnalysis: calling getTechnicalData with params:",
-        params
-      );
-      const result = await getTechnicalData(timeframe, params);
-      console.log("TechnicalAnalysis: getTechnicalData result:", result);
-
-      if (Array.isArray(result)) return { data: result };
-      if (!Array.isArray(result.data)) return { ...result, data: [] };
-      return result;
-    },
+    queryFn,
     onError: (error) =>
       logger.queryError("technicalAnalysis", error, {
         timeframe,
@@ -126,14 +124,11 @@ function TechnicalAnalysis() {
     refetchInterval: 300000,
     retry: 2,
     staleTime: 60000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
-  useEffect(() => {
-    // Count active filters (excluding default timeframe)
-    setActiveFilters(symbolFilter ? 1 : 0);
-  }, [symbolFilter]);
-
-  // Update activeFilters count
+  // Update activeFilters count (consolidated from duplicate useEffects)
   useEffect(() => {
     let count = 0;
     if (symbolFilter) count++;
@@ -141,16 +136,6 @@ function TechnicalAnalysis() {
     if (indicatorMin || indicatorMax) count++;
     setActiveFilters(count);
   }, [symbolFilter, indicatorFilter, indicatorMin, indicatorMax]);
-
-  // Log the technicalData and error for debugging
-  useEffect(() => {
-    if (technicalData) {
-      console.log("TechnicalAnalysis: technicalData", technicalData);
-    }
-    if (error) {
-      console.error("TechnicalAnalysis: error", error);
-    }
-  }, [technicalData, error]);
 
   const handleSearch = () => {
     setSymbolFilter(searchInput.trim());
@@ -235,7 +220,7 @@ function TechnicalAnalysis() {
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
   const renderAccordionTable = () => (
     <Box sx={{ width: "100%" }}>
-      {(Array.isArray(technicalData?.data) ? technicalData.data : []).map(
+      {(Array.isArray(technicalData?.data) ? technicalData?.data : []).map(
         (row, idx) => (
           <Accordion
             key={row.symbol + "-" + row.date + "-" + idx}
@@ -619,7 +604,7 @@ function TechnicalAnalysis() {
             </Box>
           ) : (
             <>
-              {(Array.isArray(technicalData?.data) ? technicalData.data : [])
+              {(Array.isArray(technicalData?.data) ? technicalData?.data : [])
                 .length === 0 ? (
                 <Alert severity="warning" sx={{ mb: 2 }}>
                   No technical data found.

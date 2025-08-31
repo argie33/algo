@@ -1,13 +1,32 @@
 const express = require("express");
 
 const { authenticateToken, requireRole } = require("../middleware/auth");
-const DatabaseConnectivityTest = require("../test-database-connectivity");
 const { getHealthStatus } = require("../utils/apiKeyService");
+const { healthCheck } = require("../utils/database");
 
 const router = express.Router();
 
 // Apply authentication to all diagnostic routes
 router.use(authenticateToken);
+
+// Root endpoint - provides overview of available diagnostic endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Diagnostics API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    authentication: "Required for all endpoints",
+    endpoints: [
+      "/database-connectivity - Test database connectivity (admin only)",
+      "/api-key-service - Get API key service health status",
+      "/database-test - Test specific database connection (admin only)",
+      "/system-info - Get system information",
+      "/external-services - Test external service connectivity",
+      "/lambda-info - Get Lambda function information",
+      "/health - Comprehensive health check"
+    ]
+  });
+});
 
 /**
  * Run comprehensive database connectivity test
@@ -17,14 +36,12 @@ router.get(
   requireRole(["admin"]),
   async (req, res) => {
     try {
-      const test = new DatabaseConnectivityTest();
-      const results = await test.runAllTests();
-      const report = test.generateReport();
-
+      const results = await healthCheck();
+      
       res.json({
-        success: results.summary.failed === 0,
+        success: results.status === "healthy",
         results: results,
-        report: report,
+        report: results.status === "healthy" ? "Database connectivity test passed" : `Database connectivity test failed: ${results.error}`,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
@@ -62,39 +79,24 @@ router.get("/api-key-service", async (req, res) => {
  * Test specific database connection configuration
  */
 router.post("/database-test", requireRole(["admin"]), async (req, res) => {
-  const { sslMode = "auto" } = req.body;
-
   try {
-    const test = new DatabaseConnectivityTest();
-
-    // Test environment variables
-    const _envOk = test.testEnvironmentVariables();
-
-    // Test AWS Secrets Manager
-    const secret = await test.testSecretsManager();
-
-    // Test database configuration
-    const dbConfig = await test.testDatabaseConfig(secret);
-
-    // Test database connection with specific SSL mode
-    let connectionInfo = null;
-    if (dbConfig && sslMode !== "auto") {
-      connectionInfo = await test.testDatabaseConnection(dbConfig, sslMode);
-    } else if (dbConfig) {
-      connectionInfo = await test.testDatabaseConnection(dbConfig);
-    }
-
-    const results = test.generateReport();
-
+    const results = await healthCheck();
+    
     res.json({
-      success: results.summary.failed === 0,
-      results: results,
-      connectionInfo: connectionInfo
-        ? {
-            successful: true,
-            config: connectionInfo.config,
-          }
-        : null,
+      success: results.status === "healthy",
+      results: {
+        status: results.status,
+        details: results,
+        summary: {
+          passed: results.status === "healthy" ? 1 : 0,
+          failed: results.status === "healthy" ? 0 : 1,
+          total: 1
+        }
+      },
+      connectionInfo: results.status === "healthy" ? {
+        successful: true,
+        config: "Database connection successful"
+      } : null,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -183,21 +185,20 @@ router.post("/external-services", async (req, res) => {
     }
 
     // Test database
-    if (results.aws.secretsManager.status === "connected") {
-      try {
-        const test = new DatabaseConnectivityTest();
-        const secret = await test.testSecretsManager();
-        const dbConfig = await test.testDatabaseConfig(secret);
-        const connectionInfo = await test.testDatabaseConnection(dbConfig);
-
-        results.database.status = connectionInfo ? "connected" : "error";
-        if (connectionInfo) {
-          results.database.config = connectionInfo.config;
-        }
-      } catch (error) {
-        results.database.status = "error";
-        results.database.error = error.message;
+    try {
+      const dbHealth = await healthCheck();
+      results.database.status = dbHealth.status === "healthy" ? "connected" : "error";
+      if (dbHealth.status === "healthy") {
+        results.database.config = {
+          connections: dbHealth.connections,
+          version: dbHealth.version
+        };
+      } else {
+        results.database.error = dbHealth.error;
       }
+    } catch (error) {
+      results.database.status = "error";
+      results.database.error = error.message;
     }
 
     // Test external services if requested
@@ -304,15 +305,10 @@ router.get("/health", async (req, res) => {
     }
 
     // Check database connectivity (quick test)
-    if (process.env.DB_SECRET_ARN) {
-      try {
-        const test = new DatabaseConnectivityTest();
-        const secret = await test.testSecretsManager();
-        health.checks.database = secret ? "healthy" : "unhealthy";
-      } catch (error) {
-        health.checks.database = "unhealthy";
-      }
-    } else {
+    try {
+      const dbHealth = await healthCheck();
+      health.checks.database = dbHealth.status === "healthy" ? "healthy" : "unhealthy";
+    } catch (error) {
       health.checks.database = "unhealthy";
     }
 

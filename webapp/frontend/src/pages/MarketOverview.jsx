@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -75,6 +75,10 @@ import {
   formatPercentage,
   getChangeColor,
 } from "../utils/formatters";
+import { createComponentLogger } from "../utils/errorLogger";
+
+// Create logger instance for this component
+const _logger = createComponentLogger('MarketOverview');
 
 const _CHART_COLORS = [
   "#0088FE",
@@ -334,7 +338,7 @@ const _DataTable = ({ title, columns, data }) => (
         <Table size="small">
           <TableHead>
             <TableRow sx={{ backgroundColor: "grey.50" }}>
-              {columns.map((col) => (
+              {(columns || []).map((col) => (
                 <TableCell key={col.key} sx={{ fontWeight: 600 }}>
                   {col.label}
                 </TableCell>
@@ -344,7 +348,7 @@ const _DataTable = ({ title, columns, data }) => (
           <TableBody>
             {data?.slice(0, 10).map((item, index) => (
               <TableRow key={item.ticker || index} hover>
-                {columns.map((col) => (
+                {(columns || []).map((col) => (
                   <TableCell key={col.key}>
                     {col.render
                       ? col.render(item[col.key], item)
@@ -370,7 +374,7 @@ const fetchMarketOverview = async () => {
     console.log("📈 Market overview response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Market overview error:", error);
+    console.log("❌ Safe log: Market overview error:", error.message || error.toString());
     throw error;
   }
 };
@@ -382,7 +386,7 @@ const fetchSentimentHistory = async (days = 30) => {
     console.log("📊 Sentiment history response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Sentiment history error:", error);
+    console.log("❌ Safe log: Sentiment history error:", error.message || error.toString());
     throw error;
   }
 };
@@ -394,7 +398,7 @@ const fetchSectorPerformance = async () => {
     console.log("🏭 Sector performance response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Sector performance error:", error);
+    console.log("❌ Safe log: Sector performance error:", error.message || error.toString());
     throw error;
   }
 };
@@ -406,7 +410,7 @@ const fetchMarketBreadth = async () => {
     console.log("📏 Market breadth response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Market breadth error:", error);
+    console.log("❌ Safe log: Market breadth error:", error.message || error.toString());
     throw error;
   }
 };
@@ -418,7 +422,7 @@ const fetchEconomicIndicators = async (days = 90) => {
     console.log("💰 Economic indicators response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Economic indicators error:", error);
+    console.log("❌ Safe log: Economic indicators error:", error.message || error.toString());
     throw error;
   }
 };
@@ -430,7 +434,7 @@ const fetchSeasonalityData = async () => {
     console.log("📅 Seasonality response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Seasonality error:", error);
+    console.log("❌ Safe log: Seasonality error:", error.message || error.toString());
     throw error;
   }
 };
@@ -442,18 +446,25 @@ const fetchResearchIndicators = async () => {
     console.log("🔬 Research indicators response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Research indicators error:", error);
+    console.log("❌ Safe log: Research indicators error:", error.message || error.toString());
     throw error;
   }
 };
 
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0);
+  const [tabsReady, setTabsReady] = useState(false);
   const [timeframe, setTimeframe] = useState("1D");
   const [_viewMode, _setViewMode] = useState("cards");
   const [_selectedSector, _setSelectedSector] = useState("all");
   const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
+
+  // Fix MUI Tabs validation error by ensuring tabs are ready before rendering
+  useEffect(() => {
+    const timer = setTimeout(() => setTabsReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const {
     data: marketData,
@@ -1326,65 +1337,81 @@ function MarketOverview() {
             bgcolor: "background.paper",
           }}
         >
-          <Tabs
-            value={tabValue}
-            onChange={handleTabChange}
-            aria-label="market data tabs"
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{
-              "& .MuiTab-root": {
-                minHeight: 56,
-                fontWeight: 600,
-                fontSize: "0.875rem",
-                textTransform: "none",
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
+          {tabsReady && (
+            <Tabs
+              value={tabValue}
+              onChange={handleTabChange}
+              aria-label="market data tabs"
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{
+                "& .MuiTab-root": {
+                  minHeight: 56,
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                  textTransform: "none",
+                  "&.Mui-selected": {
+                    color: theme.palette.primary.main,
+                  },
                 },
-              },
-              "& .MuiTabs-indicator": {
-                height: 3,
-                borderRadius: "3px 3px 0 0",
-                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-              },
-            }}
-          >
+                "& .MuiTabs-indicator": {
+                  height: 3,
+                  borderRadius: "3px 3px 0 0",
+                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                },
+              }}
+            >
             <Tab
               label="Market Overview"
               icon={<ShowChart />}
               iconPosition="start"
+              id="market-tab-0"
+              aria-controls="market-tabpanel-0"
             />
             <Tab
               label="Sentiment History"
               icon={<Timeline />}
               iconPosition="start"
+              id="market-tab-1"
+              aria-controls="market-tabpanel-1"
             />
             <Tab
               label="Sector Performance"
               icon={<Business />}
               iconPosition="start"
+              id="market-tab-2"
+              aria-controls="market-tabpanel-2"
             />
             <Tab
               label="Market Breadth"
               icon={<Equalizer />}
               iconPosition="start"
+              id="market-tab-3"
+              aria-controls="market-tabpanel-3"
             />
             <Tab
               label="Economic Indicators"
               icon={<Public />}
               iconPosition="start"
+              id="market-tab-4"
+              aria-controls="market-tabpanel-4"
             />
             <Tab
               label="Seasonality"
               icon={<CalendarToday />}
               iconPosition="start"
+              id="market-tab-5"
+              aria-controls="market-tabpanel-5"
             />
             <Tab
               label="Research Indicators"
               icon={<Analytics />}
               iconPosition="start"
+              id="market-tab-6"
+              aria-controls="market-tabpanel-6"
             />
-          </Tabs>
+            </Tabs>
+          )}
         </Box>
 
         <TabPanel value={tabValue} index={0}>
@@ -1749,15 +1776,15 @@ function MarketOverview() {
                             let indicators = [];
                             if (
                               economicData?.data &&
-                              Array.isArray(economicData.data)
+                              Array.isArray(economicData?.data)
                             ) {
-                              indicators = economicData.data.slice(0, 10);
+                              indicators = economicData?.data.slice(0, 10);
                             } else if (
                               economicData?.data &&
-                              typeof economicData.data === "object"
+                              typeof economicData?.data === "object"
                             ) {
                               // If data is grouped by indicator name
-                              indicators = Object.entries(economicData.data)
+                              indicators = Object.entries(economicData?.data)
                                 .flatMap(([name, values]) =>
                                   Array.isArray(values)
                                     ? values
@@ -1770,7 +1797,7 @@ function MarketOverview() {
                               indicators = economicData.slice(0, 10);
                             }
 
-                            return indicators.map((indicator, index) => (
+                            return (indicators || []).map((indicator, index) => (
                               <TableRow key={index} hover>
                                 <TableCell>
                                   {indicator.name ||
@@ -1853,7 +1880,7 @@ function MarketOverview() {
                                 color="info.contrastText"
                               >
                                 {
-                                  seasonalityData.data.currentPosition
+                                  seasonalityData?.data.currentPosition
                                     .seasonalScore
                                 }
                                 /100
@@ -1869,7 +1896,7 @@ function MarketOverview() {
                                 color="info.contrastText"
                               >
                                 {
-                                  seasonalityData.data.summary
+                                  seasonalityData?.data.summary
                                     .overallSeasonalBias
                                 }
                               </Typography>
@@ -1889,7 +1916,7 @@ function MarketOverview() {
                                 color="secondary.contrastText"
                               >
                                 {
-                                  seasonalityData.data.currentPosition
+                                  seasonalityData?.data.currentPosition
                                     .presidentialCycle
                                 }
                               </Typography>
@@ -1915,7 +1942,7 @@ function MarketOverview() {
                                 color="warning.contrastText"
                               >
                                 {
-                                  seasonalityData.data.currentPosition
+                                  seasonalityData?.data.currentPosition
                                     .nextMajorEvent?.name
                                 }
                               </Typography>
@@ -1925,7 +1952,7 @@ function MarketOverview() {
                               >
                                 Next Event (
                                 {
-                                  seasonalityData.data.currentPosition
+                                  seasonalityData?.data.currentPosition
                                     .nextMajorEvent?.daysAway
                                 }{" "}
                                 days)
@@ -1936,11 +1963,11 @@ function MarketOverview() {
                         <Box sx={{ mt: 3 }}>
                           <Typography variant="body1" sx={{ mb: 1 }}>
                             <strong>Recommendation:</strong>{" "}
-                            {seasonalityData.data.summary.recommendation}
+                            {seasonalityData?.data.summary.recommendation}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Active Periods:{" "}
-                            {seasonalityData.data.currentPosition.activePeriods?.join(
+                            {seasonalityData?.data.currentPosition.activePeriods?.join(
                               ", "
                             )}
                           </Typography>
@@ -1961,7 +1988,7 @@ function MarketOverview() {
                         </Typography>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
-                            data={seasonalityData.data.monthlySeasonality}
+                            data={seasonalityData?.data.monthlySeasonality}
                           >
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis
@@ -2008,7 +2035,7 @@ function MarketOverview() {
                         </Typography>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
-                            data={seasonalityData.data.quarterlySeasonality}
+                            data={seasonalityData?.data.quarterlySeasonality}
                           >
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
@@ -2061,7 +2088,7 @@ function MarketOverview() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {seasonalityData.data.presidentialCycle.data.map(
+                              {(seasonalityData?.data.presidentialCycle?.data || []).map(
                                 (cycle) => (
                                   <TableRow
                                     key={cycle.year}
@@ -2105,7 +2132,7 @@ function MarketOverview() {
                         >
                           Day of Week Effects
                         </Typography>
-                        {seasonalityData.data.dayOfWeekEffects.map((day) => (
+                        {(seasonalityData?.data.dayOfWeekEffects || []).map((day) => (
                           <Box
                             key={day.day}
                             sx={{
@@ -2151,7 +2178,7 @@ function MarketOverview() {
                           Seasonal Anomalies & Effects
                         </Typography>
                         <Grid container spacing={2}>
-                          {seasonalityData.data.seasonalAnomalies.map(
+                          {(seasonalityData?.data.seasonalAnomalies || []).map(
                             (anomaly, index) => (
                               <Grid item xs={12} sm={6} md={3} key={index}>
                                 <Box
@@ -2222,7 +2249,7 @@ function MarketOverview() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {seasonalityData.data.holidayEffects.map(
+                              {(seasonalityData?.data.holidayEffects || []).map(
                                 (holiday, index) => (
                                   <TableRow key={index}>
                                     <TableCell>{holiday.holiday}</TableCell>
@@ -2260,7 +2287,7 @@ function MarketOverview() {
                         >
                           Sector Seasonality
                         </Typography>
-                        {seasonalityData.data.sectorSeasonality.map(
+                        {(seasonalityData?.data.sectorSeasonality || []).map(
                           (sector, index) => (
                             <Box key={index} sx={{ mb: 2 }}>
                               <Typography variant="subtitle2" fontWeight={600}>
@@ -2325,7 +2352,7 @@ function MarketOverview() {
                             >
                               Favorable Factors:
                             </Typography>
-                            {seasonalityData.data.summary.favorableFactors?.map(
+                            {seasonalityData?.data.summary.favorableFactors?.map(
                               (factor, index) => (
                                 <Typography
                                   key={index}
@@ -2346,7 +2373,7 @@ function MarketOverview() {
                             >
                               Unfavorable Factors:
                             </Typography>
-                            {seasonalityData.data.summary.unfavorableFactors?.map(
+                            {seasonalityData?.data.summary.unfavorableFactors?.map(
                               (factor, index) => (
                                 <Typography
                                   key={index}
@@ -2399,7 +2426,7 @@ function MarketOverview() {
                                 variant="h6"
                                 color="info.contrastText"
                               >
-                                {researchData.data.summary.overallSentiment}
+                                {researchData?.data.summary.overallSentiment}
                               </Typography>
                               <Typography
                                 variant="body2"
@@ -2422,7 +2449,7 @@ function MarketOverview() {
                                 variant="h6"
                                 color="secondary.contrastText"
                               >
-                                {researchData.data.summary.marketRegime}
+                                {researchData?.data.summary.marketRegime}
                               </Typography>
                               <Typography
                                 variant="body2"
@@ -2445,7 +2472,7 @@ function MarketOverview() {
                                 variant="h6"
                                 color="warning.contrastText"
                               >
-                                {researchData.data.summary.timeHorizon}
+                                {researchData?.data.summary.timeHorizon}
                               </Typography>
                               <Typography
                                 variant="body2"
@@ -2459,7 +2486,7 @@ function MarketOverview() {
                         <Box sx={{ mt: 3 }}>
                           <Typography variant="body1" sx={{ mb: 1 }}>
                             <strong>Recommendation:</strong>{" "}
-                            {researchData.data.summary.recommendation}
+                            {researchData?.data.summary.recommendation}
                           </Typography>
                         </Box>
                       </CardContent>
@@ -2494,15 +2521,15 @@ function MarketOverview() {
                                   fontWeight={600}
                                   display="inline"
                                 >
-                                  {researchData.data.volatility.vix.toFixed(1)}
+                                  {researchData?.data.volatility.vix.toFixed(1)}
                                 </Typography>
                                 <Chip
                                   label={
-                                    researchData.data.volatility
+                                    researchData?.data.volatility
                                       .vixInterpretation.level
                                   }
                                   color={
-                                    researchData.data.volatility
+                                    researchData?.data.volatility
                                       .vixInterpretation.color
                                   }
                                   size="small"
@@ -2515,12 +2542,12 @@ function MarketOverview() {
                               color="text.secondary"
                             >
                               30-day avg:{" "}
-                              {researchData.data.volatility.vixAverage.toFixed(
+                              {researchData?.data.volatility.vixAverage.toFixed(
                                 1
                               )}{" "}
                               |{" "}
                               {
-                                researchData.data.volatility.vixInterpretation
+                                researchData?.data.volatility.vixInterpretation
                                   .sentiment
                               }
                             </Typography>
@@ -2542,17 +2569,17 @@ function MarketOverview() {
                                   fontWeight={600}
                                   display="inline"
                                 >
-                                  {researchData.data.sentiment.putCallRatio.toFixed(
+                                  {researchData?.data.sentiment.putCallRatio.toFixed(
                                     2
                                   )}
                                 </Typography>
                                 <Chip
                                   label={
-                                    researchData.data.sentiment
+                                    researchData?.data.sentiment
                                       .putCallInterpretation.sentiment
                                   }
                                   color={
-                                    researchData.data.sentiment
+                                    researchData?.data.sentiment
                                       .putCallInterpretation.color
                                   }
                                   size="small"
@@ -2565,12 +2592,12 @@ function MarketOverview() {
                               color="text.secondary"
                             >
                               10-day avg:{" "}
-                              {researchData.data.sentiment.putCallAverage.toFixed(
+                              {researchData?.data.sentiment.putCallAverage.toFixed(
                                 2
                               )}{" "}
                               |{" "}
                               {
-                                researchData.data.sentiment
+                                researchData?.data.sentiment
                                   .putCallInterpretation.signal
                               }
                             </Typography>
@@ -2590,7 +2617,7 @@ function MarketOverview() {
                         >
                           Major Index Technical Levels
                         </Typography>
-                        {Object.entries(researchData.data.technicalLevels).map(
+                        {Object.entries(researchData?.data.technicalLevels).map(
                           ([index, data]) => (
                             <Box key={index} sx={{ mb: 2 }}>
                               <Typography variant="body2" fontWeight={600}>
@@ -2685,7 +2712,7 @@ function MarketOverview() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {researchData.data.sectorRotation.map(
+                              {(researchData?.data.sectorRotation || []).map(
                                 (sector, index) => (
                                   <TableRow key={index} hover>
                                     <TableCell>{sector.sector}</TableCell>
@@ -2746,7 +2773,7 @@ function MarketOverview() {
                         >
                           Upcoming Economic Events
                         </Typography>
-                        {researchData.data.economicCalendar.map(
+                        {(researchData?.data.economicCalendar || []).map(
                           (event, index) => (
                             <Box
                               key={index}
@@ -2810,7 +2837,7 @@ function MarketOverview() {
                           >
                             Key Risks:
                           </Typography>
-                          {researchData.data.summary.keyRisks.map(
+                          {(researchData?.data.summary?.keyRisks || []).map(
                             (risk, index) => (
                               <Typography
                                 key={index}
@@ -2831,7 +2858,7 @@ function MarketOverview() {
                           >
                             Key Opportunities:
                           </Typography>
-                          {researchData.data.summary.keyOpportunities.map(
+                          {(researchData?.data.summary?.keyOpportunities || []).map(
                             (opportunity, index) => (
                               <Typography
                                 key={index}

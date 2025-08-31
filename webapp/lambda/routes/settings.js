@@ -17,6 +17,22 @@ const router = express.Router();
 // Apply authentication middleware to all settings routes
 router.use(authenticateToken);
 
+// Root settings route - returns available endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Settings API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    endpoints: [
+      "/api-keys - Get all API keys",
+      "/api-keys/:provider - Get specific provider API key",
+      "POST /api-keys - Create new API key", 
+      "PUT /api-keys/:provider - Update API key",
+      "DELETE /api-keys/:provider - Delete API key"
+    ]
+  });
+});
+
 // Get all API keys for authenticated user
 router.get("/api-keys", async (req, res) => {
   try {
@@ -110,8 +126,8 @@ router.post("/api-keys", async (req, res) => {
 
   try {
     const apiKeyData = {
-      apiKey: apiKey.trim(),
-      apiSecret: apiSecret?.trim(),
+      keyId: apiKey.trim(),
+      secret: apiSecret?.trim(),
       isSandbox: Boolean(isSandbox),
       description: description?.trim(),
       createdAt: new Date().toISOString(),
@@ -167,8 +183,8 @@ router.put("/api-keys/:provider", async (req, res) => {
 
     // Merge with new data
     const updatedData = {
-      apiKey: apiKey?.trim() || existingData.apiKey,
-      apiSecret: apiSecret?.trim() || existingData.apiSecret,
+      keyId: apiKey?.trim() || existingData.keyId,
+      secret: apiSecret?.trim() || existingData.secret,
       isSandbox:
         isSandbox !== undefined ? Boolean(isSandbox) : existingData.isSandbox,
       description: description?.trim() || existingData.description,
@@ -309,6 +325,43 @@ router.get("/health", async (req, res) => {
   }
 });
 
+// Create user_profiles table if it doesn't exist
+router.post("/init-database", async (req, res) => {
+  try {
+    // Create the user_profiles table with all required columns
+    const createTableSql = `
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id VARCHAR(255) PRIMARY KEY,
+        onboarding_completed BOOLEAN DEFAULT FALSE,
+        preferences JSONB DEFAULT '{
+          "theme": "light", 
+          "notifications": true, 
+          "defaultView": "dashboard"
+        }'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+    `;
+
+    await query(createTableSql);
+
+    res.success({
+      message: "Database initialized successfully",
+      table: "user_profiles",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error initializing database:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to initialize database",
+      message: error.message,
+    });
+  }
+});
+
 // Get user profile and settings
 router.get("/profile", async (req, res) => {
   try {
@@ -377,8 +430,16 @@ router.get("/onboarding-status", async (req, res) => {
     );
 
     const hasApiKeys = providers.length > 0;
-    const onboardingCompleted =
-      userResult.rows[0]?.onboarding_completed || false;
+    
+    // Handle database not available case
+    let onboardingCompleted = false;
+    if (userResult && userResult.rows && userResult.rows[0]) {
+      onboardingCompleted = userResult.rows[0].onboarding_completed || false;
+    } else {
+      // Database not available, default to false for development mode
+      console.log("Database not available - using default onboarding status");
+      onboardingCompleted = false;
+    }
 
     res.success({
       onboarding: {
@@ -386,6 +447,7 @@ router.get("/onboarding-status", async (req, res) => {
         hasApiKeys: hasApiKeys,
         configuredProviders: providers.length,
         nextStep: !hasApiKeys ? "configure-api-keys" : "complete",
+        fallback: !userResult ? true : false
       },
       timestamp: new Date().toISOString(),
     });

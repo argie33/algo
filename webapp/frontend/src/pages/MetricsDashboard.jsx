@@ -132,7 +132,7 @@ const MetricsDashboard = () => {
   const fetchTopStocks = async () => {
     try {
       const categories = ["composite", "quality", "value"];
-      const promises = categories.map((category) =>
+      const promises = (categories || []).map((category) =>
         fetch(`${API_BASE}/api/metrics/top/${category}?limit=10`)
           .then((res) => res.json())
           .then((data) => ({ category, data: data.topStocks || [] }))
@@ -234,7 +234,7 @@ const MetricsDashboard = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {stocks.map((stock, _index) => (
+          {(stocks || []).map((stock, _index) => (
             <TableRow key={stock.symbol} hover>
               <TableCell>
                 <Typography
@@ -313,7 +313,7 @@ const MetricsDashboard = () => {
 
   const SectorAnalysis = () => (
     <Grid container spacing={3} sx={{ mt: 2 }}>
-      {sectors.map((sector) => (
+      {(sectors || []).map((sector) => (
         <Grid item xs={12} md={6} lg={4} key={sector.sector}>
           <Card>
             <CardContent>

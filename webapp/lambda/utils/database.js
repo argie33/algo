@@ -278,7 +278,7 @@ async function initializeSchema() {
 
     // Priority tables that should be created first
     const priorityTables = [
-      "stock_symbols_enhanced",
+      "stock_symbols",
       "price_daily",
       "user_api_keys",
       "portfolio_metadata",
@@ -323,7 +323,7 @@ async function initializeSchema() {
       }
     }
 
-    // Insert initial data for stock_symbols_enhanced
+    // Insert initial data for stock_symbols
     await insertInitialData();
 
     console.log("✅ Database schema initialization completed");
@@ -340,7 +340,7 @@ async function insertInitialData() {
   try {
     // Insert sample stock symbols if the table is empty
     const countResult = await query(
-      "SELECT COUNT(*) as count FROM stock_symbols_enhanced"
+      "SELECT COUNT(*) as count FROM stock_symbols"
     );
     const count = parseInt(countResult.rows[0].count);
 
@@ -348,36 +348,30 @@ async function insertInitialData() {
       console.log("Inserting initial stock symbols data...");
 
       const insertSQL = `
-                INSERT INTO stock_symbols_enhanced (symbol, company_name, exchange, sector, industry, market_cap_tier, beta, volatility_30d) VALUES
-                ('AAPL', 'Apple Inc.', 'NASDAQ', 'Technology', 'Consumer Electronics', 'large_cap', 1.20, 25.4),
-                ('MSFT', 'Microsoft Corporation', 'NASDAQ', 'Technology', 'Software', 'large_cap', 0.95, 22.1),
-                ('GOOGL', 'Alphabet Inc.', 'NASDAQ', 'Technology', 'Internet Services', 'large_cap', 1.05, 28.7),
-                ('AMZN', 'Amazon.com Inc.', 'NASDAQ', 'Consumer Discretionary', 'E-commerce', 'large_cap', 1.15, 30.2),
-                ('TSLA', 'Tesla Inc.', 'NASDAQ', 'Consumer Discretionary', 'Electric Vehicles', 'large_cap', 1.85, 45.6),
-                ('META', 'Meta Platforms Inc.', 'NASDAQ', 'Technology', 'Social Media', 'large_cap', 1.25, 32.8),
-                ('NVDA', 'NVIDIA Corporation', 'NASDAQ', 'Technology', 'Semiconductors', 'large_cap', 1.65, 40.3),
-                ('NFLX', 'Netflix Inc.', 'NASDAQ', 'Communication Services', 'Streaming', 'large_cap', 1.35, 35.1),
-                ('JPM', 'JPMorgan Chase & Co.', 'NYSE', 'Financials', 'Banking', 'large_cap', 1.10, 26.4),
-                ('JNJ', 'Johnson & Johnson', 'NYSE', 'Healthcare', 'Pharmaceuticals', 'large_cap', 0.75, 18.2),
-                ('V', 'Visa Inc.', 'NYSE', 'Financials', 'Payment Processing', 'large_cap', 0.90, 20.8),
-                ('PG', 'Procter & Gamble Co.', 'NYSE', 'Consumer Staples', 'Household Products', 'large_cap', 0.65, 16.5),
-                ('UNH', 'UnitedHealth Group Inc.', 'NYSE', 'Healthcare', 'Health Insurance', 'large_cap', 0.85, 19.7),
-                ('HD', 'The Home Depot Inc.', 'NYSE', 'Consumer Discretionary', 'Home Improvement', 'large_cap', 1.00, 24.3),
-                ('DIS', 'The Walt Disney Company', 'NYSE', 'Communication Services', 'Entertainment', 'large_cap', 1.20, 29.5),
-                ('SPY', 'SPDR S&P 500 ETF Trust', 'NYSE', 'ETF', 'Broad Market ETF', 'large_cap', 1.00, 15.0),
-                ('QQQ', 'Invesco QQQ Trust', 'NASDAQ', 'ETF', 'Technology ETF', 'large_cap', 1.15, 20.2),
-                ('VTI', 'Vanguard Total Stock Market ETF', 'NYSE', 'ETF', 'Total Market ETF', 'large_cap', 1.00, 16.1),
-                ('IWM', 'iShares Russell 2000 ETF', 'NYSE', 'ETF', 'Small Cap ETF', 'large_cap', 1.25, 22.7),
-                ('GLD', 'SPDR Gold Shares', 'NYSE', 'ETF', 'Gold ETF', 'large_cap', 0.30, 18.8)
+                INSERT INTO stock_symbols (symbol, security_name, exchange) VALUES
+                ('AAPL', 'Apple Inc.', 'NASDAQ'),
+                ('MSFT', 'Microsoft Corporation', 'NASDAQ'),
+                ('GOOGL', 'Alphabet Inc.', 'NASDAQ'),
+                ('AMZN', 'Amazon.com Inc.', 'NASDAQ'),
+                ('TSLA', 'Tesla Inc.', 'NASDAQ'),
+                ('META', 'Meta Platforms Inc.', 'NASDAQ'),
+                ('NVDA', 'NVIDIA Corporation', 'NASDAQ'),
+                ('NFLX', 'Netflix Inc.', 'NASDAQ'),
+                ('JPM', 'JPMorgan Chase & Co.', 'NYSE'),
+                ('JNJ', 'Johnson & Johnson', 'NYSE'),
+                ('V', 'Visa Inc.', 'NYSE'),
+                ('PG', 'Procter & Gamble Co.', 'NYSE'),
+                ('UNH', 'UnitedHealth Group Inc.', 'NYSE'),
+                ('HD', 'The Home Depot Inc.', 'NYSE'),
+                ('DIS', 'The Walt Disney Company', 'NYSE'),
+                ('SPY', 'SPDR S&P 500 ETF Trust', 'NYSE'),
+                ('QQQ', 'Invesco QQQ Trust', 'NASDAQ'),
+                ('VTI', 'Vanguard Total Stock Market ETF', 'NYSE'),
+                ('IWM', 'iShares Russell 2000 ETF', 'NYSE'),
+                ('GLD', 'SPDR Gold Shares', 'NYSE')
                 ON CONFLICT (symbol) DO UPDATE SET
-                    company_name = EXCLUDED.company_name,
-                    exchange = EXCLUDED.exchange,
-                    sector = EXCLUDED.sector,
-                    industry = EXCLUDED.industry,
-                    market_cap_tier = EXCLUDED.market_cap_tier,
-                    beta = EXCLUDED.beta,
-                    volatility_30d = EXCLUDED.volatility_30d,
-                    updated_at = CURRENT_TIMESTAMP
+                    security_name = EXCLUDED.security_name,
+                    exchange = EXCLUDED.exchange
             `;
 
       await query(insertSQL);

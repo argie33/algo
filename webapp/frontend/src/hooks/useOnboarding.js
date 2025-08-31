@@ -52,9 +52,8 @@ export const useOnboarding = () => {
       );
       const hasPreferences = preferencesResponse?.riskTolerance ? true : false;
 
-      // Determine if we should show onboarding
-      const shouldShowOnboarding =
-        !isComplete && (!hasApiKeys || !hasPreferences);
+      // Determine if we should show onboarding - only if explicitly not complete
+      const shouldShowOnboarding = isComplete === false;
 
       setOnboardingState({
         isComplete,
@@ -66,13 +65,13 @@ export const useOnboarding = () => {
     } catch (error) {
       console.error("Failed to check onboarding status:", error);
 
-      // If this is a new user (no settings yet), show onboarding
+      // If this is a new user (no settings yet), don't automatically show onboarding
       if (error.response?.status === 404) {
         setOnboardingState({
           isComplete: false,
           hasApiKeys: false,
           hasPreferences: false,
-          showOnboarding: true,
+          showOnboarding: false, // Changed to false
           loading: false,
         });
       } else {

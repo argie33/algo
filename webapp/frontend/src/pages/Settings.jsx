@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -54,6 +54,7 @@ import {
 } from "@mui/icons-material";
 import { getApiConfig } from "../services/api";
 import SettingsApiKeys from "./SettingsApiKeys";
+import { createComponentLogger } from "../utils/errorLogger";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -74,7 +75,13 @@ const Settings = () => {
   const { user, isAuthenticated, isLoading, logout, checkAuthState } =
     useAuth();
   const navigate = useNavigate();
-  const { apiUrl } = getApiConfig();
+  
+  // Memoize API config to prevent new object creation on every render
+  const apiConfig = useMemo(() => getApiConfig(), []);
+  const { apiUrl } = apiConfig;
+  
+  // Memoize logger to prevent useCallback recreation on every render
+  const logger = useMemo(() => createComponentLogger("Settings"), []);
 
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -130,21 +137,40 @@ const Settings = () => {
   //   }
   // }, [isAuthenticated, isLoading, navigate]);
 
-  // Load user data
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      loadUserSettings();
-    } else if (!isLoading && !user && !isAuthenticated) {
-      // If we're not loading, have no user, and not authenticated, try to re-check auth
-      console.log(
-        "Settings: No user found, attempting to re-check authentication"
-      );
-      checkAuthState();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user, isLoading]);
+  // Define loadApiKeys first since it's referenced in loadUserSettings
+  const loadApiKeys = useCallback(async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
+        headers: {
+          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
+        },
+      });
 
-  const loadUserSettings = async () => {
+      if (response.ok) {
+        const data = await response.json();
+        _setApiKeys(data.apiKeys || []);
+      } else {
+        console.error(
+          "API keys endpoint returned non-OK status:",
+          response.status
+        );
+        throw new Error(`API keys endpoint failed: ${response.status}`);
+      }
+    } catch (error) {
+      logger.error("Load API Keys Failed", error, {
+        userId: user?.sub || user?.id,
+        apiUrl,
+        operation: "loadApiKeys",
+        responseStatus: error.response?.status,
+        responseData: error.response?.data
+      });
+      _setApiKeys([]); // Set empty array and let user see there's no data
+      throw error; // Re-throw so parent catch can handle it
+    }
+  }, [apiUrl, logger, user?.id, user?.sub, user?.tokens?.accessToken]); // Dependencies required by ESLint
+
+  // Define loadUserSettings after loadApiKeys with useCallback to prevent infinite loops
+  const loadUserSettings = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -162,14 +188,19 @@ const Settings = () => {
       try {
         await loadApiKeys();
       } catch (apiError) {
-        console.error("API keys loading failed:", apiError);
+        logger.error("API Keys Loading Failed", apiError, {
+          userId: user?.sub || user?.id,
+          apiUrl,
+          operation: "loadApiKeys",
+          context: "settings initialization"
+        });
         showSnackbar(`Failed to load API keys: ${apiError.message}`, "error");
         // Don't fail the entire settings load if API keys fail
       }
 
       // Load notification preferences
       try {
-        const notifResponse = await fetch(`${apiUrl}/api/user/notifications`, {
+        const notifResponse = await fetch(`${apiUrl}/api/settings/preferences`, {
           headers: {
             Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
           },
@@ -177,6 +208,9 @@ const Settings = () => {
         if (notifResponse.ok) {
           const notifData = await notifResponse.json();
           setNotifications((prev) => ({ ...prev, ...notifData.preferences }));
+        } else if (notifResponse.status === 404) {
+          // Endpoint doesn't exist - stop trying, use defaults
+          console.log("Notifications endpoint not implemented, using defaults");
         }
       } catch (error) {
         console.log("Failed to load notification preferences, using defaults");
@@ -184,7 +218,7 @@ const Settings = () => {
 
       // Load theme preferences
       try {
-        const themeResponse = await fetch(`${apiUrl}/api/user/theme`, {
+        const themeResponse = await fetch(`${apiUrl}/api/settings/preferences`, {
           headers: {
             Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
           },
@@ -192,6 +226,9 @@ const Settings = () => {
         if (themeResponse.ok) {
           const themeData = await themeResponse.json();
           setThemeSettings((prev) => ({ ...prev, ...themeData.preferences }));
+        } else if (themeResponse.status === 404) {
+          // Endpoint doesn't exist - stop trying, use defaults
+          console.log("Theme endpoint not implemented, using defaults");
         }
       } catch (error) {
         console.log("Failed to load theme preferences, using defaults");
@@ -212,32 +249,49 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl, logger, loadApiKeys, user?.currency, user?.email, user?.firstName, user?.id, user?.lastName, user?.phone, user?.sub, user?.timezone, user?.tokens?.accessToken]); // Dependencies required by ESLint
 
-  const loadApiKeys = async () => {
-    try {
-      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
-        headers: {
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
+  // Load settings when authenticated - USING REF TO AVOID USER OBJECT DEPENDENCY
+  const hasLoadedRef = useRef(false);
+  
+  useEffect(() => {
+    console.log("🔥 Settings useEffect triggered!", { 
+      isAuthenticated,
+      isAuthenticatedType: typeof isAuthenticated,
+      hasLoaded: hasLoadedRef.current,
+      loading,
+      loadingType: typeof loading,
+      timestamp: new Date().toISOString(),
+      loadUserSettingsRef: loadUserSettings
+    });
+    
+    // Only load if authenticated and we haven't loaded yet
+    if (isAuthenticated && !hasLoadedRef.current && !loading) {
+      console.log("🚨 CALLING loadUserSettings - this should happen ONLY ONCE!");
+      hasLoadedRef.current = true; // Mark as loaded immediately
+      
+      logger.info("User authenticated, loading settings", {
+        userId: user?.sub || user?.id,
+        email: user?.email
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        _setApiKeys(data.apiKeys || []);
-      } else {
-        console.error(
-          "API keys endpoint returned non-OK status:",
-          response.status
-        );
-        throw new Error(`API keys endpoint failed: ${response.status}`);
-      }
-    } catch (error) {
-      console.error("Error loading API keys:", error);
-      _setApiKeys([]); // Set empty array and let user see there's no data
-      throw error; // Re-throw so parent catch can handle it
+      loadUserSettings();
     }
-  };
+  }, [isAuthenticated, loadUserSettings, loading, logger, user?.email, user?.id, user?.sub]); // Dependencies required by ESLint
+
+  // Separate session recovery logic (production only)
+  useEffect(() => {
+    if (!isLoading && !user && !isAuthenticated && import.meta.env.PROD) {
+      logger.error("No authenticated session found", new Error("Session check failed"), {
+        isAuthenticated,
+        isLoading,
+        hasUser: !!user
+      });
+      // Only attempt recovery once, don't include checkAuthState in dependencies
+      checkAuthState().catch(error => {
+        logger.error("Session recovery failed", error);
+      });
+    }
+  }, [isLoading, isAuthenticated, user, checkAuthState, logger]); // Dependencies required by ESLint
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -272,10 +326,22 @@ const Settings = () => {
         }
       } else {
         const error = await response.json();
+        logger.error("Profile Update Failed", new Error(`Profile update rejected: ${response.status}`), {
+          userId: user?.sub || user?.id,
+          profileData,
+          responseStatus: response.status,
+          errorData: error,
+          operation: "updateProfile"
+        });
         showSnackbar(error.error || "Failed to update profile", "error");
       }
     } catch (error) {
-      console.error("Error saving profile:", error);
+      logger.error("Profile Save Error", error, {
+        userId: user?.sub || user?.id,
+        profileData,
+        operation: "handleSaveProfile",
+        context: "network or server error"
+      });
       showSnackbar("Failed to update profile", "error");
     } finally {
       setLoading(false);
@@ -399,7 +465,7 @@ const Settings = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const summary = data.data.summary;
+        const summary = data?.data.summary;
         showSnackbar(
           `✅ Portfolio imported! ${summary.positions} positions, 
           $${summary.totalValue?.toLocaleString()} total value, 
@@ -427,13 +493,13 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/user/notifications`, {
-        method: "PUT",
+      const response = await fetch(`${apiUrl}/api/settings/preferences`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
         },
-        body: JSON.stringify(notifications),
+        body: JSON.stringify({ preferences: { ...themeSettings, ...notifications } }),
       });
 
       if (response.ok) {
@@ -457,13 +523,13 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/user/theme`, {
-        method: "PUT",
+      const response = await fetch(`${apiUrl}/api/settings/preferences`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
         },
-        body: JSON.stringify(themeSettings),
+        body: JSON.stringify({ preferences: { ...themeSettings, ...notifications } }),
       });
 
       if (response.ok) {
@@ -668,29 +734,34 @@ const Settings = () => {
 
   // If we don't have a user object at all, show a fallback with more options
   if (!user && !isLoading) {
+    // Log authentication info to console for debugging (but don't log as error in development)
+    if (import.meta.env.PROD) {
+      logger.error("Authentication Error", new Error("Unable to load user information"), {
+        userObject: user,
+        isAuthenticated,
+        isLoading,
+        apiUrl,
+        reason: "No user object available after authentication loading completed",
+        suggestedActions: ["refresh page", "login again", "check session"],
+        url: window.location.href
+      });
+    } else {
+      console.log("🔧 DEV: Settings page - no authenticated user, showing login prompt");
+    }
+
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Alert
           severity="warning"
           action={
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button
-                color="inherit"
-                size="small"
-                onClick={() => window.location.reload()}
-                aria-label="Refresh page"
-              >
-                Refresh
-              </Button>
-              <Button
-                color="inherit"
-                size="small"
-                onClick={() => navigate("/login")}
-                aria-label="Navigate to login page"
-              >
-                Login
-              </Button>
-            </Box>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => window.location.reload()}
+              aria-label="Refresh page to re-authenticate"
+            >
+              Refresh
+            </Button>
           }
         >
           Unable to load user information. This may be due to an expired session
@@ -871,10 +942,11 @@ const Settings = () => {
                     <ListItem>
                       <ListItemText
                         primary="Account Status"
-                        secondary={
-                          <Chip label="Active" color="success" size="small" />
-                        }
+                        secondary="Active"
                       />
+                      <ListItemSecondaryAction>
+                        <Chip label="Active" color="success" size="small" />
+                      </ListItemSecondaryAction>
                     </ListItem>
                     <ListItem>
                       <ListItemText

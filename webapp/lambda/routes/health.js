@@ -266,8 +266,8 @@ router.get("/", async (req, res) => {
             'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
             'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
             'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
-            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols_enhanced',
-            'health_status', 'earnings', 'prices'
+            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols',
+            'earnings', 'prices'
           )
         `),
         new Promise((_, reject) =>
@@ -381,8 +381,7 @@ router.get("/", async (req, res) => {
         "insider_trading_analysis",
         "score_performance_tracking",
         "market_regime",
-        "stock_symbols_enhanced",
-        "health_status",
+        "stock_symbols",
         "earnings",
         "prices",
       ].forEach((tableName) => {
@@ -469,7 +468,7 @@ router.get("/database", async (req, res) => {
         });
       }
     }
-    // Query health_status table for summary
+    // Query actual database tables for health information
     let summary = {
       total_tables: 0,
       healthy_tables: 0,
@@ -481,47 +480,59 @@ router.get("/database", async (req, res) => {
       total_missing_data: 0,
     };
     let tables = {};
+    
     try {
-      const result = await query("SELECT * FROM health_status");
-      summary.total_tables = result.rowCount;
-      for (const row of result.rows) {
-        tables[row.table_name] = {
-          status: row.status,
-          record_count: row.record_count,
-          missing_data_count: row.missing_data_count,
-          last_updated: row.last_updated,
-          last_checked: row.last_checked,
-          is_stale: row.is_stale,
-          error: row.error,
-        };
-        summary.total_records += row.record_count || 0;
-        summary.total_missing_data += row.missing_data_count || 0;
-        if (row.status === "healthy") summary.healthy_tables++;
-        else if (row.status === "stale") summary.stale_tables++;
-        else if (row.status === "empty") summary.empty_tables++;
-        else if (row.status === "error") summary.error_tables++;
-        else if (row.status === "missing") summary.missing_tables++;
+      // Get all tables in the database
+      const tablesResult = await query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_type = 'BASE TABLE'
+        ORDER BY table_name
+      `);
+      
+      summary.total_tables = tablesResult.rowCount;
+      
+      // Check each table for record count and status
+      for (const tableRow of tablesResult.rows) {
+        const tableName = tableRow.table_name;
+        try {
+          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const recordCount = parseInt(countResult.rows[0].count);
+          
+          let status = 'healthy';
+          if (recordCount === 0) {
+            status = 'empty';
+            summary.empty_tables++;
+          } else {
+            summary.healthy_tables++;
+          }
+          
+          tables[tableName] = {
+            status: status,
+            record_count: recordCount,
+            last_checked: new Date().toISOString(),
+          };
+          
+          summary.total_records += recordCount;
+          
+        } catch (tableErr) {
+          console.error(`Error checking table ${tableName}:`, tableErr.message);
+          tables[tableName] = {
+            status: 'error',
+            record_count: 0,
+            error: tableErr.message,
+            last_checked: new Date().toISOString(),
+          };
+          summary.error_tables++;
+        }
       }
+      
     } catch (err) {
-      // If health_status table is missing or empty, return fallback
-      console.error("Error querying health_status table:", err.message);
-      return res.success({
-        status: "ok",
-        healthy: true,
+      console.error("Error querying database tables:", err.message);
+      return res.error("Failed to query database tables", 500, {
+        error: err.message,
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
-        database: {
-          status: "connected",
-          tables: {},
-          summary: summary,
-          note: "health_status table is missing or empty",
-        },
-        api: {
-          version: "1.0.0",
-          environment: process.env.NODE_ENV || "development",
-        },
-        memory: process.memoryUsage(),
-        uptime: process.uptime(),
       });
     }
     return res.success({

@@ -154,7 +154,7 @@ const MarketStatusBar = () => {
 
         {/* Market Indices */}
         <Box display="flex" alignItems="center" gap={3}>
-          {marketStatus.indices && marketStatus.indices.map((index, i) => (
+          {marketStatus.indices && (marketStatus.indices || []).map((index, i) => (
             <React.Fragment key={index.symbol}>
               {i > 0 && <Divider orientation="vertical" flexItem />}
               <Box display="flex" alignItems="center" gap={1}>

@@ -126,12 +126,12 @@ const AuthTest = () => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Debug Log ({debugInfo.length} entries):
+            Debug Log ({(debugInfo?.length || 0)} entries):
           </Typography>
           <Box
             sx={{ maxHeight: 300, overflow: "auto", bgcolor: "grey.50", p: 1 }}
           >
-            {debugInfo.map((info, index) => (
+            {(debugInfo || []).map((info, index) => (
               <Typography
                 key={index}
                 variant="body2"

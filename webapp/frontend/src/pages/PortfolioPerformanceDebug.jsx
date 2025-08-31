@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Container,
@@ -24,20 +24,19 @@ const PortfolioPerformanceDebug = () => {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [debugInfo, setDebugInfo] = useState([]);
 
-  const addDebugInfo = (message) => {
+  const addDebugInfo = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
     const logMessage = `${timestamp}: ${message}`;
     console.log("🐛 DEBUG:", logMessage);
     setDebugInfo((prev) => [...prev, logMessage]);
-  };
+  }, []);
 
   useEffect(() => {
     addDebugInfo("Component mounted");
     addDebugInfo(
       `Auth loading: ${authLoading}, Authenticated: ${isAuthenticated}, User: ${user ? user.username : "none"}`
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading, isAuthenticated, user, addDebugInfo]);
 
   useEffect(() => {
     addDebugInfo(
@@ -49,10 +48,9 @@ const PortfolioPerformanceDebug = () => {
       addDebugInfo("Auth loading complete, attempting to fetch data");
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, isAuthenticated, addDebugInfo, fetchData]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -63,7 +61,7 @@ const PortfolioPerformanceDebug = () => {
         localStorage.getItem("accessToken") ||
         localStorage.getItem("authToken");
       addDebugInfo(
-        `Access token exists: ${!!accessToken} (length: ${accessToken ? accessToken.length : 0})`
+        `Access token exists: ${!!accessToken} (length: ${accessToken ? (accessToken?.length || 0) : 0})`
       );
 
       // Test 1: Portfolio Performance
@@ -101,7 +99,7 @@ const PortfolioPerformanceDebug = () => {
       setLoading(false);
       addDebugInfo("Data fetch completed, loading set to false");
     }
-  };
+  }, [addDebugInfo]);
 
   const retryFetch = () => {
     addDebugInfo("Manual retry initiated");
@@ -169,7 +167,7 @@ const PortfolioPerformanceDebug = () => {
             <Typography variant="subtitle1">Performance Data:</Typography>
             {performanceData ? (
               <Typography color="success.main">
-                ✅ Loaded ({performanceData.data?.performance?.length || 0} data
+                ✅ Loaded ({performanceData?.data?.performance?.length || 0} data
                 points)
               </Typography>
             ) : (
@@ -181,7 +179,7 @@ const PortfolioPerformanceDebug = () => {
             <Typography variant="subtitle1">Analytics Data:</Typography>
             {analyticsData ? (
               <Typography color="success.main">
-                ✅ Loaded ({analyticsData.data?.holdings?.length || 0} holdings)
+                ✅ Loaded ({analyticsData?.data?.holdings?.length || 0} holdings)
               </Typography>
             ) : (
               <Typography color="error.main">❌ Not loaded</Typography>
@@ -202,12 +200,12 @@ const PortfolioPerformanceDebug = () => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Debug Log ({debugInfo.length} entries):
+            Debug Log ({(debugInfo?.length || 0)} entries):
           </Typography>
           <Box
             sx={{ maxHeight: 400, overflow: "auto", bgcolor: "grey.50", p: 1 }}
           >
-            {debugInfo.map((info, index) => (
+            {(debugInfo || []).map((info, index) => (
               <Typography
                 key={index}
                 variant="body2"

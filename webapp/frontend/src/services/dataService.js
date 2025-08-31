@@ -40,7 +40,7 @@ class DataService {
     const cached = this.cache.get(cacheKey);
     if (cached && this.isFresh(cached, staleTime)) {
       return {
-        data: cached.data,
+        data: cached?.data,
         isLoading: false,
         error: null,
         isStale: false,

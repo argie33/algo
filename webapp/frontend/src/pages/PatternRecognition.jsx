@@ -104,7 +104,7 @@ const PatternRecognition = () => {
     ],
     queryFn: async () => {
       logger.info("Fetching patterns data for multiple symbols", {
-        symbols: defaultSymbols.length,
+        symbols: (defaultSymbols?.length || 0),
         timeframe: selectedTimeframe,
         confidence: confidenceFilter,
         pattern: selectedPattern,
@@ -112,7 +112,7 @@ const PatternRecognition = () => {
 
       try {
         // Fetch patterns for multiple symbols in parallel
-        const symbolRequests = defaultSymbols.map(async (symbol) => {
+        const symbolRequests = (defaultSymbols || []).map(async (symbol) => {
           const url = `${API_BASE}/api/technical/patterns/${symbol}?timeframe=${selectedTimeframe}&limit=5`;
 
           try {
@@ -177,18 +177,18 @@ const PatternRecognition = () => {
         );
 
         logger.info("Successfully fetched and filtered patterns data", {
-          totalPatterns: allPatterns.length,
-          filteredPatterns: filteredPatterns.length,
-          symbols: defaultSymbols.length,
+          totalPatterns: (allPatterns?.length || 0),
+          filteredPatterns: (filteredPatterns?.length || 0),
+          symbols: (defaultSymbols?.length || 0),
         });
 
         return {
           success: true,
           data: filteredPatterns,
           metadata: {
-            totalPatterns: allPatterns.length,
-            filteredPatterns: filteredPatterns.length,
-            symbolsAnalyzed: defaultSymbols.length,
+            totalPatterns: (allPatterns?.length || 0),
+            filteredPatterns: (filteredPatterns?.length || 0),
+            symbolsAnalyzed: (defaultSymbols?.length || 0),
           },
         };
       } catch (fetchError) {
@@ -441,7 +441,7 @@ const PatternRecognition = () => {
       )}
 
       {/* Loading State */}
-      {isLoading && !patterns.length && (
+      {isLoading && !(patterns?.length || 0) && (
         <Box
           display="flex"
           justifyContent="center"
@@ -465,7 +465,7 @@ const PatternRecognition = () => {
         >
           <Tab
             value={0}
-            label={`Detected Patterns (${patterns.length})`}
+            label={`Detected Patterns (${(patterns?.length || 0)})`}
             icon={<Timeline />}
           />
           <Tab value={1} label="Bullish Signals" icon={<TrendingUp />} />
@@ -479,7 +479,7 @@ const PatternRecognition = () => {
         <Box>
           {!isLoading && patterns.length > 0 && (
             <Grid container spacing={3}>
-              {patterns.map((pattern, index) => (
+              {(patterns || []).map((pattern, index) => (
                 <Grid item xs={12} md={6} lg={4} key={index}>
                   <Card sx={{ height: "100%", "&:hover": { boxShadow: 6 } }}>
                     <CardHeader
@@ -610,7 +610,7 @@ const PatternRecognition = () => {
             </Grid>
           )}
 
-          {!isLoading && patterns.length === 0 && (
+          {!isLoading && (patterns?.length || 0) === 0 && (
             <Card>
               <CardContent sx={{ textAlign: "center", py: 8 }}>
                 <ErrorOutline
@@ -899,7 +899,7 @@ const PatternRecognition = () => {
                             (sum, p) => sum + (p.confidence || 0),
                             0
                           ) /
-                            patterns.length) *
+                            (patterns?.length || 0)) *
                           100
                         ).toFixed(0)
                       : 0}
@@ -954,7 +954,7 @@ const PatternRecognition = () => {
                           ).length;
                           const percentage =
                             patterns.length > 0
-                              ? ((count / patterns.length) * 100).toFixed(1)
+                              ? ((count / (patterns?.length || 0)) * 100).toFixed(1)
                               : 0;
                           return (
                             <TableRow key={patternType}>

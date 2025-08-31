@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Alert,
   Avatar,
@@ -25,7 +25,6 @@ import {
   Switch,
   Tab,
   Tabs,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -48,6 +47,7 @@ import {
   Store,
   Construction,
 } from "@mui/icons-material";
+import { api } from '../services/api';
 import {
   Cell,
   BarChart,
@@ -59,6 +59,7 @@ import {
   LineChart,
   Line,
   ReferenceLine,
+  Tooltip,
 } from "recharts";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -75,21 +76,118 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
+// Helper functions to safely format numeric values and prevent NaN errors
+const formatNumber = (value, decimals = 1, fallback = "N/A") => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return fallback;
+  }
+  return Number(value).toFixed(decimals);
+};
+
+const formatPercent = (value, fallback = "N/A") => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return fallback;
+  }
+  return Number(value).toFixed(1);
+};
+
+const formatBasisPoints = (value, fallback = "N/A") => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return fallback;
+  }
+  return Number(value).toFixed(0);
+};
+
+const formatMonths = (value, fallback = "N/A") => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return fallback;
+  }
+  return Number(value).toFixed(0);
+};
+
 const EconomicModeling = () => {
   const [tabValue, setTabValue] = useState(0);
   const [selectedTimeframe, setSelectedTimeframe] = useState("6M");
   const [_selectedModel, _setSelectedModel] = useState("composite");
   const [selectedScenario, setSelectedScenario] = useState("base");
-  const [_loading, _setLoading] = useState(false);
+  // Loading state managed above
   const [liveUpdates, setLiveUpdates] = useState(false);
-  // ⚠️ MOCK DATA - Using mock economic data
-  const [economicData, _setEconomicData] = useState(mockEconomicData);
+  // Real economic data from backend APIs
+  const [economicData, setEconomicData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [alertsEnabled, _setAlertsEnabled] = useState(true);
   const [_confidenceThreshold, _setConfidenceThreshold] = useState(70);
 
+  // Fetch economic data from backend APIs
+  useEffect(() => {
+    const fetchEconomicData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch data from all economic endpoints in parallel
+        const [recessionForecast, leadingIndicators, sectoralAnalysis, economicScenarios, aiInsights] = await Promise.all([
+          api.get('/api/market/recession-forecast'),
+          api.get('/api/market/leading-indicators'),
+          api.get('/api/market/sectoral-analysis'),
+          api.get('/api/market/economic-scenarios'),
+          api.get('/api/market/ai-insights')
+        ]);
+
+        // Combine all data into the expected structure
+        const combinedData = {
+          // Recession forecasting data
+          forecastModels: recessionForecast?.data.forecastModels || [],
+          recessionProbability: recessionForecast?.data.compositeRecessionProbability || 0,
+          riskLevel: recessionForecast?.data.riskLevel || 'Medium',
+          
+          // Leading indicators data
+          leadingIndicators: leadingIndicators?.data.indicators || [],
+          gdpGrowth: leadingIndicators?.data.gdpGrowth || 0,
+          unemployment: leadingIndicators?.data.unemployment || 0,
+          inflation: leadingIndicators?.data.inflation || 0,
+          employment: leadingIndicators?.data.employment || {},
+          
+          // Yield curve data
+          yieldCurve: {
+            spread2y10y: leadingIndicators?.data.yieldCurve?.spread2y10y || 0,
+            spread3m10y: leadingIndicators?.data.yieldCurve?.spread3m10y || 0,
+            isInverted: leadingIndicators?.data.yieldCurve?.isInverted || false,
+            interpretation: leadingIndicators?.data.yieldCurve?.interpretation || '',
+            historicalAccuracy: leadingIndicators?.data.yieldCurve?.historicalAccuracy || 0,
+            averageLeadTime: leadingIndicators?.data.yieldCurve?.averageLeadTime || 0
+          },
+          yieldCurveData: leadingIndicators?.data.yieldCurveData || [],
+          
+          // Sectoral data
+          sectoralData: sectoralAnalysis?.data.sectors || [],
+          
+          // Economic scenarios
+          scenarios: economicScenarios?.data.scenarios || [],
+          
+          // AI insights
+          aiInsights: aiInsights?.data.insights || [],
+          
+          // Upcoming events (from leading indicators)
+          upcomingEvents: leadingIndicators?.data.upcomingEvents || []
+        };
+
+        setEconomicData(combinedData);
+      } catch (err) {
+        console.error('Failed to fetch economic data:', err);
+        setError(err.message || 'Failed to fetch economic data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEconomicData();
+  }, [selectedTimeframe]); // Re-fetch when timeframe changes
+
   // Calculate composite recession probability
   const compositeRecessionProbability = useMemo(() => {
-    if (!economicData.forecastModels) return 0;
+    if (!economicData || !economicData.forecastModels) return 0;
 
     const weights = {
       "NY Fed Model": 0.35,
@@ -103,34 +201,47 @@ const EconomicModeling = () => {
     }, 0);
 
     return Math.round(weightedSum);
-  }, [economicData.forecastModels]);
+  }, [economicData]);
 
   // Calculate economic stress index
   const economicStressIndex = useMemo(() => {
-    if (!economicData.leadingIndicators) return 0;
+    if (!economicData || !economicData.leadingIndicators) return 0;
 
     const negativeSignals = economicData.leadingIndicators.filter(
       (indicator) => indicator.signal === "Negative"
     ).length;
 
-    const totalSignals = economicData.leadingIndicators.length;
+    const totalSignals = (economicData.leadingIndicators?.length || 0);
     const stressScore = (negativeSignals / totalSignals) * 100;
 
     return Math.round(stressScore);
-  }, [economicData.leadingIndicators]);
+  }, [economicData]);
 
   // Calculate yield curve signal strength
   const yieldCurveSignal = useMemo(() => {
-    if (!economicData.yieldCurve) return "Neutral";
+    if (!economicData || !economicData.yieldCurve) {
+      return "Neutral";
+    }
 
-    const { spread2y10y, spread3m10y } = economicData.yieldCurve;
+    const yieldCurve = economicData.yieldCurve;
+    if (!yieldCurve || typeof yieldCurve !== 'object') {
+      return "Neutral";
+    }
+
+    const spread2y10y = yieldCurve.spread2y10y;
+    const spread3m10y = yieldCurve.spread3m10y;
+
+    // Check if spreads are valid numbers
+    if (typeof spread2y10y !== 'number' || typeof spread3m10y !== 'number') {
+      return "Neutral";
+    }
 
     if (spread2y10y < -50 && spread3m10y < -50)
       return "Strong Recession Signal";
     if (spread2y10y < 0 && spread3m10y < 0) return "Recession Signal";
     if (spread2y10y < 50 && spread3m10y < 50) return "Flattening";
     return "Normal";
-  }, [economicData.yieldCurve]);
+  }, [economicData]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -227,14 +338,38 @@ const EconomicModeling = () => {
             label="Live Updates"
           />
 
-          <IconButton onClick={() => _setLoading(true)}>
+          <IconButton onClick={() => setLoading(true)}>
             <Refresh />
           </IconButton>
         </Box>
       </Box>
 
+      {/* Loading and Error States */}
+      {loading && (
+        <Box sx={{ mb: 3 }}>
+          <LinearProgress />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: 'center' }}>
+            Loading economic data and forecasting models...
+          </Typography>
+        </Box>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          <strong>Error loading economic data:</strong> {error}
+          <Button 
+            color="inherit" 
+            size="small" 
+            onClick={() => window.location.reload()}
+            sx={{ ml: 2 }}
+          >
+            Retry
+          </Button>
+        </Alert>
+      )}
+
       {/* Critical Alerts */}
-      {alertsEnabled && compositeRecessionProbability > 40 && (
+      {!loading && economicData && alertsEnabled && compositeRecessionProbability > 40 && (
         <Alert
           severity="warning"
           sx={{ mb: 3 }}
@@ -250,7 +385,7 @@ const EconomicModeling = () => {
         </Alert>
       )}
 
-      {economicData.yieldCurve?.isInverted && (
+      {!loading && economicData?.yieldCurve?.isInverted && (
         <Alert
           severity="error"
           sx={{ mb: 3 }}
@@ -267,6 +402,7 @@ const EconomicModeling = () => {
       )}
 
       {/* Key Economic Indicators */}
+      {!loading && economicData && (
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} md={3}>
           <Card>
@@ -347,7 +483,7 @@ const EconomicModeling = () => {
                     GDP Growth
                   </Typography>
                   <Typography variant="h4" color="secondary">
-                    {economicData.gdpGrowth}%
+                    {formatPercent(economicData.gdpGrowth)}%
                   </Typography>
                   <Typography variant="body2">Annualized Q/Q</Typography>
                 </Box>
@@ -376,7 +512,7 @@ const EconomicModeling = () => {
                     Unemployment
                   </Typography>
                   <Typography variant="h4" color="info.main">
-                    {economicData.unemployment}%
+                    {formatPercent(economicData.unemployment)}%
                   </Typography>
                   <Typography variant="body2">Current rate</Typography>
                 </Box>
@@ -391,24 +527,27 @@ const EconomicModeling = () => {
           </Card>
         </Grid>
       </Grid>
+      )}
 
-      {/* Main Content Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          aria-label="economic modeling tabs"
-        >
-          <Tab value={0} label="Leading Indicators" icon={<Analytics />} />
-          <Tab value={1} label="Yield Curve" icon={<ShowChart />} />
-          <Tab value={2} label="Forecast Models" icon={<Assessment />} />
-          <Tab value={3} label="Sectoral Analysis" icon={<BarChartIcon />} />
-          <Tab value={4} label="Scenario Planning" icon={<Flag />} />
-          <Tab value={5} label="AI Insights" icon={<Psychology />} />
-        </Tabs>
-      </Box>
+      {/* Main Content Tabs and TabPanels */}
+      {!loading && economicData && (
+      <>
+        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            aria-label="economic modeling tabs"
+          >
+            <Tab value={0} label="Leading Indicators" icon={<Analytics />} />
+            <Tab value={1} label="Yield Curve" icon={<ShowChart />} />
+            <Tab value={2} label="Forecast Models" icon={<Assessment />} />
+            <Tab value={3} label="Sectoral Analysis" icon={<BarChartIcon />} />
+            <Tab value={4} label="Scenario Planning" icon={<Flag />} />
+            <Tab value={5} label="AI Insights" icon={<Psychology />} />
+          </Tabs>
+        </Box>
 
-      <TabPanel value={tabValue} index={0}>
+        <TabPanel value={tabValue} index={0}>
         {/* Leading Indicators */}
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
@@ -611,20 +750,15 @@ const EconomicModeling = () => {
                           <ListItemText
                             primary={event.event}
                             secondary={
-                              <Box>
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
+                              <>
+                                <span style={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                   {event.date} • {event.time}
-                                </Typography>
-                                <Typography
-                                  variant="body2"
-                                  color="text.primary"
-                                >
+                                </span>
+                                <br />
+                                <span style={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.87)' }}>
                                   {event.forecast}
-                                </Typography>
-                              </Box>
+                                </span>
+                              </>
                             }
                           />
                         </ListItem>
@@ -679,7 +813,7 @@ const EconomicModeling = () => {
                             : "success.main"
                         }
                       >
-                        {economicData.yieldCurve?.spread2y10y} bps
+                        {formatBasisPoints(economicData.yieldCurve?.spread2y10y)} bps
                       </Typography>
                     </Grid>
                     <Grid item xs={6}>
@@ -694,7 +828,7 @@ const EconomicModeling = () => {
                             : "success.main"
                         }
                       >
-                        {economicData.yieldCurve?.spread3m10y} bps
+                        {formatBasisPoints(economicData.yieldCurve?.spread3m10y)} bps
                       </Typography>
                     </Grid>
                   </Grid>
@@ -748,22 +882,22 @@ const EconomicModeling = () => {
                 <Box display="flex" justifyContent="between" mb={1}>
                   <Typography variant="body2">Historical Accuracy</Typography>
                   <Typography variant="body2" fontWeight="bold">
-                    {economicData.yieldCurve?.historicalAccuracy}%
+                    {formatPercent(economicData.yieldCurve?.historicalAccuracy)}%
                   </Typography>
                 </Box>
                 <Box display="flex" justifyContent="between" mb={1}>
                   <Typography variant="body2">Average Lead Time</Typography>
                   <Typography variant="body2" fontWeight="bold">
-                    {economicData.yieldCurve?.averageLeadTime} months
+                    {formatMonths(economicData.yieldCurve?.averageLeadTime)} months
                   </Typography>
                 </Box>
 
                 <Box mt={3}>
                   <Typography variant="body2" color="text.secondary">
                     The yield curve has inverted before{" "}
-                    {economicData.yieldCurve?.historicalAccuracy}% of recessions
+                    {formatPercent(economicData.yieldCurve?.historicalAccuracy)}% of recessions
                     since 1970, with an average lead time of{" "}
-                    {economicData.yieldCurve?.averageLeadTime} months.
+                    {formatMonths(economicData.yieldCurve?.averageLeadTime)} months.
                   </Typography>
                 </Box>
               </CardContent>
@@ -957,27 +1091,19 @@ const EconomicModeling = () => {
                   {economicData.sectoralData
                     ?.sort((a, b) => b.growth - a.growth)
                     .map((sector, index) => (
-                      <ListItem key={index}>
+                      <ListItem key={index} sx={{ display: 'flex', alignItems: 'center' }}>
                         <ListItemAvatar>
                           <Avatar>{getSectorIcon(sector.sector)}</Avatar>
                         </ListItemAvatar>
                         <ListItemText
                           primary={sector.sector}
-                          secondary={
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                {sector.description}
-                              </Typography>
-                              <Chip
-                                label={`${sector.growth >= 0 ? "+" : ""}${sector.growth}%`}
-                                color={sector.growth >= 0 ? "success" : "error"}
-                                size="small"
-                              />
-                            </Box>
-                          }
+                          secondary={sector.description}
+                        />
+                        <Chip
+                          label={`${sector.growth >= 0 ? "+" : ""}${sector.growth}%`}
+                          color={sector.growth >= 0 ? "success" : "error"}
+                          size="small"
+                          sx={{ ml: 1 }}
                         />
                       </ListItem>
                     ))}
@@ -1212,257 +1338,11 @@ const EconomicModeling = () => {
             </Card>
           </Grid>
         </Grid>
-      </TabPanel>
+        </TabPanel>
+      </>
+      )}
     </Container>
   );
-};
-
-// ⚠️ MOCK DATA - Replace with real API when available
-const mockEconomicData = {
-  isMockData: true,
-  recessionProbability: 35,
-  riskLevel: "Medium",
-  gdpGrowth: 2.1,
-  unemployment: 3.7,
-  inflation: 3.2,
-  leadingIndicators: [
-    {
-      name: "Leading Economic Index",
-      value: "102.5",
-      change: -0.3,
-      trend: "deteriorating",
-      signal: "Negative",
-      strength: 25,
-      description:
-        "Composite index of 10 leading indicators showing economic momentum",
-    },
-    {
-      name: "ISM Manufacturing PMI",
-      value: "48.7",
-      change: -1.2,
-      trend: "deteriorating",
-      signal: "Negative",
-      strength: 35,
-      description:
-        "Manufacturing activity index; values below 50 indicate contraction",
-    },
-    {
-      name: "Consumer Confidence",
-      value: "115.8",
-      change: 2.1,
-      trend: "improving",
-      signal: "Positive",
-      strength: 75,
-      description:
-        "Consumer assessment of current and future economic conditions",
-    },
-    {
-      name: "Building Permits",
-      value: "1.52M",
-      change: -5.2,
-      trend: "deteriorating",
-      signal: "Negative",
-      strength: 40,
-      description: "Forward-looking indicator of housing construction activity",
-    },
-    {
-      name: "Initial Jobless Claims",
-      value: "220K",
-      change: -2.8,
-      trend: "improving",
-      signal: "Positive",
-      strength: 65,
-      description: "Weekly measure of unemployment insurance claims",
-    },
-    {
-      name: "Consumer Spending",
-      value: "0.8%",
-      change: 0.3,
-      trend: "improving",
-      signal: "Positive",
-      strength: 70,
-      description:
-        "Month-over-month change in personal consumption expenditures",
-    },
-  ],
-  upcomingEvents: [
-    {
-      event: "Federal Reserve Meeting",
-      date: "Mar 20, 2024",
-      time: "2:00 PM EST",
-      importance: "High",
-      forecast: "0.25% rate cut expected",
-    },
-    {
-      event: "Consumer Price Index",
-      date: "Mar 12, 2024",
-      time: "8:30 AM EST",
-      importance: "High",
-      forecast: "3.1% Y/Y expected",
-    },
-    {
-      event: "Employment Report",
-      date: "Mar 8, 2024",
-      time: "8:30 AM EST",
-      importance: "High",
-      forecast: "200K jobs added expected",
-    },
-    {
-      event: "GDP Advance Estimate",
-      date: "Mar 28, 2024",
-      time: "8:30 AM EST",
-      importance: "High",
-      forecast: "2.0% annualized growth",
-    },
-  ],
-  yieldCurve: {
-    spread2y10y: -45,
-    spread3m10y: -62,
-    isInverted: true,
-    interpretation:
-      "The inverted yield curve suggests investor expectations of economic slowdown and potential Federal Reserve rate cuts.",
-    historicalAccuracy: 85,
-    averageLeadTime: 14,
-  },
-  yieldCurveData: [
-    { maturity: "3M", yield: 5.2 },
-    { maturity: "6M", yield: 4.9 },
-    { maturity: "1Y", yield: 4.6 },
-    { maturity: "2Y", yield: 4.3 },
-    { maturity: "5Y", yield: 4.5 },
-    { maturity: "10Y", yield: 4.7 },
-    { maturity: "30Y", yield: 4.9 },
-  ],
-  forecastModels: [
-    {
-      name: "NY Fed Model",
-      probability: 32,
-      confidence: 78,
-      timeHorizon: "12 months",
-      methodology: "Yield curve and term structure model",
-    },
-    {
-      name: "Goldman Sachs",
-      probability: 35,
-      confidence: 71,
-      timeHorizon: "12 months",
-      methodology: "Multi-factor econometric model",
-    },
-    {
-      name: "JP Morgan",
-      probability: 40,
-      confidence: 68,
-      timeHorizon: "18 months",
-      methodology: "Credit conditions and leading indicators",
-    },
-    {
-      name: "AI Ensemble",
-      probability: 38,
-      confidence: 82,
-      timeHorizon: "12 months",
-      methodology: "Machine learning ensemble of 50+ models",
-    },
-  ],
-  sectoralData: [
-    {
-      sector: "Manufacturing",
-      growth: -1.2,
-      description: "Industrial production declining",
-    },
-    {
-      sector: "Services",
-      growth: 2.1,
-      description: "Strong service sector growth",
-    },
-    {
-      sector: "Construction",
-      growth: -0.8,
-      description: "Housing market cooling",
-    },
-    {
-      sector: "Retail",
-      growth: 1.5,
-      description: "Consumer spending holding up",
-    },
-    {
-      sector: "Technology",
-      growth: 3.2,
-      description: "AI and software driving growth",
-    },
-    {
-      sector: "Healthcare",
-      growth: 1.8,
-      description: "Steady demographic-driven growth",
-    },
-  ],
-  scenarios: [
-    {
-      name: "Bull Case",
-      probability: 25,
-      gdpGrowth: 3.2,
-      unemployment: 3.4,
-      fedRate: 4.5,
-      description: "Soft landing with continued growth and declining inflation",
-    },
-    {
-      name: "Base Case",
-      probability: 50,
-      gdpGrowth: 1.8,
-      unemployment: 4.2,
-      fedRate: 3.8,
-      description: "Mild slowdown with modest recession risk",
-    },
-    {
-      name: "Bear Case",
-      probability: 25,
-      gdpGrowth: -1.5,
-      unemployment: 5.8,
-      fedRate: 2.5,
-      description: "Economic recession with significant policy response",
-    },
-  ],
-  employment: {
-    sahmRule: {
-      value: 0.23,
-      triggered: false,
-      interpretation:
-        "The Sahm Rule recession indicator remains below the 0.50 threshold that historically signals recession onset.",
-    },
-  },
-  aiInsights: [
-    {
-      title: "Labor Market Resilience",
-      description:
-        "Despite economic headwinds, the labor market shows remarkable strength with unemployment near historic lows. This suggests consumers may continue spending, providing economic support.",
-      confidence: 85,
-      impact: "Medium",
-      timeframe: "6-12 months",
-    },
-    {
-      title: "Credit Market Stress",
-      description:
-        "Widening credit spreads and tightening lending standards indicate financial institutions are becoming more cautious. This could lead to reduced business investment and consumer spending.",
-      confidence: 78,
-      impact: "High",
-      timeframe: "3-6 months",
-    },
-    {
-      title: "Yield Curve Normalization",
-      description:
-        "The inverted yield curve is showing signs of potential normalization as the Fed approaches the end of its tightening cycle. This could reduce recession probability if sustained.",
-      confidence: 72,
-      impact: "High",
-      timeframe: "6-9 months",
-    },
-    {
-      title: "Consumer Spending Patterns",
-      description:
-        "AI analysis of spending data reveals consumers are shifting from goods to services, indicating economic adaptation rather than contraction. This supports a soft landing scenario.",
-      confidence: 88,
-      impact: "Medium",
-      timeframe: "3-6 months",
-    },
-  ],
 };
 
 export default EconomicModeling;

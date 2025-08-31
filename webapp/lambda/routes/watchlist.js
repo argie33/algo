@@ -20,7 +20,7 @@ router.get("/", authenticateToken, async (req, res) => {
         GROUP BY watchlist_id
       ) item_counts ON w.id = item_counts.watchlist_id
       WHERE w.user_id = $1
-      ORDER BY w.is_default DESC, w.created_at ASC
+      ORDER BY w.is_public DESC, w.created_at ASC
     `,
       [userId]
     );
@@ -163,7 +163,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { name, description, is_default = false } = req.body;
+    const { name, description, is_public = false } = req.body;
 
     if (!name || name.trim() === "") {
       return res.status(400).json({
@@ -198,11 +198,11 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const result = await query(
       `
-      INSERT INTO watchlists (user_id, name, description, is_default, created_at, updated_at)
+      INSERT INTO watchlists (user_id, name, description, is_public, created_at, updated_at)
       VALUES ($1, $2, $3, $4, NOW(), NOW())
       RETURNING *
     `,
-      [userId, sanitizedName, sanitizedDescription, is_default]
+      [userId, sanitizedName, sanitizedDescription, is_public]
     );
 
     res.status(201).json({
@@ -224,7 +224,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const watchlistId = req.params.id;
-    const { name, description, is_default } = req.body;
+    const { name, description, is_public } = req.body;
 
     if (!name || name.trim() === "") {
       return res.status(400).json({
@@ -247,11 +247,11 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const result = await query(
       `
       UPDATE watchlists 
-      SET name = $1, description = $2, is_default = $3, updated_at = NOW()
+      SET name = $1, description = $2, is_public = $3, updated_at = NOW()
       WHERE id = $4 AND user_id = $5
       RETURNING *
     `,
-      [sanitizedName, sanitizedDescription, is_default || false, watchlistId, userId]
+      [sanitizedName, sanitizedDescription, is_public || false, watchlistId, userId]
     );
 
     if (result.rows.length === 0) {
@@ -281,7 +281,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 
     // Check if this is a default watchlist
     const watchlistCheck = await query(
-      `SELECT is_default FROM watchlists WHERE id = $1 AND user_id = $2`,
+      `SELECT is_public FROM watchlists WHERE id = $1 AND user_id = $2`,
       [watchlistId, userId]
     );
 
@@ -292,10 +292,10 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    if (watchlistCheck.rows[0].is_default) {
+    if (watchlistCheck.rows[0].is_public) {
       return res.status(400).json({
         success: false,
-        error: "cannot delete default watchlist",
+        error: "cannot delete public watchlist",
       });
     }
 

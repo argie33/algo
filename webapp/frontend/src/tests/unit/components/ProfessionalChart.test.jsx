@@ -1,571 +1,407 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { ThemeProvider } from '@mui/material/styles';
+import { createTheme } from '@mui/material/styles';
 import ProfessionalChart from '../../../components/ProfessionalChart';
 
-// Mock TradingView widget
-const mockTradingViewWidget = {
-  onChartReady: vi.fn(),
-  activeChart: vi.fn(() => ({
-    setSymbol: vi.fn(),
-    setResolution: vi.fn(),
-    createStudy: vi.fn(),
-    removeAllStudies: vi.fn(),
-    exportData: vi.fn(),
-    onDataLoaded: vi.fn(),
-    onSymbolChanged: vi.fn(),
-    onIntervalChanged: vi.fn(),
-    setTimezone: vi.fn(),
-    getTimezone: vi.fn(() => 'America/New_York'),
-    createShape: vi.fn(),
-    createMultipointShape: vi.fn(),
-    removeAllShapes: vi.fn(),
-    takeScreenshot: vi.fn(),
-  })),
-  headerReady: vi.fn(),
-  subscribe: vi.fn(),
-  unsubscribe: vi.fn(),
-  remove: vi.fn(),
-};
-
-// Mock TradingView library
-vi.mock('../../../../public/charting_library/charting_library', () => ({
-  widget: vi.fn(() => mockTradingViewWidget),
+// Mock recharts components
+vi.mock('recharts', () => ({
+  LineChart: ({ children, data, ...props }) => (
+    <div data-testid="recharts-line-chart" data-chart-data={JSON.stringify(data)} {...props}>
+      {children}
+    </div>
+  ),
+  AreaChart: ({ children, data, ...props }) => (
+    <div data-testid="recharts-area-chart" data-chart-data={JSON.stringify(data)} {...props}>
+      {children}
+    </div>
+  ),
+  BarChart: ({ children, data, ...props }) => (
+    <div data-testid="recharts-bar-chart" data-chart-data={JSON.stringify(data)} {...props}>
+      {children}
+    </div>
+  ),
+  PieChart: ({ children, data, ...props }) => (
+    <div data-testid="recharts-pie-chart" data-chart-data={JSON.stringify(data)} {...props}>
+      {children}
+    </div>
+  ),
+  ComposedChart: ({ children, data, ...props }) => (
+    <div data-testid="recharts-composed-chart" data-chart-data={JSON.stringify(data)} {...props}>
+      {children}
+    </div>
+  ),
+  ResponsiveContainer: ({ children, width, height, ...props }) => (
+    <div data-testid="recharts-responsive-container" style={{ width, height }} {...props}>
+      {children}
+    </div>
+  ),
+  Line: (props) => <div data-testid="recharts-line" {...props} />,
+  Area: (props) => <div data-testid="recharts-area" {...props} />,
+  Bar: (props) => <div data-testid="recharts-bar" {...props} />,
+  Pie: (props) => <div data-testid="recharts-pie" {...props} />,
+  Cell: (props) => <div data-testid="recharts-cell" {...props} />,
+  XAxis: (props) => <div data-testid="recharts-xaxis" {...props} />,
+  YAxis: (props) => <div data-testid="recharts-yaxis" {...props} />,
+  CartesianGrid: (props) => <div data-testid="recharts-grid" {...props} />,
+  Tooltip: (props) => <div data-testid="recharts-tooltip" {...props} />,
 }));
 
-global.TradingView = {
-  widget: vi.fn(() => mockTradingViewWidget),
+// Mock date-fns
+vi.mock('date-fns', () => ({
+  format: vi.fn((date, formatStr) => {
+    if (formatStr === 'MMM dd') return 'Jan 01';
+    if (formatStr === 'MMM dd, yyyy') return 'Jan 01, 2024';
+    return '2024-01-01';
+  }),
+}));
+
+const theme = createTheme();
+
+const renderWithTheme = (component) => {
+  return render(
+    <ThemeProvider theme={theme}>
+      {component}
+    </ThemeProvider>
+  );
 };
 
 describe('ProfessionalChart', () => {
+  const mockData = [
+    { date: '2024-01-01', value: 100, volume: 1000 },
+    { date: '2024-01-02', value: 105, volume: 1200 },
+    { date: '2024-01-03', value: 98, volume: 900 },
+  ];
+
   const defaultProps = {
-    symbol: 'AAPL',
-    interval: '1D',
-    theme: 'light',
-    height: 600,
-    width: '100%',
+    title: 'Test Chart',
+    data: mockData,
+    type: 'line',
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock DOM element for chart container
-    Element.prototype.getBoundingClientRect = vi.fn(() => ({
-      width: 800,
-      height: 600,
-      top: 0,
-      left: 0,
-      bottom: 600,
-      right: 800,
-    }));
   });
 
-  describe('Chart Initialization', () => {
-    it('renders chart container', () => {
-      render(<ProfessionalChart {...defaultProps} />);
+  describe('Basic Rendering', () => {
+    it('renders chart container with title', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} />);
       
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
+      expect(screen.getByText('Test Chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-responsive-container')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
     });
 
-    it('initializes TradingView widget with correct configuration', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
+    it('renders chart with subtitle', () => {
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} subtitle="Test Subtitle" />
+      );
       
-      await waitFor(() => {
-        expect(global.TradingView.widget).toHaveBeenCalledWith(
-          expect.objectContaining({
-            symbol: 'AAPL',
-            interval: '1D',
-            theme: 'light',
-            height: 600,
-            width: '100%',
-          })
-        );
-      });
+      expect(screen.getByText('Test Chart')).toBeInTheDocument();
+      expect(screen.getByText('Test Subtitle')).toBeInTheDocument();
     });
 
-    it('handles chart loading state', () => {
-      render(<ProfessionalChart {...defaultProps} />);
+    it('renders loading state when loading prop is true', () => {
+      const { container } = renderWithTheme(<ProfessionalChart {...defaultProps} loading={true} />);
       
-      expect(screen.getByRole('progressbar')).toBeInTheDocument();
-      expect(screen.getByText(/loading professional chart/i)).toBeInTheDocument();
+      expect(container.querySelector('.MuiSkeleton-root')).toBeInTheDocument();
+      expect(screen.queryByTestId('recharts-line-chart')).not.toBeInTheDocument();
     });
 
-    it('displays error when TradingView library fails to load', () => {
-      global.TradingView = undefined;
+    it('renders error state when error prop is provided', () => {
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} error="Chart error occurred" />
+      );
       
-      render(<ProfessionalChart {...defaultProps} />);
+      expect(screen.getByText('Chart error occurred')).toBeInTheDocument();
+      expect(screen.queryByTestId('recharts-line-chart')).not.toBeInTheDocument();
+    });
+
+    it('renders "no data" message when data is empty', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} data={[]} />);
       
-      expect(screen.getByText(/chart unavailable/i)).toBeInTheDocument();
-      expect(screen.getByText(/tradingview library not loaded/i)).toBeInTheDocument();
+      expect(screen.getByText('No data available')).toBeInTheDocument();
+      expect(screen.queryByTestId('recharts-line-chart')).not.toBeInTheDocument();
+    });
+
+    it('renders "no data" message when data is null', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} data={null} />);
+      
+      expect(screen.getByText('No data available')).toBeInTheDocument();
+      expect(screen.queryByTestId('recharts-line-chart')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Chart Types', () => {
+    it('renders line chart by default', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} />);
+      
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-line')).toBeInTheDocument();
+    });
+
+    it('renders area chart when type is "area"', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} type="area" />);
+      
+      expect(screen.getByTestId('recharts-area-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-area')).toBeInTheDocument();
+    });
+
+    it('renders bar chart when type is "bar"', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} type="bar" />);
+      
+      expect(screen.getByTestId('recharts-bar-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-bar')).toBeInTheDocument();
+    });
+
+    it('renders pie chart when type is "pie"', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} type="pie" />);
+      
+      expect(screen.getByTestId('recharts-pie-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-pie')).toBeInTheDocument();
+    });
+
+    it('renders composed chart when type is "composed"', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} type="composed" />);
+      
+      expect(screen.getByTestId('recharts-composed-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-bar')).toBeInTheDocument();
     });
   });
 
   describe('Chart Configuration', () => {
-    it('applies correct symbol configuration', async () => {
-      render(<ProfessionalChart {...defaultProps} symbol="GOOGL" />);
+    it('passes data to chart components', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} />);
       
-      await waitFor(() => {
-        expect(global.TradingView.widget).toHaveBeenCalledWith(
-          expect.objectContaining({
-            symbol: 'GOOGL',
-          })
-        );
-      });
+      const chartElement = screen.getByTestId('recharts-line-chart');
+      const chartData = JSON.parse(chartElement.getAttribute('data-chart-data'));
+      expect(chartData).toEqual(mockData);
     });
 
-    it('sets up correct time intervals', () => {
-      const { rerender } = render(<ProfessionalChart {...defaultProps} interval="1H" />);
+    it('renders grid when showGrid is true', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} showGrid={true} />);
       
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          interval: '1H',
-        })
-      );
-      
-      rerender(<ProfessionalChart {...defaultProps} interval="15" />);
-      
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          interval: '15',
-        })
-      );
+      expect(screen.getByTestId('recharts-grid')).toBeInTheDocument();
     });
 
-    it('configures chart theme correctly', () => {
-      const { rerender } = render(<ProfessionalChart {...defaultProps} theme="dark" />);
+    it('does not render grid when showGrid is false', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} showGrid={false} />);
       
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          theme: 'dark',
-        })
-      );
-      
-      rerender(<ProfessionalChart {...defaultProps} theme="light" />);
-      
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          theme: 'light',
-        })
-      );
+      expect(screen.queryByTestId('recharts-grid')).not.toBeInTheDocument();
     });
 
-    it('applies professional trading features', () => {
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          features={['header_widget', 'left_toolbar', 'timeframes_toolbar']}
-        />
-      );
+    it('renders tooltip when showTooltip is true', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} showTooltip={true} />);
       
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          enabled_features: expect.arrayContaining(['header_widget', 'left_toolbar']),
-        })
-      );
+      expect(screen.getByTestId('recharts-tooltip')).toBeInTheDocument();
+    });
+
+    it('does not render tooltip when showTooltip is false', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} showTooltip={false} />);
+      
+      expect(screen.queryByTestId('recharts-tooltip')).not.toBeInTheDocument();
+    });
+
+    it('renders X and Y axes', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} />);
+      
+      expect(screen.getByTestId('recharts-xaxis')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-yaxis')).toBeInTheDocument();
+    });
+
+    it('applies custom height', () => {
+      renderWithTheme(<ProfessionalChart {...defaultProps} height={400} />);
+      
+      const container = screen.getByTestId('recharts-responsive-container');
+      expect(container.style.height).toBe('340px'); // height - 60
     });
   });
 
-  describe('Technical Indicators', () => {
-    it('supports adding technical indicators', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      await waitFor(() => {
-        expect(mockTradingViewWidget.onChartReady).toHaveBeenCalled();
-      });
-      
-      // Simulate adding RSI indicator
-      const chartReady = mockTradingViewWidget.onChartReady.mock.calls[0][0];
-      chartReady();
-      
-      const activeChart = mockTradingViewWidget.activeChart();
-      expect(activeChart.createStudy).toBeDefined();
-    });
-
-    it('manages multiple indicators simultaneously', async () => {
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          defaultIndicators={['RSI', 'MACD', 'Moving Average']}
-        />
+  describe('Action Buttons', () => {
+    it('renders refresh button when onRefresh is provided', () => {
+      const mockRefresh = vi.fn();
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} onRefresh={mockRefresh} />
       );
       
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.createStudy).toBeDefined();
-      });
+      expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument();
     });
 
-    it('allows removing indicators', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.removeAllStudies).toBeDefined();
-      });
-    });
-  });
-
-  describe('Drawing Tools', () => {
-    it('supports trend line drawing', async () => {
-      render(<ProfessionalChart {...defaultProps} enableDrawing={true} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.createShape).toBeDefined();
-      });
-    });
-
-    it('handles fibonacci retracement tools', async () => {
-      render(<ProfessionalChart {...defaultProps} enableDrawing={true} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.createMultipointShape).toBeDefined();
-      });
-    });
-
-    it('manages shape persistence', async () => {
-      render(<ProfessionalChart {...defaultProps} saveShapes={true} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.removeAllShapes).toBeDefined();
-      });
-    });
-  });
-
-  describe('Data Management', () => {
-    it('handles real-time data updates', async () => {
-      render(<ProfessionalChart {...defaultProps} realtime={true} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.onDataLoaded).toBeDefined();
-      });
-    });
-
-    it('supports historical data loading', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.exportData).toBeDefined();
-      });
-    });
-
-    it('handles symbol changes dynamically', async () => {
-      const { rerender } = render(<ProfessionalChart {...defaultProps} symbol="AAPL" />);
-      
-      rerender(<ProfessionalChart {...defaultProps} symbol="MSFT" />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.setSymbol).toHaveBeenCalledWith('MSFT');
-      });
-    });
-
-    it('updates time intervals correctly', async () => {
-      const { rerender } = render(<ProfessionalChart {...defaultProps} interval="1D" />);
-      
-      rerender(<ProfessionalChart {...defaultProps} interval="1H" />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.setResolution).toHaveBeenCalledWith('1H');
-      });
-    });
-  });
-
-  describe('Chart Interactions', () => {
-    it('supports chart zoom and pan', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      const chartContainer = screen.getByTestId('tradingview-chart');
-      
-      // Simulate mouse wheel zoom
-      fireEvent.wheel(chartContainer, { deltaY: -100, ctrlKey: true });
-      
-      // TradingView handles zoom internally
-      expect(chartContainer).toBeInTheDocument();
-    });
-
-    it('handles crosshair and price tracking', async () => {
-      render(<ProfessionalChart {...defaultProps} enableCrosshair={true} />);
-      
-      const chartContainer = screen.getByTestId('tradingview-chart');
-      fireEvent.mouseMove(chartContainer, { clientX: 400, clientY: 300 });
-      
-      expect(chartContainer).toBeInTheDocument();
-    });
-
-    it('supports price alerts creation', async () => {
-      const mockOnAlertCreate = vi.fn();
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          onAlertCreate={mockOnAlertCreate}
-          enableAlerts={true}
-        />
+    it('renders download button when onDownload is provided', () => {
+      const mockDownload = vi.fn();
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} onDownload={mockDownload} />
       );
       
-      // Alert creation would be handled through TradingView interface
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
-    });
-  });
-
-  describe('Export and Sharing', () => {
-    it('supports chart screenshot export', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.takeScreenshot).toBeDefined();
-      });
+      expect(screen.getByRole('button', { name: /download/i })).toBeInTheDocument();
     });
 
-    it('exports chart data in multiple formats', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        expect(activeChart.exportData).toBeDefined();
-      });
-    });
-
-    it('supports chart layout sharing', async () => {
-      const mockOnLayoutSave = vi.fn();
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          onLayoutSave={mockOnLayoutSave}
-          enableLayoutSaving={true}
-        />
+    it('renders fullscreen button when onFullscreen is provided', () => {
+      const mockFullscreen = vi.fn();
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} onFullscreen={mockFullscreen} />
       );
       
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
-    });
-  });
-
-  describe('Responsive Design', () => {
-    it('adapts to container size changes', async () => {
-      const { rerender } = render(<ProfessionalChart {...defaultProps} height={400} />);
-      
-      rerender(<ProfessionalChart {...defaultProps} height={800} />);
-      
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /fullscreen/i })).toBeInTheDocument();
     });
 
-    it('handles mobile viewport correctly', () => {
-      // Mock mobile viewport
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
-      
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          disabled_features: expect.arrayContaining(['header_widget']),
-        })
-      );
-    });
-
-    it('optimizes for tablet display', () => {
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 768,
-      });
-      
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
-    });
-  });
-
-  describe('Performance Optimization', () => {
-    it('implements lazy loading for chart library', async () => {
-      const mockImport = vi.fn(() => Promise.resolve({ widget: vi.fn() }));
-      global.import = mockImport;
-      
-      render(<ProfessionalChart {...defaultProps} lazyLoad={true} />);
-      
-      // Should load chart library on demand
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
-    });
-
-    it('manages memory efficiently', () => {
-      const { unmount } = render(<ProfessionalChart {...defaultProps} />);
-      
-      unmount();
-      
-      expect(mockTradingViewWidget.remove).toHaveBeenCalled();
-    });
-
-    it('handles multiple chart instances', () => {
-      render(
-        <>
-          <ProfessionalChart {...defaultProps} symbol="AAPL" />
-          <ProfessionalChart {...defaultProps} symbol="GOOGL" />
-        </>
+    it('calls onRefresh when refresh button is clicked', () => {
+      const mockRefresh = vi.fn();
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} onRefresh={mockRefresh} />
       );
       
-      expect(global.TradingView.widget).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('provides keyboard navigation support', () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      const chartContainer = screen.getByTestId('tradingview-chart');
-      expect(chartContainer).toHaveAttribute('tabIndex', '0');
+      fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
+      expect(mockRefresh).toHaveBeenCalledOnce();
     });
 
-    it('includes ARIA labels for screen readers', () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      expect(screen.getByLabelText(/professional trading chart for AAPL/i)).toBeInTheDocument();
-    });
-
-    it('supports high contrast mode', () => {
-      render(<ProfessionalChart {...defaultProps} highContrast={true} />);
-      
-      expect(global.TradingView.widget).toHaveBeenCalledWith(
-        expect.objectContaining({
-          overrides: expect.objectContaining({
-            'paneProperties.background': '#000000',
-          }),
-        })
+    it('calls onDownload when download button is clicked', () => {
+      const mockDownload = vi.fn();
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} onDownload={mockDownload} />
       );
+      
+      fireEvent.click(screen.getByRole('button', { name: /download/i }));
+      expect(mockDownload).toHaveBeenCalledOnce();
     });
 
-    it('provides alternative data view', () => {
-      render(<ProfessionalChart {...defaultProps} showDataTable={true} />);
+    it('calls onFullscreen when fullscreen button is clicked', () => {
+      const mockFullscreen = vi.fn();
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} onFullscreen={mockFullscreen} />
+      );
       
-      expect(screen.getByRole('button', { name: /view data table/i })).toBeInTheDocument();
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('handles chart initialization failures', () => {
-      global.TradingView.widget.mockImplementationOnce(() => {
-        throw new Error('Chart initialization failed');
-      });
-      
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      expect(screen.getByText(/chart initialization failed/i)).toBeInTheDocument();
-    });
-
-    it('recovers from data loading errors', async () => {
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      // Simulate data loading error
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        const onDataLoaded = activeChart.onDataLoaded.mock.calls[0]?.[0];
-        if (onDataLoaded) {
-          onDataLoaded({ error: 'Data unavailable' });
-        }
-      });
-      
-      expect(screen.getByText(/data unavailable/i)).toBeInTheDocument();
-    });
-
-    it('provides fallback when TradingView is unavailable', () => {
-      global.TradingView = null;
-      
-      render(<ProfessionalChart {...defaultProps} />);
-      
-      expect(screen.getByText(/professional chart unavailable/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /load basic chart/i })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /fullscreen/i }));
+      expect(mockFullscreen).toHaveBeenCalledOnce();
     });
   });
 
-  describe('Custom Features', () => {
-    it('supports custom toolbar items', () => {
-      const customButtons = [
-        { id: 'export', label: 'Export', onClick: vi.fn() },
-        { id: 'alerts', label: 'Alerts', onClick: vi.fn() },
+  describe('Custom Actions', () => {
+    it('renders custom action buttons', () => {
+      const mockAction1 = vi.fn();
+      const mockAction2 = vi.fn();
+      
+      const customActions = [
+        {
+          tooltip: 'Custom Action 1',
+          onClick: mockAction1,
+          icon: <span data-testid="custom-icon-1">Icon1</span>,
+        },
+        {
+          tooltip: 'Custom Action 2',
+          onClick: mockAction2,
+          icon: <span data-testid="custom-icon-2">Icon2</span>,
+        },
       ];
-      
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          customToolbar={customButtons}
-        />
+
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} actions={customActions} />
       );
       
-      expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Alerts' })).toBeInTheDocument();
+      expect(screen.getByTestId('custom-icon-1')).toBeInTheDocument();
+      expect(screen.getByTestId('custom-icon-2')).toBeInTheDocument();
     });
 
-    it('integrates with trading platform', () => {
-      const mockOnTrade = vi.fn();
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          enableTrading={true}
-          onTrade={mockOnTrade}
-        />
-      );
+    it('calls custom action callbacks when clicked', () => {
+      const mockAction = vi.fn();
       
-      // Trading integration would be handled through callbacks
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
-    });
+      const customActions = [
+        {
+          tooltip: 'Custom Action',
+          onClick: mockAction,
+          icon: <span data-testid="custom-icon">Icon</span>,
+        },
+      ];
 
-    it('supports multi-timeframe analysis', () => {
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          multiTimeframe={['1m', '5m', '1h', '1d']}
-        />
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} actions={customActions} />
       );
       
-      expect(screen.getByTestId('tradingview-chart')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('custom-icon').closest('button'));
+      expect(mockAction).toHaveBeenCalledOnce();
     });
   });
 
-  describe('Event Handling', () => {
-    it('handles symbol change events', async () => {
-      const mockOnSymbolChange = vi.fn();
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          onSymbolChange={mockOnSymbolChange}
+  describe('Pie Chart Specific', () => {
+    it('renders pie chart with colored cells', () => {
+      const pieData = [
+        { name: 'A', value: 100, color: '#ff0000' },
+        { name: 'B', value: 200, color: '#00ff00' },
+      ];
+
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} type="pie" data={pieData} />
+      );
+      
+      expect(screen.getByTestId('recharts-pie-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-pie')).toBeInTheDocument();
+      // Pie charts render multiple cells
+      expect(screen.getAllByTestId('recharts-cell').length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Props Filtering', () => {
+    it('filters out invalid DOM props', () => {
+      renderWithTheme(
+        <ProfessionalChart
+          {...defaultProps}
+          _defaultIndicators={['RSI']}
+          _enableDrawing={true}
+          _saveShapes={true}
+          _realtime={true}
+          _enableCrosshair={true}
+          _priceAlerts={[]}
+          _enableAlerts={true}
+          _onAlertCreate={vi.fn()}
+          _onLayoutSave={vi.fn()}
+          _enableLayoutSaving={true}
+          _lazyLoad={true}
+          _highContrast={true}
+          _symbol="AAPL"
+          _interval="1D"
+          _multitimeframe={['1m', '5m']}
         />
       );
       
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        const symbolChanged = activeChart.onSymbolChanged.mock.calls[0]?.[0];
-        if (symbolChanged) {
-          symbolChanged('MSFT');
-        }
-      });
+      // Component should render without warnings about invalid DOM attributes
+      expect(screen.getByText('Test Chart')).toBeInTheDocument();
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
+    });
+  });
+
+  describe('Color Configuration', () => {
+    it('uses custom color when provided', () => {
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} color="#ff5722" />
+      );
       
-      expect(mockOnSymbolChange).toHaveBeenCalledWith('MSFT');
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
     });
 
-    it('handles interval change events', async () => {
-      const mockOnIntervalChange = vi.fn();
-      render(
-        <ProfessionalChart 
-          {...defaultProps} 
-          onIntervalChange={mockOnIntervalChange}
-        />
+    it('uses predefined color from CHART_COLORS', () => {
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} color="success" />
       );
       
-      await waitFor(() => {
-        const activeChart = mockTradingViewWidget.activeChart();
-        const intervalChanged = activeChart.onIntervalChanged.mock.calls[0]?.[0];
-        if (intervalChanged) {
-          intervalChanged('1H');
-        }
-      });
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
+    });
+  });
+
+  describe('Data Keys Configuration', () => {
+    it('uses custom dataKey', () => {
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} dataKey="customValue" />
+      );
       
-      expect(mockOnIntervalChange).toHaveBeenCalledWith('1H');
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
+    });
+
+    it('uses custom xAxisDataKey', () => {
+      renderWithTheme(
+        <ProfessionalChart {...defaultProps} xAxisDataKey="timestamp" />
+      );
+      
+      expect(screen.getByTestId('recharts-line-chart')).toBeInTheDocument();
     });
   });
 });

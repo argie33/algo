@@ -166,10 +166,10 @@ function TradingSignals() {
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
-    if (!signalsData?.data) return null;
+    if (!signalsData?.data || !Array.isArray(signalsData?.data)) return null;
 
-    const signals = signalsData.data;
-    const totalSignals = signals.length;
+    const signals = signalsData?.data;
+    const totalSignals = (signals?.length || 0);
     const recentSignals = signals.filter((s) => isRecentSignal(s.date)).length;
     const buySignals = signals.filter((s) => s.signal === "Buy").length;
     const sellSignals = signals.filter((s) => s.signal === "Sell").length;
@@ -197,12 +197,12 @@ function TradingSignals() {
 
   // Filter data based on recent-only setting
   const filteredSignals = useMemo(() => {
-    if (!signalsData?.data) {
-      console.log("No signals data available:", signalsData);
+    if (!signalsData?.data || !Array.isArray(signalsData?.data)) {
+      console.log("No signals data available or not array:", signalsData);
       return [];
     }
 
-    let filtered = signalsData.data;
+    let filtered = signalsData?.data;
 
     // Apply recent filter
     if (showRecentOnly) {
@@ -217,8 +217,8 @@ function TradingSignals() {
     }
 
     logger.info("filteredSignals", "Data filtered", {
-      originalCount: signalsData.data.length,
-      filteredCount: filtered.length,
+      originalCount: (signalsData.data?.length || 0),
+      filteredCount: (filtered?.length || 0),
       showRecentOnly,
       symbolFilter,
     });
@@ -730,7 +730,7 @@ function TradingSignals() {
           {/* No Data State */}
           {!signalsError &&
             !signalsLoading &&
-            (!signalsData?.data || signalsData.data.length === 0) && (
+            (!signalsData?.data || (signalsData.data?.length || 0) === 0) && (
               <ErrorDisplay
                 error={{
                   message: "No trading signals data found",

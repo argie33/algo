@@ -1,6 +1,52 @@
 /**
  * Centralized error logging utility for consistent error handling across all pages
+ * Enhanced with circular reference protection and comprehensive error details
  */
+
+/**
+ * Safely stringify an object, handling circular references
+ * @param {any} obj - Object to stringify
+ * @param {number} maxDepth - Maximum depth to traverse
+ * @returns {string} Safe JSON string
+ */
+const safeStringify = (obj, _maxDepth = 3) => {
+  const seen = new WeakSet();
+  
+  return JSON.stringify(obj, (key, value) => {
+    if (value === null || value === undefined) return value;
+    
+    if (typeof value === 'function') {
+      return `[Function: ${value.name || 'anonymous'}]`;
+    }
+    
+    if (typeof value === 'object') {
+      if (seen.has(value)) {
+        return '[Circular Reference]';
+      }
+      seen.add(value);
+      
+      // Handle special objects safely
+      if (value instanceof Error) {
+        return {
+          name: value.name,
+          message: value.message,
+          stack: value.stack,
+          code: value.code
+        };
+      }
+      
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      
+      if (value instanceof Element) {
+        return `[Element: ${value.tagName}]`;
+      }
+    }
+    
+    return value;
+  }, 2);
+};
 
 /**
  * Log API/network error with detailed context
@@ -14,31 +60,56 @@ export const logApiError = (component, operation, error, context = {}) => {
   const errorMessage = error?.message || error?.toString() || "Unknown error";
   const errorStack = error?.stack || "No stack trace available";
 
-  // Log structured error information
+  // Log structured error information (using console.log to avoid recursion)
   console.group(`❌ ${component} - ${operation} failed`);
-  console.error(`🕒 Timestamp: ${timestamp}`);
-  console.error(`📍 Component: ${component}`);
-  console.error(`🔄 Operation: ${operation}`);
-  console.error(`💥 Error: ${errorMessage}`);
+  console.log(`🕒 Timestamp: ${timestamp}`);
+  console.log(`📍 Component: ${component}`);
+  console.log(`🔄 Operation: ${operation}`);
+  console.log(`💥 Error: ${errorMessage}`);
 
-  // Log additional context if provided
-  if (context.url) console.error(`🌐 URL: ${context.url}`);
-  if (context.params) console.error(`📋 Params:`, context.params);
-  if (context.response) console.error(`📡 Response:`, context.response);
-  if (context.status) console.error(`🚦 Status: ${context.status}`);
+  // Log additional context if provided (with safe stringification)
+  if (context.url) console.log(`🌐 URL: ${context.url}`);
+  if (context.params) console.log(`📋 Params:`, safeStringify(context.params));
+  if (context.response) console.log(`📡 Response:`, safeStringify(context.response));
+  if (context.status) console.log(`🚦 Status: ${context.status}`);
 
-  // Log full error details
-  console.error(`📄 Full Error:`, error);
-  console.error(`📚 Stack Trace:`, errorStack);
+  // Log full error details safely (avoid circular references)
+  try {
+    console.log(`📄 Full Error Details:`, safeStringify(error));
+  } catch (stringifyError) {
+    console.log(`📄 Full Error (safe fallback):`, {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      isAxiosError: error?.isAxiosError
+    });
+  }
+  
+  console.log(`📚 Stack Trace:`, errorStack);
+  
+  // Additional axios error details if available (with safe stringification)
+  if (error?.isAxiosError) {
+    const axiosDetails = {
+      url: error.config?.url,
+      method: error.config?.method,
+      baseURL: error.config?.baseURL,
+      timeout: error.config?.timeout,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      responseData: error.response?.data
+    };
+    console.log(`🌐 Axios Error Details:`, safeStringify(axiosDetails));
+  }
 
   console.groupEnd();
 
-  // Also log a simple version for easier searching
-  console.error(`❌ ${component} - ${operation} failed:`, {
+  // Also log a simple version for easier searching (with safe stringification)
+  const simplifiedLog = {
     error: errorMessage,
-    context,
+    context: safeStringify(context),
     timestamp,
-  });
+  };
+  console.log(`❌ ${component} - ${operation} failed:`, safeStringify(simplifiedLog));
 };
 
 /**
@@ -70,17 +141,18 @@ export const logApiSuccess = (
 ) => {
   const timestamp = new Date().toISOString();
 
-  console.log(`✅ ${component} - ${operation} succeeded`, {
+  const successLog = {
     timestamp,
     component,
     operation,
     resultSize: result
       ? Array.isArray(result)
-        ? result.length
+        ? (result?.length || 0)
         : Object.keys(result).length
       : "N/A",
     context,
-  });
+  };
+  console.log(`✅ ${component} - ${operation} succeeded`, safeStringify(successLog));
 };
 
 /**
@@ -95,6 +167,8 @@ export const createComponentLogger = (component) => ({
     logQueryError(component, queryKey, error, context),
   success: (operation, result, context) =>
     logApiSuccess(component, operation, result, context),
+  info: (message, context) => 
+    console.log(`ℹ️ [${component}] ${message}`, context),
 });
 
 export default {

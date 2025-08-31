@@ -456,7 +456,7 @@ const RiskManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {riskData?.positionRisks.map((position) => (
+                {(riskData?.positionRisks || []).map((position) => (
                   <TableRow key={position.symbol}>
                     <TableCell>
                       <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -546,7 +546,7 @@ const RiskManagement = () => {
             Stress Test Results
           </Typography>
           <Grid container spacing={2}>
-            {riskData?.stressTests.map((test, index) => (
+            {(riskData?.stressTests || []).map((test, index) => (
               <Grid item xs={12} md={6} key={index}>
                 <Card variant="outlined">
                   <CardContent>
@@ -600,7 +600,7 @@ const RiskManagement = () => {
             </Button>
           </Box>
 
-          {riskData?.riskAlerts.map((alert) => (
+          {(riskData?.riskAlerts || []).map((alert) => (
             <Alert
               key={alert.id}
               severity={alert.severity}

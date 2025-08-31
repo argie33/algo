@@ -23,21 +23,21 @@ router.get("/buy", async (req, res) => {
     const buySignalsQuery = `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) > 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.symbol ASC, bs.signal DESC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -47,7 +47,7 @@ router.get("/buy", async (req, res) => {
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) > 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
     `;
 
     const [signalsResult, countResult] = await Promise.all([
@@ -68,12 +68,12 @@ router.get("/buy", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    // Transform data to camelCase and convert signal to number
+    // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
     const transformedData = signalsResult.rows.map(row => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -136,21 +136,21 @@ router.get("/sell", async (req, res) => {
     const sellSignalsQuery = `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) < 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.symbol ASC, bs.signal ASC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -160,7 +160,7 @@ router.get("/sell", async (req, res) => {
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) < 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
     `;
 
     const [signalsResult, countResult] = await Promise.all([
@@ -181,12 +181,12 @@ router.get("/sell", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    // Transform data to camelCase and convert signal to number
+    // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
     const transformedData = signalsResult.rows.map(row => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -251,46 +251,46 @@ router.get("/", async (req, res) => {
       `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield,
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) > 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.signal DESC, bs.date DESC
-      LIMIT ${Math.ceil(limit/2)}
+      LIMIT $1
       `,
       `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield,
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) < 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.signal ASC, bs.date DESC
-      LIMIT ${Math.floor(limit/2)}
+      LIMIT $1
       `,
       `
       SELECT COUNT(*) as total
@@ -301,8 +301,8 @@ router.get("/", async (req, res) => {
     ];
 
     const [buyResult, sellResult, countResult] = await Promise.all([
-      query(buySignalsQuery),
-      query(sellSignalsQuery),
+      query(buySignalsQuery, [Math.ceil(limit/2)]),
+      query(sellSignalsQuery, [Math.floor(limit/2)]),
       query(countQuery),
     ]);
 
@@ -327,12 +327,12 @@ router.get("/", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    // Transform data to camelCase and convert signal to number
+    // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
     const buySignals = buyResult.rows.map(row => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -345,7 +345,7 @@ router.get("/", async (req, res) => {
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,

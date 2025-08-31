@@ -1401,14 +1401,16 @@
 <a name='L1336'></a><a href='#L1336'>1336</a>
 <a name='L1337'></a><a href='#L1337'>1337</a>
 <a name='L1338'></a><a href='#L1338'>1338</a>
-<a name='L1339'></a><a href='#L1339'>1339</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">8x</span>
+<a name='L1339'></a><a href='#L1339'>1339</a>
+<a name='L1340'></a><a href='#L1340'>1340</a>
+<a name='L1341'></a><a href='#L1341'>1341</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1417,7 +1419,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1469,7 +1471,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1557,7 +1559,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1612,7 +1614,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2534,6 +2536,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2738,7 +2742,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
 &nbsp;
 const { query } = require("../utils/database");
@@ -2920,9 +2924,9 @@ router.get("/top", <span class="fstat-no" title="function not covered" >as</span
 &nbsp;
     const topStocks = <span class="cstat-no" title="statement not covered" >await query(</span>
       `
-      SELECT cs.*, se.company_name, se.sector, se.market_cap, se.market_cap_tier
+      SELECT cs.*, s.security_name as company_name, NULL as sector, NULL as market_cap, NULL as market_cap_tier
       FROM comprehensive_scores cs
-      JOIN stock_symbols_enhanced se ON cs.symbol = se.symbol
+      JOIN stock_symbols s ON cs.symbol = s.symbol
       ${whereClause}
       AND cs.updated_at &gt; NOW() - INTERVAL '24 hours'
       ORDER BY cs.composite_score DESC
@@ -2973,14 +2977,14 @@ router.get("/stats", <span class="fstat-no" title="function not covered" >as</sp
 &nbsp;
     const sectorStats = <span class="cstat-no" title="statement not covered" >await query(`</span>
       SELECT 
-        se.sector,
+        'General' as sector,
         COUNT(*) as count,
         AVG(cs.composite_score) as avg_score,
         MAX(cs.composite_score) as max_score
       FROM comprehensive_scores cs
-      JOIN stock_symbols_enhanced se ON cs.symbol = se.symbol
+      JOIN stock_symbols s ON cs.symbol = s.symbol
       WHERE cs.updated_at &gt; NOW() - INTERVAL '24 hours'
-      GROUP BY se.sector
+      GROUP BY 'General'
       ORDER BY avg_score DESC
     `);
 &nbsp;
@@ -3867,7 +3871,9 @@ async function <span class="fstat-no" title="function not covered" >getBasicInfo
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const result = <span class="cstat-no" title="statement not covered" >await query(</span>
       `
-      SELECT * FROM stock_symbols_enhanced 
+      SELECT symbol, security_name as company_name, exchange, 
+             NULL as sector, NULL as market_cap, NULL as market_cap_tier
+      FROM stock_symbols 
       WHERE symbol = $1
     `,
       [symbol]
@@ -4084,7 +4090,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-25T22:51:58.063Z
+                at 2025-08-30T00:17:13.129Z
             </div>
         <script src="../prettify.js"></script>
         <script>

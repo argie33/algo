@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Alert,
@@ -87,12 +87,7 @@ const PortfolioPerformance = () => {
     sortinoRatio: 0,
   });
 
-  useEffect(() => {
-    fetchPerformanceData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeframe]);
-
-  const fetchPerformanceData = async () => {
+  const fetchPerformanceData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null); // Clear any previous errors
@@ -103,7 +98,7 @@ const PortfolioPerformance = () => {
 
       if (perfData) {
         // Transform performance data
-        const transformedData = perfData.performance || perfData.data || [];
+        const transformedData = perfData.performance || perfData?.data || [];
         setPerformanceData(transformedData);
 
         // Extract or use default metrics
@@ -218,7 +213,11 @@ const PortfolioPerformance = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeframe]);
+
+  useEffect(() => {
+    fetchPerformanceData();
+  }, [fetchPerformanceData]);
 
   const formatPercentage = (value) => {
     const color = value >= 0 ? "success.main" : "error.main";
@@ -234,13 +233,13 @@ const PortfolioPerformance = () => {
   };
 
   const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
+    if (active && payload && (payload?.length || 0)) {
       return (
         <Paper sx={{ p: 2, border: 1, borderColor: "divider" }}>
           <Typography variant="body2" sx={{ mb: 1 }}>
             {label}
           </Typography>
-          {payload.map((entry, index) => (
+          {(payload || []).map((entry, index) => (
             <Typography key={index} variant="body2" sx={{ color: entry.color }}>
               {entry.name}:{" "}
               {entry.name.includes("%")
@@ -486,7 +485,7 @@ const PortfolioPerformance = () => {
                           `${name}: ${contribution.toFixed(2)}%`
                         }
                       >
-                        {attributionData.sectorAttribution.map(
+                        {(attributionData.sectorAttribution || []).map(
                           (entry, index) => (
                             <Cell
                               key={`cell-${index}`}
@@ -707,7 +706,7 @@ const PortfolioPerformance = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {analytics.holdingsPerformance.map((holding) => (
+                    {(analytics.holdingsPerformance || []).map((holding) => (
                       <TableRow key={holding.symbol}>
                         <TableCell>
                           <Typography variant="body2" fontWeight="bold">

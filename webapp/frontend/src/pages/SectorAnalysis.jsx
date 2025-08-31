@@ -15,7 +15,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -36,6 +35,7 @@ import {
   Pie,
   Cell,
   Legend,
+  Tooltip,
 } from "recharts";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../utils/apiService.jsx";
@@ -89,13 +89,13 @@ const SectorAnalysis = () => {
         `/api/websocket/stream/${symbols.join(",")}`
       );
 
-      if (response.data.success) {
-        const liveData = response.data.data;
+      if (response?.data.success) {
+        const liveData = response?.data.data;
 
         // Transform API data for sector analysis
         const sectors = Object.entries(sectorETFs).map(
           ([etfSymbol, sectorInfo]) => {
-            const symbolData = liveData.data[etfSymbol];
+            const symbolData = liveData?.data[etfSymbol];
             if (symbolData && !symbolData.error) {
               const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
               // Mock performance data - in a real implementation this would be calculated from historical data
@@ -130,7 +130,7 @@ const SectorAnalysis = () => {
         setLastUpdate(new Date());
 
         console.log("✅ Sector analysis data loaded successfully", {
-          sectors: sectors.length,
+          sectors: (sectors?.length || 0),
           successful: sectors.filter((s) => !s.error).length,
           failed: sectors.filter((s) => s.error).length,
         });
@@ -202,7 +202,7 @@ const SectorAnalysis = () => {
           </Typography>
           <Box display="flex" gap={1} mt={1}>
             <Chip
-              label={`${sectorData.length} sectors`}
+              label={`${(sectorData?.length || 0)} sectors`}
               color="primary"
               size="small"
             />
@@ -296,7 +296,7 @@ const SectorAnalysis = () => {
                       fill={(entry) => entry.color}
                       radius={[4, 4, 0, 0]}
                     >
-                      {chartData.map((entry, index) => (
+                      {(chartData || []).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Bar>
@@ -332,7 +332,7 @@ const SectorAnalysis = () => {
                       paddingAngle={2}
                       dataKey="value"
                     >
-                      {pieData.map((entry, index) => (
+                      {(pieData || []).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -388,7 +388,7 @@ const SectorAnalysis = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sectorData.map((sector) => {
+                {(sectorData || []).map((sector) => {
                   const hasError = sector.error;
                   const isPositive = sector.changePercent >= 0;
 

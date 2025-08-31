@@ -1,4 +1,0 @@
-
-> financial-dashboard-frontend@1.0.3 test
-> vitest run src/tests/unit/ src/tests/component/ --testTimeout=15000 --reporter=json --run
-

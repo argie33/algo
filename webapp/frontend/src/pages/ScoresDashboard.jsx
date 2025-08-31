@@ -137,7 +137,7 @@ const ScoreGauge = ({
             dataKey="value"
             stroke="none"
           >
-            {data.map((entry, index) => (
+            {(data || []).map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.fill} />
             ))}
           </Pie>
@@ -811,7 +811,7 @@ const ScoresDashboard = () => {
             </Typography>
           </Grid>
 
-          {scoreCategories.map((category) => {
+          {(scoreCategories || []).map((category) => {
             const categoryScore = scores[category.id];
             const isExpanded = expandedCategories[category.id];
 
@@ -910,7 +910,7 @@ const ScoresDashboard = () => {
                         >
                           Component Analysis
                         </Typography>
-                        {category.subScores.map((subScore) => {
+                        {(category.subScores || []).map((subScore) => {
                           const value = categoryScore[subScore.key] || 0;
                           return (
                             <Box key={subScore.key} sx={{ mb: 2 }}>
@@ -1048,7 +1048,7 @@ const ScoresDashboard = () => {
                 <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart
-                      data={scoreCategories.map((cat) => ({
+                      data={(scoreCategories || []).map((cat) => ({
                         category: cat.title.replace(" Score", ""),
                         score: scores[cat.id].composite,
                         fullMark: 100,
@@ -1099,7 +1099,7 @@ const ScoresDashboard = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {peerComparison.map((peer) => (
+                  {(peerComparison || []).map((peer) => (
                     <TableRow
                       key={peer.symbol}
                       selected={peer.symbol === selectedStock?.symbol}
@@ -1174,7 +1174,7 @@ const ScoresDashboard = () => {
 
   const _renderMethodology = () => (
     <Grid container spacing={3}>
-      {scoreCategories.map((category) => (
+      {(scoreCategories || []).map((category) => (
         <Grid item xs={12} key={category.id}>
           <Accordion defaultExpanded={false}>
             <AccordionSummary expandIcon={<ExpandMore />}>
@@ -1199,7 +1199,7 @@ const ScoresDashboard = () => {
               <Typography paragraph>{category.description}</Typography>
               <Divider sx={{ my: 2 }} />
               <Grid container spacing={2}>
-                {category.subScores.map((subScore) => (
+                {(category.subScores || []).map((subScore) => (
                   <Grid item xs={12} md={6} key={subScore.key}>
                     <Paper
                       sx={{
@@ -1309,14 +1309,13 @@ const ScoresDashboard = () => {
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-          <Tab value={0} label="Dashboard" icon={<Assessment />} iconPosition="start" />
+          <Tab label="Dashboard" icon={<Assessment />} iconPosition="start" />
           <Tab
-            value={1}
             label="Peer Comparison"
             icon={<CompareArrows />}
             iconPosition="start"
           />
-          <Tab value={2} label="Methodology" icon={<School />} iconPosition="start" />
+          <Tab label="Methodology" icon={<School />} iconPosition="start" />
         </Tabs>
       </Box>
 

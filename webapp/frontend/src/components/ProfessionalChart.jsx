@@ -110,7 +110,7 @@ const ProfessionalChart = ({
       );
     }
 
-    if (!data || data.length === 0) {
+    if (!data || (data?.length || 0) === 0) {
       return (
         <Box
           sx={{
@@ -246,7 +246,7 @@ const ProfessionalChart = ({
                 fill="#8884d8"
                 dataKey={dataKey}
               >
-                {data.map((entry, index) => (
+                {(data || []).map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={entry.color || CHART_COLORS.primary}
@@ -425,7 +425,7 @@ const ProfessionalChart = ({
                 </IconButton>
               </Tooltip>
             )}
-            {actions.map((action, index) => (
+            {(actions || []).map((action, index) => (
               <Tooltip key={index} title={action.tooltip}>
                 <IconButton size="small" onClick={action.onClick}>
                   {action.icon}

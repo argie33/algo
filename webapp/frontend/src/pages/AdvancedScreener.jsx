@@ -125,10 +125,10 @@ const AdvancedScreener = () => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Screening Results ({results.length} stocks found)
+              Screening Results ({(results?.length || 0)} stocks found)
             </Typography>
             <Grid container spacing={2}>
-              {results.map((stock) => (
+              {(results || []).map((stock) => (
                 <Grid item xs={12} md={6} lg={4} key={stock.symbol}>
                   <Card variant="outlined">
                     <CardContent>

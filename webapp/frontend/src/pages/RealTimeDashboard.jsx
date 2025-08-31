@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Alert,
   Avatar,
@@ -29,7 +29,6 @@ import {
   TableRow,
   Tabs,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -59,6 +58,7 @@ import {
   BarChart as RechartsBarChart,
   Bar,
   Cell,
+  Tooltip as RechartsTooltip,
 } from "recharts";
 import {
   formatCurrency,
@@ -101,34 +101,7 @@ const RealTimeDashboard = () => {
   const [refreshInterval, setRefreshInterval] = useState(5); // seconds
   const intervalRef = useRef(null);
 
-  // Load initial data
-  useEffect(() => {
-    loadMarketData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Streaming interval
-  useEffect(() => {
-    if (isStreaming) {
-      intervalRef.current = setInterval(() => {
-        loadMarketData();
-        setLastUpdate(new Date());
-      }, refreshInterval * 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStreaming, refreshInterval, watchlist]);
-
-  const loadMarketData = async () => {
+  const loadMarketData = useCallback(async () => {
     try {
       setError(null);
 
@@ -142,12 +115,12 @@ const RealTimeDashboard = () => {
         `/api/websocket/stream/${watchlist.join(",")}`
       );
 
-      if (response.data.success) {
-        const liveData = response.data.data;
+      if (response?.data.success) {
+        const liveData = response?.data.data;
 
         // Transform API data to match component expectations
-        const watchlistData = watchlist.map((symbol) => {
-          const symbolData = liveData.data[symbol];
+        const watchlistData = (watchlist || []).map((symbol) => {
+          const symbolData = liveData?.data[symbol];
           if (symbolData && !symbolData.error) {
             const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
             return {
@@ -195,14 +168,14 @@ const RealTimeDashboard = () => {
           sectorPerformance: [],
           lastUpdated: new Date().toISOString(),
           dataProvider: "alpaca",
-          requestInfo: response.data.request_info,
+          requestInfo: response?.data.request_info,
         });
 
         console.log("✅ Live market data loaded successfully", {
-          symbols: watchlist.length,
-          successful: response.data.statistics?.successful || 0,
-          cached: response.data.statistics?.cached || 0,
-          failed: response.data.statistics?.failed || 0,
+          symbols: (watchlist?.length || 0),
+          successful: response?.data.statistics?.successful || 0,
+          cached: response?.data.statistics?.cached || 0,
+          failed: response?.data.statistics?.failed || 0,
         });
       } else {
         throw new Error("Failed to fetch live market data");
@@ -216,7 +189,7 @@ const RealTimeDashboard = () => {
         isMockData: false,
         error: true,
         errorMessage: error.message,
-        watchlistData: watchlist.map((symbol) => ({
+        watchlistData: (watchlist || []).map((symbol) => ({
           symbol: symbol,
           price: 0,
           change: 0,
@@ -239,7 +212,32 @@ const RealTimeDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, watchlist]);
+
+  // Load initial data
+  useEffect(() => {
+    loadMarketData();
+  }, [loadMarketData]);
+
+  // Streaming interval
+  useEffect(() => {
+    if (isStreaming) {
+      intervalRef.current = setInterval(() => {
+        loadMarketData();
+        setLastUpdate(new Date());
+      }, refreshInterval * 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isStreaming, refreshInterval, loadMarketData]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -683,7 +681,7 @@ const RealTimeDashboard = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {marketData.watchlistData.map((stock) => {
+                          {(marketData.watchlistData || []).map((stock) => {
                             const vwap =
                               stock.price * (1 + (Math.random() - 0.5) * 0.01);
                             const vwapDiff =
@@ -1177,14 +1175,14 @@ const RealTimeDashboard = () => {
                           height={80}
                         />
                         <YAxis />
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value) => [
                             `${formatPercentage(value)}`,
                             "Change",
                           ]}
                         />
                         <Bar dataKey="change">
-                          {marketData.sectorPerformance.map((entry, index) => (
+                          {(marketData.sectorPerformance || []).map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
                               fill={entry.change >= 0 ? "#4caf50" : "#f44336"}
@@ -1331,7 +1329,7 @@ const RealTimeDashboard = () => {
                   <CardContent sx={{ maxHeight: 600, overflow: "auto" }}>
                     {newsFeedData && newsFeedData.length > 0 ? (
                       <List>
-                        {newsFeedData.map((newsItem, index) => {
+                        {(newsFeedData || []).map((newsItem, index) => {
                           const timeAgo = newsItem.published_at
                             ? Math.floor(
                                 (Date.now() -
@@ -1512,7 +1510,7 @@ const RealTimeDashboard = () => {
                                 color="text.secondary"
                               >
                                 {marketData?.watchlistData
-                                  ? `${marketData.watchlistData.filter((s) => s.changePercent > 0).length}/${marketData.watchlistData.length} stocks up`
+                                  ? `${marketData.watchlistData.filter((s) => s.changePercent > 0).length}/${(marketData.watchlistData?.length || 0)} stocks up`
                                   : "Based on current market data"}
                               </Typography>
                             </Box>

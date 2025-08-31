@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -102,29 +102,7 @@ const OrderManagement = () => {
   const [_orderUpdates, _setOrderUpdates] = useState({});
   const [executionAlerts, setExecutionAlerts] = useState([]);
 
-  // Fetch initial data
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/");
-      return;
-    }
-
-    fetchOrders();
-    fetchAccountInfo();
-    fetchPositions();
-    fetchWatchlist();
-
-    // Setup real-time updates
-    const interval = setInterval(() => {
-      fetchOrderUpdates();
-      fetchMarketData();
-    }, 5000);
-
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, navigate]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/orders", {
@@ -172,11 +150,11 @@ const OrderManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const fetchAccountInfo = async () => {
+  const fetchAccountInfo = useCallback(async () => {
     try {
-      const response = await fetch("/api/account", {
+      const response = await fetch("/api/orders/account", {
         headers: { Authorization: `Bearer ${user.token}` },
       });
 
@@ -197,9 +175,9 @@ const OrderManagement = () => {
         patternDayTrader: false,
       });
     }
-  };
+  }, [user]);
 
-  const fetchPositions = async () => {
+  const fetchPositions = useCallback(async () => {
     try {
       const response = await fetch("/api/portfolio/holdings", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -207,14 +185,14 @@ const OrderManagement = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setPositions(data.data?.holdings || []);
+        setPositions(data?.data?.holdings || []);
       }
     } catch (err) {
       console.error("Failed to fetch positions:", err);
     }
-  };
+  }, [user]);
 
-  const fetchWatchlist = async () => {
+  const fetchWatchlist = useCallback(async () => {
     try {
       const response = await fetch("/api/watchlist", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -227,11 +205,11 @@ const OrderManagement = () => {
     } catch (err) {
       setWatchlist(["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]);
     }
-  };
+  }, [user]);
 
-  const fetchOrderUpdates = async () => {
+  const fetchOrderUpdates = useCallback(async () => {
     try {
-      const response = await fetch("/api/orders/updates", {
+      const response = await fetch("/api/orders", {
         headers: { Authorization: `Bearer ${user.token}` },
       });
 
@@ -248,14 +226,14 @@ const OrderManagement = () => {
     } catch (err) {
       console.error("Failed to fetch order updates:", err);
     }
-  };
+  }, [user]);
 
-  const fetchMarketData = async () => {
+  const fetchMarketData = useCallback(async () => {
     try {
       const symbols = [
-        ...new Set([...watchlist, ...orders.map((o) => o.symbol)]),
+        ...new Set([...watchlist, ...(orders || []).map((o) => o.symbol)]),
       ];
-      const response = await fetch(`/api/quotes?symbols=${symbols.join(",")}`, {
+      const response = await fetch(`/api/websocket/stream/${symbols.join(",")}`, {
         headers: { Authorization: `Bearer ${user.token}` },
       });
 
@@ -266,7 +244,28 @@ const OrderManagement = () => {
     } catch (err) {
       console.error("Failed to fetch market data:", err);
     }
-  };
+  }, [user, watchlist, orders]);
+
+  // Fetch initial data
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      navigate("/");
+      return;
+    }
+
+    fetchOrders();
+    fetchAccountInfo();
+    fetchPositions();
+    fetchWatchlist();
+
+    // Setup real-time updates
+    const interval = setInterval(() => {
+      fetchOrderUpdates();
+      fetchMarketData();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user]); // Remove all callback functions to prevent infinite loop
 
   const handleSubmitOrder = async () => {
     try {
@@ -742,7 +741,7 @@ const OrderManagement = () => {
                           <CircularProgress />
                         </TableCell>
                       </TableRow>
-                    ) : filteredOrders.length === 0 ? (
+                    ) : (filteredOrders?.length || 0) === 0 ? (
                       <TableRow>
                         <TableCell colSpan={9} align="center">
                           <Typography variant="body2" color="text.secondary">
@@ -751,7 +750,7 @@ const OrderManagement = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredOrders.map((order) => (
+                      (filteredOrders || []).map((order) => (
                         <TableRow key={order.id} hover>
                           <TableCell>
                             <Typography variant="body2" fontWeight="bold">
@@ -917,7 +916,7 @@ const OrderManagement = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {positions.map((position) => (
+                    {(positions || []).map((position) => (
                       <TableRow key={position.symbol}>
                         <TableCell>
                           <Typography variant="body2" fontWeight="bold">

@@ -287,7 +287,7 @@ function EarningsCalendar() {
         </TableHead>
         <TableBody>
           {Object.entries(estimatesData?.data || {}).map(([symbol, group]) =>
-            group.estimates.map((estimate, index) => (
+            (group.estimates || []).map((estimate, index) => (
               <TableRow key={`${symbol}-${estimate.period}-${index}`} hover>
                 <TableCell>
                   <Typography variant="body2" fontWeight="bold">
@@ -368,7 +368,7 @@ function EarningsCalendar() {
         </TableHead>
         <TableBody>
           {Object.entries(historyData?.data || {}).map(([symbol, group]) =>
-            group.history.map((history, index) => (
+            (group.history || []).map((history, index) => (
               <TableRow key={`${symbol}-${history.quarter}-${index}`} hover>
                 <TableCell>
                   <Typography variant="body2" fontWeight="bold">
@@ -647,7 +647,7 @@ function EarningsCalendar() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {epsRevisionsData.data.map((row, idx) => (
+                      {(epsRevisionsData.data || []).map((row, idx) => (
                         <TableRow key={row.period + idx}>
                           <TableCell>{row.period}</TableCell>
                           <TableCell align="right">
@@ -727,7 +727,7 @@ function EarningsCalendar() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {epsTrendData.data.map((row, idx) => (
+                      {(epsTrendData.data || []).map((row, idx) => (
                         <TableRow key={row.period + idx}>
                           <TableCell>{row.period}</TableCell>
                           <TableCell align="right">
@@ -822,8 +822,8 @@ function EarningsCalendar() {
                       {Array.isArray(
                         earningsMetricsData?.data?.[epsSymbol]?.metrics
                       ) &&
-                      earningsMetricsData.data[epsSymbol].metrics.length > 0 ? (
-                        earningsMetricsData.data[epsSymbol].metrics.map(
+                      earningsMetricsData?.data[epsSymbol].metrics.length > 0 ? (
+                        (earningsMetricsData?.data[epsSymbol]?.metrics || []).map(
                           (row, idx) => (
                             <TableRow key={row.report_date + idx}>
                               <TableCell>{row.report_date}</TableCell>

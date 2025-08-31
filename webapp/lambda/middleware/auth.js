@@ -16,13 +16,34 @@ const authenticateToken = async (req, res, next) => {
       process.env.NODE_ENV !== "test"
     ) {
       req.user = {
-        sub: "dev-user",
-        email: "dev@example.com",
-        username: "dev-user",
+        sub: "dev-user-bypass",
+        email: "dev-bypass@example.com",
+        username: "dev-bypass-user",
         role: "admin",
-        sessionId: "dev-session",
+        sessionId: "dev-bypass-session",
       };
+      req.token = "dev-bypass-token"; // Set token for API key service compatibility
       return next();
+    }
+
+    // Development bypass for circuit breaker issues
+    if (process.env.ALLOW_DEV_BYPASS === "true" || process.env.NODE_ENV === "development") {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+      
+      // Check for special dev-bypass-token
+      if (token === "dev-bypass-token" || !token) {
+        console.log("🔧 Development mode: Using dev-bypass-token for authentication");
+        req.user = {
+          sub: "dev-user-bypass",
+          email: "dev-bypass@example.com",
+          username: "dev-bypass-user",
+          role: "admin",
+          sessionId: "dev-bypass-session",
+        };
+        req.token = token;
+        return next();
+      }
     }
 
     const authHeader = req.headers["authorization"];

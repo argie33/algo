@@ -144,7 +144,7 @@ const PortfolioOptimization = () => {
         const recommendations = rebalanceData?.recommendations || [];
 
         // Transform recommendations to expected format
-        const transformedRecommendations = recommendations.map((rec) => ({
+        const transformedRecommendations = (recommendations || []).map((rec) => ({
           symbol: rec.symbol,
           currentWeight: rec.currentWeight || rec.current_weight || 0,
           targetWeight:
@@ -628,7 +628,7 @@ const PortfolioOptimization = () => {
             />
             <CardContent>
               <Stepper activeStep={activeStep} orientation="vertical">
-                {optimizationSteps.map((step, _index) => (
+                {(optimizationSteps || []).map((step, _index) => (
                   <Step key={step.label}>
                     <StepLabel
                       optional={
@@ -648,14 +648,14 @@ const PortfolioOptimization = () => {
                             setActiveStep(
                               Math.min(
                                 activeStep + 1,
-                                optimizationSteps.length - 1
+                                (optimizationSteps?.length || 0) - 1
                               )
                             )
                           }
                           sx={{ mr: 1 }}
-                          disabled={activeStep === optimizationSteps.length - 1}
+                          disabled={activeStep === (optimizationSteps?.length || 0) - 1}
                         >
-                          {activeStep === optimizationSteps.length - 1
+                          {activeStep === (optimizationSteps?.length || 0) - 1
                             ? "Complete"
                             : "Continue"}
                         </Button>
@@ -693,7 +693,7 @@ const PortfolioOptimization = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {rebalanceRecommendations.map((rec) => (
+                      {(rebalanceRecommendations || []).map((rec) => (
                         <TableRow key={rec.symbol}>
                           <TableCell>
                             <Typography variant="body2" fontWeight="bold">

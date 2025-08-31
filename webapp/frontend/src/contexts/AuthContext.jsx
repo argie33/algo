@@ -4,6 +4,7 @@ import {
   useReducer,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 import {
   fetchAuthSession,
@@ -102,8 +103,19 @@ function authReducer(state, action) {
   }
 }
 
-// Create auth context
-const AuthContext = createContext();
+// Create auth context with default values to prevent undefined errors
+const AuthContext = createContext({
+  user: null,
+  isAuthenticated: false,
+  isLoading: true,
+  error: null,
+  tokens: null,
+  login: async () => {},
+  signup: async () => {},
+  confirmAccount: async () => {},
+  forgotPassword: async () => {},
+  resetPassword: async () => {},
+});
 
 // Auth provider component
 export function AuthProvider({ children }) {
@@ -113,64 +125,69 @@ export function AuthProvider({ children }) {
     timeRemaining: 0,
   });
 
-  // Check if user is authenticated on app start
-  useEffect(() => {
-    checkAuthState();
+  const refreshSession = useCallback(async () => {
+    try {
+      const session = await fetchAuthSession({ forceRefresh: true });
+
+      if (session.tokens) {
+        dispatch({
+          type: AUTH_ACTIONS.UPDATE_TOKENS,
+          payload: {
+            accessToken: session.tokens.accessToken.toString(),
+            idToken: session.tokens.idToken?.toString(),
+            refreshToken: session.tokens.refreshToken?.toString(),
+          },
+        });
+        return { success: true };
+      }
+
+      return { success: false, error: "No valid tokens" };
+    } catch (error) {
+      console.error("Session refresh error:", error);
+      return { success: false, error: getErrorMessage(error) };
+    }
   }, []);
 
-  // Initialize session manager when authenticated
-  useEffect(() => {
-    if (state.isAuthenticated && state.user) {
-      // Initialize session manager
-      sessionManager.initialize({
-        refreshSession,
-        logout,
-      });
+  const logout = useCallback(async () => {
+    try {
+      // Clear stored auth token
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("authToken");
+      sessionStorage.removeItem("accessToken");
+      sessionStorage.removeItem("authToken");
 
-      // Set session manager callbacks
-      sessionManager.setCallbacks({
-        onTokenRefresh: (_result) => {
-          console.log("🔄 Tokens refreshed automatically");
-        },
-        onSessionWarning: (warningData) => {
-          setSessionWarning({
-            show: true,
-            timeRemaining: warningData.timeRemaining,
-          });
-        },
-        onSessionExpired: async () => {
-          console.log("❌ Session expired, logging out");
-          await logout();
-        },
-        onRefreshError: (error, attempts) => {
-          console.error(
-            `❌ Token refresh failed (attempt ${attempts}):`,
-            error
-          );
-        },
-      });
+      // If Cognito is not configured, use dev auth
+      if (!isCognitoConfigured()) {
+        console.log(
+          "Cognito not configured - using development authentication"
+        );
+        await devAuth.signOut();
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        return { success: true };
+      }
 
-      // Start session
-      const rememberMe = localStorage.getItem("rememberMe") === "true";
-      sessionManager.startSession(rememberMe);
-    } else if (!state.isAuthenticated) {
-      // End session when logged out
-      sessionManager.endSession();
-      setSessionWarning({ show: false, timeRemaining: 0 });
+      await signOut();
+      dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      return { success: true };
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Even if logout fails, clear local state
+      dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      return { success: false, error: getErrorMessage(error) };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.isAuthenticated, state.user]);
+  }, []);
 
-  const checkAuthState = async () => {
+  const checkAuthState = useCallback(async () => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
 
       // Check if we're in a real production environment
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
+      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === 'true';
 
-      // Use Cognito in production or when properly configured
-      if (isProductionBuild && cognitoConfigured) {
+      // Use Cognito in production or when properly configured (unless dev auth is forced)
+      if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
         console.log("🚀 PRODUCTION MODE - Using AWS Cognito authentication");
 
         try {
@@ -212,10 +229,12 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Development fallback when Cognito is not configured
-      if (!cognitoConfigured && import.meta.env.DEV) {
+      // Development fallback when Cognito is not configured OR dev auth is forced
+      if ((!cognitoConfigured && import.meta.env.DEV) || forceDevAuth) {
         console.log(
-          "🔧 DEVELOPMENT MODE - Cognito not configured, using dev auth fallback"
+          forceDevAuth 
+            ? "🔧 DEVELOPMENT MODE - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
+            : "🔧 DEVELOPMENT MODE - Cognito not configured, using dev auth fallback"
         );
 
         try {
@@ -247,7 +266,60 @@ export function AuthProvider({ children }) {
       console.log("Authentication check failed:", error);
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
-  };
+  }, []); // Empty dependency array since dispatch is stable
+
+  // Check if user is authenticated on app start
+  useEffect(() => {
+    checkAuthState();
+  }, [checkAuthState]);
+
+  // Initialize session manager when authenticated
+  useEffect(() => {
+    if (state.isAuthenticated && state.user) {
+      try {
+        // Initialize session manager with proper authContext object
+        const authContextObj = {
+          refreshSession,
+          logout,
+        };
+        sessionManager.initialize(authContextObj);
+
+        // Set session manager callbacks
+        sessionManager.setCallbacks({
+          onTokenRefresh: (_result) => {
+            console.log("🔄 Tokens refreshed automatically");
+          },
+          onSessionWarning: (warningData) => {
+            setSessionWarning({
+              show: true,
+              timeRemaining: warningData.timeRemaining,
+            });
+          },
+          onSessionExpired: async () => {
+            console.log("❌ Session expired, logging out");
+            await logout();
+          },
+          onRefreshError: (error, attempts) => {
+            console.error(
+              `❌ Token refresh failed (attempt ${attempts}):`,
+              error
+            );
+        },
+      });
+
+        // Start session
+        const rememberMe = localStorage.getItem("rememberMe") === "true";
+        sessionManager.startSession(rememberMe);
+      } catch (error) {
+        console.error("❌ Failed to initialize session manager:", error);
+        // Don't throw error to prevent app crash
+      }
+    } else if (!state.isAuthenticated) {
+      // End session when logged out
+      sessionManager.endSession();
+      setSessionWarning({ show: false, timeRemaining: 0 });
+    }
+  }, [state.isAuthenticated, state.user, refreshSession, logout, setSessionWarning]);
 
   const login = async (username, password) => {
     try {
@@ -256,9 +328,10 @@ export function AuthProvider({ children }) {
 
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
+      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === 'true';
 
-      // Use Cognito in production or when properly configured
-      if (isProductionBuild && cognitoConfigured) {
+      // Use Cognito in production or when properly configured (unless dev auth is forced)
+      if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
         console.log("🚀 PRODUCTION LOGIN - Using AWS Cognito");
 
         const { isSignedIn, nextStep } = await signIn({
@@ -307,9 +380,13 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Development fallback when Cognito is not configured
-      if (!cognitoConfigured && import.meta.env.DEV) {
-        console.log("🔧 DEVELOPMENT LOGIN - Using dev auth fallback");
+      // Development fallback when Cognito is not configured OR dev auth is forced
+      if ((!cognitoConfigured && import.meta.env.DEV) || forceDevAuth) {
+        console.log(
+          forceDevAuth 
+            ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
+            : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
+        );
 
         try {
           const result = await devAuth.signIn(username, password);
@@ -463,35 +540,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = async () => {
-    try {
-      // Clear stored auth token
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("authToken");
-      sessionStorage.removeItem("accessToken");
-      sessionStorage.removeItem("authToken");
-
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log(
-          "Cognito not configured - using development authentication"
-        );
-        await devAuth.signOut();
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
-        return { success: true };
-      }
-
-      await signOut();
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      return { success: true };
-    } catch (error) {
-      console.error("Logout error:", error);
-      // Even if logout fails, clear local state
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      return { success: false, error: getErrorMessage(error) };
-    }
-  };
-
   const forgotPassword = async (username) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
@@ -591,29 +639,6 @@ export function AuthProvider({ children }) {
       const errorMessage = getErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
-    }
-  };
-
-  const refreshSession = async () => {
-    try {
-      const session = await fetchAuthSession({ forceRefresh: true });
-
-      if (session.tokens) {
-        dispatch({
-          type: AUTH_ACTIONS.UPDATE_TOKENS,
-          payload: {
-            accessToken: session.tokens.accessToken.toString(),
-            idToken: session.tokens.idToken?.toString(),
-            refreshToken: session.tokens.refreshToken?.toString(),
-          },
-        });
-        return { success: true };
-      }
-
-      return { success: false, error: "No valid tokens" };
-    } catch (error) {
-      console.error("Session refresh error:", error);
-      return { success: false, error: getErrorMessage(error) };
     }
   };
 

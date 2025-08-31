@@ -34,7 +34,6 @@ import {
   TablePagination,
   TableSortLabel,
   InputAdornment,
-  Tooltip,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -61,6 +60,7 @@ import {
   ResponsiveContainer,
   Bar,
   ComposedChart,
+  Tooltip as RechartsTooltip,
 } from "recharts";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -95,7 +95,7 @@ const TradeHistory = () => {
   // Fetch trade data
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate("/");
+      // Don't redirect immediately - let user see the auth message
       return;
     }
     fetchTradeHistory();
@@ -626,7 +626,7 @@ const TradeHistory = () => {
                         <CircularProgress />
                       </TableCell>
                     </TableRow>
-                  ) : paginatedTrades.length === 0 ? (
+                  ) : (paginatedTrades?.length || 0) === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} align="center">
                         <Typography variant="body2" color="text.secondary">
@@ -635,7 +635,7 @@ const TradeHistory = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedTrades.map((trade) => (
+                    (paginatedTrades || []).map((trade) => (
                       <TableRow key={trade.id} hover>
                         <TableCell>
                           <Typography variant="body2" fontWeight="bold">
@@ -702,7 +702,7 @@ const TradeHistory = () => {
             <TablePagination
               rowsPerPageOptions={[10, 25, 50, 100]}
               component="div"
-              count={filteredTrades.length}
+              count={(filteredTrades?.length || 0)}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={(e, newPage) => setPage(newPage)}
@@ -726,7 +726,7 @@ const TradeHistory = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <RechartsTooltip formatter={(value) => formatCurrency(value)} />
                       <Bar dataKey="pnl" fill="#8884d8" />
                       <Line
                         type="monotone"
@@ -899,7 +899,7 @@ const TradeHistory = () => {
         <TabPanel value={tabValue} index={3}>
           {/* AI Insights */}
           <Grid container spacing={3}>
-            {insights.map((insight, index) => (
+            {(insights || []).map((insight, index) => (
               <Grid item xs={12} md={6} key={index}>
                 <Card>
                   <CardHeader
@@ -923,7 +923,7 @@ const TradeHistory = () => {
               </Grid>
             ))}
 
-            {insights.length === 0 && (
+            {(insights?.length || 0) === 0 && (
               <Grid item xs={12}>
                 <Card>
                   <CardContent>

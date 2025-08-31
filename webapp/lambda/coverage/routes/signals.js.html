@@ -447,14 +447,14 @@
 <a name='L382'></a><a href='#L382'>382</a>
 <a name='L383'></a><a href='#L383'>383</a>
 <a name='L384'></a><a href='#L384'>384</a>
-<a name='L385'></a><a href='#L385'>385</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">8x</span>
+<a name='L385'></a><a href='#L385'>385</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -567,7 +567,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -680,7 +680,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -830,7 +830,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
 &nbsp;
 const { query } = require("../utils/database");
@@ -856,21 +856,21 @@ router.get("/buy", <span class="fstat-no" title="function not covered" >as</span
     const buySignalsQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) &gt; 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.symbol ASC, bs.signal DESC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -880,7 +880,7 @@ router.get("/buy", <span class="fstat-no" title="function not covered" >as</span
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) &gt; 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
     `;
 &nbsp;
     const [signalsResult, countResult] = <span class="cstat-no" title="statement not covered" >await Promise.all([</span>
@@ -891,7 +891,7 @@ router.get("/buy", <span class="fstat-no" title="function not covered" >as</span
     // Add null checking for database availability
 <span class="cstat-no" title="statement not covered" >    if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {</span>
 <span class="cstat-no" title="statement not covered" >      console.warn("Buy signals query returned null result, database may be unavailable");</span>
-<span class="cstat-no" title="statement not covered" >      return res.serverError("Trading signals temporarily unavailable - database connection issue", {</span>
+<span class="cstat-no" title="statement not covered" >      return res.error("Trading signals temporarily unavailable - database connection issue", 500, {</span>
         type: "service_unavailable",
         data: [],
         timeframe
@@ -901,12 +901,12 @@ router.get("/buy", <span class="fstat-no" title="function not covered" >as</span
     const total = <span class="cstat-no" title="statement not covered" >parseInt(countResult.rows[0].total);</span>
     const totalPages = <span class="cstat-no" title="statement not covered" >Math.ceil(total / limit);</span>
 &nbsp;
-    // Transform data to camelCase and convert signal to number
+    // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
     const transformedData = <span class="cstat-no" title="statement not covered" >signalsResult.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -944,7 +944,7 @@ router.get("/buy", <span class="fstat-no" title="function not covered" >as</span
     });
   } catch (error) {
 <span class="cstat-no" title="statement not covered" >    console.error("Error fetching buy signals:", error);</span>
-<span class="cstat-no" title="statement not covered" >    return res.serverError("Failed to fetch buy signals", {</span>
+<span class="cstat-no" title="statement not covered" >    return res.error("Failed to fetch buy signals", 500, {</span>
       details: error.message
     });
   }
@@ -969,21 +969,21 @@ router.get("/sell", <span class="fstat-no" title="function not covered" >as</spa
     const sellSignalsQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) &lt; 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.symbol ASC, bs.signal ASC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -993,7 +993,7 @@ router.get("/sell", <span class="fstat-no" title="function not covered" >as</spa
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) &lt; 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
     `;
 &nbsp;
     const [signalsResult, countResult] = <span class="cstat-no" title="statement not covered" >await Promise.all([</span>
@@ -1004,7 +1004,7 @@ router.get("/sell", <span class="fstat-no" title="function not covered" >as</spa
     // Add null checking for database availability
 <span class="cstat-no" title="statement not covered" >    if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {</span>
 <span class="cstat-no" title="statement not covered" >      console.warn("Sell signals query returned null result, database may be unavailable");</span>
-<span class="cstat-no" title="statement not covered" >      return res.serverError("Sell signals temporarily unavailable - database connection issue", {</span>
+<span class="cstat-no" title="statement not covered" >      return res.error("Sell signals temporarily unavailable - database connection issue", 500, {</span>
         type: "service_unavailable",
         data: [],
         timeframe
@@ -1014,12 +1014,12 @@ router.get("/sell", <span class="fstat-no" title="function not covered" >as</spa
     const total = <span class="cstat-no" title="statement not covered" >parseInt(countResult.rows[0].total);</span>
     const totalPages = <span class="cstat-no" title="statement not covered" >Math.ceil(total / limit);</span>
 &nbsp;
-    // Transform data to camelCase and convert signal to number
+    // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
     const transformedData = <span class="cstat-no" title="statement not covered" >signalsResult.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -1057,7 +1057,7 @@ router.get("/sell", <span class="fstat-no" title="function not covered" >as</spa
     });
   } catch (error) {
 <span class="cstat-no" title="statement not covered" >    console.error("Error fetching sell signals:", error);</span>
-<span class="cstat-no" title="statement not covered" >    return res.serverError("Failed to fetch sell signals", {</span>
+<span class="cstat-no" title="statement not covered" >    return res.error("Failed to fetch sell signals", 500, {</span>
       details: error.message
     });
   }
@@ -1084,46 +1084,46 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
       `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield,
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) &gt; 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.signal DESC, bs.date DESC
-      LIMIT ${Math.ceil(limit/2)}
+      LIMIT $1
       `,
       `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
+        cp.company_name,
         cp.sector,
         bs.signal,
         bs.date,
-        md.current_price,
+        md.price as current_price,
         md.market_cap,
         km.trailing_pe,
         km.dividend_yield,
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.ticker
+      LEFT JOIN market_data md ON bs.symbol = md.symbol
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) &lt; 0
+        AND bs.signal IN ('BUY', 'SELL', 'HOLD')
       ORDER BY bs.signal ASC, bs.date DESC
-      LIMIT ${Math.floor(limit/2)}
+      LIMIT $1
       `,
       `
       SELECT COUNT(*) as total
@@ -1134,15 +1134,15 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
     ];
 &nbsp;
     const [buyResult, sellResult, countResult] = <span class="cstat-no" title="statement not covered" >await Promise.all([</span>
-      query(buySignalsQuery),
-      query(sellSignalsQuery),
+      query(buySignalsQuery, [Math.ceil(limit/2)]),
+      query(sellSignalsQuery, [Math.floor(limit/2)]),
       query(countQuery),
     ]);
 &nbsp;
     // Add null checking for database availability
 <span class="cstat-no" title="statement not covered" >    if (!buyResult || !buyResult.rows || !sellResult || !sellResult.rows || !countResult || !countResult.rows) {</span>
 <span class="cstat-no" title="statement not covered" >      console.warn("Signals query returned null result, database may be unavailable");</span>
-<span class="cstat-no" title="statement not covered" >      return res.serverError("Trading signals temporarily unavailable - database connection issue", {</span>
+<span class="cstat-no" title="statement not covered" >      return res.error("Trading signals temporarily unavailable - database connection issue", 500, {</span>
         type: "service_unavailable",
         data: {
           buy_signals: [],
@@ -1160,12 +1160,12 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
     const total = <span class="cstat-no" title="statement not covered" >parseInt(countResult.rows[0].total);</span>
     const totalPages = <span class="cstat-no" title="statement not covered" >Math.ceil(total / limit);</span>
 &nbsp;
-    // Transform data to camelCase and convert signal to number
+    // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
     const buySignals = <span class="cstat-no" title="statement not covered" >buyResult.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -1178,7 +1178,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
-      signal: parseFloat(row.signal),
+      signal: row.signal,
       date: row.date,
       currentPrice: row.current_price,
       marketCap: row.market_cap,
@@ -1208,7 +1208,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
     });
   } catch (error) {
 <span class="cstat-no" title="statement not covered" >    console.error("Error fetching signals:", error);</span>
-<span class="cstat-no" title="statement not covered" >    return res.serverError("Failed to fetch signals", {</span>
+<span class="cstat-no" title="statement not covered" >    return res.error("Failed to fetch signals", 500, {</span>
       details: error.message
     });
   }
@@ -1222,7 +1222,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-25T22:51:57.989Z
+                at 2025-08-30T00:17:13.046Z
             </div>
         <script src="../prettify.js"></script>
         <script>

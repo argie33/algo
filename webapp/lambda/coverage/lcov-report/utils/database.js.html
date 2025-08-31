@@ -625,13 +625,7 @@
 <a name='L560'></a><a href='#L560'>560</a>
 <a name='L561'></a><a href='#L561'>561</a>
 <a name='L562'></a><a href='#L562'>562</a>
-<a name='L563'></a><a href='#L563'>563</a>
-<a name='L564'></a><a href='#L564'>564</a>
-<a name='L565'></a><a href='#L565'>565</a>
-<a name='L566'></a><a href='#L566'>566</a>
-<a name='L567'></a><a href='#L567'>567</a>
-<a name='L568'></a><a href='#L568'>568</a>
-<a name='L569'></a><a href='#L569'>569</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L563'></a><a href='#L563'>563</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
@@ -981,12 +975,6 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1479,7 +1467,7 @@ async function <span class="fstat-no" title="function not covered" >initializeSc
 &nbsp;
     // Priority tables that should be created first
     const priorityTables = <span class="cstat-no" title="statement not covered" >[</span>
-      "stock_symbols_enhanced",
+      "stock_symbols",
       "price_daily",
       "user_api_keys",
       "portfolio_metadata",
@@ -1524,7 +1512,7 @@ async function <span class="fstat-no" title="function not covered" >initializeSc
       }
     }
 &nbsp;
-    // Insert initial data for stock_symbols_enhanced
+    // Insert initial data for stock_symbols
 <span class="cstat-no" title="statement not covered" >    await insertInitialData();</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    console.log("✅ Database schema initialization completed");</span>
@@ -1541,7 +1529,7 @@ async function <span class="fstat-no" title="function not covered" >insertInitia
 <span class="cstat-no" title="statement not covered" >  try {</span>
     // Insert sample stock symbols if the table is empty
     const countResult = <span class="cstat-no" title="statement not covered" >await query(</span>
-      "SELECT COUNT(*) as count FROM stock_symbols_enhanced"
+      "SELECT COUNT(*) as count FROM stock_symbols"
     );
     const count = <span class="cstat-no" title="statement not covered" >parseInt(countResult.rows[0].count);</span>
 &nbsp;
@@ -1549,36 +1537,30 @@ async function <span class="fstat-no" title="function not covered" >insertInitia
 <span class="cstat-no" title="statement not covered" >      console.log("Inserting initial stock symbols data...");</span>
 &nbsp;
       const insertSQL = <span class="cstat-no" title="statement not covered" >`</span>
-                INSERT INTO stock_symbols_enhanced (symbol, company_name, exchange, sector, industry, market_cap_tier, beta, volatility_30d) VALUES
-                ('AAPL', 'Apple Inc.', 'NASDAQ', 'Technology', 'Consumer Electronics', 'large_cap', 1.20, 25.4),
-                ('MSFT', 'Microsoft Corporation', 'NASDAQ', 'Technology', 'Software', 'large_cap', 0.95, 22.1),
-                ('GOOGL', 'Alphabet Inc.', 'NASDAQ', 'Technology', 'Internet Services', 'large_cap', 1.05, 28.7),
-                ('AMZN', 'Amazon.com Inc.', 'NASDAQ', 'Consumer Discretionary', 'E-commerce', 'large_cap', 1.15, 30.2),
-                ('TSLA', 'Tesla Inc.', 'NASDAQ', 'Consumer Discretionary', 'Electric Vehicles', 'large_cap', 1.85, 45.6),
-                ('META', 'Meta Platforms Inc.', 'NASDAQ', 'Technology', 'Social Media', 'large_cap', 1.25, 32.8),
-                ('NVDA', 'NVIDIA Corporation', 'NASDAQ', 'Technology', 'Semiconductors', 'large_cap', 1.65, 40.3),
-                ('NFLX', 'Netflix Inc.', 'NASDAQ', 'Communication Services', 'Streaming', 'large_cap', 1.35, 35.1),
-                ('JPM', 'JPMorgan Chase &amp; Co.', 'NYSE', 'Financials', 'Banking', 'large_cap', 1.10, 26.4),
-                ('JNJ', 'Johnson &amp; Johnson', 'NYSE', 'Healthcare', 'Pharmaceuticals', 'large_cap', 0.75, 18.2),
-                ('V', 'Visa Inc.', 'NYSE', 'Financials', 'Payment Processing', 'large_cap', 0.90, 20.8),
-                ('PG', 'Procter &amp; Gamble Co.', 'NYSE', 'Consumer Staples', 'Household Products', 'large_cap', 0.65, 16.5),
-                ('UNH', 'UnitedHealth Group Inc.', 'NYSE', 'Healthcare', 'Health Insurance', 'large_cap', 0.85, 19.7),
-                ('HD', 'The Home Depot Inc.', 'NYSE', 'Consumer Discretionary', 'Home Improvement', 'large_cap', 1.00, 24.3),
-                ('DIS', 'The Walt Disney Company', 'NYSE', 'Communication Services', 'Entertainment', 'large_cap', 1.20, 29.5),
-                ('SPY', 'SPDR S&amp;P 500 ETF Trust', 'NYSE', 'ETF', 'Broad Market ETF', 'large_cap', 1.00, 15.0),
-                ('QQQ', 'Invesco QQQ Trust', 'NASDAQ', 'ETF', 'Technology ETF', 'large_cap', 1.15, 20.2),
-                ('VTI', 'Vanguard Total Stock Market ETF', 'NYSE', 'ETF', 'Total Market ETF', 'large_cap', 1.00, 16.1),
-                ('IWM', 'iShares Russell 2000 ETF', 'NYSE', 'ETF', 'Small Cap ETF', 'large_cap', 1.25, 22.7),
-                ('GLD', 'SPDR Gold Shares', 'NYSE', 'ETF', 'Gold ETF', 'large_cap', 0.30, 18.8)
+                INSERT INTO stock_symbols (symbol, security_name, exchange) VALUES
+                ('AAPL', 'Apple Inc.', 'NASDAQ'),
+                ('MSFT', 'Microsoft Corporation', 'NASDAQ'),
+                ('GOOGL', 'Alphabet Inc.', 'NASDAQ'),
+                ('AMZN', 'Amazon.com Inc.', 'NASDAQ'),
+                ('TSLA', 'Tesla Inc.', 'NASDAQ'),
+                ('META', 'Meta Platforms Inc.', 'NASDAQ'),
+                ('NVDA', 'NVIDIA Corporation', 'NASDAQ'),
+                ('NFLX', 'Netflix Inc.', 'NASDAQ'),
+                ('JPM', 'JPMorgan Chase &amp; Co.', 'NYSE'),
+                ('JNJ', 'Johnson &amp; Johnson', 'NYSE'),
+                ('V', 'Visa Inc.', 'NYSE'),
+                ('PG', 'Procter &amp; Gamble Co.', 'NYSE'),
+                ('UNH', 'UnitedHealth Group Inc.', 'NYSE'),
+                ('HD', 'The Home Depot Inc.', 'NYSE'),
+                ('DIS', 'The Walt Disney Company', 'NYSE'),
+                ('SPY', 'SPDR S&amp;P 500 ETF Trust', 'NYSE'),
+                ('QQQ', 'Invesco QQQ Trust', 'NASDAQ'),
+                ('VTI', 'Vanguard Total Stock Market ETF', 'NYSE'),
+                ('IWM', 'iShares Russell 2000 ETF', 'NYSE'),
+                ('GLD', 'SPDR Gold Shares', 'NYSE')
                 ON CONFLICT (symbol) DO UPDATE SET
-                    company_name = EXCLUDED.company_name,
-                    exchange = EXCLUDED.exchange,
-                    sector = EXCLUDED.sector,
-                    industry = EXCLUDED.industry,
-                    market_cap_tier = EXCLUDED.market_cap_tier,
-                    beta = EXCLUDED.beta,
-                    volatility_30d = EXCLUDED.volatility_30d,
-                    updated_at = CURRENT_TIMESTAMP
+                    security_name = EXCLUDED.security_name,
+                    exchange = EXCLUDED.exchange
             `;
 &nbsp;
 <span class="cstat-no" title="statement not covered" >      await query(insertSQL);</span>
@@ -1774,7 +1756,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-25T22:51:58.063Z
+                at 2025-08-30T00:17:13.129Z
             </div>
         <script src="../prettify.js"></script>
         <script>

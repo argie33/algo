@@ -25,16 +25,18 @@ export default defineConfig(({ mode }) => {
         jsxRuntime: 'automatic'
       })
     ],
-    resolve: {
-      alias: {
-        "@": resolve(__dirname, "src"),
-      },
-    },
     build: {
       outDir: "dist",
       sourcemap: true,
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
+        external: (id) => {
+          // Force react-is to use the specific version we want
+          if (id === 'react-is' || id.includes('react-is/')) {
+            return false; // Bundle it but with our override
+          }
+          return false;
+        },
         output: {
           manualChunks: (id) => {
             // Core React libraries
@@ -120,6 +122,15 @@ export default defineConfig(({ mode }) => {
       "process.env.NODE_ENV": JSON.stringify(
         isProduction ? "production" : "development"
       ),
+      // Fix React Context compatibility issue
+      global: 'globalThis',
+    },
+    resolve: {
+      alias: {
+        "@": resolve(__dirname, "src"),
+        // Force specific react-is version to avoid compatibility issues
+        "react-is": resolve(__dirname, "node_modules/react-is"),
+      },
     },
     optimizeDeps: {
       esbuildOptions: {
@@ -127,6 +138,7 @@ export default defineConfig(({ mode }) => {
           ".js": "jsx",
         },
       },
+      force: true, // Force pre-bundling to respect overrides
     },
   };
 });

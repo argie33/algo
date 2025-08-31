@@ -90,9 +90,9 @@ router.get("/import/status", authenticateToken, async (req, res) => {
       // Get broker configurations
       const result = await query(
         `
-        SELECT bc.*, uak.provider, uak.is_active as key_active
+        SELECT bc.*, uak.broker_name as provider, true as key_active
         FROM broker_api_configs bc
-        JOIN user_api_keys uak ON bc.user_id = uak.user_id AND bc.broker = uak.provider
+        JOIN user_api_keys uak ON bc.user_id = uak.user_id AND bc.broker = uak.broker_name
         WHERE bc.user_id = $1
         ORDER BY bc.updated_at DESC
       `,
@@ -308,7 +308,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
         s.industry
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN symbols s ON ph.symbol = s.symbol
+      LEFT JOIN stocks s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 ${statusFilter}
       ORDER BY ph.opened_at DESC
       LIMIT $2 OFFSET $3
@@ -366,10 +366,10 @@ router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
         s.sector,
         s.industry,
         s.market_cap,
-        s.description as company_description
+        s.company_name as company_description
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN symbols s ON ph.symbol = s.symbol
+      LEFT JOIN stocks s ON ph.symbol = s.symbol
       WHERE ph.id = $1 AND ph.user_id = $2
     `,
       [positionId, userId]
@@ -509,7 +509,23 @@ router.get("/performance", authenticateToken, async (req, res) => {
     console.error("Error fetching performance data:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch performance data",
+      error: "Performance data unavailable",
+      message: "Unable to retrieve performance metrics and benchmarks",
+      details: error.message.includes("does not exist") 
+        ? "Required database tables are missing"
+        : "Database query failed",
+      service: "trade-performance",
+      requirements: [
+        "Database tables: performance_benchmarks, portfolio_summary, performance_attribution",
+        "Historical trade data in database",
+        "Performance calculations completed"
+      ],
+      actions: [
+        "Contact administrator to verify database schema",
+        "Ensure all required tables exist and contain data",
+        "Import historical trading data from broker"
+      ],
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -520,8 +536,8 @@ router.get("/performance", authenticateToken, async (req, res) => {
  */
 router.get("/history", authenticateToken, async (req, res) => {
   try {
-    console.log("📈 Trade history request received for user:", req.user?.sub);
-    const userId = req.user?.sub;
+    const userId = validateUserAuthentication(req);
+    console.log("📈 Trade history request received for user:", userId);
     const {
       symbol,
       startDate,
@@ -654,14 +670,21 @@ router.get("/history", authenticateToken, async (req, res) => {
     }
 
     // No trade data available - return proper error response
-    return res.error("Trade history unavailable", 503, {
+    return res.status(503).json({
+      success: false,
+      error: "Trade history unavailable",
       details: "Unable to retrieve trade history from broker APIs or database",
-      suggestion: "Trade history requires valid broker API credentials. Please check your API key configuration in Settings and ensure your broker account is properly connected.",
+      message: "Trade history requires valid broker API credentials. Please configure your broker API keys in Settings to access real trade data.",
       service: "trade-history",
       requirements: [
         "Valid broker API credentials (Alpaca, Interactive Brokers, etc.)",
         "Active trading account with broker", 
         "API permissions enabled for trade data access"
+      ],
+      actions: [
+        "Go to Settings → API Keys to configure broker credentials",
+        "Ensure your broker account has API access enabled",
+        "Verify API key permissions include trade data access"
       ]
     });
   } catch (error) {
@@ -723,10 +746,10 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
       // Get user's active API keys to fetch live trade data
       const apiKeysResult = await query(
         `
-        SELECT provider, encrypted_api_key, key_iv, key_auth_tag, 
-               encrypted_api_secret, secret_iv, secret_auth_tag, user_salt, is_sandbox
+        SELECT broker_name as provider, encrypted_api_key, key_iv, key_auth_tag, 
+               encrypted_api_secret, secret_iv, secret_auth_tag, is_sandbox
         FROM user_api_keys 
-        WHERE user_id = $1 AND is_active = true
+        WHERE user_id = $1
       `,
         [userId]
       );
@@ -822,7 +845,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
           AVG(ph.return_percentage) as avg_roi,
           SUM(ph.quantity * ph.avg_entry_price) as total_volume
         FROM position_history ph
-        LEFT JOIN symbols s ON ph.symbol = s.symbol
+        LEFT JOIN stocks s ON ph.symbol = s.symbol
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
@@ -1056,31 +1079,24 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
       });
     } catch (fallbackError) {
       console.error("Fallback error handler triggered:", fallbackError);
-      // Last resort fallback response
-      res.status(200).json({
-        success: true,
-        data: {
-          analytics: {
-            totalTrades: 0,
-            winningTrades: 0,
-            losingTrades: 0,
-            winRate: 0,
-            totalPnL: 0,
-            avgPnL: 0,
-            avgRoi: 0,
-            bestTrade: 0,
-            worstTrade: 0,
-            avgHoldingPeriod: 0,
-            totalVolume: 0,
-          },
-          chartData: [],
-          pnlBySymbol: [],
-          tradingPatterns: [],
-          dataSource: "none",
-        },
-        message:
-          "No trade data available. Please import your portfolio data from your broker first.",
-        timestamp: new Date().toISOString(),
+      // Return proper error - no fallback data
+      res.status(500).json({
+        success: false,
+        error: "Trade analytics service failure",
+        message: "Unable to retrieve trade analytics data",
+        details: "Database tables missing or broker API not configured",
+        service: "trade-analytics",
+        requirements: [
+          "Database tables: position_history, performance_benchmarks",
+          "Valid broker API credentials for live data",
+          "Portfolio data imported from broker"
+        ],
+        actions: [
+          "Contact administrator to verify database schema",
+          "Configure broker API keys in Settings",
+          "Import portfolio data from your broker account"
+        ],
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -1133,7 +1149,7 @@ router.get("/export", authenticateToken, async (req, res) => {
         AND te.user_id = ph.user_id
         AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN symbols s ON te.symbol = s.symbol
+      LEFT JOIN stocks s ON te.symbol = s.symbol
       ${whereClause}
       ORDER BY te.execution_time DESC
     `,

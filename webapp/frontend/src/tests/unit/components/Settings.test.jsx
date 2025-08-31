@@ -9,21 +9,51 @@ import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import Settings from "../../../pages/Settings.jsx";
 
-// Mock the API service
-vi.mock("../../../services/api.js", () => ({
-  api: {
-    getApiKeys: vi.fn(),
-    saveApiKey: vi.fn(),
-    deleteApiKey: vi.fn(),
-    testApiKey: vi.fn(),
+// Mock axios to prevent real HTTP requests
+vi.mock("axios", () => ({
+  default: {
+    create: vi.fn(() => ({
+      get: vi.fn().mockResolvedValue({ data: [] }),
+      post: vi.fn().mockResolvedValue({ data: { success: true } }),
+      put: vi.fn().mockResolvedValue({ data: { success: true } }),
+      delete: vi.fn().mockResolvedValue({ data: { success: true } }),
+      interceptors: {
+        request: { use: vi.fn() },
+        response: { use: vi.fn() },
+      },
+    })),
+    get: vi.fn().mockResolvedValue({ data: [] }),
+    post: vi.fn().mockResolvedValue({ data: { success: true } }),
   },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-  })),
-  initializeApi: vi.fn(),
-  testApiConnection: vi.fn(),
 }));
+
+// Mock the API service completely to prevent real HTTP calls
+vi.mock("../../../services/api.js", () => {
+  const mockApi = {
+    get: vi.fn().mockResolvedValue({ data: [] }),
+    post: vi.fn().mockResolvedValue({ data: { success: true } }),
+    put: vi.fn().mockResolvedValue({ data: { success: true } }),
+    delete: vi.fn().mockResolvedValue({ data: { success: true } }),
+    getApiKeys: vi.fn().mockResolvedValue([]),
+    saveApiKey: vi.fn().mockResolvedValue({ success: true }),
+    deleteApiKey: vi.fn().mockResolvedValue({ success: true }),
+    testApiKey: vi.fn().mockResolvedValue({ success: true, connected: true }),
+  };
+  
+  return {
+    api: mockApi,
+    getApiConfig: vi.fn(() => ({
+      apiUrl: "http://localhost:3001",
+      environment: "test",
+      baseURL: "http://localhost:3001",
+      isServerless: false,
+      isDevelopment: true,
+    })),
+    initializeApi: vi.fn(),
+    testApiConnection: vi.fn().mockResolvedValue(true),
+    default: mockApi,
+  };
+});
 
 // Mock auth context
 vi.mock("../../../contexts/AuthContext.jsx", () => ({

@@ -10,6 +10,9 @@ class DevAuthService {
     this.users = this.loadUsers();
     this.session = this.loadSession();
     this.pendingVerifications = this.loadPendingVerifications();
+    
+    // Create default dev user if none exist
+    this.ensureDevUser();
   }
 
   loadUsers() {
@@ -48,6 +51,30 @@ class DevAuthService {
     );
   }
 
+  ensureDevUser() {
+    // Create a default user for easy development testing
+    if (Object.keys(this.users).length === 0) {
+      const defaultUser = {
+        username: 'devuser',
+        email: 'argeropolos@gmail.com',
+        firstName: 'Dev',
+        lastName: 'User',
+        password: 'password123',
+        confirmed: true,
+        createdAt: Date.now(),
+      };
+      
+      this.users['devuser'] = defaultUser;
+      this.saveUsers();
+      
+      console.log('🔧 DEV: Created default dev user');
+      console.log('📧 Email: argeropolos@gmail.com');
+      console.log('🔑 Username: devuser');
+      console.log('🔒 Password: password123');
+      console.log('✅ User can sign in with either email or username');
+    }
+  }
+
   generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
@@ -62,7 +89,7 @@ class DevAuthService {
   }
 
   async signUp(username, password, email, firstName, lastName) {
-    console.log("🔧 DEV: Simulating sign up for", username);
+    // DEV: Simulating sign up
 
     // Check if user already exists
     if (this.users[username]) {
@@ -96,12 +123,22 @@ class DevAuthService {
     console.log("📧 DEV: Email verification code sent to", email);
     console.log("🔑 DEV: Verification code:", verificationCode);
 
-    // Show notification in UI
-    setTimeout(() => {
-      alert(
-        `Development Mode: Your verification code is: ${verificationCode}\n\nIn production, this would be sent to ${email}`
-      );
-    }, 1000);
+    // In development, log the verification code to console
+    console.log("📧 DEV AUTH: Verification code for", email, ":", verificationCode);
+    console.log("🔑 DEV AUTH: Copy this code to complete registration");
+    
+    // Store dev code for debugging (non-production only)
+    if (window.DEV_AUTH_DEBUG !== false) {
+      window.lastDevCode = verificationCode;
+      console.log("💡 DEV AUTH: Access code via window.lastDevCode");
+    }
+    
+    // Show verification code in browser alert for easy access in development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      setTimeout(() => {
+        alert(`🔑 DEV AUTH VERIFICATION CODE\n\nFor: ${email}\nCode: ${verificationCode}\n\nCopy this code to complete your registration.`);
+      }, 100);
+    }
 
     return {
       isSignUpComplete: false,
@@ -155,10 +192,25 @@ class DevAuthService {
     };
   }
 
-  async signIn(username, password) {
-    console.log("🔧 DEV: Signing in user", username);
+  async signIn(usernameOrEmail, password) {
+    console.log("🔧 DEV: Signing in user", usernameOrEmail);
 
-    const user = this.users[username];
+    // Try to find user by username first
+    let user = this.users[usernameOrEmail];
+    let actualUsername = usernameOrEmail;
+
+    // If not found by username, try to find by email
+    if (!user) {
+      const userEntry = Object.entries(this.users).find(
+        ([, userData]) => userData.email === usernameOrEmail
+      );
+      if (userEntry) {
+        actualUsername = userEntry[0];
+        user = userEntry[1];
+        console.log("🔧 DEV: Found user by email, username is", actualUsername);
+      }
+    }
+
     if (!user) {
       throw new Error("UserNotFoundException: User not found");
     }
@@ -172,7 +224,7 @@ class DevAuthService {
     }
 
     // Generate session
-    const tokens = this.generateDevTokens(username);
+    const tokens = this.generateDevTokens(actualUsername);
     const session = {
       user: {
         username: user.username,
@@ -238,12 +290,22 @@ class DevAuthService {
     console.log("📧 DEV: Password reset code sent to", user.email);
     console.log("🔑 DEV: Reset code:", resetCode);
 
-    // Show notification in UI
-    setTimeout(() => {
-      alert(
-        `Development Mode: Your password reset code is: ${resetCode}\n\nIn production, this would be sent to ${user.email}`
-      );
-    }, 1000);
+    // In development, log the reset code to console
+    console.log("📧 DEV AUTH: Password reset code for", user.email, ":", resetCode);
+    console.log("🔑 DEV AUTH: Copy this code to reset your password");
+    
+    // Store dev code for debugging (non-production only)
+    if (window.DEV_AUTH_DEBUG !== false) {
+      window.lastDevResetCode = resetCode;
+      console.log("💡 DEV AUTH: Access code via window.lastDevResetCode");
+    }
+    
+    // Show reset code in browser alert for easy access in development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      setTimeout(() => {
+        alert(`🔑 DEV AUTH PASSWORD RESET CODE\n\nFor: ${user.email}\nReset Code: ${resetCode}\n\nCopy this code to reset your password.`);
+      }, 100);
+    }
 
     return {
       nextStep: {

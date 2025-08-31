@@ -139,7 +139,7 @@ const createTestDatabase = () => {
       user_id VARCHAR(255) NOT NULL,
       symbol VARCHAR(20) NOT NULL,
       quantity REAL NOT NULL DEFAULT 0,
-      average_entry_price REAL DEFAULT 0,
+      average_cost REAL DEFAULT 0,
       current_price REAL DEFAULT 0,
       market_value REAL DEFAULT 0,
       cost_basis REAL DEFAULT 0,

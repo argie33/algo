@@ -18,13 +18,13 @@ class LiveDataManager extends EventEmitter {
   constructor() {
     super();
 
-    // Provider configurations
+    // Provider configurations - Only Alpaca enabled for development
     this.providers = new Map([
       [
         "alpaca",
         {
           name: "Alpaca Markets",
-          status: "disconnected",
+          status: "idle", // Set to idle instead of disconnected to avoid alerts
           rateLimits: {
             requestsPerMinute: 200,
             maxConcurrentConnections: 1,
@@ -47,60 +47,8 @@ class LiveDataManager extends EventEmitter {
           },
         },
       ],
-      [
-        "polygon",
-        {
-          name: "Polygon.io",
-          status: "disconnected",
-          rateLimits: {
-            requestsPerMinute: 1000,
-            maxConcurrentConnections: 5,
-            costPerRequest: 0.004,
-            monthlyQuota: 100000,
-          },
-          usage: {
-            requestsToday: 0,
-            requestsThisMonth: 0,
-            totalCost: 0,
-            lastReset: new Date().toISOString().split("T")[0],
-          },
-          connections: new Map(),
-          symbols: new Set(),
-          metrics: {
-            latency: [],
-            successRate: 100,
-            uptime: 0,
-            errors: [],
-          },
-        },
-      ],
-      [
-        "finnhub",
-        {
-          name: "Finnhub",
-          status: "disconnected",
-          rateLimits: {
-            requestsPerMinute: 60,
-            maxConcurrentConnections: 1,
-            costPerRequest: 0.0,
-            monthlyQuota: 100000,
-          },
-          usage: {
-            requestsToday: 0,
-            requestsThisMonth: 0,
-            totalCost: 0,
-            lastReset: new Date().toISOString().split("T")[0],
-          },
-          connections: new Map(),
-          symbols: new Set(),
-          metrics: {
-            latency: [],
-            successRate: 100,
-            uptime: 0,
-            errors: [],
-          },
-        },
-      ],
+      // Polygon and Finnhub providers disabled for development
+      // Can be re-enabled later when needed
     ]);
 
     // Global feed management

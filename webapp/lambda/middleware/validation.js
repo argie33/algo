@@ -476,12 +476,51 @@ const commonValidations = {
   }),
 };
 
+/**
+ * Sanitizers object for backwards compatibility
+ * Provides the API expected by stocks.js route
+ */
+const sanitizers = {
+  string: (value, options = {}) => {
+    if (typeof value !== "string") return "";
+    
+    let sanitized = value.trim();
+    
+    // Apply maxLength if provided
+    if (options.maxLength) {
+      sanitized = sanitized.slice(0, options.maxLength);
+    }
+    
+    // Apply alphaNumOnly filter if specified
+    if (options.alphaNumOnly === true) {
+      sanitized = sanitized.replace(/[^a-zA-Z0-9]/g, "");
+    }
+    
+    // Apply escapeHTML if specified
+    if (options.escapeHTML === true) {
+      sanitized = sanitized
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#x27;");
+    }
+    
+    return sanitized;
+  },
+  
+  number: sanitizeNumber,
+  integer: sanitizeInteger,
+  array: sanitizeArray,
+};
+
 module.exports = {
   createValidationMiddleware,
   validateBody,
   validateQuery,
   validationSchemas,
   commonValidations,
+  sanitizers,
   sanitizeString,
   sanitizeNumber,
   sanitizeInteger,

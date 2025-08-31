@@ -8,7 +8,136 @@ import App from "./App";
 import { AuthProvider } from "./contexts/AuthContext";
 import { configureAmplify } from "./config/amplify";
 
-console.log("🚀 main.jsx loaded - starting React app");
+// RESTORED: Enhanced error logging with ZERO suppression - let all errors through
+const _originalConsoleError = console.error;
+const _originalConsoleWarn = console.warn;
+
+// Enhanced error logging that PRESERVES all errors while adding context
+const _safeStringify = (obj, depth = 0, maxDepth = 3) => {
+  if (depth > maxDepth) return '[Max Depth Reached]';
+  if (obj === null) return 'null';
+  if (obj === undefined) return 'undefined';
+  
+  if (typeof obj === 'object') {
+    if (obj instanceof Error) {
+      return `Error: ${obj.message} (${obj.name})`;
+    }
+    
+    // Handle circular references and deep objects safely
+    try {
+      const seen = new WeakSet();
+      return JSON.stringify(obj, function(key, val) {
+        if (val != null && typeof val === 'object') {
+          if (seen.has(val)) return '[Circular]';
+          seen.add(val);
+        }
+        return val;
+      }, 2);
+    } catch (e) {
+      return `[Object: ${obj.constructor?.name || 'Unknown'}]`;
+    }
+  }
+  
+  return String(obj);
+};
+
+// ENHANCED console.error that PRESERVES all errors while adding debugging context
+console.error = function(...args) {
+  try {
+    // Add timestamp and enhanced context to all error messages
+    const timestamp = new Date().toISOString();
+    const enhanced = [`[${timestamp}] ENHANCED ERROR LOG:`];
+    
+    const safeArgs = (args || []).map(arg => {
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return _safeStringify(arg);
+        } catch (e) {
+          return `[Unsafe Object: ${arg.constructor?.name || 'Unknown'}]`;
+        }
+      }
+      return arg;
+    });
+    
+    enhanced.push(...safeArgs);
+    
+    // ALWAYS call original console.error - ZERO SUPPRESSION
+    return _originalConsoleError.apply(console, enhanced);
+  } catch (error) {
+    // Fallback to original error logging if enhancement fails
+    _originalConsoleError.call(console, '[Error Enhancement Failed]', error.message);
+    return _originalConsoleError.apply(console, args);
+  }
+};
+
+// ENHANCED console.warn with context preservation
+console.warn = function(...args) {
+  try {
+    const timestamp = new Date().toISOString();
+    const enhanced = [`[${timestamp}] ENHANCED WARN:`];
+    
+    const safeArgs = (args || []).map(arg => {
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return _safeStringify(arg);
+        } catch (e) {
+          return `[Unsafe Object: ${arg.constructor?.name || 'Unknown'}]`;
+        }
+      }
+      return arg;
+    });
+    
+    enhanced.push(...safeArgs);
+    
+    // ALWAYS call original console.warn - ZERO SUPPRESSION
+    return _originalConsoleWarn.apply(console, enhanced);
+  } catch (error) {
+    _originalConsoleWarn.call(console, '[Warn Enhancement Failed]', error.message);
+    return _originalConsoleWarn.apply(console, args);
+  }
+};
+
+// ENHANCED window error handling - capture ALL errors with context
+window.addEventListener('error', function(e) {
+  const timestamp = new Date().toISOString();
+  const errorDetails = {
+    message: e.message,
+    filename: e.filename,
+    lineno: e.lineno,
+    colno: e.colno,
+    error: e.error ? {
+      name: e.error.name,
+      message: e.error.message,
+      stack: e.error.stack
+    } : null,
+    timestamp: timestamp,
+    userAgent: navigator.userAgent,
+    url: window.location.href
+  };
+  
+  console.error('[ENHANCED WINDOW ERROR]', errorDetails);
+  
+  // DO NOT prevent default - let all errors through
+  return false;
+}, true);
+
+// ENHANCED unhandled promise rejection handling
+window.addEventListener('unhandledrejection', function(e) {
+  const timestamp = new Date().toISOString();
+  const rejectionDetails = {
+    reason: e.reason,
+    promise: e.promise,
+    timestamp: timestamp,
+    url: window.location.href
+  };
+  
+  console.error('[ENHANCED UNHANDLED REJECTION]', rejectionDetails);
+  
+  // DO NOT prevent default - let all errors through
+  return false;
+});
+
+// Application initialization
 
 // Aggressively clear all Service Workers and caches to fix old API URL caching
 if ("serviceWorker" in navigator) {
@@ -16,17 +145,15 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker
     .getRegistrations()
     .then(function (registrations) {
-      console.log(
-        `🧹 Found ${registrations.length} Service Worker registrations`
-      );
+      // Found Service Worker registrations
       for (let registration of registrations) {
-        registration.unregister().then(function (boolean) {
-          console.log("🧹 Service Worker unregistered:", boolean);
+        registration.unregister().then(function (_boolean) {
+          // Service Worker unregistered
         });
       }
     })
     .catch(function (error) {
-      console.log("Service Worker unregistration failed:", error);
+      console.error("Service Worker unregistration failed:", error);
     });
 }
 
@@ -35,48 +162,36 @@ if ("caches" in window) {
   caches
     .keys()
     .then(function (cacheNames) {
-      console.log(`🗑️ Found ${cacheNames.length} cache stores`);
+      // Found cache stores
       return Promise.all(
-        cacheNames.map(function (cacheName) {
-          console.log("🗑️ Deleting cache:", cacheName);
+        (cacheNames || []).map(function (cacheName) {
+          // Deleting cache
           return caches.delete(cacheName);
         })
       );
     })
     .then(function () {
-      console.log("✅ All caches cleared");
+      // All caches cleared
     })
     .catch(function (error) {
-      console.log("Cache clearing failed:", error);
+      console.error("Cache clearing failed:", error);
     });
 }
 
-// Force reload config.js with cache busting to get latest API URL configuration
-const forceReloadConfig = () => {
-  try {
-    // Remove existing config script if it exists
-    const existingScript = document.querySelector('script[src*="config.js"]');
-    if (existingScript) {
-      existingScript.remove();
-      console.log("🗑️ Removed existing config script");
+// Check if config is already loaded by index.html, don't force reload
+if (window.__CONFIG__) {
+  // Config already loaded by index.html
+} else {
+  // Waiting for config.js to load from index.html
+  // Wait a bit for config to load naturally from index.html
+  setTimeout(() => {
+    if (window.__CONFIG__) {
+      // Config loaded after waiting
+    } else {
+      console.warn("⚠️ Config not loaded yet, check index.html script tag");
     }
-
-    // Add new config script with cache busting
-    const script = document.createElement("script");
-    script.src = `/config.js?t=${Date.now()}`;
-    script.onload = () => {
-      console.log("✅ Config reloaded with latest values:", window.__CONFIG__);
-    };
-    script.onerror = () => {
-      console.error("❌ Failed to reload config.js");
-    };
-    document.head.appendChild(script);
-  } catch (error) {
-    console.error("❌ Error forcing config reload:", error);
-  }
-};
-
-forceReloadConfig();
+  }, 1000);
+}
 
 // Configure Amplify
 configureAmplify();
@@ -218,23 +333,26 @@ const queryClient = new QueryClient({
   },
 });
 
-console.log("✅ Theme created");
-console.log("✅ QueryClient created");
-console.log("🔍 Looking for root element...");
+// Theme and QueryClient created, looking for root element
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   console.error("❌ Root element not found!");
   alert("Root element not found!");
 } else {
-  console.log("✅ Root element found:", rootElement);
+  // Root element found
 }
 
-console.log("🚀 Creating React root and rendering app...");
+// Creating React root and rendering app
 
 try {
   ReactDOM.createRoot(document.getElementById("root")).render(
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
           <CssBaseline />
@@ -245,7 +363,7 @@ try {
       </QueryClientProvider>
     </BrowserRouter>
   );
-  console.log("✅ React app rendered successfully");
+  // React app rendered successfully
 } catch (error) {
   console.error("❌ Error rendering React app:", error);
   alert("Error rendering React app: " + error.message);

@@ -196,7 +196,7 @@ export const validateConfig = (config) => {
   }
 
   return {
-    isValid: errors.length === 0,
+    isValid: (errors?.length || 0) === 0,
     errors,
   };
 };

@@ -529,12 +529,12 @@ function StockScreener() {
 
   if (screenResults) {
     // Handle the backend response structure: { data: [...], total: number }
-    if (Array.isArray(screenResults.data)) {
-      stocksList = screenResults.data;
-      totalCount = screenResults.total || screenResults.data.length;
-    } else if (screenResults.data && Array.isArray(screenResults.data.data)) {
-      stocksList = screenResults.data.data;
-      totalCount = screenResults.data.total || screenResults.data.data.length;
+    if (Array.isArray(screenResults?.data)) {
+      stocksList = screenResults?.data;
+      totalCount = screenResults.total || (screenResults.data?.length || 0);
+    } else if (screenResults?.data && Array.isArray(screenResults?.data.data)) {
+      stocksList = screenResults?.data.data;
+      totalCount = screenResults?.data.total || (screenResults?.data.data?.length || 0);
     }
   }
 
@@ -702,7 +702,7 @@ function StockScreener() {
                       fullWidth
                     >
                       <MenuItem value="">All Sectors</MenuItem>
-                      {SECTORS.map((sector) => (
+                      {(SECTORS || []).map((sector) => (
                         <MenuItem key={sector} value={sector}>
                           {sector}
                         </MenuItem>
@@ -720,7 +720,7 @@ function StockScreener() {
                       fullWidth
                     >
                       <MenuItem value="">All Exchanges</MenuItem>
-                      {EXCHANGES.map((exchange) => (
+                      {(EXCHANGES || []).map((exchange) => (
                         <MenuItem key={exchange} value={exchange}>
                           {exchange}
                         </MenuItem>
@@ -1258,7 +1258,7 @@ function StockScreener() {
                       value={selectedColumns}
                       onChange={(e) => setSelectedColumns(e.target.value)}
                       label="Columns"
-                      renderValue={(selected) => `${selected.length} columns`}
+                      renderValue={(selected) => `${(selected?.length || 0)} columns`}
                     >
                       <MenuItem value="symbol">Symbol</MenuItem>
                       <MenuItem value="company_name">Company</MenuItem>
@@ -1442,7 +1442,7 @@ function StockScreener() {
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
-                          {visibleColumns.map((column) => (
+                          {(visibleColumns || []).map((column) => (
                             <TableCell
                               key={column.id}
                               sortDirection={
@@ -1485,7 +1485,7 @@ function StockScreener() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {stocksList.map((stock) => {
+                        {(stocksList || []).map((stock) => {
                           // Generate factor scores for display (in production, these would come from backend)
                           const factorScores = {
                             qualityScore: Math.round(Math.random() * 40 + 40),
@@ -1509,7 +1509,7 @@ function StockScreener() {
                               }}
                               onClick={() => handleRowClick(stock.symbol)}
                             >
-                              {visibleColumns.map((column) => (
+                              {(visibleColumns || []).map((column) => (
                                 <TableCell
                                   key={column.id}
                                   sx={{ width: column.width }}
@@ -1599,7 +1599,7 @@ function StockScreener() {
               )}
 
               {/* No Results */}
-              {screenResults && stocksList.length === 0 && !isLoading && (
+              {screenResults && (stocksList?.length || 0) === 0 && !isLoading && (
                 <Box textAlign="center" py={6}>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria

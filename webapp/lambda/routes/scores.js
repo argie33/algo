@@ -321,14 +321,15 @@ router.get("/:symbol", async (req, res) => {
     // Get sector benchmark data
     const sectorQuery = `
       SELECT 
-        AVG(composite_score) as avg_composite,
-        AVG(quality_score) as avg_quality,
-        AVG(value_score) as avg_value,
+        AVG(overall_score) as avg_composite,
+        AVG(fundamental_score) as avg_quality,
+        AVG(fundamental_score) as avg_value,
         COUNT(*) as peer_count
       FROM stock_scores sc
+      LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
       WHERE cp.sector = $1
       AND sc.date = $2
-      AND sc.composite_score IS NOT NULL
+      AND sc.overall_score IS NOT NULL
     `;
 
     const sectorResult = await query(sectorQuery, [
@@ -519,24 +520,24 @@ router.get("/sectors/analysis", async (req, res) => {
       SELECT 
         cp.sector,
         COUNT(*) as stock_count,
-        AVG(sc.composite_score) as avg_composite,
-        AVG(sc.quality_score) as avg_quality,
-        AVG(sc.value_score) as avg_value,
-        AVG(sc.growth_score) as avg_growth,
-        AVG(sc.momentum_score) as avg_momentum,
+        AVG(sc.overall_score) as avg_composite,
+        AVG(sc.fundamental_score) as avg_quality,
+        AVG(sc.fundamental_score) as avg_value,
+        AVG(sc.technical_score) as avg_growth,
+        AVG(sc.technical_score) as avg_momentum,
         AVG(sc.sentiment_score) as avg_sentiment,
-        AVG(sc.positioning_score) as avg_positioning,
-        STDDEV(sc.composite_score) as score_volatility,
-        MAX(sc.composite_score) as max_score,
-        MIN(sc.composite_score) as min_score,
-        MAX(sc.updated_at) as last_updated
+        AVG(sc.fundamental_score) as avg_positioning,
+        STDDEV(sc.overall_score) as score_volatility,
+        MAX(sc.overall_score) as max_score,
+        MIN(sc.overall_score) as min_score,
+        MAX(sc.created_at) as last_updated
       FROM company_profile cp
       INNER JOIN stock_scores sc ON cp.ticker = sc.symbol
       WHERE sc.date = (
         SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = cp.ticker
       )
       AND cp.sector IS NOT NULL
-      AND sc.composite_score IS NOT NULL
+      AND sc.overall_score IS NOT NULL
       GROUP BY cp.sector
       HAVING COUNT(*) >= 5
       ORDER BY avg_composite DESC
@@ -619,7 +620,13 @@ router.get("/top/:category", async (req, res) => {
     }
 
     const scoreColumn =
-      category === "composite" ? "composite_score" : `${category}_score`;
+      category === "composite" ? "overall_score" : 
+      category === "quality" ? "fundamental_score" :
+      category === "value" ? "fundamental_score" :
+      category === "growth" ? "technical_score" :
+      category === "momentum" ? "technical_score" :
+      category === "sentiment" ? "sentiment_score" :
+      "overall_score";
 
     const topStocksQuery = `
       SELECT 
@@ -627,19 +634,19 @@ router.get("/top/:category", async (req, res) => {
         ss.security_name as company_name,
         cp.sector,
         cp.market_cap,
-        md.price as current_price,
-        sc.composite_score,
+        NULL as current_price,
+        sc.overall_score as composite_score,
         sc.${scoreColumn} as category_score,
-        sc.confidence_score,
-        sc.percentile_rank,
-        sc.updated_at
+        1.0 as confidence_score,
+        1.0 as percentile_rank,
+        sc.created_at as updated_at
       FROM stock_scores sc
       INNER JOIN stock_symbols ss ON sc.symbol = ss.symbol
+      LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
       WHERE sc.date = (
         SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = sc.symbol
       )
       AND sc.${scoreColumn} IS NOT NULL
-      AND sc.confidence_score >= 0.7
       ORDER BY sc.${scoreColumn} DESC
       LIMIT $1
     `;

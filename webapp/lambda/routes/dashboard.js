@@ -12,6 +12,22 @@ if (process.env.NODE_ENV !== "test") {
   });
 }
 
+// Root dashboard route - returns available endpoints
+router.get("/", async (req, res) => {
+  res.success({
+    message: "Dashboard API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
+    endpoints: [
+      "/summary - Comprehensive dashboard summary",
+      "/holdings - Portfolio holdings data",
+      "/performance - Performance metrics",
+      "/alerts - User alerts",
+      "/market-data - Market overview data"
+    ]
+  });
+});
+
 /**
  * GET /api/dashboard/summary
  * Get comprehensive dashboard summary data
@@ -28,10 +44,10 @@ router.get("/summary", async (req, res) => {
                 volume,
                 change_percent,
                 change_amount,
-                high,
-                low,
-                updated_at
-            FROM latest_price_daily 
+                high_price as high,
+                low_price as low,
+                created_at
+            FROM price_daily 
             WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX', 'SPY', 'QQQ', 'IWM', 'DIA')
             ORDER BY symbol
         `;
@@ -43,12 +59,10 @@ router.get("/summary", async (req, res) => {
                 close_price,
                 change_percent,
                 change_amount,
-                volume,
-                market_cap
-            FROM latest_price_daily 
+                volume
+            FROM price_daily 
             WHERE change_percent > 0 
                 AND volume > 1000000
-                AND market_cap > 1000000000
             ORDER BY change_percent DESC
             LIMIT 10
         `;
@@ -60,12 +74,10 @@ router.get("/summary", async (req, res) => {
                 close_price,
                 change_percent,
                 change_amount,
-                volume,
-                market_cap
-            FROM latest_price_daily 
+                volume
+            FROM price_daily 
             WHERE change_percent < 0 
                 AND volume > 1000000
-                AND market_cap > 1000000000
             ORDER BY change_percent ASC
             LIMIT 10
         `;
@@ -76,9 +88,8 @@ router.get("/summary", async (req, res) => {
                 sector,
                 COUNT(*) as stock_count,
                 AVG(change_percent) as avg_change,
-                AVG(volume) as avg_volume,
-                SUM(market_cap) as total_market_cap
-            FROM latest_price_daily lpd
+                AVG(lpd.volume) as avg_volume
+            FROM price_daily lpd
             JOIN stocks s ON lpd.symbol = s.symbol
             WHERE s.sector IS NOT NULL 
                 AND s.sector != ''
@@ -92,12 +103,11 @@ router.get("/summary", async (req, res) => {
     const earningsQuery = `
             SELECT 
                 symbol,
-                actual_eps,
-                estimated_eps,
+                eps_reported as actual_eps,
+                eps_estimate as estimated_eps,
                 surprise_percent,
-                report_date,
-                company_name
-            FROM earnings_history 
+                report_date
+            FROM earnings_reports 
             WHERE report_date >= CURRENT_DATE - INTERVAL '30 days'
             ORDER BY report_date DESC
             LIMIT 15
@@ -106,12 +116,11 @@ router.get("/summary", async (req, res) => {
     // Get market sentiment
     const sentimentQuery = `
             SELECT 
-                fear_greed_value,
-                fear_greed_classification,
-                fear_greed_text,
-                updated_at
-            FROM fear_greed 
-            ORDER BY updated_at DESC 
+                value,
+                classification,
+                created_at
+            FROM fear_greed_index 
+            ORDER BY created_at DESC 
             LIMIT 1
         `;
 
@@ -121,9 +130,8 @@ router.get("/summary", async (req, res) => {
                 symbol,
                 close_price,
                 volume,
-                change_percent,
-                market_cap
-            FROM latest_price_daily 
+                change_percent
+            FROM price_daily 
             WHERE volume > 10000000
             ORDER BY volume DESC
             LIMIT 10
@@ -138,7 +146,7 @@ router.get("/summary", async (req, res) => {
                 COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
                 AVG(change_percent) as avg_change,
                 AVG(volume) as avg_volume
-            FROM latest_price_daily
+            FROM price_daily
             WHERE change_percent IS NOT NULL
         `;
 
@@ -299,30 +307,30 @@ router.get("/holdings", authenticateToken, async (req, res) => {
 
     const holdingsQuery = `
             SELECT 
-                symbol,
-                shares,
-                avg_price,
-                current_price,
-                total_value,
-                gain_loss,
-                gain_loss_percent,
-                sector,
-                company_name,
-                updated_at
+                ph.symbol,
+                ph.quantity as shares,
+                ph.average_cost as avg_price,
+                ph.current_price,
+                ph.market_value as total_value,
+                ph.unrealized_pnl as gain_loss,
+                ph.unrealized_pnl_percent as gain_loss_percent,
+                s.sector,
+                s.name as company_name,
+                ph.last_updated as created_at
             FROM portfolio_holdings ph
             LEFT JOIN stocks s ON ph.symbol = s.symbol
             WHERE ph.user_id = $1
-            ORDER BY total_value DESC
+            ORDER BY ph.market_value DESC
         `;
 
     // Get portfolio summary
     const summaryQuery = `
             SELECT 
                 COUNT(*) as total_positions,
-                SUM(total_value) as total_portfolio_value,
-                SUM(gain_loss) as total_gain_loss,
-                AVG(gain_loss_percent) as avg_gain_loss_percent,
-                SUM(shares * current_price) as market_value
+                SUM(market_value) as total_portfolio_value,
+                SUM(unrealized_pnl) as total_gain_loss,
+                AVG(unrealized_pnl_percent) as avg_gain_loss_percent,
+                SUM(quantity * current_price) as market_value
             FROM portfolio_holdings
             WHERE user_id = $1
         `;
@@ -386,10 +394,10 @@ router.get("/performance", authenticateToken, async (req, res) => {
             SELECT 
                 date,
                 total_value,
-                daily_return,
-                cumulative_return,
+                daily_pnl_percent as daily_return,
+                total_pnl_percent as cumulative_return,
                 benchmark_return,
-                excess_return
+                0 as excess_return
             FROM portfolio_performance 
             WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date ASC
@@ -398,10 +406,10 @@ router.get("/performance", authenticateToken, async (req, res) => {
     // Get performance metrics
     const metricsQuery = `
             SELECT 
-                AVG(daily_return) as avg_daily_return,
-                STDDEV(daily_return) as volatility,
-                MAX(cumulative_return) as max_return,
-                MIN(cumulative_return) as min_return,
+                AVG(daily_pnl_percent) as avg_daily_return,
+                STDDEV(daily_pnl_percent) as volatility,
+                MAX(total_pnl_percent) as max_return,
+                MIN(total_pnl_percent) as min_return,
                 COUNT(*) as trading_days
             FROM portfolio_performance 
             WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '30 days'
@@ -467,11 +475,11 @@ router.get("/alerts", authenticateToken, async (req, res) => {
                 symbol,
                 alert_type,
                 message,
-                price,
-                target_price,
-                stop_loss,
-                priority,
-                status,
+                target_value as price,
+                target_value as target_price,
+                target_value as stop_loss,
+                1 as priority,
+                CASE WHEN is_active THEN 'active' ELSE 'inactive' END as status,
                 created_at
             FROM trading_alerts 
             WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days'
@@ -484,7 +492,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
             SELECT 
                 alert_type,
                 COUNT(*) as count,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count
+                COUNT(CASE WHEN is_active = true THEN 1 END) as active_count
             FROM trading_alerts 
             WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days'
             GROUP BY alert_type
@@ -556,9 +564,8 @@ router.get("/market-data", async (req, res) => {
             SELECT 
                 sector,
                 AVG(change_percent) as avg_change,
-                COUNT(*) as stock_count,
-                SUM(market_cap) as total_market_cap
-            FROM latest_price_daily lpd
+                COUNT(*) as stock_count
+            FROM price_daily lpd
             JOIN stocks s ON lpd.symbol = s.symbol
             WHERE s.sector IS NOT NULL 
                 AND lpd.change_percent IS NOT NULL
@@ -571,19 +578,19 @@ router.get("/market-data", async (req, res) => {
             SELECT 
                 'advancing' as type,
                 COUNT(*) as count
-            FROM latest_price_daily 
+            FROM price_daily 
             WHERE change_percent > 0
             UNION ALL
             SELECT 
                 'declining' as type,
                 COUNT(*) as count
-            FROM latest_price_daily 
+            FROM price_daily 
             WHERE change_percent < 0
             UNION ALL
             SELECT 
                 'unchanged' as type,
                 COUNT(*) as count
-            FROM latest_price_daily 
+            FROM price_daily 
             WHERE change_percent = 0
         `;
 
@@ -667,9 +674,9 @@ router.get("/debug", async (req, res) => {
 
     // Get table counts
     const tables = [
-      "latest_price_daily",
+      "price_daily",
       "earnings_history",
-      "fear_greed",
+      "fear_greed_index",
       "portfolio_holdings",
       "portfolio_performance",
       "trading_alerts",
@@ -693,9 +700,9 @@ router.get("/debug", async (req, res) => {
     try {
       const sampleResult = await query(`
                 SELECT 
-                    (SELECT COUNT(*) FROM latest_price_daily) as price_count,
+                    (SELECT COUNT(*) FROM price_daily) as price_count,
                     (SELECT COUNT(*) FROM earnings_history) as earnings_count,
-                    (SELECT COUNT(*) FROM fear_greed) as sentiment_count,
+                    (SELECT COUNT(*) FROM fear_greed_index) as sentiment_count,
                     (SELECT COUNT(*) FROM stocks) as stocks_count
             `);
       debugData.sample_data = sampleResult.rows[0];

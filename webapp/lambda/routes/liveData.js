@@ -6,6 +6,27 @@ const logger = require("../utils/logger");
 const realTimeDataService = require("../utils/realTimeDataService");
 const liveDataManager = require("../utils/liveDataManager").instance;
 
+// Root endpoint - provides overview of available live data endpoints
+router.get("/", async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      message: "Live Data API - Ready",
+      timestamp: new Date().toISOString(),
+      status: "operational",
+      authentication: "Required for most endpoints",
+      endpoints: [
+        "/status - Get live data service status",
+        "/stream/:symbols - Stream real-time data for symbols (requires auth)",
+        "/latest/:symbols - Get latest data for symbols (requires auth)",
+        "/health - Health check endpoint",
+        "/metrics - Performance metrics"
+      ]
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 /**
  * Live Data Management Routes
  * Centralized live data service administration endpoints

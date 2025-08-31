@@ -68,7 +68,7 @@ export function useData(url, options = {}) {
   }, [url]);
 
   return {
-    data: state.data,
+    data: state?.data,
     isLoading: state.isLoading,
     error: state.error,
     isStale: state.isStale,
@@ -154,7 +154,7 @@ export function useQuery(options) {
   }, [fetchData]);
 
   return {
-    data: state.data,
+    data: state?.data,
     isLoading: state.isLoading,
     error: state.error,
     isStale: state.isStale,
@@ -198,7 +198,7 @@ export function useMutation(mutationFn, options = {}) {
 
   return {
     mutate,
-    data: state.data,
+    data: state?.data,
     isLoading: state.isLoading,
     error: state.error,
   };
@@ -227,7 +227,7 @@ export function useInfiniteQuery(options) {
     setState((prev) => ({ ...prev, isFetchingNextPage: true }));
 
     try {
-      const lastPage = state.data.pages[state.data.pages.length - 1];
+      const lastPage = state?.data.pages[(state?.data.pages?.length || 0) - 1];
       const nextPageParam = getNextPageParam
         ? getNextPageParam(lastPage)
         : undefined;
@@ -242,8 +242,8 @@ export function useInfiniteQuery(options) {
       setState((prev) => ({
         ...prev,
         data: {
-          pages: [...prev.data.pages, newPage],
-          pageParams: [...prev.data.pageParams, nextPageParam],
+          pages: [...prev?.data.pages, newPage],
+          pageParams: [...prev?.data.pageParams, nextPageParam],
         },
         isFetchingNextPage: false,
         hasNextPage: getNextPageParam
@@ -257,7 +257,7 @@ export function useInfiniteQuery(options) {
         isFetchingNextPage: false,
       }));
     }
-  }, [queryFn, getNextPageParam, state.data.pages, state.isFetchingNextPage]);
+  }, [queryFn, getNextPageParam, state?.data.pages, state.isFetchingNextPage]);
 
   const fetchFirstPage = useCallback(async () => {
     if (!enabled || !queryFn) {
@@ -292,7 +292,7 @@ export function useInfiniteQuery(options) {
   }, [fetchFirstPage]);
 
   return {
-    data: state.data,
+    data: state?.data,
     isLoading: state.isLoading,
     error: state.error,
     hasNextPage: state.hasNextPage,

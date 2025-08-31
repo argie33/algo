@@ -94,7 +94,7 @@ function FinancialData() {
     companiesData?.data?.data ?? companiesData?.data ?? companiesData ?? [];
   console.log("📊 FinancialData: Companies data:", {
     hasData: !!companiesData,
-    companiesLength: companies.length,
+    companiesLength: (companies?.length || 0),
     sampleCompany: companies[0],
   });
 
@@ -359,9 +359,9 @@ function FinancialData() {
       typeof actualData === "object" &&
       !Array.isArray(actualData)
     ) {
-      if ("data" in actualData) actualData = actualData.data;
+      if ("data" in actualData) actualData = actualData?.data;
     }
-    if (!actualData || !Array.isArray(actualData) || actualData.length === 0) {
+    if (!actualData || !Array.isArray(actualData) || (actualData?.length || 0) === 0) {
       return (
         <Card>
           <CardContent>

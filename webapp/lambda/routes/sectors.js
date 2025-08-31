@@ -82,23 +82,10 @@ router.get("/analysis", async (req, res) => {
                 WHERE date >= CURRENT_DATE - INTERVAL '3 months'
                 ORDER BY symbol, date DESC
             ),
-            momentum_data AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol,
-                    jt_momentum_12_1,
-                    momentum_3m,
-                    momentum_6m,
-                    risk_adjusted_momentum,
-                    momentum_strength,
-                    volume_weighted_momentum
-                FROM momentum_metrics
-                WHERE date >= CURRENT_DATE - INTERVAL '1 month'
-                ORDER BY symbol, date DESC
-            ),
             sector_summary AS (
                 SELECT 
-                    s.sector,
-                    s.industry,
+                    cp.sector,
+                    cp.industry,
                     COUNT(*) as stock_count,
                     COUNT(lp.symbol) as priced_stocks,
                     AVG(lp.current_price) as avg_price,
@@ -112,13 +99,6 @@ router.get("/analysis", async (req, res) => {
                     AVG(lt.momentum) as avg_momentum,
                     AVG(lt.macd) as avg_macd,
                     
-                    -- Momentum metrics
-                    AVG(md.jt_momentum_12_1) as avg_jt_momentum,
-                    AVG(md.momentum_3m) as avg_momentum_3m,
-                    AVG(md.momentum_6m) as avg_momentum_6m,
-                    AVG(md.risk_adjusted_momentum) as avg_risk_adj_momentum,
-                    AVG(md.momentum_strength) as avg_momentum_strength,
-                    AVG(md.volume_weighted_momentum) as avg_volume_momentum,
                     
                     -- Trend analysis
                     COUNT(CASE WHEN lt.trend = 'bullish' THEN 1 END) as bullish_stocks,
@@ -131,48 +111,46 @@ router.get("/analysis", async (req, res) => {
                     -- Performance ranking
                     RANK() OVER (ORDER BY AVG(lp.monthly_change_pct) DESC) as performance_rank
                     
-                FROM symbols s
-                LEFT JOIN latest_prices lp ON s.ticker = lp.symbol
-                LEFT JOIN latest_technicals lt ON s.ticker = lt.symbol  
-                LEFT JOIN momentum_data md ON s.ticker = md.ticker
-                WHERE s.sector IS NOT NULL 
-                    AND s.sector != ''
-                    AND s.industry IS NOT NULL
-                    AND s.industry != ''
-                GROUP BY s.sector, s.industry
+                FROM stock_symbols s
+                LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+                LEFT JOIN latest_prices lp ON s.symbol = lp.symbol
+                LEFT JOIN latest_technicals lt ON s.symbol = lt.symbol
+                WHERE cp.sector IS NOT NULL 
+                    AND cp.sector != ''
+                    AND cp.industry IS NOT NULL
+                    AND cp.industry != ''
+                GROUP BY cp.sector, cp.industry
                 HAVING COUNT(lp.symbol) >= 3  -- Only include sectors/industries with at least 3 priced stocks
             ),
             top_performers AS (
                 SELECT 
-                    s.sector,
-                    s.ticker,
-                    s.short_name,
+                    cp.sector,
+                    s.symbol,
+                    s.security_name,
                     lp.current_price,
                     lp.monthly_change_pct,
                     lt.momentum as current_momentum,
-                    md.jt_momentum_12_1,
-                    ROW_NUMBER() OVER (PARTITION BY s.sector ORDER BY lp.monthly_change_pct DESC) as sector_rank
-                FROM symbols s
-                INNER JOIN latest_prices lp ON s.ticker = lp.symbol
-                LEFT JOIN latest_technicals lt ON s.ticker = lt.symbol
-                LEFT JOIN momentum_data md ON s.ticker = md.ticker
-                WHERE s.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
+                    ROW_NUMBER() OVER (PARTITION BY cp.sector ORDER BY lp.monthly_change_pct DESC) as sector_rank
+                FROM stock_symbols s
+                LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+                INNER JOIN latest_prices lp ON s.symbol = lp.symbol
+                LEFT JOIN latest_technicals lt ON s.symbol = lt.symbol
+                WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             ),
             bottom_performers AS (
                 SELECT 
-                    s.sector,
-                    s.ticker,
-                    s.short_name,
+                    cp.sector,
+                    s.symbol,
+                    s.security_name,
                     lp.current_price,
                     lp.monthly_change_pct,
                     lt.momentum as current_momentum,
-                    md.jt_momentum_12_1,
-                    ROW_NUMBER() OVER (PARTITION BY s.sector ORDER BY lp.monthly_change_pct ASC) as sector_rank
-                FROM symbols s
-                INNER JOIN latest_prices lp ON s.ticker = lp.symbol
-                LEFT JOIN latest_technicals lt ON s.ticker = lt.symbol
-                LEFT JOIN momentum_data md ON s.ticker = md.ticker
-                WHERE s.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
+                    ROW_NUMBER() OVER (PARTITION BY cp.sector ORDER BY lp.monthly_change_pct ASC) as sector_rank
+                FROM stock_symbols s
+                LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+                INNER JOIN latest_prices lp ON s.symbol = lp.symbol
+                LEFT JOIN latest_technicals lt ON s.symbol = lt.symbol
+                WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             )
             
             SELECT 
@@ -182,12 +160,11 @@ router.get("/analysis", async (req, res) => {
                 JSON_AGG(
                     CASE WHEN tp.sector_rank <= 3 THEN 
                         JSON_BUILD_OBJECT(
-                            'symbol', tp.ticker,
-                            'name', tp.short_name,
+                            'symbol', tp.symbol,
+                            'name', tp.security_name,
                             'price', tp.current_price,
                             'monthly_return', tp.monthly_change_pct,
-                            'momentum', tp.current_momentum,
-                            'jt_momentum', tp.jt_momentum_12_1
+                            'momentum', tp.current_momentum
                         )
                     END
                 ) FILTER (WHERE tp.sector_rank <= 3) as top_performers,
@@ -196,12 +173,11 @@ router.get("/analysis", async (req, res) => {
                 JSON_AGG(
                     CASE WHEN bp.sector_rank <= 3 THEN 
                         JSON_BUILD_OBJECT(
-                            'symbol', bp.ticker,
-                            'name', bp.short_name,
+                            'symbol', bp.symbol,
+                            'name', bp.security_name,
                             'price', bp.current_price,
                             'monthly_return', bp.monthly_change_pct,
-                            'momentum', bp.current_momentum,
-                            'jt_momentum', bp.jt_momentum_12_1
+                            'momentum', bp.current_momentum
                         )
                     END
                 ) FILTER (WHERE bp.sector_rank <= 3) as bottom_performers
@@ -213,8 +189,6 @@ router.get("/analysis", async (req, res) => {
                 ss.sector, ss.industry, ss.stock_count, ss.priced_stocks, 
                 ss.avg_price, ss.avg_daily_change, ss.avg_weekly_change, ss.avg_monthly_change,
                 ss.avg_volume, ss.avg_rsi, ss.avg_momentum, ss.avg_macd,
-                ss.avg_jt_momentum, ss.avg_momentum_3m, ss.avg_momentum_6m, 
-                ss.avg_risk_adj_momentum, ss.avg_momentum_strength, ss.avg_volume_momentum,
                 ss.bullish_stocks, ss.bearish_stocks, ss.neutral_stocks,
                 ss.total_dollar_volume, ss.performance_rank
             ORDER BY ss.avg_monthly_change DESC
@@ -446,7 +420,7 @@ router.get("/:sector/details", async (req, res) => {
                     -- Market cap estimate (price * volume as proxy)
                     pd.close * pd.volume as dollar_volume
                     
-                FROM symbols s
+                FROM stock_symbols s
                 LEFT JOIN price_daily pd ON s.ticker = pd.symbol
                 LEFT JOIN technical_data_daily td ON s.ticker = td.symbol AND td.date = pd.date
                 LEFT JOIN momentum_metrics mm ON s.ticker = mm.symbol

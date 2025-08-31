@@ -17,6 +17,25 @@ try {
 
 const router = express.Router();
 
+// Root endpoint - provides overview of available websocket endpoints
+router.get("/", async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      message: "WebSocket API - Ready",
+      timestamp: new Date().toISOString(),
+      status: "operational",
+      endpoints: [
+        "/test - Debug test endpoint",
+        "/health - WebSocket service health check", 
+        "/stream/:symbols - Stream real-time data for symbols",
+        "/connect - WebSocket connection endpoint"
+      ]
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Debug test endpoint
 router.get("/test", (req, res) => {
   res.json({

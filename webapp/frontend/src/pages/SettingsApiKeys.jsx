@@ -246,11 +246,11 @@ const SettingsApiKeys = () => {
 
   const maskApiKey = (key) => {
     if (!key) return "";
-    if (key.length <= 8) return "*".repeat(key.length);
+    if ((key?.length || 0) <= 8) return "*".repeat((key?.length || 0));
     return (
       key.substring(0, 4) +
-      "*".repeat(key.length - 8) +
-      key.substring(key.length - 4)
+      "*".repeat((key?.length || 0) - 8) +
+      key.substring((key?.length || 0) - 4)
     );
   };
 
@@ -325,7 +325,7 @@ const SettingsApiKeys = () => {
           mb: 3,
         }}
       >
-        <Typography variant="h6">Your API Keys ({apiKeys.length})</Typography>
+        <Typography variant="h6">Your API Keys ({(apiKeys?.length || 0)})</Typography>
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -352,7 +352,7 @@ const SettingsApiKeys = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {apiKeys.map((key) => {
+                {(apiKeys || []).map((key) => {
                   const provider = getProviderInfo(key.provider);
                   return (
                     <TableRow key={key.id}>
@@ -514,7 +514,7 @@ const SettingsApiKeys = () => {
         <CardHeader title="Supported Providers" />
         <CardContent>
           <Grid container spacing={2}>
-            {supportedProviders.map((provider) => (
+            {(supportedProviders || []).map((provider) => (
               <Grid item xs={12} md={6} key={provider.id}>
                 <Card variant="outlined">
                   <CardContent>
@@ -538,7 +538,7 @@ const SettingsApiKeys = () => {
                       </Box>
                     </Box>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                      {provider.features.map((feature) => (
+                      {(provider.features || []).map((feature) => (
                         <Chip key={feature} label={feature} size="small" />
                       ))}
                     </Box>
@@ -569,7 +569,7 @@ const SettingsApiKeys = () => {
                   setFormData({ ...formData, provider: e.target.value })
                 }
               >
-                {supportedProviders.map((provider) => (
+                {(supportedProviders || []).map((provider) => (
                   <MenuItem key={provider.id} value={provider.id}>
                     <Box sx={{ display: "flex", alignItems: "center" }}>
                       <Box sx={{ color: provider.color, mr: 1 }}>
