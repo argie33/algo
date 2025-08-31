@@ -473,58 +473,16 @@ router.get("/validation-summary", async (req, res) => {
       FROM stock_symbols
       UNION ALL
       SELECT 
-        'earnings_estimates' as table_name,
+        'price_daily' as table_name,
         COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM earnings_estimates
+        NULL as last_updated
+      FROM price_daily
       UNION ALL
       SELECT 
-        'earnings_history' as table_name,
+        'technical_indicators' as table_name,
         COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM earnings_history
-      UNION ALL
-      SELECT 
-        'revenue_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM revenue_estimates
-      UNION ALL
-      SELECT 
-        'growth_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM growth_estimates
-      UNION ALL
-      SELECT 
-        'eps_revisions' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM eps_revisions
-      UNION ALL
-      SELECT 
-        'eps_trend' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM eps_trend
-      UNION ALL
-      SELECT 
-        'technical_data_daily' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM technical_data_daily
-      UNION ALL
-      SELECT 
-        'analyst_recommendations' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM analyst_recommendations
-      UNION ALL
-      SELECT 
-        'aaii_sentiment' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM aaii_sentiment
+        NULL as last_updated
+      FROM technical_indicators
       ORDER BY table_name
     `;
 

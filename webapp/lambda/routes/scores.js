@@ -326,7 +326,6 @@ router.get("/:symbol", async (req, res) => {
         AVG(value_score) as avg_value,
         COUNT(*) as peer_count
       FROM stock_scores sc
-      LEFT JOIN company_profile cp ON sc.symbol = cp.symbol
       WHERE cp.sector = $1
       AND sc.date = $2
       AND sc.composite_score IS NOT NULL
@@ -636,7 +635,6 @@ router.get("/top/:category", async (req, res) => {
         sc.updated_at
       FROM stock_scores sc
       INNER JOIN stock_symbols ss ON sc.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON sc.symbol = cp.symbol
       WHERE sc.date = (
         SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = sc.symbol
       )

@@ -126,11 +126,11 @@ router.get("/signals", async (req, res) => {
 
     // Query signals from multiple timeframes
     const signalsQuery = `
-      (SELECT symbol, signal_type, price, date, 'daily' as timeframe FROM buy_sell_daily ${whereClause})
+      (SELECT symbol, 'buy' as signal_type, price, date, 'daily' as timeframe FROM buy_sell_daily ${whereClause})
       UNION ALL
-      (SELECT symbol, signal_type, price, date, 'weekly' as timeframe FROM buy_sell_weekly ${whereClause})
+      (SELECT symbol, 'sell' as signal_type, price, date, 'weekly' as timeframe FROM buy_sell_weekly ${whereClause})
       UNION ALL  
-      (SELECT symbol, signal_type, price, date, 'monthly' as timeframe FROM buy_sell_monthly ${whereClause})
+      (SELECT symbol, 'mixed' as signal_type, price, date, 'monthly' as timeframe FROM buy_sell_monthly ${whereClause})
       ORDER BY date DESC
       LIMIT $${paramIndex}
     `;

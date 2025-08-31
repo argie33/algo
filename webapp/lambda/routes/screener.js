@@ -57,24 +57,24 @@ router.get("/screen", async (req, res) => {
 
     // Market cap filters
     if (filters.marketCapMin) {
-      whereConditions.push(`s.market_cap >= $${paramIndex}`);
+      whereConditions.push(`ss.market_cap >= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMin));
       paramIndex++;
     }
     if (filters.marketCapMax) {
-      whereConditions.push(`s.market_cap <= $${paramIndex}`);
+      whereConditions.push(`ss.market_cap <= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMax));
       paramIndex++;
     }
 
     // Valuation filters
     if (filters.peRatioMin) {
-      whereConditions.push(`s.pe_ratio >= $${paramIndex}`);
+      whereConditions.push(`ss.pe_ratio >= $${paramIndex}`);
       params.push(parseFloat(filters.peRatioMin));
       paramIndex++;
     }
     if (filters.peRatioMax) {
-      whereConditions.push(`s.pe_ratio <= $${paramIndex}`);
+      whereConditions.push(`ss.pe_ratio <= $${paramIndex}`);
       params.push(parseFloat(filters.peRatioMax));
       paramIndex++;
     }
@@ -228,18 +228,18 @@ router.get("/screen", async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderBy = "ORDER BY s.market_cap DESC";
+    let orderBy = "ORDER BY ss.market_cap DESC";
     if (filters.sortBy) {
       const sortField = filters.sortBy;
       const sortOrder = filters.sortOrder === "desc" ? "DESC" : "ASC";
 
       // Map frontend sort fields to database fields
       const fieldMap = {
-        symbol: "s.symbol",
+        symbol: "ss.symbol",
         companyName: "ss.company_name",
         price: "sd.close",
-        marketCap: "s.market_cap",
-        peRatio: "s.pe_ratio",
+        marketCap: "ss.market_cap",
+        peRatio: "ss.pe_ratio",
         pegRatio: "s.peg_ratio",
         pbRatio: "s.pb_ratio",
         roe: "s.roe",
@@ -254,22 +254,22 @@ router.get("/screen", async (req, res) => {
         beta: "s.beta",
       };
 
-      const dbField = fieldMap[sortField] || "s.market_cap";
+      const dbField = fieldMap[sortField] || "ss.market_cap";
       orderBy = `ORDER BY ${dbField} ${sortOrder}`;
     }
 
     // Main query
     const mainQuery = `
       SELECT 
-        s.symbol,
+        ss.symbol,
         ss.company_name,
         ss.sector,
         ss.exchange,
         sd.close as price,
         sd.volume,
         sd.date as price_date,
-        s.market_cap,
-        s.pe_ratio,
+        ss.market_cap,
+        ss.pe_ratio,
         s.peg_ratio,
         s.pb_ratio,
         s.ps_ratio,
@@ -299,19 +299,18 @@ router.get("/screen", async (req, res) => {
         td.sma_200,
         td.price_momentum_3m,
         td.price_momentum_12m,
-        (sd.close - LAG(sd.close, 1) OVER (PARTITION BY s.symbol ORDER BY sd.date)) / LAG(sd.close, 1) OVER (PARTITION BY s.symbol ORDER BY sd.date) * 100 as price_change_percent
-      FROM symbols s
-      JOIN stock_symbols ss ON s.symbol = ss.symbol
+        (sd.close - LAG(sd.close, 1) OVER (PARTITION BY ss.symbol ORDER BY sd.date)) / LAG(sd.close, 1) OVER (PARTITION BY ss.symbol ORDER BY sd.date) * 100 as price_change_percent
+      FROM stock_symbols ss
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sd ON s.symbol = sd.symbol
+      ) sd ON ss.symbol = sd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM technicals_daily
+        FROM technical_indicators
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON ss.symbol = td.symbol
       ${whereClause}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -322,18 +321,17 @@ router.get("/screen", async (req, res) => {
     // Count query
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM symbols s
-      JOIN stock_symbols ss ON s.symbol = ss.symbol
+      FROM stock_symbols ss
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sd ON s.symbol = sd.symbol
+      ) sd ON ss.symbol = sd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM technicals_daily
+        FROM technical_indicators
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON ss.symbol = td.symbol
       ${whereClause}
     `;
 
@@ -430,7 +428,7 @@ router.get("/filters", async (req, res) => {
         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY market_cap) as q1_market_cap,
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY market_cap) as median_market_cap,
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY market_cap) as q3_market_cap
-      FROM symbols
+      FROM stock_symbols
       WHERE market_cap > 0
     `);
 
@@ -657,7 +655,7 @@ router.get("/growth", (req, res) => {
 router.get("/results", async (req, res) => {
   try {
     console.log("📊 Screener results endpoint called");
-    const { limit = 20, offset = 0, _filters = "{}" } = req.query;
+    const { limit: _limit = 20, offset: _offset = 0, _filters = "{}" } = req.query;
 
     // Stock screener requires database and algorithms implementation
     return res.error("Stock screener functionality not yet implemented", 503, {
@@ -864,12 +862,12 @@ router.post("/export", async (req, res) => {
     const symbolsStr = symbols.map((s) => `'${s}'`).join(",");
     const result = await query(`
       SELECT 
-        s.symbol,
+        ss.symbol,
         ss.company_name,
         ss.sector,
         sd.close as price,
-        s.market_cap,
-        s.pe_ratio,
+        ss.market_cap,
+        ss.pe_ratio,
         s.pb_ratio,
         s.roe,
         s.roa,
@@ -877,15 +875,14 @@ router.post("/export", async (req, res) => {
         s.earnings_growth,
         s.dividend_yield,
         s.factor_score
-      FROM symbols s
-      JOIN stock_symbols ss ON s.symbol = ss.symbol
+      FROM stock_symbols ss
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sd ON s.symbol = sd.symbol
-      WHERE s.symbol IN (${symbolsStr})
-      ORDER BY s.market_cap DESC
+      ) sd ON ss.symbol = sd.symbol
+      WHERE ss.symbol IN (${symbolsStr})
+      ORDER BY ss.market_cap DESC
     `);
 
     if (format === "csv") {

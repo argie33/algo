@@ -278,10 +278,8 @@ router.get("/risk-analysis", async (req, res) => {
         ph.symbol, 
         ph.quantity, 
         ph.market_value,
-        ss.sector,
         COALESCE(ti.rsi, 50) as rsi,
-        COALESCE(ti.volatility, 0.25) as volatility,
-        COALESCE(ss.pe_ratio, 15) as pe_ratio
+        COALESCE(ti.volatility, 0.25) as volatility
       FROM portfolio_holdings ph
       LEFT JOIN stock_symbols ss ON ph.symbol = ss.symbol
       LEFT JOIN technical_indicators ti ON ph.symbol = ti.symbol AND ti.date = CURRENT_DATE
@@ -342,17 +340,8 @@ router.get("/risk-metrics", async (req, res) => {
         user_id,
         symbol, 
         quantity, 
-        average_cost,
-        current_price,
         market_value,
-        cost_basis,
-        pnl,
-        pnl_percent,
-        day_change,
-        day_change_percent,
         sector,
-        asset_class,
-        broker,
         last_updated
       FROM portfolio_holdings 
       WHERE user_id = $1 
@@ -815,8 +804,8 @@ router.get("/rebalance", async (req, res) => {
     // Query portfolio_holdings table for user's rebalance data
     const holdingsQuery = `
       SELECT 
-        symbol, quantity, market_value, current_price, 
-        sector, market_cap_tier 
+        symbol, quantity, market_value, 
+        sector 
       FROM portfolio_holdings 
       WHERE user_id = $1 AND quantity > 0 
       ORDER BY market_value DESC

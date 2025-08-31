@@ -210,7 +210,7 @@ router.get("/events", async (req, res) => {
       !Array.isArray(eventsResult.rows) ||
       eventsResult.rows.length === 0
     ) {
-      return res.notFound("No earnings events found for this query" );
+      return res.error("No earnings events found for this query", 404);
     }
 
     res.json({
