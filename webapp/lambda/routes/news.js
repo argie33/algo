@@ -23,6 +23,94 @@ router.get("/", (req, res) => {
   });
 });
 
+// Recent news endpoint (public access)
+router.get("/recent", async (req, res) => {
+  try {
+    const { limit = 20, hours = 24, category = null } = req.query;
+
+    console.log(`📰 Recent news requested, limit: ${limit}, hours: ${hours}`);
+
+    let whereClause = "WHERE published_at >= NOW() - INTERVAL '" + parseInt(hours) + " hours'";
+    let params = [parseInt(limit)];
+
+    if (category) {
+      whereClause += " AND category = $2";
+      params.push(category);
+    }
+
+    const result = await query(
+      `
+      SELECT 
+        title, summary, url, source, category, published_at,
+        sentiment, symbols
+      FROM news_articles 
+      ${whereClause}
+      ORDER BY published_at DESC
+      LIMIT $1
+      `,
+      params
+    );
+
+    // Transform and enrich the data
+    const articles = result.rows.map(article => ({
+      title: article.title,
+      summary: article.summary,
+      url: article.url,
+      source: article.source,
+      category: article.category,
+      published_at: article.published_at,
+      sentiment: article.sentiment || 'neutral',
+      symbols: article.symbols,
+      time_ago: getTimeAgo(article.published_at)
+    }));
+
+    // Calculate summary statistics
+    const totalArticles = articles.length;
+    const sentimentDistribution = articles.reduce((dist, article) => {
+      const label = article.sentiment;
+      dist[label] = (dist[label] || 0) + 1;
+      return dist;
+    }, {});
+
+    res.json({
+      success: true,
+      data: {
+        articles: articles,
+        summary: {
+          total_articles: totalArticles,
+          time_window_hours: parseInt(hours),
+          sentiment_distribution: sentimentDistribution,
+          categories: [...new Set(articles.map(a => a.category))],
+          sources: [...new Set(articles.map(a => a.source))]
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Recent news error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent news",
+      details: error.message
+    });
+  }
+});
+
+// Helper function to calculate time ago
+function getTimeAgo(publishedAt) {
+  const now = new Date();
+  const published = new Date(publishedAt);
+  const diffMs = now - published;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (diffHours > 0) {
+    return `${diffHours}h ago`;
+  } else {
+    return `${diffMins}m ago`;
+  }
+}
+
 // Apply authentication to protected routes only
 const authRouter = express.Router();
 authRouter.use(authenticateToken);
@@ -674,42 +762,39 @@ router.get("/feed", async (req, res) => {
       time_range = "24h",
     } = req.query;
 
-    console.log(`📰 [NEWS-FEED] Fetching enhanced news feed with filters:`, {
-      category,
-      limit,
-      symbol,
-      sentiment_filter,
-      source_filter,
-      time_range,
-    });
+    console.log(`📰 News feed requested - category: ${category}, limit: ${limit}`);
+    console.log(`📰 News feed - not implemented`);
 
-    const newsFeed = await generateEnhancedNewsFeed({
-      category,
-      limit: parseInt(limit),
-      symbol,
-      sentiment_filter,
-      source_filter,
-      time_range,
-    });
-
-    res.success({data: newsFeed,
+    return res.status(501).json({
+      success: false,
+      error: "News feed not implemented",
+      details: "This endpoint requires news feed aggregation with financial data providers for real-time news feeds, filtering, and categorization.",
+      troubleshooting: {
+        suggestion: "News feed requires aggregated news data integration",
+        required_setup: [
+          "News aggregation service integration (Reuters, Bloomberg, Dow Jones)",
+          "News feed database with real-time updates",
+          "Content categorization and tagging system",
+          "Source reliability scoring and filtering",
+          "Real-time sentiment analysis and scoring"
+        ],
+        status: "Not implemented - requires news feed integration"
+      },
       filters: {
         category,
-        symbol: symbol || "ALL",
-        sentiment_filter: sentiment_filter || "ALL",
-        source_filter: source_filter || "ALL",
-        time_range,
+        symbol: symbol || null,
+        sentiment_filter: sentiment_filter || null,
+        source_filter: source_filter || null,
+        time_range
       },
-      last_updated: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error("❌ [NEWS-FEED] Error fetching enhanced news feed:", error);
-
-    return res.error("Failed to fetch news feed", 503, {
-      details: error.message,
-      suggestion: "News service is temporarily unavailable. Please try again in a few moments.",
-      service: "news-feed",
-      retry_after: 30
+    console.error("News feed error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch news feed",
+      details: error.message
     });
   }
 });
@@ -718,45 +803,44 @@ router.get("/feed", async (req, res) => {
 router.get("/economic-calendar", async (req, res) => {
   try {
     const {
-      importance = "all", // 'low', 'medium', 'high', 'all'
+      importance = "all",
       country = "all",
       date_range = "7d",
       limit = 30,
     } = req.query;
 
-    console.log(`📅 [ECONOMIC-CALENDAR] Fetching economic events:`, {
-      importance,
-      country,
-      date_range,
-      limit,
-    });
+    console.log(`📅 Economic calendar requested - importance: ${importance}, country: ${country}`);
+    console.log(`📅 Economic calendar - not implemented`);
 
-    const economicEvents = await generateEconomicCalendarData({
-      importance,
-      country,
-      date_range,
-      limit: parseInt(limit),
-    });
-
-    res.success({data: economicEvents,
+    return res.status(501).json({
+      success: false,
+      error: "Economic calendar not implemented",
+      details: "This endpoint requires economic calendar data integration with financial data providers for scheduled economic events and indicators.",
+      troubleshooting: {
+        suggestion: "Economic calendar requires economic data feed integration",
+        required_setup: [
+          "Economic calendar data provider integration (Trading Economics, Forex Factory)",
+          "Economic events database with scheduling and impact ratings",
+          "Event categorization and importance scoring",
+          "Country-specific economic indicator tracking",
+          "Real-time event updates and notifications"
+        ],
+        status: "Not implemented - requires economic calendar integration"
+      },
       filters: {
         importance,
         country,
         date_range,
+        limit: parseInt(limit)
       },
-      last_updated: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error(
-      "❌ [ECONOMIC-CALENDAR] Error fetching economic calendar:",
-      error
-    );
-
-    return res.error("Failed to fetch economic calendar", 503, {
-      details: error.message,
-      suggestion: "Economic data service is temporarily unavailable. Please check back later for scheduled economic events.",
-      service: "economic-calendar",
-      retry_after: 60
+    console.error("Economic calendar error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch economic calendar",
+      details: error.message
     });
   }
 });
@@ -766,444 +850,283 @@ router.get("/sentiment-dashboard", async (req, res) => {
   try {
     const { timeframe = "24h" } = req.query;
 
-    console.log(
-      `📊 [SENTIMENT-DASHBOARD] Generating market sentiment overview for ${timeframe}`
-    );
+    console.log(`📊 Sentiment dashboard requested for timeframe: ${timeframe}`);
+    console.log(`📊 Sentiment dashboard - not implemented`);
 
-    const sentimentDashboard = await generateSentimentDashboardData(timeframe);
-
-    res.success({data: sentimentDashboard,
+    return res.status(501).json({
+      success: false,
+      error: "Sentiment dashboard not implemented",
+      details: "This endpoint requires comprehensive sentiment analysis with multiple data sources for market sentiment dashboard and visualization.",
+      troubleshooting: {
+        suggestion: "Sentiment dashboard requires multi-source sentiment integration",
+        required_setup: [
+          "Multi-source sentiment data aggregation (news, social, analyst reports)",
+          "Sentiment dashboard database with historical tracking",
+          "Real-time sentiment scoring and aggregation algorithms",
+          "Fear & greed index calculation modules",
+          "Sector and symbol-specific sentiment breakdown"
+        ],
+        status: "Not implemented - requires sentiment dashboard integration"
+      },
       timeframe,
-      last_updated: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error(
-      "❌ [SENTIMENT-DASHBOARD] Error generating sentiment dashboard:",
-      error
-    );
-
-    return res.error("Failed to generate sentiment dashboard", 503, {
-      details: error.message,
-      suggestion: "Market sentiment analysis is temporarily unavailable. Data aggregation services may be experiencing issues.",
-      service: "sentiment-dashboard",
-      retry_after: 45
+    console.error("Sentiment dashboard error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate sentiment dashboard",
+      details: error.message
     });
   }
 });
 
-// Generate enhanced news feed with real-time market data
-async function generateEnhancedNewsFeed(filters) {
-  const categories =
-    filters.category === "all"
-      ? [
-          "markets",
-          "earnings",
-          "commodities",
-          "forex",
-          "politics",
-          "technology",
-        ]
-      : [filters.category];
 
-  const sources = [
-    "Reuters",
-    "Bloomberg",
-    "MarketWatch",
-    "CNBC",
-    "Financial Times",
-    "Wall Street Journal",
-  ];
-  const newsFeed = [];
 
-  for (let i = 0; i < filters.limit; i++) {
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const source = sources[Math.floor(Math.random() * sources.length)];
-    const sentiment =
-      Math.random() > 0.6
-        ? "positive"
-        : Math.random() > 0.3
-          ? "neutral"
-          : "negative";
-    const publishedTime = new Date(
-      Date.now() - Math.random() * 24 * 60 * 60 * 1000
-    );
 
-    // Generate realistic headlines based on category
-    const headline = generateHeadlineByCategory(category, sentiment);
 
-    newsFeed.push({
-      id: `news_${Date.now()}_${i}`,
-      headline,
-      summary: generateNewsSummary(headline, category),
-      category,
-      source,
-      author: generateAuthorName(),
-      published_at: publishedTime.toISOString(),
-      url: `https://${source.toLowerCase().replace(/\s+/g, "")}.com/article/${Date.now()}`,
-      sentiment: {
-        score:
-          sentiment === "positive"
-            ? 0.7 + Math.random() * 0.3
-            : sentiment === "negative"
-              ? -0.7 - Math.random() * 0.3
-              : -0.2 + Math.random() * 0.4,
-        label: sentiment,
-        confidence: 0.75 + Math.random() * 0.25,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// News headlines endpoint - top headlines and breaking news
+router.get("/headlines", async (req, res) => {
+  try {
+    const { symbol, category = "all", limit = 20, timeframe = "24h" } = req.query;
+    
+    console.log(`📰 News headlines requested - symbol: ${symbol || 'all'}, category: ${category}`);
+    console.log(`📰 News headlines - not implemented`);
+
+    return res.status(501).json({
+      success: false,
+      error: "News headlines not implemented",
+      details: "This endpoint requires news headlines integration with financial data providers for breaking news, top headlines, and categorized news content.",
+      troubleshooting: {
+        suggestion: "News headlines require news aggregation service integration",
+        required_setup: [
+          "News headlines data provider integration (Reuters, Bloomberg, Associated Press)",
+          "Headlines database with breaking news classification",
+          "Real-time news categorization and tagging system",
+          "Priority and impact scoring for headline ranking",
+          "Symbol and sector-specific news filtering"
+        ],
+        status: "Not implemented - requires news headlines integration"
       },
-      impact_score: Math.round((0.3 + Math.random() * 0.7) * 100) / 100,
-      relevance_score: Math.round((0.5 + Math.random() * 0.5) * 100) / 100,
-      related_symbols: generateRelatedSymbols(category),
-      read_time: Math.floor(Math.random() * 8) + 2, // 2-10 minutes
-      engagement: {
-        views: Math.floor(Math.random() * 10000) + 500,
-        comments: Math.floor(Math.random() * 200),
-        shares: Math.floor(Math.random() * 500),
+      filters: {
+        symbol: symbol || null,
+        category: category,
+        limit: parseInt(limit) || 20,
+        timeframe: timeframe
       },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("News headlines error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch news headlines",
+      details: error.message
     });
   }
+});
 
-  // Sort by published time descending
-  newsFeed.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
 
-  const summary = {
-    total_articles: newsFeed.length,
-    sentiment_distribution: {
-      positive: newsFeed.filter((n) => n.sentiment.label === "positive").length,
-      neutral: newsFeed.filter((n) => n.sentiment.label === "neutral").length,
-      negative: newsFeed.filter((n) => n.sentiment.label === "negative").length,
-    },
-    top_categories: calculateTopCategories(newsFeed),
-    avg_impact_score:
-      newsFeed.reduce((sum, n) => sum + n.impact_score, 0) / newsFeed.length,
-  };
 
-  return {
-    articles: newsFeed,
-    summary,
-  };
-}
+// Latest news endpoint - breaking and most recent news
+router.get("/latest", async (req, res) => {
+  try {
+    const { limit = 25, category = "all", hours = 12 } = req.query;
+    
+    console.log(`📰 Latest news requested - limit: ${limit}, category: ${category}`);
+    console.log(`📰 Latest news - not implemented`);
 
-// Generate economic calendar data
-async function generateEconomicCalendarData(filters) {
-  const eventTypes = [
-    "GDP Growth Rate",
-    "Unemployment Rate",
-    "Inflation Rate",
-    "Interest Rate Decision",
-    "Non-Farm Payrolls",
-    "Consumer Price Index",
-    "Producer Price Index",
-    "Retail Sales",
-    "Industrial Production",
-    "Consumer Confidence",
-    "Manufacturing PMI",
-    "Services PMI",
-  ];
-
-  const countries =
-    filters.country === "all"
-      ? ["US", "EU", "UK", "JP", "CN", "CA", "AU", "DE", "FR"]
-      : [filters.country.toUpperCase()];
-
-  const events = [];
-  const now = new Date();
-
-  for (let i = 0; i < filters.limit; i++) {
-    const eventType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-    const country = countries[Math.floor(Math.random() * countries.length)];
-    const importance =
-      Math.random() > 0.7 ? "high" : Math.random() > 0.4 ? "medium" : "low";
-
-    // Generate future dates within range
-    const daysOut = Math.floor(Math.random() * 14); // Next 14 days
-    const eventDate = new Date(now);
-    eventDate.setDate(now.getDate() + daysOut);
-
-    events.push({
-      id: `econ_${Date.now()}_${i}`,
-      title: `${country} ${eventType}`,
-      description: generateEventDescription(eventType, country),
-      country,
-      event_type: eventType,
-      importance,
-      date: eventDate.toISOString().split("T")[0],
-      time: generateEventTime(),
-      previous_value: generateEconomicValue(eventType),
-      forecast_value: generateEconomicValue(eventType),
-      actual_value:
-        Math.random() > 0.7 ? generateEconomicValue(eventType) : null,
-      currency: getCurrencyByCountry(country),
-      market_impact: {
-        stocks: importance === "high" ? "high" : "medium",
-        forex: "high",
-        bonds: importance === "high" ? "high" : "medium",
-        commodities: Math.random() > 0.5 ? "medium" : "low",
+    return res.status(501).json({
+      success: false,
+      error: "Latest news not implemented",
+      details: "This endpoint requires latest news integration with financial data providers for real-time breaking news and recent articles.",
+      troubleshooting: {
+        suggestion: "Latest news requires real-time news feed integration",
+        required_setup: [
+          "Real-time news feed integration (Reuters, Bloomberg, Dow Jones)",
+          "Latest news database with timestamp-based ordering",
+          "Breaking news classification and priority scoring",
+          "Real-time content categorization and filtering",
+          "News source reliability and impact scoring"
+        ],
+        status: "Not implemented - requires real-time news integration"
       },
-      related_symbols: getRelatedSymbolsByCountry(country),
+      filters: {
+        category: category,
+        limit: parseInt(limit),
+        hours: parseInt(hours)
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Latest news error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch latest news",
+      details: error.message
     });
   }
-
-  // Sort by date and time
-  events.sort(
-    (a, b) => new Date(a.date + "T" + a.time) - new Date(b.date + "T" + b.time)
-  );
-
-  const summary = {
-    total_events: events.length,
-    high_impact_events: events.filter((e) => e.importance === "high").length,
-    countries_covered: [...new Set(events.map((e) => e.country))],
-    next_major_event: events.find((e) => e.importance === "high") || events[0],
-  };
-
-  return {
-    events,
-    summary,
-  };
-}
-
-// Generate sentiment dashboard data
-async function generateSentimentDashboardData(_timeframe) {
-  const marketSentiment =
-    Math.random() > 0.6
-      ? "bullish"
-      : Math.random() > 0.3
-        ? "neutral"
-        : "bearish";
-  const sentimentScore =
-    marketSentiment === "bullish"
-      ? 0.6 + Math.random() * 0.4
-      : marketSentiment === "bearish"
-        ? -0.6 - Math.random() * 0.4
-        : -0.2 + Math.random() * 0.4;
-
-  return {
-    overall_sentiment: {
-      score: Math.round(sentimentScore * 100) / 100,
-      label: marketSentiment,
-      confidence: 0.8 + Math.random() * 0.2,
-      change_24h: -0.1 + Math.random() * 0.2,
-    },
-    sentiment_by_sector: generateSectorSentiment(),
-    trending_topics: generateTrendingTopics(),
-    fear_greed_index: {
-      value: Math.floor(Math.random() * 100),
-      label: getFearGreedLabel(Math.floor(Math.random() * 100)),
-      change_24h: Math.floor(Math.random() * 20) - 10,
-    },
-    social_sentiment: generateSocialSentiment(),
-    news_sentiment: {
-      positive_articles: Math.floor(Math.random() * 50) + 20,
-      negative_articles: Math.floor(Math.random() * 30) + 10,
-      neutral_articles: Math.floor(Math.random() * 40) + 15,
-    },
-  };
-}
-
-// Helper functions for data generation
-function generateHeadlineByCategory(category, _sentiment) {
-  const headlines = {
-    markets: [
-      "Stock Market Reaches New Heights as Tech Shares Surge",
-      "Market Volatility Increases Amid Economic Uncertainty",
-      "Investors Rally Behind Renewable Energy Stocks",
-    ],
-    earnings: [
-      "Major Tech Company Beats Q3 Earnings Expectations",
-      "Retail Giant Reports Mixed Quarterly Results",
-      "Banking Sector Shows Strong Profit Growth",
-    ],
-  };
-
-  const categoryHeadlines = headlines[category] || headlines.markets;
-  return categoryHeadlines[
-    Math.floor(Math.random() * categoryHeadlines.length)
-  ];
-}
-
-function generateRelatedSymbols(category) {
-  const symbolsByCategory = {
-    markets: ["SPY", "QQQ", "IWM", "VIX"],
-    technology: ["AAPL", "MSFT", "GOOGL", "NVDA"],
-    earnings: ["AAPL", "MSFT", "AMZN", "TSLA"],
-    commodities: ["GLD", "SLV", "USO", "CORN"],
-  };
-
-  return symbolsByCategory[category] || symbolsByCategory.markets;
-}
+});
 
 
-// Helper functions for news and economic data generation
-function generateNewsSummary(headline, category) {
-  const summaries = {
-    markets:
-      "Market analysis reveals key trends in trading activity and investor sentiment across major indices.",
-    earnings:
-      "Quarterly earnings report shows performance metrics and forward guidance from corporate leadership.",
-    technology:
-      "Technology sector innovation drives market expansion and competitive positioning.",
-    commodities:
-      "Commodity prices reflect global supply chain dynamics and economic policy impacts.",
-  };
-  return summaries[category] || summaries.markets;
-}
 
-function generateAuthorName() {
-  const firstNames = [
-    "Sarah",
-    "Michael",
-    "Jessica",
-    "David",
-    "Rachel",
-    "James",
-    "Amanda",
-    "Christopher",
-  ];
-  const lastNames = [
-    "Johnson",
-    "Williams",
-    "Brown",
-    "Davis",
-    "Miller",
-    "Wilson",
-    "Moore",
-    "Taylor",
-  ];
+// News for specific symbol
+router.get("/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { limit = 20 } = req.query;
+    console.log(`📰 Symbol news requested for ${symbol}`);
+    console.log(`📰 Symbol news - not implemented`);
 
-  const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-  const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    return res.status(501).json({
+      success: false,
+      error: "Symbol-specific news not implemented",
+      details: "This endpoint requires symbol-specific news integration with financial data providers for company-specific news, earnings reports, and analyst coverage.",
+      troubleshooting: {
+        suggestion: "Symbol news requires news filtering and company data integration",
+        required_setup: [
+          "Symbol-specific news filtering integration",
+          "Company news database with symbol mapping",
+          "News relevance scoring for individual symbols",
+          "Company event and announcement tracking",
+          "Symbol-specific sentiment analysis"
+        ],
+        status: "Not implemented - requires symbol news integration"
+      },
+      symbol: symbol.toUpperCase(),
+      limit: parseInt(limit),
+      timestamp: new Date().toISOString()
+    });
 
-  return `${firstName} ${lastName}`;
-}
+  } catch (error) {
+    console.error("Symbol news error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch symbol news",
+      message: error.message
+    });
+  }
+});
 
-function calculateTopCategories(articles) {
-  const categoryCount = {};
-  articles.forEach((article) => {
-    categoryCount[article.category] =
-      (categoryCount[article.category] || 0) + 1;
-  });
+// News sentiment endpoint
+router.get("/sentiment/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    console.log(`📊 News sentiment requested for ${symbol}`);
+    console.log(`📊 News sentiment - not implemented`);
 
-  return Object.entries(categoryCount)
-    .map(([category, count]) => ({ category, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
-}
+    return res.status(501).json({
+      success: false,
+      error: "News sentiment analysis not implemented",
+      details: "This endpoint requires news sentiment analysis integration with NLP services for symbol-specific sentiment tracking and analysis.",
+      troubleshooting: {
+        suggestion: "News sentiment requires NLP and sentiment analysis integration",
+        required_setup: [
+          "News sentiment analysis service integration (AWS Comprehend, Google NLP)",
+          "Symbol-specific sentiment database with historical tracking",
+          "Real-time sentiment scoring and confidence calculation",
+          "Sentiment trend analysis and change detection",
+          "Topic extraction and sentiment correlation"
+        ],
+        status: "Not implemented - requires sentiment analysis integration"
+      },
+      symbol: symbol.toUpperCase(),
+      timestamp: new Date().toISOString()
+    });
 
-function generateEventDescription(eventType, country) {
-  const descriptions = {
-    "GDP Growth Rate": `${country} economic growth measurement reflecting overall economic health and expansion.`,
-    "Unemployment Rate": `${country} labor market indicator showing percentage of unemployed workforce.`,
-    "Inflation Rate": `${country} consumer price index changes indicating monetary policy effectiveness.`,
-    "Interest Rate Decision": `${country} central bank monetary policy decision affecting lending and borrowing costs.`,
-    "Non-Farm Payrolls": `${country} employment data excluding agricultural sector, key economic indicator.`,
-    "Consumer Price Index": `${country} inflation measurement tracking changes in consumer goods and services costs.`,
-  };
+  } catch (error) {
+    console.error("News sentiment error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch news sentiment",
+      message: error.message
+    });
+  }
+});
 
-  return (
-    descriptions[eventType] ||
-    `${country} economic indicator release with market impact potential.`
-  );
-}
+// Trending news endpoint
+router.get("/trending", async (req, res) => {
+  try {
+    console.log(`📈 Trending news requested`);
+    console.log(`📈 Trending news - not implemented`);
 
-function generateEventTime() {
-  const times = ["08:30", "09:00", "10:00", "13:30", "14:00", "15:00", "16:00"];
-  return times[Math.floor(Math.random() * times.length)];
-}
+    return res.status(501).json({
+      success: false,
+      error: "Trending news not implemented",
+      details: "This endpoint requires trending news analysis with social media integration for viral news stories and engagement tracking.",
+      troubleshooting: {
+        suggestion: "Trending news requires social media and engagement analytics integration",
+        required_setup: [
+          "Social media analytics integration (Twitter API, Reddit API, Facebook Graph)",
+          "Trending news database with engagement metrics",
+          "News virality and engagement scoring algorithms",
+          "Real-time trending topic detection",
+          "Cross-platform mention and share tracking"
+        ],
+        status: "Not implemented - requires trending analytics integration"
+      },
+      timestamp: new Date().toISOString()
+    });
 
-function generateEconomicValue(eventType) {
-  const valueTypes = {
-    "GDP Growth Rate": () => `${(Math.random() * 4 + 1).toFixed(1)}%`,
-    "Unemployment Rate": () => `${(Math.random() * 8 + 3).toFixed(1)}%`,
-    "Inflation Rate": () => `${(Math.random() * 5 + 1).toFixed(1)}%`,
-    "Interest Rate Decision": () => `${(Math.random() * 3 + 0.5).toFixed(2)}%`,
-    "Non-Farm Payrolls": () => `${Math.floor(Math.random() * 300 + 100)}K`,
-    "Consumer Price Index": () => `${(Math.random() * 0.5 + 0.1).toFixed(1)}%`,
-  };
+  } catch (error) {
+    console.error("Trending news error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trending news",
+      message: error.message
+    });
+  }
+});
 
-  const generator =
-    valueTypes[eventType] || (() => `${(Math.random() * 100).toFixed(1)}`);
-  return generator();
-}
+// News search endpoint
+router.get("/search", async (req, res) => {
+  try {
+    const { query: searchQuery, limit = 20 } = req.query;
+    console.log(`🔍 News search requested: ${searchQuery}`);
+    console.log(`🔍 News search - not implemented`);
 
-function getCurrencyByCountry(country) {
-  const currencies = {
-    US: "USD",
-    EU: "EUR",
-    UK: "GBP",
-    JP: "JPY",
-    CN: "CNY",
-    CA: "CAD",
-    AU: "AUD",
-    DE: "EUR",
-    FR: "EUR",
-  };
-  return currencies[country] || "USD";
-}
+    return res.status(501).json({
+      success: false,
+      error: "News search not implemented",
+      details: "This endpoint requires news search integration with full-text search capabilities and relevance scoring for financial news content.",
+      troubleshooting: {
+        suggestion: "News search requires search engine integration",
+        required_setup: [
+          "Full-text search engine integration (Elasticsearch, Solr, AWS OpenSearch)",
+          "News content database with searchable indexing",
+          "Relevance scoring and ranking algorithms",
+          "Query processing and text analysis",
+          "Search result categorization and filtering"
+        ],
+        status: "Not implemented - requires search engine integration"
+      },
+      query: searchQuery || null,
+      limit: parseInt(limit),
+      timestamp: new Date().toISOString()
+    });
 
-function getRelatedSymbolsByCountry(country) {
-  const symbols = {
-    US: ["SPY", "QQQ", "IWM", "DXY"],
-    EU: ["FEZ", "EWG", "EWI", "EUR=X"],
-    UK: ["EWU", "GBPUSD=X", "FTSE"],
-    JP: ["EWJ", "JPYUSD=X", "NIKKEI"],
-    CN: ["FXI", "ASHR", "CNYUSD=X"],
-  };
-  return symbols[country] || symbols["US"];
-}
-
-function generateSectorSentiment() {
-  const sectors = [
-    "Technology",
-    "Healthcare",
-    "Financials",
-    "Energy",
-    "Consumer Discretionary",
-    "Industrials",
-  ];
-  return sectors.map((sector) => ({
-    sector,
-    sentiment: -0.5 + Math.random(),
-    confidence: 0.7 + Math.random() * 0.3,
-    change_24h: -0.2 + Math.random() * 0.4,
-  }));
-}
-
-function generateTrendingTopics() {
-  const topics = [
-    "Federal Reserve",
-    "Earnings Season",
-    "Inflation Data",
-    "Tech Stocks",
-    "Oil Prices",
-  ];
-  return topics.slice(0, 5).map((topic) => ({
-    topic,
-    mentions: Math.floor(Math.random() * 10000) + 1000,
-    sentiment: -0.3 + Math.random() * 0.6,
-    change_24h: Math.floor(Math.random() * 200) - 100,
-  }));
-}
-
-function getFearGreedLabel(value) {
-  if (value >= 75) return "Extreme Greed";
-  if (value >= 55) return "Greed";
-  if (value >= 45) return "Neutral";
-  if (value >= 25) return "Fear";
-  return "Extreme Fear";
-}
-
-function generateSocialSentiment() {
-  return {
-    reddit_sentiment: {
-      score: -0.3 + Math.random() * 0.6,
-      volume: Math.floor(Math.random() * 50000) + 10000,
-      trending_subreddits: ["wallstreetbets", "investing", "stocks"],
-    },
-    twitter_sentiment: {
-      score: -0.3 + Math.random() * 0.6,
-      volume: Math.floor(Math.random() * 100000) + 20000,
-      hashtags: ["#stocks", "#trading", "#market"],
-    },
-  };
-}
+  } catch (error) {
+    console.error("News search error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to search news",
+      message: error.message
+    });
+  }
+});
 
 module.exports = router;

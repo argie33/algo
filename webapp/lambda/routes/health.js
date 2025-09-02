@@ -169,7 +169,7 @@ router.get("/", async (req, res) => {
         ),
       ]);
 
-      // Handle graceful fallback when database returns null or invalid result
+      // Handle when database returns null or invalid result
       if (!_result || !_result.rows) {
         console.warn(
           "Database query returned invalid result - database not available"
@@ -182,7 +182,7 @@ router.get("/", async (req, res) => {
             status: "not_available",
             error: "Database not configured or not available",
             lastAttempt: new Date().toISOString(),
-            mode: "fallback",
+            mode: "error",
           },
           api: {
             version: "1.0.0",
@@ -256,7 +256,7 @@ router.get("/", async (req, res) => {
             'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',
-            'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
+            'company_profile', 'price_daily', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
             'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
@@ -339,7 +339,7 @@ router.get("/", async (req, res) => {
         "ttm_income_statement",
         "ttm_cash_flow",
         "company_profile",
-        "market_data",
+        "price_daily",
         "key_metrics",
         "analyst_estimates",
         "governance_scores",
@@ -831,12 +831,12 @@ router.get("/database/diagnostics", async (req, res) => {
       if (tablesWithData === 0) {
         overallStatus = "degraded";
         diagnostics.recommendations.push(
-          "No tables have data. Check ETL/loader jobs and DB population."
+          "No tables have data. Check database population."
         );
       } else if (tablesWithData < tables.length) {
         overallStatus = "degraded";
         diagnostics.recommendations.push(
-          "Some tables are empty. Review loader jobs and data sources."
+          "Some tables are empty. Review data sources and population."
         );
       }
     } catch (e) {

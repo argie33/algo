@@ -21,6 +21,209 @@ router.get("/", (req, res) => {
   });
 });
 
+// Earnings calendar endpoint
+router.get("/earnings", async (req, res) => {
+  try {
+    const { 
+      symbol, 
+      start_date, 
+      end_date, 
+      days_ahead = 30,
+      limit = 50 
+    } = req.query;
+
+    console.log(`📅 Earnings calendar requested - symbol: ${symbol || 'all'}, days_ahead: ${days_ahead}`);
+
+    let whereClause = "WHERE 1=1";
+    let params = [];
+    let paramIndex = 1;
+
+    // Add symbol filter if provided
+    if (symbol) {
+      whereClause += ` AND symbol = $${paramIndex}`;
+      params.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    // Add date range filter
+    if (start_date && end_date) {
+      whereClause += ` AND report_date >= $${paramIndex} AND report_date <= $${paramIndex + 1}`;
+      params.push(start_date, end_date);
+      paramIndex += 2;
+    } else {
+      // Default to upcoming earnings (next N days)
+      whereClause += ` AND report_date >= CURRENT_DATE AND report_date <= CURRENT_DATE + INTERVAL '${parseInt(days_ahead)} days'`;
+    }
+
+    whereClause += ` ORDER BY report_date ASC, symbol ASC LIMIT $${paramIndex}`;
+    params.push(parseInt(limit));
+
+    // First check what columns actually exist in earnings_reports table
+    let availableColumns;
+    try {
+      const columnCheck = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'earnings_reports'
+        ORDER BY ordinal_position
+      `);
+      availableColumns = columnCheck.rows.map(row => row.column_name);
+      console.log('Available earnings_reports columns:', availableColumns);
+    } catch (error) {
+      console.error("Could not check earnings_reports table structure:", error.message);
+      throw new Error(`Database table structure check failed: ${error.message}`);
+    }
+
+    // Build dynamic query based on available columns
+    let selectColumns = ['symbol'];
+    const columnMap = {
+      'report_date': 'report_date',
+      'announcement_date': 'report_date', 
+      'date': 'report_date',
+      'quarter': 'quarter',
+      'qtr': 'quarter',
+      'year': 'year',
+      'fiscal_year': 'year',
+      'estimated_eps': 'estimated_eps',
+      'estimate': 'estimated_eps',
+      'consensus_eps': 'estimated_eps',
+      'actual_eps': 'actual_eps', 
+      'reported_eps': 'actual_eps',
+      'surprise_percent': 'surprise_percent',
+      'surprise': 'surprise_percent'
+    };
+
+    // Add available columns to select
+    Object.keys(columnMap).forEach(colVariant => {
+      if (availableColumns.includes(colVariant)) {
+        const alias = columnMap[colVariant];
+        if (!selectColumns.includes(`${colVariant} as ${alias}`) && !selectColumns.includes(alias)) {
+          selectColumns.push(alias !== colVariant ? `${colVariant} as ${alias}` : colVariant);
+        }
+      }
+    });
+
+    console.log('Using select columns:', selectColumns);
+
+    const result = await query(
+      `
+      SELECT ${selectColumns.join(', ')}
+      FROM earnings_reports
+      ${whereClause}
+      `,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          earnings: [],
+          grouped_by_date: {},
+          summary: {
+            total_earnings: 0,
+            upcoming_reports: 0,
+            completed_reports: 0,
+            sectors_represented: 0,
+            message: "No earnings data found for the specified criteria"
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Transform and enrich the data with real database values
+    const earnings = result.rows.map(row => ({
+      symbol: row.symbol,
+      company_name: null, // Will be populated from stocks table if available
+      sector: null,
+      market_cap: null,
+      report_date: row.report_date,
+      quarter: parseInt(row.quarter || 1),
+      year: parseInt(row.year || new Date().getFullYear()),
+      period: `Q${row.quarter || 1} ${row.year || new Date().getFullYear()}`,
+      estimated_eps: row.estimated_eps ? parseFloat(row.estimated_eps).toFixed(2) : null,
+      actual_eps: row.actual_eps ? parseFloat(row.actual_eps).toFixed(2) : null,
+      surprise_percent: row.surprise_percent ? parseFloat(row.surprise_percent).toFixed(2) : null,
+      status: row.actual_eps ? 'reported' : 'upcoming',
+      days_until: row.report_date ? Math.ceil((new Date(row.report_date) - new Date()) / (1000 * 60 * 60 * 24)) : null
+    }));
+
+    // Try to enrich with company data from stocks table if available
+    try {
+      const symbols = [...new Set(earnings.map(e => e.symbol))];
+      if (symbols.length > 0) {
+        const companyData = await query(
+          `SELECT symbol, name, sector, market_cap FROM stocks WHERE symbol = ANY($1)`,
+          [symbols]
+        );
+        
+        const companyMap = {};
+        companyData.rows.forEach(row => {
+          companyMap[row.symbol] = {
+            name: row.name,
+            sector: row.sector, 
+            market_cap: row.market_cap
+          };
+        });
+
+        // Enrich earnings data with company info
+        earnings.forEach(earning => {
+          if (companyMap[earning.symbol]) {
+            earning.company_name = companyMap[earning.symbol].name;
+            earning.sector = companyMap[earning.symbol].sector;
+            earning.market_cap = companyMap[earning.symbol].market_cap;
+          }
+        });
+      }
+    } catch (enrichError) {
+      console.log("Could not enrich with company data:", enrichError.message);
+      // Continue without company enrichment
+    }
+
+    // Group by date for easier consumption
+    const groupedByDate = earnings.reduce((groups, earning) => {
+      const date = earning.report_date;
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(earning);
+      return groups;
+    }, {});
+
+    // Calculate summary statistics
+    const upcomingCount = earnings.filter(e => e.status === 'upcoming').length;
+    const reportedCount = earnings.filter(e => e.status === 'reported').length;
+    const sectors = [...new Set(earnings.map(e => e.sector).filter(Boolean))];
+
+    res.json({
+      success: true,
+      data: {
+        earnings: earnings,
+        grouped_by_date: groupedByDate,
+        summary: {
+          total_earnings: earnings.length,
+          upcoming_reports: upcomingCount,
+          completed_reports: reportedCount,
+          sectors_represented: sectors.length,
+          date_range: {
+            from: earnings[0]?.report_date || null,
+            to: earnings[earnings.length - 1]?.report_date || null
+          }
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Earnings calendar error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch earnings calendar",
+      details: error.message
+    });
+  }
+});
+
 // Debug endpoint to check earnings_reports table status (used for calendar functionality)
 router.get("/debug", async (req, res) => {
   try {
@@ -206,11 +409,25 @@ router.get("/events", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    if (
-      !Array.isArray(eventsResult.rows) ||
-      eventsResult.rows.length === 0
-    ) {
-      return res.error("No earnings events found for this query", 404);
+    // Return empty results with 200 status, not 404
+    if (!Array.isArray(eventsResult.rows) || eventsResult.rows.length === 0) {
+      return res.success({
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+        summary: {
+          upcoming_events: 0,
+          this_week: 0,
+          filter: timeFilter,
+        },
+        message: "No calendar events found for the specified criteria"
+      });
     }
 
     res.json({
@@ -233,6 +450,48 @@ router.get("/events", async (req, res) => {
     console.error("Error fetching calendar events:", error);
     console.error("Error stack:", error.stack);
     return res.error("Failed to fetch calendar events", 500);
+  }
+});
+
+// Get upcoming calendar events (comprehensive financial calendar)
+router.get("/upcoming", async (req, res) => {
+  try {
+    const { 
+      limit = 50, 
+      days = 14, 
+      type = "all",
+      symbol 
+    } = req.query;
+
+    console.log(`📅 Upcoming calendar events requested - days: ${days}, type: ${type}, limit: ${limit}`);
+
+    console.log(`📅 Calendar upcoming events - not implemented`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Calendar upcoming events not implemented",
+      details: "This endpoint requires integration with multiple financial data providers for earnings, dividends, splits, IPOs, and economic events.",
+      troubleshooting: {
+        suggestion: "Calendar events require external data feed integration",
+        required_setup: [
+          "Yahoo Finance events API integration",
+          "SEC filings API for corporate actions",
+          "Economic calendar API integration",
+          "Calendar events database tables"
+        ],
+        status: "Not implemented - requires multiple data source integrations"
+      },
+      symbol: symbol || null,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Upcoming calendar error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch upcoming calendar events",
+      details: error.message
+    });
   }
 });
 
@@ -584,6 +843,90 @@ router.get("/earnings-metrics", async (req, res) => {
         hasPrev: false,
       },
       insights: {},
+    });
+  }
+});
+
+// Get calendar dividends endpoint
+router.get("/dividends", async (req, res) => {
+  try {
+    const { 
+      symbol, 
+      start_date: _startDate, 
+      end_date: _endDate, 
+      days_ahead: _days_ahead = 30,
+      limit: _limit = 50 
+    } = req.query;
+
+    console.log(`💰 Dividends calendar requested - symbol: ${symbol || 'all'}, days_ahead: ${_days_ahead}`);
+
+    console.log(`💰 Dividend calendar - not implemented`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Dividend calendar not implemented",
+      details: "This endpoint requires integration with dividend data providers for ex-dividend dates, payment dates, and dividend amounts.",
+      troubleshooting: {
+        suggestion: "Dividend calendar requires external data feed integration",
+        required_setup: [
+          "Yahoo Finance dividends API integration",
+          "Company dividend database tables",
+          "Dividend calendar data pipeline"
+        ],
+        status: "Not implemented - requires dividend data integration"
+      },
+      symbol: symbol || null,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Dividends calendar error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dividends calendar",
+      message: error.message
+    });
+  }
+});
+
+// Get calendar economic events endpoint
+router.get("/economic", async (req, res) => {
+  try {
+    const { 
+      country = "US", 
+      importance = "all", 
+      days_ahead: _days_ahead = 14,
+      limit: _limit = 30 
+    } = req.query;
+
+    console.log(`📊 Economic calendar requested - country: ${country}, importance: ${importance}`);
+
+    console.log(`📊 Economic calendar - not implemented`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Economic calendar not implemented",
+      details: "This endpoint requires integration with economic data providers for government statistics, central bank announcements, and economic indicators.",
+      troubleshooting: {
+        suggestion: "Economic calendar requires government data feed integration",
+        required_setup: [
+          "Federal Reserve API integration",
+          "Bureau of Labor Statistics API",
+          "Economic indicators database tables",
+          "Central bank announcements data pipeline"
+        ],
+        status: "Not implemented - requires economic data integration"
+      },
+      country: country,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Economic calendar error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch economic calendar",
+      message: error.message
     });
   }
 });

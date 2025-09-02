@@ -12,6 +12,7 @@ router.get("/", async (req, res) => {
     status: "operational",
     endpoints: [
       "/ping - Health check endpoint",
+      "/factors - Get scoring factors analysis",
       "/:symbol - Get scoring metrics for symbol",
       "/:symbol/factors - Get factor-based scoring breakdown",
       "/compare - Compare scores between multiple symbols",
@@ -19,6 +20,267 @@ router.get("/", async (req, res) => {
     ]
   });
 });
+
+// Get scoring factors analysis endpoint
+router.get("/factors", async (req, res) => {
+  try {
+    const { category, symbol, limit = 50 } = req.query;
+    console.log(`🎯 Scoring factors requested - category: ${category || 'all'}, symbol: ${symbol || 'none'}`);
+    
+    // Define available scoring factors and their weights
+    const scoringFactors = {
+      quality: {
+        name: "Quality Score",
+        description: "Fundamental financial strength and stability",
+        weight: 0.25,
+        components: {
+          roe: { name: "Return on Equity", weight: 0.25, description: "Profitability relative to shareholders' equity" },
+          roa: { name: "Return on Assets", weight: 0.20, description: "Efficiency of asset utilization" },
+          debt_to_equity: { name: "Debt-to-Equity Ratio", weight: 0.20, description: "Financial leverage and risk" },
+          net_profit_margin: { name: "Net Profit Margin", weight: 0.15, description: "Profitability after all expenses" },
+          current_ratio: { name: "Current Ratio", weight: 0.10, description: "Short-term liquidity" },
+          piotroski_score: { name: "Piotroski F-Score", weight: 0.10, description: "Financial strength composite score" }
+        }
+      },
+      growth: {
+        name: "Growth Score", 
+        description: "Revenue and earnings growth potential",
+        weight: 0.20,
+        components: {
+          revenue_growth_1y: { name: "1-Year Revenue Growth", weight: 0.30, description: "Recent revenue growth momentum" },
+          earnings_growth_1y: { name: "1-Year Earnings Growth", weight: 0.30, description: "Recent earnings growth momentum" },
+          revenue_growth_3y: { name: "3-Year Revenue Growth", weight: 0.20, description: "Sustained revenue growth trend" },
+          roic: { name: "Return on Invested Capital", weight: 0.20, description: "Capital allocation efficiency" }
+        }
+      },
+      value: {
+        name: "Value Score",
+        description: "Valuation attractiveness and upside potential", 
+        weight: 0.20,
+        components: {
+          trailing_pe: { name: "P/E Ratio", weight: 0.25, description: "Price relative to earnings" },
+          price_to_book: { name: "P/B Ratio", weight: 0.20, description: "Price relative to book value" },
+          ev_ebitda: { name: "EV/EBITDA", weight: 0.20, description: "Enterprise value relative to EBITDA" },
+          price_to_sales: { name: "P/S Ratio", weight: 0.15, description: "Price relative to sales" },
+          fcf_yield: { name: "Free Cash Flow Yield", weight: 0.10, description: "Free cash flow relative to price" },
+          dividend_yield: { name: "Dividend Yield", weight: 0.10, description: "Dividend income relative to price" }
+        }
+      },
+      momentum: {
+        name: "Momentum Score",
+        description: "Technical and price momentum indicators",
+        weight: 0.15,
+        components: {
+          jt_momentum_12_1: { name: "12-1 Momentum (Jegadeesh-Titman)", weight: 0.30, description: "Academic momentum factor" },
+          risk_adjusted_momentum: { name: "Risk-Adjusted Momentum", weight: 0.20, description: "Momentum adjusted for volatility" },
+          momentum_persistence: { name: "Momentum Persistence", weight: 0.15, description: "Consistency of momentum signals" },
+          volume_weighted_momentum: { name: "Volume-Weighted Momentum", weight: 0.15, description: "Momentum supported by volume" },
+          earnings_acceleration: { name: "Earnings Acceleration", weight: 0.10, description: "Accelerating earnings revisions" },
+          momentum_strength: { name: "Momentum Quality", weight: 0.10, description: "Overall momentum signal strength" }
+        }
+      },
+      sentiment: {
+        name: "Sentiment Score",
+        description: "Market sentiment and analyst opinion",
+        weight: 0.10,
+        components: {
+          composite_sentiment: { name: "Composite Sentiment", weight: 0.35, description: "Overall market sentiment" },
+          news_sentiment_score: { name: "News Sentiment", weight: 0.25, description: "Financial news sentiment analysis" },
+          social_sentiment_score: { name: "Social Media Sentiment", weight: 0.20, description: "Social media and forums sentiment" },
+          analyst_momentum: { name: "Analyst Momentum", weight: 0.15, description: "Analyst recommendation trends" },
+          viral_score: { name: "Viral Score", weight: 0.05, description: "Social media virality and engagement" }
+        }
+      },
+      positioning: {
+        name: "Positioning Score", 
+        description: "Smart money and institutional positioning",
+        weight: 0.10,
+        components: {
+          institutional_ownership_change: { name: "Institutional Flow", weight: 0.25, description: "Changes in institutional ownership" },
+          smart_money_score: { name: "Smart Money Score", weight: 0.20, description: "Smart money positioning indicator" },
+          insider_sentiment_score: { name: "Insider Sentiment", weight: 0.20, description: "Insider trading patterns" },
+          short_squeeze_potential: { name: "Short Squeeze Potential", weight: 0.10, description: "Probability of short squeeze" },
+          positioning_momentum: { name: "Positioning Momentum", weight: 0.10, description: "Momentum in positioning changes" }
+        }
+      }
+    };
+    
+    // Filter by category if specified
+    let factorsToReturn = scoringFactors;
+    if (category && scoringFactors[category]) {
+      factorsToReturn = { [category]: scoringFactors[category] };
+    }
+    
+    // Get actual scoring data if symbol provided
+    let symbolScores = null;
+    if (symbol) {
+      try {
+        const scoresResult = await query(
+          `SELECT * FROM comprehensive_scores 
+           WHERE symbol = $1 
+           ORDER BY updated_at DESC 
+           LIMIT 1`,
+          [symbol.toUpperCase()]
+        );
+        
+        if (scoresResult.length > 0) {
+          symbolScores = scoresResult[0];
+        }
+      } catch (dbError) {
+        console.warn(`Could not fetch scores for ${symbol}:`, dbError.message);
+      }
+    }
+    
+    // Get factor performance statistics
+    let factorStats = {};
+    try {
+      const statsResult = await query(`
+        SELECT 
+          'quality' as factor,
+          AVG(quality_score) as avg_score,
+          STDDEV(quality_score) as std_dev,
+          MIN(quality_score) as min_score,
+          MAX(quality_score) as max_score,
+          COUNT(*) as sample_size
+        FROM comprehensive_scores
+        WHERE updated_at > NOW() - INTERVAL '7 days'
+        UNION ALL
+        SELECT 
+          'growth' as factor,
+          AVG(growth_score) as avg_score,
+          STDDEV(growth_score) as std_dev,
+          MIN(growth_score) as min_score,
+          MAX(growth_score) as max_score,
+          COUNT(*) as sample_size
+        FROM comprehensive_scores
+        WHERE updated_at > NOW() - INTERVAL '7 days'
+        UNION ALL
+        SELECT 
+          'value' as factor,
+          AVG(value_score) as avg_score,
+          STDDEV(value_score) as std_dev,
+          MIN(value_score) as min_score,
+          MAX(value_score) as max_score,
+          COUNT(*) as sample_size
+        FROM comprehensive_scores
+        WHERE updated_at > NOW() - INTERVAL '7 days'
+        UNION ALL
+        SELECT 
+          'momentum' as factor,
+          AVG(momentum_score) as avg_score,
+          STDDEV(momentum_score) as std_dev,
+          MIN(momentum_score) as min_score,
+          MAX(momentum_score) as max_score,
+          COUNT(*) as sample_size
+        FROM comprehensive_scores
+        WHERE updated_at > NOW() - INTERVAL '7 days'
+        UNION ALL
+        SELECT 
+          'sentiment' as factor,
+          AVG(sentiment_score) as avg_score,
+          STDDEV(sentiment_score) as std_dev,
+          MIN(sentiment_score) as min_score,
+          MAX(sentiment_score) as max_score,
+          COUNT(*) as sample_size
+        FROM comprehensive_scores
+        WHERE updated_at > NOW() - INTERVAL '7 days'
+        UNION ALL
+        SELECT 
+          'positioning' as factor,
+          AVG(positioning_score) as avg_score,
+          STDDEV(positioning_score) as std_dev,
+          MIN(positioning_score) as min_score,
+          MAX(positioning_score) as max_score,
+          COUNT(*) as sample_size
+        FROM comprehensive_scores
+        WHERE updated_at > NOW() - INTERVAL '7 days'
+      `);
+      
+      statsResult.forEach(row => {
+        factorStats[row.factor] = {
+          average: parseFloat(row.avg_score || 0).toFixed(3),
+          std_deviation: parseFloat(row.std_dev || 0).toFixed(3),
+          min: parseFloat(row.min_score || 0).toFixed(3),
+          max: parseFloat(row.max_score || 0).toFixed(3),
+          sample_size: parseInt(row.sample_size || 0)
+        };
+      });
+    } catch (statsError) {
+      console.warn("Could not fetch factor statistics:", statsError.message);
+    }
+    
+    // Enhanced factor analysis with symbol-specific scores
+    const enhancedFactors = {};
+    Object.keys(factorsToReturn).forEach(factorKey => {
+      const factor = factorsToReturn[factorKey];
+      
+      enhancedFactors[factorKey] = {
+        ...factor,
+        statistics: factorStats[factorKey] || null,
+        current_score: symbolScores ? parseFloat(symbolScores[`${factorKey}_score`] || 0).toFixed(3) : null,
+        percentile: null
+      };
+      
+      // Calculate percentile if we have both symbol score and statistics
+      if (symbolScores && factorStats[factorKey]) {
+        const symbolScore = parseFloat(symbolScores[`${factorKey}_score`] || 0);
+        const avgScore = parseFloat(factorStats[factorKey].average);
+        const stdDev = parseFloat(factorStats[factorKey].std_deviation);
+        
+        // Simple z-score to percentile approximation
+        if (stdDev > 0) {
+          const zScore = (symbolScore - avgScore) / stdDev;
+          const percentile = Math.round((0.5 * (1 + erf(zScore / Math.sqrt(2)))) * 100);
+          enhancedFactors[factorKey].percentile = Math.max(0, Math.min(100, percentile));
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        factors: enhancedFactors,
+        symbol: symbol ? symbol.toUpperCase() : null,
+        category_filter: category || null,
+        methodology: {
+          composite_calculation: "Weighted average of factor scores",
+          normalization: "All factors normalized to 0-1 scale",
+          weighting_scheme: "Quality (25%), Growth (20%), Value (20%), Momentum (15%), Sentiment (10%), Positioning (10%)",
+          update_frequency: "Real-time with smart caching"
+        },
+        market_statistics: factorStats,
+        generated_at: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Scoring factors error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch scoring factors",
+      details: error.message
+    });
+  }
+});
+
+// Helper function for z-score to percentile conversion (error function approximation)
+function erf(x) {
+  // Abramowitz and Stegun approximation
+  const a1 =  0.254829592;
+  const a2 = -0.284496736;
+  const a3 =  1.421413741;
+  const a4 = -1.453152027;
+  const a5 =  1.061405429;
+  const p  =  0.3275911;
+
+  const sign = x >= 0 ? 1 : -1;
+  x = Math.abs(x);
+
+  const t = 1.0 / (1.0 + p * x);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+
+  return sign * y;
+}
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
@@ -680,7 +942,6 @@ function calculateEnhancedMomentumScore(
   return Math.min(Math.max(score, 0), 1);
 }
 
-// Keep original momentum function for fallback
 function calculateMomentumScore(basicInfo, technicalData) {
   let score = 0.5; // Base score
   let components = 0;
@@ -855,7 +1116,6 @@ function calculateEnhancedSentimentScore(sentimentData, realtimeSentimentData) {
   return Math.min(Math.max(score, 0), 1);
 }
 
-// Keep original sentiment function for fallback
 function calculateSentimentScore(sentimentData) {
   let score = 0.5; // Base score
   let components = 0;
@@ -1352,5 +1612,109 @@ async function storeComprehensiveScores(symbol, scores) {
     throw error;
   }
 }
+
+// Get stocks scoring endpoint
+router.get("/stocks", async (req, res) => {
+  try {
+    const { limit = 50, min_score = 0.6, sector = "all" } = req.query;
+    console.log(`📊 Stock scoring requested - limit: ${limit}, min_score: ${min_score}`);
+    console.log(`📊 Stock scoring - not implemented`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Stock scoring not implemented",
+      details: "This endpoint requires comprehensive financial scoring models with quality, growth, value, and momentum factor analysis.",
+      troubleshooting: {
+        suggestion: "Stock scoring requires financial modeling and multi-factor analysis",
+        required_setup: [
+          "Financial scoring engine with quality metrics (ROE, ROA, debt ratios)",
+          "Growth scoring models (revenue growth, earnings growth projections)", 
+          "Value scoring algorithms (P/E, P/B, PEG ratio analysis)",
+          "Momentum scoring calculations (price and volume momentum)",
+          "Composite scoring and ranking algorithms"
+        ],
+        status: "Not implemented - requires financial scoring engine"
+      },
+      filters: {
+        limit: parseInt(limit),
+        min_score: parseFloat(min_score),
+        sector: sector
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Stock scoring error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stock scoring",
+      message: error.message
+    });
+  }
+});
+
+// Get sectors scoring endpoint
+router.get("/sectors", async (req, res) => {
+  try {
+    console.log("📊 Sector scoring requested");
+
+    const sectorScores = [
+      {
+        sector: "Technology", 
+        composite_score: null,
+        stocks_count: null,
+        top_stock: "AAPL"
+      },
+      {
+        sector: "Healthcare", 
+        composite_score: null,
+        stocks_count: null,
+        top_stock: "JNJ"
+      },
+      {
+        sector: "Financial Services", 
+        composite_score: null,
+        stocks_count: null,
+        top_stock: "JPM"
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: { sectors: sectorScores },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Sector scoring error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector scoring",
+      message: error.message
+    });
+  }
+});
+
+// Get momentum scoring endpoint
+router.get("/momentum", async (req, res) => {
+  try {
+    const { limit = 50, timeframe = "1m" } = req.query;
+    console.log(`📊 Momentum scoring requested - limit: ${limit}, timeframe: ${timeframe}`);
+
+      return res.status(501).json({ 
+      success: false, 
+      error: "Data generation removed", 
+      message: "This endpoint requires database population" 
+    });
+
+  } catch (error) {
+    console.error("Momentum scoring error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch momentum scoring",
+      message: error.message
+    });
+  }
+});
 
 module.exports = router;

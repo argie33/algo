@@ -9,7 +9,7 @@ const express = require("express");
 // Import remaining routes not covered in other tests
 const financialRoutes = require("../../routes/financials");
 const backTestRoutes = require("../../routes/backtest");
-const dataRoutes = require("../../routes/data");
+const economicRoutes = require("../../routes/economic");
 const priceRoutes = require("../../routes/price");
 const riskRoutes = require("../../routes/risk");
 const scoresRoutes = require("../../routes/scores");
@@ -63,7 +63,7 @@ app.use((req, res, next) => {
 // Mount routes with appropriate auth
 app.use("/api/financials", mockOptionalAuth, financialRoutes);
 app.use("/api/backtest", mockAuth, backTestRoutes);
-app.use("/api/data", mockOptionalAuth, dataRoutes);
+app.use("/api/economic", mockOptionalAuth, economicRoutes);
 app.use("/api/price", mockOptionalAuth, priceRoutes);
 app.use("/api/risk", mockAuth, riskRoutes);
 app.use("/api/scores", mockOptionalAuth, scoresRoutes);

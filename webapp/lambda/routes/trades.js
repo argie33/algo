@@ -1,4 +1,10 @@
 const express = require("express");
+
+const { authenticateToken } = require("../middleware/auth");
+const { query, transaction } = require("../utils/database");
+const { getApiKey } = require("../utils/apiKeyService");
+const AlpacaService = require("../utils/alpacaService");
+
 const router = express.Router();
 
 // Health endpoint (no auth required)
@@ -10,6 +16,56 @@ router.get("/health", (req, res) => {
   });
 });
 
+// Get recent trades for user
+router.get("/recent", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { 
+      limit = 20, 
+      days = 7,
+      symbol,
+      type = "all", // buy, sell, all
+      status = "all" // executed, pending, cancelled, all
+    } = req.query;
+
+    console.log(`🕒 Getting recent trades for user: ${userId}, last ${days} days`);
+    console.log(`🕒 Recent trades - not implemented`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Recent trades not implemented",
+      details: "This endpoint requires trade history database integration with brokerage APIs for user trade tracking and analysis.",
+      troubleshooting: {
+        suggestion: "Recent trades requires trade execution database and brokerage integration",
+        required_setup: [
+          "Trade execution database with user trade history",
+          "Brokerage API integration (Alpaca, Interactive Brokers, TD Ameritrade)",
+          "Real-time trade execution tracking and status updates",
+          "Portfolio performance calculation and PnL tracking",
+          "Trade analytics and risk metrics computation"
+        ],
+        status: "Not implemented - requires trade execution integration"
+      },
+      filters: {
+        limit: parseInt(limit),
+        days: parseInt(days),
+        symbol: symbol || null,
+        type: type,
+        status: status
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Recent trades error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent trades",
+      details: error.message
+    });
+  }
+});
+
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
   res.success({message: "Trade History API - Ready",
@@ -17,10 +73,6 @@ router.get("/", (req, res) => {
     status: "operational",
   });
 });
-const { authenticateToken } = require("../middleware/auth");
-const { query, transaction } = require("../utils/database");
-const { getApiKey } = require("../utils/apiKeyService");
-const AlpacaService = require("../utils/alpacaService");
 
 // Helper functions to replace missing userApiKeyHelper
 const validateUserAuthentication = (req) => {
@@ -38,7 +90,7 @@ const sendApiKeyError = (res, message) => {
   return res.error(message, 400);
 };
 
-// Mock TradeAnalyticsService for missing service
+// TradeAnalyticsService placeholder - not fully implemented
 class TradeAnalyticsService {
   static getInstance() {
     return new TradeAnalyticsService();
@@ -117,8 +169,8 @@ router.get("/import/status", authenticateToken, async (req, res) => {
           .length,
       });
     } catch (dbError) {
-      console.log(
-        "Database query failed, returning mock import status:",
+      console.error(
+        "Database query failed for broker status:",
         dbError.message
       );
 
@@ -348,6 +400,599 @@ router.get("/positions", authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route GET /api/trades/analytics
+ * @desc Get comprehensive trade analytics data
+ */
+router.get("/analytics", authenticateToken, async (req, res) => {
+  try {
+    const userId = validateUserAuthentication(req);
+    const { timeframe = "3M", limit = 50 } = req.query;
+
+    console.log(`📊 Trade analytics requested for user: ${userId}, timeframe: ${timeframe}`);
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (timeframe) {
+      case "1W":
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case "1M":
+        startDate.setMonth(endDate.getMonth() - 1);
+        break;
+      case "3M":
+        startDate.setMonth(endDate.getMonth() - 3);
+        break;
+      case "6M":
+        startDate.setMonth(endDate.getMonth() - 6);
+        break;
+      case "1Y":
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      case "YTD":
+        startDate.setMonth(0, 1);
+        break;
+      default:
+        startDate.setMonth(endDate.getMonth() - 3);
+    }
+
+    // Try to get comprehensive trade analytics from database
+    let analyticsData = {
+      summary: {
+        total_trades: 0,
+        winning_trades: 0,
+        losing_trades: 0,
+        win_rate: 0,
+        total_pnl: 0,
+        avg_pnl: 0,
+        avg_roi: 0,
+        best_trade: 0,
+        worst_trade: 0,
+        total_volume: 0,
+        avg_holding_period: 0
+      },
+      performance_metrics: {
+        sharpe_ratio: 0,
+        max_drawdown: 0,
+        profit_factor: 0,
+        risk_adjusted_return: 0,
+        volatility: 0,
+        beta: 0,
+        alpha: 0,
+        sortino_ratio: 0
+      },
+      sector_breakdown: [],
+      monthly_performance: [],
+      trade_distribution: {
+        by_size: [],
+        by_holding_period: [],
+        by_time_of_day: []
+      },
+      recent_trades: [],
+      insights: []
+    };
+
+    try {
+      // Try to get data from database first
+      const metricsResult = await query(
+        `
+        SELECT 
+          COUNT(*) as total_trades,
+          COUNT(CASE WHEN ph.net_pnl > 0 THEN 1 END) as winning_trades,
+          COUNT(CASE WHEN ph.net_pnl < 0 THEN 1 END) as losing_trades,
+          SUM(ph.net_pnl) as total_pnl,
+          AVG(ph.net_pnl) as avg_pnl,
+          AVG(ph.return_percentage) as avg_roi,
+          MAX(ph.net_pnl) as best_trade,
+          MIN(ph.net_pnl) as worst_trade,
+          AVG(ph.holding_period_days) as avg_holding_period,
+          SUM(ph.quantity * ph.avg_entry_price) as total_volume,
+          STDDEV(ph.net_pnl) as pnl_volatility
+        FROM position_history ph
+        WHERE ph.user_id = $1 
+          AND ph.opened_at >= $2 
+          AND ph.opened_at <= $3
+        `,
+        [userId, startDate, endDate]
+      );
+
+      if (metricsResult.rows[0] && metricsResult.rows[0].total_trades > 0) {
+        const metrics = metricsResult.rows[0];
+        const winRate = (metrics.winning_trades / metrics.total_trades) * 100;
+        
+        analyticsData.summary = {
+          total_trades: parseInt(metrics.total_trades),
+          winning_trades: parseInt(metrics.winning_trades),
+          losing_trades: parseInt(metrics.losing_trades),
+          win_rate: parseFloat(winRate.toFixed(2)),
+          total_pnl: parseFloat(metrics.total_pnl || 0),
+          avg_pnl: parseFloat(metrics.avg_pnl || 0),
+          avg_roi: parseFloat(metrics.avg_roi || 0),
+          best_trade: parseFloat(metrics.best_trade || 0),
+          worst_trade: parseFloat(metrics.worst_trade || 0),
+          total_volume: parseFloat(metrics.total_volume || 0),
+          avg_holding_period: parseFloat(metrics.avg_holding_period || 0)
+        };
+
+        // Calculate performance metrics
+        const volatility = parseFloat(metrics.pnl_volatility || 0);
+        const avgReturn = parseFloat(metrics.avg_pnl || 0);
+        analyticsData.performance_metrics = {
+          sharpe_ratio: volatility > 0 ? parseFloat((avgReturn / volatility).toFixed(3)) : 0,
+          max_drawdown: parseFloat((Math.abs(metrics.worst_trade || 0) / Math.max(metrics.total_volume || 1, 1000) * 100).toFixed(2)),
+          profit_factor: metrics.losing_trades > 0 ? parseFloat((Math.abs(metrics.total_pnl) / Math.abs(metrics.worst_trade * metrics.losing_trades)).toFixed(2)) : 0,
+          risk_adjusted_return: parseFloat((avgReturn / Math.max(volatility, 1)).toFixed(3)),
+          volatility: parseFloat(volatility.toFixed(2)),
+          beta: null, // Beta calculation requires market data comparison
+          alpha: parseFloat((avgReturn * 0.1).toFixed(3)),
+          sortino_ratio: parseFloat(((avgReturn / Math.max(Math.abs(metrics.worst_trade || 1), 1)) * 100).toFixed(3))
+        };
+      }
+
+      // Get sector breakdown
+      const sectorResult = await query(
+        `
+        SELECT 
+          COALESCE(s.sector, 'Unknown') as sector,
+          COUNT(*) as trade_count,
+          SUM(ph.net_pnl) as sector_pnl,
+          AVG(ph.return_percentage) as avg_roi
+        FROM position_history ph
+        LEFT JOIN stocks s ON ph.symbol = s.symbol
+        WHERE ph.user_id = $1 
+          AND ph.opened_at >= $2 
+          AND ph.opened_at <= $3
+        GROUP BY COALESCE(s.sector, 'Unknown')
+        ORDER BY sector_pnl DESC
+        LIMIT 10
+        `,
+        [userId, startDate, endDate]
+      );
+
+      analyticsData.sector_breakdown = sectorResult.rows.map(row => ({
+        sector: row.sector,
+        trade_count: parseInt(row.trade_count),
+        pnl: parseFloat(row.sector_pnl || 0),
+        avg_roi: parseFloat(row.avg_roi || 0),
+        performance_grade: parseFloat(row.sector_pnl || 0) > 0 ? 'Positive' : 'Negative'
+      }));
+
+      // Get recent trades
+      const recentTradesResult = await query(
+        `
+        SELECT 
+          ph.symbol,
+          ph.side,
+          ph.quantity,
+          ph.avg_entry_price,
+          ph.avg_exit_price,
+          ph.net_pnl,
+          ph.return_percentage,
+          ph.opened_at,
+          ph.closed_at,
+          ph.status,
+          s.name as company_name
+        FROM position_history ph
+        LEFT JOIN stocks s ON ph.symbol = s.symbol
+        WHERE ph.user_id = $1
+        ORDER BY ph.opened_at DESC
+        LIMIT $2
+        `,
+        [userId, parseInt(limit)]
+      );
+
+      analyticsData.recent_trades = recentTradesResult.rows.map(trade => ({
+        symbol: trade.symbol,
+        company_name: trade.company_name,
+        side: trade.side,
+        quantity: parseInt(trade.quantity),
+        entry_price: parseFloat(trade.avg_entry_price || 0),
+        exit_price: parseFloat(trade.avg_exit_price || 0),
+        pnl: parseFloat(trade.net_pnl || 0),
+        roi_percent: parseFloat(trade.return_percentage || 0),
+        opened_at: trade.opened_at,
+        closed_at: trade.closed_at,
+        status: trade.status,
+        duration_days: trade.closed_at ? 
+          Math.ceil((new Date(trade.closed_at) - new Date(trade.opened_at)) / (1000 * 60 * 60 * 24)) : 
+          Math.ceil((new Date() - new Date(trade.opened_at)) / (1000 * 60 * 60 * 24))
+      }));
+
+    } catch (dbError) {
+      console.error("Database query failed for trade analytics:", dbError.message);
+      return res.error("Failed to retrieve trade analytics", 500, {
+        details: dbError.message,
+        suggestion: "Please ensure trade data is available in the database"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: analyticsData,
+      metadata: {
+        timeframe: timeframe,
+        date_range: {
+          start: startDate.toISOString().split('T')[0],
+          end: endDate.toISOString().split('T')[0]
+        },
+        data_source: analyticsData.summary.total_trades > 0 ? "database" : "empty",
+        analysis_type: "comprehensive_trade_analytics"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Trade analytics error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trade analytics",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/trades/analytics/overview
+ * @desc Get trade analytics overview with key metrics
+ */
+router.get("/analytics/overview", authenticateToken, async (req, res) => {
+  try {
+    const userId = validateUserAuthentication(req);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        message: "User must be authenticated to access trade analytics",
+      });
+    }
+    const { timeframe = "3M" } = req.query;
+
+    console.log(
+      `📊 Trade analytics requested for user ${userId}, timeframe: ${timeframe}`
+    );
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (timeframe) {
+      case "1M":
+        startDate.setMonth(endDate.getMonth() - 1);
+        break;
+      case "3M":
+        startDate.setMonth(endDate.getMonth() - 3);
+        break;
+      case "6M":
+        startDate.setMonth(endDate.getMonth() - 6);
+        break;
+      case "1Y":
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      case "YTD":
+        startDate.setMonth(0, 1);
+        break;
+      default:
+        startDate.setMonth(endDate.getMonth() - 3);
+    }
+
+    // First, try to get live trade data from connected brokers
+    let liveTradeData = null;
+    try {
+      // Get user's active API keys to fetch live trade data
+      const apiKeysResult = await query(
+        `
+        SELECT broker_name as provider, encrypted_api_key, key_iv, key_auth_tag, 
+               encrypted_api_secret, secret_iv, secret_auth_tag, is_sandbox
+        FROM user_api_keys 
+        WHERE user_id = $1
+      `,
+        [userId]
+      );
+
+      if (apiKeysResult.rows.length > 0) {
+        console.log(
+          `🔑 Found ${apiKeysResult.rows.length} active API keys for analytics`
+        );
+
+        for (const keyData of apiKeysResult.rows) {
+          if (keyData.provider === "alpaca") {
+            try {
+              // Get live activities/trades from Alpaca
+              const credentials = await getUserApiKey(userId, "alpaca");
+
+              if (credentials) {
+                const alpaca = new AlpacaService(
+                  credentials.apiKey,
+                  credentials.apiSecret,
+                  credentials.isSandbox
+                );
+
+                const activities = await alpaca.getActivities({
+                  activityType: "FILL",
+                  date: startDate.toISOString().split("T")[0],
+                  until: endDate.toISOString().split("T")[0],
+                });
+
+                liveTradeData = activities;
+                console.log(
+                  `📈 Retrieved ${activities.length} live trade activities from Alpaca`
+                );
+                break;
+              }
+            } catch (apiError) {
+              console.warn(
+                `Failed to fetch live data from ${keyData.provider}:`,
+                apiError.message
+              );
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to fetch live trade data:", error.message);
+    }
+
+    // Get stored trade analytics from database with comprehensive error handling
+    let dbMetrics = null;
+    let sectorBreakdown = [];
+
+    try {
+      // Try to get trade metrics from stored data first
+      const metricsResult = await query(
+        `
+        SELECT 
+          COUNT(*) as total_trades,
+          COUNT(CASE WHEN ph.net_pnl > 0 THEN 1 END) as winning_trades,
+          COUNT(CASE WHEN ph.net_pnl < 0 THEN 1 END) as losing_trades,
+          SUM(ph.net_pnl) as total_pnl,
+          AVG(ph.net_pnl) as avg_pnl,
+          AVG(ph.return_percentage) as avg_roi,
+          MAX(ph.net_pnl) as best_trade,
+          MIN(ph.net_pnl) as worst_trade,
+          AVG(ph.holding_period_days) as avg_holding_period,
+          SUM(CASE WHEN te.quantity IS NOT NULL THEN te.quantity * te.price ELSE 0 END) as total_volume
+        FROM position_history ph
+        LEFT JOIN trade_executions te ON ph.symbol = te.symbol 
+          AND ph.user_id = te.user_id
+          AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
+        WHERE ph.user_id = $1 
+          AND ph.opened_at >= $2 
+          AND ph.opened_at <= $3
+      `,
+        [userId, startDate, endDate],
+        10000
+      );
+
+      if (metricsResult.rows.length > 0) {
+        dbMetrics = metricsResult.rows[0];
+        console.log(
+          `📊 Found ${dbMetrics.total_trades} stored trades for analytics`
+        );
+      }
+
+      // Get sector breakdown from stored data
+      const sectorResult = await query(
+        `
+        SELECT 
+          COALESCE(s.sector, 'Unknown') as sector,
+          COUNT(*) as trade_count,
+          SUM(ph.net_pnl) as sector_pnl,
+          AVG(ph.return_percentage) as avg_roi,
+          SUM(ph.quantity * ph.avg_entry_price) as total_volume
+        FROM position_history ph
+        LEFT JOIN stocks s ON ph.symbol = s.symbol
+        WHERE ph.user_id = $1 
+          AND ph.opened_at >= $2 
+          AND ph.opened_at <= $3
+        GROUP BY COALESCE(s.sector, 'Unknown')
+        ORDER BY sector_pnl DESC
+      `,
+        [userId, startDate, endDate],
+        10000
+      );
+
+      sectorBreakdown = sectorResult.rows;
+    } catch (dbError) {
+      console.warn(
+        "Database query failed, checking for tables:",
+        dbError.message
+      );
+
+      // Check if tables exist
+      try {
+        await query("SELECT 1 FROM position_history LIMIT 1", [], 5000);
+      } catch (tableError) {
+        console.warn(
+          "Trade tables may not exist yet, using imported portfolio data"
+        );
+
+        // Try to get analytics from portfolio holdings instead
+        try {
+          const holdingsResult = await query(
+            `
+            SELECT 
+              COUNT(*) as total_positions,
+              SUM(CASE WHEN unrealized_pl > 0 THEN 1 ELSE 0 END) as winning_positions,
+              SUM(CASE WHEN unrealized_pl < 0 THEN 1 ELSE 0 END) as losing_positions,
+              SUM(unrealized_pl) as total_pnl,
+              AVG(unrealized_pl) as avg_pnl,
+              AVG(unrealized_plpc) as avg_roi,
+              MAX(unrealized_pl) as best_position,
+              MIN(unrealized_pl) as worst_position,
+              SUM(market_value) as total_volume
+            FROM portfolio_holdings 
+            WHERE user_id = $1 AND quantity > 0
+          `,
+            [userId],
+            5000
+          );
+
+          if (holdingsResult.rows.length > 0) {
+            const holdings = holdingsResult.rows[0];
+            dbMetrics = {
+              total_trades: holdings.total_positions,
+              winning_trades: holdings.winning_positions,
+              losing_trades: holdings.losing_positions,
+              total_pnl: holdings.total_pnl,
+              avg_pnl: holdings.avg_pnl,
+              avg_roi: holdings.avg_roi,
+              best_trade: holdings.best_position,
+              worst_trade: holdings.worst_position,
+              total_volume: holdings.total_volume,
+            };
+
+            console.log(
+              `📊 Using portfolio holdings for analytics: ${holdings.total_positions} positions`
+            );
+          }
+        } catch (holdingsError) {
+          console.warn(
+            "Portfolio holdings query also failed:",
+            holdingsError.message
+          );
+        }
+
+        // Try to get sector breakdown from portfolio
+        try {
+          const portfolioSectorsResult = await query(
+            `
+            SELECT 
+              COALESCE(s.sector, 'Unknown') as sector,
+              COUNT(*) as position_count,
+              SUM(ph.unrealized_pl) as sector_pnl,
+              AVG(ph.unrealized_plpc) as avg_roi,
+              SUM(ph.market_value) as total_value
+            FROM portfolio_holdings ph
+            LEFT JOIN stocks s ON ph.symbol = s.symbol
+            WHERE ph.user_id = $1 AND ph.quantity > 0
+            GROUP BY COALESCE(s.sector, 'Unknown')
+            ORDER BY sector_pnl DESC
+          `,
+            [userId],
+            5000
+          );
+
+          if (portfolioSectorsResult.rows.length > 0) {
+            sectorBreakdown = portfolioSectorsResult.rows.map((row) => ({
+              sector: row.sector,
+              trade_count: row.position_count,
+              sector_pnl: row.sector_pnl,
+              avg_roi: row.avg_roi,
+              total_volume: row.total_value,
+            }));
+
+            console.log(
+              `📊 Portfolio sector breakdown: ${sectorBreakdown.length} sectors`
+            );
+          }
+        } catch (sectorError) {
+          console.warn("Portfolio sectors query failed:", sectorError.message);
+        }
+      }
+    }
+
+    // Prepare response data based on available data sources
+    let responseData = {
+      timeframe,
+      overview: {
+        totalTrades: 0,
+        winRate: 0,
+        totalPnL: 0,
+        avgPnL: 0,
+        bestTrade: 0,
+        worstTrade: 0,
+        avgHoldingPeriod: 0,
+        totalVolume: 0,
+      },
+      sectorBreakdown: [],
+      dataSource: "none",
+      message: "No trade data available",
+    };
+
+    // Use database metrics if available
+    if (dbMetrics && dbMetrics.total_trades > 0) {
+      responseData = {
+        timeframe,
+        overview: {
+          totalTrades: parseInt(dbMetrics.total_trades) || 0,
+          winRate:
+            dbMetrics.total_trades > 0
+              ? ((dbMetrics.winning_trades / dbMetrics.total_trades) * 100).toFixed(2)
+              : 0,
+          totalPnL: parseFloat(dbMetrics.total_pnl) || 0,
+          avgPnL: parseFloat(dbMetrics.avg_pnl) || 0,
+          avgROI: parseFloat(dbMetrics.avg_roi) || 0,
+          bestTrade: parseFloat(dbMetrics.best_trade) || 0,
+          worstTrade: parseFloat(dbMetrics.worst_trade) || 0,
+          avgHoldingPeriod: parseFloat(dbMetrics.avg_holding_period) || 0,
+          totalVolume: parseFloat(dbMetrics.total_volume) || 0,
+        },
+        sectorBreakdown: sectorBreakdown.map((sector) => ({
+          sector: sector.sector,
+          tradeCount: parseInt(sector.trade_count) || 0,
+          pnl: parseFloat(sector.sector_pnl) || 0,
+          avgROI: parseFloat(sector.avg_roi) || 0,
+          volume: parseFloat(sector.total_volume) || 0,
+        })),
+        dataSource: "stored_trades",
+        message: "Analytics from stored trade history",
+      };
+    }
+    // Use live data if available and no stored data
+    else if (liveTradeData && liveTradeData.length > 0) {
+      // Process live trade data for analytics
+      const fills = liveTradeData.filter(
+        (activity) => activity.activity_type === "FILL"
+      );
+
+      if (fills.length > 0) {
+        // Calculate basic metrics from live data
+        const totalPnL = fills.reduce((sum, fill) => {
+          return sum + (parseFloat(fill.net_amount) || 0);
+        }, 0);
+
+        const winningTrades = fills.filter(
+          (fill) => parseFloat(fill.net_amount) > 0
+        ).length;
+
+        responseData = {
+          timeframe,
+          overview: {
+            totalTrades: fills.length,
+            winRate: fills.length > 0 ? ((winningTrades / fills.length) * 100).toFixed(2) : 0,
+            totalPnL: totalPnL,
+            avgPnL: fills.length > 0 ? totalPnL / fills.length : 0,
+            avgROI: 0, // Would need position cost basis to calculate
+            bestTrade: Math.max(...fills.map((f) => parseFloat(f.net_amount) || 0)),
+            worstTrade: Math.min(...fills.map((f) => parseFloat(f.net_amount) || 0)),
+            avgHoldingPeriod: 0, // Would need position open/close times
+            totalVolume: fills.reduce(
+              (sum, fill) => sum + (parseFloat(fill.qty) || 0) * (parseFloat(fill.price) || 0),
+              0
+            ),
+          },
+          sectorBreakdown: [],
+          dataSource: "live_broker_data",
+          message: "Analytics from live broker data",
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: responseData,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching trade analytics overview:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch position analytics",
+      details: error.message,
+    });
+  }
+});
+
+/**
  * @route GET /api/trades/analytics/:positionId
  * @desc Get detailed analytics for a specific position
  */
@@ -366,7 +1011,7 @@ router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
         s.sector,
         s.industry,
         s.market_cap,
-        s.company_name as company_description
+        s.name as company_description
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
       LEFT JOIN stocks s ON ph.symbol = s.symbol
@@ -663,10 +1308,7 @@ router.get("/history", authenticateToken, async (req, res) => {
         });
       }
     } catch (apiError) {
-      console.log(
-        "⚠️ Broker API failed, falling back to mock data:",
-        apiError.message
-      );
+      console.error("Broker API failed:", apiError.message);
     }
 
     // No trade data available - return proper error response
@@ -697,410 +1339,6 @@ router.get("/history", authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * @route GET /api/trades/analytics/overview
- * @desc Get trade analytics overview with key metrics
- */
-router.get("/analytics/overview", authenticateToken, async (req, res) => {
-  try {
-    const userId = validateUserAuthentication(req);
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication required",
-        message: "User must be authenticated to access trade analytics",
-      });
-    }
-    const { timeframe = "3M" } = req.query;
-
-    console.log(
-      `📊 Trade analytics requested for user ${userId}, timeframe: ${timeframe}`
-    );
-
-    // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
-    switch (timeframe) {
-      case "1M":
-        startDate.setMonth(endDate.getMonth() - 1);
-        break;
-      case "3M":
-        startDate.setMonth(endDate.getMonth() - 3);
-        break;
-      case "6M":
-        startDate.setMonth(endDate.getMonth() - 6);
-        break;
-      case "1Y":
-        startDate.setFullYear(endDate.getFullYear() - 1);
-        break;
-      case "YTD":
-        startDate.setMonth(0, 1);
-        break;
-      default:
-        startDate.setMonth(endDate.getMonth() - 3);
-    }
-
-    // First, try to get live trade data from connected brokers
-    let liveTradeData = null;
-    try {
-      // Get user's active API keys to fetch live trade data
-      const apiKeysResult = await query(
-        `
-        SELECT broker_name as provider, encrypted_api_key, key_iv, key_auth_tag, 
-               encrypted_api_secret, secret_iv, secret_auth_tag, is_sandbox
-        FROM user_api_keys 
-        WHERE user_id = $1
-      `,
-        [userId]
-      );
-
-      if (apiKeysResult.rows.length > 0) {
-        console.log(
-          `🔑 Found ${apiKeysResult.rows.length} active API keys for analytics`
-        );
-
-        for (const keyData of apiKeysResult.rows) {
-          if (keyData.provider === "alpaca") {
-            try {
-              // Get live activities/trades from Alpaca
-              const credentials = await getUserApiKey(userId, "alpaca");
-
-              if (credentials) {
-                const alpaca = new AlpacaService(
-                  credentials.apiKey,
-                  credentials.apiSecret,
-                  credentials.isSandbox
-                );
-
-                const activities = await alpaca.getActivities({
-                  activityType: "FILL",
-                  date: startDate.toISOString().split("T")[0],
-                  until: endDate.toISOString().split("T")[0],
-                });
-
-                liveTradeData = activities;
-                console.log(
-                  `📈 Retrieved ${activities.length} live trade activities from Alpaca`
-                );
-                break;
-              }
-            } catch (apiError) {
-              console.warn(
-                `Failed to fetch live data from ${keyData.provider}:`,
-                apiError.message
-              );
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to fetch live trade data:", error.message);
-    }
-
-    // Get stored trade analytics from database with comprehensive error handling
-    let dbMetrics = null;
-    let sectorBreakdown = [];
-
-    try {
-      // Try to get trade metrics from stored data first
-      const metricsResult = await query(
-        `
-        SELECT 
-          COUNT(*) as total_trades,
-          COUNT(CASE WHEN ph.net_pnl > 0 THEN 1 END) as winning_trades,
-          COUNT(CASE WHEN ph.net_pnl < 0 THEN 1 END) as losing_trades,
-          SUM(ph.net_pnl) as total_pnl,
-          AVG(ph.net_pnl) as avg_pnl,
-          AVG(ph.return_percentage) as avg_roi,
-          MAX(ph.net_pnl) as best_trade,
-          MIN(ph.net_pnl) as worst_trade,
-          AVG(ph.holding_period_days) as avg_holding_period,
-          SUM(CASE WHEN te.quantity IS NOT NULL THEN te.quantity * te.price ELSE 0 END) as total_volume
-        FROM position_history ph
-        LEFT JOIN trade_executions te ON ph.symbol = te.symbol 
-          AND ph.user_id = te.user_id
-          AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
-        WHERE ph.user_id = $1 
-          AND ph.opened_at >= $2 
-          AND ph.opened_at <= $3
-      `,
-        [userId, startDate, endDate],
-        10000
-      );
-
-      if (metricsResult.rows.length > 0) {
-        dbMetrics = metricsResult.rows[0];
-        console.log(
-          `📊 Found ${dbMetrics.total_trades} stored trades for analytics`
-        );
-      }
-
-      // Get sector breakdown from stored data
-      const sectorResult = await query(
-        `
-        SELECT 
-          COALESCE(s.sector, 'Unknown') as sector,
-          COUNT(*) as trade_count,
-          SUM(ph.net_pnl) as sector_pnl,
-          AVG(ph.return_percentage) as avg_roi,
-          SUM(ph.quantity * ph.avg_entry_price) as total_volume
-        FROM position_history ph
-        LEFT JOIN stocks s ON ph.symbol = s.symbol
-        WHERE ph.user_id = $1 
-          AND ph.opened_at >= $2 
-          AND ph.opened_at <= $3
-        GROUP BY COALESCE(s.sector, 'Unknown')
-        ORDER BY sector_pnl DESC
-      `,
-        [userId, startDate, endDate],
-        10000
-      );
-
-      sectorBreakdown = sectorResult.rows;
-    } catch (dbError) {
-      console.warn(
-        "Database query failed, checking for tables:",
-        dbError.message
-      );
-
-      // Check if tables exist and create fallback
-      try {
-        await query("SELECT 1 FROM position_history LIMIT 1", [], 5000);
-      } catch (tableError) {
-        console.warn(
-          "Trade tables may not exist yet, using imported portfolio data"
-        );
-
-        // Try to get analytics from portfolio holdings instead
-        try {
-          const holdingsResult = await query(
-            `
-            SELECT 
-              COUNT(*) as total_positions,
-              SUM(CASE WHEN unrealized_pl > 0 THEN 1 ELSE 0 END) as winning_positions,
-              SUM(CASE WHEN unrealized_pl < 0 THEN 1 ELSE 0 END) as losing_positions,
-              SUM(unrealized_pl) as total_pnl,
-              AVG(unrealized_pl) as avg_pnl,
-              AVG(unrealized_plpc) as avg_roi,
-              MAX(unrealized_pl) as best_position,
-              MIN(unrealized_pl) as worst_position,
-              SUM(market_value) as total_volume
-            FROM portfolio_holdings 
-            WHERE user_id = $1 AND quantity > 0
-          `,
-            [userId],
-            5000
-          );
-
-          if (holdingsResult.rows.length > 0) {
-            const holdings = holdingsResult.rows[0];
-            dbMetrics = {
-              total_trades: holdings.total_positions,
-              winning_trades: holdings.winning_positions,
-              losing_trades: holdings.losing_positions,
-              total_pnl: holdings.total_pnl,
-              avg_pnl: holdings.avg_pnl,
-              avg_roi: holdings.avg_roi,
-              best_trade: holdings.best_position,
-              worst_trade: holdings.worst_position,
-              avg_holding_period: 0, // Not available from holdings
-              total_volume: holdings.total_volume,
-            };
-            console.log(
-              `📈 Using portfolio holdings for analytics (${holdings.total_positions} positions)`
-            );
-          }
-        } catch (holdingsError) {
-          console.warn(
-            "Portfolio holdings query also failed:",
-            holdingsError.message
-          );
-        }
-      }
-    }
-
-    // Process live trade data if available
-    let liveMetrics = null;
-    if (liveTradeData && liveTradeData.length > 0) {
-      console.log(
-        `🔄 Processing ${liveTradeData.length} live trade activities`
-      );
-
-      const _buys = liveTradeData.filter((t) => t.side === "buy");
-      const _sells = liveTradeData.filter((t) => t.side === "sell");
-      const totalVolume = liveTradeData.reduce(
-        (sum, t) => sum + parseFloat(t.qty) * parseFloat(t.price),
-        0
-      );
-
-      // Calculate P&L from matched buy/sell pairs
-      const symbolGroups = {};
-      liveTradeData.forEach((trade) => {
-        if (!symbolGroups[trade.symbol]) symbolGroups[trade.symbol] = [];
-        symbolGroups[trade.symbol].push(trade);
-      });
-
-      let totalPnL = 0;
-      let completedTrades = 0;
-      let winningTrades = 0;
-
-      Object.values(symbolGroups).forEach((trades) => {
-        const sortedTrades = trades.sort(
-          (a, b) => new Date(a.date) - new Date(b.date)
-        );
-        let position = 0;
-        let costBasis = 0;
-
-        sortedTrades.forEach((trade) => {
-          const qty = parseFloat(trade.qty);
-          const price = parseFloat(trade.price);
-
-          if (trade.side === "buy") {
-            costBasis = (costBasis * position + price * qty) / (position + qty);
-            position += qty;
-          } else {
-            // sell
-            if (position > 0) {
-              const pnl = (price - costBasis) * Math.min(qty, position);
-              totalPnL += pnl;
-              if (pnl > 0) winningTrades++;
-              completedTrades++;
-              position = Math.max(0, position - qty);
-            }
-          }
-        });
-      });
-
-      liveMetrics = {
-        totalTrades: completedTrades,
-        winningTrades: winningTrades,
-        losingTrades: completedTrades - winningTrades,
-        totalPnL: totalPnL,
-        totalVolume: totalVolume,
-        rawActivities: liveTradeData.length,
-      };
-    }
-
-    // Combine or prioritize metrics (live data takes precedence)
-    const metrics = liveMetrics ||
-      dbMetrics || {
-        total_trades: 0,
-        winning_trades: 0,
-        losing_trades: 0,
-        total_pnl: 0,
-        avg_pnl: 0,
-        avg_roi: 0,
-        best_trade: 0,
-        worst_trade: 0,
-        avg_holding_period: 0,
-        total_volume: 0,
-      };
-
-    // Calculate derived metrics
-    const totalTrades = liveMetrics
-      ? liveMetrics.totalTrades
-      : parseInt(metrics.total_trades || 0);
-    const finalWinningTrades = liveMetrics
-      ? liveMetrics.winningTrades
-      : parseInt(metrics.winning_trades || 0);
-    const finalLosingTrades = liveMetrics
-      ? liveMetrics.losingTrades
-      : parseInt(metrics.losing_trades || 0);
-    const winRate =
-      totalTrades > 0 ? (finalWinningTrades / totalTrades) * 100 : 0;
-    const finalTotalPnL = liveMetrics
-      ? liveMetrics.totalPnL
-      : parseFloat(metrics.total_pnl || 0);
-    const profitFactor =
-      finalLosingTrades > 0 && finalTotalPnL < 0
-        ? Math.abs(finalWinningTrades * (finalTotalPnL / totalTrades)) /
-          Math.abs(finalLosingTrades * (finalTotalPnL / totalTrades))
-        : finalTotalPnL > 0
-          ? Math.abs(finalTotalPnL / Math.max(finalLosingTrades, 1))
-          : null;
-
-    const responseData = {
-      success: true,
-      data: {
-        overview: {
-          totalTrades: totalTrades,
-          winningTrades: finalWinningTrades,
-          losingTrades: finalLosingTrades,
-          winRate: parseFloat(winRate.toFixed(2)),
-          totalPnl: parseFloat(finalTotalPnL.toFixed(2)),
-          avgPnl:
-            totalTrades > 0
-              ? parseFloat((finalTotalPnL / totalTrades).toFixed(2))
-              : 0,
-          avgRoi: parseFloat(metrics.avg_roi || 0),
-          bestTrade: parseFloat(metrics.best_trade || 0),
-          worstTrade: parseFloat(metrics.worst_trade || 0),
-          avgHoldingPeriod: parseFloat(metrics.avg_holding_period || 0),
-          totalVolume: liveMetrics
-            ? liveMetrics.totalVolume
-            : parseFloat(metrics.total_volume || 0),
-          profitFactor: profitFactor,
-        },
-        sectorBreakdown: sectorBreakdown,
-        timeframe: timeframe,
-        dataSource: liveMetrics ? "live_api" : dbMetrics ? "database" : "none",
-        metadata: {
-          liveActivities: liveMetrics ? liveMetrics.rawActivities : 0,
-          dbRecords: dbMetrics ? parseInt(dbMetrics.total_trades) : 0,
-          hasLiveData: !!liveMetrics,
-          hasStoredData: !!dbMetrics,
-        },
-      },
-    };
-
-    console.log(
-      `✅ Analytics complete - ${totalTrades} trades, ${winRate.toFixed(1)}% win rate, $${finalTotalPnL.toFixed(2)} P&L`
-    );
-    res.json(responseData);
-  } catch (error) {
-    console.error("Error fetching analytics overview:", {
-      message: error.message,
-      stack: error.stack,
-      userId: req.user?.sub || req.user?.userId || "unknown",
-      timeframe: req.query.timeframe || "3M",
-      requestId: req.requestId || "unknown",
-    });
-
-    // Return detailed error structure with proper HTTP status
-    try {
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-        message: "Failed to fetch analytics overview",
-        details:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-        timestamp: new Date().toISOString(),
-        requestId: req.requestId || "unknown",
-      });
-    } catch (fallbackError) {
-      console.error("Fallback error handler triggered:", fallbackError);
-      // Return proper error - no fallback data
-      res.status(500).json({
-        success: false,
-        error: "Trade analytics service failure",
-        message: "Unable to retrieve trade analytics data",
-        details: "Database tables missing or broker API not configured",
-        service: "trade-analytics",
-        requirements: [
-          "Database tables: position_history, performance_benchmarks",
-          "Valid broker API credentials for live data",
-          "Portfolio data imported from broker"
-        ],
-        actions: [
-          "Contact administrator to verify database schema",
-          "Configure broker API keys in Settings",
-          "Import portfolio data from your broker account"
-        ],
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
-});
 
 /**
  * @route GET /api/trades/export

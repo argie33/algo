@@ -50,6 +50,242 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
+// Get all watchlist items (across all user's watchlists)
+router.get("/items", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { limit = 100, symbol, watchlist_id } = req.query;
+
+    console.log(`📋 Watchlist items requested for user: ${userId}`);
+
+    // Build query based on filters  
+    let itemsQuery = `
+      SELECT 
+        wi.symbol,
+        wi.notes,
+        wi.added_at,
+        w.name as watchlist_name,
+        w.id as watchlist_id,
+        sp.close as current_price,
+        0 as change_amount,
+        0 as change_percent,
+        s.name as company_name,
+        s.sector,
+        s.market_cap
+      FROM watchlist_items wi
+      JOIN watchlists w ON wi.watchlist_id = w.id
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) 
+          symbol, close, date
+        FROM stock_prices 
+        ORDER BY symbol, date DESC
+      ) sp ON wi.symbol = sp.symbol
+      LEFT JOIN stocks s ON wi.symbol = s.symbol
+      WHERE w.user_id = $1
+    `;
+    
+    const queryParams = [userId];
+    let paramIndex = 2;
+
+    if (symbol) {
+      itemsQuery += ` AND wi.symbol = $${paramIndex}`;
+      queryParams.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    if (watchlist_id) {
+      itemsQuery += ` AND w.id = $${paramIndex}`;
+      queryParams.push(parseInt(watchlist_id));
+      paramIndex++;
+    }
+
+    itemsQuery += ` ORDER BY wi.added_at DESC LIMIT $${paramIndex}`;
+    queryParams.push(parseInt(limit));
+
+    const itemsResult = await query(itemsQuery, queryParams);
+
+    if (!itemsResult || !itemsResult.rows) {
+      console.warn("Watchlist items query returned null result, database may be unavailable");
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message: "Watchlist items temporarily unavailable - database connection issue",
+        data: [],
+        total: 0
+      });
+    }
+
+    // Calculate summary statistics
+    const items = itemsResult.rows;
+    const totalValue = items.reduce((sum, item) => sum + (item.current_price || 0), 0);
+    const totalChange = items.reduce((sum, item) => sum + (item.change_amount || 0), 0);
+    const avgChangePercent = items.length > 0 ? 
+      items.reduce((sum, item) => sum + (item.change_percent || 0), 0) / items.length : 0;
+
+    res.success({
+      data: items,
+      total: items.length,
+      summary: {
+        total_items: items.length,
+        total_value: parseFloat(totalValue.toFixed(2)),
+        total_change: parseFloat(totalChange.toFixed(2)),
+        average_change_percent: parseFloat(avgChangePercent.toFixed(2)),
+        unique_watchlists: [...new Set(items.map(item => item.watchlist_id))].length
+      },
+      filters: {
+        symbol: symbol || null,
+        watchlist_id: watchlist_id || null,
+        limit: parseInt(limit)
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error fetching watchlist items:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch watchlist items",
+      message: error.message
+    });
+  }
+});
+
+// Get recent watchlist items across all watchlists
+router.get("/items/recent", async (req, res) => {
+  try {
+    const { limit = 20, days = 7 } = req.query;
+    
+    console.log(`📋 Recent watchlist items requested - limit: ${limit}, days: ${days}`);
+    
+    // Get recently added items from all watchlists
+    const recentItemsQuery = `
+      SELECT 
+        wi.id as item_id,
+        wi.symbol,
+        wi.added_at,
+        wi.notes,
+        w.name as watchlist_name,
+        w.id as watchlist_id,
+        w.user_id,
+        pd.close_price as current_price,
+        pd.change_percent,
+        pd.change_amount,
+        pd.volume,
+        s.name as company_name,
+        s.sector,
+        s.market_cap
+      FROM watchlist_items wi
+      LEFT JOIN watchlists w ON wi.watchlist_id = w.id
+      LEFT JOIN price_daily pd ON wi.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = wi.symbol)
+      LEFT JOIN stocks s ON wi.symbol = s.symbol
+      WHERE wi.added_at >= NOW() - INTERVAL '${parseInt(days)} days'
+      ORDER BY wi.added_at DESC
+      LIMIT $1
+    `;
+    
+    const result = await query(recentItemsQuery, [parseInt(limit)]);
+    
+    if (!result || !result.rows) {
+      return res.json({
+        success: true,
+        data: {
+          items: [],
+          summary: {
+            total_items: 0,
+            unique_symbols: 0,
+            unique_watchlists: 0,
+            days_covered: parseInt(days),
+            message: "No recent watchlist items found"
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const items = result.rows.map(row => ({
+      item_id: row.item_id,
+      symbol: row.symbol,
+      company_name: row.company_name || row.symbol,
+      sector: row.sector || "Unknown",
+      market_cap: row.market_cap ? parseInt(row.market_cap) : null,
+      current_price: row.current_price ? parseFloat(row.current_price) : null,
+      change_percent: row.change_percent ? parseFloat(row.change_percent) : 0,
+      change_amount: row.change_amount ? parseFloat(row.change_amount) : 0,
+      volume: row.volume ? parseInt(row.volume) : 0,
+      added_at: row.added_at,
+      hours_ago: Math.floor((Date.now() - new Date(row.added_at)) / (1000 * 60 * 60)),
+      notes: row.notes || null,
+      watchlist: {
+        id: row.watchlist_id,
+        name: row.watchlist_name || "Unknown",
+        user_id: row.user_id
+      }
+    }));
+    
+    // Calculate summary statistics
+    const uniqueSymbols = [...new Set(items.map(item => item.symbol))].length;
+    const uniqueWatchlists = [...new Set(items.map(item => item.watchlist.id))].length;
+    const totalValue = items.reduce((sum, item) => sum + (item.current_price || 0), 0);
+    const avgChangePercent = items.length > 0 
+      ? items.reduce((sum, item) => sum + (item.change_percent || 0), 0) / items.length 
+      : 0;
+    
+    const summary = {
+      total_items: items.length,
+      unique_symbols: uniqueSymbols,
+      unique_watchlists: uniqueWatchlists,
+      days_covered: parseInt(days),
+      total_market_value: Math.round(totalValue * 100) / 100,
+      avg_change_percent: Math.round(avgChangePercent * 100) / 100,
+      most_active_period: items.length > 0 
+        ? new Date(Math.max(...items.map(item => new Date(item.added_at)))).toISOString().split('T')[0]
+        : null,
+      top_sectors: calculateTopSectors(items),
+      recent_additions_trend: items.length >= 2 
+        ? items.slice(0, Math.ceil(items.length/2)).length > items.slice(Math.ceil(items.length/2)).length 
+          ? "increasing" 
+          : "decreasing"
+        : "stable"
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        items: items,
+        summary: summary,
+        filters: {
+          limit: parseInt(limit),
+          days: parseInt(days)
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching recent watchlist items:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent watchlist items",
+      details: error.message
+    });
+  }
+});
+
+// Helper function to calculate top sectors
+function calculateTopSectors(items) {
+  const sectorCounts = {};
+  items.forEach(item => {
+    if (item.sector && item.sector !== "Unknown") {
+      sectorCounts[item.sector] = (sectorCounts[item.sector] || 0) + 1;
+    }
+  });
+  
+  return Object.entries(sectorCounts)
+    .map(([sector, count]) => ({ sector, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+}
+
 // Get specific watchlist with items
 router.get("/:id", authenticateToken, async (req, res) => {
   try {

@@ -18,7 +18,7 @@ class BacktestEngine {
       maxPositions: config.maxPositions || 10,
       startDate: config.startDate,
       endDate: config.endDate,
-      symbols: config.symbols || [],
+      symbols: config.symbols,
       ...config,
     };
 
@@ -644,6 +644,72 @@ router.post("/validate", async (req, res) => {
   }
 });
 
+// Get backtest results endpoint
+router.get("/results", async (req, res) => {
+  try {
+    const { backtestId, limit = 50, status } = req.query;
+    console.log(`📊 Backtest results requested - ID: ${backtestId || 'all'}, limit: ${limit}`);
+    
+    // Get backtest results from storage
+    const allResults = backtestStore.loadStrategies();
+    
+    let filteredResults = allResults;
+    
+    // Filter by backtest ID if provided
+    if (backtestId) {
+      filteredResults = allResults.filter(result => 
+        result.id === backtestId || result.name === backtestId
+      );
+    }
+    
+    // Filter by status if provided
+    if (status) {
+      filteredResults = filteredResults.filter(result => 
+        result.status === status
+      );
+    }
+    
+    // Apply limit
+    const results = filteredResults.slice(0, parseInt(limit));
+    
+    // Enhance results with performance metrics if available
+    const enhancedResults = results.map(result => ({
+      ...result,
+      summary: {
+        total_return: result.totalReturn || 0,
+        sharpe_ratio: result.sharpeRatio || 0,
+        max_drawdown: result.maxDrawdown || 0,
+        win_rate: result.winRate || 0,
+        total_trades: result.totalTrades || 0,
+        final_value: result.finalValue || 100000,
+        start_value: result.startValue || 100000
+      },
+      created_at: result.createdAt || result.timestamp || new Date().toISOString(),
+      status: result.status || 'completed'
+    }));
+    
+    res.json({
+      success: true,
+      data: enhancedResults,
+      total: filteredResults.length,
+      returned: results.length,
+      filters: {
+        backtestId: backtestId || null,
+        status: status || null,
+        limit: parseInt(limit)
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Backtest results error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch backtest results",
+      details: error.message
+    });
+  }
+});
+
 // Get user backtest results (for tests)
 router.get("/", async (req, res) => {
   try {
@@ -737,6 +803,40 @@ router.delete("/:id", async (req, res) => {
   } catch (error) {
     console.error("Error deleting backtest:", error);
     return res.error("Failed to delete backtest", 500, { details: error.message });
+  }
+});
+
+// Get backtest optimization endpoint
+router.get("/optimize", async (req, res) => {
+  try {
+    console.log("⚡ Backtest optimization requested");
+    console.log("⚡ Backtest optimization - not implemented");
+    
+    return res.status(501).json({
+      success: false,
+      error: "Backtest optimization not implemented",
+      details: "This endpoint requires parameter optimization algorithms and grid search capabilities for backtesting strategy optimization.",
+      troubleshooting: {
+        suggestion: "Backtest optimization requires advanced algorithmic optimization",
+        required_setup: [
+          "Parameter optimization engine integration",
+          "Grid search and random search algorithms",
+          "Genetic algorithm optimization for strategy parameters",
+          "Multi-objective optimization frameworks",
+          "Statistical significance testing for optimization results"
+        ],
+        status: "Not implemented - requires optimization engine integration"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Backtest optimization error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch backtest optimization",
+      message: error.message
+    });
   }
 });
 

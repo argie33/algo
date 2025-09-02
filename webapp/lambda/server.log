@@ -1,0 +1,22 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+/home/stocks/algo/webapp/lambda/routes/analysts.js:607
+        consensus_strength: Math.floor(60 + null // 60-95%
+                                            ^^^^
+
+SyntaxError: missing ) after argument list
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/home/stocks/algo/webapp/lambda/index.js:17:23)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+
+Node.js v20.19.4

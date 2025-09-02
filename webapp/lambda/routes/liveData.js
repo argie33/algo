@@ -361,6 +361,232 @@ router.get("/sectors", authenticateToken, async (req, res) => {
   }
 });
 
+// Get live quotes data
+router.get("/quotes", async (req, res) => {
+  try {
+    const { symbols, fields = "basic" } = req.query;
+
+    console.log(`📊 Live quotes requested for symbols: ${symbols || 'popular'}`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Live quotes not available",
+      message: "Real-time stock quotes require integration with market data providers",
+      details: "This endpoint requires:\n- Real-time market data feeds\n- Professional data vendor subscriptions\n- WebSocket streaming infrastructure\n- Quote normalization and aggregation\n- Market hours and trading halt handling\n- Regulatory compliance for data distribution",
+      troubleshooting: {
+        suggestion: "Live quotes require professional market data integration",
+        required_setup: [
+          "Market data vendor subscription (Bloomberg, Refinitiv, Alpha Vantage, Polygon)",
+          "Real-time streaming WebSocket infrastructure",
+          "Quote aggregation and normalization engine",
+          "Market hours and trading session management",
+          "Data distribution compliance and licensing"
+        ],
+        status: "Not implemented - requires professional market data feeds"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Live quotes error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch live quotes",
+      details: error.message
+    });
+  }
+});
+
+// Helper functions for quotes endpoint
+function getExchangeForSymbol(symbol) {
+  const nasdaqSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA'];
+  const nyseSymbols = ['JPM', 'V', 'JNJ', 'PG', 'HD', 'KO', 'WMT', 'DIS'];
+  
+  if (nasdaqSymbols.includes(symbol)) return 'NASDAQ';
+  if (nyseSymbols.includes(symbol)) return 'NYSE';
+  return 'NASDAQ'; // Default
+}
+
+function isMarketCurrentlyOpen() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const day = et.getDay();
+  const hour = et.getHours();
+  const minute = et.getMinutes();
+  
+  // Weekend
+  if (day === 0 || day === 6) return false;
+  
+  // Market hours: 9:30 AM - 4:00 PM ET
+  const currentMinutes = hour * 60 + minute;
+  const marketOpenMinutes = 9 * 60 + 30; // 9:30 AM
+  const marketCloseMinutes = 16 * 60; // 4:00 PM
+  
+  return currentMinutes >= marketOpenMinutes && currentMinutes < marketCloseMinutes;
+}
+
+function getCurrentMarketSession() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const hour = et.getHours();
+  const minute = et.getMinutes();
+  const currentMinutes = hour * 60 + minute;
+  
+  if (currentMinutes >= 4 * 60 && currentMinutes < 9 * 60 + 30) return "pre_market";
+  if (currentMinutes >= 9 * 60 + 30 && currentMinutes < 16 * 60) return "regular_hours";
+  if (currentMinutes >= 16 * 60 && currentMinutes < 20 * 60) return "after_hours";
+  return "closed";
+}
+
+function getNextOpenTime() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  
+  let nextOpen = new Date(et);
+  nextOpen.setHours(9, 30, 0, 0);
+  
+  // If market is closed for today, go to next business day
+  if (isMarketCurrentlyOpen() || et.getHours() >= 16) {
+    nextOpen.setDate(nextOpen.getDate() + 1);
+  }
+  
+  // Skip weekends
+  while (nextOpen.getDay() === 0 || nextOpen.getDay() === 6) {
+    nextOpen.setDate(nextOpen.getDate() + 1);
+  }
+  
+  return nextOpen.toISOString();
+}
+
+function getNextCloseTime() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  
+  let nextClose = new Date(et);
+  nextClose.setHours(16, 0, 0, 0);
+  
+  // If after market close, get next business day's close
+  if (et.getHours() >= 16 || !isMarketCurrentlyOpen()) {
+    nextClose.setDate(nextClose.getDate() + 1);
+    while (nextClose.getDay() === 0 || nextClose.getDay() === 6) {
+      nextClose.setDate(nextClose.getDate() + 1);
+    }
+  }
+  
+  return nextClose.toISOString();
+}
+
+// Get live data stream (general endpoint)
+router.get("/stream", authenticateToken, async (req, res) => {
+  const correlationId = req.headers["x-correlation-id"] || `livedata-stream-${Date.now()}`;
+  const startTime = Date.now();
+  
+  try {
+    const { 
+      symbols, 
+      type = "quotes", 
+      format = "json",
+      interval = "1000",
+      fields = "all"
+    } = req.query;
+
+    logger.info("Processing live data stream request", { 
+      correlationId, 
+      userId: req.user?.sub,
+      symbols: symbols || "default_watchlist",
+      type,
+      format
+    });
+
+    return res.status(501).json({
+      success: false,
+      error: "Live data streaming not available",
+      message: "Real-time market data streaming requires professional infrastructure",
+      details: "This endpoint requires:\n- Real-time WebSocket streaming infrastructure\n- Market data vendor subscriptions\n- High-frequency data processing\n- Connection pooling and load balancing\n- Data compression and buffering\n- Market hours and session management",
+      troubleshooting: {
+        suggestion: "Live streaming requires professional market data infrastructure",
+        required_setup: [
+          "WebSocket streaming server infrastructure",
+          "Real-time market data feeds (Bloomberg, Refinitiv, Polygon)",
+          "High-frequency data processing engine",
+          "Connection management and load balancing",
+          "Data compression and real-time buffering"
+        ],
+        status: "Not implemented - requires streaming infrastructure"
+      },
+      metadata: {
+        correlation_id: correlationId,
+        user_id: req.user?.sub,
+        requested_symbols: symbols || "default_watchlist",
+        stream_type: type,
+        format: format
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.error("Live data stream request failed", {
+      correlationId,
+      duration,
+      error: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      success: false,
+      error: "Failed to initialize live data stream",
+      details: error.message,
+      correlationId: correlationId,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Helper functions for market status
+function isMarketOpen() {
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getUTCHours() - 5; // EST
+  
+  // Market is open Monday-Friday, 9:30 AM - 4:00 PM EST
+  return day >= 1 && day <= 5 && hour >= 9.5 && hour < 16;
+}
+
+function getNextMarketOpen() {
+  // Simplified - would be more complex in reality
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 30, 0, 0);
+  return tomorrow.toISOString();
+}
+
+function getNextMarketClose() {
+  // Simplified 
+  const today = new Date();
+  today.setHours(16, 0, 0, 0);
+  return today.toISOString();
+}
+
+function getCurrentTradingSession() {
+  if (isMarketOpen()) {
+    return "regular_hours";
+  } else {
+    const now = new Date();
+    const hour = now.getUTCHours() - 5;
+    if (hour >= 4 && hour < 9.5) return "pre_market";
+    if (hour >= 16 && hour < 20) return "after_hours";
+    return "closed";
+  }
+}
+
+function getUpcomingHolidays() {
+  return [
+    { date: "2025-12-25", name: "Christmas Day" },
+    { date: "2026-01-01", name: "New Year's Day" },
+    { date: "2026-01-20", name: "Martin Luther King Jr. Day" }
+  ];
+}
+
 // POST /api/liveData/cache/clear - Clear service cache
 router.post("/cache/clear", authenticateToken, async (req, res) => {
   const correlationId =

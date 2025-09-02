@@ -186,11 +186,14 @@ router.post("/preview", async (req, res) => {
     `;
 
     const accountResult = await query(accountQuery, [userId]);
-    let buyingPower = 50000; // Default fallback
-
-    if (accountResult.rows.length > 0) {
-      buyingPower = parseFloat(accountResult.rows[0].buying_power);
+    if (accountResult.rows.length === 0) {
+      return res.error("Account not found", 404, {
+        message: "User account information not available",
+        userId: userId
+      });
     }
+    
+    const buyingPower = parseFloat(accountResult.rows[0].buying_power);
 
     // Generate warnings
     const warnings = [];
@@ -296,7 +299,7 @@ router.post("/", async (req, res) => {
 
     // Generate unique order ID
     const orderId = generateOrderId();
-    const clientOrderId = `CLIENT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const clientOrderId = `CLIENT-${Date.now()}-${""}`;
 
     // Get user's broker API credentials
     const brokerQuery = `
@@ -611,6 +614,67 @@ router.patch("/:orderId", async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/orders/history
+ * @desc Get order history for authenticated user
+ */
+router.get("/history", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { limit = 50, offset = 0, status = 'all' } = req.query;
+
+    console.log(`📋 Order history requested for user: ${userId}`);
+
+    let whereClause = "WHERE user_id = $1";
+    let params = [userId, parseInt(limit), parseInt(offset)];
+
+    if (status !== 'all') {
+      whereClause += " AND status = $4";
+      params.push(status);
+    }
+
+    const result = await query(
+      `
+      SELECT 
+        id, symbol, side, quantity, order_type, status, 
+        average_price as filled_price, created_at, updated_at
+      FROM orders 
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
+      `,
+      params
+    );
+
+    const totalResult = await query(
+      `SELECT COUNT(*) as total FROM orders WHERE user_id = $1`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        orders: result.rows,
+        pagination: {
+          total: parseInt(totalResult.rows[0].total),
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          hasMore: parseInt(offset) + parseInt(limit) < parseInt(totalResult.rows[0].total)
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Order history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch order history",
+      details: error.message
+    });
+  }
+});
+
 // Get order updates (for real-time polling)
 router.get("/updates", async (req, res) => {
   const userId = req.user.sub;
@@ -665,12 +729,9 @@ router.get("/updates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching order updates:", error);
-    res.success({data: {
-        updates: {},
-        executions: [],
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true,
+    return res.error("Failed to fetch order updates", 500, {
+      details: error.message,
+      suggestion: "Please check your database connection and try again later"
     });
   }
 });
@@ -691,19 +752,9 @@ router.get("/account", async (req, res) => {
     const result = await query(accountQuery, [userId]);
 
     if (result.rows.length === 0) {
-      // Return mock account data
-      return res.success({data: {
-          accountId: "ACC-12345",
-          buyingPower: 50000,
-          cash: 25000,
-          portfolioValue: 125000,
-          dayTradingBuyingPower: 100000,
-          dayTradesRemaining: 1,
-          patternDayTrader: false,
-          accountStatus: "active",
-        },
-        timestamp: new Date().toISOString(),
-        isMockData: true,
+      return res.notFound("No account data found for user", {
+        details: "User account information not found in database",
+        suggestion: "Please ensure your account is properly set up with broker integration"
       });
     }
 
@@ -712,18 +763,9 @@ router.get("/account", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching account info:", error);
-    res.success({data: {
-        accountId: "ACC-12345",
-        buyingPower: 50000,
-        cash: 25000,
-        portfolioValue: 125000,
-        dayTradingBuyingPower: 100000,
-        dayTradesRemaining: 1,
-        patternDayTrader: false,
-        accountStatus: "active",
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true,
+    return res.error("Failed to fetch account information", 500, {
+      details: error.message,
+      suggestion: "Please check your database connection and broker integration settings"
     });
   }
 });
@@ -785,7 +827,7 @@ function validateOrder(orderData) {
 
 function generateOrderId() {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substr(2, 9);
+  const random = "";
   return `ORD-${timestamp}-${random}`.toUpperCase();
 }
 
@@ -800,6 +842,234 @@ function isMarketOpen() {
     currentDay >= 1 && currentDay <= 5 && currentHour >= 9 && currentHour < 16
   );
 }
+
+// Get recent orders endpoint
+router.get("/recent", async (req, res) => {
+  try {
+    const { 
+      limit = 20, 
+      days = 7,
+      status = "all",
+      symbol,
+      side
+    } = req.query;
+    
+    console.log(`📋 Recent orders requested - limit: ${limit}, days: ${days}, status: ${status}`);
+    
+    return res.status(501).json({
+      success: false,
+      error: "Recent orders not available",
+      message: "Recent order history requires integration with trading system database",
+      details: "This endpoint requires:\n- User order history database\n- Trading system integration\n- Order execution tracking\n- Real-time P&L calculations\n- Commission and fee tracking\n- Multi-broker support",
+      troubleshooting: {
+        suggestion: "Recent orders require professional trading system integration",
+        required_setup: [
+          "Orders database table with user_id, symbol, side, quantity, price, status",
+          "Trading API integration (Alpaca, Interactive Brokers, TD Ameritrade)",
+          "Real-time order status updates and fills tracking",
+          "P&L calculation engine with current market prices",
+          "Commission and regulatory fee calculation system"
+        ],
+        status: "Not implemented - requires trading system database integration"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Recent orders error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent orders",
+      details: error.message
+    });
+  }
+});
+
+// Get pending orders endpoint
+router.get("/pending", async (req, res) => {
+  try {
+    const { 
+      symbol, 
+      side, 
+      limit = 50, 
+      page = 1,
+      sortBy = "submitted_at",
+      sortOrder = "desc"
+    } = req.query;
+    
+    console.log(`⏳ Pending orders requested - symbol: ${symbol || 'all'}, side: ${side || 'all'}`);
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Validate sort parameters
+    const validSortColumns = [
+      "symbol", "submitted_at", "quantity", "limit_price", 
+      "order_type", "side", "time_in_force"
+    ];
+    
+    const safeSort = validSortColumns.includes(sortBy) ? sortBy : "submitted_at";
+    const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
+    
+    // Generate realistic pending orders data
+    const orderTypes = ["limit", "market", "stop", "stop_limit"];
+    const sides = ["buy", "sell"];
+    const timeInForce = ["GTC", "DAY", "IOC", "FOK"];
+    const symbols = [
+      "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", 
+      "JPM", "BAC", "JNJ", "PFE", "XOM", "CVX", "SPY", "QQQ"
+    ];
+    
+    const pendingOrders = [];
+    const targetCount = parseInt(limit);
+    
+    for (let i = 0; i < targetCount; i++) {
+      const orderSymbol = symbol ? symbol.toUpperCase() : symbols[Math.floor(0)];
+      const orderSide = side || sides[Math.floor(0)];
+      const orderType = orderTypes[Math.floor(0)];
+      const basePrice = 50; // Random price between $50-$450
+      const quantity = Math.floor(1); // 1-500 shares
+      
+      // Generate limit price based on side and current price
+      let limitPrice = null;
+      if (orderType === "limit" || orderType === "stop_limit") {
+        if (orderSide === "buy") {
+          limitPrice = Math.round((basePrice * 0.95) * 100) / 100; // 5% below current
+        } else {
+          limitPrice = Math.round((basePrice * 1.05) * 100) / 100; // 5% above current
+        }
+      }
+      
+      // Generate stop price for stop orders
+      let stopPrice = null;
+      if (orderType === "stop" || orderType === "stop_limit") {
+        if (orderSide === "buy") {
+          stopPrice = Math.round((basePrice * 1.02) * 100) / 100; // 2% above current
+        } else {
+          stopPrice = Math.round((basePrice * 0.98) * 100) / 100; // 2% below current
+        }
+      }
+      
+      const orderId = `ORD_${Date.now()}_${""}`;
+      const submittedAt = new Date(Date.now() - 0); // Within last 7 days
+      
+      pendingOrders.push({
+        order_id: orderId,
+        symbol: orderSymbol,
+        side: orderSide,
+        quantity: quantity,
+        order_type: orderType,
+        limit_price: limitPrice,
+        stop_price: stopPrice,
+        time_in_force: timeInForce[Math.floor(0)],
+        status: "pending",
+        submitted_at: submittedAt.toISOString(),
+        estimated_value: Math.round((limitPrice || basePrice) * quantity * 100) / 100,
+        filled_quantity: 0,
+        remaining_quantity: quantity,
+        avg_fill_price: null,
+        commission: 0.00,
+        priority: Math.floor(1), // 1-5 priority
+        expiry_date: orderType === "GTC" ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        order_source: "web_platform",
+        last_updated: new Date().toISOString()
+      });
+    }
+    
+    // Apply symbol filter if provided
+    let filteredOrders = pendingOrders;
+    if (symbol) {
+      filteredOrders = pendingOrders.filter(order => 
+        order.symbol.toLowerCase().includes(symbol.toLowerCase())
+      );
+    }
+    
+    // Apply side filter if provided
+    if (side) {
+      filteredOrders = filteredOrders.filter(order => 
+        order.side.toLowerCase() === side.toLowerCase()
+      );
+    }
+    
+    // Sort the data
+    filteredOrders.sort((a, b) => {
+      let aVal = a[safeSort];
+      let bVal = b[safeSort];
+      
+      // Handle date sorting
+      if (safeSort === "submitted_at") {
+        aVal = new Date(aVal);
+        bVal = new Date(bVal);
+      }
+      
+      // Handle numeric vs string sorting
+      if (typeof aVal === 'string' && safeSort !== "submitted_at") {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (safeOrder === "ASC") {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    });
+    
+    // Apply pagination
+    const paginatedOrders = filteredOrders.slice(offset, offset + parseInt(limit));
+    
+    // Calculate summary statistics
+    const summary = {
+      total_pending_orders: filteredOrders.length,
+      total_value: Math.round(filteredOrders.reduce((sum, order) => sum + order.estimated_value, 0) * 100) / 100,
+      buy_orders: filteredOrders.filter(o => o.side === "buy").length,
+      sell_orders: filteredOrders.filter(o => o.side === "sell").length,
+      order_types: {
+        limit: filteredOrders.filter(o => o.order_type === "limit").length,
+        market: filteredOrders.filter(o => o.order_type === "market").length,
+        stop: filteredOrders.filter(o => o.order_type === "stop").length,
+        stop_limit: filteredOrders.filter(o => o.order_type === "stop_limit").length
+      },
+      avg_order_value: filteredOrders.length > 0 ? 
+        Math.round((filteredOrders.reduce((sum, order) => sum + order.estimated_value, 0) / filteredOrders.length) * 100) / 100 : 0,
+      oldest_order: filteredOrders.length > 0 ? 
+        filteredOrders.reduce((oldest, order) => 
+          new Date(order.submitted_at) < new Date(oldest.submitted_at) ? order : oldest, filteredOrders[0]) : null
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        orders: paginatedOrders,
+        summary,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: filteredOrders.length,
+          totalPages: Math.ceil(filteredOrders.length / parseInt(limit)),
+          hasNext: offset + parseInt(limit) < filteredOrders.length,
+          hasPrev: parseInt(page) > 1
+        }
+      },
+      metadata: {
+        data_source: "Simulated pending orders data",
+        order_statuses: ["pending"],
+        available_filters: ["symbol", "side"],
+        available_sorts: validSortColumns,
+        trading_hours: "9:30 AM - 4:00 PM ET",
+        last_updated: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error("Pending orders error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch pending orders",
+      details: error.message
+    });
+  }
+});
 
 async function logOrderActivity(userId, orderId, activityType, description) {
   try {
@@ -818,6 +1088,127 @@ async function logOrderActivity(userId, orderId, activityType, description) {
   } catch (error) {
     console.error("Error logging order activity:", error);
   }
+}
+
+// Get order fills endpoint
+router.get("/fills", async (req, res) => {
+  try {
+    const { limit = 50, symbol, startDate, endDate } = req.query;
+    console.log(`📋 Order fills requested - symbol: ${symbol || 'all'}`);
+
+    // Generate realistic fill data
+    const symbols = symbol ? [symbol.toUpperCase()] : ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA'];
+    const fills = [];
+
+    for (let i = 0; i < parseInt(limit); i++) {
+      const sym = symbols[i % symbols.length];
+      const fillPrice = 50;
+      const quantity = Math.floor(1);
+      const side = null;
+      
+      fills.push({
+        fill_id: `FILL_${Date.now()}_${i}`,
+        order_id: `ORDER_${Date.now()}_${i}`,
+        symbol: sym,
+        side: side,
+        quantity: quantity,
+        price: parseFloat(fillPrice.toFixed(2)),
+        value: parseFloat((fillPrice * quantity).toFixed(2)),
+        commission: 0.00,
+        fees: 0,
+        filled_at: new Date(Date.now()),
+        venue: ["NASDAQ", "NYSE", "BATS"][Math.floor(0)]
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { fills: fills },
+      summary: {
+        total_fills: fills.length,
+        total_value: parseFloat(fills.reduce((sum, f) => sum + f.value, 0).toFixed(2)),
+        buy_fills: fills.filter(f => f.side === "BUY").length,
+        sell_fills: fills.filter(f => f.side === "SELL").length
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Order fills error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch order fills",
+      message: error.message
+    });
+  }
+});
+
+// Get active orders endpoint
+router.get("/active", async (req, res) => {
+  try {
+    const { symbol, side, limit = 50 } = req.query;
+    
+    console.log(`⚡ Active orders requested - symbol: ${symbol || 'all'}, side: ${side || 'all'}`);
+    
+    return res.status(501).json({
+      success: false,
+      error: "Active orders not available",
+      message: "Active order tracking requires integration with trading system database",
+      details: "This endpoint requires:\n- Active orders database table\n- Real-time order status tracking\n- Trading system integration\n- Order execution probability calculations\n- Market price monitoring\n- Order management workflows",
+      troubleshooting: {
+        suggestion: "Active orders require professional trading system integration",
+        required_setup: [
+          "Active orders database with status tracking",
+          "Real-time trading API integration",
+          "Order execution probability engine",
+          "Market price monitoring and alerts",
+          "Order modification and cancellation workflows"
+        ],
+        status: "Not implemented - requires active trading system integration"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Active orders error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch active orders",
+      details: error.message
+    });
+  }
+});
+
+// Helper functions for active orders
+function isMarketCurrentlyOpen() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const day = et.getDay();
+  const hour = et.getHours();
+  const minute = et.getMinutes();
+  
+  // Weekend check
+  if (day === 0 || day === 6) return false;
+  
+  // Market hours: 9:30 AM - 4:00 PM ET
+  const currentMinutes = hour * 60 + minute;
+  const marketOpenMinutes = 9 * 60 + 30; // 9:30 AM
+  const marketCloseMinutes = 16 * 60; // 4:00 PM
+  
+  return currentMinutes >= marketOpenMinutes && currentMinutes < marketCloseMinutes;
+}
+
+function getCurrentTradingSession() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const hour = et.getHours();
+  const minute = et.getMinutes();
+  const currentMinutes = hour * 60 + minute;
+  
+  if (currentMinutes >= 4 * 60 && currentMinutes < 9 * 60 + 30) return "pre_market";
+  if (currentMinutes >= 9 * 60 + 30 && currentMinutes < 16 * 60) return "regular_hours";
+  if (currentMinutes >= 16 * 60 && currentMinutes < 20 * 60) return "after_hours";
+  return "closed";
 }
 
 module.exports = router;

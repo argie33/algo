@@ -82,7 +82,7 @@ router.get("/", async (req, res) => {
         cp.sector,
         cp.industry,
         cp.market_cap,
-        md.price as current_price,
+        md.current_price as current_price,
         km.trailing_pe,
         km.price_to_book,
         
@@ -302,6 +302,160 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Performance metrics endpoint
+router.get("/performance", async (req, res) => {
+  try {
+    const { symbol, period = "1m" } = req.query;
+    console.log(`📊 Performance metrics requested for symbol: ${symbol || 'all'}, period: ${period}`);
+    
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required",
+        message: "Please provide a symbol using ?symbol=TICKER"
+      });
+    }
+    
+    // Convert period to days
+    const periodDays = {
+      "1d": 1,
+      "1w": 7, 
+      "1m": 30,
+      "3m": 90,
+      "6m": 180,
+      "1y": 365
+    };
+    
+    const days = periodDays[period] || 30;
+    
+    // Get performance metrics data
+    const performanceQuery = `
+      SELECT 
+        symbol,
+        date,
+        current_price,
+        volume,
+        change_percent,
+        change_amount,
+        high_price,
+        low_price
+      FROM market_data 
+      WHERE symbol = $1 
+        AND date >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY date DESC
+      LIMIT 50
+    `;
+    
+    const result = await query(performanceQuery, [symbol.toUpperCase()]);
+    
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No performance data found",
+        message: `No performance data found for symbol ${symbol.toUpperCase()}`,
+        symbol: symbol.toUpperCase(),
+        period
+      });
+    }
+    
+    const prices = result.rows.map(row => parseFloat(row.current_price));
+    const volumes = result.rows.map(row => parseFloat(row.volume));
+    
+    // Calculate performance statistics
+    const currentPrice = prices[0];
+    const startPrice = prices[prices.length - 1];
+    const totalReturn = ((currentPrice - startPrice) / startPrice) * 100;
+    const maxPrice = Math.max(...prices);
+    const minPrice = Math.min(...prices);
+    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const avgVolume = volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
+    
+    // Calculate volatility (standard deviation of daily returns)
+    const dailyReturns = result.rows.slice(0, -1).map((row, index) => {
+      const nextRow = result.rows[index + 1];
+      return (parseFloat(row.current_price) - parseFloat(nextRow.current_price)) / parseFloat(nextRow.current_price);
+    });
+    
+    const avgReturn = dailyReturns.reduce((sum, ret) => sum + ret, 0) / dailyReturns.length;
+    const variance = dailyReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / dailyReturns.length;
+    const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized volatility
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        period,
+        performance_metrics: {
+          current_price: currentPrice,
+          total_return: totalReturn.toFixed(2) + '%',
+          price_range: {
+            high: maxPrice,
+            low: minPrice,
+            average: avgPrice.toFixed(2)
+          },
+          volatility: volatility.toFixed(2) + '%',
+          trading_activity: {
+            avg_volume: Math.round(avgVolume),
+            max_volume: Math.max(...volumes),
+            min_volume: Math.min(...volumes)
+          },
+          data_points: result.rows.length,
+          date_range: {
+            from: result.rows[result.rows.length - 1].date,
+            to: result.rows[0].date
+          }
+        },
+        historical_data: result.rows.map(row => ({
+          date: row.date,
+          price: parseFloat(row.current_price),
+          change: parseFloat(row.change_percent),
+          volume: parseInt(row.volume),
+          high: parseFloat(row.high_price),
+          low: parseFloat(row.low_price)
+        }))
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error("Performance metrics error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch performance metrics",
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get dashboard metrics overview
+router.get("/dashboard", async (req, res) => {
+  try {
+    return res.status(501).json({
+      success: false,
+      error: "Dashboard metrics not available",
+      message: "Comprehensive dashboard metrics require integration with multiple financial data providers",
+      details: "This endpoint requires:\n- Real-time portfolio tracking systems\n- Market data feeds and indices\n- Performance calculation engines\n- Risk management systems\n- Alert and notification infrastructure\n- Chart generation and visualization\n- Professional analytics platforms",
+      request_info: {
+        endpoint: "/metrics/dashboard",
+        method: "GET",
+        attempted_parameters: req.query
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Dashboard metrics error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dashboard metrics",
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Helper functions removed - no mock data generation in APIs
+
 // Get detailed metrics for a specific stock
 router.get("/:symbol", async (req, res) => {
   try {
@@ -324,7 +478,7 @@ router.get("/:symbol", async (req, res) => {
         cp.sector,
         cp.industry,
         cp.market_cap,
-        md.price as current_price,
+        md.current_price as current_price,
         km.trailing_pe,
         km.price_to_book,
         km.dividend_yield
@@ -615,7 +769,7 @@ router.get("/top/:category", async (req, res) => {
         ss.security_name as company_name,
         cp.sector,
         cp.market_cap,
-        md.price as current_price,
+        md.current_price as current_price,
         qm.quality_score,
         vm.value_metric,
         ${metricColumn},

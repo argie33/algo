@@ -6,6 +6,7 @@
 const express = require('express');
 
 const { createLogger } = require('../utils/logger');
+const { query } = require('../utils/database');
 const AIStrategyGenerator = require('../services/aiStrategyGenerator');
 const AIStrategyGeneratorStreaming = require('../services/aiStrategyGeneratorStreaming');
 const { authenticateToken } = require('../middleware/auth');
@@ -43,7 +44,9 @@ router.post('/ai-generate', authenticateToken, async (req, res) => {
     // Get available symbols if none provided
     let targetSymbols = symbols;
     if (targetSymbols.length === 0) {
-      targetSymbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']; // Mock symbols
+      return res.error("No symbols provided for strategy", 400, {
+        message: "Strategy requires at least one symbol"
+      });
     }
 
     // Generate strategy using AI
@@ -72,8 +75,7 @@ router.post('/ai-generate', authenticateToken, async (req, res) => {
 
       return res.status(400).json({
         success: false,
-        error: result.error,
-        suggestions: result.fallbackSuggestions
+        error: result.error
       });
     }
   } catch (error) {
@@ -170,7 +172,7 @@ router.post('/run-ai-strategy', authenticateToken, async (req, res) => {
     };
 
     // Use strategy symbols if none provided
-    const backtestSymbols = symbols.length > 0 ? symbols : (strategy.symbols || []);
+    const backtestSymbols = symbols.length > 0 ? symbols : (strategy.symbols);
     if (backtestSymbols.length === 0) {
       return res.status(400).json({
         success: false,
@@ -178,48 +180,18 @@ router.post('/run-ai-strategy', authenticateToken, async (req, res) => {
       });
     }
 
-    // Run backtest
-    const result = { // Mock backtest result
-      success: true,
-      backtestId: `bt_${Date.now()}`,
-      metrics: {
-        totalReturn: 15.2,
-        sharpeRatio: 1.3,
-        maxDrawdown: -8.5,
-        winRate: 0.62
-      }
-    }; 
-    // Mock - would be: await backtestService.runAIStrategyBacktest(userId, {
+    // Run backtest - not implemented yet
+    return res.error("Strategy backtesting not implemented", 501, {
+      message: "Backtesting service is not yet available",
+      service: "strategy-backtest"
+    });
+    
+    // TODO: Implement actual backtesting service
+    // const result = await backtestService.runAIStrategyBacktest(userId, {
     //   strategy,
     //   config: backtestConfig,
     //   symbols: backtestSymbols
     // });
-
-    if (result.success) {
-      logger.info('AI strategy backtest completed', {
-        userId,
-        backtestId: result.backtestId,
-        totalReturn: result.data.metrics.totalReturn,
-        sharpeRatio: result.data.metrics.sharpeRatio
-      });
-
-      res.json({
-        success: true,
-        backtestId: result.backtestId,
-        data: result.data
-      });
-    } else {
-      logger.warn('AI strategy backtest failed', {
-        userId,
-        error: result.error
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: result.error,
-        backtestId: result.backtestId
-      });
-    }
   } catch (error) {
     logger.error('AI strategy backtest error', {
       userId: req.user?.id,
@@ -276,13 +248,14 @@ router.post('/deploy-hft', authenticateToken, async (req, res) => {
       });
     }
 
-    // Deploy to HFT engine
-    const deploymentResult = { // Mock deployment result
-      success: true,
-      deploymentId: `deploy_${Date.now()}`,
-      status: 'deployed'
-    };
-    // Mock - would be: await tradingService.deployToHFT(userId, {
+    // Deploy to HFT engine - not implemented yet
+    return res.error("HFT deployment not implemented", 501, {
+      message: "High-frequency trading deployment is not yet available",
+      service: "hft-deployment"
+    });
+    
+    // TODO: Implement actual HFT deployment service
+    // const deploymentResult = await tradingService.deployToHFT(userId, {
     //   strategy,
     //   backtestResults,
     //   riskSettings: {
@@ -293,29 +266,7 @@ router.post('/deploy-hft', authenticateToken, async (req, res) => {
     //   }
     // });
 
-    if (deploymentResult.success) {
-      logger.info('HFT deployment successful', {
-        userId,
-        strategyId: strategy.id,
-        deploymentId: deploymentResult.deployment.id
-      });
-
-      res.json({
-        success: true,
-        deployment: deploymentResult.deployment,
-        message: 'Strategy successfully deployed to HFT engine'
-      });
-    } else {
-      logger.warn('HFT deployment failed', {
-        userId,
-        error: deploymentResult.error
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: deploymentResult.error
-      });
-    }
+    // Deployment result handling removed - not implemented
   } catch (error) {
     logger.error('HFT deployment error', {
       userId: req.user?.id,
@@ -338,7 +289,18 @@ router.get('/available-symbols', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     logger.info('Available symbols request', { userId });
     
-    const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']; // Mock symbols
+    // Get available symbols from database
+    const result = await query(
+      "SELECT DISTINCT symbol FROM stock_symbols WHERE is_active = true ORDER BY symbol LIMIT 100"
+    );
+    
+    if (!result || !result.rows) {
+      return res.error("Unable to fetch available symbols", 503, {
+        service: "symbols"
+      });
+    }
+    
+    const symbols = result.rows.map(row => row.symbol);
     
     res.json({
       success: true,
@@ -373,24 +335,16 @@ router.get('/list', authenticateToken, async (req, res) => {
       includeDeployments
     });
 
-    const result = { // Mock user strategies
-      success: true,
-      strategies: []
-    };
-    // Mock - would be: await tradingService.getUserStrategies(userId);
+    // User strategies service not implemented yet
+    return res.error("User strategies not implemented", 501, {
+      message: "User strategy management is not yet available",
+      service: "user-strategies"
+    });
     
-    if (result.success) {
-      res.json({
-        success: true,
-        strategies: result.strategies,
-        count: result.strategies.length
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: result.error
-      });
-    }
+    // TODO: Implement actual user strategies service
+    // const result = await tradingService.getUserStrategies(userId);
+    
+    // User strategies result handling removed - not implemented
   } catch (error) {
     logger.error('User strategies list error', {
       userId: req.user?.id,

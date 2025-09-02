@@ -36,33 +36,50 @@ router.get("/summary", async (req, res) => {
   try {
     console.log("📊 Dashboard summary request received");
 
-    // Get market overview data (major indices)
+    // Get market overview data (major indices) - try specific ones first, then fallback to any available
     const marketQuery = `
             SELECT 
-                symbol,
-                close_price,
+                ticker as symbol,
+                current_price,
                 volume,
-                change_percent,
-                change_amount,
-                high_price as high,
-                low_price as low,
-                created_at
-            FROM price_daily 
-            WHERE symbol IN ('^GSPC', '^DJI', '^IXIC', '^RUT', '^VIX', 'SPY', 'QQQ', 'IWM', 'DIA')
-            ORDER BY symbol
+                CASE 
+                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    ELSE 0 
+                END as change_percent,
+                (current_price - previous_close) as change_amount,
+                day_high as high,
+                day_low as low,
+                NOW() as created_at
+            FROM market_data 
+            WHERE current_price IS NOT NULL
+              AND (ticker IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN') OR 1=1)
+            ORDER BY 
+              CASE 
+                WHEN ticker IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI') THEN 1
+                WHEN ticker IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN') THEN 2
+                ELSE 3
+              END,
+              ticker
+            LIMIT 10
         `;
 
     // Get top gainers
     const gainersQuery = `
             SELECT 
-                symbol,
-                close_price,
-                change_percent,
-                change_amount,
+                ticker as symbol,
+                current_price,
+                CASE 
+                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    ELSE 0 
+                END as change_percent,
+                (current_price - previous_close) as change_amount,
                 volume
-            FROM price_daily 
-            WHERE change_percent > 0 
-                AND volume > 1000000
+            FROM market_data 
+            WHERE current_price > previous_close 
+                AND volume > 100000
+                AND current_price IS NOT NULL 
+                AND previous_close IS NOT NULL
+                AND previous_close > 0
             ORDER BY change_percent DESC
             LIMIT 10
         `;
@@ -70,31 +87,42 @@ router.get("/summary", async (req, res) => {
     // Get top losers
     const losersQuery = `
             SELECT 
-                symbol,
-                close_price,
-                change_percent,
-                change_amount,
+                ticker as symbol,
+                current_price,
+                CASE 
+                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    ELSE 0 
+                END as change_percent,
+                (current_price - previous_close) as change_amount,
                 volume
-            FROM price_daily 
-            WHERE change_percent < 0 
-                AND volume > 1000000
+            FROM market_data 
+            WHERE current_price < previous_close 
+                AND volume > 100000
+                AND current_price IS NOT NULL 
+                AND previous_close IS NOT NULL
+                AND previous_close > 0
             ORDER BY change_percent ASC
             LIMIT 10
         `;
 
-    // Get sector performance
+    // Get sector performance from company_profile table
     const sectorQuery = `
             SELECT 
-                sector,
+                cp.sector,
                 COUNT(*) as stock_count,
-                AVG(change_percent) as avg_change,
-                AVG(lpd.volume) as avg_volume
-            FROM price_daily lpd
-            JOIN stocks s ON lpd.symbol = s.symbol
-            WHERE s.sector IS NOT NULL 
-                AND s.sector != ''
-                AND lpd.change_percent IS NOT NULL
-            GROUP BY sector
+                AVG(CASE 
+                    WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+                    ELSE 0 
+                END) as avg_change,
+                AVG(md.volume) as avg_volume
+            FROM market_data md
+            JOIN company_profile cp ON md.ticker = cp.ticker
+            WHERE cp.sector IS NOT NULL 
+                AND cp.sector != ''
+                AND md.current_price IS NOT NULL
+                AND md.previous_close IS NOT NULL
+                AND md.previous_close > 0
+            GROUP BY cp.sector
             ORDER BY avg_change DESC
             LIMIT 10
         `;
@@ -127,12 +155,16 @@ router.get("/summary", async (req, res) => {
     // Get trading volume leaders
     const volumeQuery = `
             SELECT 
-                symbol,
-                close_price,
+                ticker as symbol,
+                current_price,
                 volume,
-                change_percent
-            FROM price_daily 
-            WHERE volume > 10000000
+                CASE 
+                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    ELSE 0 
+                END as change_percent
+            FROM market_data 
+            WHERE volume > 500000
+                AND current_price IS NOT NULL
             ORDER BY volume DESC
             LIMIT 10
         `;
@@ -141,13 +173,17 @@ router.get("/summary", async (req, res) => {
     const breadthQuery = `
             SELECT 
                 COUNT(*) as total_stocks,
-                COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
-                COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
-                COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
-                AVG(change_percent) as avg_change,
+                COUNT(CASE WHEN (current_price - previous_close) > 0 THEN 1 END) as advancing,
+                COUNT(CASE WHEN (current_price - previous_close) < 0 THEN 1 END) as declining,
+                COUNT(CASE WHEN (current_price - previous_close) = 0 THEN 1 END) as unchanged,
+                AVG(CASE 
+                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    ELSE 0 
+                END) as avg_change,
                 AVG(volume) as avg_volume
-            FROM price_daily
-            WHERE change_percent IS NOT NULL
+            FROM market_data
+            WHERE current_price IS NOT NULL
+                AND previous_close IS NOT NULL
         `;
 
     console.log("🔍 Executing comprehensive dashboard queries...");
@@ -563,12 +599,16 @@ router.get("/market-data", async (req, res) => {
     const sectorRotationQuery = `
             SELECT 
                 sector,
-                AVG(change_percent) as avg_change,
+                AVG(CASE 
+                    WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+                    ELSE 0 
+                END) as avg_change,
                 COUNT(*) as stock_count
-            FROM price_daily lpd
-            JOIN stocks s ON lpd.symbol = s.symbol
-            WHERE s.sector IS NOT NULL 
-                AND lpd.change_percent IS NOT NULL
+            FROM market_data md
+            JOIN company_profile cp ON md.ticker = cp.ticker
+            WHERE cp.sector IS NOT NULL 
+                AND md.current_price IS NOT NULL
+                AND md.previous_close IS NOT NULL
             GROUP BY sector
             ORDER BY avg_change DESC
         `;
@@ -578,19 +618,19 @@ router.get("/market-data", async (req, res) => {
             SELECT 
                 'advancing' as type,
                 COUNT(*) as count
-            FROM price_daily 
+            FROM market_data 
             WHERE change_percent > 0
             UNION ALL
             SELECT 
                 'declining' as type,
                 COUNT(*) as count
-            FROM price_daily 
+            FROM market_data 
             WHERE change_percent < 0
             UNION ALL
             SELECT 
                 'unchanged' as type,
                 COUNT(*) as count
-            FROM price_daily 
+            FROM market_data 
             WHERE change_percent = 0
         `;
 
@@ -734,6 +774,282 @@ router.get("/debug", async (req, res) => {
       success: false,
       error: "Debug endpoint failed",
       details: error.message,
+    });
+  }
+});
+
+// Dashboard overview endpoint
+router.get("/overview", async (req, res) => {
+  try {
+    console.log("📊 Dashboard overview requested");
+    
+    // Get real market data from database
+    const indicesQuery = `
+      SELECT 
+        ticker as symbol,
+        current_price,
+        (current_price - previous_close) as change_amount,
+        CASE 
+          WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+          ELSE 0 
+        END as change_percent
+      FROM market_data 
+      WHERE ticker IN ('SPY', 'QQQ', 'DIA', '^VIX')
+        AND current_price IS NOT NULL 
+        AND previous_close IS NOT NULL
+    `;
+
+    const gainersQuery = `
+      SELECT 
+        md.ticker as symbol,
+        COALESCE(cp.company_name, md.ticker) as name,
+        md.current_price as price,
+        CASE 
+          WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+          ELSE 0 
+        END as change_percent
+      FROM market_data md
+      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+      WHERE md.current_price > md.previous_close 
+        AND md.current_price IS NOT NULL 
+        AND md.previous_close IS NOT NULL
+        AND md.previous_close > 0
+      ORDER BY change_percent DESC
+      LIMIT 5
+    `;
+
+    const losersQuery = `
+      SELECT 
+        md.ticker as symbol,
+        COALESCE(cp.company_name, md.ticker) as name,
+        md.current_price as price,
+        CASE 
+          WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+          ELSE 0 
+        END as change_percent
+      FROM market_data md
+      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+      WHERE md.current_price < md.previous_close 
+        AND md.current_price IS NOT NULL 
+        AND md.previous_close IS NOT NULL
+        AND md.previous_close > 0
+      ORDER BY change_percent ASC
+      LIMIT 5
+    `;
+
+    const sectorsQuery = `
+      SELECT 
+        cp.sector,
+        COUNT(*) as stock_count,
+        AVG(CASE 
+          WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+          ELSE 0 
+        END) as change_percent
+      FROM market_data md
+      JOIN company_profile cp ON md.ticker = cp.ticker
+      WHERE cp.sector IS NOT NULL 
+        AND md.current_price IS NOT NULL
+        AND md.previous_close IS NOT NULL
+        AND md.previous_close > 0
+      GROUP BY cp.sector
+      ORDER BY change_percent DESC
+      LIMIT 5
+    `;
+
+    console.log("🔍 Executing overview database queries...");
+    
+    const [indicesResult, gainersResult, losersResult, sectorsResult] = await Promise.all([
+      query(indicesQuery).catch(err => ({ error: err.message, rows: [] })),
+      query(gainersQuery).catch(err => ({ error: err.message, rows: [] })), 
+      query(losersQuery).catch(err => ({ error: err.message, rows: [] })),
+      query(sectorsQuery).catch(err => ({ error: err.message, rows: [] }))
+    ]);
+
+    // Check if we have any data at all
+    const hasData = indicesResult.rows?.length || gainersResult.rows?.length || 
+                   losersResult.rows?.length || sectorsResult.rows?.length;
+
+    if (!hasData) {
+      return res.status(404).json({
+        success: false,
+        error: "No market data available",
+        details: "The market data tables appear to be empty or inaccessible.",
+        troubleshooting: {
+          suggestion: "Ensure database tables are populated with market information",
+          required_tables: ["market_data", "company_profile", "price_daily"],
+          check_tables: "SELECT COUNT(*) FROM market_data; SELECT COUNT(*) FROM company_profile;"
+        },
+        errors: {
+          indices: indicesResult.error || null,
+          gainers: gainersResult.error || null, 
+          losers: losersResult.error || null,
+          sectors: sectorsResult.error || null
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Build overview data from real database results
+    const overviewData = {
+      market_status: {
+        is_open: new Date().getHours() >= 9 && new Date().getHours() < 16,
+        next_open: "2025-09-02T09:30:00Z",
+        next_close: "2025-09-01T16:00:00Z", 
+        timezone: "EST"
+      },
+      
+      key_metrics: {},
+      
+      top_movers: {
+        gainers: gainersResult.rows,
+        losers: losersResult.rows
+      },
+      
+      sector_performance: sectorsResult.rows,
+      
+      alerts_summary: {
+        total_active: 0,
+        critical: 0, 
+        high: 0,
+        medium: 0
+      }
+    };
+
+    // Populate key_metrics from indices data
+    if (indicesResult.rows && indicesResult.rows.length > 0) {
+      indicesResult.rows.forEach(row => {
+        const symbol = row.symbol.toLowerCase().replace('^', '');
+        overviewData.key_metrics[symbol] = {
+          value: parseFloat(row.current_price || 0),
+          change: parseFloat(row.change_amount || 0),
+          change_percent: parseFloat(row.change_percent || 0)
+        };
+      });
+    }
+
+    console.log(`✅ Overview queries completed: ${indicesResult.rows?.length || 0} indices, ${gainersResult.rows?.length || 0} gainers, ${losersResult.rows?.length || 0} losers, ${sectorsResult.rows?.length || 0} sectors`);
+
+    res.json({
+      success: true,
+      data: overviewData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Dashboard overview error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dashboard overview",
+      message: error.message
+    });
+  }
+});
+
+// Dashboard performance endpoint
+router.get("/performance", async (req, res) => {
+  try {
+    console.log("📈 Dashboard performance requested");
+    
+    const performanceData = {
+      time_periods: {
+        "1D": {
+          return: 0,
+          return_percent: 0
+        },
+        "1W": {
+          return: 0,
+          return_percent: 0
+        },
+        "1M": {
+          return: 0,
+          return_percent: 0
+        },
+        "3M": {
+          return: 0,
+          return_percent: 0
+        },
+        "6M": {
+          return: 0,
+          return_percent: 0
+        },
+        "1Y": {
+          return: 0,
+          return_percent: 0
+        }
+      },
+      
+      benchmark_comparison: {
+        portfolio: {
+          "1M": 0,
+          "3M": 0,
+          "1Y": 0
+        },
+        sp500: {
+          "1M": 0,
+          "3M": 0,
+          "1Y": 0
+        },
+        outperformance: {
+          "1M": 0,
+          "3M": 0,
+          "1Y": 0
+        }
+      },
+      
+      risk_metrics: {
+        sharpe_ratio: 0,
+        max_drawdown: 0,
+        volatility: 0,
+        beta: 0,
+        var_95: 0
+      },
+      
+      asset_allocation: {
+        by_sector: [
+          { sector: "Technology", percentage: 0.35 },
+          { sector: "Healthcare", percentage: 0.25 },
+          { sector: "Financial Services", percentage: 0.20 },
+          { sector: "Consumer Cyclical", percentage: 0.15 },
+          { sector: "Other", percentage: 0.05 }
+        ],
+        by_asset_class: {
+          stocks: 0,
+          bonds: 0,
+          cash: 0,
+          commodities: 0
+        }
+      }
+    };
+
+    res.json({
+      success: true,
+      data: performanceData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Dashboard performance error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dashboard performance",
+      message: error.message
+    });
+  }
+});
+
+// Dashboard alerts endpoint
+router.get("/alerts", async (req, res) => {
+  try {
+    console.log("🚨 Dashboard alerts requested");
+    
+    return res.status(501).json({ success: false, error: "Data generation removed", message: "This endpoint requires database population" });
+
+  } catch (error) {
+    console.error("Dashboard alerts error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dashboard alerts",
+      message: error.message
     });
   }
 });

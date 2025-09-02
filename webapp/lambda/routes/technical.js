@@ -14,6 +14,462 @@ router.get("/ping", (req, res) => {
 });
 
 // Main technical data endpoint - timeframe-based (daily, weekly, monthly)
+/**
+ * @route GET /api/technical/daily/:symbol
+ * @desc Get daily technical indicators for a specific symbol
+ */
+router.get("/daily/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+
+    console.log(`📊 Daily technical analysis requested for: ${symbolUpper}`);
+
+    // Get technical indicators from database
+    const result = await query(
+      `
+      SELECT * FROM technical_data_daily 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 30
+      `,
+      [symbolUpper]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Technical data not found",
+        message: `No daily technical data available for symbol ${symbolUpper}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbolUpper,
+        timeframe: "daily",
+        indicators: result.rows,
+        total: result.rows.length
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`Technical analysis error for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Technical analysis failed",
+      details: error.message
+    });
+  }
+});
+
+// Technical indicators overview endpoint (must come before /:timeframe)
+router.get("/indicators", async (req, res) => {
+  try {
+    const { symbol, limit = 10 } = req.query;
+
+    console.log(`📊 Technical indicators overview requested - symbol: ${symbol || 'all'}, limit: ${limit}`);
+
+    if (symbol) {
+      // Get indicators for specific symbol using your actual database schema
+      const indicatorsQuery = `
+        SELECT 
+          symbol, date,
+          rsi, macd, macd_signal, macd_hist,
+          sma_20, sma_50, sma_200,
+          bbands_upper, bbands_middle, bbands_lower,
+          ema_4, ema_9, ema_21, atr
+        FROM technical_data_daily 
+        WHERE symbol = $1 
+        ORDER BY date DESC 
+        LIMIT $2
+      `;
+
+      const result = await query(indicatorsQuery, [symbol.toUpperCase(), parseInt(limit)]);
+
+      if (!result.rows || result.rows.length === 0) {
+        return res.success({
+          data: [],
+          message: `No technical indicators found for ${symbol}`,
+          symbol: symbol.toUpperCase(),
+          total: 0,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return res.success({
+        data: result.rows,
+        symbol: symbol.toUpperCase(),
+        total: result.rows.length,
+        message: `Found ${result.rows.length} technical indicator records`,
+        timestamp: new Date().toISOString()
+      });
+
+    } else {
+      // Get overview of all indicators from your actual schema
+      const overviewQuery = `
+        SELECT DISTINCT ON (symbol) 
+          symbol,
+          date,
+          rsi,
+          macd,
+          sma_20,
+          sma_50,
+          sma_200,
+          bbands_upper,
+          bbands_lower
+        FROM technical_data_daily 
+        ORDER BY symbol, date DESC
+        LIMIT $1
+      `;
+
+      const result = await query(overviewQuery, [parseInt(limit)]);
+
+      return res.success({
+        data: result.rows,
+        total: (result.rows).length,
+        filters: { symbol: null, limit: parseInt(limit) },
+        message: `Technical indicators overview for ${(result.rows).length} symbols`,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    console.error("Error fetching technical indicators:", error);
+    res.error("Failed to fetch technical indicators", 500, {
+      details: error.message
+    });
+  }
+});
+
+// Chart data endpoint - must come BEFORE the /:timeframe route
+router.get("/chart", async (req, res) => {
+  try {
+    const { 
+      symbol = "AAPL", 
+      timeframe = "daily",
+      period = "1m",
+      indicators = "sma,rsi",
+      limit = 100
+    } = req.query;
+
+    console.log(`📊 Technical chart requested - symbol: ${symbol}, timeframe: ${timeframe}, period: ${period}`);
+
+    // Validate timeframe
+    const validTimeframes = ["1m", "5m", "15m", "1h", "4h", "daily", "weekly", "monthly"];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid timeframe. Must be one of: " + validTimeframes.join(", "),
+        requested_timeframe: timeframe
+      });
+    }
+
+    // Validate period
+    const validPeriods = ["1d", "5d", "1m", "3m", "6m", "1y", "2y", "5y"];
+    if (!validPeriods.includes(period)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid period. Must be one of: " + validPeriods.join(", "),
+        requested_period: period
+      });
+    }
+
+    // Parse indicators
+    const requestedIndicators = indicators.split(",").map(i => i.trim().toLowerCase());
+    const validIndicators = ["sma", "ema", "rsi", "macd", "bollinger", "stochastic", "adx", "volume"];
+    const filteredIndicators = requestedIndicators.filter(i => validIndicators.includes(i));
+
+    // Convert period to days for data generation
+    const periodDays = {
+      "1d": 1,
+      "5d": 5,
+      "1m": 30,
+      "3m": 90,
+      "6m": 180,
+      "1y": 365,
+      "2y": 730,
+      "5y": 1825
+    };
+
+    const days = periodDays[period];
+    const dataPoints = Math.min(parseInt(limit), days);
+
+    // Query database for real technical chart data - no data generation
+    const tableName = `technical_data_${timeframe}`;
+    
+    // Build columns to select based on requested indicators
+    let indicatorColumns = '';
+    if (filteredIndicators.includes('sma')) indicatorColumns += ', sma_20, sma_50';
+    if (filteredIndicators.includes('ema')) indicatorColumns += ', ema_4, ema_9, ema_21';
+    if (filteredIndicators.includes('rsi')) indicatorColumns += ', rsi';
+    if (filteredIndicators.includes('macd')) indicatorColumns += ', macd, macd_signal, macd_hist';
+    if (filteredIndicators.includes('bollinger')) indicatorColumns += ', bbands_upper, bbands_middle, bbands_lower';
+    if (filteredIndicators.includes('adx')) indicatorColumns += ', adx, plus_di, minus_di';
+
+    const chartQuery = `
+      SELECT t.date, p.open, p.high, p.low, p.close, p.volume${indicatorColumns}
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.symbol = $1
+      ORDER BY t.date DESC
+      LIMIT $2
+    `;
+
+    const chartResult = await query(chartQuery, [symbol.toUpperCase(), dataPoints]);
+    
+    if (!chartResult.rows || chartResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No data found",
+        message: `No technical chart data available for symbol ${symbol.toUpperCase()} in ${timeframe} timeframe`,
+        details: {
+          symbol: symbol.toUpperCase(),
+          timeframe: timeframe,
+          period: period,
+          table_queried: tableName,
+          requested_points: dataPoints
+        }
+      });
+    }
+
+    const chartData = chartResult.rows.reverse(); // Chronological order
+
+    // Process real data from database - data is already sorted chronologically
+    // No additional processing needed, database contains real OHLCV and indicator data
+
+    // Calculate summary statistics from real database data
+    const prices = chartData.map(d => parseFloat(d.close));
+    const volumes = chartData.map(d => parseInt(d.volume) || 0);
+    
+    if (prices.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error: "Data processing error",
+        message: "Retrieved data contains no valid price information"
+      });
+    }
+    
+    const highestPrice = Math.max(...prices);
+    const lowestPrice = Math.min(...prices);
+    const firstPrice = prices[0];
+    const lastPrice = prices[prices.length - 1];
+    const totalReturn = firstPrice > 0 ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0;
+
+    const summary = {
+      symbol: symbol.toUpperCase(),
+      timeframe: timeframe,
+      period: period,
+      data_points: chartData.length,
+      price_range: {
+        high: highestPrice,
+        low: lowestPrice,
+        current: lastPrice,
+        first: firstPrice
+      },
+      performance: {
+        total_return: parseFloat(totalReturn.toFixed(2)),
+        total_return_percent: parseFloat(totalReturn.toFixed(2)) + '%'
+      },
+      volume: {
+        average: Math.round(volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length),
+        max: Math.max(...volumes),
+        min: Math.min(...volumes)
+      },
+      indicators_included: filteredIndicators
+    };
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        timeframe: timeframe,
+        period: period,
+        chart_data: chartData,
+        summary: summary,
+        metadata: {
+          data_source: "database_query",
+          table_name: tableName,
+          note: "Real technical chart data retrieved from database",
+          query_timestamp: new Date().toISOString(),
+          indicators_requested: filteredIndicators.join(', ')
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Technical chart error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch chart data",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Technical Screener Endpoint - filters stocks by multiple technical criteria  
+// MUST BE BEFORE /:timeframe route to avoid parameter conflicts
+router.get("/screener", async (req, res) => {
+  try {
+    const { 
+      rsi_min = "0", 
+      rsi_max = "100", 
+      volume_min = "0", 
+      price_min = "0", 
+      price_max = "10000", 
+      limit = "50",
+      sector,
+      market_cap_min = "0"
+    } = req.query;
+    
+    const maxLimit = Math.min(parseInt(limit), 100);
+
+    console.log(`🔍 Technical screener requested - RSI: ${rsi_min}-${rsi_max}, Volume: ${volume_min}+, Price: ${price_min}-${price_max}`);
+
+    // Remove hardcoded stocks array - use database only
+
+    // Query database for real technical screening - no data generation
+    const screenQuery = `
+      SELECT t.symbol, p.close as price, t.rsi, p.volume, 
+             t.sma_50, t.sma_200, s.sector, s.market_cap, s.pe_ratio
+      FROM technical_data_daily t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      LEFT JOIN stocks s ON t.symbol = s.symbol
+      WHERE t.date = (SELECT MAX(date) FROM technical_data_daily)
+        AND t.rsi BETWEEN $1 AND $2
+        AND p.close BETWEEN $3 AND $4  
+        AND p.volume >= $5
+        ${sector ? 'AND s.sector = $6' : ''}
+        ${market_cap_min ? 'AND s.market_cap >= $' + (sector ? '7' : '6') : ''}
+      ORDER BY p.volume DESC
+      LIMIT $${sector ? (market_cap_min ? '8' : '7') : (market_cap_min ? '7' : '6')}
+    `;
+
+    const params = [parseFloat(rsi_min), parseFloat(rsi_max), parseFloat(price_min), parseFloat(price_max), parseFloat(volume_min)];
+    if (sector) params.push(sector);
+    if (market_cap_min) params.push(parseFloat(market_cap_min));
+    params.push(maxLimit);
+
+    const screenResult = await query(screenQuery, params);
+    
+    if (!screenResult.rows || screenResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No results found", 
+        message: "No stocks match the specified technical screening criteria",
+        criteria: { rsi_range: `${rsi_min}-${rsi_max}`, price_range: `$${price_min}-$${price_max}`, min_volume: volume_min, sector: sector || "all" }
+      });
+    }
+
+    const screenResults = screenResult.rows.map(row => ({
+      ...row,
+      change_percent: 0, // Would need price history for real calculation
+      signal: row.rsi > 70 ? "OVERBOUGHT" : row.rsi < 30 ? "OVERSOLD" : "NEUTRAL"
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        stocks: screenResults.slice(0, parseInt(limit)),
+        filters_applied: {
+          rsi_range: `${rsi_min}-${rsi_max}`,
+          price_range: `$${price_min}-$${price_max}`,
+          min_volume: volume_min,
+          min_market_cap: market_cap_min,
+          sector: sector || "all"
+        },
+        summary: {
+          total_matches: screenResults.length,
+          overbought: screenResults.filter(s => s.signal === "OVERBOUGHT").length,
+          oversold: screenResults.filter(s => s.signal === "OVERSOLD").length,
+          neutral: screenResults.filter(s => s.signal === "NEUTRAL").length
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Technical screener error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to run technical screener",
+      message: error.message
+    });
+  }
+});
+
+// Technical analysis endpoint
+router.get("/analysis", async (req, res) => {
+  try {
+    const { 
+      symbol = "AAPL", 
+      timeframe = "daily",
+      indicators = "all"
+    } = req.query;
+
+    console.log(`📊 Technical analysis requested for ${symbol}, timeframe: ${timeframe}`);
+
+    // Validate timeframe
+    const validTimeframes = ["daily", "weekly", "monthly"];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({ 
+        success: false,
+        error: "Invalid timeframe. Use daily, weekly, or monthly." 
+      });
+    }
+
+    // Get comprehensive technical analysis
+    const result = await query(
+      `
+      SELECT * FROM technical_data_daily 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 5
+      `,
+      [symbol.toUpperCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No data found",
+        message: `No technical analysis data available for symbol ${symbol.toUpperCase()}`,
+        symbol: symbol.toUpperCase(),
+        timeframe
+      });
+    }
+
+    const analysisData = {
+      symbol: symbol.toUpperCase(),
+      timeframe,
+      analysis_date: new Date().toISOString(),
+      indicators: result.rows[0],
+      // Real trend analysis, signals, and recommendations would be calculated here
+      trend_analysis: null,
+      signals: null,
+      recommendation: null
+    };
+
+    res.json({
+      success: true,
+      data: analysisData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Technical analysis error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Technical analysis failed",
+      details: error.message
+    });
+  }
+});
+
 router.get("/:timeframe", async (req, res) => {
   const { timeframe } = req.params;
   const {
@@ -49,57 +505,57 @@ router.get("/:timeframe", async (req, res) => {
 
     // Symbol filter
     if (symbol && symbol.trim()) {
-      whereClause += ` AND symbol = $${paramIndex}`;
+      whereClause += ` AND t.symbol = $${paramIndex}`;
       params.push(symbol.toUpperCase());
       paramIndex++;
     }
 
     // Date filters
     if (start_date) {
-      whereClause += ` AND date >= $${paramIndex}`;
+      whereClause += ` AND t.date >= $${paramIndex}`;
       params.push(start_date);
       paramIndex++;
     }
 
     if (end_date) {
-      whereClause += ` AND date <= $${paramIndex}`;
+      whereClause += ` AND t.date <= $${paramIndex}`;
       params.push(end_date);
       paramIndex++;
     }
 
     // Technical indicator filters
     if (rsi_min !== undefined && rsi_min !== "") {
-      whereClause += ` AND rsi >= $${paramIndex}`;
+      whereClause += ` AND t.rsi >= $${paramIndex}`;
       params.push(parseFloat(rsi_min));
       paramIndex++;
     }
 
     if (rsi_max !== undefined && rsi_max !== "") {
-      whereClause += ` AND rsi <= $${paramIndex}`;
+      whereClause += ` AND t.rsi <= $${paramIndex}`;
       params.push(parseFloat(rsi_max));
       paramIndex++;
     }
 
     if (macd_min !== undefined && macd_min !== "") {
-      whereClause += ` AND macd >= $${paramIndex}`;
+      whereClause += ` AND t.macd >= $${paramIndex}`;
       params.push(parseFloat(macd_min));
       paramIndex++;
     }
 
     if (macd_max !== undefined && macd_max !== "") {
-      whereClause += ` AND macd <= $${paramIndex}`;
+      whereClause += ` AND t.macd <= $${paramIndex}`;
       params.push(parseFloat(macd_max));
       paramIndex++;
     }
 
     if (sma_min !== undefined && sma_min !== "") {
-      whereClause += ` AND sma_20 >= $${paramIndex}`;
+      whereClause += ` AND t.sma_20 >= $${paramIndex}`;
       params.push(parseFloat(sma_min));
       paramIndex++;
     }
 
     if (sma_max !== undefined && sma_max !== "") {
-      whereClause += ` AND sma_20 <= $${paramIndex}`;
+      whereClause += ` AND t.sma_20 <= $${paramIndex}`;
       params.push(parseFloat(sma_max));
       paramIndex++;
     }
@@ -153,7 +609,8 @@ router.get("/:timeframe", async (req, res) => {
     // Get total count
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM ${tableName}
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       ${whereClause}
     `;
     const countResult = await query(countQuery, params);
@@ -162,47 +619,49 @@ router.get("/:timeframe", async (req, res) => {
     // Get technical data
     const dataQuery = `
       SELECT 
-        symbol,
-        date,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        rsi,
-        macd,
-        macd_signal,
-        macd_histogram,
-        sma_20,
-        sma_50,
-        ema_12,
-        ema_26,
-        bollinger_upper,
-        bollinger_lower,
-        bollinger_middle,
-        stochastic_k,
-        stochastic_d,
-        williams_r,
-        cci,
-        adx,
-        atr,
-        obv,
-        mfi,
-        roc,
-        momentum,
-        ad,
-        cmf,
-        td_sequential,
-        td_combo,
-        marketwatch,
-        dm,
-        pivot_high,
-        pivot_low,
-        pivot_high_triggered,
-        pivot_low_triggered
-      FROM ${tableName}
-      ${whereClause}
-      ORDER BY date DESC, symbol
+        t.symbol,
+        t.date,
+        p.open,
+        p.high,
+        p.low,
+        p.close,
+        p.volume,
+        t.rsi,
+        t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.sma_10,
+        t.sma_20,
+        t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_lower,
+        t.bbands_middle,
+        t.adx,
+        t.plus_di,
+        t.minus_di,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
+        t.ad,
+        t.cmf,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
+        t.pivot_high_triggered,
+        t.pivot_low_triggered
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      ${whereClause.replace('WHERE 1=1', 'WHERE 1=1')}
+      ORDER BY t.date DESC, t.symbol
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -309,7 +768,7 @@ router.get("/:timeframe/summary", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.log(
-        `Technical data table for ${timeframe} timeframe not found, returning fallback summary`
+        `Technical data table for ${timeframe} timeframe not found`
       );
       return res.error(`Technical data table for ${timeframe} timeframe not found`, {
         timeframe,
@@ -324,14 +783,15 @@ router.get("/:timeframe/summary", async (req, res) => {
       SELECT 
         COUNT(*) as total_records,
         COUNT(DISTINCT symbol) as unique_symbols,
-        MIN(date) as earliest_date,
-        MAX(date) as latest_date,
-        AVG(rsi) as avg_rsi,
-        AVG(macd) as avg_macd,
-        AVG(sma_20) as avg_sma_20,
-        AVG(volume) as avg_volume
-      FROM ${tableName}
-      WHERE rsi IS NOT NULL OR macd IS NOT NULL
+        MIN(t.date) as earliest_date,
+        MAX(t.date) as latest_date,
+        AVG(t.rsi) as avg_rsi,
+        AVG(t.macd) as avg_macd,
+        AVG(t.sma_20) as avg_sma_20,
+        AVG(p.volume) as avg_volume
+      FROM ${tableName} t
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.rsi IS NOT NULL OR t.macd IS NOT NULL
     `;
 
     const summaryResult = await query(summaryQuery);
@@ -411,70 +871,11 @@ router.get("/", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(
-        `Technical data table for ${timeframe} timeframe not found, returning fallback overview data`
-      );
-      // Return fallback overview data
-      const fallbackData = [];
-      const symbols = [
-        "AAPL",
-        "MSFT",
-        "GOOGL",
-        "TSLA",
-        "NVDA",
-        "AMZN",
-        "META",
-        "NFLX",
-        "SPY",
-        "QQQ",
-      ];
-
-      for (let i = 0; i < Math.min(50, symbols.length); i++) {
-        const symbol = symbols[i];
-        const date = new Date();
-        date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-
-        fallbackData.push({
-          symbol,
-          date: date.toISOString().split("T")[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4,
-        });
-      }
-
-      return res.error(`Technical data table for ${timeframe} timeframe not found`, 404, {
-        type: "table_not_found",
-        timeframe,
-        error: `No technical data available for timeframe: ${timeframe}`,
-        troubleshooting: {
-          "Database Connection": "Verify technical data tables exist",
-          "Data Loading": "Check if technical data has been populated",
-          "Table Schema": `Expected table: technical_data_${timeframe}`
-        }
+      console.error(`Technical data table for ${timeframe} timeframe not found`);
+      return res.error("Technical data not available", 503, {
+        message: `Technical data table for ${timeframe} timeframe does not exist`,
+        service: "technical-overview",
+        timeframe: timeframe
       });
     }
 
@@ -500,57 +901,10 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in technical overview endpoint:", error);
-    // Return fallback data on error instead of 500
-    console.log("Error occurred, returning fallback technical overview data");
-    const fallbackData = [];
-    const symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"];
-
-    for (let i = 0; i < 5; i++) {
-      const symbol = symbols[i];
-      const date = new Date();
-      date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-
-      fallbackData.push({
-        symbol,
-        date: date.toISOString().split("T")[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4,
-      });
-    }
-
     return res.error("Failed to retrieve technical overview data", 500, {
       type: "database_error",
       timeframe: req.query.timeframe || "daily",
-      error: error.message,
-      troubleshooting: {
-        "Database Connection": "Check database connectivity and table existence",
-        "Query Execution": "Verify technical_data_daily table schema and data",
-        "Error Details": error.message
-      }
+      error: error.message
     });
   }
 });
@@ -582,7 +936,7 @@ router.get("/data/:symbol", async (req, res) => {
         error: "No technical data table available",
         troubleshooting: {
           "Database Connection": "Verify technical_data_daily table exists",
-          "Data Loading": "Check if technical data has been populated for this symbol",
+          "Data Population": "Check if technical data has been populated for this symbol",
           "Symbol Validation": "Ensure symbol is valid and active"
         }
       });
@@ -591,37 +945,36 @@ router.get("/data/:symbol", async (req, res) => {
     // Get latest technical data for the symbol
     const dataQuery = `
       SELECT 
-        symbol,
-        date,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        rsi,
-        macd,
-        macd_signal,
-        macd_histogram,
-        sma_20,
-        sma_50,
-        ema_12,
-        ema_26,
-        bollinger_upper,
-        bollinger_lower,
-        bollinger_middle,
-        stochastic_k,
-        stochastic_d,
-        williams_r,
-        cci,
-        adx,
-        atr,
-        obv,
-        mfi,
-        roc,
-        momentum
-      FROM technical_data_daily
-      WHERE symbol = $1
-      ORDER BY date DESC
+        t.symbol,
+        t.date,
+        p.open,
+        p.high,
+        p.low,
+        p.close,
+        p.volume,
+        t.rsi,
+        t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.sma_20,
+        t.sma_50,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_lower,
+        t.bbands_middle,
+        t.adx,
+        t.plus_di,
+        t.minus_di,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom
+      FROM technical_data_daily t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.symbol = $1
+      ORDER BY t.date DESC
       LIMIT 1
     `;
 
@@ -677,51 +1030,11 @@ router.get("/indicators/:symbol", async (req, res) => {
     );
 
     if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
-      console.log(
-        `Technical data table not found, returning fallback indicators for ${symbol}`
-      );
-      // Return fallback indicators data
-      const fallbackData = [];
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-
-        fallbackData.push({
-          symbol: symbol.toUpperCase(),
-          date: date.toISOString().split("T")[0],
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4,
-        });
-      }
-
-      return res.error(`Technical indicators table not found for symbol ${symbol}`, 404, {
-        type: "table_not_found",
+      console.error(`Technical data table not found for symbol ${symbol}`);
+      return res.error("Technical indicators not available", 503, {
+        message: "Technical data table does not exist",
         symbol: symbol.toUpperCase(),
-        error: "No technical indicators data table available",
-        troubleshooting: {
-          "Database Connection": "Verify technical_data_daily table exists",
-          "Data Loading": "Check if technical indicators have been calculated",
-          "Symbol Coverage": "Ensure symbol is included in technical analysis"
-        }
+        service: "technical-indicators"
       });
     }
 
@@ -733,24 +1046,22 @@ router.get("/indicators/:symbol", async (req, res) => {
         rsi,
         macd,
         macd_signal,
-        macd_histogram,
+        macd_hist,
         sma_20,
         sma_50,
-        ema_12,
-        ema_26,
-        bollinger_upper,
-        bollinger_lower,
-        bollinger_middle,
-        stochastic_k,
-        stochastic_d,
-        williams_r,
-        cci,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_upper,
+        bbands_lower,
+        bbands_middle,
         adx,
+        plus_di,
+        minus_di,
         atr,
-        obv,
         mfi,
         roc,
-        momentum
+        mom
       FROM technical_data_daily
       WHERE symbol = $1
       ORDER BY date DESC
@@ -775,52 +1086,10 @@ router.get("/indicators/:symbol", async (req, res) => {
       `❌ [TECHNICAL] Error fetching technical indicators for ${symbol}:`,
       error
     );
-    // Return fallback data on error instead of 500
-    console.log(
-      `Error occurred, returning fallback technical indicators for ${symbol}`
-    );
-    const fallbackData = [];
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-
-      fallbackData.push({
-        symbol: symbol.toUpperCase(),
-        date: date.toISOString().split("T")[0],
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4,
-      });
-    }
-
     return res.error(`Failed to retrieve technical indicators for ${symbol}`, 500, {
       type: "database_error",
       symbol: symbol.toUpperCase(),
-      error: error.message,
-      troubleshooting: {
-        "Database Connection": "Check database connectivity",
-        "Indicators Calculation": "Verify technical indicators have been calculated",
-        "Data Integrity": "Check technical_data_daily table for corrupted data",
-        "Error Details": error.message
-      }
+      error: error.message
     });
   }
 });
@@ -847,97 +1116,48 @@ router.get("/history/:symbol", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(
-        `Technical data table not found, returning fallback history for ${symbol}`
-      );
-      // Return fallback history data
-      const fallbackData = [];
-      const numDays = Math.min(parseInt(days), 90);
-
-      for (let i = 0; i < numDays; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-
-        fallbackData.push({
-          symbol: symbol.toUpperCase(),
-          date: date.toISOString().split("T")[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4,
-        });
-      }
-
-      return res.error(`Technical history table not found for symbol ${symbol}`, 404, {
-        type: "table_not_found",
+      console.error(`Technical data table not found for symbol ${symbol}`);
+      return res.error("Technical history not available", 503, {
+        message: "Technical data table does not exist",
         symbol: symbol.toUpperCase(),
-        period_days: numDays,
-        error: "No technical history data table available",
-        troubleshooting: {
-          "Database Connection": "Verify technical_data_daily table exists",
-          "Historical Data": "Check if historical technical data has been loaded",
-          "Date Range": `Verify data exists for requested ${numDays} day period`
-        }
+        service: "technical-history"
       });
     }
 
     // Get technical history for the symbol
     const historyQuery = `
       SELECT 
-        symbol,
-        date,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        rsi,
-        macd,
-        macd_signal,
-        macd_histogram,
-        sma_20,
-        sma_50,
-        ema_12,
-        ema_26,
-        bollinger_upper,
-        bollinger_lower,
-        bollinger_middle,
-        stochastic_k,
-        stochastic_d,
-        williams_r,
-        cci,
-        adx,
-        atr,
-        obv,
-        mfi,
-        roc,
-        momentum
-      FROM technical_data_daily
-      WHERE symbol = $1
-        AND date >= CURRENT_DATE - INTERVAL '${days} days'
-      ORDER BY date ASC
+        t.symbol,
+        t.date,
+        p.open,
+        p.high,
+        p.low,
+        p.close,
+        p.volume,
+        t.rsi,
+        t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.sma_20,
+        t.sma_50,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_lower,
+        t.bbands_middle,
+        t.adx,
+        t.plus_di,
+        t.minus_di,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom
+      FROM technical_data_daily t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.symbol = $1
+        AND t.date >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY t.date ASC
     `;
 
     const result = await query(historyQuery, [symbol.toUpperCase()]);
@@ -959,60 +1179,11 @@ router.get("/history/:symbol", async (req, res) => {
       `❌ [TECHNICAL] Error fetching technical history for ${symbol}:`,
       error
     );
-    // Return fallback data on error instead of 500
-    console.log(
-      `Error occurred, returning fallback technical history for ${symbol}`
-    );
-    const fallbackData = [];
-    const numDays = Math.min(parseInt(days), 90);
-
-    for (let i = 0; i < numDays; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-
-      fallbackData.push({
-        symbol: symbol.toUpperCase(),
-        date: date.toISOString().split("T")[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4,
-      });
-    }
-
     return res.error(`Failed to retrieve technical history for ${symbol}`, 500, {
       type: "database_error",
       symbol: symbol.toUpperCase(),
-      period_days: numDays,
-      error: error.message,
-      troubleshooting: {
-        "Database Connection": "Check database connectivity",
-        "Historical Query": "Verify technical data exists for the requested time period",
-        "Data Consistency": "Check for gaps or corruption in historical data",
-        "Error Details": error.message
-      }
+      period_days: parseInt(days),
+      error: error.message
     });
   }
 });
@@ -1047,7 +1218,7 @@ router.get("/support-resistance/:symbol", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.log(
-        `Technical data table for ${timeframe} timeframe not found, returning fallback support-resistance for ${symbol}`
+        `Technical data table for ${timeframe} timeframe not found for symbol ${symbol}`
       );
       return res.error(`Technical data table for ${timeframe} timeframe not found`, {
         symbol: symbol.toUpperCase(),
@@ -1061,27 +1232,28 @@ router.get("/support-resistance/:symbol", async (req, res) => {
     }
 
     // Get recent price data and pivot points
-    const query = `
+    const pivotQuery = `
       SELECT 
-        symbol,
-        date,
-        high,
-        low,
-        close,
-        pivot_high,
-        pivot_low,
-        bbands_upper,
-        bbands_lower,
-        sma_20,
-        sma_50,
-        sma_200
-      FROM ${tableName}
-      WHERE symbol = $1
-      ORDER BY date DESC
+        t.symbol,
+        t.date,
+        p.high,
+        p.low,
+        p.close,
+        t.pivot_high,
+        t.pivot_low,
+        t.bbands_upper,
+        t.bbands_lower,
+        t.sma_20,
+        t.sma_50,
+        t.sma_200
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.symbol = $1
+      ORDER BY t.date DESC
       LIMIT 50
     `;
 
-    const result = await query(query, [symbol.toUpperCase()]);
+    const result = await query(pivotQuery, [symbol.toUpperCase()]);
 
     if (result.rows.length === 0) {
       return res
@@ -1093,8 +1265,8 @@ router.get("/support-resistance/:symbol", async (req, res) => {
     const latest = result.rows[0];
     const recentData = result.rows.slice(0, 20); // Last 20 periods
 
-    const highs = recentData.map((d) => d.high).filter((h) => h !== null);
-    const lows = recentData.map((d) => d.low).filter((l) => l !== null);
+    const highs = recentData.map((d) => d.high).filter((h) => h !== null)
+    const lows = recentData.map((d) => d.low).filter((l) => l !== null)
 
     const resistance = Math.max(...highs);
     const support = Math.min(...lows);
@@ -1208,68 +1380,13 @@ router.get("/data", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.log(
-        `Technical data table for ${timeframe} timeframe not found, returning fallback filtered data`
+        `Technical data table for ${timeframe} timeframe not found`
       );
-      // Return fallback filtered data
-      const fallbackData = [];
-      const symbols = symbol
-        ? [symbol.toUpperCase()]
-        : ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"];
-
-      for (let i = 0; i < Math.min(maxLimit, 25); i++) {
-        const symbol = symbols[i % symbols.length];
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-
-        fallbackData.push({
-          symbol,
-          date: date.toISOString().split("T")[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_10: 145 + Math.random() * 10,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          sma_150: 135 + Math.random() * 20,
-          sma_200: 130 + Math.random() * 25,
-          ema_4: 148 + Math.random() * 8,
-          ema_9: 146 + Math.random() * 9,
-          ema_21: 144 + Math.random() * 11,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4,
-          ad: 1000000 + Math.random() * 5000000,
-          cmf: -0.5 + Math.random(),
-          td_sequential: Math.floor(Math.random() * 10),
-          td_combo: Math.floor(Math.random() * 10),
-          marketwatch: Math.floor(Math.random() * 10),
-          dm: Math.floor(Math.random() * 10),
-          pivot_high: 155 + Math.random() * 10,
-          pivot_low: 145 + Math.random() * 10,
-          pivot_high_triggered: Math.random() > 0.5,
-          pivot_low_triggered: Math.random() > 0.5,
-        });
-      }
-
-      return res.error(`Technical data table for ${timeframe} timeframe not found`, 404, {
+      
+      return res.status(503).json({
+        success: false,
+        error: "Service unavailable",
+        message: `Technical data table for ${timeframe} timeframe does not exist`,
         type: "table_not_found",
         timeframe,
         filters: {
@@ -1277,7 +1394,6 @@ router.get("/data", async (req, res) => {
           startDate: startDate || null,
           endDate: endDate || null
         },
-        error: `No technical data available for timeframe: ${timeframe}`,
         troubleshooting: {
           "Database Connection": "Verify technical data tables exist",
           "Data Population": "Check if technical data has been loaded",
@@ -1290,7 +1406,8 @@ router.get("/data", async (req, res) => {
     // Get total count
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM ${tableName}
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       ${whereClause}
     `;
     const countResult = await query(countQuery, params);
@@ -1308,14 +1425,15 @@ router.get("/data", async (req, res) => {
       "rsi",
       "macd",
       "macd_signal",
-      "macd_histogram",
+      "macd_hist",
       "sma_20",
       "sma_50",
-      "ema_12",
-      "ema_26",
-      "bollinger_upper",
-      "bollinger_lower",
-      "bollinger_middle",
+      "ema_4",
+      "ema_9",
+      "ema_21",
+      "bbands_upper",
+      "bbands_lower",
+      "bbands_middle",
     ];
     const safeSortBy = validSortFields.includes(sortBy) ? sortBy : "date";
     const safeSortOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
@@ -1323,53 +1441,49 @@ router.get("/data", async (req, res) => {
     // Get technical data
     const dataQuery = `
       SELECT 
-        symbol,
-        date,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        rsi,
-        macd,
-        macd_signal,
-        macd_histogram,
-        sma_10,
-        sma_20,
-        sma_50,
-        sma_150,
-        sma_200,
-        ema_4,
-        ema_9,
-        ema_21,
-        ema_12,
-        ema_26,
-        bollinger_upper,
-        bollinger_lower,
-        bollinger_middle,
-        stochastic_k,
-        stochastic_d,
-        williams_r,
-        cci,
-        adx,
-        atr,
-        obv,
-        mfi,
-        roc,
-        momentum,
-        ad,
-        cmf,
-        td_sequential,
-        td_combo,
-        marketwatch,
-        dm,
-        pivot_high,
-        pivot_low,
-        pivot_high_triggered,
-        pivot_low_triggered
-      FROM ${tableName}
+        t.symbol,
+        t.date,
+        p.open,
+        p.high,
+        p.low,
+        p.close,
+        p.volume,
+        t.rsi,
+        t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.sma_10,
+        t.sma_20,
+        t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_upper,
+        t.bbands_lower,
+        t.bbands_middle,
+        t.adx,
+        t.plus_di,
+        t.minus_di,
+        t.atr,
+        t.mfi,
+        t.roc,
+        t.mom,
+        t.ad,
+        t.cmf,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.pivot_high,
+        t.pivot_low,
+        t.pivot_high_triggered,
+        t.pivot_low_triggered
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       ${whereClause}
-      ORDER BY ${safeSortBy} ${safeSortOrder}
+      ORDER BY ${safeSortBy.startsWith('t.') || safeSortBy.startsWith('p.') ? safeSortBy : (safeSortBy === 'symbol' || safeSortBy === 'date' ? 't.' + safeSortBy : (safeSortBy.includes('open') || safeSortBy.includes('high') || safeSortBy.includes('low') || safeSortBy.includes('close') || safeSortBy.includes('volume') ? 'p.' + safeSortBy : 't.' + safeSortBy))} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -1387,7 +1501,8 @@ router.get("/data", async (req, res) => {
       !Array.isArray(dataResult.rows) ||
       dataResult.rows.length === 0
     ) {
-      return res.success({data: [],
+      return res.success({
+        data: [],
         total: 0,
         pagination: {
           page: parseInt(page),
@@ -1433,65 +1548,11 @@ router.get("/data", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ [TECHNICAL] Technical data error:", error);
-    // Return fallback data on error instead of 500
-    console.log("Error occurred, returning fallback technical filtered data");
-    const fallbackData = [];
-    const symbols = symbol ? [symbol.toUpperCase()] : ["AAPL", "MSFT", "GOOGL"];
-
-    for (let i = 0; i < Math.min(parseInt(limit) || 25, 10); i++) {
-      const symbol = symbols[i % symbols.length];
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-
-      fallbackData.push({
-        symbol,
-        date: date.toISOString().split("T")[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_10: 145 + Math.random() * 10,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        sma_150: 135 + Math.random() * 20,
-        sma_200: 130 + Math.random() * 25,
-        ema_4: 148 + Math.random() * 8,
-        ema_9: 146 + Math.random() * 9,
-        ema_21: 144 + Math.random() * 11,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4,
-        ad: 1000000 + Math.random() * 5000000,
-        cmf: -0.5 + Math.random(),
-        td_sequential: Math.floor(Math.random() * 10),
-        td_combo: Math.floor(Math.random() * 10),
-        marketwatch: Math.floor(Math.random() * 10),
-        dm: Math.floor(Math.random() * 10),
-        pivot_high: 155 + Math.random() * 10,
-        pivot_low: 145 + Math.random() * 10,
-        pivot_high_triggered: Math.random() > 0.5,
-        pivot_low_triggered: Math.random() > 0.5,
-      });
-    }
-
-    return res.error("Failed to retrieve filtered technical data", 500, {
+    
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve filtered technical data",
+      message: error.message,
       type: "database_error",
       timeframe,
       filters: {
@@ -1499,7 +1560,6 @@ router.get("/data", async (req, res) => {
         startDate: startDate || null,
         endDate: endDate || null
       },
-      error: error.message,
       troubleshooting: {
         "Database Connection": "Check database connectivity",
         "Query Execution": "Verify technical data query and parameters",
@@ -1511,7 +1571,58 @@ router.get("/data", async (req, res) => {
   }
 });
 
-// Pattern Recognition Endpoint
+// Pattern Recognition Endpoint - with query parameter support
+router.get("/patterns", async (req, res) => {
+  const { symbol } = req.query;
+  
+  if (!symbol) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required parameter",
+      message: "Symbol parameter is required. Use ?symbol=AAPL"
+    });
+  }
+
+  const { timeframe = "1D", limit = 10 } = req.query;
+
+  console.log(
+    `🔍 [PATTERNS] Analyzing patterns for ${symbol} on ${timeframe} timeframe (query param)`
+  );
+
+  try {
+    // Define pattern analysis logic
+    const patternAnalysis = await analyzePatterns(symbol, timeframe, limit);
+
+    res.success({
+      symbol: symbol.toUpperCase(),
+      timeframe,
+      patterns: patternAnalysis.patterns,
+      summary: patternAnalysis.summary,
+      confidence_score: patternAnalysis.overallConfidence,
+      last_updated: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      `❌ [PATTERNS] Error analyzing patterns for ${symbol}:`,
+      error
+    );
+
+    return res.error(`Failed to analyze patterns for ${symbol}`, 500, {
+      type: "pattern_analysis_error",
+      symbol: symbol.toUpperCase(),
+      timeframe,
+      error: error.message,
+      troubleshooting: {
+        "Data Availability": "Verify sufficient price data exists for pattern analysis",
+        "Analysis Engine": "Check technical analysis algorithms and data processing",
+        "Symbol Validation": "Ensure symbol is valid and has trading history",
+        "Error Details": error.message
+      }
+    });
+  }
+});
+
+// Pattern Recognition Endpoint - original path parameter version
 router.get("/patterns/:symbol", async (req, res) => {
   const { symbol } = req.params;
   const { timeframe = "1D", limit = 10 } = req.query;
@@ -1571,35 +1682,14 @@ async function analyzePatterns(symbol, timeframe, limit) {
     "descending_triangle",
   ];
 
-  // Simulate pattern detection with realistic confidence scores
-  for (let i = 0; i < Math.min(limit, 8); i++) {
-    const isBullish = Math.random() > 0.5;
-    const patternTypes = isBullish ? bullishPatterns : bearishPatterns;
-    const patternType =
-      patternTypes[Math.floor(Math.random() * patternTypes.length)];
-
-    const confidence = 0.6 + Math.random() * 0.35; // 60-95% confidence
-    const timeToTarget = Math.floor(Math.random() * 30) + 5; // 5-35 days
-
-    patterns.push({
-      type: patternType,
-      direction: isBullish ? "bullish" : "bearish",
-      confidence: Math.round(confidence * 100) / 100,
-      timeframe: timeframe,
-      detected_at: new Date(
-        Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-      target_price: calculateTargetPrice(
-        priceData.currentPrice,
-        isBullish,
-        confidence
-      ),
-      stop_loss: calculateStopLoss(priceData.currentPrice, isBullish),
-      time_to_target: timeToTarget,
-      support_levels: priceData.supportLevels,
-      resistance_levels: priceData.resistanceLevels,
-    });
+  // Pattern detection would require actual implementation with real data
+  // No fallback pattern generation - return empty if no real data available
+  if (!priceData || !priceData.priceHistory || priceData.priceHistory.length < 20) {
+    throw new Error('Insufficient price data for pattern analysis');
   }
+  
+  // Real pattern analysis would go here - for now return empty patterns
+  // when no valid patterns are detected
 
   // Sort patterns by confidence descending
   patterns.sort((a, b) => b.confidence - a.confidence);
@@ -1628,10 +1718,11 @@ async function getPriceDataForPatterns(symbol, _timeframe) {
     // Try to get real price data
     const tableName = "technical_data_daily";
     const priceQuery = `
-      SELECT close, high, low, date
-      FROM ${tableName}
-      WHERE symbol = $1
-      ORDER BY date DESC
+      SELECT p.close, p.high, p.low, t.date
+      FROM ${tableName} t
+      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.symbol = $1
+      ORDER BY t.date DESC
       LIMIT 50
     `;
 
@@ -1654,22 +1745,17 @@ async function getPriceDataForPatterns(symbol, _timeframe) {
       };
     }
   } catch (error) {
-    console.log("Using fallback price data for pattern analysis");
+    console.error("Error getting price data for patterns:", error);
+    throw new Error('Unable to retrieve price data for pattern analysis');
   }
-
-  // Fallback price data
-  const currentPrice = 150 + Math.random() * 100;
-  return {
-    currentPrice,
-    priceHistory: generateFallbackPriceHistory(currentPrice),
-    supportLevels: [currentPrice * 0.95, currentPrice * 0.9],
-    resistanceLevels: [currentPrice * 1.05, currentPrice * 1.1],
-  };
+  
+  // If we reach here, no real data was available
+  throw new Error('No price data available for pattern analysis');
 }
 
 // Calculate support levels from price history
 function calculateSupport(prices) {
-  const lows = prices.map((p) => p.low).filter((l) => l !== null);
+  const lows = prices.map((p) => p.low).filter((l) => l !== null)
   const minLow = Math.min(...lows);
   const avgLow = lows.reduce((sum, low) => sum + low, 0) / lows.length;
 
@@ -1678,7 +1764,7 @@ function calculateSupport(prices) {
 
 // Calculate resistance levels from price history
 function calculateResistance(prices) {
-  const highs = prices.map((p) => p.high).filter((h) => h !== null);
+  const highs = prices.map((p) => p.high).filter((h) => h !== null)
   const maxHigh = Math.max(...highs);
   const avgHigh = highs.reduce((sum, high) => sum + high, 0) / highs.length;
 
@@ -1697,28 +1783,90 @@ function calculateStopLoss(currentPrice, isBullish) {
   return Math.round(currentPrice * stopMultiplier * 100) / 100;
 }
 
-// Generate fallback price history
-function generateFallbackPriceHistory(currentPrice) {
-  const history = [];
-  let price = currentPrice;
+// Removed fallback price history generation - use real data only
 
-  for (let i = 0; i < 30; i++) {
-    const change = (Math.random() - 0.5) * 0.05; // ±2.5% daily change
-    price = price * (1 + change);
+// Technical trends endpoint
+router.get("/trends/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { period = "1y" } = req.query;
+    console.log(`📈 Technical trends requested for ${symbol}, period: ${period}`);
 
-    const date = new Date();
-    date.setDate(date.getDate() - i);
+    // Technical trends analysis requires real data - no fallback generation
+    return res.status(503).json({
+      success: false,
+      error: "Service unavailable",
+      message: "Technical trends analysis is not available - requires real market data",
+      symbol: symbol.toUpperCase(),
+      period: period
+    });
 
-    history.push({
-      close: Math.round(price * 100) / 100,
-      high: Math.round(price * 1.02 * 100) / 100,
-      low: Math.round(price * 0.98 * 100) / 100,
-      date: date.toISOString().split("T")[0],
+    // This code is unreachable due to early return above
+
+  } catch (error) {
+    console.error("Technical trends error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch technical trends",
+      message: error.message
     });
   }
+});
 
-  return history;
-}
+// Technical support levels endpoint
+router.get("/support/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { lookback = 90 } = req.query;
+    console.log(`📊 Support levels requested for ${symbol}, lookback: ${lookback} days`);
 
+    // Support level analysis requires real market data - no fallback generation
+    return res.status(503).json({
+      success: false,
+      error: "Service unavailable",
+      message: "Support level analysis is not available - requires real market data",
+      symbol: symbol.toUpperCase(),
+      lookback_days: parseInt(lookback)
+    });
+
+    // This code is unreachable due to early return above
+
+  } catch (error) {
+    console.error("Technical support error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch support levels",
+      message: error.message
+    });
+  }
+});
+
+// Technical resistance levels endpoint
+router.get("/resistance/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { lookback = 90 } = req.query;
+    console.log(`📊 Resistance levels requested for ${symbol}, lookback: ${lookback} days`);
+
+    // Resistance level analysis requires real market data - no fallback generation
+    return res.status(503).json({
+      success: false,
+      error: "Service unavailable",
+      message: "Resistance level analysis is not available - requires real market data",
+      symbol: symbol.toUpperCase(),
+      lookback_days: parseInt(lookback)
+    });
+
+    // This code is unreachable due to early return above
+
+  } catch (error) {
+    console.error("Technical resistance error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch resistance levels", 
+      message: error.message
+    });
+  }
+});
 
 module.exports = router;

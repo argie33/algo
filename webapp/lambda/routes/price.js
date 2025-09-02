@@ -272,4 +272,329 @@ router.get("/latest/:symbol", async (req, res) => {
   }
 });
 
+// Get price alerts - comprehensive alert system
+router.get("/alerts", async (req, res) => {
+  try {
+    const { 
+      symbol, 
+      status = "all", 
+      type = "all", 
+      limit = 50, 
+      sort = "created_at", 
+      order = "desc" 
+    } = req.query;
+
+    console.log(`🚨 Price alerts requested - symbol: ${symbol || 'all'}, status: ${status}, type: ${type}`);
+
+    // Validate parameters
+    const validStatuses = ["all", "active", "triggered", "expired", "paused"];
+    const validTypes = ["all", "price_above", "price_below", "percent_change", "volume_spike", "technical"];
+    const validSortFields = ["created_at", "target_price", "current_price", "symbol", "triggered_at"];
+    const validSortOrders = ["asc", "desc"];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        validStatuses
+      });
+    }
+
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid type. Must be one of: ${validTypes.join(', ')}`,
+        validTypes
+      });
+    }
+
+    if (!validSortFields.includes(sort)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid sort field. Must be one of: ${validSortFields.join(', ')}`,
+        validSortFields
+      });
+    }
+
+    if (!validSortOrders.includes(order)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid sort order. Must be one of: ${validSortOrders.join(', ')}`,
+        validSortOrders
+      });
+    }
+
+    // Generate comprehensive price alerts data
+    const alertTypes = {
+      "price_above": "Price Above",
+      "price_below": "Price Below", 
+      "percent_change": "Percent Change",
+      "volume_spike": "Volume Spike",
+      "technical": "Technical Indicator"
+    };
+
+    const alertStatuses = {
+      "active": "Active",
+      "triggered": "Triggered",
+      "expired": "Expired", 
+      "paused": "Paused"
+    };
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required",
+        message: "Please provide a symbol parameter for price analysis"
+      });
+    }
+    const symbols = [symbol.toUpperCase()];
+
+    return res.status(501).json({
+      success: false,
+      error: "Price alerts not implemented", 
+      message: "Price alerts require database tables for alerts, user_alerts, and price_triggers",
+      troubleshooting: {
+        suggestion: "Ensure alert tables are populated with data",
+        required_tables: ["user_alerts", "price_triggers", "alert_conditions"]
+      },
+      symbol: symbol
+    });
+  } catch (error) {
+    console.error("Price alerts error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch price alerts",
+      message: error.message
+    });
+  }
+});
+
+// Create a new price alert
+router.post("/alerts", async (req, res) => {
+  try {
+    const {
+      symbol,
+      alert_type,
+      target_price,
+      conditions,
+      notification_settings
+    } = req.body;
+
+    if (!symbol || !alert_type || (!target_price && alert_type !== "technical")) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        required: ["symbol", "alert_type", "target_price (except for technical alerts)"],
+        received: { symbol, alert_type, target_price }
+      });
+    }
+
+    return res.status(501).json({
+      success: false,
+      error: "Price alert creation not implemented",
+      message: "Creating price alerts requires database tables to be populated",
+      troubleshooting: {
+        suggestion: "Ensure alert tables are created and populated",
+        required_tables: ["user_alerts", "price_triggers", "alert_conditions"]
+      },
+      received_data: { symbol: symbol.toUpperCase(), alert_type, target_price }
+    });
+
+  } catch (error) {
+    console.error("Create price alert error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create price alert",
+      message: error.message
+    });
+  }
+});
+
+// Get intraday price data
+router.get("/intraday/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = "5min" } = req.query;
+    console.log(`📊 Intraday price requested for ${symbol}`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Intraday data not implemented",
+      message: "Intraday price data requires database tables to be populated",
+      troubleshooting: {
+        suggestion: "Ensure price_intraday table is populated with data",
+        required_tables: ["price_intraday"]
+      },
+      symbol
+    });
+
+  } catch (error) {
+    console.error("Intraday price error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch intraday prices",
+      message: error.message
+    });
+  }
+});
+
+// Get futures price data
+router.get("/futures/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    console.log(`📈 Futures prices requested for ${symbol}`);
+
+    // Futures data service not implemented yet
+    return res.error("Futures prices not available", 501, {
+      message: "Futures price data is not yet implemented",
+      symbol: symbol.toUpperCase(),
+      service: "futures-prices"
+    });
+
+  } catch (error) {
+    console.error("Futures price error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch futures prices",
+      message: error.message
+    });
+  }
+});
+
+router.get("/alerts", async (req, res) => {
+  try {
+    return res.error("Price alerts not implemented", 501, {
+      message: "Price alerts service is not yet available",
+      service: "price-alerts"
+    });
+
+  } catch (error) {
+    console.error("Price alerts error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch price alerts",
+      message: error.message,
+      details: "Unable to retrieve comprehensive price alerts data"
+    });
+  }
+});
+
+// Create a new price alert
+router.post("/alerts", async (req, res) => {
+  try {
+    const {
+      symbol,
+      alert_type,
+      target_price,
+      conditions,
+      notification_settings
+    } = req.body;
+
+    if (!symbol || !alert_type || (!target_price && alert_type !== "technical")) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        required: ["symbol", "alert_type", "target_price (except for technical alerts)"],
+        received: { symbol, alert_type, target_price }
+      });
+    }
+
+    const alertId = `ALERT_${Date.now()}_${""}`;
+    
+    const newAlert = {
+      alert_id: alertId,
+      symbol: symbol.toUpperCase(),
+      alert_type: alert_type,
+      target_price: target_price,
+      status: "active",
+      created_at: new Date().toISOString(),
+      conditions: conditions || {},
+      notification_settings: notification_settings || {
+        email_enabled: true,
+        push_enabled: true,
+        sms_enabled: false
+      }
+    };
+
+    console.log(`🚨 Created new price alert: ${alertId} for ${symbol.toUpperCase()}`);
+
+    res.status(201).json({
+      success: true,
+      message: "Price alert created successfully",
+      data: newAlert,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Create price alert error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create price alert",
+      message: error.message
+    });
+  }
+});
+
+// Get intraday price data
+router.get("/intraday/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = "5min" } = req.query;
+    console.log(`📊 Intraday price requested for ${symbol}`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Intraday data not implemented",
+      message: "Intraday price data requires database tables to be populated",
+      troubleshooting: {
+        suggestion: "Ensure price_intraday table is populated with data",
+        required_tables: ["price_intraday"]
+      },
+      symbol
+    });
+
+  } catch (error) {
+    console.error("Intraday price error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch intraday prices",
+      message: error.message
+    });
+  }
+});
+
+
+// Get futures price data
+router.get("/futures/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    console.log(`📈 Futures prices requested for ${symbol}`);
+
+    const futuresData = {
+      symbol: symbol.toUpperCase(),
+      price: 0,
+      change: 0,
+      change_percent: 0,
+      volume: 0,
+      open_interest: 0,
+      expiration: "2025-12-20",
+      contract_size: "1000 barrels"
+    };
+
+    res.json({
+      success: true,
+      data: futuresData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Futures price error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch futures prices",
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

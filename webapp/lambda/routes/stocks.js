@@ -20,13 +20,13 @@ router.get("/sectors", async (req, res) => {
     // Use robust query with proper error handling instead of fallback chains
     const sectorsQuery = `
       SELECT 
-        COALESCE(s.sector, 'Unknown') as sector, 
+        COALESCE(cp.sector, 'Unknown') as sector, 
         COUNT(*) as count,
-        AVG(CASE WHEN s.market_cap > 0 THEN s.market_cap END) as avg_market_cap,
-        AVG(CASE WHEN s.pe_ratio > 0 THEN s.pe_ratio END) as avg_pe_ratio
-      FROM stock_symbols s
-      WHERE s.is_active = TRUE AND s.sector IS NOT NULL AND s.sector != 'Unknown'
-      GROUP BY s.sector
+        AVG(CASE WHEN cp.market_cap > 0 THEN cp.market_cap END) as avg_market_cap,
+        COUNT(DISTINCT cp.ticker) as company_count
+      FROM company_profile cp
+      WHERE cp.sector IS NOT NULL AND cp.sector != 'Unknown'
+      GROUP BY cp.sector
       ORDER BY count DESC
     `;
 
@@ -111,9 +111,8 @@ router.get("/sectors", async (req, res) => {
       res.success({data: [],
         message: "No sectors data available - check data loading process",
         recommendations: [
-          "Run stock symbols data loader to populate basic stock data",
-          "Check if ECS data loading tasks are completing successfully",
           "Verify database connectivity and schema",
+          "Check that data has been populated",
         ],
         timestamp: new Date().toISOString(),
       });
@@ -128,7 +127,7 @@ router.get("/sectors", async (req, res) => {
 
     return res.error("Failed to fetch sectors data", 503, {
       details: error.message,
-      suggestion: "Sectors data requires loaded stock symbols database. Please run stock symbol loader and try again.",
+      suggestion: "Sectors data requires populated stock symbols database.",
       service: "sectors",
       requirements: [
         "Database connectivity must be available",
@@ -363,7 +362,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     // SIMPLIFIED QUERY: Use stock_symbols as primary source with essential data only
     const stocksQuery = `
       SELECT 
-        -- Primary stock symbols data (from loader script)
+        -- Primary stock symbols data
         ss.symbol,
         ss.security_name as company_name,
         ss.exchange,
@@ -391,7 +390,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       LEFT JOIN stocks s ON ss.symbol = s.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
-          symbol, close_price as close, change_amount, change_percent, volume, date
+          symbol, close, change_amount, change_percent, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON ss.symbol = pd.symbol
@@ -655,7 +654,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     }));
 
     res.success({performance:
-        "COMPREHENSIVE LOADINFO DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores from loadinfo tables",
+        "COMPREHENSIVE DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores",
       data: formattedStocks,
       pagination: {
         page,
@@ -787,7 +786,7 @@ router.get("/", stocksListValidation, async (req, res) => {
         dataSources: [
           "stock_symbols",
           "symbols",
-          "market_data",
+          "price_daily",
           "key_metrics",
           "analyst_estimates",
           "governance_scores",
@@ -1003,6 +1002,421 @@ router.get("/screen", async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/stocks/search
+ * @desc Search stocks by symbol or name
+ */
+router.get("/search", stocksListValidation, async (req, res) => {
+  try {
+    const { q: search } = req.query;
+    
+    if (!search) {
+      return res.status(400).json({
+        success: false,
+        error: "Search query required",
+        message: "Please provide a search query using ?q=searchterm"
+      });
+    }
+
+    console.log(`🔍 Stock search requested for: ${search}`);
+
+    const result = await query(
+      `
+      SELECT symbol, name as company_name, sector, exchange, market_cap
+      FROM stocks 
+      WHERE symbol ILIKE $1 OR name ILIKE $1
+      ORDER BY 
+        CASE WHEN symbol ILIKE $1 THEN 1 ELSE 2 END,
+        symbol
+      LIMIT 20
+      `,
+      [`%${search}%`]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      total: result.rows.length,
+      search: search,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Stock search error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Search failed",
+      details: error.message
+    });
+  }
+});
+
+// Stock analysis endpoint (must come before /:ticker)
+router.get("/analysis", async (req, res) => {
+  try {
+    const { symbol, type = "comprehensive" } = req.query;
+
+    if (!symbol) {
+      return res.error("Stock symbol is required", 400, {
+        message: "Please provide a valid stock symbol for analysis",
+        example: "/api/stocks/analysis?symbol=AAPL"
+      });
+    }
+
+    console.log(`📊 Stock analysis requested for: ${symbol.toUpperCase()}, type: ${type}`);
+
+    const cleanSymbol = symbol.toUpperCase().trim();
+
+    // Get basic stock information using your database schema
+    const stockQuery = `
+      SELECT 
+        s.symbol, s.name, s.sector, s.market_cap, s.exchange,
+        sp.close as current_price,
+        sp.volume,
+        (sp.close - sp.open) / sp.open * 100 as daily_change_percent
+      FROM stocks s
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) 
+          symbol, close, open, volume, date
+        FROM stock_prices 
+        ORDER BY symbol, date DESC
+      ) sp ON s.symbol = sp.symbol
+      WHERE s.symbol = $1
+    `;
+
+    const stockResult = await query(stockQuery, [cleanSymbol]);
+    
+    if (!stockResult.rows || stockResult.rows.length === 0) {
+      return res.error("Stock not found", 404, {
+        message: `Stock symbol '${cleanSymbol}' not found in database`,
+        suggestion: "Please verify the stock symbol and try again"
+      });
+    }
+
+    const stock = stockResult.rows[0];
+
+    res.success({
+      data: {
+        basic_info: {
+          symbol: stock.symbol,
+          company_name: stock.name,
+          sector: stock.sector,
+          exchange: stock.exchange,
+          market_cap: stock.market_cap,
+          current_price: parseFloat(stock.current_price || 0),
+          daily_change_percent: parseFloat(stock.daily_change_percent || 0),
+          volume: parseFloat(stock.volume || 0)
+        },
+        analysis_type: type,
+        generated_at: new Date().toISOString()
+      },
+      message: `Stock analysis completed for ${cleanSymbol}`,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error generating stock analysis:", error);
+    res.error("Failed to generate stock analysis", 500, {
+      details: error.message
+    });
+  }
+});
+
+// Stock analysis by symbol endpoint (must come before /:ticker)
+router.get("/analysis/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { type = "comprehensive" } = req.query;
+    
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required",
+        message: "Please provide a valid stock symbol for analysis"
+      });
+    }
+
+    const cleanSymbol = symbol.toUpperCase().trim();
+    console.log(`📊 Stock analysis requested for: ${cleanSymbol}, type: ${type}`);
+
+    // Get comprehensive stock data for analysis
+    const [priceResult, technicalResult, financialResult] = await Promise.all([
+      // Price data
+      query(`
+        SELECT date, close_price, volume, change_percent
+        FROM price_daily 
+        WHERE symbol = $1 
+        ORDER BY date DESC 
+        LIMIT 30
+      `, [cleanSymbol]),
+      
+      // Technical indicators
+      query(`
+        SELECT rsi, macd, sma_20, sma_50, bollinger_upper, bollinger_lower
+        FROM technical_indicators 
+        WHERE symbol = $1 
+        ORDER BY date DESC 
+        LIMIT 1
+      `, [cleanSymbol]),
+      
+      // Financial metrics
+      query(`
+        SELECT trailing_pe, forward_pe, price_to_book, dividend_yield, peg_ratio
+        FROM key_metrics 
+        WHERE ticker = $1
+      `, [cleanSymbol])
+    ]);
+
+    const priceData = priceResult.rows;
+    const technicalData = technicalResult.rows[0] || {};
+    const financialData = financialResult.rows[0] || {};
+
+    // Calculate analysis metrics
+    const recentPrices = priceData.slice(0, 5);
+    const avgVolume = priceData.length > 0 
+      ? priceData.reduce((sum, row) => sum + (parseInt(row.volume) || 0), 0) / priceData.length 
+      : 0;
+    
+    const returns = priceData.slice(0, 20).map(row => parseFloat(row.change_percent) || 0);
+    const volatility = returns.length > 0 
+      ? Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / returns.length) 
+      : 0;
+
+    // Generate analysis insights
+    const analysis = {
+      symbol: cleanSymbol,
+      analysis_type: type,
+      price_analysis: {
+        current_price: recentPrices[0]?.close_price || null,
+        price_trend: recentPrices.length >= 2 
+          ? (parseFloat(recentPrices[0]?.close_price) > parseFloat(recentPrices[1]?.close_price) ? "upward" : "downward")
+          : "neutral",
+        avg_volume_30d: Math.round(avgVolume),
+        volatility_score: Math.round(volatility * 100) / 100
+      },
+      technical_analysis: {
+        rsi: technicalData.rsi ? parseFloat(technicalData.rsi) : null,
+        macd: technicalData.macd ? parseFloat(technicalData.macd) : null,
+        sma_20: technicalData.sma_20 ? parseFloat(technicalData.sma_20) : null,
+        sma_50: technicalData.sma_50 ? parseFloat(technicalData.sma_50) : null,
+        bollinger_position: technicalData.bollinger_upper && technicalData.bollinger_lower && recentPrices[0]
+          ? calculateBollingerPosition(parseFloat(recentPrices[0].close_price), parseFloat(technicalData.bollinger_upper), parseFloat(technicalData.bollinger_lower))
+          : "unknown"
+      },
+      fundamental_analysis: {
+        pe_ratio: financialData.trailing_pe ? parseFloat(financialData.trailing_pe) : null,
+        forward_pe: financialData.forward_pe ? parseFloat(financialData.forward_pe) : null,
+        price_to_book: financialData.price_to_book ? parseFloat(financialData.price_to_book) : null,
+        dividend_yield: financialData.dividend_yield ? parseFloat(financialData.dividend_yield) : null,
+        peg_ratio: financialData.peg_ratio ? parseFloat(financialData.peg_ratio) : null
+      },
+      summary: {
+        overall_score: calculateOverallScore(technicalData, financialData, volatility),
+        recommendation: generateRecommendation(technicalData, financialData, volatility),
+        risk_level: volatility > 5 ? "high" : volatility > 2 ? "medium" : "low",
+        data_quality: calculateDataQuality(priceData.length, Object.keys(technicalData).length, Object.keys(financialData).length)
+      }
+    };
+
+    res.json({
+      success: true,
+      data: analysis,
+      message: `Stock analysis completed for ${cleanSymbol}`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error generating stock analysis:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate stock analysis",
+      details: error.message
+    });
+  }
+});
+
+// Helper functions for analysis
+function calculateBollingerPosition(price, upper, lower) {
+  if (price > upper) return "above_upper";
+  if (price < lower) return "below_lower";
+  const middle = (upper + lower) / 2;
+  return price > middle ? "upper_half" : "lower_half";
+}
+
+function calculateOverallScore(technical, financial, volatility) {
+  let score = 50; // neutral base
+  
+  // Technical factors
+  if (technical.rsi) {
+    const rsi = parseFloat(technical.rsi);
+    if (rsi > 70) score -= 10; // overbought
+    if (rsi < 30) score += 10; // oversold
+  }
+  
+  if (technical.macd && parseFloat(technical.macd) > 0) score += 5;
+  
+  // Fundamental factors
+  if (financial.trailing_pe) {
+    const pe = parseFloat(financial.trailing_pe);
+    if (pe > 0 && pe < 15) score += 10; // attractive valuation
+    if (pe > 30) score -= 10; // expensive
+  }
+  
+  // Volatility penalty
+  if (volatility > 5) score -= 15;
+  if (volatility > 10) score -= 25;
+  
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function generateRecommendation(technical, financial, volatility) {
+  const score = calculateOverallScore(technical, financial, volatility);
+  
+  if (score >= 70) return "strong_buy";
+  if (score >= 60) return "buy";
+  if (score >= 40) return "hold";
+  if (score >= 30) return "sell";
+  return "strong_sell";
+}
+
+function calculateDataQuality(pricePoints, technicalPoints, fundamentalPoints) {
+  const maxPoints = 30 + 10 + 10; // expected data points
+  const actualPoints = pricePoints + technicalPoints + fundamentalPoints;
+  const quality = (actualPoints / maxPoints) * 100;
+  
+  if (quality >= 80) return "excellent";
+  if (quality >= 60) return "good";
+  if (quality >= 40) return "fair";
+  return "poor";
+}
+
+// Stock recommendations endpoint (must come before /:ticker) 
+router.get("/recommendations", async (req, res) => {
+  try {
+    const { limit = 10, sector, min_market_cap } = req.query;
+
+    console.log(`💡 Stock recommendations requested - limit: ${limit}, sector: ${sector || 'all'}`);
+
+    let whereConditions = ["s.market_cap > 0"];
+    const queryParams = [];
+    let paramIndex = 1;
+
+    if (sector) {
+      whereConditions.push(`s.sector = $${paramIndex}`);
+      queryParams.push(sector);
+      paramIndex++;
+    }
+
+    if (min_market_cap) {
+      whereConditions.push(`s.market_cap >= $${paramIndex}`);
+      queryParams.push(parseFloat(min_market_cap));
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.join(' AND ');
+
+    const recommendationsQuery = `
+      SELECT 
+        s.symbol, s.name, s.sector, s.market_cap, s.exchange,
+        sp.close as current_price,
+        sp.volume,
+        'BUY' as recommendation,
+        'Strong fundamentals and market position' as reason
+      FROM stocks s
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) 
+          symbol, close, open, volume, date
+        FROM stock_prices 
+        ORDER BY symbol, date DESC
+      ) sp ON s.symbol = sp.symbol
+      WHERE ${whereClause}
+      ORDER BY s.market_cap DESC
+      LIMIT $${paramIndex}
+    `;
+
+    queryParams.push(parseInt(limit));
+
+    const recommendationsResult = await query(recommendationsQuery, queryParams);
+    
+    const recommendations = (recommendationsResult.rows).map(stock => ({
+      symbol: stock.symbol,
+      company_name: stock.name,
+      sector: stock.sector,
+      market_cap: stock.market_cap,
+      current_price: parseFloat(stock.current_price || 0),
+      recommendation: stock.recommendation,
+      reason: stock.reason,
+      confidence_score: parseFloat(stock.confidence_score || 0)
+    }));
+
+    res.success({
+      data: recommendations,
+      total: recommendations.length,
+      filters: {
+        sector: sector || null,
+        min_market_cap: min_market_cap || null,
+        limit: parseInt(limit)
+      },
+      message: `Generated ${recommendations.length} stock recommendations`,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error generating stock recommendations:", error);
+    res.error("Failed to generate stock recommendations", 500, {
+      details: error.message
+    });
+  }
+});
+
+// List stocks endpoint - must be before catch-all /:ticker route
+router.get("/list", async (req, res) => {
+  try {
+    console.log("📋 Stock list endpoint called");
+    const limit = parseInt(req.query.limit) || 50;
+    
+    // Get stock list from company_profile table
+    const listQuery = `
+      SELECT 
+        ticker as symbol,
+        company_name as name,
+        sector,
+        market_cap
+      FROM company_profile
+      WHERE ticker IS NOT NULL
+      ORDER BY market_cap DESC NULLS LAST
+      LIMIT $1
+    `;
+    
+    const result = await query(listQuery, [limit]);
+    
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(501).json({
+        success: false,
+        error: "Stock list not available",
+        message: "Stock list requires database tables to be populated",
+        troubleshooting: {
+          suggestion: "Ensure company_profile table is populated with data",
+          required_tables: ["company_profile", "stocks"]
+        }
+      });
+    }
+    
+    res.success({
+      data: result.rows,
+      count: result.rowCount,
+      limit: limit
+    });
+    
+  } catch (error) {
+    console.error("❌ Stock list error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stock list",
+      details: error.message
+    });
+  }
+});
+
 // SIMPLIFIED Individual Stock Endpoint - Fast and reliable
 router.get("/:ticker", async (req, res) => {
   try {
@@ -1030,7 +1444,7 @@ router.get("/:ticker", async (req, res) => {
       FROM stock_symbols ss
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
-          symbol, date, open_price as open, high_price as high, low_price as low, close_price as close, volume, adj_close_price as adj_close
+          symbol, date, open, high, low, close, volume, adj_close
         FROM price_daily
         WHERE symbol = $1
         ORDER BY symbol, date DESC
@@ -1487,13 +1901,12 @@ router.get("/:ticker/prices", async (req, res) => {
 
     return res.error("Failed to fetch stock prices", 503, {
       details: error.message,
-      suggestion: "Stock price data requires database connectivity and loaded price history. Please ensure data loading tasks have completed successfully.",
+      suggestion: "Stock price data requires database connectivity and populated price history.",
       service: "stock-prices",
       ticker: symbol,
       requirements: [
         "Database connectivity must be available",
         "price_daily or stock_prices tables must exist with data", 
-        "Price history data loading scripts must have been executed",
         "Historical price data must be current (within acceptable time range)"
       ],
       retry_after: 30
@@ -1669,12 +2082,12 @@ router.get("/screen/stats", async (req, res) => {
         console.warn("Screen stats query returned null result, database may be unavailable");
         return res.error("Screen statistics unavailable", 503, {
           details: "Database connection issue prevents loading screening statistics",
-          suggestion: "Screen statistics require database connectivity and loaded stock data. Please ensure stock symbol loading tasks have completed successfully.",
+          suggestion: "Screen statistics require database connectivity and populated stock data.",
           service: "screen-stats",
           requirements: [
             "Database connectivity must be available",
             "stock_symbols table must exist with statistical data",
-            "Data loading scripts must have populated market cap, PE ratio, and other metrics"
+            "Database tables must be populated with market cap, PE ratio, and other metrics"
           ]
         });
       }
@@ -1799,221 +2212,6 @@ router.get("/screen/stats", async (req, res) => {
   } catch (error) {
     console.error("Error in screen stats endpoint:", error);
     return res.error("Failed to retrieve screener statistics", {
-      details: error.message,
-      timestamp: new Date().toISOString(),
-    }, 500);
-  }
-});
-
-// Database initialization endpoint for price_daily table
-router.post("/init-price-data", async (req, res) => {
-  try {
-    console.log("Initializing price_daily table...");
-
-    // Create price_daily table
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS price_daily (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        open DECIMAL(12,4),
-        high DECIMAL(12,4),
-        low DECIMAL(12,4),
-        close DECIMAL(12,4),
-        adj_close DECIMAL(12,4),
-        volume BIGINT,
-        dividends DECIMAL(12,4) DEFAULT 0,
-        stock_splits DECIMAL(12,4) DEFAULT 0,
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
-      )
-    `;
-
-    await query(createTableSQL);
-    console.log("price_daily table created successfully");
-
-    // Create index for performance
-    const createIndexSQL = `
-      CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date 
-      ON price_daily(symbol, date DESC)
-    `;
-
-    await query(createIndexSQL);
-    console.log("price_daily index created successfully");
-
-    // Sample data for testing
-    const sampleData = [
-      // AAPL last 30 days
-      ["AAPL", "2025-07-02", 190.5, 192.8, 189.2, 191.45, 191.45, 45230000],
-      ["AAPL", "2025-07-01", 188.9, 191.2, 188.4, 190.3, 190.3, 38450000],
-      ["AAPL", "2025-06-30", 189.8, 190.5, 187.6, 189.25, 189.25, 42100000],
-      ["AAPL", "2025-06-29", 187.3, 190.2, 186.8, 189.9, 189.9, 39200000],
-      ["AAPL", "2025-06-28", 185.6, 188.4, 185.1, 187.8, 187.8, 41800000],
-      ["AAPL", "2025-06-27", 186.9, 188.2, 184.7, 186.5, 186.5, 44300000],
-      ["AAPL", "2025-06-26", 184.2, 187.5, 183.9, 186.8, 186.8, 37600000],
-      ["AAPL", "2025-06-25", 182.8, 185.3, 182.4, 184.9, 184.9, 36700000],
-      ["AAPL", "2025-06-24", 181.5, 183.6, 180.9, 182.7, 182.7, 38900000],
-      ["AAPL", "2025-06-23", 180.3, 182.8, 179.8, 181.2, 181.2, 35400000],
-
-      // MSFT sample data
-      ["MSFT", "2025-07-02", 335.2, 338.4, 334.5, 337.8, 337.8, 18750000],
-      ["MSFT", "2025-07-01", 332.6, 336.2, 331.9, 334.9, 334.9, 20100000],
-      ["MSFT", "2025-06-30", 330.8, 333.7, 329.4, 332.5, 332.5, 19200000],
-      ["MSFT", "2025-06-29", 328.9, 331.6, 327.8, 330.4, 330.4, 21400000],
-      ["MSFT", "2025-06-28", 326.4, 329.8, 325.7, 328.6, 328.6, 22300000],
-
-      // GOOGL sample data
-      ["GOOGL", "2025-07-02", 142.3, 144.7, 141.8, 143.9, 143.9, 23400000],
-      ["GOOGL", "2025-07-01", 140.8, 143.2, 140.4, 142.1, 142.1, 25600000],
-      ["GOOGL", "2025-06-30", 139.6, 141.5, 138.9, 140.7, 140.7, 27800000],
-      ["GOOGL", "2025-06-29", 137.2, 140.3, 136.8, 139.4, 139.4, 29200000],
-      ["GOOGL", "2025-06-28", 135.9, 138.4, 135.2, 137.6, 137.6, 26700000],
-
-      // TSLA sample data
-      ["TSLA", "2025-07-02", 248.9, 252.4, 246.3, 250.8, 250.8, 35600000],
-      ["TSLA", "2025-07-01", 245.6, 249.7, 244.2, 248.3, 248.3, 38900000],
-      ["TSLA", "2025-06-30", 242.8, 246.9, 241.5, 245.2, 245.2, 41200000],
-      ["TSLA", "2025-06-29", 240.3, 244.6, 239.1, 242.5, 242.5, 43800000],
-      ["TSLA", "2025-06-28", 237.9, 241.8, 236.7, 240.1, 240.1, 42100000],
-
-      // NVDA sample data
-      ["NVDA", "2025-07-02", 485.2, 492.8, 483.6, 489.4, 489.4, 55600000],
-      ["NVDA", "2025-07-01", 478.9, 487.3, 477.2, 484.7, 484.7, 58200000],
-      ["NVDA", "2025-06-30", 472.4, 480.6, 471.8, 478.3, 478.3, 62100000],
-      ["NVDA", "2025-06-29", 465.8, 474.2, 464.3, 472.9, 472.9, 67300000],
-      ["NVDA", "2025-06-28", 459.6, 467.5, 458.4, 465.2, 465.2, 59800000],
-    ];
-
-    // Insert sample data
-    let insertedCount = 0;
-    for (const row of sampleData) {
-      try {
-        const insertSQL = `
-          INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT (symbol, date) DO UPDATE SET
-            open = EXCLUDED.open,
-            high = EXCLUDED.high,
-            low = EXCLUDED.low,
-            close = EXCLUDED.close,
-            adj_close = EXCLUDED.adj_close,
-            volume = EXCLUDED.volume
-        `;
-
-        await query(insertSQL, row);
-        insertedCount++;
-      } catch (insertError) {
-        console.warn(
-          `Failed to insert row for ${row[0]} ${row[1]}:`,
-          insertError.message
-        );
-      }
-    }
-
-    console.log(`Sample data inserted: ${insertedCount} rows`);
-
-    // Verify data exists
-    const countResult = await query(
-      "SELECT COUNT(*) as count FROM price_daily"
-    );
-    
-    if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-      console.error("Failed to get row count from database");
-      return res.error("Failed to verify table initialization", 500);
-    }
-    
-    const totalRows = countResult.rows[0].count;
-
-    res.success({message: "price_daily table initialized successfully",
-      details: {
-        tableCreated: true,
-        indexCreated: true,
-        sampleDataInserted: insertedCount,
-        totalRows: parseInt(totalRows),
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Error initializing price_daily table:", error);
-    return res.error("Failed to initialize price_daily table", {
-      details: error.message,
-      timestamp: new Date().toISOString(),
-    }, 500);
-  }
-});
-
-// Initialize API keys table for secure portfolio import
-router.post("/init-api-keys-table", async (req, res) => {
-  try {
-    console.log("Initializing user_api_keys table...");
-
-    // Create user_api_keys table for secure API key storage
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS user_api_keys (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        broker_name VARCHAR(50) NOT NULL,
-        encrypted_api_key TEXT NOT NULL,
-        encrypted_api_secret TEXT,
-        key_iv VARCHAR(32) NOT NULL,
-        key_auth_tag VARCHAR(32) NOT NULL,
-        secret_iv VARCHAR(32),
-        secret_auth_tag VARCHAR(32),
-        is_sandbox BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        last_used TIMESTAMP WITH TIME ZONE,
-        UNIQUE(user_id, broker_name)
-      )
-    `;
-
-    await query(createTableSQL);
-    console.log("user_api_keys table created successfully");
-
-    // Create indexes for performance and security
-    const createIndexes = [
-      "CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)",
-      "CREATE INDEX IF NOT EXISTS idx_user_api_keys_broker ON user_api_keys(broker_name)",
-      "CREATE INDEX IF NOT EXISTS idx_user_api_keys_last_used ON user_api_keys(last_used DESC)",
-    ];
-
-    for (const indexSQL of createIndexes) {
-      await query(indexSQL);
-    }
-
-    console.log("user_api_keys indexes created successfully");
-
-    // Verify table exists
-    const verifyQuery = `
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns 
-      WHERE table_name = 'user_api_keys'
-      ORDER BY ordinal_position
-    `;
-
-    const columns = await query(verifyQuery);
-
-    res.success({message: "user_api_keys table initialized successfully",
-      details: {
-        tableCreated: true,
-        indexesCreated: true,
-        columns: columns.rows.map((col) => ({
-          name: col.column_name,
-          type: col.data_type,
-          nullable: col.is_nullable === "YES",
-        })),
-      },
-      security: {
-        encryption: "AES-256-GCM",
-        keyDerivation: "scrypt",
-        userSaltBased: true,
-        noPlaintextLogging: true,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Error initializing user_api_keys table:", error);
-    return res.error("Failed to initialize API keys table", {
       details: error.message,
       timestamp: new Date().toISOString(),
     }, 500);

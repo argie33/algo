@@ -30,6 +30,264 @@ router.get("/", async (req, res) => {
   });
 });
 
+// Financial statements endpoint - must come before /:symbol route
+router.get("/statements", async (req, res) => {
+  try {
+    const { symbol, period = "annual", type = "all" } = req.query;
+    
+    console.log(`📊 Financial statements requested - symbol: ${symbol || 'required'}, period: ${period}, type: ${type}`);
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required",
+        message: "Please provide a symbol using ?symbol=TICKER"
+      });
+    }
+
+    // Determine which statements to fetch
+    const statements = {};
+    
+    if (type === "all" || type === "balance") {
+      try {
+        const balanceQuery = `
+          SELECT symbol, date, item_name, value
+          FROM ${period === "quarterly" ? "quarterly_balance_sheet" : "annual_balance_sheet"}
+          WHERE UPPER(symbol) = UPPER($1)
+          ORDER BY date DESC, item_name
+          LIMIT 50
+        `;
+        const balanceResult = await query(balanceQuery, [symbol.toUpperCase()]);
+        statements.balance_sheet = balanceResult.rows;
+      } catch (e) {
+        statements.balance_sheet = [];
+      }
+    }
+
+    if (type === "all" || type === "income") {
+      try {
+        const incomeQuery = `
+          SELECT symbol, date, item_name, value
+          FROM ${period === "quarterly" ? "quarterly_income_statement" : "annual_income_statement"}
+          WHERE UPPER(symbol) = UPPER($1)
+          ORDER BY date DESC, item_name
+          LIMIT 50
+        `;
+        const incomeResult = await query(incomeQuery, [symbol.toUpperCase()]);
+        statements.income_statement = incomeResult.rows;
+      } catch (e) {
+        statements.income_statement = [];
+      }
+    }
+
+    if (type === "all" || type === "cashflow") {
+      try {
+        const cashflowQuery = `
+          SELECT symbol, date, item_name, value
+          FROM ${period === "quarterly" ? "quarterly_cash_flow" : "annual_cash_flow"}
+          WHERE UPPER(symbol) = UPPER($1)
+          ORDER BY date DESC, item_name
+          LIMIT 50
+        `;
+        const cashflowResult = await query(cashflowQuery, [symbol.toUpperCase()]);
+        statements.cash_flow = cashflowResult.rows;
+      } catch (e) {
+        statements.cash_flow = [];
+      }
+    }
+
+    const totalRecords = Object.values(statements).reduce((sum, arr) => sum + arr.length, 0);
+    
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        period,
+        type,
+        statements,
+        summary: {
+          total_records: totalRecords,
+          balance_sheet_records: statements.balance_sheet?.length || 0,
+          income_statement_records: statements.income_statement?.length || 0,
+          cash_flow_records: statements.cash_flow?.length || 0
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Financial statements error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch financial statements",
+      details: error.message
+    });
+  }
+});
+
+// Quarterly financials endpoint
+router.get("/quarterly", async (req, res) => {
+  try {
+    const { symbol, limit = 4 } = req.query;
+    
+    console.log(`💰 Quarterly financials requested for symbol: ${symbol || 'all'}`);
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required",
+        message: "Please provide a symbol using ?symbol=TICKER"
+      });
+    }
+
+    // Get quarterly data from available tables
+    const [incomeResult, balanceResult, cashflowResult] = await Promise.all([
+      query(
+        `
+        SELECT period_ending, total_revenue, net_income, earnings_per_share
+        FROM quarterly_income_stmt 
+        WHERE symbol = $1 
+        ORDER BY period_ending DESC 
+        LIMIT $2
+        `,
+        [symbol.toUpperCase(), parseInt(limit)]
+      ).catch(() => ({ rows: [] })),
+      
+      query(
+        `
+        SELECT period_ending, total_assets, total_liabilities, total_equity
+        FROM quarterly_balance_sheet 
+        WHERE symbol = $1 
+        ORDER BY period_ending DESC 
+        LIMIT $2
+        `,
+        [symbol.toUpperCase(), parseInt(limit)]
+      ).catch(() => ({ rows: [] })),
+      
+      query(
+        `
+        SELECT period_ending, operating_cash_flow, free_cash_flow, capital_expenditure
+        FROM quarterly_cashflow 
+        WHERE symbol = $1 
+        ORDER BY period_ending DESC 
+        LIMIT $2
+        `,
+        [symbol.toUpperCase(), parseInt(limit)]
+      ).catch(() => ({ rows: [] }))
+    ]);
+
+    // Combine quarterly data by period
+    const quarterlyData = {};
+    
+    incomeResult.rows.forEach(row => {
+      const period = row.period_ending;
+      if (!quarterlyData[period]) quarterlyData[period] = {};
+      quarterlyData[period] = {
+        ...quarterlyData[period],
+        period_ending: period,
+        total_revenue: row.total_revenue,
+        net_income: row.net_income,
+        earnings_per_share: row.earnings_per_share
+      };
+    });
+
+    balanceResult.rows.forEach(row => {
+      const period = row.period_ending;
+      if (!quarterlyData[period]) quarterlyData[period] = {};
+      quarterlyData[period] = {
+        ...quarterlyData[period],
+        period_ending: period,
+        total_assets: row.total_assets,
+        total_liabilities: row.total_liabilities,
+        total_equity: row.total_equity
+      };
+    });
+
+    cashflowResult.rows.forEach(row => {
+      const period = row.period_ending;
+      if (!quarterlyData[period]) quarterlyData[period] = {};
+      quarterlyData[period] = {
+        ...quarterlyData[period],
+        period_ending: period,
+        operating_cash_flow: row.operating_cash_flow,
+        free_cash_flow: row.free_cash_flow,
+        capital_expenditure: row.capital_expenditure
+      };
+    });
+
+    const quarters = Object.values(quarterlyData).sort((a, b) => 
+      new Date(b.period_ending) - new Date(a.period_ending)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        quarters: quarters,
+        summary: {
+          quarters_available: quarters.length,
+          latest_quarter: quarters[0]?.period_ending || null,
+          data_sources: {
+            income_statements: incomeResult.rows.length,
+            balance_sheets: balanceResult.rows.length,
+            cash_flows: cashflowResult.rows.length
+          }
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Quarterly financials error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch quarterly financials",
+      details: error.message
+    });
+  }
+});
+
+// Financial ratios endpoint (general)
+router.get("/ratios", async (req, res) => {
+  try {
+    const { 
+      symbol, 
+      limit = 50, 
+      category = "all", 
+      sort = "ratio_value", 
+      order = "desc" 
+    } = req.query;
+
+    console.log(`📊 Financial ratios requested - symbol: ${symbol || 'all'}, category: ${category}`);
+
+    return res.status(501).json({
+      success: false,
+      error: "Financial ratios not available",
+      message: "Financial ratio calculations require integration with comprehensive financial data providers",
+      details: "This endpoint requires:\n- Complete financial statements data\n- Real-time calculation engines\n- Historical financial metrics\n- Peer comparison databases\n- Sector benchmarking data\n- Multi-period ratio analysis\n- Quality and reliability scoring",
+      troubleshooting: {
+        suggestion: "Financial ratios require professional financial data integration",
+        required_setup: [
+          "Financial statements database (income, balance sheet, cash flow)",
+          "Financial data providers (FactSet, Refinitiv, S&P Capital IQ, Bloomberg)",
+          "Ratio calculation engine with standardized formulas",
+          "Peer comparison and sector benchmarking systems",
+          "Historical financial metrics tracking and trending",
+          "Financial data quality validation and cleansing processes"
+        ],
+        status: "Not implemented - requires comprehensive financial data integration"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Financial ratios error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch financial ratios",
+      details: error.message
+    });
+  }
+});
+
 // Debug endpoint to check table structure
 router.get("/debug/tables", async (req, res) => {
   try {
@@ -462,6 +720,68 @@ async function getFinancialStatement(ticker, type, period) {
   );
 }
 
+// Financial estimates endpoint 
+router.get("/estimates", async (req, res) => {
+  try {
+    const { 
+      symbol, 
+      period = "annual", 
+      limit = 50, 
+      page = 1,
+      sortBy = "symbol",
+      sortOrder = "asc"
+    } = req.query;
+    
+    console.log(`📊 Financial estimates requested - symbol: ${symbol || 'all'}, period: ${period}`);
+    
+    // Query database for financial estimates
+    let query_sql = `SELECT * FROM financial_estimates WHERE period = $1`;
+    let params = [period];
+    
+    if (symbol) {
+      query_sql += ` AND symbol = $2`;
+      params.push(symbol.toUpperCase());
+    }
+    
+    query_sql += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+    
+    const result = await query(query_sql, params);
+    
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No financial estimates found",
+        message: `No estimates data available for the specified criteria`,
+        filters: { symbol: symbol || 'all', period }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: result.rows.length
+      },
+      filters: {
+        symbol: symbol || 'all',
+        period
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error("Financial estimates error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch financial estimates",
+      details: error.message
+    });
+  }
+});
+
 // Get basic financial data for a symbol (for tests)
 router.get("/:symbol", async (req, res) => {
   const { symbol } = req.params;
@@ -655,6 +975,42 @@ router.get("/:symbol/cashflow", async (req, res) => {
   }
 });
 
+// Get financial ratios by route format
+router.get("/ratios/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`💰 [FINANCIALS] Fetching ratios for ${symbol} via /ratios/ route`);
+
+  try {
+    return res.status(501).json({
+      success: false,
+      error: "Financial ratios not available for symbol",
+      message: "Symbol-specific financial ratio calculations require integration with financial data providers",
+      details: "This endpoint requires:\n- Real-time financial statements data for specific symbols\n- Company-specific ratio calculations\n- Historical ratio trends and analysis\n- Peer comparison within sectors\n- Financial data validation and quality scoring\n- Multi-period ratio tracking",
+      troubleshooting: {
+        suggestion: "Symbol financial ratios require comprehensive financial database integration",
+        required_setup: [
+          "Company-specific financial statements database (10-K, 10-Q filings)",
+          "Real-time financial data feeds for individual symbols",
+          "Symbol-specific ratio calculation engine",
+          "Historical financial ratio tracking and trending",
+          "Peer and sector comparison databases",
+          "Financial data quality validation for individual companies"
+        ],
+        status: "Not implemented - requires symbol-specific financial data integration"
+      },
+      symbol: symbol.toUpperCase(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`❌ [FINANCIALS] Error fetching ratios for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch ratios data",
+      details: error.message,
+    });
+  }
+});
+
 // Get financial ratios (simple endpoint for tests)
 router.get("/:symbol/ratios", async (req, res) => {
   const { symbol } = req.params;
@@ -714,7 +1070,7 @@ router.get("/:ticker/key-metrics", async (req, res) => {
 
     console.log(`Key metrics request for ${ticker}`);
 
-    // Query the key_metrics table from loadinfo
+    // Query the key_metrics table
     const keyMetricsQuery = `
       SELECT 
         ticker,
@@ -937,7 +1293,7 @@ router.get("/:ticker/key-metrics", async (req, res) => {
         totalMetrics: totalFields,
         populatedMetrics: populatedFields,
         lastUpdated: new Date().toISOString(),
-        source: "key_metrics table via loadinfo",
+        source: "key_metrics table",
       },
     });
   } catch (error) {
@@ -1133,5 +1489,6 @@ router.get("/cash-flow/:symbol", async (req, res) => {
     });
   }
 });
+
 
 module.exports = router;
