@@ -63,8 +63,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: 'webapp/frontend/package-lock.json'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install frontend dependencies
         working-directory: ./webapp/frontend
@@ -115,8 +124,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: 'webapp/lambda/package-lock.json'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install backend dependencies
         working-directory: ./webapp/lambda
@@ -168,8 +186,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: 'webapp/lambda/package-lock.json'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install backend dependencies
         working-directory: ./webapp/lambda
@@ -221,8 +248,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: 'webapp/frontend/package-lock.json'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
         working-directory: ./webapp/frontend
@@ -271,7 +307,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
         run: |
@@ -329,7 +375,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
         run: |
@@ -372,7 +428,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
         run: |
