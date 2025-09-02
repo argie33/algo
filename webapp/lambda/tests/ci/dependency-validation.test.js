@@ -43,6 +43,37 @@ describe('GitHub Actions Pipeline Validation', () => {
     });
   });
 
+  describe('GitHub Actions Workflow Validation', () => {
+    test('workflow files use proper dependency caching configuration', () => {
+      const workflowPath = path.join(__dirname, '../../../../.github/workflows/pr-testing.yml');
+      expect(fs.existsSync(workflowPath)).toBe(true);
+      
+      const workflowContent = fs.readFileSync(workflowPath, 'utf8');
+      
+      // Verify workflow uses actions/cache@v4 instead of setup-node cache
+      expect(workflowContent).toMatch(/uses: actions\/cache@v4/);
+      
+      // Verify workflow does NOT use problematic setup-node cache
+      expect(workflowContent).not.toMatch(/cache: ['"]npm['"]/);
+      
+      // Verify cache paths are explicitly defined
+      expect(workflowContent).toMatch(/webapp\/frontend\/node_modules/);
+      expect(workflowContent).toMatch(/webapp\/lambda\/node_modules/);
+      expect(workflowContent).toMatch(/~\/\.npm/);
+    });
+
+    test('workflow uses correct cache key with package-lock.json hashing', () => {
+      const workflowPath = path.join(__dirname, '../../../../.github/workflows/pr-testing.yml');
+      const workflowContent = fs.readFileSync(workflowPath, 'utf8');
+      
+      // Verify cache key includes package-lock.json hash
+      expect(workflowContent).toMatch(/key:.*hashFiles\(['"]webapp\/\*\/package-lock\.json['"]\)/);
+      
+      // Verify restore-keys are properly configured
+      expect(workflowContent).toMatch(/restore-keys:/);
+    });
+  });
+
   describe('Pre-deploy Test Gates', () => {
     test('dependency audit passes (no high/critical vulnerabilities)', async () => {
       try {
