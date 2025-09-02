@@ -88,6 +88,7 @@ import PortfolioPerformanceSimple from "./pages/PortfolioPerformanceSimple";
 import PortfolioPerformanceDebug from "./pages/PortfolioPerformanceDebug";
 import AuthTest from "./pages/AuthTest";
 import AIAssistant from "./pages/AIAssistant";
+import { createComponentLogger } from "./utils/errorLogger";
 
 const drawerWidth = 240;
 
@@ -289,28 +290,47 @@ const menuItems = [
 ];
 
 function App() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [userMenuAnchor, setUserMenuAnchor] = useState(null);
-  const [expandedSections, setExpandedSections] = useState({
-    markets: true,
-    stocks: true,
-    sentiment: false,
-    portfolio: true,
-    research: false,
-    tools: false,
-  });
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const { isAuthenticated, user, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const {
-    showOnboarding,
-    completeOnboarding,
-    skipOnboarding,
-    loading: onboardingLoading,
-  } = useOnboarding();
+  console.log("🎯 APP COMPONENT: Starting App component render...");
+  
+  try {
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [authModalOpen, setAuthModalOpen] = useState(false);
+    const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+    const [expandedSections, setExpandedSections] = useState({
+      markets: true,
+      stocks: true,
+      sentiment: false,
+      portfolio: true,
+      research: false,
+      tools: false,
+    });
+    
+    console.log("🎯 APP COMPONENT: State initialized");
+    
+    const theme = useTheme();
+    console.log("🎯 APP COMPONENT: Theme loaded:", theme ? "✅" : "❌");
+    
+    const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+    console.log("🎯 APP COMPONENT: isMobile:", isMobile);
+    
+    console.log("🎯 APP COMPONENT: About to call useAuth...");
+    const { isAuthenticated, user, logout } = useAuth();
+    console.log("🎯 APP COMPONENT: Auth state loaded - isAuthenticated:", isAuthenticated, "user:", user);
+    
+    const navigate = useNavigate();
+    console.log("🎯 APP COMPONENT: Navigate loaded");
+    
+    const location = useLocation();
+    console.log("🎯 APP COMPONENT: Location loaded:", location?.pathname);
+    
+    console.log("🎯 APP COMPONENT: About to call useOnboarding...");
+    const {
+      showOnboarding,
+      completeOnboarding,
+      skipOnboarding,
+      loading: onboardingLoading,
+    } = useOnboarding();
+    console.log("🎯 APP COMPONENT: Onboarding loaded - loading:", onboardingLoading, "show:", showOnboarding);
 
   // Auto-close auth modal when user successfully authenticates
   useEffect(() => {
@@ -490,6 +510,17 @@ function App() {
     </div>
   );
 
+  console.log("🎯 APP COMPONENT: About to render JSX...");
+  
+  } catch (error) {
+    console.error("🚨 APP COMPONENT ERROR:", error);
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+        <Typography color="error">Application Error: {error.message}</Typography>
+      </Box>
+    );
+  }
+  
   return (
     <Box sx={{ display: "flex" }}>
       <AppBar

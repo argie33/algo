@@ -7,133 +7,44 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { AuthProvider } from "./contexts/AuthContext";
 import { configureAmplify } from "./config/amplify";
+import { createComponentLogger } from "./utils/errorLogger";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-// RESTORED: Enhanced error logging with ZERO suppression - let all errors through
+// Initialize comprehensive error logging service
+const logger = createComponentLogger('Main');
+
+// RESTORED: Professional error logging service integration
 const _originalConsoleError = console.error;
 const _originalConsoleWarn = console.warn;
 
-// Enhanced error logging that PRESERVES all errors while adding context
-const _safeStringify = (obj, depth = 0, maxDepth = 3) => {
-  if (depth > maxDepth) return '[Max Depth Reached]';
-  if (obj === null) return 'null';
-  if (obj === undefined) return 'undefined';
-  
-  if (typeof obj === 'object') {
-    if (obj instanceof Error) {
-      return `Error: ${obj.message} (${obj.name})`;
-    }
-    
-    // Handle circular references and deep objects safely
-    try {
-      const seen = new WeakSet();
-      return JSON.stringify(obj, function(key, val) {
-        if (val != null && typeof val === 'object') {
-          if (seen.has(val)) return '[Circular]';
-          seen.add(val);
-        }
-        return val;
-      }, 2);
-    } catch (e) {
-      return `[Object: ${obj.constructor?.name || 'Unknown'}]`;
-    }
-  }
-  
-  return String(obj);
-};
-
-// ENHANCED console.error that PRESERVES all errors while adding debugging context
-console.error = function(...args) {
-  try {
-    // Add timestamp and enhanced context to all error messages
-    const timestamp = new Date().toISOString();
-    const enhanced = [`[${timestamp}] ENHANCED ERROR LOG:`];
-    
-    const safeArgs = (args || []).map(arg => {
-      if (typeof arg === 'object' && arg !== null) {
-        try {
-          return _safeStringify(arg);
-        } catch (e) {
-          return `[Unsafe Object: ${arg.constructor?.name || 'Unknown'}]`;
-        }
-      }
-      return arg;
-    });
-    
-    enhanced.push(...safeArgs);
-    
-    // ALWAYS call original console.error - ZERO SUPPRESSION
-    return _originalConsoleError.apply(console, enhanced);
-  } catch (error) {
-    // Fallback to original error logging if enhancement fails
-    _originalConsoleError.call(console, '[Error Enhancement Failed]', error.message);
-    return _originalConsoleError.apply(console, args);
-  }
-};
-
-// ENHANCED console.warn with context preservation
-console.warn = function(...args) {
-  try {
-    const timestamp = new Date().toISOString();
-    const enhanced = [`[${timestamp}] ENHANCED WARN:`];
-    
-    const safeArgs = (args || []).map(arg => {
-      if (typeof arg === 'object' && arg !== null) {
-        try {
-          return _safeStringify(arg);
-        } catch (e) {
-          return `[Unsafe Object: ${arg.constructor?.name || 'Unknown'}]`;
-        }
-      }
-      return arg;
-    });
-    
-    enhanced.push(...safeArgs);
-    
-    // ALWAYS call original console.warn - ZERO SUPPRESSION
-    return _originalConsoleWarn.apply(console, enhanced);
-  } catch (error) {
-    _originalConsoleWarn.call(console, '[Warn Enhancement Failed]', error.message);
-    return _originalConsoleWarn.apply(console, args);
-  }
-};
-
-// ENHANCED window error handling - capture ALL errors with context
+// RESTORED: Professional error service integration for window errors
 window.addEventListener('error', function(e) {
-  const timestamp = new Date().toISOString();
-  const errorDetails = {
-    message: e.message,
+  const errorContext = {
     filename: e.filename,
     lineno: e.lineno,
     colno: e.colno,
-    error: e.error ? {
-      name: e.error.name,
-      message: e.error.message,
-      stack: e.error.stack
-    } : null,
-    timestamp: timestamp,
     userAgent: navigator.userAgent,
-    url: window.location.href
+    url: window.location.href,
+    timestamp: new Date().toISOString()
   };
   
-  console.error('[ENHANCED WINDOW ERROR]', errorDetails);
+  logger.error('WindowError', e.error || new Error(e.message), errorContext);
   
-  // DO NOT prevent default - let all errors through
+  // Let all errors through for debugging
   return false;
 }, true);
 
-// ENHANCED unhandled promise rejection handling
+// RESTORED: Professional promise rejection handling
 window.addEventListener('unhandledrejection', function(e) {
-  const timestamp = new Date().toISOString();
-  const rejectionDetails = {
-    reason: e.reason,
-    promise: e.promise,
-    timestamp: timestamp,
-    url: window.location.href
+  const errorContext = {
+    url: window.location.href,
+    timestamp: new Date().toISOString(),
+    promiseState: 'rejected'
   };
   
-  console.error('[ENHANCED UNHANDLED REJECTION]', rejectionDetails);
+  logger.error('UnhandledPromiseRejection', e.reason, errorContext);
   
-  // DO NOT prevent default - let all errors through
+  // Let all errors through for debugging  
   return false;
 });
 
@@ -346,25 +257,62 @@ if (!rootElement) {
 // Creating React root and rendering app
 
 try {
-  ReactDOM.createRoot(document.getElementById("root")).render(
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
+  logger.info("React application initialization starting");
+  
+  const rootElement = document.getElementById("root");
+  if (!rootElement) {
+    throw new Error("Root element not found in DOM");
+  }
+  
+  const root = ReactDOM.createRoot(rootElement);
+  logger.info("React root created successfully");
+  
+  root.render(
+    <ErrorBoundary>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
-  // React app rendered successfully
+  
+  logger.success("React application render initiated");
+  
+  // Post-render validation
+  setTimeout(() => {
+    const rootContent = document.getElementById("root");
+    if (rootContent && rootContent.innerHTML.trim() === "") {
+      logger.error("EmptyRender", new Error("React rendered but root is empty"), {
+        innerHTML: rootContent.innerHTML,
+        config: window.__CONFIG__,
+        timestamp: new Date().toISOString()
+      });
+    } else if (rootContent) {
+      logger.success("React application rendered successfully", {
+        contentLength: rootContent.innerHTML.length,
+        hasContent: rootContent.innerHTML.length > 0
+      });
+    }
+  }, 2000);
+  
 } catch (error) {
-  console.error("❌ Error rendering React app:", error);
-  alert("Error rendering React app: " + error.message);
+  logger.error("ReactInitialization", error, {
+    phase: "main_render",
+    config: window.__CONFIG__,
+    userAgent: navigator.userAgent
+  });
+  
+  // Show user-friendly error
+  alert("Application failed to start. Please refresh the page or contact support.");
 }
