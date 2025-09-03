@@ -1143,7 +1143,7 @@ router.get("/analysis/:symbol", async (req, res) => {
     const [priceResult, technicalResult, financialResult] = await Promise.all([
       // Price data
       query(`
-        SELECT date, close_price, volume, change_percent
+        SELECT date, close, volume, change_percent
         FROM price_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
@@ -1187,9 +1187,9 @@ router.get("/analysis/:symbol", async (req, res) => {
       symbol: cleanSymbol,
       analysis_type: type,
       price_analysis: {
-        current_price: recentPrices[0]?.close_price || null,
+        current_price: recentPrices[0]?.close || null,
         price_trend: recentPrices.length >= 2 
-          ? (parseFloat(recentPrices[0]?.close_price) > parseFloat(recentPrices[1]?.close_price) ? "upward" : "downward")
+          ? (parseFloat(recentPrices[0]?.close) > parseFloat(recentPrices[1]?.close) ? "upward" : "downward")
           : "neutral",
         avg_volume_30d: Math.round(avgVolume),
         volatility_score: Math.round(volatility * 100) / 100
@@ -1200,7 +1200,7 @@ router.get("/analysis/:symbol", async (req, res) => {
         sma_20: technicalData.sma_20 ? parseFloat(technicalData.sma_20) : null,
         sma_50: technicalData.sma_50 ? parseFloat(technicalData.sma_50) : null,
         bollinger_position: technicalData.bollinger_upper && technicalData.bollinger_lower && recentPrices[0]
-          ? calculateBollingerPosition(parseFloat(recentPrices[0].close_price), parseFloat(technicalData.bollinger_upper), parseFloat(technicalData.bollinger_lower))
+          ? calculateBollingerPosition(parseFloat(recentPrices[0].close), parseFloat(technicalData.bollinger_upper), parseFloat(technicalData.bollinger_lower))
           : "unknown"
       },
       fundamental_analysis: {
@@ -1585,16 +1585,16 @@ router.get("/:ticker/prices", async (req, res) => {
         WITH weekly_data AS (
           SELECT 
             DATE_TRUNC('week', date) + INTERVAL '6 days' as date,
-            (ARRAY_AGG(open_price ORDER BY date ASC))[1] as open,
-            MAX(high_price) as high,
-            MIN(low_price) as low,
-            (ARRAY_AGG(close_price ORDER BY date DESC))[1] as close,
-            (ARRAY_AGG(adj_close_price ORDER BY date DESC))[1] as adj_close,
+            (ARRAY_AGG(open ORDER BY date ASC))[1] as open,
+            MAX(high) as high,
+            MIN(low) as low,
+            (ARRAY_AGG(close ORDER BY date DESC))[1] as close,
+            (ARRAY_AGG(adj_close ORDER BY date DESC))[1] as adj_close,
             SUM(volume) as volume
           FROM ${tableName}
           WHERE symbol = $1 
             AND date >= CURRENT_DATE - INTERVAL '2 years'
-            AND close_price IS NOT NULL
+            AND close IS NOT NULL
           GROUP BY DATE_TRUNC('week', date)
           ORDER BY date DESC
           LIMIT $2
@@ -1638,16 +1638,16 @@ router.get("/:ticker/prices", async (req, res) => {
         WITH monthly_data AS (
           SELECT 
             DATE_TRUNC('month', date) + INTERVAL '1 month' - INTERVAL '1 day' as date,
-            (ARRAY_AGG(open_price ORDER BY date ASC))[1] as open,
-            MAX(high_price) as high,
-            MIN(low_price) as low,
-            (ARRAY_AGG(close_price ORDER BY date DESC))[1] as close,
-            (ARRAY_AGG(adj_close_price ORDER BY date DESC))[1] as adj_close,
+            (ARRAY_AGG(open ORDER BY date ASC))[1] as open,
+            MAX(high) as high,
+            MIN(low) as low,
+            (ARRAY_AGG(close ORDER BY date DESC))[1] as close,
+            (ARRAY_AGG(adj_close ORDER BY date DESC))[1] as adj_close,
             SUM(volume) as volume
           FROM ${tableName}
           WHERE symbol = $1 
             AND date >= CURRENT_DATE - INTERVAL '2 years'
-            AND close_price IS NOT NULL
+            AND close IS NOT NULL
           GROUP BY DATE_TRUNC('month', date)
           ORDER BY date DESC
           LIMIT $2
@@ -1691,17 +1691,17 @@ router.get("/:ticker/prices", async (req, res) => {
         WITH price_data AS (
           SELECT 
             date,
-            open_price::DECIMAL(12,4) as open,
-            high_price::DECIMAL(12,4) as high,
-            low_price::DECIMAL(12,4) as low,
-            close_price::DECIMAL(12,4) as close,
-            adj_close_price::DECIMAL(12,4) as adj_close,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
+            close::DECIMAL(12,4) as close,
+            adj_close::DECIMAL(12,4) as adj_close,
             volume::BIGINT as volume,
-            LAG(close_price) OVER (ORDER BY date DESC) as prev_close
+            LAG(close) OVER (ORDER BY date DESC) as prev_close
           FROM ${tableName}
           WHERE symbol = $1 
             AND date >= CURRENT_DATE - INTERVAL '2 years'
-            AND close_price IS NOT NULL
+            AND close IS NOT NULL
           ORDER BY date DESC
           LIMIT $2
         )
