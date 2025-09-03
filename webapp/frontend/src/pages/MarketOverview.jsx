@@ -1027,12 +1027,10 @@ function MarketOverview() {
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.aaii.bullish !== undefined
-                          ? typeof sentimentIndicators.aaii.bullish ===
-                              "number" && sentimentIndicators.aaii.bullish <= 1
-                            ? (sentimentIndicators.aaii.bullish * 100).toFixed(
-                                1
-                              ) + "%"
-                            : sentimentIndicators.aaii.bullish.toFixed(1) + "%"
+                          ? (() => {
+                              const val = parseFloat(sentimentIndicators.aaii.bullish);
+                              return isNaN(val) ? "N/A" : val <= 1 ? (val * 100).toFixed(1) + "%" : val.toFixed(1) + "%";
+                            })()
                           : "N/A"}
                       </Typography>
                     </Box>
@@ -1051,12 +1049,10 @@ function MarketOverview() {
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.aaii.neutral !== undefined
-                          ? typeof sentimentIndicators.aaii.neutral ===
-                              "number" && sentimentIndicators.aaii.neutral <= 1
-                            ? (sentimentIndicators.aaii.neutral * 100).toFixed(
-                                1
-                              ) + "%"
-                            : sentimentIndicators.aaii.neutral.toFixed(1) + "%"
+                          ? (() => {
+                              const val = parseFloat(sentimentIndicators.aaii.neutral);
+                              return isNaN(val) ? "N/A" : val <= 1 ? (val * 100).toFixed(1) + "%" : val.toFixed(1) + "%";
+                            })()
                           : "N/A"}
                       </Typography>
                     </Box>
@@ -1075,12 +1071,10 @@ function MarketOverview() {
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.aaii.bearish !== undefined
-                          ? typeof sentimentIndicators.aaii.bearish ===
-                              "number" && sentimentIndicators.aaii.bearish <= 1
-                            ? (sentimentIndicators.aaii.bearish * 100).toFixed(
-                                1
-                              ) + "%"
-                            : sentimentIndicators.aaii.bearish.toFixed(1) + "%"
+                          ? (() => {
+                              const val = parseFloat(sentimentIndicators.aaii.bearish);
+                              return isNaN(val) ? "N/A" : val <= 1 ? (val * 100).toFixed(1) + "%" : val.toFixed(1) + "%";
+                            })()
                           : "N/A"}
                       </Typography>
                     </Box>
@@ -1145,7 +1139,10 @@ function MarketOverview() {
                   <Box>
                     <Typography variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
                       {sentimentIndicators.naaim.average !== undefined
-                        ? sentimentIndicators.naaim.average.toFixed(1) + "%"
+                        ? (() => {
+                            const val = parseFloat(sentimentIndicators.naaim.average);
+                            return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
+                          })()
                         : "N/A"}
                     </Typography>
                     <Box
@@ -1163,8 +1160,10 @@ function MarketOverview() {
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.naaim.bullish_8100 !== undefined
-                          ? sentimentIndicators.naaim.bullish_8100.toFixed(1) +
-                            "%"
+                          ? (() => {
+                              const val = parseFloat(sentimentIndicators.naaim.bullish_8100);
+                              return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
+                            })()
                           : "N/A"}
                       </Typography>
                     </Box>
@@ -1183,7 +1182,10 @@ function MarketOverview() {
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.naaim.bearish !== undefined
-                          ? sentimentIndicators.naaim.bearish.toFixed(1) + "%"
+                          ? (() => {
+                              const val = parseFloat(sentimentIndicators.naaim.bearish);
+                              return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
+                            })()
                           : "N/A"}
                       </Typography>
                     </Box>

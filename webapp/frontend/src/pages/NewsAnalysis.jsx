@@ -140,11 +140,11 @@ const NewsAnalysis = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, selectedTimeframe]);
+  }, [selectedCategory, selectedTimeframe, logger]);
 
   useEffect(() => {
     fetchAllNewsData();
-  }, [selectedCategory, selectedTimeframe]);
+  }, [fetchAllNewsData]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);

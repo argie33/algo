@@ -242,8 +242,8 @@ export function useInfiniteQuery(options) {
       setState((prev) => ({
         ...prev,
         data: {
-          pages: [...prev?.data.pages, newPage],
-          pageParams: [...prev?.data.pageParams, nextPageParam],
+          pages: [...(prev?.data?.pages || []), newPage],
+          pageParams: [...(prev?.data?.pageParams || []), nextPageParam],
         },
         isFetchingNextPage: false,
         hasNextPage: getNextPageParam

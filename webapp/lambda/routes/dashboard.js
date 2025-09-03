@@ -248,73 +248,23 @@ router.get("/summary", async (req, res) => {
     };
 
     console.log("📤 Sending comprehensive dashboard summary response");
-    if (
-      !marketResult ||
-      !Array.isArray(marketResult.rows) ||
-      marketResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for market overview" });
-    }
-    if (
-      !gainersResult ||
-      !Array.isArray(gainersResult.rows) ||
-      gainersResult.rows.length === 0
-    ) {
-      return res.notFound("No data found for top gainers" );
-    }
-    if (
-      !losersResult ||
-      !Array.isArray(losersResult.rows) ||
-      losersResult.rows.length === 0
-    ) {
-      return res.notFound("No data found for top losers" );
-    }
-    if (
-      !sectorResult ||
-      !Array.isArray(sectorResult.rows) ||
-      sectorResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for sector performance" });
-    }
-    if (
-      !earningsResult ||
-      !Array.isArray(earningsResult.rows) ||
-      earningsResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for recent earnings" });
-    }
-    if (
-      !sentimentResult ||
-      !Array.isArray(sentimentResult.rows) ||
-      sentimentResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for market sentiment" });
-    }
-    if (
-      !volumeResult ||
-      !Array.isArray(volumeResult.rows) ||
-      volumeResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for volume leaders" });
-    }
-    if (
-      !breadthResult ||
-      !Array.isArray(breadthResult.rows) ||
-      breadthResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for market breadth" });
+    
+    // Log any missing data sections but don't fail the entire request
+    if (!marketResult?.rows?.length) console.warn("⚠️ No market overview data available");
+    if (!gainersResult?.rows?.length) console.warn("⚠️ No gainers data available");  
+    if (!losersResult?.rows?.length) console.warn("⚠️ No losers data available");
+    if (!sectorResult?.rows?.length) console.warn("⚠️ No sector performance data available");
+    if (!earningsResult?.rows?.length) console.warn("⚠️ No earnings data available");
+    if (!sentimentResult?.rows?.length) console.warn("⚠️ No sentiment data available");
+    if (!volumeResult?.rows?.length) console.warn("⚠️ No volume data available");
+    if (!breadthResult?.rows?.length) console.warn("⚠️ No market breadth data available");
+    
+    // Only fail if we have absolutely no data at all
+    if (!marketResult?.rows?.length && !gainersResult?.rows?.length && !losersResult?.rows?.length) {
+      return res.status(503).json({ 
+        error: "Market data temporarily unavailable",
+        message: "Please try again later" 
+      });
     }
     res.success({data: summary,
     });

@@ -33,7 +33,7 @@ router.get("/buy", async (req, res) => {
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.symbol
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
@@ -146,7 +146,7 @@ router.get("/sell", async (req, res) => {
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.symbol
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
@@ -265,7 +265,7 @@ router.get("/recent", async (req, res) => {
         km.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.symbol
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
@@ -344,7 +344,7 @@ router.get("/", async (req, res) => {
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.symbol
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
@@ -366,7 +366,7 @@ router.get("/", async (req, res) => {
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN market_data md ON bs.symbol = md.symbol
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 

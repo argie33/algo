@@ -259,7 +259,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             END as performance_percent,
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
-          LEFT JOIN market_data md ON bs.symbol = md.ticker AND md.date = (SELECT MAX(date) FROM market_data WHERE symbol = md.symbol)
+          LEFT JOIN market_data md ON bs.symbol = md.ticker
           LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
           LEFT JOIN key_metrics km ON bs.symbol = km.ticker
           ${whereClause}
@@ -292,7 +292,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
-        LEFT JOIN market_data md ON bs.symbol = md.ticker AND md.date = (SELECT MAX(date) FROM market_data WHERE symbol = md.symbol)
+        LEFT JOIN market_data md ON bs.symbol = md.ticker
         LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
         LEFT JOIN key_metrics km ON bs.symbol = km.ticker
         ${whereClause}
@@ -590,7 +590,7 @@ router.get("/performance", async (req, res) => {
           END
         ) * 100.0 / COUNT(*)) as win_rate
       FROM buy_sell_daily bs
-      LEFT JOIN market_data md ON bs.symbol = md.ticker AND md.date = (SELECT MAX(date) FROM market_data WHERE symbol = md.symbol)
+      LEFT JOIN market_data md ON bs.symbol = md.ticker
       WHERE bs.date >= NOW() - INTERVAL '${days} days'
       GROUP BY signal
     `;

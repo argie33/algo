@@ -279,7 +279,15 @@ async function initializeSchema() {
     // Priority tables that should be created first
     const priorityTables = [
       "stock_symbols",
+      "market_data",
       "price_daily",
+      "company_profile",
+      "earnings_reports",
+      "fear_greed_index",
+      "aaii_sentiment",
+      "naaim",
+      "economic_data",
+      "comprehensive_scores",
       "user_api_keys",
       "portfolio_metadata",
       "portfolio_holdings",

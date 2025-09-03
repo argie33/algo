@@ -127,7 +127,7 @@ router.get("/", async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
@@ -150,7 +150,7 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (

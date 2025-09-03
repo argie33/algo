@@ -265,7 +265,7 @@ const OrderManagement = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, user]); // Remove all callback functions to prevent infinite loop
+  }, [isAuthenticated, user, navigate, fetchOrders, fetchAccountInfo, fetchPositions, fetchWatchlist, fetchOrderUpdates, fetchMarketData]);
 
   const handleSubmitOrder = async () => {
     try {

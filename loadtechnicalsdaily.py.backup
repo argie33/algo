@@ -50,31 +50,20 @@ DB_POOL_MAX = 2  # Minimal connections for 512MB memory constraint
 
 def get_db_config():
     """
-    Get database configuration - works in AWS and locally
+    Fetch host, port, dbname, username & password from Secrets Manager.
+    SecretString must be JSON with keys: username, password, host, port, dbname.
     """
-    # Check if we're in AWS (has DB_SECRET_ARN)
-    if os.environ.get("DB_SECRET_ARN"):
-        # AWS mode - use Secrets Manager
-        secret_str = boto3.client("secretsmanager").get_secret_value(
-            SecretId=os.environ["DB_SECRET_ARN"]
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"],
-        }
-    else:
-        # Local mode - use environment variables or defaults
-        return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", "5432")),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", "password"),
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-        }
+    client = boto3.client("secretsmanager")
+    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
+    sec = json.loads(resp["SecretString"])
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec["port"]),
+        sec["dbname"],
+    )
+
 
 def sanitize_value(x):
     if isinstance(x, float) and np.isnan(x):

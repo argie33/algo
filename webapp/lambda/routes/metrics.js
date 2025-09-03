@@ -127,7 +127,7 @@ router.get("/", async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol 
         AND qm.date = (
           SELECT MAX(date) 
@@ -160,7 +160,7 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol 
         AND qm.date = (
           SELECT MAX(date) 
@@ -486,7 +486,7 @@ router.get("/:symbol", async (req, res) => {
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
       LEFT JOIN stock_symbols ss ON qm.symbol = ss.symbol
       LEFT JOIN company_profile cp ON qm.symbol = cp.ticker
-      LEFT JOIN market_data md ON qm.symbol = md.symbol
+      LEFT JOIN market_data md ON qm.symbol = md.ticker
       LEFT JOIN key_metrics km ON qm.symbol = km.ticker
       WHERE qm.symbol = $1
       ORDER BY qm.date DESC

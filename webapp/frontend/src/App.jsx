@@ -88,7 +88,6 @@ import PortfolioPerformanceSimple from "./pages/PortfolioPerformanceSimple";
 import PortfolioPerformanceDebug from "./pages/PortfolioPerformanceDebug";
 import AuthTest from "./pages/AuthTest";
 import AIAssistant from "./pages/AIAssistant";
-import { createComponentLogger } from "./utils/errorLogger";
 
 const drawerWidth = 240;
 
@@ -512,15 +511,6 @@ function App() {
 
   console.log("🎯 APP COMPONENT: About to render JSX...");
   
-  } catch (error) {
-    console.error("🚨 APP COMPONENT ERROR:", error);
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
-        <Typography color="error">Application Error: {error.message}</Typography>
-      </Box>
-    );
-  }
-  
   return (
     <Box sx={{ display: "flex" }}>
       <AppBar
@@ -757,6 +747,15 @@ function App() {
       )}
     </Box>
   );
+  
+  } catch (error) {
+    console.error("🚨 APP COMPONENT ERROR:", error);
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+        <Typography color="error">Application Error: {error.message}</Typography>
+      </Box>
+    );
+  }
 }
 
 export default App;

@@ -252,31 +252,48 @@ router.get("/screen", async (req, res) => {
       orderBy = `ORDER BY ${dbField} ${sortOrder}`;
     }
 
-    // Simple working query with our actual table schema
+    // Real database query - no static fallbacks
     const mainQuery = `
       SELECT 
         s.symbol,
-        s.symbol || ' Inc.' as company_name,
-        COALESCE(cp.sector, 'Technology') as sector,
+        COALESCE(cp.company_name, s.name) as company_name,
+        cp.sector,
         s.exchange,
-        COALESCE(pd.close, 100.00) as price,
-        COALESCE(pd.volume, 1000000) as volume,
+        pd.close as price,
+        pd.volume,
         pd.date as price_date,
-        COALESCE(cp.market_cap, 1000000000) as market_cap,
-        25.0 as pe_ratio,
-        0.02 as dividend_yield,
-        1.0 as beta,
-        50 as factor_score,
-        'B' as factor_grade,
-        COALESCE(td.sma_20, 100.0) as sma_20,
-        COALESCE(td.sma_50, 100.0) as sma_50,
-        200.0 as sma_200,
-        5.0 as price_momentum_3m,
-        15.0 as price_momentum_12m,
-        0.0 as price_change_percent,
-        COALESCE(td.rsi, 50.0) as rsi,
-        COALESCE(td.macd, 0.0) as macd,
-        0.0 as macd_signal
+        cp.market_cap,
+        km.trailing_pe as pe_ratio,
+        km.dividend_yield,
+        sc.overall_score as factor_score,
+        CASE 
+          WHEN sc.overall_score >= 80 THEN 'A'
+          WHEN sc.overall_score >= 70 THEN 'B'  
+          WHEN sc.overall_score >= 60 THEN 'C'
+          WHEN sc.overall_score >= 50 THEN 'D'
+          ELSE 'F'
+        END as factor_grade,
+        td.sma_20,
+        td.sma_50,
+        td.sma_200,
+        CASE 
+          WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY s.symbol ORDER BY pd.date) 
+          THEN ((pd.close / LAG(pd.close, 63) OVER (PARTITION BY s.symbol ORDER BY pd.date)) - 1) * 100
+          ELSE NULL
+        END as price_momentum_3m,
+        CASE 
+          WHEN pd.close > LAG(pd.close, 252) OVER (PARTITION BY s.symbol ORDER BY pd.date)
+          THEN ((pd.close / LAG(pd.close, 252) OVER (PARTITION BY s.symbol ORDER BY pd.date)) - 1) * 100  
+          ELSE NULL
+        END as price_momentum_12m,
+        CASE
+          WHEN pd.close IS NOT NULL AND pd.close > 0 AND LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date) > 0
+          THEN ((pd.close - LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date)) / LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date)) * 100
+          ELSE 0
+        END as price_change_percent,
+        td.rsi,
+        td.macd,
+        td.macd_signal
       FROM stocks s
       LEFT JOIN company_profile cp ON s.symbol = cp.ticker
       LEFT JOIN (
@@ -284,22 +301,37 @@ router.get("/screen", async (req, res) => {
           symbol, date, close, volume, open, high, low
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
+          AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
-          symbol, rsi, macd, sma_20, sma_50
+          symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
+        WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
       ) td ON s.symbol = td.symbol
-      ${whereClause}
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker, trailing_pe, dividend_yield, peg_ratio, price_to_book
+        FROM key_metrics
+        ORDER BY ticker, created_at DESC
+      ) km ON s.symbol = km.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, overall_score
+        FROM stock_scores
+        ORDER BY symbol, date DESC
+      ) sc ON s.symbol = sc.symbol
+      WHERE pd.close IS NOT NULL AND pd.close > 0
+      ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     params.push(limit, offset);
 
-    // Simple count query matching main query structure
+    // Count query matching main query structure - real data only
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stocks s
@@ -309,15 +341,30 @@ router.get("/screen", async (req, res) => {
           symbol, date, close, volume, open, high, low
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
+          AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
-          symbol, rsi, macd, sma_20, sma_50
+          symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
+        WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
       ) td ON s.symbol = td.symbol
-      ${whereClause}
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker, trailing_pe, dividend_yield, peg_ratio, price_to_book
+        FROM key_metrics
+        ORDER BY ticker, created_at DESC
+      ) km ON s.symbol = km.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, overall_score
+        FROM stock_scores
+        ORDER BY symbol, date DESC
+      ) sc ON s.symbol = sc.symbol
+      WHERE pd.close IS NOT NULL AND pd.close > 0
+      ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
     `;
 
     // Execute queries

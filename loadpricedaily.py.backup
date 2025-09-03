@@ -68,32 +68,18 @@ COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
-    """
-    Get database configuration - works in AWS and locally
-    """
-    # Check if we're in AWS (has DB_SECRET_ARN)
-    if os.environ.get("DB_SECRET_ARN"):
-        # AWS mode - use Secrets Manager
-        secret_str = boto3.client("secretsmanager").get_secret_value(
-            SecretId=os.environ["DB_SECRET_ARN"]
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"],
-        }
-    else:
-        # Local mode - use environment variables or defaults
-        return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", "5432")),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", "password"),
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-        }
+    secret_str = boto3.client("secretsmanager").get_secret_value(
+        SecretId=os.environ["DB_SECRET_ARN"]
+    )["SecretString"]
+    sec = json.loads(secret_str)
+    return {
+        "host": sec["host"],
+        "port": int(sec.get("port", 5432)),
+        "user": sec["username"],
+        "password": sec["password"],
+        "dbname": sec["dbname"],
+    }
+
 
 # -------------------------------
 # Main loader with batched inserts

@@ -220,7 +220,7 @@ function TechnicalAnalysis() {
   // --- Accordion rendering for each row (fixed syntax, requirements met) ---
   const renderAccordionTable = () => (
     <Box sx={{ width: "100%" }}>
-      {(Array.isArray(technicalData?.data) ? technicalData?.data : []).map(
+      {(Array.isArray(technicalData?.data) ? technicalData.data : []).map(
         (row, idx) => (
           <Accordion
             key={row.symbol + "-" + row.date + "-" + idx}
@@ -604,7 +604,7 @@ function TechnicalAnalysis() {
             </Box>
           ) : (
             <>
-              {(Array.isArray(technicalData?.data) ? technicalData?.data : [])
+              {(Array.isArray(technicalData?.data) ? technicalData.data : [])
                 .length === 0 ? (
                 <Alert severity="warning" sx={{ mb: 2 }}>
                   No technical data found.

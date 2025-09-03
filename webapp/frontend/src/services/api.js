@@ -570,8 +570,8 @@ export const getMarketOverview = async () => {
   console.log("📈 [API] Axios baseURL:", api.defaults.baseURL);
 
   try {
-    // Use the correct endpoint for our API
-    const endpoints = ["/api/market/overview"];
+    // Use the correct endpoint for our API  
+    const endpoints = ["/api/dashboard/summary"];
     let response = null;
     let lastError = null;
 

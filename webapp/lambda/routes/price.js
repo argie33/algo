@@ -28,6 +28,60 @@ router.get("/ping", (req, res) => {
   });
 });
 
+// Get current price for a symbol
+router.get("/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+    
+    console.log(`💰 Current price requested for ${symbolUpper}`);
+    
+    // Get latest price data
+    const result = await query(
+      `SELECT 
+        symbol, date, open, high, low, close, adj_close, volume
+       FROM price_daily 
+       WHERE symbol = $1 
+       ORDER BY date DESC 
+       LIMIT 1`,
+      [symbolUpper]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Price data not found",
+        message: `No price data available for symbol ${symbolUpper}`
+      });
+    }
+    
+    const priceData = result.rows[0];
+    
+    return res.success({
+      symbol: symbolUpper,
+      data: {
+        current_price: priceData.close,
+        open: priceData.open,
+        high: priceData.high,
+        low: priceData.low,
+        close: priceData.close,
+        adj_close: priceData.adj_close,
+        volume: priceData.volume,
+        date: priceData.date
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(`Price error for ${req.params.symbol}:`, error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch price data",
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Main price history endpoint - timeframe-based (daily, weekly, monthly)
 router.get("/history/:timeframe", async (req, res) => {
   const { timeframe } = req.params;
@@ -109,10 +163,10 @@ router.get("/history/:timeframe", async (req, res) => {
       SELECT 
         symbol,
         date,
-        open_price as open,
-        high_price as high,
-        low_price as low,
-        close_price as close,
+        open,
+        high,
+        low,
+        close,
         volume,
         adj_close_price as adj_close
       FROM ${tableName}
@@ -231,10 +285,10 @@ router.get("/latest/:symbol", async (req, res) => {
       SELECT 
         symbol,
         date,
-        open_price as open,
-        high_price as high,
-        low_price as low,
-        close_price as close,
+        open,
+        high,
+        low,
+        close,
         volume,
         adj_close_price as adj_close
       FROM ${tableName}

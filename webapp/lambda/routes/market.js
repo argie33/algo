@@ -47,9 +47,79 @@ router.get("/", (req, res) => {
       "/indicators",
       "/sentiment",
       "/correlation",
+      "/data",
     ],
     timestamp: new Date().toISOString(),
   });
+});
+
+// Market data endpoint
+router.get("/data", async (req, res) => {
+  try {
+    console.log("📊 Market data endpoint called");
+    
+    // Check required tables
+    const requiredTables = ["market_data", "stocks"];
+    const tableStatus = await checkRequiredTables(requiredTables);
+    
+    if (!tableStatus.market_data && !tableStatus.stocks) {
+      return res.status(503).json({
+        success: false,
+        error: "Market data tables not available",
+        tables_checked: tableStatus,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get basic market data from available tables
+    let marketData = [];
+    
+    if (tableStatus.market_data) {
+      const marketResult = await query(`
+        SELECT ticker as symbol, current_price, 
+               day_high, day_low, open_price,
+               previous_close,
+               (current_price - previous_close) as change_amount,
+               CASE WHEN previous_close > 0 
+                    THEN ((current_price - previous_close) / previous_close) * 100 
+                    ELSE 0 END as change_percent
+        FROM market_data 
+        WHERE current_price IS NOT NULL
+        ORDER BY current_price DESC 
+        LIMIT 50
+      `);
+      marketData = marketResult.rows || [];
+    } else if (tableStatus.stocks) {
+      // Fallback to stocks table
+      const stocksResult = await query(`
+        SELECT symbol, current_price, volume, 
+               change_amount, change_percent
+        FROM stocks 
+        WHERE current_price IS NOT NULL
+        ORDER BY volume DESC NULLS LAST
+        LIMIT 50
+      `);
+      marketData = stocksResult.rows || [];
+    }
+
+    return res.success({
+      data: marketData,
+      metadata: {
+        source: tableStatus.market_data ? "market_data" : "stocks", 
+        count: marketData.length,
+        tables_available: tableStatus
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Market data error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch market data",
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Market summary endpoint

@@ -28,7 +28,7 @@ router.get("/daily/:symbol", async (req, res) => {
     // Get technical indicators from database
     const result = await query(
       `
-      SELECT * FROM technical_data_daily 
+      SELECT * FROM technicals_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
       LIMIT 30
@@ -81,7 +81,7 @@ router.get("/indicators", async (req, res) => {
           sma_20, sma_50, sma_200,
           bbands_upper, bbands_middle, bbands_lower,
           ema_4, ema_9, ema_21, atr
-        FROM technical_data_daily 
+        FROM technicals_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
         LIMIT $2
@@ -120,7 +120,7 @@ router.get("/indicators", async (req, res) => {
           sma_200,
           bbands_upper,
           bbands_lower
-        FROM technical_data_daily 
+        FROM technicals_daily 
         ORDER BY symbol, date DESC
         LIMIT $1
       `;
@@ -198,7 +198,7 @@ router.get("/chart", async (req, res) => {
     const dataPoints = Math.min(parseInt(limit), days);
 
     // Query database for real technical chart data - no data generation
-    const tableName = `technical_data_${timeframe}`;
+    const tableName = `technicals_${timeframe}`;
     
     // Build columns to select based on requested indicators
     let indicatorColumns = '';
@@ -336,10 +336,10 @@ router.get("/screener", async (req, res) => {
     const screenQuery = `
       SELECT t.symbol, p.close as price, t.rsi, p.volume, 
              t.sma_50, t.sma_200, s.sector, s.market_cap, s.pe_ratio
-      FROM technical_data_daily t
+      FROM technicals_daily t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       LEFT JOIN stocks s ON t.symbol = s.symbol
-      WHERE t.date = (SELECT MAX(date) FROM technical_data_daily)
+      WHERE t.date = (SELECT MAX(date) FROM technicals_daily)
         AND t.rsi BETWEEN $1 AND $2
         AND p.close BETWEEN $3 AND $4  
         AND p.volume >= $5
@@ -425,7 +425,7 @@ router.get("/analysis", async (req, res) => {
     // Get comprehensive technical analysis
     const result = await query(
       `
-      SELECT * FROM technical_data_daily 
+      SELECT * FROM technicals_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
       LIMIT 5
@@ -561,7 +561,7 @@ router.get("/:timeframe", async (req, res) => {
     }
 
     // Determine table name based on timeframe
-    const tableName = `technical_data_${timeframe}`;
+    const tableName = `technicals_${timeframe}`;
 
     // Check if table exists
     const tableExists = await query(
@@ -610,13 +610,13 @@ router.get("/:timeframe", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM ${tableName} t
-      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       ${whereClause}
     `;
     const countResult = await query(countQuery, params);
     const total = countResult && countResult.rows ? parseInt(countResult.rows[0].total) : 0;
 
-    // Get technical data
+    // Get technical data - map column names from technicals_daily table
     const dataQuery = `
       SELECT 
         t.symbol,
@@ -629,37 +629,23 @@ router.get("/:timeframe", async (req, res) => {
         t.rsi,
         t.macd,
         t.macd_signal,
-        t.macd_hist,
-        t.sma_10,
+        t.macd_histogram as macd_hist,
         t.sma_20,
         t.sma_50,
-        t.sma_150,
         t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
-        t.bbands_upper,
-        t.bbands_lower,
-        t.bbands_middle,
+        t.ema_12 as ema_4,
+        t.ema_26 as ema_9,
+        t.bollinger_upper as bbands_upper,
+        t.bollinger_lower as bbands_lower,
+        t.bollinger_middle as bbands_middle,
         t.adx,
-        t.plus_di,
-        t.minus_di,
         t.atr,
-        t.mfi,
-        t.roc,
-        t.mom,
-        t.ad,
-        t.cmf,
-        t.td_sequential,
-        t.td_combo,
-        t.marketwatch,
-        t.dm,
-        t.pivot_high,
-        t.pivot_low,
-        t.pivot_high_triggered,
-        t.pivot_low_triggered
+        t.stochastic_k,
+        t.stochastic_d,
+        t.williams_r,
+        t.cci
       FROM ${tableName} t
-      JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       ${whereClause.replace('WHERE 1=1', 'WHERE 1=1')}
       ORDER BY t.date DESC, t.symbol
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -752,7 +738,7 @@ router.get("/:timeframe/summary", async (req, res) => {
   // console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
 
   try {
-    const tableName = `technical_data_${timeframe}`;
+    const tableName = `technicals_${timeframe}`;
 
     // Check if table exists
     const tableExists = await query(
@@ -856,7 +842,7 @@ router.get("/", async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(", ")}, got: ${timeframe}`,
       });
     }
-    const tableName = `technical_data_${timeframe}`;
+    const tableName = `technicals_${timeframe}`;
 
     // Check if table exists
     const tableExists = await query(
@@ -921,7 +907,7 @@ router.get("/data/:symbol", async (req, res) => {
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'technical_data_daily'
+        AND table_name = 'technicals_daily'
       );
     `,
       []
@@ -935,7 +921,7 @@ router.get("/data/:symbol", async (req, res) => {
         symbol: symbol.toUpperCase(),
         error: "No technical data table available",
         troubleshooting: {
-          "Database Connection": "Verify technical_data_daily table exists",
+          "Database Connection": "Verify technicals_daily table exists",
           "Data Population": "Check if technical data has been populated for this symbol",
           "Symbol Validation": "Ensure symbol is valid and active"
         }
@@ -971,7 +957,7 @@ router.get("/data/:symbol", async (req, res) => {
         t.mfi,
         t.roc,
         t.mom
-      FROM technical_data_daily t
+      FROM technicals_daily t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       WHERE t.symbol = $1
       ORDER BY t.date DESC
@@ -1003,7 +989,7 @@ router.get("/data/:symbol", async (req, res) => {
       error: error.message,
       troubleshooting: {
         "Database Connection": "Check database connectivity",
-        "Query Execution": "Verify technical_data_daily table and data integrity",
+        "Query Execution": "Verify technicals_daily table and data integrity",
         "Symbol Data": `Ensure technical data exists for symbol: ${symbol}`,
         "Error Details": error.message
       }
@@ -1023,7 +1009,7 @@ router.get("/indicators/:symbol", async (req, res) => {
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'technical_data_daily'
+        AND table_name = 'technicals_daily'
       );
     `,
       []
@@ -1062,7 +1048,7 @@ router.get("/indicators/:symbol", async (req, res) => {
         mfi,
         roc,
         mom
-      FROM technical_data_daily
+      FROM technicals_daily
       WHERE symbol = $1
       ORDER BY date DESC
       LIMIT 30
@@ -1109,7 +1095,7 @@ router.get("/history/:symbol", async (req, res) => {
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'technical_data_daily'
+        AND table_name = 'technicals_daily'
       );
     `,
       []
@@ -1153,7 +1139,7 @@ router.get("/history/:symbol", async (req, res) => {
         t.mfi,
         t.roc,
         t.mom
-      FROM technical_data_daily t
+      FROM technicals_daily t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       WHERE t.symbol = $1
         AND t.date >= CURRENT_DATE - INTERVAL '${days} days'
@@ -1202,7 +1188,7 @@ router.get("/support-resistance/:symbol", async (req, res) => {
       });
     }
 
-    const tableName = `technical_data_${timeframe}`;
+    const tableName = `technicals_${timeframe}`;
 
     // Check if table exists
     const tableExists = await query(
@@ -1364,7 +1350,7 @@ router.get("/data", async (req, res) => {
       });
     }
 
-    const tableName = `technical_data_${timeframe}`;
+    const tableName = `technicals_${timeframe}`;
 
     // Check if table exists
     const tableExists = await query(
@@ -1397,7 +1383,7 @@ router.get("/data", async (req, res) => {
         troubleshooting: {
           "Database Connection": "Verify technical data tables exist",
           "Data Population": "Check if technical data has been loaded",
-          "Table Schema": `Expected table: technical_data_${timeframe}`,
+          "Table Schema": `Expected table: technicals_${timeframe}`,
           "Supported Timeframes": "daily, weekly, monthly"
         }
       });
@@ -1716,7 +1702,7 @@ async function analyzePatterns(symbol, timeframe, limit) {
 async function getPriceDataForPatterns(symbol, _timeframe) {
   try {
     // Try to get real price data
-    const tableName = "technical_data_daily";
+    const tableName = "technicals_daily";
     const priceQuery = `
       SELECT p.close, p.high, p.low, t.date
       FROM ${tableName} t

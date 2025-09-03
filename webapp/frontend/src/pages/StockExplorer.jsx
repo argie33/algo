@@ -37,7 +37,6 @@ import {
   TablePagination,
   TableRow,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -393,6 +392,23 @@ function StockExplorer() {
     }
   }
 
+  // Deduplicate stocks list to prevent React key warnings
+  // Use Map to keep only the first occurrence of each symbol
+  const uniqueStocksMap = new Map();
+  stocksList.forEach((stock) => {
+    if (stock?.symbol && !uniqueStocksMap.has(stock.symbol)) {
+      uniqueStocksMap.set(stock.symbol, stock);
+    }
+  });
+  stocksList = Array.from(uniqueStocksMap.values());
+
+  // Log deduplication info for debugging
+  const originalCount = stocksData?.data?.length || 0;
+  const deduplicatedCount = stocksList.length;
+  if (originalCount !== deduplicatedCount) {
+    console.warn(`StockExplorer: Deduplicated ${originalCount - deduplicatedCount} duplicate stock symbols. Original: ${originalCount}, After deduplication: ${deduplicatedCount}`);
+  }
+
   const _renderRangeFilter = (
     label,
     minKey,
@@ -738,9 +754,9 @@ function StockExplorer() {
                 <>
                   {/* Accordion Display */}
                   <Box sx={{ width: "100%" }}>
-                    {(stocksList || []).map((stock) => (
+                    {(stocksList || []).map((stock, index) => (
                       <Accordion
-                        key={stock.symbol}
+                        key={stock.symbol || `stock-${index}`}
                         expanded={expandedStock === stock.symbol}
                         onChange={() => handleAccordionToggle(stock.symbol)}
                         sx={{ mb: 1 }}
@@ -1443,7 +1459,7 @@ function StockExplorer() {
                       <Box sx={{ width: "100%", height: 400 }}>
                         <ResponsiveContainer>
                           <AreaChart
-                            data={[...priceHistoryModal?.data].reverse()}
+                            data={[...(priceHistoryModal?.data || [])].reverse()}
                           >
                             <defs>
                               <linearGradient
@@ -1544,7 +1560,7 @@ function StockExplorer() {
                       </TableHead>
                       <TableBody>
                         {(priceHistoryModal.data || []).map((row, index) => (
-                          <TableRow key={index} hover>
+                          <TableRow key={`price-${priceHistoryModal.symbol}-${row.date || index}`} hover>
                             <TableCell>
                               {new Date(row.date).toLocaleDateString()}
                             </TableCell>

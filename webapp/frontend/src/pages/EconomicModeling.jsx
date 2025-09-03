@@ -77,7 +77,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 // Helper functions to safely format numeric values and prevent NaN errors
-const formatNumber = (value, decimals = 1, fallback = "N/A") => {
+const _formatNumber = (value, decimals = 1, fallback = "N/A") => {
   if (value === null || value === undefined || isNaN(value)) {
     return fallback;
   }

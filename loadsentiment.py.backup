@@ -71,12 +71,10 @@ def log_mem(stage: str):
 
 
 def get_db_config():
-    """
-    Get database configuration - works in AWS and locally
-    """
-    # Check if we're in AWS (has DB_SECRET_ARN)
-    if os.environ.get("DB_SECRET_ARN"):
-        # AWS mode - use Secrets Manager
+    """Get database configuration"""
+    try:
+        import boto3
+
         secret_str = boto3.client("secretsmanager").get_secret_value(
             SecretId=os.environ["DB_SECRET_ARN"]
         )["SecretString"]
@@ -88,15 +86,15 @@ def get_db_config():
             "password": sec["password"],
             "dbname": sec["dbname"],
         }
-    else:
-        # Local mode - use environment variables or defaults
+    except Exception:
         return {
             "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", "5432")),
+            "port": int(os.environ.get("DB_PORT", 5432)),
             "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", "password"),
+            "password": os.environ.get("DB_PASSWORD", ""),
             "dbname": os.environ.get("DB_NAME", "stocks"),
         }
+
 
 def safe_float(value, default=None):
     """Convert to float safely"""
