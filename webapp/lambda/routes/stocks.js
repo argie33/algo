@@ -17,27 +17,45 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("Sectors endpoint called (public)");
 
-    // Use robust query with proper error handling instead of fallback chains
+    // First check if company_profile table has any data
+    const countQuery = `SELECT COUNT(*) as count FROM company_profile LIMIT 1`;
+    const countResult = await query(countQuery);
+    
+    if (!countResult.rows[0] || parseInt(countResult.rows[0].count) === 0) {
+      console.log("📊 No data in company_profile table, returning default sectors");
+      return res.success({
+        data: [
+          { sector: "Technology", count: 0, avg_market_cap: null, company_count: 0 },
+          { sector: "Healthcare", count: 0, avg_market_cap: null, company_count: 0 },
+          { sector: "Financial Services", count: 0, avg_market_cap: null, company_count: 0 }
+        ],
+        message: "Default sectors (no data available)",
+        total: 3
+      });
+    }
+
+    // Use efficient query with proper error handling
     const sectorsQuery = `
       SELECT 
-        COALESCE(cp.sector, 'Unknown') as sector, 
+        COALESCE(sector, 'Unknown') as sector, 
         COUNT(*) as count,
-        AVG(CASE WHEN cp.market_cap > 0 THEN cp.market_cap END) as avg_market_cap,
-        COUNT(DISTINCT cp.ticker) as company_count
-      FROM company_profile cp
-      WHERE cp.sector IS NOT NULL AND cp.sector != 'Unknown'
-      GROUP BY cp.sector
+        AVG(CASE WHEN market_cap > 0 THEN market_cap END) as avg_market_cap,
+        COUNT(DISTINCT ticker) as company_count
+      FROM company_profile
+      WHERE sector IS NOT NULL AND sector != 'Unknown' AND sector != ''
+      GROUP BY sector
       ORDER BY count DESC
+      LIMIT 20
     `;
 
     let result;
     try {
-      // Add query timeout to prevent long waits
+      // Use shorter timeout since we know there's data
       const queryPromise = query(sectorsQuery);
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(
-          () => reject(new Error("Query timeout after 10 seconds")),
-          10000
+          () => reject(new Error("Query timeout after 5 seconds")),
+          5000
         )
       );
 
@@ -108,16 +126,19 @@ router.get("/sectors", async (req, res) => {
 
     // If no sectors found, provide helpful message about data loading
     if (sectors.length === 0) {
-      res.success({data: [],
+      return res.success({
+        data: [],
         message: "No sectors data available - check data loading process",
         recommendations: [
+          "Run stock symbols data loader to populate basic stock data",
+          "Check if ECS data loading tasks are completing successfully",
           "Verify database connectivity and schema",
           "Check that data has been populated",
         ],
         timestamp: new Date().toISOString(),
       });
     } else {
-      res.success({data: sectors,
+      return res.success(sectors, 200, {
         count: sectors.length,
         timestamp: new Date().toISOString(),
       });
@@ -226,10 +247,9 @@ router.get("/public/sample", async (req, res) => {
       throw dbError; // Re-throw to trigger proper error handling
     }
 
-    res.success({data: result.rows,
+    return res.success(result.rows, 200, {
       count: result.rows.length,
       endpoint: "public-sample",
-      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in public stocks sample endpoint:", error);
@@ -245,7 +265,7 @@ router.use(authenticateToken);
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res.success({
+  res.json({
     status: "ok",
     endpoint: "stocks",
     timestamp: new Date().toISOString(),
@@ -653,7 +673,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       },
     }));
 
-    res.success({performance:
+    res.json({performance:
         "COMPREHENSIVE DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores",
       data: formattedStocks,
       pagination: {
@@ -924,7 +944,7 @@ router.get("/screen", async (req, res) => {
     
     // Check for valid result
     if (!countResult || !countResult.rows) {
-      return res.success({
+      return res.json({
         message: "No stocks found matching criteria",
         data: { stocks: [] },
         pagination: { page: 1, limit: limit, total: 0, totalPages: 0 }
@@ -958,7 +978,7 @@ router.get("/screen", async (req, res) => {
 
     // Check for valid result
     if (!stocksResult || !stocksResult.rows) {
-      return res.success({
+      return res.json({
         message: "No stocks data available",
         data: { stocks: [] },
         pagination: { page: parseInt(page), limit: parseInt(limit), total: totalStocks, totalPages: 0 }
@@ -969,7 +989,7 @@ router.get("/screen", async (req, res) => {
       `✅ Retrieved ${stocksResult.rows.length} stocks out of ${totalStocks} total matching criteria`
     );
 
-    res.success({data: {
+    res.json({data: {
         stocks: stocksResult.rows,
         pagination: {
           page: parseInt(page),
@@ -1078,7 +1098,7 @@ router.get("/analysis", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
           symbol, close, open, volume, date
-        FROM stock_prices 
+        FROM price_daily 
         ORDER BY symbol, date DESC
       ) sp ON s.symbol = sp.symbol
       WHERE s.symbol = $1
@@ -1095,7 +1115,7 @@ router.get("/analysis", async (req, res) => {
 
     const stock = stockResult.rows[0];
 
-    res.success({
+    res.json({
       data: {
         basic_info: {
           symbol: stock.symbol,
@@ -1153,7 +1173,7 @@ router.get("/analysis/:symbol", async (req, res) => {
       // Technical indicators
       query(`
         SELECT rsi, macd, sma_20, sma_50, bollinger_upper, bollinger_lower
-        FROM technical_indicators 
+        FROM technical_data_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
         LIMIT 1
@@ -1325,7 +1345,7 @@ router.get("/recommendations", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
           symbol, close, open, volume, date
-        FROM stock_prices 
+        FROM price_daily 
         ORDER BY symbol, date DESC
       ) sp ON s.symbol = sp.symbol
       WHERE ${whereClause}
@@ -1348,7 +1368,7 @@ router.get("/recommendations", async (req, res) => {
       confidence_score: parseFloat(stock.confidence_score || 0)
     }));
 
-    res.success({
+    res.json({
       data: recommendations,
       total: recommendations.length,
       filters: {
@@ -1401,7 +1421,7 @@ router.get("/list", async (req, res) => {
       });
     }
     
-    res.success({
+    res.json({
       data: result.rows,
       count: result.rowCount,
       limit: limit
@@ -1509,7 +1529,7 @@ router.get("/:ticker", async (req, res) => {
       `✅ SIMPLIFIED: Successfully returned basic data for ${tickerUpper}`
     );
 
-    return res.success(response);
+    return res.json(response);
   } catch (error) {
     console.error("Error in simplified stock endpoint:", error);
     return res.error("Failed to fetch stock data", 500);
@@ -1557,7 +1577,7 @@ router.get("/:ticker/prices", async (req, res) => {
       console.log(
         `📦 Cache hit for ${symbol} (${Date.now() - cached.timestamp}ms old)`
       );
-      return res.success({
+      return res.json({
         ...cached.data,
         cached: true,
         cacheAge: Date.now() - cached.timestamp,
@@ -1895,7 +1915,7 @@ router.get("/:ticker/prices", async (req, res) => {
     console.log(
       `✅ ${symbol} prices fetched: ${prices.length} records in ${Date.now() - startTime}ms`
     );
-    return res.success(responseData);
+    return res.json(responseData);
   } catch (error) {
     console.error(`❌ Error fetching ${symbol} prices:`, error);
 
@@ -1906,7 +1926,7 @@ router.get("/:ticker/prices", async (req, res) => {
       ticker: symbol,
       requirements: [
         "Database connectivity must be available",
-        "price_daily or stock_prices tables must exist with data", 
+        "price_daily or price_daily tables must exist with data", 
         "Historical price data must be current (within acceptable time range)"
       ],
       retry_after: 30
@@ -1991,7 +2011,7 @@ router.get("/:ticker/prices/recent", async (req, res) => {
       `📊 [STOCKS] Successfully returning ${pricesWithChange.length} price records for ${ticker}`
     );
 
-    res.success({ticker: ticker.toUpperCase(),
+    res.json({ticker: ticker.toUpperCase(),
       dataPoints: result.rows.length,
       data: pricesWithChange,
       summary: {
@@ -2033,7 +2053,7 @@ router.get("/filters/sectors", async (req, res) => {
       return res.error("Failed to fetch stock exchanges", 500);
     }
 
-    return res.success({
+    return res.json({
       data: result.rows.map((row) => ({
         name: row.exchange,
         value: row.exchange,
@@ -2139,7 +2159,7 @@ router.get("/screen/stats", async (req, res) => {
     if (result && result.rows.length > 0) {
       const stats = result.rows[0];
 
-      res.success({data: {
+      res.json({data: {
           total_stocks: parseInt(stats.total_stocks) || 0,
           ranges: {
             market_cap: {
@@ -2217,5 +2237,6 @@ router.get("/screen/stats", async (req, res) => {
     }, 500);
   }
 });
+
 
 module.exports = router;
