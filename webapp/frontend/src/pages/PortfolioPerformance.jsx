@@ -131,65 +131,20 @@ const PortfolioPerformance = () => {
           setRiskMetrics(analyticsData.risk);
         }
       } catch (analyticsError) {
-        console.log("Analytics fetch failed, using mock data");
-        // Generate mock analytics data
+        console.log("Analytics fetch failed, setting empty data");
+        // Set empty data instead of mock data
         setAnalytics({
-          sectorPerformance: [
-            { sector: "Technology", return: 15.2 },
-            { sector: "Healthcare", return: 8.7 },
-            { sector: "Financials", return: 12.1 },
-          ],
-          holdingsPerformance: [
-            {
-              symbol: "AAPL",
-              name: "Apple Inc.",
-              weight: 28.5,
-              return: 13.1,
-              contribution: 3.7,
-              volatility: 25.2,
-              rating: 4,
-            },
-            {
-              symbol: "MSFT",
-              name: "Microsoft Corp.",
-              weight: 22.9,
-              return: 8.9,
-              contribution: 2.0,
-              volatility: 22.1,
-              rating: 5,
-            },
-            {
-              symbol: "GOOGL",
-              name: "Alphabet Inc.",
-              weight: 18.5,
-              return: 7.6,
-              contribution: 1.4,
-              volatility: 28.4,
-              rating: 4,
-            },
-          ],
+          sectorPerformance: [],
+          holdingsPerformance: [],
         });
 
         setAttributionData({
-          sectorAttribution: [
-            { name: "Technology", contribution: 5.8 },
-            { name: "Healthcare", contribution: 1.2 },
-            { name: "Financials", contribution: 2.1 },
-          ],
-          stockAttribution: [
-            { symbol: "AAPL", weight: 28.5, return: 13.1, contribution: 3.7 },
-            { symbol: "MSFT", weight: 22.9, return: 8.9, contribution: 2.0 },
-            { symbol: "GOOGL", weight: 18.5, return: 7.6, contribution: 1.4 },
-          ],
+          sectorAttribution: [],
+          stockAttribution: [],
         });
 
         setRiskMetrics({
-          rollingVolatility: Array.from({ length: 30 }, (_, i) => ({
-            date: new Date(Date.now() - (30 - i) * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
-            volatility: 18 + Math.random() * 8,
-          })),
+          rollingVolatility: [],
         });
       }
     } catch (err) {
@@ -430,7 +385,7 @@ const PortfolioPerformance = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={CustomTooltip} />
                 <Area
                   type="monotone"
                   dataKey="portfolioValue"
@@ -643,7 +598,7 @@ const PortfolioPerformance = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip content={<CustomTooltip />} />
+                      <Tooltip content={CustomTooltip} />
                       <Line
                         type="monotone"
                         dataKey="volatility"
@@ -677,7 +632,7 @@ const PortfolioPerformance = () => {
                     height={100}
                   />
                   <YAxis />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={CustomTooltip} />
                   <Bar dataKey="return" name="Return %" fill="#2196F3" />
                 </BarChart>
               </ResponsiveContainer>
