@@ -186,7 +186,7 @@ router.get("/analytics", async (req, res) => {
         ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector,
         COALESCE(cp.industry, 'Unknown') as industry,
-        COALESCE(cp.short_name, ph.symbol) as short_name
+        COALESCE(cp.name, ph.symbol) as short_name
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1 
@@ -607,7 +607,7 @@ router.get("/risk-metrics", async (req, res) => {
         ph.symbol, 
         ph.quantity, 
         ph.market_value,
-        COALESCE(ss.sector, 'Technology') as sector,
+        COALESCE(cp.sector, 'Technology') as sector,
         ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
@@ -970,7 +970,7 @@ router.get("/performance/analysis", async (req, res) => {
         ph.symbol, ph.quantity, ph.average_cost, ph.current_price, ph.market_value, 
         ph.unrealized_pnl as pnl, 
         ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
-        COALESCE(ss.sector, 'Technology') as sector, ph.last_updated
+        COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1
@@ -4203,7 +4203,7 @@ router.get("/watchlist", async (req, res) => {
     const watchlistQuery = `
       SELECT 
         ph.symbol,
-        COALESCE(cp.short_name, ph.symbol) as name,
+        COALESCE(cp.name, ph.symbol) as name,
         ph.current_price as price,
         0 as change,
         0 as change_percent
@@ -4248,7 +4248,7 @@ router.get("/allocation", async (req, res) => {
       SELECT 
         ph.symbol, ph.quantity, ph.market_value, ph.cost_basis,
         COALESCE(cp.sector, 'Unknown') as sector,
-        COALESCE(ss.industry, 'Unknown') as industry,
+        COALESCE(cp.industry, 'Unknown') as industry,
         CASE
           WHEN ph.symbol LIKE '%ETF' OR ph.symbol LIKE '%REIT' THEN 'ETF'
           WHEN ph.symbol IN ('BND', 'AGG', 'LQD', 'HYG', 'TLT') THEN 'Bond'
@@ -4444,7 +4444,7 @@ router.get("/value", async (req, res) => {
     const topHoldingsQuery = `
       SELECT 
         ph.symbol,
-        COALESCE(cp.short_name, ph.symbol) as name,
+        COALESCE(cp.name, ph.symbol) as name,
         ph.market_value as value,
         (ph.market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
