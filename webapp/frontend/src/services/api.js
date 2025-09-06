@@ -79,6 +79,7 @@ const api = axios.create({
   timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     "Content-Type": "application/json",
+    "Authorization": "Bearer dev-bypass-token", // Development authentication
   },
 });
 
@@ -95,6 +96,51 @@ export const getPortfolioData = async () => {
       message: error?.message || 'Unknown error',
       status: error.response?.status,
       statusText: error.response?.statusText
+    });
+    throw error;
+  }
+};
+
+export const getPortfolioHoldings = async (userId) => {
+  try {
+    const response = await api.get(`/api/portfolio/holdings?userId=${userId}`);
+    return response?.data || null;
+  } catch (error) {
+    console.error("Error fetching portfolio holdings:", {
+      message: error?.message || 'Unknown error',
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      userId
+    });
+    throw error;
+  }
+};
+
+export const getRiskAssessment = async (userId) => {
+  try {
+    const response = await api.get(`/api/portfolio/risk?userId=${userId}`);
+    return response?.data || null;
+  } catch (error) {
+    console.error("Error fetching risk assessment:", {
+      message: error?.message || 'Unknown error',
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      userId
+    });
+    throw error;
+  }
+};
+
+export const getFactorAnalysis = async (userId) => {
+  try {
+    const response = await api.get(`/api/portfolio/factors?userId=${userId}`);
+    return response?.data || null;
+  } catch (error) {
+    console.error("Error fetching factor analysis:", {
+      message: error?.message || 'Unknown error',
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      userId
     });
     throw error;
   }
@@ -147,7 +193,7 @@ export const deleteHolding = async (holdingId) => {
 
 export const importPortfolioFromBroker = async (broker) => {
   try {
-    const response = await api.post(`/api/portfolio/import/${broker}`);
+    const response = await api.post(`/portfolio/import/${broker}`);
     return response?.data;
   } catch (error) {
     console.error("Error importing portfolio from broker:", {
@@ -250,7 +296,7 @@ export const getRiskAnalysis = async () => {
 // API Keys management
 export const getApiKeys = async () => {
   try {
-    const response = await api.get("/api/settings/api-keys");
+    const response = await api.get("/portfolio/api-keys");
     return response?.data;
   } catch (error) {
     console.error("Error fetching API keys:", {
@@ -264,7 +310,7 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   try {
-    const response = await api.post("/api/settings/api-keys", apiKeyData);
+    const response = await api.post("/portfolio/api-keys", apiKeyData);
     return response?.data;
   } catch (error) {
     console.error("Error adding API key:", {
@@ -279,7 +325,7 @@ export const addApiKey = async (apiKeyData) => {
 export const updateApiKey = async (keyId, apiKeyData) => {
   try {
     const response = await api.put(
-      `/api/settings/api-keys/${keyId}`,
+      `/portfolio/api-keys/${keyId}`,
       apiKeyData
     );
     return response?.data;
@@ -295,7 +341,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
 
 export const deleteApiKey = async (keyId) => {
   try {
-    const response = await api.delete(`/api/settings/api-keys/${keyId}`);
+    const response = await api.delete(`/portfolio/api-keys/${keyId}`);
     return response?.data;
   } catch (error) {
     console.error("Error deleting API key:", {
@@ -546,7 +592,7 @@ function normalizeApiResponse(response, expectArray = true) {
 // --- PATCH: Log API config at startup ---
 console.log("🚀 [API STARTUP] Initializing API configuration...");
 console.log("🔧 [API CONFIG]", getApiConfig());
-console.log("📡 [AXIOS DEFAULT BASE URL]", api.defaults.baseURL);
+console.log("📡 [AXIOS DEFAULT BASE URL]", api?.defaults?.baseURL || 'undefined');
 
 // DISABLED: Test connection on startup (was causing maximum call stack exceeded)
 // setTimeout(async () => {

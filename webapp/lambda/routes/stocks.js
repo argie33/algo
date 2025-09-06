@@ -21,7 +21,7 @@ router.get("/sectors", async (req, res) => {
     const countQuery = `SELECT COUNT(*) as count FROM company_profile LIMIT 1`;
     const countResult = await query(countQuery);
     
-    if (!countResult.rows[0] || parseInt(countResult.rows[0].count) === 0) {
+    if (!countResult || !countResult.rows || !countResult.rows[0] || parseInt(countResult.rows[0].count) === 0) {
       console.log("📊 No data in company_profile table, returning default sectors");
       return res.success({
         data: [
@@ -342,7 +342,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
@@ -364,9 +364,9 @@ router.get("/", stocksListValidation, async (req, res) => {
     const validSortColumns = {
       ticker: "ss.symbol",
       symbol: "ss.symbol",
-      name: "ss.security_name",
+      name: "ss.name",
       exchange: "ss.exchange",
-      market_category: "'Standard'", // Default since column doesn't exist
+      type: "ss.type", // Use actual type column
     };
 
     const sortColumn = validSortColumns[sortBy] || "ss.symbol";
@@ -384,15 +384,15 @@ router.get("/", stocksListValidation, async (req, res) => {
       SELECT 
         -- Primary stock symbols data
         ss.symbol,
-        ss.security_name as company_name,
+        ss.name as company_name,
         ss.exchange,
-        ss.market_category,
-        ss.etf,
-        ss.cqs_symbol,
-        ss.test_issue,
-        ss.financial_status,
-        ss.round_lot_size,
-        ss.secondary_symbol,
+        ss.type as market_category,
+        ss.sector,
+        ss.industry,
+        ss.country,
+        ss.currency,
+        ss.market_cap,
+        ss.is_active,
         
         -- Additional stocks data when available (optional)
         s.sector,
@@ -643,9 +643,9 @@ router.get("/", stocksListValidation, async (req, res) => {
       displayData: {
         primaryExchange:
           stock.full_exchange_name || stock.exchange || "Unknown",
-        category: stock.market_category || "Standard",
-        type: stock.etf === "Y" ? "ETF" : "Stock",
-        tradeable: stock.financial_status !== "D" && stock.test_issue !== "Y",
+        category: stock.market_category || stock.type || "Standard",
+        type: stock.type || "Stock",
+        tradeable: stock.is_active === true,
         sector: stock.sector_disp || stock.sector || "Unknown",
         industry: stock.industry_disp || stock.industry || "Unknown",
 
@@ -699,12 +699,12 @@ router.get("/", stocksListValidation, async (req, res) => {
           "symbol",
           "security_name",
           "exchange",
-          "market_category",
-          "cqs_symbol",
-          "financial_status",
-          "etf",
-          "round_lot_size",
-          "test_issue",
+          "type",
+          "sector",
+          "industry",
+          "country",
+          "currency",
+          "is_active",
           "secondary_symbol",
 
           // Company profile data
@@ -1449,11 +1449,11 @@ router.get("/:ticker", async (req, res) => {
     const stockQuery = `
       SELECT 
         ss.symbol,
-        ss.security_name,
+        ss.name,
         ss.exchange,
-        ss.market_category,
-        ss.financial_status,
-        ss.etf,
+        ss.type as market_category,
+        ss.sector,
+        ss.industry,
         pd.date as latest_date,
         pd.open,
         pd.high,
