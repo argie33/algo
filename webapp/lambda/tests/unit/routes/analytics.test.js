@@ -148,7 +148,7 @@ describe('Analytics Routes Unit Tests', () => {
         .get('/analytics/performance');
 
       // Can return 200 with empty data or 503 for benchmark data issues
-      expect([200, 503]).toContain(response.status);
+      expect(response.status).toBe(200);
       
       if (response.status === 200) {
         expect(response.body).toHaveProperty('success', true);
@@ -218,7 +218,7 @@ describe('Analytics Routes Unit Tests', () => {
         .get('/analytics/correlation?symbol=AAPL');
 
       // With no holdings, should return 400 for insufficient holdings
-      expect([200, 400]).toContain(response.status);
+      expect(response.status).toBe(400);
       
       if (response.status === 400) {
         expect(response.body).toHaveProperty('success', false);
@@ -386,7 +386,7 @@ describe('Analytics Routes Unit Tests', () => {
         .post('/analytics/custom')
         .send({});
 
-      expect([400, 500]).toContain(response.status);
+      expect(response.status).toBe(500);
     });
   });
 
@@ -449,7 +449,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/performance');
 
-      expect([500, 503]).toContain(response.status);
+      expect(response.status).toBe(500);
       expect(response.body).toHaveProperty('success', false);
     });
 
@@ -459,7 +459,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/risk');
 
-      expect([500, 503]).toContain(response.status);
+      expect(response.status).toBe(500);
       expect(response.body).toHaveProperty('success', false);
     });
 
@@ -469,7 +469,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/allocation');
 
-      expect([200, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
   });
 
@@ -480,7 +480,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/overview?timeframe=invalid');
 
-      expect([200, 400, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
       // Should use default timeframe or handle error
     });
 
@@ -490,7 +490,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/returns?period=invalid');
 
-      expect([200, 400, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
       // Should use default period or handle error
     });
 
@@ -500,7 +500,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/correlation?symbol=');
 
-      expect([200, 400, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
   });
 
@@ -511,7 +511,7 @@ describe('Analytics Routes Unit Tests', () => {
       const response = await request(app)
         .get('/analytics/overview');
 
-      expect([200, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
       if (response.status === 200) {
         expect(response.body).toHaveProperty('success');
         expect(typeof response.body.success).toBe('boolean');
