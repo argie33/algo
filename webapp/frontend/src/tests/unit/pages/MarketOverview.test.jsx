@@ -323,7 +323,7 @@ describe('MarketOverview Page', () => {
         return Promise.resolve({ 
           data: Array.from({ length: 30 }, (_, i) => ({
             date: `2024-01-${String(i + 1).padStart(2, '0')}`,
-            value: 450 + Math.random() * 20,
+            value: 450 + (i % 20),
           }))
         });
       }
@@ -888,9 +888,9 @@ describe('MarketOverview Page', () => {
       const largeMovers = {
         gainers: Array.from({ length: 100 }, (_, i) => ({
           symbol: `STOCK${i}`,
-          change: Math.random() * 10,
-          changePercent: Math.random() * 5,
-          price: 100 + Math.random() * 100,
+          change: (i % 10) + 1,
+          changePercent: (i % 5) + 0.5,
+          price: 100 + (i % 100),
         })),
         losers: [],
       };

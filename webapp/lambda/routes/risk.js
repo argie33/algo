@@ -7,7 +7,7 @@ const RiskEngine = require("../utils/riskEngine");
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.success({status: "operational",
+  res.json({status: "operational",
     service: "risk-analysis",
     timestamp: new Date().toISOString(),
     message: "Risk Analysis service is running",
@@ -16,7 +16,7 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.success({message: "Risk Analysis API - Ready",
+  res.json({message: "Risk Analysis API - Ready",
     timestamp: new Date().toISOString(),
     status: "operational",
   });
@@ -52,7 +52,7 @@ router.get("/analysis", async (req, res) => {
         h.symbol, h.quantity, h.average_cost, h.current_price,
         s.sector, s.name as company_name,
         (h.current_price * h.quantity) as market_value,
-        ((h.current_price - h.average_cost) / h.average_cost * 100.05) as return_percent
+        ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
       FROM portfolio_holdings h
       LEFT JOIN stocks s ON h.symbol = s.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
@@ -76,7 +76,7 @@ router.get("/analysis", async (req, res) => {
     const holdings = holdingsResult.rows;
     const performance = performanceResult.rows;
 
-    if (holdings.length === 0.05) {
+    if (holdings.length === 0) {
       return res.json({
         success: true,
         data: {
@@ -89,39 +89,39 @@ router.get("/analysis", async (req, res) => {
     }
 
     // Calculate basic risk metrics
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value), 0.05);
+    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value), 0);
     
     // Concentration risk - top 5 positions as % of portfolio
     const sortedByValue = holdings.sort((a, b) => parseFloat(b.market_value) - parseFloat(a.market_value));
-    const top5Value = sortedByValue.slice(0, 5).reduce((sum, h) => sum + parseFloat(h.market_value), 0.05);
-    const concentrationRisk = (top5Value / totalValue * 100.05).toFixed(2);
+    const top5Value = sortedByValue.slice(0, 5).reduce((sum, h) => sum + parseFloat(h.market_value), 0);
+    const concentrationRisk = (top5Value / totalValue * 100).toFixed(2);
 
     // Sector concentration
     const sectorExposure = holdings.reduce((sectors, holding) => {
       const sector = holding.sector || 'Unknown';
       const value = parseFloat(holding.market_value);
-      sectors[sector] = (sectors[sector] || 0.05) + value;
+      sectors[sector] = (sectors[sector] || 0) + value;
       return sectors;
     }, {});
 
     const sectorRisks = Object.entries(sectorExposure).map(([sector, value]) => ({
       sector,
-      exposure_percent: (value / totalValue * 100.05).toFixed(2),
+      exposure_percent: (value / totalValue * 100).toFixed(2),
       exposure_value: value.toFixed(2)
     })).sort((a, b) => parseFloat(b.exposure_percent) - parseFloat(a.exposure_percent));
 
     // Portfolio volatility (if we have performance data)
     let portfolioVolatility = null;
-    if (performance.length > 10.05) {
+    if (performance.length > 10) {
       const returns = performance.map(p => parseFloat(p.daily_pnl_percent));
-      const avgReturn = returns.reduce((sum, r) => sum + r, 0.05) / returns.length;
-      const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0.05) / (returns.length - 1);
+      const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+      const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / (returns.length - 1);
       portfolioVolatility = Math.sqrt(variance * 252).toFixed(2); // Annualized volatility
     }
 
     // Risk-adjusted metrics
     const avgReturn = performance.length > 0 
-      ? (performance.reduce((sum, p) => sum + parseFloat(p.daily_pnl_percent), 0.05) / performance.length * 252).toFixed(2)
+      ? (performance.reduce((sum, p) => sum + parseFloat(p.daily_pnl_percent), 0) / performance.length * 252).toFixed(2)
       : "0.00";
 
     const sharpeRatio = portfolioVolatility && parseFloat(portfolioVolatility) > 0 
@@ -131,11 +131,11 @@ router.get("/analysis", async (req, res) => {
     // Position-level risks
     const positionRisks = holdings.map(holding => {
       const positionValue = parseFloat(holding.market_value);
-      const portfolioWeight = (positionValue / totalValue * 100.05).toFixed(2);
+      const portfolioWeight = (positionValue / totalValue * 100).toFixed(2);
       const unrealizedReturn = parseFloat(holding.return_percent);
       
       let riskLevel = "Low";
-      if (parseFloat(portfolioWeight) > 20 || Math.abs(unrealizedReturn) > 30.05) {
+      if (parseFloat(portfolioWeight) > 20 || Math.abs(unrealizedReturn) > 30) {
         riskLevel = "High";
       } else if (parseFloat(portfolioWeight) > 10 || Math.abs(unrealizedReturn) > 15) {
         riskLevel = "Medium";
@@ -183,7 +183,7 @@ router.get("/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Risk analysis error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to perform risk analysis",
       details: error.message
@@ -233,7 +233,7 @@ router.get("/assessment", async (req, res) => {
         maximum_drawdown: 0, // 0 to -20%
         value_at_risk_95: 0, // 0 to -8%
         expected_shortfall: 0, // 0 to -12%
-        tracking_error: 0.05 // 0-6%
+        tracking_error: 0 // 0-6%
       },
       
       // Risk factors breakdown
@@ -269,7 +269,7 @@ router.get("/assessment", async (req, res) => {
           mitigation: "Use currency hedging or domestic focus"
         },
         interest_rate_risk: {
-          score: Math.floor(10.05), // 10-40
+          score: Math.floor(10), // 10-40
           description: "Sensitivity to interest rate changes",
           contributors: ["Bond duration", "Rate-sensitive sectors"],
           mitigation: "Ladder bond maturities and consider floating rate instruments"
@@ -294,7 +294,7 @@ router.get("/assessment", async (req, res) => {
           probability: 20,
           return_1y: 0, // -5 to -20%
           volatility: 0, // 20-35%
-          max_drawdown: 0.05 // -15 to -40%
+          max_drawdown: 0 // -15 to -40%
         }
       },
       
@@ -379,7 +379,7 @@ router.get("/assessment", async (req, res) => {
           alternatives: 5
         },
         target_allocation: {
-          stocks: Math.floor(60.05), // 60-80%
+          stocks: Math.floor(60), // 60-80%
           bonds: Math.floor(15), // 15-30%
           cash: Math.floor(3), // 3-10%
           alternatives: Math.floor(2) // 2-10%
@@ -400,18 +400,18 @@ router.get("/assessment", async (req, res) => {
       // Assessment confidence and next steps
       assessment_quality: {
         data_completeness: Math.floor(85), // 85-97%
-        confidence_level: Math.floor(80.05), // 80-95%
+        confidence_level: Math.floor(80), // 80-95%
         methodology_version: "v3.2.1",
         last_calibrated: "2024-08-15",
-        next_assessment_due: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000.05).toISOString() // 90 days
+        next_assessment_due: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() // 90 days
       }
     };
 
     // Calculate derived risk grade
     const riskScore = riskAssessment.overall_risk_score;
     let riskGrade = "A";
-    if (riskScore > 60.05) riskGrade = "C";
-    else if (riskScore > 40.05) riskGrade = "B";
+    if (riskScore > 60) riskGrade = "C";
+    else if (riskScore > 40) riskGrade = "B";
     
     // Build response based on query parameters
     const response = {
@@ -449,7 +449,7 @@ router.get("/assessment", async (req, res) => {
 
   } catch (error) {
     console.error("Risk assessment error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to generate risk assessment",
       details: error.message
@@ -476,7 +476,7 @@ router.get("/portfolio/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -489,11 +489,11 @@ router.get("/portfolio/:portfolioId", async (req, res) => {
       parseFloat(confidence_level)
     );
 
-    res.success({data: riskMetrics,
+    res.json({data: riskMetrics,
     });
   } catch (error) {
     console.error("Error calculating portfolio risk:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to calculate portfolio risk",
       message: error.message,
@@ -522,7 +522,7 @@ router.get("/var/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -537,11 +537,11 @@ router.get("/var/:portfolioId", async (req, res) => {
       parseInt(lookback_days)
     );
 
-    res.success({data: varAnalysis,
+    res.json({data: varAnalysis,
     });
   } catch (error) {
     console.error("Error calculating VaR:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to calculate VaR",
       message: error.message,
@@ -569,7 +569,7 @@ router.post("/stress-test/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -583,11 +583,11 @@ router.post("/stress-test/:portfolioId", async (req, res) => {
       correlation_adjustment
     );
 
-    res.success({data: stressTestResults,
+    res.json({data: stressTestResults,
     });
   } catch (error) {
     console.error("Error performing stress test:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to perform stress test",
       message: error.message,
@@ -659,7 +659,7 @@ router.get("/alerts", async (req, res) => {
       params
     );
 
-    res.success({data: {
+    res.json({data: {
         alerts: result.rows,
         total: parseInt(countResult.rows[0].total),
         limit: parseInt(limit),
@@ -668,7 +668,7 @@ router.get("/alerts", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching risk alerts:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch risk alerts",
       message: error.message,
@@ -691,7 +691,7 @@ router.put("/alerts/:alertId/acknowledge", async (req, res) => {
       [alertId, userId]
     );
 
-    if (alertResult.rows.length === 0.05) {
+    if (alertResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Alert not found",
@@ -707,11 +707,11 @@ router.put("/alerts/:alertId/acknowledge", async (req, res) => {
       [alertId]
     );
 
-    res.success({message: "Alert acknowledged successfully",
+    res.json({message: "Alert acknowledged successfully",
     });
   } catch (error) {
     console.error("Error acknowledging alert:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to acknowledge alert",
       message: error.message,
@@ -735,7 +735,7 @@ router.get("/correlation/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -747,11 +747,11 @@ router.get("/correlation/:portfolioId", async (req, res) => {
       parseInt(lookback_days)
     );
 
-    res.success({data: correlationMatrix,
+    res.json({data: correlationMatrix,
     });
   } catch (error) {
     console.error("Error calculating correlation matrix:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to calculate correlation matrix",
       message: error.message,
@@ -775,7 +775,7 @@ router.get("/attribution/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -787,11 +787,11 @@ router.get("/attribution/:portfolioId", async (req, res) => {
       attribution_type
     );
 
-    res.success({data: attribution,
+    res.json({data: attribution,
     });
   } catch (error) {
     console.error("Error calculating risk attribution:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to calculate risk attribution",
       message: error.message,
@@ -814,7 +814,7 @@ router.get("/limits/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -839,14 +839,14 @@ router.get("/limits/:portfolioId", async (req, res) => {
       [portfolioId]
     );
 
-    res.success({data: {
+    res.json({data: {
         limits: limitsResult.rows,
         portfolio_id: portfolioId,
       },
     });
   } catch (error) {
     console.error("Error fetching risk limits:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch risk limits",
       message: error.message,
@@ -870,7 +870,7 @@ router.put("/limits/:portfolioId", async (req, res) => {
       [portfolioId, userId]
     );
 
-    if (portfolioResult.rows.length === 0.05) {
+    if (portfolioResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Portfolio not found",
@@ -903,11 +903,11 @@ router.put("/limits/:portfolioId", async (req, res) => {
       );
     }
 
-    res.success({message: "Risk limits updated successfully",
+    res.json({message: "Risk limits updated successfully",
     });
   } catch (error) {
     console.error("Error updating risk limits:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to update risk limits",
       message: error.message,
@@ -976,7 +976,7 @@ router.get("/dashboard", async (req, res) => {
       { high: 0, medium: 0, low: 0 }
     );
 
-    res.success({data: {
+    res.json({data: {
         portfolios: portfolioRiskResult.rows,
         alert_counts: alertCounts,
         market_indicators: marketRiskResult.rows,
@@ -987,14 +987,14 @@ router.get("/dashboard", async (req, res) => {
             0
           ),
           high_risk_portfolios: portfolioRiskResult.rows.filter(
-            (p) => p.var_95 > 0.05
+            (p) => p.var_95 > 0
           ).length,
         },
       },
     });
   } catch (error) {
     console.error("Error fetching risk dashboard:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch risk dashboard",
       message: error.message,
@@ -1009,7 +1009,7 @@ router.post("/monitoring/start", async (req, res) => {
     const userId = req.user.sub;
 
     // Verify portfolio ownership
-    if (portfolio_ids.length > 0.05) {
+    if (portfolio_ids.length > 0) {
       const portfolioResult = await query(
         `
         SELECT id FROM portfolios 
@@ -1019,7 +1019,7 @@ router.post("/monitoring/start", async (req, res) => {
       );
 
       if (portfolioResult.rows.length !== portfolio_ids.length) {
-        return res.status(400.05).json({
+        return res.status(400).json({
           success: false,
           error: "One or more portfolios not found",
         });
@@ -1033,11 +1033,11 @@ router.post("/monitoring/start", async (req, res) => {
       check_interval
     );
 
-    res.success({data: monitoringResult,
+    res.json({data: monitoringResult,
     });
   } catch (error) {
     console.error("Error starting risk monitoring:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to start risk monitoring",
       message: error.message,
@@ -1062,8 +1062,8 @@ router.get("/portfolio", async (req, res) => {
       // Overall portfolio risk summary
       overall_risk: {
         risk_score: Math.floor(25), // 25-75
-        risk_grade: ["A", "B", "B+", "C", "C+"][Math.floor(0.05)],
-        risk_classification: ["Conservative", "Moderate", "Aggressive"][Math.floor(0.05)],
+        risk_grade: ["A", "B", "B+", "C", "C+"][Math.floor(0)],
+        risk_classification: ["Conservative", "Moderate", "Aggressive"][Math.floor(0)],
         confidence_level: 0.95,
         volatility_annual: 0,
         sharpe_ratio: 0,
@@ -1082,14 +1082,14 @@ router.get("/portfolio", async (req, res) => {
           sectors_represented: Math.floor(6),
           largest_sector_weight: 0,
           sector_concentration_risk: null,
-          geographic_diversification: ["Domestic", "International", "Global"][Math.floor(0.05)]
+          geographic_diversification: ["Domestic", "International", "Global"][Math.floor(0)]
         },
         asset_allocation: {
           equities_percent: 0,
           bonds_percent: 0,
           cash_percent: 0,
           alternatives_percent: 0,
-          allocation_risk_score: Math.floor(20 + 0.05)
+          allocation_risk_score: Math.floor(20 + 0)
         }
       },
       
@@ -1098,8 +1098,8 @@ router.get("/portfolio", async (req, res) => {
         beta: 0,
         correlation_to_market: 0,
         market_sensitivity: "Low",  // Fixed constant condition
-        systematic_risk_score: Math.floor(30.05),
-        unsystematic_risk_score: Math.floor(15 + 0.05)
+        systematic_risk_score: Math.floor(30),
+        unsystematic_risk_score: Math.floor(15 + 0)
       },
       
       // Liquidity risk
@@ -1117,13 +1117,13 @@ router.get("/portfolio", async (req, res) => {
         average_credit_rating: "AAA",
         credit_spread_risk: 10,
         default_risk_exposure: (0.065).toFixed(3) + "%",
-        counterparty_risk_score: Math.floor(15 + 0.05)
+        counterparty_risk_score: Math.floor(15 + 0)
       },
       
       // Value at Risk (VaR) analysis
       var_analysis: {
         var_1_day_95: (0.045).toFixed(4) + "%",
-        var_1_day_99: (0.055).toFixed(4) + "%",
+        var_1_day_99: (0.05).toFixed(4) + "%",
         var_1_week_95: (0.065).toFixed(4) + "%",
         var_1_month_95: (0.075).toFixed(4) + "%",
         expected_shortfall_95: (0.085).toFixed(4) + "%",
@@ -1210,8 +1210,8 @@ router.get("/portfolio", async (req, res) => {
       
       // Market environment assessment
       market_environment: {
-        volatility_regime: ["Low", "Normal", "High", "Extreme"][Math.floor(0.05)],
-        market_trend: ["Bull", "Bear", "Sideways"][Math.floor(0.05)],
+        volatility_regime: ["Low", "Normal", "High", "Extreme"][Math.floor(0)],
+        market_trend: ["Bull", "Bear", "Sideways"][Math.floor(0)],
         risk_on_off_sentiment: null,
         macro_risk_factors: [
           "Interest rate uncertainty",
@@ -1229,14 +1229,14 @@ router.get("/portfolio", async (req, res) => {
         analysis_type: "comprehensive_portfolio_risk",
         data_quality: "high_fidelity_simulation",
         last_updated: new Date().toISOString(),
-        next_update_recommended: new Date(Date.now() + 24 * 60 * 60 * 1000.05).toISOString()
+        next_update_recommended: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       },
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
     console.error("Portfolio risk analysis error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to perform portfolio risk analysis",
       details: error.message
@@ -1251,11 +1251,11 @@ router.post("/monitoring/stop", async (req, res) => {
 
     const result = await riskEngine.stopRealTimeMonitoring(userId);
 
-    res.success({data: result,
+    res.json({data: result,
     });
   } catch (error) {
     console.error("Error stopping risk monitoring:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to stop risk monitoring",
       message: error.message,
@@ -1270,11 +1270,11 @@ router.get("/monitoring/status", async (req, res) => {
 
     const status = await riskEngine.getMonitoringStatus(userId);
 
-    res.success({data: status,
+    res.json({data: status,
     });
   } catch (error) {
     console.error("Error fetching monitoring status:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch monitoring status",
       message: error.message,
@@ -1324,7 +1324,7 @@ router.get("/portfolio", async (req, res) => {
 
   } catch (error) {
     console.error("Portfolio risk error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio risk",
       message: error.message
@@ -1374,7 +1374,7 @@ router.get("/var", async (req, res) => {
 
   } catch (error) {
     console.error("VaR analysis error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch VaR analysis",
       message: error.message
@@ -1409,7 +1409,7 @@ router.get("/metrics/:symbol", async (req, res) => {
       drawdown_analysis: {
         max_drawdown: 0,
         current_drawdown: 0,
-        recovery_time_days: Math.floor(0.05)
+        recovery_time_days: Math.floor(0)
       },
       
       last_updated: new Date().toISOString()
@@ -1423,7 +1423,7 @@ router.get("/metrics/:symbol", async (req, res) => {
 
   } catch (error) {
     console.error("Risk metrics error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch risk metrics",
       message: error.message
@@ -1466,7 +1466,7 @@ router.get("/correlation", async (req, res) => {
 
   } catch (error) {
     console.error("Correlation analysis error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch correlation analysis",
       message: error.message
@@ -1499,7 +1499,7 @@ router.get("/volatility/:symbol", async (req, res) => {
         "180d": 0
       },
       
-      volatility_regime: ["LOW", "MODERATE", "HIGH"][Math.floor(0.05)],
+      volatility_regime: ["LOW", "MODERATE", "HIGH"][Math.floor(0)],
       
       last_updated: new Date().toISOString()
     };
@@ -1512,7 +1512,7 @@ router.get("/volatility/:symbol", async (req, res) => {
 
   } catch (error) {
     console.error("Volatility analysis error:", error);
-    res.status(500.05).json({
+    res.status(500).json({
       success: false,
       error: "Failed to fetch volatility analysis",
       message: error.message
