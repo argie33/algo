@@ -121,9 +121,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
 
       const response = await request(app).get("/trades/import/status");
 
-      // Route should handle missing services gracefully
-      expect(response.body).toHaveProperty("success");
-      expect([200, 400, 500]).toContain(response.status);
+      // Route should return 200 with empty broker status
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("brokerStatus");
     });
   });
 
@@ -144,9 +144,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
 
       const response = await request(app).get("/trades/import/status");
 
-      // Should handle errors gracefully with structured response
-      expect(response.body).toHaveProperty("success");
-      expect([400, 401, 500]).toContain(response.status);
+      // Should return 500 for database errors
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty("success", false);
     });
   });
 
@@ -159,9 +159,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
 
       const response = await request(app).get("/trades/import/status");
 
-      // Should return a structured error response
-      expect(response.body).toHaveProperty("success");
-      expect([400, 401, 500]).toContain(response.status);
+      // Should return 500 for database errors
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty("success", false);
     });
   });
 });

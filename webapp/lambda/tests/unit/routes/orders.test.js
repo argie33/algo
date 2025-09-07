@@ -265,8 +265,8 @@ describe("Orders Routes - Testing Your Actual Site", () => {
 
       const response = await request(app).get("/orders/");
 
-      // Should handle errors gracefully - may be 401, 500, or 200 with fallback
-      expect([200, 401, 500]).toContain(response.status);
+      // Should return 500 for database connection errors
+      expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success");
     });
 
@@ -280,8 +280,8 @@ describe("Orders Routes - Testing Your Actual Site", () => {
         limit: 25,
       });
 
-      // Should handle parameters appropriately
-      expect([200, 401]).toContain(response.status);
+      // Should return 200 with valid parameters and mocked data
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success");
     });
   });
