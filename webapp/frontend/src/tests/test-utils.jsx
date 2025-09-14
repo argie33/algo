@@ -47,7 +47,7 @@ export const TestWrapper = ({ children }) => {
   });
 
   if (!children) {
-    console.warn('TestWrapper received null/undefined children');
+    console.warn("TestWrapper received null/undefined children");
     return null;
   }
 
@@ -60,9 +60,7 @@ export const TestWrapper = ({ children }) => {
     >
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider>
-            {children}
-          </TestAuthProvider>
+          <TestAuthProvider>{children}</TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
@@ -71,46 +69,46 @@ export const TestWrapper = ({ children }) => {
 
 // Real authenticated provider that uses REAL authentication
 export const TestAuthProvider = ({ children, initialUser = null }) => {
-  const defaultUser = { 
-    id: 'test-user', 
-    email: 'test@example.com',
-    name: 'Test User'
+  const defaultUser = {
+    id: "test-user",
+    email: "test@example.com",
+    name: "Test User",
   };
   const mockAuthValue = {
     user: initialUser || defaultUser,
     isAuthenticated: true, // Always authenticated in tests
     isLoading: false,
-    tokens: { 
-      accessToken: 'dev-bypass-token',
-      refreshToken: 'dev-bypass-token'
+    tokens: {
+      accessToken: "dev-bypass-token",
+      refreshToken: "dev-bypass-token",
     },
     error: null,
     // These will call REAL authentication functions
     login: async (credentials) => {
-      console.log('🔐 Real login attempt:', credentials);
+      console.log("🔐 Real login attempt:", credentials);
       // Let real auth handle this
       return { success: true };
     },
     logout: async () => {
-      console.log('🔐 Real logout');
+      console.log("🔐 Real logout");
       // Let real auth handle this
     },
     register: async (userData) => {
-      console.log('🔐 Real registration:', userData);
+      console.log("🔐 Real registration:", userData);
       // Let real auth handle this
       return { success: true };
     },
     refreshSession: async () => {
-      console.log('🔐 Real session refresh');
+      console.log("🔐 Real session refresh");
       // Let real auth handle this
       return { success: true };
     },
     clearError: () => {
-      console.log('🔐 Real error clear');
+      console.log("🔐 Real error clear");
     },
     updateTokens: (tokens) => {
-      console.log('🔐 Real token update:', tokens);
-    }
+      console.log("🔐 Real token update:", tokens);
+    },
   };
 
   return (
@@ -152,10 +150,10 @@ export const renderWithAuth = (ui, options = {}) => {
     },
   });
 
-  const mockUser = options.user || { 
-    id: 'test-user', 
-    email: 'test@example.com',
-    name: 'Test User'
+  const mockUser = options.user || {
+    id: "test-user",
+    email: "test@example.com",
+    name: "Test User",
   };
 
   const AuthenticatedWrapper = ({ children }) => (
@@ -167,9 +165,7 @@ export const renderWithAuth = (ui, options = {}) => {
     >
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider initialUser={mockUser}>
-            {children}
-          </TestAuthProvider>
+          <TestAuthProvider initialUser={mockUser}>{children}</TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
@@ -183,11 +179,11 @@ export const renderWithAuth = (ui, options = {}) => {
 
 // Mock DOM methods that don't exist in jsdom
 // Mock scrollIntoView for components that use it
-Object.defineProperty(Element.prototype, 'scrollIntoView', {
-  value: function() {
+Object.defineProperty(Element.prototype, "scrollIntoView", {
+  value: function () {
     // Mock implementation - do nothing in tests
   },
-  writable: true
+  writable: true,
 });
 
 // Re-export commonly used testing utilities

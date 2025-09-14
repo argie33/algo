@@ -102,7 +102,7 @@ const PortfolioOptimization = () => {
 
   const fetchOptimizationData = async () => {
     // Skip API calls in test environment to prevent hanging
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
       setLoading(false);
       return;
     }
@@ -150,17 +150,21 @@ const PortfolioOptimization = () => {
         const recommendations = rebalanceData?.recommendations || [];
 
         // Transform recommendations to expected format
-        const transformedRecommendations = (recommendations || []).map((rec) => ({
-          symbol: rec.symbol,
-          currentWeight: rec.currentWeight || rec.current_weight || 0,
-          targetWeight:
-            rec.targetWeight || rec.target_weight || rec.optimalWeight || 0,
-          difference:
-            (rec.targetWeight || rec.target_weight || rec.optimalWeight || 0) -
-            (rec.currentWeight || rec.current_weight || 0),
-          action: rec.action || (rec.amount > 0 ? "BUY" : "SELL"),
-          priority: rec.priority || "MEDIUM",
-        }));
+        const transformedRecommendations = (recommendations || []).map(
+          (rec) => ({
+            symbol: rec.symbol,
+            currentWeight: rec.currentWeight || rec.current_weight || 0,
+            targetWeight:
+              rec.targetWeight || rec.target_weight || rec.optimalWeight || 0,
+            difference:
+              (rec.targetWeight ||
+                rec.target_weight ||
+                rec.optimalWeight ||
+                0) - (rec.currentWeight || rec.current_weight || 0),
+            action: rec.action || (rec.amount > 0 ? "BUY" : "SELL"),
+            priority: rec.priority || "MEDIUM",
+          })
+        );
 
         setRebalanceRecommendations(transformedRecommendations);
       } else {
@@ -226,7 +230,8 @@ const PortfolioOptimization = () => {
       }
     } catch (err) {
       setError("Failed to fetch optimization data");
-      if (import.meta.env && import.meta.env.DEV) console.error("Optimization data fetch error:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Optimization data fetch error:", err);
 
       // Set mock data on error
       setCurrentPortfolio({
@@ -298,7 +303,8 @@ const PortfolioOptimization = () => {
       }
     } catch (err) {
       setError("Failed to run portfolio optimization");
-      if (import.meta.env && import.meta.env.DEV) console.error("Optimization error:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Optimization error:", err);
 
       // Show mock optimization results
       const mockResults = {
@@ -659,7 +665,9 @@ const PortfolioOptimization = () => {
                             )
                           }
                           sx={{ mr: 1 }}
-                          disabled={activeStep === (optimizationSteps?.length || 0) - 1}
+                          disabled={
+                            activeStep === (optimizationSteps?.length || 0) - 1
+                          }
                         >
                           {activeStep === (optimizationSteps?.length || 0) - 1
                             ? "Complete"

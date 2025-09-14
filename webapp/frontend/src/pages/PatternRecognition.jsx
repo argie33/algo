@@ -51,11 +51,12 @@ const logger = {
     console.log(`[PatternRecognition] ${message}`, data);
   },
   error: (message, error, context) => {
-    if (import.meta.env && import.meta.env.DEV) console.error(`[PatternRecognition] ${message}`, {
-      error: error?.message || error,
-      stack: error?.stack,
-      context,
-    });
+    if (import.meta.env && import.meta.env.DEV)
+      console.error(`[PatternRecognition] ${message}`, {
+        error: error?.message || error,
+        stack: error?.stack,
+        context,
+      });
   },
   warn: (message, data) => {
     console.warn(`[PatternRecognition] ${message}`, data);
@@ -104,7 +105,7 @@ const PatternRecognition = () => {
     ],
     queryFn: async () => {
       logger.info("Fetching patterns data for multiple symbols", {
-        symbols: (defaultSymbols?.length || 0),
+        symbols: defaultSymbols?.length || 0,
         timeframe: selectedTimeframe,
         confidence: confidenceFilter,
         pattern: selectedPattern,
@@ -177,18 +178,18 @@ const PatternRecognition = () => {
         );
 
         logger.info("Successfully fetched and filtered patterns data", {
-          totalPatterns: (allPatterns?.length || 0),
-          filteredPatterns: (filteredPatterns?.length || 0),
-          symbols: (defaultSymbols?.length || 0),
+          totalPatterns: allPatterns?.length || 0,
+          filteredPatterns: filteredPatterns?.length || 0,
+          symbols: defaultSymbols?.length || 0,
         });
 
         return {
           success: true,
           data: filteredPatterns,
           metadata: {
-            totalPatterns: (allPatterns?.length || 0),
-            filteredPatterns: (filteredPatterns?.length || 0),
-            symbolsAnalyzed: (defaultSymbols?.length || 0),
+            totalPatterns: allPatterns?.length || 0,
+            filteredPatterns: filteredPatterns?.length || 0,
+            symbolsAnalyzed: defaultSymbols?.length || 0,
           },
         };
       } catch (fetchError) {
@@ -465,7 +466,7 @@ const PatternRecognition = () => {
         >
           <Tab
             value={0}
-            label={`Detected Patterns (${(patterns?.length || 0)})`}
+            label={`Detected Patterns (${patterns?.length || 0})`}
             icon={<Timeline />}
           />
           <Tab value={1} label="Bullish Signals" icon={<TrendingUp />} />
@@ -954,7 +955,10 @@ const PatternRecognition = () => {
                           ).length;
                           const percentage =
                             patterns.length > 0
-                              ? ((count / (patterns?.length || 0)) * 100).toFixed(1)
+                              ? (
+                                  (count / (patterns?.length || 0)) *
+                                  100
+                                ).toFixed(1)
                               : 0;
                           return (
                             <TableRow key={patternType}>

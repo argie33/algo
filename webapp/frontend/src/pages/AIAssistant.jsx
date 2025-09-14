@@ -16,24 +16,25 @@ const AIAssistant = () => {
         </Box>
 
         {/* Main Chat Interface */}
-        <Paper 
-          sx={{ 
+        <Paper
+          sx={{
             p: 0,
-            height: 'calc(100vh - 280px)',
-            minHeight: '600px',
-            overflow: 'hidden',
+            height: "calc(100vh - 280px)",
+            minHeight: "600px",
+            overflow: "hidden",
             borderRadius: 2,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
           }}
         >
           <EnhancedAIChat />
         </Paper>
 
         {/* Help Text */}
-        <Box sx={{ mt: 2, textAlign: 'center' }}>
+        <Box sx={{ mt: 2, textAlign: "center" }}>
           <Typography variant="body2" color="text.secondary">
-            Ask me anything about your portfolio, market analysis, investment strategies, or financial data.
-            I can help with technical analysis, market insights, and personalized investment guidance.
+            Ask me anything about your portfolio, market analysis, investment
+            strategies, or financial data. I can help with technical analysis,
+            market insights, and personalized investment guidance.
           </Typography>
         </Box>
       </Box>

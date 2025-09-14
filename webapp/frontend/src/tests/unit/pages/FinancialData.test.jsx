@@ -1,26 +1,26 @@
 /**
- * FinancialData Page Unit Tests  
+ * FinancialData Page Unit Tests
  * Tests the financial data analysis functionality - balance sheet, income statement, cash flow
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock import.meta.env BEFORE any imports
-Object.defineProperty(import.meta, 'env', {
+Object.defineProperty(import.meta, "env", {
   value: {
-    VITE_API_URL: 'http://localhost:3001',
-    MODE: 'test',
+    VITE_API_URL: "http://localhost:3001",
+    MODE: "test",
     DEV: true,
     PROD: false,
-    BASE_URL: '/'
+    BASE_URL: "/",
   },
   writable: true,
-  configurable: true
+  configurable: true,
 });
 
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import FinancialData from "../../../pages/FinancialData.jsx";
 
 // Create mock user function locally
@@ -54,7 +54,7 @@ vi.mock("../../../utils/errorLogger", () => ({
 }));
 
 // Mock API service with proper ES module support
-vi.mock('../../../services/api', () => {
+vi.mock("../../../services/api", () => {
   const mockApi = {
     get: vi.fn(() => Promise.resolve({ data: {} })),
     post: vi.fn(() => Promise.resolve({ data: {} })),
@@ -64,20 +64,20 @@ vi.mock('../../../services/api', () => {
     getKeyMetrics: vi.fn(),
     getStocks: vi.fn(),
   };
-  
+
   const mockGetApiConfig = vi.fn(() => ({
-    baseURL: 'http://localhost:3001',
-    apiUrl: 'http://localhost:3001',
-    environment: 'test',
+    baseURL: "http://localhost:3001",
+    apiUrl: "http://localhost:3001",
+    environment: "test",
     isDevelopment: true,
     isProduction: false,
-    baseUrl: '/',
+    baseUrl: "/",
   }));
 
   return {
     api: mockApi,
     getApiConfig: mockGetApiConfig,
-    default: mockApi
+    default: mockApi,
   };
 });
 
@@ -107,11 +107,10 @@ function renderFinancialData(props = {}) {
 }
 
 describe("FinancialData Component", () => {
-
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { api } = await import('../../../services/api');
-    
+    const { api } = await import("../../../services/api");
+
     // Setup default mocks
     api.getStocks.mockResolvedValue({
       success: true,
@@ -121,13 +120,13 @@ describe("FinancialData Component", () => {
 
   it("renders financial data page", async () => {
     renderFinancialData();
-    
+
     expect(screen.getByText(/financial data/i)).toBeInTheDocument();
   });
 
   it("displays stock search autocomplete", async () => {
     renderFinancialData();
-    
+
     await waitFor(() => {
       expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
@@ -135,7 +134,7 @@ describe("FinancialData Component", () => {
 
   it("displays financial statement tabs", () => {
     renderFinancialData();
-    
+
     expect(screen.getByText(/balance sheet/i)).toBeInTheDocument();
     expect(screen.getByText(/income statement/i)).toBeInTheDocument();
     expect(screen.getByText(/cash flow/i)).toBeInTheDocument();
@@ -143,22 +142,27 @@ describe("FinancialData Component", () => {
   });
 
   it("handles loading state", async () => {
-    const { api } = await import('../../../services/api');
+    const { api } = await import("../../../services/api");
     api.getStocks.mockImplementation(() => new Promise(() => {}));
-    
+
     renderFinancialData();
-    
-    expect(screen.getByRole("progressbar") || screen.getByText(/loading/i)).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("progressbar") || screen.getByText(/loading/i)
+    ).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
-    const { api } = await import('../../../services/api');
+    const { api } = await import("../../../services/api");
     api.getStocks.mockRejectedValue(new Error("API Error"));
-    
+
     renderFinancialData();
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/error|no data/i) || screen.getByText(/financial data/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/error|no data/i) ||
+          screen.getByText(/financial data/i)
+      ).toBeInTheDocument();
     });
   });
 });

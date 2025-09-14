@@ -32,14 +32,14 @@ describe("Authentication Flow Integration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Mock devAuth service
     mockDevAuth = {
       signIn: vi.fn(),
       signUp: vi.fn(),
       signOut: vi.fn(),
       getCurrentSession: vi.fn(),
-      isAuthenticated: vi.fn(() => false)
+      isAuthenticated: vi.fn(() => false),
     };
 
     // Apply mocks
@@ -57,26 +57,30 @@ describe("Authentication Flow Integration", () => {
         const context = React.useContext(AuthContext);
         return (
           <div data-testid="auth-context">
-            {context ? 'has-context' : 'no-context'}
+            {context ? "has-context" : "no-context"}
           </div>
         );
       };
 
       render(
         <TestWrapper>
-          <AuthContext.Provider value={{
-            user: null,
-            isAuthenticated: false,
-            loading: false,
-            signIn: mockDevAuth.signIn,
-            signOut: mockDevAuth.signOut
-          }}>
+          <AuthContext.Provider
+            value={{
+              user: null,
+              isAuthenticated: false,
+              loading: false,
+              signIn: mockDevAuth.signIn,
+              signOut: mockDevAuth.signOut,
+            }}
+          >
             <TestComponent />
           </AuthContext.Provider>
         </TestWrapper>
       );
 
-      expect(screen.getByTestId("auth-context")).toHaveTextContent("has-context");
+      expect(screen.getByTestId("auth-context")).toHaveTextContent(
+        "has-context"
+      );
     });
 
     it("should handle auth state changes", async () => {
@@ -85,7 +89,7 @@ describe("Authentication Flow Integration", () => {
         isAuthenticated: false,
         loading: false,
         signIn: mockDevAuth.signIn,
-        signOut: mockDevAuth.signOut
+        signOut: mockDevAuth.signOut,
       };
 
       const TestComponent = () => {
@@ -93,10 +97,10 @@ describe("Authentication Flow Integration", () => {
         return (
           <div>
             <div data-testid="auth-status">
-              {isAuthenticated ? 'authenticated' : 'not-authenticated'}
+              {isAuthenticated ? "authenticated" : "not-authenticated"}
             </div>
             <div data-testid="user-info">
-              {user ? user.username : 'no-user'}
+              {user ? user.username : "no-user"}
             </div>
           </div>
         );
@@ -110,14 +114,16 @@ describe("Authentication Flow Integration", () => {
         </TestWrapper>
       );
 
-      expect(screen.getByTestId("auth-status")).toHaveTextContent("not-authenticated");
+      expect(screen.getByTestId("auth-status")).toHaveTextContent(
+        "not-authenticated"
+      );
       expect(screen.getByTestId("user-info")).toHaveTextContent("no-user");
 
       // Update auth state
       authState = {
         ...authState,
         user: { username: "testuser" },
-        isAuthenticated: true
+        isAuthenticated: true,
       };
 
       rerender(
@@ -128,20 +134,22 @@ describe("Authentication Flow Integration", () => {
         </TestWrapper>
       );
 
-      expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+      expect(screen.getByTestId("auth-status")).toHaveTextContent(
+        "authenticated"
+      );
       expect(screen.getByTestId("user-info")).toHaveTextContent("testuser");
     });
 
     it("should call auth methods from context", async () => {
       const user = userEvent.setup();
-      
+
       mockDevAuth.signIn.mockResolvedValue({
-        user: { username: "testuser" }
+        user: { username: "testuser" },
       });
 
       const LoginButton = () => {
         const { signIn } = React.useContext(AuthContext);
-        
+
         const handleLogin = () => {
           signIn("test@example.com", "password123");
         };
@@ -155,13 +163,15 @@ describe("Authentication Flow Integration", () => {
 
       render(
         <TestWrapper>
-          <AuthContext.Provider value={{
-            user: null,
-            isAuthenticated: false,
-            loading: false,
-            signIn: mockDevAuth.signIn,
-            signOut: mockDevAuth.signOut
-          }}>
+          <AuthContext.Provider
+            value={{
+              user: null,
+              isAuthenticated: false,
+              loading: false,
+              signIn: mockDevAuth.signIn,
+              signOut: mockDevAuth.signOut,
+            }}
+          >
             <LoginButton />
           </AuthContext.Provider>
         </TestWrapper>
@@ -169,7 +179,10 @@ describe("Authentication Flow Integration", () => {
 
       await user.click(screen.getByTestId("login-btn"));
 
-      expect(mockDevAuth.signIn).toHaveBeenCalledWith("test@example.com", "password123");
+      expect(mockDevAuth.signIn).toHaveBeenCalledWith(
+        "test@example.com",
+        "password123"
+      );
     });
   });
 
@@ -177,21 +190,23 @@ describe("Authentication Flow Integration", () => {
     it("should render content for authenticated users", () => {
       const ProtectedContent = () => {
         const { isAuthenticated } = React.useContext(AuthContext);
-        
+
         if (!isAuthenticated) {
           return <div data-testid="login-required">Please login</div>;
         }
-        
+
         return <div data-testid="protected-content">Protected Content</div>;
       };
 
       render(
         <TestWrapper>
-          <AuthContext.Provider value={{
-            user: { username: "testuser" },
-            isAuthenticated: true,
-            loading: false
-          }}>
+          <AuthContext.Provider
+            value={{
+              user: { username: "testuser" },
+              isAuthenticated: true,
+              loading: false,
+            }}
+          >
             <ProtectedContent />
           </AuthContext.Provider>
         </TestWrapper>
@@ -204,21 +219,23 @@ describe("Authentication Flow Integration", () => {
     it("should show login for unauthenticated users", () => {
       const ProtectedContent = () => {
         const { isAuthenticated } = React.useContext(AuthContext);
-        
+
         if (!isAuthenticated) {
           return <div data-testid="login-required">Please login</div>;
         }
-        
+
         return <div data-testid="protected-content">Protected Content</div>;
       };
 
       render(
         <TestWrapper>
-          <AuthContext.Provider value={{
-            user: null,
-            isAuthenticated: false,
-            loading: false
-          }}>
+          <AuthContext.Provider
+            value={{
+              user: null,
+              isAuthenticated: false,
+              loading: false,
+            }}
+          >
             <ProtectedContent />
           </AuthContext.Provider>
         </TestWrapper>
@@ -232,13 +249,13 @@ describe("Authentication Flow Integration", () => {
   describe("Error Handling Integration", () => {
     it("should handle auth service errors", async () => {
       const user = userEvent.setup();
-      
+
       mockDevAuth.signIn.mockRejectedValue(new Error("Invalid credentials"));
 
       const LoginWithError = () => {
         const { signIn } = React.useContext(AuthContext);
         const [error, setError] = React.useState(null);
-        
+
         const handleLogin = async () => {
           try {
             await signIn("invalid@example.com", "wrongpassword");
@@ -259,13 +276,15 @@ describe("Authentication Flow Integration", () => {
 
       render(
         <TestWrapper>
-          <AuthContext.Provider value={{
-            user: null,
-            isAuthenticated: false,
-            loading: false,
-            signIn: mockDevAuth.signIn,
-            signOut: mockDevAuth.signOut
-          }}>
+          <AuthContext.Provider
+            value={{
+              user: null,
+              isAuthenticated: false,
+              loading: false,
+              signIn: mockDevAuth.signIn,
+              signOut: mockDevAuth.signOut,
+            }}
+          >
             <LoginWithError />
           </AuthContext.Provider>
         </TestWrapper>
@@ -274,7 +293,9 @@ describe("Authentication Flow Integration", () => {
       await user.click(screen.getByTestId("login-btn"));
 
       await waitFor(() => {
-        expect(screen.getByTestId("error-message")).toHaveTextContent("Invalid credentials");
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Invalid credentials"
+        );
       });
     });
   });
@@ -282,19 +303,19 @@ describe("Authentication Flow Integration", () => {
   describe("Loading State Integration", () => {
     it("should handle loading states during auth operations", async () => {
       const user = userEvent.setup();
-      
+
       // Create a promise that we can control
       let resolveLogin;
       const loginPromise = new Promise((resolve) => {
         resolveLogin = resolve;
       });
-      
+
       mockDevAuth.signIn.mockReturnValue(loginPromise);
 
       const LoginWithLoading = () => {
         const { signIn } = React.useContext(AuthContext);
         const [loading, setLoading] = React.useState(false);
-        
+
         const handleLogin = async () => {
           setLoading(true);
           try {
@@ -306,12 +327,12 @@ describe("Authentication Flow Integration", () => {
 
         return (
           <div>
-            <button 
-              onClick={handleLogin} 
+            <button
+              onClick={handleLogin}
               disabled={loading}
               data-testid="login-btn"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? "Logging in..." : "Login"}
             </button>
           </div>
         );
@@ -319,13 +340,15 @@ describe("Authentication Flow Integration", () => {
 
       render(
         <TestWrapper>
-          <AuthContext.Provider value={{
-            user: null,
-            isAuthenticated: false,
-            loading: false,
-            signIn: mockDevAuth.signIn,
-            signOut: mockDevAuth.signOut
-          }}>
+          <AuthContext.Provider
+            value={{
+              user: null,
+              isAuthenticated: false,
+              loading: false,
+              signIn: mockDevAuth.signIn,
+              signOut: mockDevAuth.signOut,
+            }}
+          >
             <LoginWithLoading />
           </AuthContext.Provider>
         </TestWrapper>
@@ -335,7 +358,9 @@ describe("Authentication Flow Integration", () => {
       await user.click(screen.getByTestId("login-btn"));
 
       // Should show loading state
-      expect(screen.getByTestId("login-btn")).toHaveTextContent("Logging in...");
+      expect(screen.getByTestId("login-btn")).toHaveTextContent(
+        "Logging in..."
+      );
       expect(screen.getByTestId("login-btn")).toBeDisabled();
 
       // Resolve the login

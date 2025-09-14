@@ -482,7 +482,8 @@ const ScoresDashboard = () => {
           { symbol: "BRK.B", company_name: "Berkshire Hathaway Inc." },
         ]);
       } catch (error) {
-        if (import.meta.env && import.meta.env.DEV) console.error("Error loading stock options:", error);
+        if (import.meta.env && import.meta.env.DEV)
+          console.error("Error loading stock options:", error);
       }
     };
     loadStockOptions();
@@ -507,7 +508,8 @@ const ScoresDashboard = () => {
         setLoading(false);
       }, 1000);
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error loading scores:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error loading scores:", error);
       setLoading(false);
     }
   };
@@ -846,7 +848,7 @@ const ScoresDashboard = () => {
                         <IconButton
                           onClick={() => handleCategoryToggle(category.id)}
                           size="small"
-                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${category.title} category`}
+                          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${category.title} category`}
                         >
                           {isExpanded ? (
                             <ExpandMore />

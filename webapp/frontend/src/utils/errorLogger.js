@@ -11,41 +11,45 @@
  */
 const safeStringify = (obj, _maxDepth = 3) => {
   const seen = new WeakSet();
-  
-  return JSON.stringify(obj, (key, value) => {
-    if (value === null || value === undefined) return value;
-    
-    if (typeof value === 'function') {
-      return `[Function: ${value.name || 'anonymous'}]`;
-    }
-    
-    if (typeof value === 'object') {
-      if (seen.has(value)) {
-        return '[Circular Reference]';
+
+  return JSON.stringify(
+    obj,
+    (key, value) => {
+      if (value === null || value === undefined) return value;
+
+      if (typeof value === "function") {
+        return `[Function: ${value.name || "anonymous"}]`;
       }
-      seen.add(value);
-      
-      // Handle special objects safely
-      if (value instanceof Error) {
-        return {
-          name: value.name,
-          message: value.message,
-          stack: value.stack,
-          code: value.code
-        };
+
+      if (typeof value === "object") {
+        if (seen.has(value)) {
+          return "[Circular Reference]";
+        }
+        seen.add(value);
+
+        // Handle special objects safely
+        if (value instanceof Error) {
+          return {
+            name: value.name,
+            message: value.message,
+            stack: value.stack,
+            code: value.code,
+          };
+        }
+
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+
+        if (value instanceof Element) {
+          return `[Element: ${value.tagName}]`;
+        }
       }
-      
-      if (value instanceof Date) {
-        return value.toISOString();
-      }
-      
-      if (value instanceof Element) {
-        return `[Element: ${value.tagName}]`;
-      }
-    }
-    
-    return value;
-  }, 2);
+
+      return value;
+    },
+    2
+  );
 };
 
 /**
@@ -70,8 +74,10 @@ export const logApiError = (component, operation, error, context = {}) => {
 
     // Log additional context if provided (with safe stringification)
     if (context.url) console.log(`🌐 URL: ${context.url}`);
-    if (context.params) console.log(`📋 Params:`, safeStringify(context.params));
-    if (context.response) console.log(`📡 Response:`, safeStringify(context.response));
+    if (context.params)
+      console.log(`📋 Params:`, safeStringify(context.params));
+    if (context.response)
+      console.log(`📡 Response:`, safeStringify(context.response));
     if (context.status) console.log(`🚦 Status: ${context.status}`);
 
     // Log full error details safely (avoid circular references)
@@ -82,13 +88,13 @@ export const logApiError = (component, operation, error, context = {}) => {
         name: error?.name,
         message: error?.message,
         code: error?.code,
-        isAxiosError: error?.isAxiosError
+        isAxiosError: error?.isAxiosError,
       });
     }
-    
+
     console.log(`📚 Stack Trace:`, errorStack);
   }
-  
+
   // Additional axios error details if available (with safe stringification)
   if (error?.isAxiosError) {
     const axiosDetails = {
@@ -98,7 +104,7 @@ export const logApiError = (component, operation, error, context = {}) => {
       timeout: error.config?.timeout,
       status: error.response?.status,
       statusText: error.response?.statusText,
-      responseData: error.response?.data
+      responseData: error.response?.data,
     };
     if (import.meta.env && import.meta.env.DEV) {
       console.log(`🌐 Axios Error Details:`, safeStringify(axiosDetails));
@@ -114,7 +120,10 @@ export const logApiError = (component, operation, error, context = {}) => {
       context: safeStringify(context),
       timestamp,
     };
-    console.log(`❌ ${component} - ${operation} failed:`, safeStringify(simplifiedLog));
+    console.log(
+      `❌ ${component} - ${operation} failed:`,
+      safeStringify(simplifiedLog)
+    );
   }
 };
 
@@ -153,13 +162,16 @@ export const logApiSuccess = (
     operation,
     resultSize: result
       ? Array.isArray(result)
-        ? (result?.length || 0)
+        ? result?.length || 0
         : Object.keys(result).length
       : "N/A",
     context,
   };
   if (import.meta.env && import.meta.env.DEV) {
-    console.log(`✅ ${component} - ${operation} succeeded`, safeStringify(successLog));
+    console.log(
+      `✅ ${component} - ${operation} succeeded`,
+      safeStringify(successLog)
+    );
   }
 };
 
@@ -175,8 +187,10 @@ export const createComponentLogger = (component) => ({
     logQueryError(component, queryKey, error, context),
   success: (operation, result, context) =>
     logApiSuccess(component, operation, result, context),
-  info: (message, context) => 
-    import.meta.env && import.meta.env.DEV && console.log(`ℹ️ [${component}] ${message}`, context),
+  info: (message, context) =>
+    import.meta.env &&
+    import.meta.env.DEV &&
+    console.log(`ℹ️ [${component}] ${message}`, context),
 });
 
 export default {

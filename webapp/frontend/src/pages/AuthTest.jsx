@@ -128,7 +128,7 @@ const AuthTest = () => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Debug Log ({(debugInfo?.length || 0)} entries):
+            Debug Log ({debugInfo?.length || 0} entries):
           </Typography>
           <Box
             sx={{ maxHeight: 300, overflow: "auto", bgcolor: "grey.50", p: 1 }}

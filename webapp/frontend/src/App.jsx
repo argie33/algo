@@ -216,7 +216,6 @@ const menuItems = [
     premium: true,
   },
 
-
   // Tools Section
   {
     text: "Real-Time Data",
@@ -257,12 +256,11 @@ const menuItems = [
     category: "tools",
     premium: true,
   },
-
 ];
 
 function App() {
   console.log("🎯 APP COMPONENT: Starting App component render...");
-  
+
   // All hooks must be at the top level - not inside try-catch
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -275,25 +273,29 @@ function App() {
     research: false,
     tools: false,
   });
-  
+
   console.log("🎯 APP COMPONENT: State initialized");
-  
+
   const theme = useTheme();
   console.log("🎯 APP COMPONENT: Theme loaded:", theme ? "✅" : "❌");
-  
+
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   console.log("🎯 APP COMPONENT: isMobile:", isMobile);
-  
+
   console.log("🎯 APP COMPONENT: About to call useAuth...");
   const { isAuthenticated, user, logout } = useAuth();
-  console.log("🎯 APP COMPONENT: Auth state loaded - isAuthenticated:", isAuthenticated, "user:", user);
-  
+  console.log(
+    "🎯 APP COMPONENT: Auth state loaded - isAuthenticated:",
+    isAuthenticated,
+    "user:",
+    user
+  );
+
   const navigate = useNavigate();
   console.log("🎯 APP COMPONENT: Navigate loaded");
-  
+
   const location = useLocation();
   console.log("🎯 APP COMPONENT: Location loaded:", location?.pathname);
-  
 
   // Auto-close auth modal when user successfully authenticates
   useEffect(() => {
@@ -401,7 +403,7 @@ function App() {
                 <ListItem disablePadding>
                   <ListItemButton
                     onClick={() => handleSectionToggle(category)}
-                    aria-label={`${expandedSections[category] ? 'Collapse' : 'Expand'} ${sectionTitles[category]} section`}
+                    aria-label={`${expandedSections[category] ? "Collapse" : "Expand"} ${sectionTitles[category]} section`}
                     sx={{
                       py: 0.5,
                       "&:hover": { backgroundColor: "transparent" },
@@ -474,7 +476,7 @@ function App() {
   );
 
   console.log("🎯 APP COMPONENT: About to render JSX...");
-  
+
   return (
     <Box sx={{ display: "flex" }}>
       <AppBar
@@ -662,7 +664,6 @@ function App() {
 
       {/* Authentication Modal */}
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-
     </Box>
   );
 }

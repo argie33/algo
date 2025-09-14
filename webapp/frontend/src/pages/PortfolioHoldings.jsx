@@ -39,13 +39,7 @@ import {
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
 } from "recharts";
-import {
-  Add,
-  Delete,
-  Edit,
-  FilterList,
-  Refresh,
-} from "@mui/icons-material";
+import { Add, Delete, Edit, FilterList, Refresh } from "@mui/icons-material";
 import {
   getPortfolioHoldings,
   addHolding,
@@ -55,9 +49,9 @@ import {
 
 const PortfolioHoldings = () => {
   const { user, tokens } = useAuth();
-  
+
   useDocumentTitle("Portfolio Holdings");
-  
+
   // State management
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,19 +59,19 @@ const PortfolioHoldings = () => {
   // Portfolio data
   const [holdings, setHoldings] = useState([]);
   const [portfolioSummary, setPortfolioSummary] = useState(null);
-  
+
   // UI state
   const [orderBy, setOrderBy] = useState("marketValue");
   const [order, setOrder] = useState("desc");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeframe, setTimeframe] = useState("1Y");
-  
+
   // Dialogs
   const [addHoldingDialog, setAddHoldingDialog] = useState(false);
   const [editHoldingDialog, setEditHoldingDialog] = useState(false);
   const [selectedHolding, setSelectedHolding] = useState(null);
-  
+
   // Form state
   const [holdingForm, setHoldingForm] = useState({
     symbol: "",
@@ -88,12 +82,15 @@ const PortfolioHoldings = () => {
   // Load portfolio data
   const loadPortfolioData = useCallback(async () => {
     // Skip API calls in test environment to prevent hanging
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
       setLoading(false);
       return;
     }
 
-    if (!user?.userId && !user?.id || !tokens?.accessToken && !tokens?.access) {
+    if (
+      (!user?.userId && !user?.id) ||
+      (!tokens?.accessToken && !tokens?.access)
+    ) {
       setError("Authentication required");
       setLoading(false);
       return;
@@ -112,10 +109,9 @@ const PortfolioHoldings = () => {
       } else {
         throw new Error("No portfolio holdings found");
       }
-
-
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Portfolio data loading error:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Portfolio data loading error:", err);
       setError(err.message || "Failed to load portfolio data");
     } finally {
       setLoading(false);
@@ -134,7 +130,7 @@ const PortfolioHoldings = () => {
         userId: user.userId || user.id,
         symbol: holdingForm.symbol.toUpperCase(),
         shares: parseFloat(holdingForm.shares),
-        avgCost: parseFloat(holdingForm.avgCost)
+        avgCost: parseFloat(holdingForm.avgCost),
       });
 
       if (response.success) {
@@ -154,7 +150,7 @@ const PortfolioHoldings = () => {
       const response = await updateHolding(selectedHolding.symbol, {
         userId: user.userId || user.id,
         shares: parseFloat(holdingForm.shares),
-        avgCost: parseFloat(holdingForm.avgCost)
+        avgCost: parseFloat(holdingForm.avgCost),
       });
 
       if (response.success) {
@@ -214,10 +210,10 @@ const PortfolioHoldings = () => {
   // Chart data preparation
   const allocationChartData = useMemo(() => {
     if (!holdings?.length) return [];
-    return holdings.map(holding => ({
+    return holdings.map((holding) => ({
       symbol: holding.symbol,
       value: holding.marketValue || 0,
-      allocation: holding.allocation || 0
+      allocation: holding.allocation || 0,
     }));
   }, [holdings]);
 
@@ -232,15 +228,21 @@ const PortfolioHoldings = () => {
     return Object.entries(sectorTotals).map(([sector, value]) => ({
       sector,
       value,
-      allocation: portfolioSummary?.totalValue ? (value / portfolioSummary.totalValue * 100) : 0
+      allocation: portfolioSummary?.totalValue
+        ? (value / portfolioSummary.totalValue) * 100
+        : 0,
     }));
   }, [holdings, portfolioSummary]);
-
 
   if (loading && !holdings.length) {
     return (
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="400px"
+        >
           <CircularProgress size={60} />
           <Typography variant="h6" sx={{ ml: 2 }}>
             Loading portfolio data...
@@ -256,7 +258,11 @@ const PortfolioHoldings = () => {
         {/* Header */}
         <Grid item xs={12}>
           <Paper sx={{ p: 3, mb: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+            >
               <Typography variant="h4" gutterBottom>
                 Portfolio Holdings & Analysis
               </Typography>
@@ -314,11 +320,17 @@ const PortfolioHoldings = () => {
                       <Typography color="textSecondary" gutterBottom>
                         Total Gain/Loss
                       </Typography>
-                      <Typography 
-                        variant="h5" 
-                        color={portfolioSummary.totalGainLoss >= 0 ? "success.main" : "error.main"}
+                      <Typography
+                        variant="h5"
+                        color={
+                          portfolioSummary.totalGainLoss >= 0
+                            ? "success.main"
+                            : "error.main"
+                        }
                       >
-                        ${portfolioSummary.totalGainLoss?.toLocaleString() || "0"}
+                        $
+                        {portfolioSummary.totalGainLoss?.toLocaleString() ||
+                          "0"}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -329,11 +341,17 @@ const PortfolioHoldings = () => {
                       <Typography color="textSecondary" gutterBottom>
                         Total Return %
                       </Typography>
-                      <Typography 
+                      <Typography
                         variant="h5"
-                        color={portfolioSummary.totalGainLossPercent >= 0 ? "success.main" : "error.main"}
+                        color={
+                          portfolioSummary.totalGainLossPercent >= 0
+                            ? "success.main"
+                            : "error.main"
+                        }
                       >
-                        {portfolioSummary.totalGainLossPercent?.toFixed(2) || "0.00"}%
+                        {portfolioSummary.totalGainLossPercent?.toFixed(2) ||
+                          "0.00"}
+                        %
                       </Typography>
                     </CardContent>
                   </Card>
@@ -358,8 +376,8 @@ const PortfolioHoldings = () => {
         {/* Error Display */}
         {error && (
           <Grid item xs={12}>
-            <Alert 
-              severity="error" 
+            <Alert
+              severity="error"
               onClose={() => setError(null)}
               sx={{ mb: 2 }}
             >
@@ -371,210 +389,257 @@ const PortfolioHoldings = () => {
         {/* Portfolio Holdings */}
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Portfolio Holdings</Typography>
-                <Box display="flex" gap={1}>
-                  <IconButton size="small">
-                    <FilterList />
-                  </IconButton>
-                </Box>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={2}
+            >
+              <Typography variant="h6">Portfolio Holdings</Typography>
+              <Box display="flex" gap={1}>
+                <IconButton size="small">
+                  <FilterList />
+                </IconButton>
               </Box>
+            </Box>
 
-              {/* Holdings Table */}
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
+            {/* Holdings Table */}
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>
+                      <TableSortLabel
+                        active={orderBy === "symbol"}
+                        direction={order}
+                        onClick={() => {
+                          setOrder(
+                            orderBy === "symbol" && order === "asc"
+                              ? "desc"
+                              : "asc"
+                          );
+                          setOrderBy("symbol");
+                        }}
+                      >
+                        Symbol
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>Company</TableCell>
+                    <TableCell align="right">
+                      <TableSortLabel
+                        active={orderBy === "shares"}
+                        direction={order}
+                        onClick={() => {
+                          setOrder(
+                            orderBy === "shares" && order === "asc"
+                              ? "desc"
+                              : "asc"
+                          );
+                          setOrderBy("shares");
+                        }}
+                      >
+                        Shares
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell align="right">Avg Cost</TableCell>
+                    <TableCell align="right">Current Price</TableCell>
+                    <TableCell align="right">
+                      <TableSortLabel
+                        active={orderBy === "marketValue"}
+                        direction={order}
+                        onClick={() => {
+                          setOrder(
+                            orderBy === "marketValue" && order === "asc"
+                              ? "desc"
+                              : "asc"
+                          );
+                          setOrderBy("marketValue");
+                        }}
+                      >
+                        Market Value
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell align="right">Gain/Loss</TableCell>
+                    <TableCell align="right">Gain/Loss %</TableCell>
+                    <TableCell align="right">Allocation</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paginatedHoldings.map((holding, index) => (
+                    <TableRow
+                      key={`${holding.symbol}-${holding.id || index}`}
+                      hover
+                    >
                       <TableCell>
-                        <TableSortLabel
-                          active={orderBy === "symbol"}
-                          direction={order}
-                          onClick={() => {
-                            setOrder(orderBy === "symbol" && order === "asc" ? "desc" : "asc");
-                            setOrderBy("symbol");
-                          }}
-                        >
-                          Symbol
-                        </TableSortLabel>
+                        <Typography variant="body2" fontWeight="bold">
+                          {holding.symbol}
+                        </Typography>
                       </TableCell>
-                      <TableCell>Company</TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {holding.company || "N/A"}
+                        </Typography>
+                      </TableCell>
                       <TableCell align="right">
-                        <TableSortLabel
-                          active={orderBy === "shares"}
-                          direction={order}
-                          onClick={() => {
-                            setOrder(orderBy === "shares" && order === "asc" ? "desc" : "asc");
-                            setOrderBy("shares");
-                          }}
-                        >
-                          Shares
-                        </TableSortLabel>
+                        {holding.shares?.toLocaleString() || 0}
                       </TableCell>
-                      <TableCell align="right">Avg Cost</TableCell>
-                      <TableCell align="right">Current Price</TableCell>
                       <TableCell align="right">
-                        <TableSortLabel
-                          active={orderBy === "marketValue"}
-                          direction={order}
+                        ${holding.avgCost?.toFixed(2) || "0.00"}
+                      </TableCell>
+                      <TableCell align="right">
+                        ${holding.currentPrice?.toFixed(2) || "0.00"}
+                      </TableCell>
+                      <TableCell align="right">
+                        ${holding.marketValue?.toLocaleString() || "0"}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          color:
+                            holding.gainLoss >= 0
+                              ? "success.main"
+                              : "error.main",
+                        }}
+                      >
+                        ${holding.gainLoss?.toLocaleString() || "0"}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          color:
+                            holding.gainLossPercent >= 0
+                              ? "success.main"
+                              : "error.main",
+                        }}
+                      >
+                        {holding.gainLossPercent?.toFixed(2) || "0.00"}%
+                      </TableCell>
+                      <TableCell align="right">
+                        {holding.allocation?.toFixed(1) || "0.0"}%
+                      </TableCell>
+                      <TableCell align="center">
+                        <IconButton
+                          size="small"
                           onClick={() => {
-                            setOrder(orderBy === "marketValue" && order === "asc" ? "desc" : "asc");
-                            setOrderBy("marketValue");
+                            setSelectedHolding(holding);
+                            setHoldingForm({
+                              symbol: holding.symbol,
+                              shares: holding.shares.toString(),
+                              avgCost: holding.avgCost.toString(),
+                            });
+                            setEditHoldingDialog(true);
                           }}
                         >
-                          Market Value
-                        </TableSortLabel>
+                          <Edit />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteHolding(holding.symbol)}
+                          color="error"
+                        >
+                          <Delete />
+                        </IconButton>
                       </TableCell>
-                      <TableCell align="right">Gain/Loss</TableCell>
-                      <TableCell align="right">Gain/Loss %</TableCell>
-                      <TableCell align="right">Allocation</TableCell>
-                      <TableCell align="center">Actions</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {paginatedHoldings.map((holding, index) => (
-                      <TableRow key={`${holding.symbol}-${holding.id || index}`} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="bold">
-                            {holding.symbol}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {holding.company || "N/A"}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          {holding.shares?.toLocaleString() || 0}
-                        </TableCell>
-                        <TableCell align="right">
-                          ${holding.avgCost?.toFixed(2) || "0.00"}
-                        </TableCell>
-                        <TableCell align="right">
-                          ${holding.currentPrice?.toFixed(2) || "0.00"}
-                        </TableCell>
-                        <TableCell align="right">
-                          ${holding.marketValue?.toLocaleString() || "0"}
-                        </TableCell>
-                        <TableCell 
-                          align="right"
-                          sx={{ 
-                            color: holding.gainLoss >= 0 ? "success.main" : "error.main" 
-                          }}
-                        >
-                          ${holding.gainLoss?.toLocaleString() || "0"}
-                        </TableCell>
-                        <TableCell 
-                          align="right"
-                          sx={{ 
-                            color: holding.gainLossPercent >= 0 ? "success.main" : "error.main" 
-                          }}
-                        >
-                          {holding.gainLossPercent?.toFixed(2) || "0.00"}%
-                        </TableCell>
-                        <TableCell align="right">
-                          {holding.allocation?.toFixed(1) || "0.0"}%
-                        </TableCell>
-                        <TableCell align="center">
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedHolding(holding);
-                              setHoldingForm({
-                                symbol: holding.symbol,
-                                shares: holding.shares.toString(),
-                                avgCost: holding.avgCost.toString()
-                              });
-                              setEditHoldingDialog(true);
-                            }}
-                          >
-                            <Edit />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteHolding(holding.symbol)}
-                            color="error"
-                          >
-                            <Delete />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
-              <TablePagination
-                rowsPerPageOptions={[10, 25, 50]}
-                component="div"
-                count={sortedHoldings.length}
-                rowsPerPage={rowsPerPage}
-                page={page}
-                onPageChange={(e, newPage) => setPage(newPage)}
-                onRowsPerPageChange={(e) => {
-                  setRowsPerPage(parseInt(e.target.value, 10));
-                  setPage(0);
-                }}
-              />
+            <TablePagination
+              rowsPerPageOptions={[10, 25, 50]}
+              component="div"
+              count={sortedHoldings.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={(e, newPage) => setPage(newPage)}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+            />
 
-              {/* Allocation Charts */}
-              <Grid container spacing={3} sx={{ mt: 3 }}>
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardHeader title="Holdings Allocation" />
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={allocationChartData}
-                            dataKey="value"
-                            nameKey="symbol"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            fill="#8884d8"
-                          >
-                            {allocationChartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip formatter={(value) => [`$${value.toLocaleString()}`, "Value"]} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardHeader title="Sector Allocation" />
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={sectorChartData}
-                            dataKey="value"
-                            nameKey="sector"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            fill="#82ca9d"
-                          >
-                            {sectorChartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 60%)`} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip formatter={(value) => [`$${value.toLocaleString()}`, "Value"]} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </Grid>
+            {/* Allocation Charts */}
+            <Grid container spacing={3} sx={{ mt: 3 }}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardHeader title="Holdings Allocation" />
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={allocationChartData}
+                          dataKey="value"
+                          nameKey="symbol"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          fill="#8884d8"
+                        >
+                          {allocationChartData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={`hsl(${index * 45}, 70%, 60%)`}
+                            />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip
+                          formatter={(value) => [
+                            `$${value.toLocaleString()}`,
+                            "Value",
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
               </Grid>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardHeader title="Sector Allocation" />
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={sectorChartData}
+                          dataKey="value"
+                          nameKey="sector"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          fill="#82ca9d"
+                        >
+                          {sectorChartData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={`hsl(${index * 60}, 70%, 60%)`}
+                            />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip
+                          formatter={(value) => [
+                            `$${value.toLocaleString()}`,
+                            "Value",
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           </Paper>
         </Grid>
       </Grid>
 
       {/* Add Holding Dialog */}
-      <Dialog open={addHoldingDialog} onClose={() => setAddHoldingDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={addHoldingDialog}
+        onClose={() => setAddHoldingDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Add New Holding</DialogTitle>
         <DialogContent>
           <TextField
@@ -584,7 +649,12 @@ const PortfolioHoldings = () => {
             fullWidth
             variant="outlined"
             value={holdingForm.symbol}
-            onChange={(e) => setHoldingForm({ ...holdingForm, symbol: e.target.value.toUpperCase() })}
+            onChange={(e) =>
+              setHoldingForm({
+                ...holdingForm,
+                symbol: e.target.value.toUpperCase(),
+              })
+            }
             sx={{ mb: 2 }}
           />
           <TextField
@@ -594,7 +664,9 @@ const PortfolioHoldings = () => {
             fullWidth
             variant="outlined"
             value={holdingForm.shares}
-            onChange={(e) => setHoldingForm({ ...holdingForm, shares: e.target.value })}
+            onChange={(e) =>
+              setHoldingForm({ ...holdingForm, shares: e.target.value })
+            }
             sx={{ mb: 2 }}
           />
           <TextField
@@ -604,18 +676,27 @@ const PortfolioHoldings = () => {
             fullWidth
             variant="outlined"
             value={holdingForm.avgCost}
-            onChange={(e) => setHoldingForm({ ...holdingForm, avgCost: e.target.value })}
+            onChange={(e) =>
+              setHoldingForm({ ...holdingForm, avgCost: e.target.value })
+            }
             step="0.01"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddHoldingDialog(false)}>Cancel</Button>
-          <Button onClick={handleAddHolding} variant="contained">Add Holding</Button>
+          <Button onClick={handleAddHolding} variant="contained">
+            Add Holding
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Holding Dialog */}
-      <Dialog open={editHoldingDialog} onClose={() => setEditHoldingDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={editHoldingDialog}
+        onClose={() => setEditHoldingDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Edit Holding: {selectedHolding?.symbol}</DialogTitle>
         <DialogContent>
           <TextField
@@ -625,7 +706,9 @@ const PortfolioHoldings = () => {
             fullWidth
             variant="outlined"
             value={holdingForm.shares}
-            onChange={(e) => setHoldingForm({ ...holdingForm, shares: e.target.value })}
+            onChange={(e) =>
+              setHoldingForm({ ...holdingForm, shares: e.target.value })
+            }
             sx={{ mb: 2 }}
           />
           <TextField
@@ -635,13 +718,17 @@ const PortfolioHoldings = () => {
             fullWidth
             variant="outlined"
             value={holdingForm.avgCost}
-            onChange={(e) => setHoldingForm({ ...holdingForm, avgCost: e.target.value })}
+            onChange={(e) =>
+              setHoldingForm({ ...holdingForm, avgCost: e.target.value })
+            }
             step="0.01"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditHoldingDialog(false)}>Cancel</Button>
-          <Button onClick={handleUpdateHolding} variant="contained">Update Holding</Button>
+          <Button onClick={handleUpdateHolding} variant="contained">
+            Update Holding
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

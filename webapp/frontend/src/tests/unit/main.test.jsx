@@ -1,7 +1,7 @@
 /**
  * Main Entry Point Tests
  * Tests the critical initialization patterns used in main.jsx
- * 
+ *
  * NOTE: Testing main.jsx directly is complex due to side effects.
  * This tests the key patterns and error handling approaches.
  */
@@ -37,7 +37,7 @@ describe("Main Entry Point", () => {
           MuiButton: {
             styleOverrides: {
               root: {
-                '&:focus': {
+                "&:focus": {
                   outline: "3px solid #1976d2",
                   outlineOffset: "2px",
                 },
@@ -49,10 +49,12 @@ describe("Main Entry Point", () => {
 
       expect(theme.palette.mode).toBe("light");
       expect(theme.palette.primary.main).toBe("#1976d2");
-      expect(theme.components.MuiButton.styleOverrides.root["&:focus"]).toEqual({
-        outline: "3px solid #1976d2",
-        outlineOffset: "2px",
-      });
+      expect(theme.components.MuiButton.styleOverrides.root["&:focus"]).toEqual(
+        {
+          outline: "3px solid #1976d2",
+          outlineOffset: "2px",
+        }
+      );
     });
 
     it("should include focus styles for accessibility", () => {
@@ -61,8 +63,8 @@ describe("Main Entry Point", () => {
           MuiTextField: {
             styleOverrides: {
               root: {
-                '& .MuiOutlinedInput-root': {
-                  '&:focus-within': {
+                "& .MuiOutlinedInput-root": {
+                  "&:focus-within": {
                     outline: "3px solid rgba(25, 118, 210, 0.3)",
                     outlineOffset: "2px",
                   },
@@ -74,7 +76,9 @@ describe("Main Entry Point", () => {
       });
 
       const textFieldStyles = theme.components.MuiTextField.styleOverrides.root;
-      expect(textFieldStyles["& .MuiOutlinedInput-root"]["&:focus-within"]).toEqual({
+      expect(
+        textFieldStyles["& .MuiOutlinedInput-root"]["&:focus-within"]
+      ).toEqual({
         outline: "3px solid rgba(25, 118, 210, 0.3)",
         outlineOffset: "2px",
       });
@@ -95,10 +99,10 @@ describe("Main Entry Point", () => {
       });
 
       const retryFn = queryClient.getDefaultOptions().queries.retry;
-      
+
       // Test 404 errors don't retry
       expect(retryFn(1, { status: 404 })).toBe(false);
-      
+
       // Test other errors retry up to 3 times
       expect(retryFn(0, { status: 500 })).toBe(true);
       expect(retryFn(2, { status: 500 })).toBe(true);
@@ -136,9 +140,9 @@ describe("Main Entry Point", () => {
 
       // Mock missing element
       vi.spyOn(document, "getElementById").mockReturnValue(null);
-      
+
       const result = validateRootElement("root");
-      
+
       expect(result).toBe(false);
       expect(console.error).toHaveBeenCalledWith("❌ root element not found!");
     });
@@ -156,9 +160,9 @@ describe("Main Entry Point", () => {
       // Test missing config
       const originalConfig = window.__CONFIG__;
       delete window.__CONFIG__;
-      
+
       const result = validateConfig();
-      
+
       expect(result).toBe(false);
       expect(console.warn).toHaveBeenCalledWith(
         "⚠️ Config not loaded yet, check index.html script tag"
@@ -172,9 +176,10 @@ describe("Main Entry Point", () => {
       const cleanupServiceWorkers = async () => {
         try {
           if ("serviceWorker" in navigator) {
-            const registrations = await navigator.serviceWorker.getRegistrations();
+            const registrations =
+              await navigator.serviceWorker.getRegistrations();
             await Promise.all(
-              registrations.map(registration => registration.unregister())
+              registrations.map((registration) => registration.unregister())
             );
           }
         } catch (error) {
@@ -204,7 +209,7 @@ describe("Main Entry Point", () => {
           if ("caches" in window) {
             const cacheNames = await caches.keys();
             await Promise.all(
-              cacheNames.map(cacheName => caches.delete(cacheName))
+              cacheNames.map((cacheName) => caches.delete(cacheName))
             );
           }
         } catch (error) {
@@ -233,37 +238,41 @@ describe("Main Entry Point", () => {
   describe("Global Error Handlers", () => {
     it("should create proper window error handler", () => {
       const createWindowErrorHandler = (logger) => {
-        return function(e) {
+        return function (e) {
           const errorContext = {
             filename: e.filename,
             lineno: e.lineno,
             colno: e.colno,
             userAgent: navigator.userAgent,
             url: window.location.href,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           };
-          
-          logger.error('WindowError', e.error || new Error(e.message), errorContext);
+
+          logger.error(
+            "WindowError",
+            e.error || new Error(e.message),
+            errorContext
+          );
           return false;
         };
       };
 
       const mockLogger = { error: vi.fn() };
       const handler = createWindowErrorHandler(mockLogger);
-      
+
       const errorEvent = {
         filename: "test.js",
         lineno: 123,
         colno: 45,
         message: "Test error",
-        error: new Error("Test error")
+        error: new Error("Test error"),
       };
 
       const result = handler(errorEvent);
 
       expect(result).toBe(false);
       expect(mockLogger.error).toHaveBeenCalledWith(
-        'WindowError',
+        "WindowError",
         expect.any(Error),
         expect.objectContaining({
           filename: "test.js",
@@ -275,33 +284,33 @@ describe("Main Entry Point", () => {
 
     it("should create proper unhandled rejection handler", () => {
       const createUnhandledRejectionHandler = (logger) => {
-        return function(e) {
+        return function (e) {
           const errorContext = {
             url: window.location.href,
             timestamp: new Date().toISOString(),
-            promiseState: 'rejected'
+            promiseState: "rejected",
           };
-          
-          logger.error('UnhandledPromiseRejection', e.reason, errorContext);
+
+          logger.error("UnhandledPromiseRejection", e.reason, errorContext);
           return false;
         };
       };
 
       const mockLogger = { error: vi.fn() };
       const handler = createUnhandledRejectionHandler(mockLogger);
-      
+
       const rejectionEvent = {
-        reason: "Promise rejection reason"
+        reason: "Promise rejection reason",
       };
 
       const result = handler(rejectionEvent);
 
       expect(result).toBe(false);
       expect(mockLogger.error).toHaveBeenCalledWith(
-        'UnhandledPromiseRejection',
+        "UnhandledPromiseRejection",
         "Promise rejection reason",
         expect.objectContaining({
-          promiseState: 'rejected',
+          promiseState: "rejected",
         })
       );
     });
@@ -311,34 +320,38 @@ describe("Main Entry Point", () => {
     it("should validate successful render", () => {
       const validateRender = (logger) => {
         const rootContent = document.getElementById("root");
-        
+
         if (rootContent && rootContent.innerHTML.trim() === "") {
-          logger.error("EmptyRender", new Error("React rendered but root is empty"), {
-            innerHTML: rootContent.innerHTML,
-            timestamp: new Date().toISOString()
-          });
+          logger.error(
+            "EmptyRender",
+            new Error("React rendered but root is empty"),
+            {
+              innerHTML: rootContent.innerHTML,
+              timestamp: new Date().toISOString(),
+            }
+          );
           return false;
         } else if (rootContent) {
           logger.success("React application rendered successfully", {
             contentLength: rootContent.innerHTML.length,
-            hasContent: rootContent.innerHTML.length > 0
+            hasContent: rootContent.innerHTML.length > 0,
           });
           return true;
         }
-        
+
         return false;
       };
 
       const mockLogger = { error: vi.fn(), success: vi.fn() };
-      
+
       // Test empty render
       const emptyElement = document.createElement("div");
       emptyElement.id = "root";
       emptyElement.innerHTML = "";
       vi.spyOn(document, "getElementById").mockReturnValue(emptyElement);
-      
+
       let result = validateRender(mockLogger);
-      
+
       expect(result).toBe(false);
       expect(mockLogger.error).toHaveBeenCalledWith(
         "EmptyRender",
@@ -353,9 +366,9 @@ describe("Main Entry Point", () => {
       contentElement.id = "root";
       contentElement.innerHTML = "<div>App Content</div>";
       vi.spyOn(document, "getElementById").mockReturnValue(contentElement);
-      
+
       result = validateRender(mockLogger);
-      
+
       expect(result).toBe(true);
       expect(mockLogger.success).toHaveBeenCalledWith(
         "React application rendered successfully",

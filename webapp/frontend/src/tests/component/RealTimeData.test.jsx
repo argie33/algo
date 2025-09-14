@@ -213,14 +213,15 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
 
   React.useEffect(() => {
     // Initial portfolio load
-    api.get(`/api/portfolio/${portfolioId}`)
+    api
+      .get(`/api/portfolio/${portfolioId}`)
       .then((response) => {
         if (response && response.data && response.data.data) {
           setPortfolio(response.data.data);
         }
       })
       .catch((error) => {
-        console.error('Failed to load portfolio:', error);
+        console.error("Failed to load portfolio:", error);
       });
 
     if (realtimeUpdates) {
@@ -320,7 +321,7 @@ describe("Real-time Data Components", () => {
     // Re-establish API mock after clearing
     api.get.mockImplementation((url) => {
       // Handle portfolio endpoints specifically
-      if (url.includes('/api/portfolio/')) {
+      if (url.includes("/api/portfolio/")) {
         return Promise.resolve({
           data: {
             success: true,
@@ -346,7 +347,7 @@ describe("Real-time Data Components", () => {
           },
         });
       }
-      
+
       // Default mock for other endpoints
       return Promise.resolve({
         data: {
@@ -471,14 +472,20 @@ describe("Real-time Data Components", () => {
       expect(api.get).toHaveBeenCalledTimes(1);
 
       // Wait for auto-refresh to trigger (1000ms interval + some buffer)
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2);
-      }, { timeout: 1500 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 1500 }
+      );
 
       // Wait for another auto-refresh
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(3);
-      }, { timeout: 1500 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(3);
+        },
+        { timeout: 1500 }
+      );
     });
 
     it("should call onDataUpdate callback when data changes", async () => {
@@ -524,7 +531,7 @@ describe("Real-time Data Components", () => {
   describe("Price Stream Component", () => {
     it("should establish connection and stream prices for multiple symbols", async () => {
       vi.useFakeTimers(); // Use fake timers only for this test
-      
+
       const symbols = ["AAPL", "MSFT", "GOOGL"];
       renderWithRouter(<MockPriceStreamComponent symbols={symbols} />);
 
@@ -548,13 +555,13 @@ describe("Real-time Data Components", () => {
       symbols.forEach((symbol) => {
         expect(screen.getByTestId(`price-${symbol}`)).toBeInTheDocument();
       });
-      
+
       vi.useRealTimers(); // Restore real timers
     });
 
     it("should call onPriceUpdate callback for price changes", async () => {
       vi.useFakeTimers(); // Use fake timers only for this test
-      
+
       const mockOnPriceUpdate = vi.fn();
       const symbols = ["AAPL"];
 
@@ -581,18 +588,19 @@ describe("Real-time Data Components", () => {
         changePercent: expect.any(Number),
         timestamp: expect.any(Number),
       });
-      
+
       vi.useRealTimers(); // Restore real timers
     });
 
     it("should handle connection failures and provide reconnect functionality", async () => {
       // Create a simplified mock component to test failure state
       const FailureMockComponent = () => {
-        const [connectionStatus, setConnectionStatus] = React.useState("failed");
+        const [connectionStatus, setConnectionStatus] =
+          React.useState("failed");
         const [attempts, setAttempts] = React.useState(3);
 
         const reconnect = () => {
-          setAttempts(prev => prev + 1);
+          setAttempts((prev) => prev + 1);
           setConnectionStatus("connecting");
           setTimeout(() => {
             if (attempts >= 5) {
@@ -624,7 +632,7 @@ describe("Real-time Data Components", () => {
 
     it("should display positive and negative price changes with appropriate styling", async () => {
       vi.useFakeTimers();
-      
+
       renderWithRouter(<MockPriceStreamComponent symbols={["AAPL", "MSFT"]} />);
 
       // Establish connection and get price updates
@@ -641,7 +649,7 @@ describe("Real-time Data Components", () => {
         const changeElement = element.querySelector(".positive, .negative");
         expect(changeElement).toBeInTheDocument();
       });
-      
+
       vi.useRealTimers();
     });
   });
@@ -670,7 +678,7 @@ describe("Real-time Data Components", () => {
     beforeEach(() => {
       // Mock portfolio endpoint specifically
       api.get.mockImplementation((url) => {
-        if (url.includes('/api/portfolio/')) {
+        if (url.includes("/api/portfolio/")) {
           return Promise.resolve({
             data: {
               success: true,
@@ -723,9 +731,14 @@ describe("Real-time Data Components", () => {
       const initialValue = screen.getByTestId("portfolio-value").textContent;
 
       // Wait for an update to occur (mock has 3000ms interval)
-      await waitFor(() => {
-        expect(screen.getByTestId("update-count")).toHaveTextContent("Updates: 1");
-      }, { timeout: 4000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("update-count")).toHaveTextContent(
+            "Updates: 1"
+          );
+        },
+        { timeout: 4000 }
+      );
 
       const updatedValue = screen.getByTestId("portfolio-value").textContent;
       expect(updatedValue).not.toBe(initialValue);
@@ -748,9 +761,11 @@ describe("Real-time Data Components", () => {
 
       // Wait to ensure no updates occur while paused (4000ms > 3000ms interval)
       await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 4000));
+        await new Promise((resolve) => setTimeout(resolve, 4000));
       });
-      expect(screen.getByTestId("update-count")).toHaveTextContent("Updates: 0");
+      expect(screen.getByTestId("update-count")).toHaveTextContent(
+        "Updates: 0"
+      );
 
       // Resume updates
       act(() => {
@@ -759,9 +774,14 @@ describe("Real-time Data Components", () => {
       expect(screen.getByText("Pause Real-time Updates")).toBeInTheDocument();
 
       // Wait for updates to resume (mock has 3000ms interval)
-      await waitFor(() => {
-        expect(screen.getByTestId("update-count")).toHaveTextContent("Updates: 1");
-      }, { timeout: 4000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId("update-count")).toHaveTextContent(
+            "Updates: 1"
+          );
+        },
+        { timeout: 4000 }
+      );
     });
 
     it("should call onPortfolioUpdate callback when portfolio changes", async () => {
@@ -779,9 +799,12 @@ describe("Real-time Data Components", () => {
       });
 
       // Wait for callback to be triggered (mock has 3000ms interval)
-      await waitFor(() => {
-        expect(mockOnPortfolioUpdate).toHaveBeenCalled();
-      }, { timeout: 4000 });
+      await waitFor(
+        () => {
+          expect(mockOnPortfolioUpdate).toHaveBeenCalled();
+        },
+        { timeout: 4000 }
+      );
 
       const callArgs = mockOnPortfolioUpdate.mock.calls[0][0];
       expect(callArgs).toMatchObject({
@@ -831,10 +854,13 @@ describe("Real-time Data Components", () => {
       });
 
       // Wait for both components to trigger updates
-      await waitFor(() => {
-        expect(priceUpdates.length).toBeGreaterThan(0);
-        expect(portfolioUpdates.length).toBeGreaterThan(0);
-      }, { timeout: 4000 });
+      await waitFor(
+        () => {
+          expect(priceUpdates.length).toBeGreaterThan(0);
+          expect(portfolioUpdates.length).toBeGreaterThan(0);
+        },
+        { timeout: 4000 }
+      );
     });
 
     it("should handle memory leaks with proper cleanup", async () => {
@@ -854,9 +880,12 @@ describe("Real-time Data Components", () => {
       expect(api.get).toHaveBeenCalledTimes(1);
 
       // Wait for first auto-refresh to ensure timers are working
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2);
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 1000 }
+      );
 
       const callCountBeforeUnmount = api.get.mock.calls.length;
 
@@ -864,7 +893,7 @@ describe("Real-time Data Components", () => {
       unmount();
 
       // Wait to verify no additional calls are made after unmount
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Should not make additional API calls after unmount
       expect(api.get).toHaveBeenCalledTimes(callCountBeforeUnmount);
@@ -872,7 +901,7 @@ describe("Real-time Data Components", () => {
 
     it("should throttle rapid updates to prevent performance issues", async () => {
       vi.useFakeTimers();
-      
+
       const rapidUpdates = vi.fn();
 
       const RapidUpdateComponent = () => {
@@ -905,7 +934,7 @@ describe("Real-time Data Components", () => {
         "Updates: 10"
       );
       expect(rapidUpdates).toHaveBeenCalledTimes(10);
-      
+
       vi.useRealTimers();
     });
 
@@ -968,7 +997,7 @@ describe("Real-time Data Components", () => {
   describe("Performance and Optimization", () => {
     it("should debounce rapid state updates", async () => {
       vi.useFakeTimers();
-      
+
       const updateCallback = vi.fn();
 
       const DebouncedComponent = () => {
@@ -1012,7 +1041,7 @@ describe("Real-time Data Components", () => {
 
       // Should have called callback only once
       expect(updateCallback).toHaveBeenCalledTimes(1);
-      
+
       vi.useRealTimers();
     });
 

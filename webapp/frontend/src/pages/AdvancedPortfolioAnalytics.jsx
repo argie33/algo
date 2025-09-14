@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Typography,
@@ -22,7 +22,7 @@ import {
   ListItem,
   ListItemText,
   Divider,
-} from '@mui/material';
+} from "@mui/material";
 import {
   LineChart,
   Line,
@@ -39,7 +39,7 @@ import {
   Area,
   BarChart,
   Bar,
-} from 'recharts';
+} from "recharts";
 import {
   TrendingUp,
   Assessment,
@@ -54,7 +54,7 @@ import {
   Warning,
   CheckCircle,
   Error,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import {
   getPerformanceAnalytics,
   getRiskAnalytics,
@@ -65,119 +65,138 @@ import {
   getVolatilityAnalytics,
   getTrendsAnalytics,
   exportAnalytics,
-} from '../services/api';
-import ErrorBoundary from '../components/ErrorBoundary';
+} from "../services/api";
+import ErrorBoundary from "../components/ErrorBoundary";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+const COLORS = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#8884D8",
+  "#82CA9D",
+];
 
 const AdvancedPortfolioAnalytics = () => {
   const [activeTab, setActiveTab] = useState(0);
-  const [timePeriod, setTimePeriod] = useState('1m');
-  const [benchmark, setBenchmark] = useState('SPY');
+  const [timePeriod, setTimePeriod] = useState("1m");
+  const [benchmark, setBenchmark] = useState("SPY");
   const queryClient = useQueryClient();
 
   // Performance Analytics Query
-  const { data: performanceData, isLoading: performanceLoading, error: performanceError } = useQuery({
-    queryKey: ['performanceAnalytics', timePeriod, benchmark],
+  const {
+    data: performanceData,
+    isLoading: performanceLoading,
+    error: performanceError,
+  } = useQuery({
+    queryKey: ["performanceAnalytics", timePeriod, benchmark],
     queryFn: () => getPerformanceAnalytics(timePeriod, benchmark),
     staleTime: 60000,
-    retry: 2
+    retry: 2,
   });
 
   // Risk Analytics Query
   const { data: riskData, isLoading: riskLoading } = useQuery({
-    queryKey: ['riskAnalytics', timePeriod],
+    queryKey: ["riskAnalytics", timePeriod],
     queryFn: () => getRiskAnalytics(timePeriod),
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   // Correlation Analytics Query
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
-    queryKey: ['correlationAnalytics', timePeriod],
+    queryKey: ["correlationAnalytics", timePeriod],
     queryFn: () => getCorrelationAnalytics(timePeriod),
-    staleTime: 300000 // 5 minutes for correlation data
+    staleTime: 300000, // 5 minutes for correlation data
   });
 
   // Allocation Analytics Query
   const { data: allocationData, isLoading: allocationLoading } = useQuery({
-    queryKey: ['allocationAnalytics'],
+    queryKey: ["allocationAnalytics"],
     queryFn: () => getAllocationAnalytics(),
-    staleTime: 120000
+    staleTime: 120000,
   });
 
   // Returns Analytics Query
   const { data: _returnsData, isLoading: returnsLoading } = useQuery({
-    queryKey: ['returnsAnalytics', timePeriod],
+    queryKey: ["returnsAnalytics", timePeriod],
     queryFn: () => getReturnsAnalytics(timePeriod),
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   // Sectors Analytics Query
   const { data: _sectorsData, isLoading: sectorsLoading } = useQuery({
-    queryKey: ['sectorsAnalytics'],
+    queryKey: ["sectorsAnalytics"],
     queryFn: () => getSectorsAnalytics(),
-    staleTime: 120000
+    staleTime: 120000,
   });
 
   // Volatility Analytics Query
   const { data: volatilityData, isLoading: volatilityLoading } = useQuery({
-    queryKey: ['volatilityAnalytics', timePeriod],
+    queryKey: ["volatilityAnalytics", timePeriod],
     queryFn: () => getVolatilityAnalytics(timePeriod),
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   // Trends Analytics Query
   const { data: trendsData, isLoading: trendsLoading } = useQuery({
-    queryKey: ['trendsAnalytics', timePeriod],
+    queryKey: ["trendsAnalytics", timePeriod],
     queryFn: () => getTrendsAnalytics(timePeriod),
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['performanceAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['riskAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['correlationAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['allocationAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['returnsAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['sectorsAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['volatilityAnalytics'] });
-    queryClient.invalidateQueries({ queryKey: ['trendsAnalytics'] });
+    queryClient.invalidateQueries({ queryKey: ["performanceAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["riskAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["correlationAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["allocationAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["returnsAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["sectorsAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["volatilityAnalytics"] });
+    queryClient.invalidateQueries({ queryKey: ["trendsAnalytics"] });
   };
 
   const handleExport = async () => {
     try {
-      const exportData = await exportAnalytics('json', 'performance');
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
-        type: 'application/json' 
+      const exportData = await exportAnalytics("json", "performance");
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
       });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `portfolio-analytics-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `portfolio-analytics-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error("Export failed:", error);
     }
   };
 
   const getRiskColor = (riskLevel) => {
     switch (riskLevel?.toLowerCase()) {
-      case 'low': return '#4caf50';
-      case 'medium': return '#ff9800';
-      case 'high': return '#f44336';
-      default: return '#757575';
+      case "low":
+        return "#4caf50";
+      case "medium":
+        return "#ff9800";
+      case "high":
+        return "#f44336";
+      default:
+        return "#757575";
     }
   };
 
   const getRiskIcon = (riskLevel) => {
     switch (riskLevel?.toLowerCase()) {
-      case 'low': return <CheckCircle sx={{ color: '#4caf50' }} />;
-      case 'medium': return <Warning sx={{ color: '#ff9800' }} />;
-      case 'high': return <Error sx={{ color: '#f44336' }} />;
-      default: return <Assessment />;
+      case "low":
+        return <CheckCircle sx={{ color: "#4caf50" }} />;
+      case "medium":
+        return <Warning sx={{ color: "#ff9800" }} />;
+      case "high":
+        return <Error sx={{ color: "#f44336" }} />;
+      default:
+        return <Assessment />;
     }
   };
 
@@ -194,10 +213,9 @@ const AdvancedPortfolioAnalytics = () => {
                     <TrendingUp color="primary" />
                     <Box>
                       <Typography variant="h6">
-                        {performanceData?.data?.returns ? 
-                          `${(performanceData.data.returns * 100).toFixed(2)}%` : 
-                          'N/A'
-                        }
+                        {performanceData?.data?.returns
+                          ? `${(performanceData.data.returns * 100).toFixed(2)}%`
+                          : "N/A"}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Total Return
@@ -207,7 +225,7 @@ const AdvancedPortfolioAnalytics = () => {
                 </CardContent>
               </Card>
             </Grid>
-            
+
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent>
@@ -215,10 +233,9 @@ const AdvancedPortfolioAnalytics = () => {
                     <ShowChart color="secondary" />
                     <Box>
                       <Typography variant="h6">
-                        {performanceData?.data?.volatility ? 
-                          `${(performanceData.data.volatility * 100).toFixed(2)}%` : 
-                          'N/A'
-                        }
+                        {performanceData?.data?.volatility
+                          ? `${(performanceData.data.volatility * 100).toFixed(2)}%`
+                          : "N/A"}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Volatility
@@ -236,10 +253,9 @@ const AdvancedPortfolioAnalytics = () => {
                     <Timeline />
                     <Box>
                       <Typography variant="h6">
-                        {performanceData?.data?.sharpe_ratio ? 
-                          performanceData.data.sharpe_ratio.toFixed(2) : 
-                          'N/A'
-                        }
+                        {performanceData?.data?.sharpe_ratio
+                          ? performanceData.data.sharpe_ratio.toFixed(2)
+                          : "N/A"}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Sharpe Ratio
@@ -257,10 +273,9 @@ const AdvancedPortfolioAnalytics = () => {
                     <AccountBalance />
                     <Box>
                       <Typography variant="h6">
-                        {performanceData?.data?.portfolio_metrics?.total_value ? 
-                          `$${parseFloat(performanceData.data.portfolio_metrics.total_value).toLocaleString()}` : 
-                          'N/A'
-                        }
+                        {performanceData?.data?.portfolio_metrics?.total_value
+                          ? `$${parseFloat(performanceData.data.portfolio_metrics.total_value).toLocaleString()}`
+                          : "N/A"}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Portfolio Value
@@ -279,32 +294,43 @@ const AdvancedPortfolioAnalytics = () => {
             <CardHeader title="Performance vs Benchmark" />
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={performanceData?.data?.performance_timeline || []}>
+                <LineChart
+                  data={performanceData?.data?.performance_timeline || []}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) =>
+                      new Date(value).toLocaleDateString()
+                    }
                   />
                   <YAxis tickFormatter={(value) => `${value}%`} />
-                  <Tooltip 
-                    formatter={(value, name) => [`${parseFloat(value).toFixed(2)}%`, name]}
-                    labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                  <Tooltip
+                    formatter={(value, name) => [
+                      `${parseFloat(value).toFixed(2)}%`,
+                      name,
+                    ]}
+                    labelFormatter={(value) =>
+                      new Date(value).toLocaleDateString()
+                    }
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="pnl_percent" 
-                    stroke="#8884d8" 
+                  <Line
+                    type="monotone"
+                    dataKey="pnl_percent"
+                    stroke="#8884d8"
                     strokeWidth={2}
                     name="Portfolio"
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="benchmark_return" 
-                    stroke="#82ca9d" 
+                  <Line
+                    type="monotone"
+                    dataKey="benchmark_return"
+                    stroke="#82ca9d"
                     strokeWidth={2}
                     name={`${benchmark} Benchmark`}
-                    data={performanceData?.data?.benchmark_comparison?.data || []}
+                    data={
+                      performanceData?.data?.benchmark_comparison?.data || []
+                    }
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -318,19 +344,23 @@ const AdvancedPortfolioAnalytics = () => {
             <CardHeader title="Top Performers" />
             <CardContent>
               <List>
-                {(performanceData?.data?.portfolio_metrics?.top_performers || []).slice(0, 5).map((stock, index) => (
-                  <ListItem key={index}>
-                    <ListItemText
-                      primary={stock.symbol}
-                      secondary={`${stock.return_percent}% return`}
-                    />
-                    <Chip 
-                      label={`+${stock.return_percent}%`}
-                      color="success"
-                      size="small"
-                    />
-                  </ListItem>
-                ))}
+                {(
+                  performanceData?.data?.portfolio_metrics?.top_performers || []
+                )
+                  .slice(0, 5)
+                  .map((stock, index) => (
+                    <ListItem key={index}>
+                      <ListItemText
+                        primary={stock.symbol}
+                        secondary={`${stock.return_percent}% return`}
+                      />
+                      <Chip
+                        label={`+${stock.return_percent}%`}
+                        color="success"
+                        size="small"
+                      />
+                    </ListItem>
+                  ))}
               </List>
             </CardContent>
           </Card>
@@ -345,15 +375,23 @@ const AdvancedPortfolioAnalytics = () => {
         {/* Risk Summary */}
         <Grid item xs={12}>
           <Card>
-            <CardHeader 
-              title="Risk Assessment" 
+            <CardHeader
+              title="Risk Assessment"
               action={
                 riskData?.data?.risk?.risk_assessment?.overall_risk && (
-                  <Chip 
+                  <Chip
                     label={riskData.data.risk.risk_assessment.overall_risk}
-                    color={riskData.data.risk.risk_assessment.overall_risk === 'Low' ? 'success' : 
-                           riskData.data.risk.risk_assessment.overall_risk === 'Medium' ? 'warning' : 'error'}
-                    icon={getRiskIcon(riskData.data.risk.risk_assessment.overall_risk)}
+                    color={
+                      riskData.data.risk.risk_assessment.overall_risk === "Low"
+                        ? "success"
+                        : riskData.data.risk.risk_assessment.overall_risk ===
+                            "Medium"
+                          ? "warning"
+                          : "error"
+                    }
+                    icon={getRiskIcon(
+                      riskData.data.risk.risk_assessment.overall_risk
+                    )}
                   />
                 )
               }
@@ -361,51 +399,67 @@ const AdvancedPortfolioAnalytics = () => {
             <CardContent>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>Risk Metrics</Typography>
+                  <Typography variant="h6" gutterBottom>
+                    Risk Metrics
+                  </Typography>
                   <List>
                     <ListItem>
                       <ListItemText
                         primary="Portfolio Volatility"
-                        secondary={`${riskData?.data?.risk?.portfolio_metrics?.portfolio_volatility || 'N/A'}%`}
+                        secondary={`${riskData?.data?.risk?.portfolio_metrics?.portfolio_volatility || "N/A"}%`}
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
                         primary="Max Drawdown"
-                        secondary={`${riskData?.data?.risk?.portfolio_metrics?.max_drawdown || 'N/A'}%`}
+                        secondary={`${riskData?.data?.risk?.portfolio_metrics?.max_drawdown || "N/A"}%`}
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
                         primary="Value at Risk (95%)"
-                        secondary={`${riskData?.data?.risk?.portfolio_metrics?.value_at_risk_95 || 'N/A'}%`}
+                        secondary={`${riskData?.data?.risk?.portfolio_metrics?.value_at_risk_95 || "N/A"}%`}
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
                         primary="Concentration Risk"
-                        secondary={riskData?.data?.risk?.portfolio_metrics?.concentration_risk || 'N/A'}
+                        secondary={
+                          riskData?.data?.risk?.portfolio_metrics
+                            ?.concentration_risk || "N/A"
+                        }
                       />
                     </ListItem>
                   </List>
                 </Grid>
-                
+
                 <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>Position Analysis</Typography>
+                  <Typography variant="h6" gutterBottom>
+                    Position Analysis
+                  </Typography>
                   <List>
-                    {(riskData?.data?.risk?.position_analysis?.position_breakdown || []).slice(0, 5).map((position, index) => (
-                      <ListItem key={index}>
-                        <ListItemText
-                          primary={position.symbol}
-                          secondary={`${position.position_weight}% of portfolio`}
-                        />
-                        <Chip 
-                          label={`${position.unrealized_return}%`}
-                          color={parseFloat(position.unrealized_return) >= 0 ? 'success' : 'error'}
-                          size="small"
-                        />
-                      </ListItem>
-                    ))}
+                    {(
+                      riskData?.data?.risk?.position_analysis
+                        ?.position_breakdown || []
+                    )
+                      .slice(0, 5)
+                      .map((position, index) => (
+                        <ListItem key={index}>
+                          <ListItemText
+                            primary={position.symbol}
+                            secondary={`${position.position_weight}% of portfolio`}
+                          />
+                          <Chip
+                            label={`${position.unrealized_return}%`}
+                            color={
+                              parseFloat(position.unrealized_return) >= 0
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </ListItem>
+                      ))}
                   </List>
                 </Grid>
               </Grid>
@@ -437,7 +491,10 @@ const AdvancedPortfolioAnalytics = () => {
                     label={({ name, percentage }) => `${name}: ${percentage}%`}
                   >
                     {(allocationData?.data?.sectors || []).map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -453,11 +510,13 @@ const AdvancedPortfolioAnalytics = () => {
             <CardHeader title="Top Holdings" />
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={(allocationData?.data?.assets || []).slice(0, 10)}>
+                <BarChart
+                  data={(allocationData?.data?.assets || []).slice(0, 10)}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="symbol" />
                   <YAxis tickFormatter={(value) => `${value}%`} />
-                  <Tooltip formatter={(value) => [`${value}%`, 'Weight']} />
+                  <Tooltip formatter={(value) => [`${value}%`, "Weight"]} />
                   <Bar dataKey="percentage" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
@@ -478,7 +537,7 @@ const AdvancedPortfolioAnalytics = () => {
                         primary={asset.symbol}
                         secondary={`${asset.shares} shares • ${asset.sector}`}
                       />
-                      <Box sx={{ minWidth: 100, textAlign: 'right' }}>
+                      <Box sx={{ minWidth: 100, textAlign: "right" }}>
                         <Typography variant="body2">
                           ${parseFloat(asset.value).toLocaleString()}
                         </Typography>
@@ -487,7 +546,9 @@ const AdvancedPortfolioAnalytics = () => {
                         </Typography>
                       </Box>
                     </ListItem>
-                    {index < allocationData.data.assets.length - 1 && <Divider />}
+                    {index < allocationData.data.assets.length - 1 && (
+                      <Divider />
+                    )}
                   </Box>
                 ))}
               </List>
@@ -510,7 +571,8 @@ const AdvancedPortfolioAnalytics = () => {
                 <Grid item xs={12} md={4}>
                   <Box textAlign="center" p={2}>
                     <Typography variant="h4" color="primary">
-                      {correlationData?.data?.correlations?.insights?.diversification_score || 'N/A'}
+                      {correlationData?.data?.correlations?.insights
+                        ?.diversification_score || "N/A"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Diversification Score
@@ -520,7 +582,8 @@ const AdvancedPortfolioAnalytics = () => {
                 <Grid item xs={12} md={4}>
                   <Box textAlign="center" p={2}>
                     <Typography variant="h6">
-                      {correlationData?.data?.correlations?.insights?.average_correlation || 'N/A'}
+                      {correlationData?.data?.correlations?.insights
+                        ?.average_correlation || "N/A"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Average Correlation
@@ -530,7 +593,8 @@ const AdvancedPortfolioAnalytics = () => {
                 <Grid item xs={12} md={4}>
                   <Box textAlign="center" p={2}>
                     <Typography variant="h6">
-                      {correlationData?.data?.correlations?.assets_analyzed || 'N/A'}
+                      {correlationData?.data?.correlations?.assets_analyzed ||
+                        "N/A"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Assets Analyzed
@@ -541,23 +605,39 @@ const AdvancedPortfolioAnalytics = () => {
 
               {correlationData?.data?.correlations?.insights && (
                 <Box mt={3}>
-                  <Typography variant="h6" gutterBottom>Key Insights</Typography>
+                  <Typography variant="h6" gutterBottom>
+                    Key Insights
+                  </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
                       <Alert severity="info">
-                        <Typography variant="subtitle2">Highest Correlation</Typography>
+                        <Typography variant="subtitle2">
+                          Highest Correlation
+                        </Typography>
                         <Typography variant="body2">
-                          {correlationData.data.correlations.insights.highest_correlation?.pair?.join(' - ') || 'N/A'}: {' '}
-                          {correlationData.data.correlations.insights.highest_correlation?.value?.toFixed(3) || 'N/A'}
+                          {correlationData.data.correlations.insights.highest_correlation?.pair?.join(
+                            " - "
+                          ) || "N/A"}
+                          :{" "}
+                          {correlationData.data.correlations.insights.highest_correlation?.value?.toFixed(
+                            3
+                          ) || "N/A"}
                         </Typography>
                       </Alert>
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <Alert severity="success">
-                        <Typography variant="subtitle2">Lowest Correlation</Typography>
+                        <Typography variant="subtitle2">
+                          Lowest Correlation
+                        </Typography>
                         <Typography variant="body2">
-                          {correlationData.data.correlations.insights.lowest_correlation?.pair?.join(' - ') || 'N/A'}: {' '}
-                          {correlationData.data.correlations.insights.lowest_correlation?.value?.toFixed(3) || 'N/A'}
+                          {correlationData.data.correlations.insights.lowest_correlation?.pair?.join(
+                            " - "
+                          ) || "N/A"}
+                          :{" "}
+                          {correlationData.data.correlations.insights.lowest_correlation?.value?.toFixed(
+                            3
+                          ) || "N/A"}
                         </Typography>
                       </Alert>
                     </Grid>
@@ -581,8 +661,17 @@ const AdvancedPortfolioAnalytics = () => {
               <Grid container spacing={3}>
                 <Grid item xs={6}>
                   <Box textAlign="center" p={2}>
-                    <Typography variant="h5" sx={{ color: getRiskColor(volatilityData?.data?.volatility?.risk_level) }}>
-                      {volatilityData?.data?.volatility?.annualized_volatility || 'N/A'}%
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        color: getRiskColor(
+                          volatilityData?.data?.volatility?.risk_level
+                        ),
+                      }}
+                    >
+                      {volatilityData?.data?.volatility
+                        ?.annualized_volatility || "N/A"}
+                      %
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Annualized Volatility
@@ -591,13 +680,22 @@ const AdvancedPortfolioAnalytics = () => {
                 </Grid>
                 <Grid item xs={6}>
                   <Box textAlign="center" p={2}>
-                    <Chip 
-                      label={volatilityData?.data?.volatility?.risk_level || 'Unknown'}
-                      color={
-                        volatilityData?.data?.volatility?.risk_level === 'Low' ? 'success' :
-                        volatilityData?.data?.volatility?.risk_level === 'Medium' ? 'warning' : 'error'
+                    <Chip
+                      label={
+                        volatilityData?.data?.volatility?.risk_level ||
+                        "Unknown"
                       }
-                      icon={getRiskIcon(volatilityData?.data?.volatility?.risk_level)}
+                      color={
+                        volatilityData?.data?.volatility?.risk_level === "Low"
+                          ? "success"
+                          : volatilityData?.data?.volatility?.risk_level ===
+                              "Medium"
+                            ? "warning"
+                            : "error"
+                      }
+                      icon={getRiskIcon(
+                        volatilityData?.data?.volatility?.risk_level
+                      )}
                     />
                     <Typography variant="body2" color="text.secondary" mt={1}>
                       Risk Level
@@ -617,7 +715,7 @@ const AdvancedPortfolioAnalytics = () => {
                 <Grid item xs={6}>
                   <Box textAlign="center" p={2}>
                     <Typography variant="h6">
-                      {trendsData?.data?.trends?.trend_direction || 'Unknown'}
+                      {trendsData?.data?.trends?.trend_direction || "Unknown"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Trend Direction
@@ -627,7 +725,7 @@ const AdvancedPortfolioAnalytics = () => {
                 <Grid item xs={6}>
                   <Box textAlign="center" p={2}>
                     <Typography variant="h6">
-                      {trendsData?.data?.trends?.trend_strength || 'Unknown'}
+                      {trendsData?.data?.trends?.trend_strength || "Unknown"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Trend Strength
@@ -645,22 +743,31 @@ const AdvancedPortfolioAnalytics = () => {
             <CardHeader title="Daily Returns Distribution" />
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={volatilityData?.data?.volatility?.returns_data || []}>
+                <AreaChart
+                  data={volatilityData?.data?.volatility?.returns_data || []}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) =>
+                      new Date(value).toLocaleDateString()
+                    }
                   />
                   <YAxis tickFormatter={(value) => `${value}%`} />
-                  <Tooltip 
-                    formatter={(value) => [`${parseFloat(value).toFixed(3)}%`, 'Daily Return']}
-                    labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                  <Tooltip
+                    formatter={(value) => [
+                      `${parseFloat(value).toFixed(3)}%`,
+                      "Daily Return",
+                    ]}
+                    labelFormatter={(value) =>
+                      new Date(value).toLocaleDateString()
+                    }
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="daily_return" 
-                    stroke="#8884d8" 
-                    fill="#8884d8" 
+                  <Area
+                    type="monotone"
+                    dataKey="daily_return"
+                    stroke="#8884d8"
+                    fill="#8884d8"
                     fillOpacity={0.3}
                   />
                 </AreaChart>
@@ -672,15 +779,26 @@ const AdvancedPortfolioAnalytics = () => {
     </Box>
   );
 
-  const isLoading = performanceLoading || riskLoading || correlationLoading || 
-                   allocationLoading || returnsLoading || sectorsLoading || 
-                   volatilityLoading || trendsLoading;
+  const isLoading =
+    performanceLoading ||
+    riskLoading ||
+    correlationLoading ||
+    allocationLoading ||
+    returnsLoading ||
+    sectorsLoading ||
+    volatilityLoading ||
+    trendsLoading;
 
   return (
     <ErrorBoundary>
-      <Box sx={{ maxWidth: 1400, margin: 'auto', p: 3 }}>
+      <Box sx={{ maxWidth: 1400, margin: "auto", p: 3 }}>
         {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
           <Typography variant="h4" component="h1" fontWeight="bold">
             Advanced Portfolio Analytics
           </Typography>
@@ -761,9 +879,9 @@ const AdvancedPortfolioAnalytics = () => {
         )}
 
         {/* Analytics Tabs */}
-        <Paper sx={{ width: '100%' }}>
-          <Tabs 
-            value={activeTab} 
+        <Paper sx={{ width: "100%" }}>
+          <Tabs
+            value={activeTab}
             onChange={(_, newValue) => setActiveTab(newValue)}
             variant="scrollable"
             scrollButtons="auto"
@@ -774,7 +892,7 @@ const AdvancedPortfolioAnalytics = () => {
             <Tab icon={<BarChartIcon />} label="Correlation" />
             <Tab icon={<ShowChart />} label="Volatility & Trends" />
           </Tabs>
-          
+
           <Box sx={{ p: 3 }}>
             {activeTab === 0 && renderPerformanceTab()}
             {activeTab === 1 && renderRiskTab()}

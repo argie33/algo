@@ -85,12 +85,12 @@ const SectorAnalysis = () => {
 
       // Get sector ETF data
       const symbols = Object.keys(sectorETFs);
-      
+
       if (!symbols || symbols.length === 0) {
         console.warn("No sector ETF symbols available for streaming");
         return;
       }
-      
+
       const response = await api.get(
         `/api/websocket/stream/${symbols.join(",")}`
       );
@@ -136,7 +136,7 @@ const SectorAnalysis = () => {
         setLastUpdate(new Date());
 
         console.log("✅ Sector analysis data loaded successfully", {
-          sectors: (sectors?.length || 0),
+          sectors: sectors?.length || 0,
           successful: sectors.filter((s) => !s.error).length,
           failed: sectors.filter((s) => s.error).length,
         });
@@ -144,7 +144,8 @@ const SectorAnalysis = () => {
         throw new Error("Failed to fetch sector data");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load sector data:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to load sector data:", error);
       setError(error.message);
 
       // Fallback to demo data for presentation
@@ -154,7 +155,7 @@ const SectorAnalysis = () => {
           etfSymbol: etfSymbol,
           price: 100, // Default price when real data unavailable
           change: 0, // Neutral change
-          changePercent: 0, // Neutral change percentage  
+          changePercent: 0, // Neutral change percentage
           volume: 1000000, // Default volume
           marketCap: 50000000000, // Default market cap
           color: sectorInfo.color,
@@ -208,7 +209,7 @@ const SectorAnalysis = () => {
           </Typography>
           <Box display="flex" gap={1} mt={1}>
             <Chip
-              label={`${(sectorData?.length || 0)} sectors`}
+              label={`${sectorData?.length || 0} sectors`}
               color="primary"
               size="small"
             />

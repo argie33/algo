@@ -1,10 +1,10 @@
 /**
  * useWebSocket Hook API Contract Tests
- * 
- * NOTE: This hook currently uses a mock implementation since WebSocket 
+ *
+ * NOTE: This hook currently uses a mock implementation since WebSocket
  * infrastructure isn't fully set up. These tests verify the API contract
  * for when real WebSocket functionality gets implemented.
- * 
+ *
  * Once real WebSocket implementation is added, these tests should be expanded
  * to test actual connection logic, message handling, and reconnection.
  */
@@ -13,44 +13,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useWebSocket } from "../../../hooks/useWebSocket.js";
 
-// Mock WebSocket for testing
-class MockWebSocket {
-  constructor(url) {
-    this.url = url;
-    this.readyState = WebSocket.CONNECTING;
-    this.onopen = null;
-    this.onmessage = null;
-    this.onerror = null;
-    this.onclose = null;
-    
-    // Simulate successful connection after a short delay
-    setTimeout(() => {
-      this.readyState = WebSocket.OPEN;
-      if (this.onopen) this.onopen();
-    }, 10);
-  }
-  
-  send(data) {
-    if (this.readyState === WebSocket.OPEN) {
-      // Simulate message sending
-      console.log('Mock WebSocket sending:', data);
-    }
-  }
-  
-  close() {
-    this.readyState = WebSocket.CLOSED;
-    if (this.onclose) this.onclose();
-  }
-}
-
-// Mock WebSocket constants
-MockWebSocket.CONNECTING = 0;
-MockWebSocket.OPEN = 1;
-MockWebSocket.CLOSING = 2;
-MockWebSocket.CLOSED = 3;
-
-// Replace global WebSocket with mock
-global.WebSocket = MockWebSocket;
+// Note: WebSocket is already mocked globally in simple-setup.js
+// No need for local mock here
 
 describe("useWebSocket Hook API Contract", () => {
   beforeEach(() => {
@@ -59,7 +23,9 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("returns initial state", () => {
-    const { result } = renderHook(() => useWebSocket("ws://localhost:3002", { autoConnect: false }));
+    const { result } = renderHook(() =>
+      useWebSocket("ws://localhost:3002", { autoConnect: false })
+    );
 
     expect(result.current.isConnected).toBe(false);
     expect(result.current.error).toBe(null);
@@ -125,7 +91,7 @@ describe("useWebSocket Hook API Contract", () => {
     });
 
     const message = { type: "test", data: "hello" };
-    
+
     act(() => {
       result.current.sendMessage(message);
     });
@@ -138,7 +104,7 @@ describe("useWebSocket Hook API Contract", () => {
     const { result } = renderHook(() => useWebSocket("ws://localhost:3002"));
 
     const message = { type: "test", data: "hello" };
-    
+
     act(() => {
       result.current.sendMessage(message);
     });
@@ -154,7 +120,7 @@ describe("useWebSocket Hook API Contract", () => {
       maxReconnectAttempts: 5,
     };
 
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useWebSocket("ws://localhost:3002", options)
     );
 
@@ -162,7 +128,7 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("handles auto-connect option", async () => {
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useWebSocket("ws://localhost:3002", { autoConnect: true })
     );
 
@@ -173,10 +139,10 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("handles reconnection attempts", async () => {
-    const { result } = renderHook(() => 
-      useWebSocket("ws://localhost:3002", { 
+    const { result } = renderHook(() =>
+      useWebSocket("ws://localhost:3002", {
         reconnect: true,
-        reconnectInterval: 1000 
+        reconnectInterval: 1000,
       })
     );
 
@@ -202,11 +168,11 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("limits reconnection attempts", async () => {
-    const { result } = renderHook(() => 
-      useWebSocket("ws://localhost:3002", { 
+    const { result } = renderHook(() =>
+      useWebSocket("ws://localhost:3002", {
         reconnect: true,
         maxReconnectAttempts: 2,
-        reconnectInterval: 100
+        reconnectInterval: 100,
       })
     );
 
@@ -216,7 +182,7 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("cleans up on unmount", () => {
-    const { result, unmount } = renderHook(() => 
+    const { result, unmount } = renderHook(() =>
       useWebSocket("ws://localhost:3002")
     );
 
@@ -234,7 +200,7 @@ describe("useWebSocket Hook API Contract", () => {
 
   it("handles message listeners", async () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useWebSocket("ws://localhost:3002", { onMessage })
     );
 
@@ -251,11 +217,13 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("handles different ready states", () => {
-    const { result } = renderHook(() => useWebSocket("ws://localhost:3002", { autoConnect: false }));
+    const { result } = renderHook(() =>
+      useWebSocket("ws://localhost:3002", { autoConnect: false })
+    );
 
     // Test various connection states
     expect(result.current.isConnected).toBe(false);
-    
+
     act(() => {
       result.current.connect();
     });
@@ -265,10 +233,10 @@ describe("useWebSocket Hook API Contract", () => {
 
   it("validates URL format", () => {
     const invalidUrls = ["", null, undefined, "not-a-websocket-url"];
-    
-    invalidUrls.forEach(url => {
+
+    invalidUrls.forEach((url) => {
       const { result } = renderHook(() => useWebSocket(url));
-      
+
       // Should handle invalid URLs gracefully
       expect(result.current).toBeDefined();
       expect(typeof result.current.connect).toBe("function");
@@ -276,7 +244,9 @@ describe("useWebSocket Hook API Contract", () => {
   });
 
   it("handles connection state changes", async () => {
-    const { result } = renderHook(() => useWebSocket("ws://localhost:3002", { autoConnect: false }));
+    const { result } = renderHook(() =>
+      useWebSocket("ws://localhost:3002", { autoConnect: false })
+    );
 
     // Initial state
     expect(result.current.isConnected).toBe(false);

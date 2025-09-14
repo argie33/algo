@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Card,
@@ -34,7 +34,7 @@ import {
   ListItemAvatar,
   ListItemText,
   List,
-} from '@mui/material';
+} from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
@@ -48,16 +48,16 @@ import {
   Warning,
   Info,
   Tune,
-} from '@mui/icons-material';
-import { formatCurrency, formatPercentage } from '../utils/formatters';
-import realTimeDataService from '../services/realTimeDataService';
+} from "@mui/icons-material";
+import { formatCurrency, formatPercentage } from "../utils/formatters";
+import realTimeDataService from "../services/realTimeDataService";
 
 const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [signalType, setSignalType] = useState('all');
-  const [timeframe, setTimeframe] = useState('1h');
+  const [signalType, setSignalType] = useState("all");
+  const [timeframe, setTimeframe] = useState("1h");
   const [isRealTime, setIsRealTime] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedSignal, setSelectedSignal] = useState(null);
@@ -66,31 +66,31 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
     minConfidence: 70,
     maxRisk: 5,
     enableAlerts: true,
-    autoExecute: false
+    autoExecute: false,
   });
-  
+
   // Real-time signal updates
   const [realtimeUpdates, setRealtimeUpdates] = useState({});
 
   // Signal types configuration
   const signalTypes = {
-    all: { name: 'All Signals', color: 'primary' },
-    buy: { name: 'Buy Signals', color: 'success' },
-    sell: { name: 'Sell Signals', color: 'error' },
-    hold: { name: 'Hold Signals', color: 'warning' },
-    momentum: { name: 'Momentum', color: 'info' },
-    reversal: { name: 'Reversal', color: 'secondary' },
-    breakout: { name: 'Breakout', color: 'primary' }
+    all: { name: "All Signals", color: "primary" },
+    buy: { name: "Buy Signals", color: "success" },
+    sell: { name: "Sell Signals", color: "error" },
+    hold: { name: "Hold Signals", color: "warning" },
+    momentum: { name: "Momentum", color: "info" },
+    reversal: { name: "Reversal", color: "secondary" },
+    breakout: { name: "Breakout", color: "primary" },
   };
 
   // Timeframe options
   const timeframes = {
-    '5m': '5 Minutes',
-    '15m': '15 Minutes', 
-    '1h': '1 Hour',
-    '4h': '4 Hours',
-    '1d': 'Daily',
-    '1w': 'Weekly'
+    "5m": "5 Minutes",
+    "15m": "15 Minutes",
+    "1h": "1 Hour",
+    "4h": "4 Hours",
+    "1d": "Daily",
+    "1w": "Weekly",
   };
 
   // Fetch trading signals
@@ -100,29 +100,29 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
       const params = new URLSearchParams({
         type: signalType,
         timeframe: timeframe,
-        limit: 50
+        limit: 50,
       });
-      
+
       if (selectedSymbol) {
-        params.append('symbol', selectedSymbol);
+        params.append("symbol", selectedSymbol);
       }
 
       const response = await fetch(`/api/signals/ai-signals?${params}`);
       const data = await response.json();
-      
+
       if (data.success) {
         setSignals(data.data.signals || []);
         setLastUpdate(new Date());
-        
+
         // Subscribe to real-time updates
         if (isRealTime && data.data.signals) {
-          const symbols = data.data.signals.map(s => s.symbol);
-          symbols.forEach(symbol => {
-            realTimeDataService.subscribe('signals', (signalData) => {
+          const symbols = data.data.signals.map((s) => s.symbol);
+          symbols.forEach((symbol) => {
+            realTimeDataService.subscribe("signals", (signalData) => {
               if (signalData[symbol]) {
-                setRealtimeUpdates(prev => ({
+                setRealtimeUpdates((prev) => ({
                   ...prev,
-                  [symbol]: signalData[symbol]
+                  [symbol]: signalData[symbol],
                 }));
               }
             });
@@ -130,7 +130,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch signals:', error);
+      console.error("Failed to fetch signals:", error);
     }
     setLoading(false);
   }, [signalType, timeframe, selectedSymbol, isRealTime]);
@@ -153,16 +153,16 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
     strength += (signal.rsi_score || 0) * 0.2;
     strength += (signal.macd_score || 0) * 0.2;
     strength += (signal.bollinger_score || 0) * 0.15;
-    
+
     // Volume confirmation
     if (signal.volume_confirmation) strength += 10;
-    
+
     // News sentiment
     strength += (signal.news_sentiment || 0) * 0.15;
-    
+
     // Market conditions
     strength += (signal.market_score || 0) * 0.1;
-    
+
     // Pattern recognition
     if (signal.pattern_match) strength += 15;
 
@@ -171,21 +171,21 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
 
   // Enhanced signals with real-time data
   const enhancedSignals = useMemo(() => {
-    return signals.map(signal => {
+    return signals.map((signal) => {
       const realtimeData = realtimeUpdates[signal.symbol];
       return {
         ...signal,
         strength: calculateSignalStrength(signal),
         isRealTime: !!realtimeData,
         currentPrice: realtimeData?.price || signal.price,
-        priceChange: realtimeData?.change || signal.price_change
+        priceChange: realtimeData?.change || signal.price_change,
       };
     });
   }, [signals, realtimeUpdates]);
 
   // Filter signals based on settings
   const filteredSignals = useMemo(() => {
-    return enhancedSignals.filter(signal => {
+    return enhancedSignals.filter((signal) => {
       const meetsConfidence = signal.confidence >= signalSettings.minConfidence;
       const meetsRisk = signal.risk_level <= signalSettings.maxRisk;
       return meetsConfidence && meetsRisk;
@@ -195,10 +195,10 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
   // Group signals by type for tabs
   const signalGroups = useMemo(() => {
     const groups = {
-      active: filteredSignals.filter(s => s.status === 'active'),
-      executed: filteredSignals.filter(s => s.status === 'executed'),
-      expired: filteredSignals.filter(s => s.status === 'expired'),
-      watching: filteredSignals.filter(s => s.status === 'watching')
+      active: filteredSignals.filter((s) => s.status === "active"),
+      executed: filteredSignals.filter((s) => s.status === "executed"),
+      expired: filteredSignals.filter((s) => s.status === "expired"),
+      watching: filteredSignals.filter((s) => s.status === "watching"),
     };
     return groups;
   }, [filteredSignals]);
@@ -212,23 +212,29 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
 
   // Get signal color based on type and strength
   const getSignalColor = (signal) => {
-    if (signal.strength >= 80) return 'success';
-    if (signal.strength >= 60) return 'info';
-    if (signal.strength >= 40) return 'warning';
-    return 'error';
+    if (signal.strength >= 80) return "success";
+    if (signal.strength >= 60) return "info";
+    if (signal.strength >= 40) return "warning";
+    return "error";
   };
 
   // Get signal icon
   const getSignalIcon = (signal) => {
-    const iconProps = { fontSize: 'small' };
-    
+    const iconProps = { fontSize: "small" };
+
     switch (signal.signal_type) {
-      case 'buy': return <TrendingUp color="success" {...iconProps} />;
-      case 'sell': return <TrendingDown color="error" {...iconProps} />;
-      case 'momentum': return <Speed color="info" {...iconProps} />;
-      case 'reversal': return <Timeline color="secondary" {...iconProps} />;
-      case 'breakout': return <ShowChart color="primary" {...iconProps} />;
-      default: return <Assessment {...iconProps} />;
+      case "buy":
+        return <TrendingUp color="success" {...iconProps} />;
+      case "sell":
+        return <TrendingDown color="error" {...iconProps} />;
+      case "momentum":
+        return <Speed color="info" {...iconProps} />;
+      case "reversal":
+        return <Timeline color="secondary" {...iconProps} />;
+      case "breakout":
+        return <ShowChart color="primary" {...iconProps} />;
+      default:
+        return <Assessment {...iconProps} />;
     }
   };
 
@@ -259,7 +265,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Timeframe</InputLabel>
@@ -269,12 +275,14 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                   label="Timeframe"
                 >
                   {Object.entries(timeframes).map(([key, name]) => (
-                    <MenuItem key={key} value={key}>{name}</MenuItem>
+                    <MenuItem key={key} value={key}>
+                      {name}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} md={2}>
               <FormControlLabel
                 control={
@@ -287,19 +295,21 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                 label="Real-Time"
               />
             </Grid>
-            
+
             <Grid item xs={12} md={3}>
               <Button
                 variant="contained"
                 onClick={fetchSignals}
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : <Refresh />}
+                startIcon={
+                  loading ? <CircularProgress size={16} /> : <Refresh />
+                }
                 fullWidth
               >
-                {loading ? 'Updating...' : 'Refresh Signals'}
+                {loading ? "Updating..." : "Refresh Signals"}
               </Button>
             </Grid>
-            
+
             <Grid item xs={12} md={3}>
               <Button
                 variant="outlined"
@@ -311,7 +321,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
               </Button>
             </Grid>
           </Grid>
-          
+
           {/* Signal Summary */}
           <Box mt={2}>
             <Grid container spacing={2}>
@@ -337,7 +347,9 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                 <Typography variant="h6" color="text.secondary">
                   {lastUpdate && `Last: ${lastUpdate.toLocaleTimeString()}`}
                 </Typography>
-                {isRealTime && <Chip label="LIVE" color="success" size="small" />}
+                {isRealTime && (
+                  <Chip label="LIVE" color="success" size="small" />
+                )}
               </Grid>
             </Grid>
           </Box>
@@ -346,21 +358,24 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
 
       {/* Signal Tabs */}
       <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={selectedTab} onChange={(e, newValue) => setSelectedTab(newValue)}>
-            <Tab 
+        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+          <Tabs
+            value={selectedTab}
+            onChange={(e, newValue) => setSelectedTab(newValue)}
+          >
+            <Tab
               label={`Active (${signalGroups.active.length})`}
               icon={<NotificationsActive />}
             />
-            <Tab 
+            <Tab
               label={`Watching (${signalGroups.watching.length})`}
               icon={<Info />}
             />
-            <Tab 
+            <Tab
               label={`Executed (${signalGroups.executed.length})`}
               icon={<CheckCircle />}
             />
-            <Tab 
+            <Tab
               label={`Expired (${signalGroups.expired.length})`}
               icon={<Warning />}
             />
@@ -386,11 +401,13 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                 </TableHead>
                 <TableBody>
                   {signalGroups.active.map((signal) => (
-                    <TableRow 
+                    <TableRow
                       key={signal.id}
                       hover
                       sx={{
-                        backgroundColor: signal.isRealTime ? 'rgba(76, 175, 80, 0.05)' : 'inherit'
+                        backgroundColor: signal.isRealTime
+                          ? "rgba(76, 175, 80, 0.05)"
+                          : "inherit",
                       }}
                     >
                       <TableCell>
@@ -399,47 +416,57 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                           <Typography variant="body2" fontWeight="bold">
                             {signal.signal_type.toUpperCase()}
                           </Typography>
-                          {signal.isRealTime && <Chip label="LIVE" size="small" color="success" />}
+                          {signal.isRealTime && (
+                            <Chip label="LIVE" size="small" color="success" />
+                          )}
                         </Box>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Typography variant="body2" fontWeight="bold">
                           {signal.symbol}
                         </Typography>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Box>
                           <Typography variant="body2">
                             {formatCurrency(signal.currentPrice)}
                           </Typography>
                           {signal.priceChange !== 0 && (
-                            <Typography 
-                              variant="caption" 
-                              color={signal.priceChange > 0 ? 'success.main' : 'error.main'}
+                            <Typography
+                              variant="caption"
+                              color={
+                                signal.priceChange > 0
+                                  ? "success.main"
+                                  : "error.main"
+                              }
                             >
                               {formatPercentage(signal.priceChange)}
                             </Typography>
                           )}
                         </Box>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Typography variant="body2">
                           {formatCurrency(signal.target_price)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {formatPercentage(((signal.target_price - signal.currentPrice) / signal.currentPrice) * 100)}
+                          {formatPercentage(
+                            ((signal.target_price - signal.currentPrice) /
+                              signal.currentPrice) *
+                              100
+                          )}
                         </Typography>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Box display="flex" alignItems="center" gap={1}>
-                          <Typography 
-                            variant="body2" 
+                          <Typography
+                            variant="body2"
                             fontWeight="bold"
-                            color={getSignalColor(signal) + '.main'}
+                            color={getSignalColor(signal) + ".main"}
                           >
                             {signal.strength}%
                           </Typography>
@@ -451,28 +478,38 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                           />
                         </Box>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Chip
                           label={`${signal.risk_level}/10`}
-                          color={signal.risk_level <= 3 ? 'success' : signal.risk_level <= 6 ? 'warning' : 'error'}
+                          color={
+                            signal.risk_level <= 3
+                              ? "success"
+                              : signal.risk_level <= 6
+                                ? "warning"
+                                : "error"
+                          }
                           size="small"
                         />
                       </TableCell>
-                      
+
                       <TableCell>
                         <Typography variant="caption">
                           {new Date(signal.timestamp).toLocaleTimeString()}
                         </Typography>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Box display="flex" gap={1}>
                           <Button
                             size="small"
                             variant="contained"
-                            color={signal.signal_type === 'buy' ? 'success' : 'error'}
-                            onClick={() => handleSignalAction(signal, 'execute')}
+                            color={
+                              signal.signal_type === "buy" ? "success" : "error"
+                            }
+                            onClick={() =>
+                              handleSignalAction(signal, "execute")
+                            }
                           >
                             Execute
                           </Button>
@@ -488,7 +525,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                           </Button>
                           <IconButton
                             size="small"
-                            onClick={() => handleSignalAction(signal, 'watch')}
+                            onClick={() => handleSignalAction(signal, "watch")}
                           >
                             <Info />
                           </IconButton>
@@ -507,7 +544,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
               {signalGroups.watching.map((signal) => (
                 <ListItem key={signal.id}>
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: getSignalColor(signal) + '.main' }}>
+                    <Avatar sx={{ bgcolor: getSignalColor(signal) + ".main" }}>
                       {getSignalIcon(signal)}
                     </Avatar>
                   </ListItemAvatar>
@@ -518,7 +555,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={() => handleSignalAction(signal, 'activate')}
+                    onClick={() => handleSignalAction(signal, "activate")}
                   >
                     Activate
                   </Button>
@@ -526,70 +563,97 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
               ))}
             </List>
           )}
-          
+
           {/* Similar layouts for executed and expired tabs */}
           {(selectedTab === 2 || selectedTab === 3) && (
             <Typography color="text.secondary" textAlign="center" py={4}>
-              {selectedTab === 2 ? 'Executed signals history' : 'Expired signals history'}
+              {selectedTab === 2
+                ? "Executed signals history"
+                : "Expired signals history"}
             </Typography>
           )}
-          
+
           {filteredSignals.length === 0 && !loading && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              No signals found matching your criteria. Try adjusting the filters or refreshing.
+              No signals found matching your criteria. Try adjusting the filters
+              or refreshing.
             </Alert>
           )}
         </CardContent>
       </Card>
 
       {/* Signal Details Dialog */}
-      <Dialog 
-        open={detailsOpen} 
+      <Dialog
+        open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         maxWidth="md"
         fullWidth
       >
         <DialogTitle>
-          {selectedSignal ? `${selectedSignal.symbol} Signal Details` : 'Signal Settings'}
+          {selectedSignal
+            ? `${selectedSignal.symbol} Signal Details`
+            : "Signal Settings"}
         </DialogTitle>
         <DialogContent>
           {selectedSignal ? (
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>Signal Information</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Signal Information
+                </Typography>
                 <Typography>Type: {selectedSignal.signal_type}</Typography>
                 <Typography>Strength: {selectedSignal.strength}%</Typography>
-                <Typography>Confidence: {selectedSignal.confidence}%</Typography>
-                <Typography>Risk Level: {selectedSignal.risk_level}/10</Typography>
+                <Typography>
+                  Confidence: {selectedSignal.confidence}%
+                </Typography>
+                <Typography>
+                  Risk Level: {selectedSignal.risk_level}/10
+                </Typography>
               </Grid>
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>Price Targets</Typography>
-                <Typography>Current: {formatCurrency(selectedSignal.currentPrice)}</Typography>
-                <Typography>Target: {formatCurrency(selectedSignal.target_price)}</Typography>
-                <Typography>Stop Loss: {formatCurrency(selectedSignal.stop_loss)}</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Price Targets
+                </Typography>
+                <Typography>
+                  Current: {formatCurrency(selectedSignal.currentPrice)}
+                </Typography>
+                <Typography>
+                  Target: {formatCurrency(selectedSignal.target_price)}
+                </Typography>
+                <Typography>
+                  Stop Loss: {formatCurrency(selectedSignal.stop_loss)}
+                </Typography>
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>Technical Analysis</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Technical Analysis
+                </Typography>
                 <Typography>RSI: {selectedSignal.rsi_score}</Typography>
                 <Typography>MACD: {selectedSignal.macd_score}</Typography>
-                <Typography>Bollinger: {selectedSignal.bollinger_score}</Typography>
+                <Typography>
+                  Bollinger: {selectedSignal.bollinger_score}
+                </Typography>
                 <Typography>Pattern: {selectedSignal.pattern_match}</Typography>
               </Grid>
             </Grid>
           ) : (
             <Box>
-              <Typography variant="h6" gutterBottom>Signal Settings</Typography>
-              <Typography>Configure minimum confidence, risk levels, and alerts</Typography>
+              <Typography variant="h6" gutterBottom>
+                Signal Settings
+              </Typography>
+              <Typography>
+                Configure minimum confidence, risk levels, and alerts
+              </Typography>
             </Box>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDetailsOpen(false)}>Close</Button>
           {selectedSignal && (
-            <Button 
+            <Button
               variant="contained"
               onClick={() => {
-                handleSignalAction(selectedSignal, 'execute');
+                handleSignalAction(selectedSignal, "execute");
                 setDetailsOpen(false);
               }}
             >

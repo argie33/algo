@@ -18,17 +18,17 @@ vi.mock("../../services/api.js", () => ({
     delete: vi.fn(),
     interceptors: {
       request: { use: vi.fn() },
-      response: { use: vi.fn() }
-    }
-  }
+      response: { use: vi.fn() },
+    },
+  },
 }));
 
 vi.mock("../../services/dataService.js", () => ({
   default: {
     fetchData: vi.fn(),
     clearCache: vi.fn(),
-    invalidateCache: vi.fn()
-  }
+    invalidateCache: vi.fn(),
+  },
 }));
 
 describe("Working Site Integration Tests", () => {
@@ -36,10 +36,12 @@ describe("Working Site Integration Tests", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    
+
     const { default: api } = await import("../../services/api.js");
-    const { default: dataService } = await import("../../services/dataService.js");
-    
+    const { default: dataService } = await import(
+      "../../services/dataService.js"
+    );
+
     mockApi = api;
     mockDataService = dataService;
 
@@ -58,9 +60,7 @@ describe("Working Site Integration Tests", () => {
       mockDataService.fetchData.mockResolvedValue({
         portfolioValue: 150000,
         dayChange: 2500,
-        holdings: [
-          { symbol: "AAPL", shares: 100, currentPrice: 175.50 }
-        ]
+        holdings: [{ symbol: "AAPL", shares: 100, currentPrice: 175.5 }],
       });
 
       // Create lightweight Dashboard component test
@@ -69,8 +69,9 @@ describe("Working Site Integration Tests", () => {
         const [loading, setLoading] = React.useState(true);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/dashboard')
-            .then(result => {
+          mockDataService
+            .fetchData("/api/dashboard")
+            .then((result) => {
               setData(result);
               setLoading(false);
             })
@@ -80,7 +81,7 @@ describe("Working Site Integration Tests", () => {
         }, []);
 
         if (loading) return <div data-testid="loading">Loading...</div>;
-        
+
         return (
           <div data-testid="dashboard">
             <h1>Dashboard</h1>
@@ -104,11 +105,15 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("dashboard")).toBeInTheDocument();
-        expect(screen.getByTestId("portfolio-value")).toHaveTextContent("Portfolio: $150000");
-        expect(screen.getByTestId("holdings-count")).toHaveTextContent("Holdings: 1");
+        expect(screen.getByTestId("portfolio-value")).toHaveTextContent(
+          "Portfolio: $150000"
+        );
+        expect(screen.getByTestId("holdings-count")).toHaveTextContent(
+          "Holdings: 1"
+        );
       });
 
-      expect(mockDataService.fetchData).toHaveBeenCalledWith('/api/dashboard');
+      expect(mockDataService.fetchData).toHaveBeenCalledWith("/api/dashboard");
     });
 
     it("should test MarketOverview functionality", async () => {
@@ -117,8 +122,8 @@ describe("Working Site Integration Tests", () => {
         marketStatus: "open",
         indices: {
           SPY: { price: 450.25, change: 2.15 },
-          QQQ: { price: 385.50, change: -1.25 }
-        }
+          QQQ: { price: 385.5, change: -1.25 },
+        },
       });
 
       const MarketOverviewTest = () => {
@@ -126,8 +131,9 @@ describe("Working Site Integration Tests", () => {
         const [loading, setLoading] = React.useState(true);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/market/overview')
-            .then(result => {
+          mockDataService
+            .fetchData("/api/market/overview")
+            .then((result) => {
               setMarket(result);
               setLoading(false);
             })
@@ -139,9 +145,15 @@ describe("Working Site Integration Tests", () => {
         return (
           <div data-testid="market-overview">
             <h1>Market Overview</h1>
-            <div data-testid="market-status">Status: {market?.marketStatus}</div>
-            <div data-testid="spy-price">SPY: ${market?.indices?.SPY?.price}</div>
-            <div data-testid="qqq-price">QQQ: ${market?.indices?.QQQ?.price}</div>
+            <div data-testid="market-status">
+              Status: {market?.marketStatus}
+            </div>
+            <div data-testid="spy-price">
+              SPY: ${market?.indices?.SPY?.price}
+            </div>
+            <div data-testid="qqq-price">
+              QQQ: ${market?.indices?.QQQ?.price}
+            </div>
           </div>
         );
       };
@@ -154,20 +166,26 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("market-overview")).toBeInTheDocument();
-        expect(screen.getByTestId("market-status")).toHaveTextContent("Status: open");
-        expect(screen.getByTestId("spy-price")).toHaveTextContent("SPY: $450.25");
+        expect(screen.getByTestId("market-status")).toHaveTextContent(
+          "Status: open"
+        );
+        expect(screen.getByTestId("spy-price")).toHaveTextContent(
+          "SPY: $450.25"
+        );
       });
 
-      expect(mockDataService.fetchData).toHaveBeenCalledWith('/api/market/overview');
+      expect(mockDataService.fetchData).toHaveBeenCalledWith(
+        "/api/market/overview"
+      );
     });
 
     it("should test StockExplorer search functionality", async () => {
       const user = userEvent.setup();
-      
+
       // Mock stock search
       mockDataService.fetchData.mockResolvedValue([
-        { symbol: "AAPL", name: "Apple Inc.", price: 175.50 },
-        { symbol: "MSFT", name: "Microsoft Corp.", price: 385.25 }
+        { symbol: "AAPL", name: "Apple Inc.", price: 175.5 },
+        { symbol: "MSFT", name: "Microsoft Corp.", price: 385.25 },
       ]);
 
       const StockExplorerTest = () => {
@@ -177,10 +195,12 @@ describe("Working Site Integration Tests", () => {
 
         const handleSearch = async () => {
           if (!query) return;
-          
+
           setLoading(true);
           try {
-            const data = await mockDataService.fetchData(`/api/stocks/search?q=${query}`);
+            const data = await mockDataService.fetchData(
+              `/api/stocks/search?q=${query}`
+            );
             setResults(data);
           } catch (error) {
             setResults([]);
@@ -202,7 +222,7 @@ describe("Working Site Integration Tests", () => {
             </button>
             {loading && <div data-testid="loading">Searching...</div>}
             <div data-testid="results">
-              {results.map(stock => (
+              {results.map((stock) => (
                 <div key={stock.symbol} data-testid={`result-${stock.symbol}`}>
                   {stock.symbol} - {stock.name} - ${stock.price}
                 </div>
@@ -223,35 +243,39 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("result-AAPL")).toBeInTheDocument();
-        expect(screen.getByTestId("result-AAPL")).toHaveTextContent("AAPL - Apple Inc. - $175.5");
+        expect(screen.getByTestId("result-AAPL")).toHaveTextContent(
+          "AAPL - Apple Inc. - $175.5"
+        );
       });
 
-      expect(mockDataService.fetchData).toHaveBeenCalledWith('/api/stocks/search?q=AAPL');
+      expect(mockDataService.fetchData).toHaveBeenCalledWith(
+        "/api/stocks/search?q=AAPL"
+      );
     });
 
     it("should test Portfolio functionality", async () => {
       // Mock portfolio data
       mockDataService.fetchData.mockResolvedValue({
         holdings: [
-          { 
-            symbol: "AAPL", 
-            shares: 100, 
-            avgCost: 150.00, 
-            currentPrice: 175.50,
+          {
+            symbol: "AAPL",
+            shares: 100,
+            avgCost: 150.0,
+            currentPrice: 175.5,
             totalValue: 17550,
-            gainLoss: 2550
+            gainLoss: 2550,
           },
-          { 
-            symbol: "GOOGL", 
-            shares: 50, 
-            avgCost: 2500.00, 
+          {
+            symbol: "GOOGL",
+            shares: 50,
+            avgCost: 2500.0,
             currentPrice: 2750.25,
-            totalValue: 137512.50,
-            gainLoss: 12512.50
-          }
+            totalValue: 137512.5,
+            gainLoss: 12512.5,
+          },
         ],
-        totalValue: 155062.50,
-        totalGainLoss: 15062.50
+        totalValue: 155062.5,
+        totalGainLoss: 15062.5,
       });
 
       const PortfolioTest = () => {
@@ -259,8 +283,9 @@ describe("Working Site Integration Tests", () => {
         const [loading, setLoading] = React.useState(true);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/portfolio')
-            .then(result => {
+          mockDataService
+            .fetchData("/api/portfolio")
+            .then((result) => {
               setPortfolio(result);
               setLoading(false);
             })
@@ -279,9 +304,13 @@ describe("Working Site Integration Tests", () => {
               Total Gain/Loss: ${portfolio?.totalGainLoss}
             </div>
             <div data-testid="holdings">
-              {portfolio?.holdings?.map(holding => (
-                <div key={holding.symbol} data-testid={`holding-${holding.symbol}`}>
-                  {holding.symbol}: {holding.shares} shares @ ${holding.currentPrice}
+              {portfolio?.holdings?.map((holding) => (
+                <div
+                  key={holding.symbol}
+                  data-testid={`holding-${holding.symbol}`}
+                >
+                  {holding.symbol}: {holding.shares} shares @ $
+                  {holding.currentPrice}
                 </div>
               ))}
             </div>
@@ -297,20 +326,29 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("portfolio")).toBeInTheDocument();
-        expect(screen.getByTestId("total-value")).toHaveTextContent("Total Value: $155062.5");
-        expect(screen.getByTestId("holding-AAPL")).toHaveTextContent("AAPL: 100 shares @ $175.5");
+        expect(screen.getByTestId("total-value")).toHaveTextContent(
+          "Total Value: $155062.5"
+        );
+        expect(screen.getByTestId("holding-AAPL")).toHaveTextContent(
+          "AAPL: 100 shares @ $175.5"
+        );
       });
 
-      expect(mockDataService.fetchData).toHaveBeenCalledWith('/api/portfolio');
+      expect(mockDataService.fetchData).toHaveBeenCalledWith("/api/portfolio");
     });
 
     it("should test Watchlist functionality", async () => {
       // Mock watchlist data
       mockDataService.fetchData.mockResolvedValue({
         watchlist: [
-          { symbol: "AAPL", price: 175.50, change: 2.15, changePercent: 1.24 },
-          { symbol: "MSFT", price: 385.25, change: -1.25, changePercent: -0.32 }
-        ]
+          { symbol: "AAPL", price: 175.5, change: 2.15, changePercent: 1.24 },
+          {
+            symbol: "MSFT",
+            price: 385.25,
+            change: -1.25,
+            changePercent: -0.32,
+          },
+        ],
       });
 
       const WatchlistTest = () => {
@@ -318,8 +356,9 @@ describe("Working Site Integration Tests", () => {
         const [loading, setLoading] = React.useState(true);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/watchlist')
-            .then(result => {
+          mockDataService
+            .fetchData("/api/watchlist")
+            .then((result) => {
               setWatchlist(result);
               setLoading(false);
             })
@@ -332,9 +371,10 @@ describe("Working Site Integration Tests", () => {
           <div data-testid="watchlist">
             <h1>Watchlist</h1>
             <div data-testid="watchlist-items">
-              {watchlist?.watchlist?.map(item => (
+              {watchlist?.watchlist?.map((item) => (
                 <div key={item.symbol} data-testid={`watchlist-${item.symbol}`}>
-                  {item.symbol}: ${item.price} ({item.change > 0 ? '+' : ''}{item.change})
+                  {item.symbol}: ${item.price} ({item.change > 0 ? "+" : ""}
+                  {item.change})
                 </div>
               ))}
             </div>
@@ -350,42 +390,46 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("watchlist")).toBeInTheDocument();
-        expect(screen.getByTestId("watchlist-AAPL")).toHaveTextContent("AAPL: $175.5 (+2.15)");
-        expect(screen.getByTestId("watchlist-MSFT")).toHaveTextContent("MSFT: $385.25 (-1.25)");
+        expect(screen.getByTestId("watchlist-AAPL")).toHaveTextContent(
+          "AAPL: $175.5 (+2.15)"
+        );
+        expect(screen.getByTestId("watchlist-MSFT")).toHaveTextContent(
+          "MSFT: $385.25 (-1.25)"
+        );
       });
 
-      expect(mockDataService.fetchData).toHaveBeenCalledWith('/api/watchlist');
+      expect(mockDataService.fetchData).toHaveBeenCalledWith("/api/watchlist");
     });
   });
 
   describe("API Integration Tests", () => {
     it("should handle API success responses", async () => {
-      const successData = { 
-        data: { 
-          portfolio: { value: 150000, holdings: [] } 
-        } 
+      const successData = {
+        data: {
+          portfolio: { value: 150000, holdings: [] },
+        },
       };
-      
+
       mockApi.get.mockResolvedValue(successData);
-      
-      const result = await mockApi.get('/api/portfolio');
-      
+
+      const result = await mockApi.get("/api/portfolio");
+
       expect(result.data.portfolio.value).toBe(150000);
-      expect(mockApi.get).toHaveBeenCalledWith('/api/portfolio');
+      expect(mockApi.get).toHaveBeenCalledWith("/api/portfolio");
     });
 
     it("should handle API error responses", async () => {
       const errorResponse = {
-        response: { 
-          status: 500, 
-          data: { error: "Internal server error" } 
-        }
+        response: {
+          status: 500,
+          data: { error: "Internal server error" },
+        },
       };
-      
+
       mockApi.get.mockRejectedValue(errorResponse);
-      
+
       try {
-        await mockApi.get('/api/portfolio');
+        await mockApi.get("/api/portfolio");
         expect.fail("Should have thrown error");
       } catch (error) {
         expect(error.response.status).toBe(500);
@@ -394,16 +438,16 @@ describe("Working Site Integration Tests", () => {
 
     it("should handle authentication flows", async () => {
       mockApi.get.mockImplementation((url) => {
-        if (url.includes('/auth/check')) {
-          return Promise.resolve({ 
-            data: { authenticated: true, user: { id: 1, name: "Test User" } } 
+        if (url.includes("/auth/check")) {
+          return Promise.resolve({
+            data: { authenticated: true, user: { id: 1, name: "Test User" } },
           });
         }
         return Promise.resolve({ data: {} });
       });
 
-      const authResult = await mockApi.get('/api/auth/check');
-      const dataResult = await mockApi.get('/api/dashboard');
+      const authResult = await mockApi.get("/api/auth/check");
+      const dataResult = await mockApi.get("/api/dashboard");
 
       expect(authResult.data.authenticated).toBe(true);
       expect(authResult.data.user.name).toBe("Test User");
@@ -414,9 +458,9 @@ describe("Working Site Integration Tests", () => {
   describe("User Interaction Tests", () => {
     it("should handle form submissions", async () => {
       const user = userEvent.setup();
-      
-      mockApi.post.mockResolvedValue({ 
-        data: { success: true, message: "Settings saved" } 
+
+      mockApi.post.mockResolvedValue({
+        data: { success: true, message: "Settings saved" },
       });
 
       const SettingsTest = () => {
@@ -425,7 +469,9 @@ describe("Working Site Integration Tests", () => {
         const handleSubmit = async (e) => {
           e.preventDefault();
           try {
-            const result = await mockApi.post('/api/settings', { theme: 'dark' });
+            const result = await mockApi.post("/api/settings", {
+              theme: "dark",
+            });
             setMessage(result.data.message);
           } catch (error) {
             setMessage("Error saving settings");
@@ -453,30 +499,38 @@ describe("Working Site Integration Tests", () => {
       await user.click(screen.getByTestId("save-button"));
 
       await waitFor(() => {
-        expect(screen.getByTestId("message")).toHaveTextContent("Settings saved");
+        expect(screen.getByTestId("message")).toHaveTextContent(
+          "Settings saved"
+        );
       });
 
-      expect(mockApi.post).toHaveBeenCalledWith('/api/settings', { theme: 'dark' });
+      expect(mockApi.post).toHaveBeenCalledWith("/api/settings", {
+        theme: "dark",
+      });
     });
 
     it("should handle real-time data updates", async () => {
       let updateCallback;
-      
+
       mockDataService.fetchData.mockImplementation((url) => {
-        if (url.includes('/realtime')) {
+        if (url.includes("/realtime")) {
           setTimeout(() => {
             if (updateCallback) {
               updateCallback({
                 symbol: "AAPL",
-                price: 176.00,
-                change: 2.65
+                price: 176.0,
+                change: 2.65,
               });
             }
           }, 100);
-          
+
           return Promise.resolve({
-            subscribe: (callback) => { updateCallback = callback; },
-            unsubscribe: () => { updateCallback = null; }
+            subscribe: (callback) => {
+              updateCallback = callback;
+            },
+            unsubscribe: () => {
+              updateCallback = null;
+            },
           });
         }
         return Promise.resolve({ data: [] });
@@ -486,19 +540,19 @@ describe("Working Site Integration Tests", () => {
         const [price, setPrice] = React.useState(null);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/realtime/AAPL')
-            .then(service => {
-              service.subscribe((data) => {
-                setPrice(data);
-              });
+          mockDataService.fetchData("/api/realtime/AAPL").then((service) => {
+            service.subscribe((data) => {
+              setPrice(data);
             });
+          });
         }, []);
 
         return (
           <div data-testid="realtime">
             {price ? (
               <div data-testid="price-update">
-                {price.symbol}: ${price.price} ({price.change > 0 ? '+' : ''}{price.change})
+                {price.symbol}: ${price.price} ({price.change > 0 ? "+" : ""}
+                {price.change})
               </div>
             ) : (
               <div data-testid="loading">Waiting for updates...</div>
@@ -517,7 +571,9 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("price-update")).toBeInTheDocument();
-        expect(screen.getByTestId("price-update")).toHaveTextContent("AAPL: $176 (+2.65)");
+        expect(screen.getByTestId("price-update")).toHaveTextContent(
+          "AAPL: $176 (+2.65)"
+        );
       });
     });
   });
@@ -531,9 +587,10 @@ describe("Working Site Integration Tests", () => {
         const [loading, setLoading] = React.useState(true);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/data')
+          mockDataService
+            .fetchData("/api/data")
             .then(() => setLoading(false))
-            .catch(err => {
+            .catch((err) => {
               setError(err.message);
               setLoading(false);
             });
@@ -541,7 +598,7 @@ describe("Working Site Integration Tests", () => {
 
         if (loading) return <div data-testid="loading">Loading...</div>;
         if (error) return <div data-testid="error">Error: {error}</div>;
-        
+
         return <div data-testid="success">Data loaded</div>;
       };
 
@@ -553,7 +610,9 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("error")).toBeInTheDocument();
-        expect(screen.getByTestId("error")).toHaveTextContent("Error: Network error");
+        expect(screen.getByTestId("error")).toHaveTextContent(
+          "Error: Network error"
+        );
       });
     });
 
@@ -561,7 +620,7 @@ describe("Working Site Integration Tests", () => {
       mockDataService.fetchData.mockResolvedValue({
         portfolio: null,
         holdings: undefined,
-        invalidField: "N/A"
+        invalidField: "N/A",
       });
 
       const DataValidationTest = () => {
@@ -569,8 +628,9 @@ describe("Working Site Integration Tests", () => {
         const [loading, setLoading] = React.useState(true);
 
         React.useEffect(() => {
-          mockDataService.fetchData('/api/portfolio')
-            .then(result => {
+          mockDataService
+            .fetchData("/api/portfolio")
+            .then((result) => {
               setData(result);
               setLoading(false);
             })
@@ -580,11 +640,15 @@ describe("Working Site Integration Tests", () => {
         if (loading) return <div data-testid="loading">Loading...</div>;
 
         const portfolioValue = data?.portfolio?.value || 0;
-        const holdingsCount = Array.isArray(data?.holdings) ? data.holdings.length : 0;
+        const holdingsCount = Array.isArray(data?.holdings)
+          ? data.holdings.length
+          : 0;
 
         return (
           <div data-testid="validation">
-            <div data-testid="portfolio-value">Portfolio: ${portfolioValue}</div>
+            <div data-testid="portfolio-value">
+              Portfolio: ${portfolioValue}
+            </div>
             <div data-testid="holdings-count">Holdings: {holdingsCount}</div>
           </div>
         );
@@ -598,8 +662,12 @@ describe("Working Site Integration Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("validation")).toBeInTheDocument();
-        expect(screen.getByTestId("portfolio-value")).toHaveTextContent("Portfolio: $0");
-        expect(screen.getByTestId("holdings-count")).toHaveTextContent("Holdings: 0");
+        expect(screen.getByTestId("portfolio-value")).toHaveTextContent(
+          "Portfolio: $0"
+        );
+        expect(screen.getByTestId("holdings-count")).toHaveTextContent(
+          "Holdings: 0"
+        );
       });
     });
   });

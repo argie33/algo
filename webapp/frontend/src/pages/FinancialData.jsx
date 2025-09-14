@@ -70,7 +70,8 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function FinancialData() {
-  if (import.meta.env && import.meta.env.DEV) console.log("🚀 FinancialData: Component rendering...");
+  if (import.meta.env && import.meta.env.DEV)
+    console.log("🚀 FinancialData: Component rendering...");
 
   const logger = createComponentLogger("FinancialData");
 
@@ -85,7 +86,8 @@ function FinancialData() {
     queryFn: () => getStocks({ limit: 1000, sortBy: "ticker" }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Companies data loaded:", data);
+      if (import.meta.env && import.meta.env.DEV)
+        console.log("✅ FinancialData: Companies data loaded:", data);
     },
     onError: (error) =>
       console.error("❌ FinancialData: Companies data error:", error),
@@ -93,33 +95,37 @@ function FinancialData() {
 
   const companies =
     companiesData?.data?.data ?? companiesData?.data ?? companiesData ?? [];
-  if (import.meta.env && import.meta.env.DEV) console.log("📊 FinancialData: Companies data:", {
-    hasData: !!companiesData,
-    companiesLength: (companies?.length || 0),
-    sampleCompany: companies[0],
-  });
+  if (import.meta.env && import.meta.env.DEV)
+    console.log("📊 FinancialData: Companies data:", {
+      hasData: !!companiesData,
+      companiesLength: companies?.length || 0,
+      sampleCompany: companies[0],
+    });
 
   // Defensive: ensure companies is always an array before using .find
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   const handleTabChange = (event, newValue) => {
-    if (import.meta.env && import.meta.env.DEV) console.log("🔄 FinancialData: Tab changed to:", newValue);
+    if (import.meta.env && import.meta.env.DEV)
+      console.log("🔄 FinancialData: Tab changed to:", newValue);
     setTabValue(newValue);
   };
 
   const _handleTickerSubmit = () => {
     if (searchTicker.trim()) {
-      if (import.meta.env && import.meta.env.DEV) console.log(
-        "🔍 FinancialData: Searching for ticker:",
-        searchTicker.trim().toUpperCase()
-      );
+      if (import.meta.env && import.meta.env.DEV)
+        console.log(
+          "🔍 FinancialData: Searching for ticker:",
+          searchTicker.trim().toUpperCase()
+        );
       setTicker(searchTicker.trim().toUpperCase());
     }
   };
 
   const handlePeriodChange = (event, newPeriod) => {
     if (newPeriod !== null) {
-      if (import.meta.env && import.meta.env.DEV) console.log("📅 FinancialData: Period changed to:", newPeriod);
+      if (import.meta.env && import.meta.env.DEV)
+        console.log("📅 FinancialData: Period changed to:", newPeriod);
       setPeriod(newPeriod);
     }
   };
@@ -134,7 +140,8 @@ function FinancialData() {
     queryFn: () => getBalanceSheet(ticker, period),
     enabled: !!ticker && tabValue === 0,
     onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Balance sheet loaded:", data);
+      if (import.meta.env && import.meta.env.DEV)
+        console.log("✅ FinancialData: Balance sheet loaded:", data);
     },
     onError: (error) => {
       console.error("❌ FinancialData: Balance sheet error:", error);
@@ -151,7 +158,8 @@ function FinancialData() {
     queryFn: () => getIncomeStatement(ticker, period),
     enabled: !!ticker && tabValue === 1,
     onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Income statement loaded:", data);
+      if (import.meta.env && import.meta.env.DEV)
+        console.log("✅ FinancialData: Income statement loaded:", data);
     },
     onError: (error) => {
       console.error("❌ FinancialData: Income statement error:", error);
@@ -168,7 +176,8 @@ function FinancialData() {
     queryFn: () => getCashFlowStatement(ticker, period),
     enabled: !!ticker && tabValue === 2,
     onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Cash flow statement loaded:", data);
+      if (import.meta.env && import.meta.env.DEV)
+        console.log("✅ FinancialData: Cash flow statement loaded:", data);
     },
     onError: (error) => {
       console.error("❌ FinancialData: Cash flow statement error:", error);
@@ -176,26 +185,27 @@ function FinancialData() {
     },
   });
 
-  if (import.meta.env && import.meta.env.DEV) console.log("📊 FinancialData: Data summary:", {
-    ticker,
-    period,
-    tabValue,
-    balanceSheet: {
-      hasData: !!balanceSheet,
-      isLoading: balanceSheetLoading,
-      hasError: !!balanceSheetError,
-    },
-    incomeStatement: {
-      hasData: !!incomeStatement,
-      isLoading: incomeStatementLoading,
-      hasError: !!incomeStatementError,
-    },
-    cashFlowStatement: {
-      hasData: !!cashFlowStatement,
-      isLoading: cashFlowLoading,
-      hasError: !!cashFlowError,
-    },
-  });
+  if (import.meta.env && import.meta.env.DEV)
+    console.log("📊 FinancialData: Data summary:", {
+      ticker,
+      period,
+      tabValue,
+      balanceSheet: {
+        hasData: !!balanceSheet,
+        isLoading: balanceSheetLoading,
+        hasError: !!balanceSheetError,
+      },
+      incomeStatement: {
+        hasData: !!incomeStatement,
+        isLoading: incomeStatementLoading,
+        hasError: !!incomeStatementError,
+      },
+      cashFlowStatement: {
+        hasData: !!cashFlowStatement,
+        isLoading: cashFlowLoading,
+        hasError: !!cashFlowError,
+      },
+    });
 
   const {
     data: keyMetrics,
@@ -365,7 +375,11 @@ function FinancialData() {
     ) {
       if ("data" in actualData) actualData = actualData?.data;
     }
-    if (!actualData || !Array.isArray(actualData) || (actualData?.length || 0) === 0) {
+    if (
+      !actualData ||
+      !Array.isArray(actualData) ||
+      (actualData?.length || 0) === 0
+    ) {
       return (
         <Card>
           <CardContent>

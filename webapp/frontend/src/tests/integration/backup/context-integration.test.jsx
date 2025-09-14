@@ -25,7 +25,7 @@ describe("Context Integration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Default auth context mock
     mockAuthContext = {
       user: null,
@@ -36,7 +36,7 @@ describe("Context Integration", () => {
       signOut: vi.fn(),
       resetPassword: vi.fn(),
       forgotPassword: vi.fn(),
-      updateProfile: vi.fn()
+      updateProfile: vi.fn(),
     };
   });
 
@@ -50,7 +50,7 @@ describe("Context Integration", () => {
       const authenticatedContext = {
         ...mockAuthContext,
         user: { username: "testuser", email: "test@example.com" },
-        isAuthenticated: true
+        isAuthenticated: true,
       };
 
       const TestComponent = () => {
@@ -58,10 +58,10 @@ describe("Context Integration", () => {
         return (
           <div>
             <div data-testid="auth-status">
-              {isAuthenticated ? 'authenticated' : 'unauthenticated'}
+              {isAuthenticated ? "authenticated" : "unauthenticated"}
             </div>
             <div data-testid="user-info">
-              {user ? user.username : 'no user'}
+              {user ? user.username : "no user"}
             </div>
           </div>
         );
@@ -73,13 +73,15 @@ describe("Context Integration", () => {
         </AuthContext.Provider>
       );
 
-      expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+      expect(screen.getByTestId("auth-status")).toHaveTextContent(
+        "authenticated"
+      );
       expect(screen.getByTestId("user-info")).toHaveTextContent("testuser");
     });
 
     it("should propagate auth state changes to all consuming components", async () => {
       let contextValue = { ...mockAuthContext };
-      
+
       const AuthProvider = ({ children }) => (
         <AuthContext.Provider value={contextValue}>
           {children}
@@ -88,12 +90,14 @@ describe("Context Integration", () => {
 
       const Component1 = () => {
         const { isAuthenticated } = React.useContext(AuthContext);
-        return <div data-testid="comp1">{isAuthenticated ? 'auth' : 'no-auth'}</div>;
+        return (
+          <div data-testid="comp1">{isAuthenticated ? "auth" : "no-auth"}</div>
+        );
       };
 
       const Component2 = () => {
         const { user } = React.useContext(AuthContext);
-        return <div data-testid="comp2">{user?.username || 'no-user'}</div>;
+        return <div data-testid="comp2">{user?.username || "no-user"}</div>;
       };
 
       const { rerender } = render(
@@ -111,7 +115,7 @@ describe("Context Integration", () => {
       contextValue = {
         ...mockAuthContext,
         user: { username: "newuser" },
-        isAuthenticated: true
+        isAuthenticated: true,
       };
 
       rerender(
@@ -128,19 +132,19 @@ describe("Context Integration", () => {
 
     it("should handle context method calls from components", async () => {
       const user = userEvent.setup();
-      
+
       const signInMock = vi.fn().mockResolvedValue({
-        user: { username: "testuser" }
+        user: { username: "testuser" },
       });
 
       const contextWithMethods = {
         ...mockAuthContext,
-        signIn: signInMock
+        signIn: signInMock,
       };
 
       const LoginComponent = () => {
         const { signIn } = React.useContext(AuthContext);
-        
+
         const handleLogin = async () => {
           await signIn("test@example.com", "password123");
         };
@@ -160,7 +164,10 @@ describe("Context Integration", () => {
 
       await user.click(screen.getByTestId("login-btn"));
 
-      expect(signInMock).toHaveBeenCalledWith("test@example.com", "password123");
+      expect(signInMock).toHaveBeenCalledWith(
+        "test@example.com",
+        "password123"
+      );
     });
   });
 
@@ -170,7 +177,7 @@ describe("Context Integration", () => {
       const ThemeContext = React.createContext();
       const DataContext = React.createContext();
 
-      const themeValue = { theme: 'dark', toggleTheme: vi.fn() };
+      const themeValue = { theme: "dark", toggleTheme: vi.fn() };
       const dataValue = { data: { stocks: [] }, loading: false };
 
       const MultiContextComponent = () => {
@@ -180,7 +187,7 @@ describe("Context Integration", () => {
 
         return (
           <div>
-            <div data-testid="auth">{isAuthenticated ? 'yes' : 'no'}</div>
+            <div data-testid="auth">{isAuthenticated ? "yes" : "no"}</div>
             <div data-testid="theme">{theme}</div>
             <div data-testid="data">{data.stocks.length}</div>
           </div>
@@ -188,7 +195,9 @@ describe("Context Integration", () => {
       };
 
       render(
-        <AuthContext.Provider value={{ ...mockAuthContext, isAuthenticated: true }}>
+        <AuthContext.Provider
+          value={{ ...mockAuthContext, isAuthenticated: true }}
+        >
           <ThemeContext.Provider value={themeValue}>
             <DataContext.Provider value={dataValue}>
               <MultiContextComponent />
@@ -204,9 +213,9 @@ describe("Context Integration", () => {
 
     it("should handle context updates independently", async () => {
       const ThemeContext = React.createContext();
-      
+
       let authValue = { ...mockAuthContext, isAuthenticated: false };
-      let themeValue = { theme: 'light' };
+      let themeValue = { theme: "light" };
 
       const TestComponent = () => {
         const { isAuthenticated } = React.useContext(AuthContext);
@@ -214,7 +223,9 @@ describe("Context Integration", () => {
 
         return (
           <div>
-            <div data-testid="auth-state">{isAuthenticated ? 'auth' : 'no-auth'}</div>
+            <div data-testid="auth-state">
+              {isAuthenticated ? "auth" : "no-auth"}
+            </div>
             <div data-testid="theme-state">{theme}</div>
           </div>
         );
@@ -246,7 +257,7 @@ describe("Context Integration", () => {
       expect(screen.getByTestId("theme-state")).toHaveTextContent("light"); // Unchanged
 
       // Update only theme context
-      themeValue = { theme: 'dark' };
+      themeValue = { theme: "dark" };
 
       rerender(
         <AuthContext.Provider value={authValue}>
@@ -267,7 +278,11 @@ describe("Context Integration", () => {
       const ComponentWithoutProvider = () => {
         try {
           const context = React.useContext(AuthContext);
-          return <div data-testid="context-value">{context ? 'has-context' : 'no-context'}</div>;
+          return (
+            <div data-testid="context-value">
+              {context ? "has-context" : "no-context"}
+            </div>
+          );
         } catch (error) {
           return <div data-testid="context-error">Context Error</div>;
         }
@@ -276,7 +291,9 @@ describe("Context Integration", () => {
       render(<ComponentWithoutProvider />);
 
       // Should handle missing provider (React provides undefined by default)
-      expect(screen.getByTestId("context-value")).toHaveTextContent("no-context");
+      expect(screen.getByTestId("context-value")).toHaveTextContent(
+        "no-context"
+      );
     });
 
     it("should handle context value updates during async operations", async () => {
@@ -289,7 +306,7 @@ describe("Context Integration", () => {
           return <div data-testid="loading">Loading...</div>;
         }
 
-        return <div data-testid="content">{user?.username || 'No user'}</div>;
+        return <div data-testid="content">{user?.username || "No user"}</div>;
       };
 
       const { rerender } = render(
@@ -305,7 +322,7 @@ describe("Context Integration", () => {
         ...mockAuthContext,
         loading: false,
         user: { username: "asyncuser" },
-        isAuthenticated: true
+        isAuthenticated: true,
       };
 
       rerender(
@@ -325,13 +342,13 @@ describe("Context Integration", () => {
       const OptimizedComponent = React.memo(() => {
         renderCount++;
         const { user } = React.useContext(AuthContext);
-        return <div data-testid="optimized">{user?.username || 'no-user'}</div>;
+        return <div data-testid="optimized">{user?.username || "no-user"}</div>;
       });
 
       const contextValue = {
         ...mockAuthContext,
         user: { username: "testuser" },
-        isAuthenticated: true
+        isAuthenticated: true,
       };
 
       const { rerender } = render(
@@ -359,14 +376,18 @@ describe("Context Integration", () => {
       const StabilityTestComponent = () => {
         renderCount++;
         const { isAuthenticated } = React.useContext(AuthContext);
-        return <div data-testid="stability">{isAuthenticated ? 'auth' : 'no-auth'}</div>;
+        return (
+          <div data-testid="stability">
+            {isAuthenticated ? "auth" : "no-auth"}
+          </div>
+        );
       };
 
       // Create new object each time (unstable reference)
       const getContextValue = (authenticated) => ({
         ...mockAuthContext,
         isAuthenticated: authenticated,
-        user: authenticated ? { username: "testuser" } : null
+        user: authenticated ? { username: "testuser" } : null,
       });
 
       const { rerender } = render(

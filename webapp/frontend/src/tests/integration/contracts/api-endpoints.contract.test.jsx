@@ -1,6 +1,6 @@
 /**
  * API Endpoints Contract Test
- * 
+ *
  * Tests the contract for all core API endpoints that frontend components depend on.
  * Validates API availability, response structure, and data integrity.
  */
@@ -17,7 +17,10 @@ describe("API Endpoints Contract Tests", () => {
       const response = await fetch(`${API_BASE_URL}/api/health`);
       serverAvailable = response.ok;
     } catch (error) {
-      console.warn("Backend server not available for contract tests:", error.message);
+      console.warn(
+        "Backend server not available for contract tests:",
+        error.message
+      );
     }
   });
 
@@ -29,12 +32,12 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('name');
-      expect(data).toHaveProperty('version');
-      expect(data).toHaveProperty('endpoints');
-      expect(data.endpoints).toHaveProperty('stocks');
-      expect(data.endpoints).toHaveProperty('metrics');
-      expect(data.endpoints).toHaveProperty('health');
+      expect(data).toHaveProperty("name");
+      expect(data).toHaveProperty("version");
+      expect(data).toHaveProperty("endpoints");
+      expect(data.endpoints).toHaveProperty("stocks");
+      expect(data.endpoints).toHaveProperty("metrics");
+      expect(data.endpoints).toHaveProperty("health");
     });
 
     it("should have health endpoint with proper structure", async () => {
@@ -44,9 +47,9 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('status');
-      expect(data).toHaveProperty('healthy');
-      expect(data).toHaveProperty('timestamp');
+      expect(data).toHaveProperty("status");
+      expect(data).toHaveProperty("healthy");
+      expect(data).toHaveProperty("timestamp");
       expect(data.healthy).toBe(true);
     });
   });
@@ -59,8 +62,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
 
     it("should return sector analysis data", async () => {
@@ -70,8 +73,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
   });
 
@@ -83,9 +86,9 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('symbol', 'GOOGL');
-      expect(data).toHaveProperty('currentPrice');
-      expect(data).toHaveProperty('companyInfo');
+      expect(data).toHaveProperty("symbol", "GOOGL");
+      expect(data).toHaveProperty("currentPrice");
+      expect(data).toHaveProperty("companyInfo");
     });
 
     it("should return technical analysis data", async () => {
@@ -95,8 +98,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
   });
 
@@ -108,9 +111,9 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('data');
-      expect(data.data).toHaveProperty('buy_signals');
-      expect(data.data).toHaveProperty('sell_signals');
+      expect(data).toHaveProperty("data");
+      expect(data.data).toHaveProperty("buy_signals");
+      expect(data.data).toHaveProperty("sell_signals");
     });
 
     it("should return recent trades", async () => {
@@ -120,8 +123,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
   });
 
@@ -133,8 +136,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
 
     it("should return earnings calendar", async () => {
@@ -144,8 +147,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
   });
 
@@ -153,23 +156,27 @@ describe("API Endpoints Contract Tests", () => {
     it("should return sentiment analysis data", async () => {
       if (!serverAvailable) return;
 
-      const response = await fetch(`${API_BASE_URL}/api/sentiment/social/reddit`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/sentiment/social/reddit`
+      );
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('platform', 'reddit');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("platform", "reddit");
     });
 
     it("should return twitter sentiment data", async () => {
       if (!serverAvailable) return;
 
-      const response = await fetch(`${API_BASE_URL}/api/sentiment/social/twitter`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/sentiment/social/twitter`
+      );
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('platform', 'twitter');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("platform", "twitter");
     });
   });
 
@@ -181,8 +188,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
 
     it("should return AI recommendations", async () => {
@@ -192,8 +199,8 @@ describe("API Endpoints Contract Tests", () => {
       const data = await response.json();
 
       expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
+      expect(data).toHaveProperty("success", true);
+      expect(data).toHaveProperty("data");
     });
   });
 
@@ -202,15 +209,17 @@ describe("API Endpoints Contract Tests", () => {
       if (!serverAvailable) return;
 
       const response = await fetch(`${API_BASE_URL}/api/nonexistent`);
-      
+
       expect(response.status).toBe(404);
     });
 
     it("should return proper error structure for invalid requests", async () => {
       if (!serverAvailable) return;
 
-      const response = await fetch(`${API_BASE_URL}/api/stocks/INVALID_SYMBOL_THAT_SHOULD_FAIL`);
-      
+      const response = await fetch(
+        `${API_BASE_URL}/api/stocks/INVALID_SYMBOL_THAT_SHOULD_FAIL`
+      );
+
       // Should handle gracefully, either 200 with error data or proper HTTP error
       if (!response.ok) {
         expect(response.status).toBeGreaterThan(399);

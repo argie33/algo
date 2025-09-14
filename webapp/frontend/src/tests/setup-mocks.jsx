@@ -17,7 +17,9 @@ vi.mock("recharts", () => ({
   BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
   PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
   RadarChart: ({ children }) => <div data-testid="radar-chart">{children}</div>,
-  ComposedChart: ({ children }) => <div data-testid="composed-chart">{children}</div>,
+  ComposedChart: ({ children }) => (
+    <div data-testid="composed-chart">{children}</div>
+  ),
   Line: () => <div data-testid="line" />,
   Area: () => <div data-testid="area" />,
   Bar: () => <div data-testid="bar" />,
@@ -54,24 +56,30 @@ vi.mock("../services/api", () => ({
     isConfigured: true,
     environment: "test",
   })),
-  getPortfolioData: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { holdings: [], summary: {}, riskMetrics: {} }
-  })),
-  getMarketData: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { indices: [], topStocks: [] }
-  })),
-  getStockPrice: vi.fn(() => Promise.resolve({
-    success: true,
-    data: { price: 100, change: 1.5 }
-  })),
+  getPortfolioData: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: { holdings: [], summary: {}, riskMetrics: {} },
+    })
+  ),
+  getMarketData: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: { indices: [], topStocks: [] },
+    })
+  ),
+  getStockPrice: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: { price: 100, change: 1.5 },
+    })
+  ),
   default: {
     get: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
     post: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
     put: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
     delete: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-  }
+  },
 }));
 
 // Mock MUI X Data Grid
@@ -87,11 +95,12 @@ vi.mock("@mui/x-data-grid", () => ({
 vi.mock("../contexts/AuthContext", () => ({
   default: {
     Provider: ({ children }) => children,
-    Consumer: ({ children }) => children(() => ({
-      user: { id: "test-user", email: "test@example.com" },
-      isAuthenticated: true,
-      isLoading: false,
-    })),
+    Consumer: ({ children }) =>
+      children(() => ({
+        user: { id: "test-user", email: "test@example.com" },
+        isAuthenticated: true,
+        isLoading: false,
+      })),
   },
   AuthProvider: ({ children }) => children,
   useAuth: vi.fn(() => ({

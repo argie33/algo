@@ -32,10 +32,16 @@ const RealTimePriceWidget = ({
           fetchFunction: async () => {
             try {
               // First try to get from stocks list API
-              const stocksResponse = await fetch(`/api/stocks?symbol=${symbol}`);
+              const stocksResponse = await fetch(
+                `/api/stocks?symbol=${symbol}`
+              );
               if (stocksResponse.ok) {
                 const stocksResult = await stocksResponse.json();
-                if (stocksResult.success && stocksResult.data && stocksResult.data.length > 0) {
+                if (
+                  stocksResult.success &&
+                  stocksResult.data &&
+                  stocksResult.data.length > 0
+                ) {
                   const stockData = stocksResult.data[0];
                   if (stockData.price && stockData.price.current) {
                     return {
@@ -63,24 +69,33 @@ const RealTimePriceWidget = ({
                   return {
                     symbol,
                     price: priceResult.data.current_price,
-                    previousClose: priceResult.data.previous_close || priceResult.data.current_price * 0.99,
+                    previousClose:
+                      priceResult.data.previous_close ||
+                      priceResult.data.current_price * 0.99,
                     dayChange: priceResult.data.change || 0,
                     dayChangePercent: priceResult.data.change_percent || 0,
                     volume: priceResult.data.volume || 0,
-                    dayHigh: priceResult.data.high || priceResult.data.current_price,
-                    dayLow: priceResult.data.low || priceResult.data.current_price,
-                    lastUpdate: priceResult.timestamp || new Date().toISOString(),
+                    dayHigh:
+                      priceResult.data.high || priceResult.data.current_price,
+                    dayLow:
+                      priceResult.data.low || priceResult.data.current_price,
+                    lastUpdate:
+                      priceResult.timestamp || new Date().toISOString(),
                     isRealData: true,
                   };
                 }
               }
 
               // If no real data available, throw error instead of returning mock data
-              throw new Error(`No price data available for ${symbol}. Please ensure the data service is running and the symbol exists.`);
+              throw new Error(
+                `No price data available for ${symbol}. Please ensure the data service is running and the symbol exists.`
+              );
             } catch (error) {
               console.error(`Price fetch error for ${symbol}:`, error);
               // Re-throw the error instead of returning mock data
-              throw new Error(`Unable to fetch price data for ${symbol}: ${error.message}`);
+              throw new Error(
+                `Unable to fetch price data for ${symbol}: ${error.message}`
+              );
             }
           },
         }
@@ -129,9 +144,7 @@ const RealTimePriceWidget = ({
   if (error) {
     return (
       <Alert severity="error" sx={{ mb: 1 }}>
-        <Typography variant="body2">
-          {error}
-        </Typography>
+        <Typography variant="body2">{error}</Typography>
       </Alert>
     );
   }

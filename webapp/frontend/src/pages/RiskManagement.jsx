@@ -54,7 +54,12 @@ import {
   ResponsiveContainer,
   Tooltip as ChartTooltip,
 } from "recharts";
-import { getRiskAnalysis, getRiskAlerts, createRiskAlert, getRiskDashboard } from "../services/api";
+import {
+  getRiskAnalysis,
+  getRiskAlerts,
+  createRiskAlert,
+  getRiskDashboard,
+} from "../services/api";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -87,7 +92,7 @@ const RiskManagement = () => {
     data: riskDashboard,
     isLoading: isDashboardLoading,
     error: dashboardError,
-    refetch: refetchDashboard
+    refetch: refetchDashboard,
   } = useQuery({
     queryKey: ["risk-dashboard", selectedPeriod],
     queryFn: () => getRiskDashboard({ period: selectedPeriod }),
@@ -101,7 +106,11 @@ const RiskManagement = () => {
     error: analysisError,
   } = useQuery({
     queryKey: ["risk-analysis", selectedPeriod, confidenceLevel],
-    queryFn: () => getRiskAnalysis({ period: selectedPeriod, confidence_level: confidenceLevel }),
+    queryFn: () =>
+      getRiskAnalysis({
+        period: selectedPeriod,
+        confidence_level: confidenceLevel,
+      }),
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
@@ -110,7 +119,7 @@ const RiskManagement = () => {
     data: riskAlerts,
     isLoading: isAlertsLoading,
     error: alertsError,
-    refetch: refetchAlerts
+    refetch: refetchAlerts,
   } = useQuery({
     queryKey: ["risk-alerts"],
     queryFn: getRiskAlerts,
@@ -174,9 +183,9 @@ const RiskManagement = () => {
 
   const formatCurrency = (value) => {
     if (!value) return "N/A";
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -210,7 +219,9 @@ const RiskManagement = () => {
             Failed to load risk management data
           </Typography>
           <Typography variant="body2">
-            {dashboardError?.message || analysisError?.message || alertsError?.message}
+            {dashboardError?.message ||
+              analysisError?.message ||
+              alertsError?.message}
           </Typography>
         </Alert>
       </Container>
@@ -224,7 +235,14 @@ const RiskManagement = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       {/* Header with Controls */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box
+        sx={{
+          mb: 3,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <Box>
           <Typography
             variant="h4"
@@ -235,12 +253,12 @@ const RiskManagement = () => {
             Risk Management
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Comprehensive portfolio risk analysis, monitoring, and stress testing
-            with real-time alerts.
+            Comprehensive portfolio risk analysis, monitoring, and stress
+            testing with real-time alerts.
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Period</InputLabel>
             <Select
@@ -264,17 +282,13 @@ const RiskManagement = () => {
               label="Confidence"
               onChange={handleConfidenceLevelChange}
             >
-              <MenuItem value={0.90}>90%</MenuItem>
+              <MenuItem value={0.9}>90%</MenuItem>
               <MenuItem value={0.95}>95%</MenuItem>
               <MenuItem value={0.99}>99%</MenuItem>
             </Select>
           </FormControl>
 
-          <IconButton 
-            onClick={refetchDashboard} 
-            color="primary"
-            size="large"
-          >
+          <IconButton onClick={refetchDashboard} color="primary" size="large">
             <Refresh />
           </IconButton>
         </Box>
@@ -297,17 +311,26 @@ const RiskManagement = () => {
                     Portfolio VaR ({(confidenceLevel * 100).toFixed(0)}%)
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {formatCurrency(portfolioMetrics.var_95 || portfolioMetrics.var)}
+                    {formatCurrency(
+                      portfolioMetrics.var_95 || portfolioMetrics.var
+                    )}
                   </Typography>
                 </Box>
                 <Shield sx={{ fontSize: 40, color: "primary.main" }} />
               </Box>
               <LinearProgress
                 variant="determinate"
-                value={Math.min((portfolioMetrics.var_95 || 0) / (portfolioMetrics.total_value || 1) * 100, 100)}
+                value={Math.min(
+                  ((portfolioMetrics.var_95 || 0) /
+                    (portfolioMetrics.total_value || 1)) *
+                    100,
+                  100
+                )}
                 sx={{ mt: 1 }}
                 color={getRiskColor(
-                  (portfolioMetrics.var_95 || 0) / (portfolioMetrics.total_value || 1) * 100,
+                  ((portfolioMetrics.var_95 || 0) /
+                    (portfolioMetrics.total_value || 1)) *
+                    100,
                   { low: 3, medium: 8 }
                 )}
               />
@@ -415,10 +438,10 @@ const RiskManagement = () => {
                 variant="determinate"
                 value={Math.min((portfolioMetrics.volatility || 0) * 100, 100)}
                 sx={{ mt: 1 }}
-                color={getRiskColor(
-                  (portfolioMetrics.volatility || 0) * 100,
-                  { low: 15, medium: 25 }
-                )}
+                color={getRiskColor((portfolioMetrics.volatility || 0) * 100, {
+                  low: 15,
+                  medium: 25,
+                })}
               />
             </CardContent>
           </Card>
@@ -448,7 +471,9 @@ const RiskManagement = () => {
                 <TableRow>
                   <TableCell>Symbol</TableCell>
                   <TableCell align="right">Weight</TableCell>
-                  <TableCell align="right">VaR ({(confidenceLevel * 100).toFixed(0)}%)</TableCell>
+                  <TableCell align="right">
+                    VaR ({(confidenceLevel * 100).toFixed(0)}%)
+                  </TableCell>
                   <TableCell align="right">Beta</TableCell>
                   <TableCell align="right">Volatility</TableCell>
                   <TableCell align="right">Risk Contribution</TableCell>
@@ -495,10 +520,13 @@ const RiskManagement = () => {
                         variant="determinate"
                         value={(position.risk_contribution || 0) * 100}
                         sx={{ width: 60 }}
-                        color={getRiskColor((position.risk_contribution || 0) * 100, {
-                          low: 20,
-                          medium: 30,
-                        })}
+                        color={getRiskColor(
+                          (position.risk_contribution || 0) * 100,
+                          {
+                            low: 20,
+                            medium: 30,
+                          }
+                        )}
                       />
                     </TableCell>
                   </TableRow>
@@ -565,8 +593,11 @@ const RiskManagement = () => {
                         <Typography color="text.secondary">
                           Potential Loss:
                         </Typography>
-                        <Typography sx={{ color: "error.main", fontWeight: 600 }}>
-                          {formatCurrency(Math.abs(test.loss))} ({Math.abs(test.percentage).toFixed(1)}%)
+                        <Typography
+                          sx={{ color: "error.main", fontWeight: 600 }}
+                        >
+                          {formatCurrency(Math.abs(test.loss))} (
+                          {Math.abs(test.percentage).toFixed(1)}%)
                         </Typography>
                       </Box>
                       <LinearProgress
@@ -615,7 +646,8 @@ const RiskManagement = () => {
                 (threshold: {alert.threshold}
                 {typeof alert.threshold === "number" && alert.threshold < 10
                   ? ""
-                  : "%"})
+                  : "%"}
+                )
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {new Date(alert.timestamp).toLocaleString()}

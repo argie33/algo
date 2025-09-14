@@ -23,7 +23,13 @@ function ConfirmationForm({
   const [resendSuccess, setResendSuccess] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { confirmRegistration, resendConfirmationCode, isLoading, error, clearError } = useAuth();
+  const {
+    confirmRegistration,
+    resendConfirmationCode,
+    isLoading,
+    error,
+    clearError,
+  } = useAuth();
 
   const handleChange = (e) => {
     setConfirmationCode(e.target.value);
@@ -63,9 +69,9 @@ function ConfirmationForm({
   const handleResendCode = async () => {
     setLocalError("");
     setResendSuccess("");
-    
+
     const result = await resendConfirmationCode(username);
-    
+
     if (result.success) {
       setResendSuccess(result.message);
       setResendCooldown(60); // 60 second cooldown

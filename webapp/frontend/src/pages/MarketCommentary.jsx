@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Typography,
@@ -24,7 +24,7 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
-} from '@mui/material';
+} from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
@@ -35,7 +35,7 @@ import {
   ThumbUp,
   Comment,
   Visibility,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import {
   XAxis,
   YAxis,
@@ -45,35 +45,44 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-} from 'recharts';
-import { getMarketCommentary, getMarketTrends, getAnalystOpinions, subscribeToCommentary } from '../services/api';
-import ErrorBoundary from '../components/ErrorBoundary';
+} from "recharts";
+import {
+  getMarketCommentary,
+  getMarketTrends,
+  getAnalystOpinions,
+  subscribeToCommentary,
+} from "../services/api";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const MarketCommentary = () => {
   const [activeTab, setActiveTab] = useState(0);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [timePeriod, setTimePeriod] = useState('week');
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [timePeriod, setTimePeriod] = useState("week");
 
   // Market commentary data
-  const { data: commentaryData, isLoading: commentaryLoading, error: commentaryError } = useQuery({
-    queryKey: ['marketCommentary', selectedCategory, timePeriod],
+  const {
+    data: commentaryData,
+    isLoading: commentaryLoading,
+    error: commentaryError,
+  } = useQuery({
+    queryKey: ["marketCommentary", selectedCategory, timePeriod],
     queryFn: () => getMarketCommentary(selectedCategory, timePeriod),
     staleTime: 300000, // 5 minutes
-    retry: 2
+    retry: 2,
   });
 
-  // Market trends data  
+  // Market trends data
   const { data: trendsData, isLoading: _trendsLoading } = useQuery({
-    queryKey: ['marketTrends', timePeriod],
+    queryKey: ["marketTrends", timePeriod],
     queryFn: () => getMarketTrends(timePeriod),
-    staleTime: 300000
+    staleTime: 300000,
   });
 
   // Analyst opinions
   const { data: analystsData, isLoading: analystsLoading } = useQuery({
-    queryKey: ['analystOpinions'],
+    queryKey: ["analystOpinions"],
     queryFn: () => getAnalystOpinions(),
-    staleTime: 600000 // 10 minutes
+    staleTime: 600000, // 10 minutes
   });
 
   const handleTabChange = (event, newValue) => {
@@ -93,7 +102,7 @@ const MarketCommentary = () => {
       await subscribeToCommentary(selectedCategory);
       // Show success message
     } catch (error) {
-      console.error('Failed to subscribe to commentary:', error);
+      console.error("Failed to subscribe to commentary:", error);
     }
   };
 
@@ -111,20 +120,30 @@ const MarketCommentary = () => {
   );
 
   const renderCommentaryCard = (commentary) => (
-    <Card key={commentary.id} sx={{ mb: 2, '&:hover': { boxShadow: 6 } }}>
+    <Card key={commentary.id} sx={{ mb: 2, "&:hover": { boxShadow: 6 } }}>
       <CardHeader
         avatar={
-          <Avatar sx={{ bgcolor: commentary.sentiment === 'bullish' ? 'success.main' : commentary.sentiment === 'bearish' ? 'error.main' : 'warning.main' }}>
+          <Avatar
+            sx={{
+              bgcolor:
+                commentary.sentiment === "bullish"
+                  ? "success.main"
+                  : commentary.sentiment === "bearish"
+                    ? "error.main"
+                    : "warning.main",
+            }}
+          >
             {commentary.author.charAt(0)}
           </Avatar>
         }
         title={commentary.title}
         subheader={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
             <Typography variant="caption" color="textSecondary">
-              {commentary.author} • {new Date(commentary.publishedAt).toLocaleDateString()}
+              {commentary.author} •{" "}
+              {new Date(commentary.publishedAt).toLocaleDateString()}
             </Typography>
-            <Chip 
+            <Chip
               label={commentary.category}
               size="small"
               variant="outlined"
@@ -133,15 +152,31 @@ const MarketCommentary = () => {
             <Chip
               label={commentary.sentiment}
               size="small"
-              color={commentary.sentiment === 'bullish' ? 'success' : commentary.sentiment === 'bearish' ? 'error' : 'warning'}
-              icon={commentary.sentiment === 'bullish' ? <TrendingUp /> : <TrendingDown />}
+              color={
+                commentary.sentiment === "bullish"
+                  ? "success"
+                  : commentary.sentiment === "bearish"
+                    ? "error"
+                    : "warning"
+              }
+              icon={
+                commentary.sentiment === "bullish" ? (
+                  <TrendingUp />
+                ) : (
+                  <TrendingDown />
+                )
+              }
             />
           </Box>
         }
         action={
           <Box>
-            <Button size="small" startIcon={<BookmarkBorder />}>Save</Button>
-            <Button size="small" startIcon={<Share />}>Share</Button>
+            <Button size="small" startIcon={<BookmarkBorder />}>
+              Save
+            </Button>
+            <Button size="small" startIcon={<Share />}>
+              Share
+            </Button>
           </Box>
         }
       />
@@ -152,7 +187,7 @@ const MarketCommentary = () => {
         <Typography variant="body1" paragraph>
           {commentary.content.substring(0, 300)}...
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>
           <Button size="small" startIcon={<ThumbUp />}>
             {commentary.likes}
           </Button>
@@ -172,7 +207,9 @@ const MarketCommentary = () => {
 
     return (
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Market Trends Overview</Typography>
+        <Typography variant="h6" gutterBottom>
+          Market Trends Overview
+        </Typography>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={trendsData.trends}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -180,9 +217,30 @@ const MarketCommentary = () => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Area type="monotone" dataKey="bullish" stackId="1" stroke="#4caf50" fill="#4caf50" fillOpacity={0.6} />
-            <Area type="monotone" dataKey="bearish" stackId="1" stroke="#f44336" fill="#f44336" fillOpacity={0.6} />
-            <Area type="monotone" dataKey="neutral" stackId="1" stroke="#ff9800" fill="#ff9800" fillOpacity={0.6} />
+            <Area
+              type="monotone"
+              dataKey="bullish"
+              stackId="1"
+              stroke="#4caf50"
+              fill="#4caf50"
+              fillOpacity={0.6}
+            />
+            <Area
+              type="monotone"
+              dataKey="bearish"
+              stackId="1"
+              stroke="#f44336"
+              fill="#f44336"
+              fillOpacity={0.6}
+            />
+            <Area
+              type="monotone"
+              dataKey="neutral"
+              stackId="1"
+              stroke="#ff9800"
+              fill="#ff9800"
+              fillOpacity={0.6}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </Paper>
@@ -194,7 +252,9 @@ const MarketCommentary = () => {
       {renderTrendsChart()}
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
-          <Typography variant="h6" gutterBottom>Top Analyst Opinions</Typography>
+          <Typography variant="h6" gutterBottom>
+            Top Analyst Opinions
+          </Typography>
           {analystsLoading ? (
             renderLoadingState()
           ) : (
@@ -214,13 +274,23 @@ const MarketCommentary = () => {
                           <Typography variant="body2" component="div">
                             {analyst.firm} • Rating: {analyst.rating}/5
                           </Typography>
-                          <Typography variant="body2" color="textSecondary" paragraph>
+                          <Typography
+                            variant="body2"
+                            color="textSecondary"
+                            paragraph
+                          >
                             {analyst.latestOpinion}
                           </Typography>
-                          <Chip 
-                            label={analyst.outlook} 
+                          <Chip
+                            label={analyst.outlook}
                             size="small"
-                            color={analyst.outlook === 'bullish' ? 'success' : analyst.outlook === 'bearish' ? 'error' : 'warning'}
+                            color={
+                              analyst.outlook === "bullish"
+                                ? "success"
+                                : analyst.outlook === "bearish"
+                                  ? "error"
+                                  : "warning"
+                            }
                           />
                         </Box>
                       }
@@ -237,34 +307,46 @@ const MarketCommentary = () => {
             <CardHeader title="Analyst Sentiment Summary" />
             <CardContent>
               <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="textSecondary">Bullish Sentiment</Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={analystsData?.sentiment?.bullish || 0} 
+                <Typography variant="body2" color="textSecondary">
+                  Bullish Sentiment
+                </Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={analystsData?.sentiment?.bullish || 0}
                   color="success"
                   sx={{ height: 8, borderRadius: 4 }}
                 />
-                <Typography variant="caption">{analystsData?.sentiment?.bullish || 0}%</Typography>
+                <Typography variant="caption">
+                  {analystsData?.sentiment?.bullish || 0}%
+                </Typography>
               </Box>
               <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="textSecondary">Bearish Sentiment</Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={analystsData?.sentiment?.bearish || 0} 
+                <Typography variant="body2" color="textSecondary">
+                  Bearish Sentiment
+                </Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={analystsData?.sentiment?.bearish || 0}
                   color="error"
                   sx={{ height: 8, borderRadius: 4 }}
                 />
-                <Typography variant="caption">{analystsData?.sentiment?.bearish || 0}%</Typography>
+                <Typography variant="caption">
+                  {analystsData?.sentiment?.bearish || 0}%
+                </Typography>
               </Box>
               <Box>
-                <Typography variant="body2" color="textSecondary">Neutral Sentiment</Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={analystsData?.sentiment?.neutral || 0} 
+                <Typography variant="body2" color="textSecondary">
+                  Neutral Sentiment
+                </Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={analystsData?.sentiment?.neutral || 0}
                   color="warning"
                   sx={{ height: 8, borderRadius: 4 }}
                 />
-                <Typography variant="caption">{analystsData?.sentiment?.neutral || 0}%</Typography>
+                <Typography variant="caption">
+                  {analystsData?.sentiment?.neutral || 0}%
+                </Typography>
               </Box>
             </CardContent>
           </Card>
@@ -280,7 +362,11 @@ const MarketCommentary = () => {
           <Grid item xs={12} sm={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Category</InputLabel>
-              <Select value={selectedCategory} onChange={handleCategoryChange} label="Category">
+              <Select
+                value={selectedCategory}
+                onChange={handleCategoryChange}
+                label="Category"
+              >
                 <MenuItem value="all">All Categories</MenuItem>
                 <MenuItem value="stocks">Stocks</MenuItem>
                 <MenuItem value="bonds">Bonds</MenuItem>
@@ -293,7 +379,11 @@ const MarketCommentary = () => {
           <Grid item xs={12} sm={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Time Period</InputLabel>
-              <Select value={timePeriod} onChange={handleTimePeriodChange} label="Time Period">
+              <Select
+                value={timePeriod}
+                onChange={handleTimePeriodChange}
+                label="Time Period"
+              >
                 <MenuItem value="day">Today</MenuItem>
                 <MenuItem value="week">This Week</MenuItem>
                 <MenuItem value="month">This Month</MenuItem>
@@ -302,9 +392,9 @@ const MarketCommentary = () => {
             </FormControl>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Button 
-              variant="contained" 
-              color="primary" 
+            <Button
+              variant="contained"
+              color="primary"
               fullWidth
               onClick={handleSubscribe}
               startIcon={<Event />}
@@ -321,7 +411,9 @@ const MarketCommentary = () => {
         renderErrorState()
       ) : (
         <Box>
-          {commentaryData?.commentary?.map((commentary) => renderCommentaryCard(commentary))}
+          {commentaryData?.commentary?.map((commentary) =>
+            renderCommentaryCard(commentary)
+          )}
         </Box>
       )}
     </Box>
@@ -337,8 +429,12 @@ const MarketCommentary = () => {
           Expert insights, analysis, and commentary on current market conditions
         </Typography>
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={activeTab} onChange={handleTabChange} aria-label="market commentary tabs">
+        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            aria-label="market commentary tabs"
+          >
             <Tab label="Commentary" />
             <Tab label="Analyst Opinions" />
             <Tab label="Market Trends" />
@@ -355,19 +451,48 @@ const MarketCommentary = () => {
                 <Card>
                   <CardHeader title="Key Market Indicators" />
                   <CardContent>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box
+                      sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+                    >
                       {trendsData?.indicators?.map((indicator) => (
-                        <Box key={indicator.name} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="body2">{indicator.name}</Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          key={indicator.name}
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Typography variant="body2">
+                            {indicator.name}
+                          </Typography>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
                             <Typography variant="body2" fontWeight="medium">
                               {indicator.value}
                             </Typography>
-                            <Chip 
+                            <Chip
                               size="small"
-                              label={`${indicator.change > 0 ? '+' : ''}${indicator.change}%`}
-                              color={indicator.change > 0 ? 'success' : indicator.change < 0 ? 'error' : 'default'}
-                              icon={indicator.change > 0 ? <TrendingUp /> : indicator.change < 0 ? <TrendingDown /> : null}
+                              label={`${indicator.change > 0 ? "+" : ""}${indicator.change}%`}
+                              color={
+                                indicator.change > 0
+                                  ? "success"
+                                  : indicator.change < 0
+                                    ? "error"
+                                    : "default"
+                              }
+                              icon={
+                                indicator.change > 0 ? (
+                                  <TrendingUp />
+                                ) : indicator.change < 0 ? (
+                                  <TrendingDown />
+                                ) : null
+                              }
                             />
                           </Box>
                         </Box>
@@ -381,7 +506,8 @@ const MarketCommentary = () => {
                   <CardHeader title="Weekly Market Summary" />
                   <CardContent>
                     <Typography variant="body2" paragraph>
-                      {trendsData?.weeklyySummary || "Market trends analysis will be available here with detailed insights into weekly performance, key movements, and outlook for the coming period."}
+                      {trendsData?.weeklyySummary ||
+                        "Market trends analysis will be available here with detailed insights into weekly performance, key movements, and outlook for the coming period."}
                     </Typography>
                   </CardContent>
                 </Card>

@@ -28,7 +28,7 @@ export const ErrorDisplay = ({
   fullPage = false,
 }) => {
   const [showErrorDetails, setShowErrorDetails] = React.useState(false);
-  
+
   const navigate = useNavigate();
 
   const errorMessage =

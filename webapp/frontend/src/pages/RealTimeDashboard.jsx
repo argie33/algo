@@ -103,7 +103,7 @@ const RealTimeDashboard = () => {
 
   const loadMarketData = useCallback(async () => {
     // Skip API calls in test environment to prevent hanging
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
       setLoading(false);
       return;
     }
@@ -117,7 +117,9 @@ const RealTimeDashboard = () => {
       }
 
       if (!watchlist || watchlist.length === 0) {
-        console.warn("No watchlist symbols available for market data streaming");
+        console.warn(
+          "No watchlist symbols available for market data streaming"
+        );
         return;
       }
 
@@ -147,7 +149,7 @@ const RealTimeDashboard = () => {
               alert: false,
               dataSource: "live",
               chartData: Array.from({ length: 20 }, (_, i) => ({
-                value: midPrice + (i % 3 - 1) * 0.1, // Simple pattern instead of random
+                value: midPrice + ((i % 3) - 1) * 0.1, // Simple pattern instead of random
               })),
             };
           } else {
@@ -183,7 +185,7 @@ const RealTimeDashboard = () => {
         });
 
         console.log("✅ Live market data loaded successfully", {
-          symbols: (watchlist?.length || 0),
+          symbols: watchlist?.length || 0,
           successful: response?.data.statistics?.successful || 0,
           cached: response?.data.statistics?.cached || 0,
           failed: response?.data.statistics?.failed || 0,
@@ -192,7 +194,8 @@ const RealTimeDashboard = () => {
         throw new Error("Failed to fetch live market data");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load live market data:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to load live market data:", error);
       setError(error.message);
 
       // Fall back to error state with user guidance
@@ -232,7 +235,10 @@ const RealTimeDashboard = () => {
 
   // Streaming interval (skip in test environment)
   useEffect(() => {
-    if (isStreaming && (typeof process === 'undefined' || process.env.NODE_ENV !== 'test')) {
+    if (
+      isStreaming &&
+      (typeof process === "undefined" || process.env.NODE_ENV !== "test")
+    ) {
       intervalRef.current = setInterval(() => {
         loadMarketData();
         setLastUpdate(new Date());
@@ -351,8 +357,8 @@ const RealTimeDashboard = () => {
             {isStreaming ? "Pause" : "Start"} Stream
           </Button>
 
-          <IconButton 
-            onClick={loadMarketData} 
+          <IconButton
+            onClick={loadMarketData}
             disabled={isStreaming}
             aria-label="Refresh market data"
           >
@@ -843,7 +849,7 @@ const RealTimeDashboard = () => {
                                                 : "#f44336"
                                             }
                                             strokeWidth={1.5}
-                                            dot={{r: 0}}
+                                            dot={{ r: 0 }}
                                           />
                                         </LineChart>
                                       </ResponsiveContainer>
@@ -871,8 +877,8 @@ const RealTimeDashboard = () => {
                                     >
                                       <Remove />
                                     </IconButton>
-                                    <IconButton 
-                                      size="small" 
+                                    <IconButton
+                                      size="small"
                                       color="primary"
                                       aria-label={`View details for ${stock.symbol}`}
                                     >
@@ -1192,12 +1198,14 @@ const RealTimeDashboard = () => {
                           ]}
                         />
                         <Bar dataKey="change">
-                          {(marketData.sectorPerformance || []).map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={entry.change >= 0 ? "#4caf50" : "#f44336"}
-                            />
-                          ))}
+                          {(marketData.sectorPerformance || []).map(
+                            (entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={entry.change >= 0 ? "#4caf50" : "#f44336"}
+                              />
+                            )
+                          )}
                         </Bar>
                       </RechartsBarChart>
                     </ResponsiveContainer>
@@ -1242,7 +1250,8 @@ const RealTimeDashboard = () => {
                   <CardContent>
                     <Box sx={{ textAlign: "center", py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
-                        Advanced market analysis tools and sector insights available.
+                        Advanced market analysis tools and sector insights
+                        available.
                       </Typography>
                     </Box>
                   </CardContent>
@@ -1251,7 +1260,6 @@ const RealTimeDashboard = () => {
 
               <Grid item xs={12} md={4}>
                 <Grid container spacing={2}>
-
                   {/* Dark Pool Activity */}
                   <Grid item xs={12}>
                     <Card>
@@ -1520,7 +1528,7 @@ const RealTimeDashboard = () => {
                                 color="text.secondary"
                               >
                                 {marketData?.watchlistData
-                                  ? `${marketData.watchlistData.filter((s) => s.changePercent > 0).length}/${(marketData.watchlistData?.length || 0)} stocks up`
+                                  ? `${marketData.watchlistData.filter((s) => s.changePercent > 0).length}/${marketData.watchlistData?.length || 0} stocks up`
                                   : "Based on current market data"}
                               </Typography>
                             </Box>

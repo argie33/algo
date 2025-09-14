@@ -7,63 +7,71 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi } from "vitest";
 
 // Create test QueryClient with disabled retries and caching
-export const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      cacheTime: 0,
-      staleTime: 0,
+export const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        cacheTime: 0,
+        staleTime: 0,
+      },
+      mutations: {
+        retry: false,
+      },
     },
-    mutations: {
-      retry: false,
-    },
-  },
-});
+  });
 
 // Default MUI theme for component testing
-export const createTestTheme = () => createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
+export const createTestTheme = () =>
+  createTheme({
+    palette: {
+      mode: "light",
+      primary: {
+        main: "#1976d2",
+      },
+      secondary: {
+        main: "#dc004e",
+      },
     },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
+  });
 
 // Minimal wrapper for MUI components with React Query
-export const MuiWrapper = ({ children, theme = createTestTheme(), queryClient = createTestQueryClient() }) => (
+export const MuiWrapper = ({
+  children,
+  theme = createTestTheme(),
+  queryClient = createTestQueryClient(),
+}) => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider theme={theme}>
-      {children}
-    </ThemeProvider>
+    <ThemeProvider theme={theme}>{children}</ThemeProvider>
   </QueryClientProvider>
 );
 
 // Render with MUI theme provider and React Query
 export const renderWithTheme = (ui, options = {}) => {
-  const { theme = createTestTheme(), queryClient = createTestQueryClient(), ...renderOptions } = options;
-  
+  const {
+    theme = createTestTheme(),
+    queryClient = createTestQueryClient(),
+    ...renderOptions
+  } = options;
+
   const Wrapper = ({ children }) => (
     <MuiWrapper theme={theme} queryClient={queryClient}>
       {children}
     </MuiWrapper>
   );
-  
+
   return render(ui, { wrapper: Wrapper, ...renderOptions });
 };
 
 // Mock portfolio data for components
 export const createMockPortfolioData = (overrides = {}) => ({
-  totalValue: 125750.50,
+  totalValue: 125750.5,
   todaysPnL: 2500.75,
-  totalPnL: 25750.50,
+  totalPnL: 25750.5,
   holdings: [
     {
       symbol: "AAPL",
@@ -75,7 +83,7 @@ export const createMockPortfolioData = (overrides = {}) => ({
       percentageReturn: 3.62,
     },
     {
-      symbol: "MSFT", 
+      symbol: "MSFT",
       quantity: 50,
       currentPrice: 280.5,
       marketValue: 14025,
@@ -96,9 +104,9 @@ export const createMockMarketData = (overrides = {}) => ({
   indices: [
     {
       symbol: "SPX",
-      name: "S&P 500", 
+      name: "S&P 500",
       value: 4500.25,
-      change: 25.50,
+      change: 25.5,
       changePercent: 0.57,
     },
     {
@@ -111,7 +119,7 @@ export const createMockMarketData = (overrides = {}) => ({
     {
       symbol: "IXIC",
       name: "Nasdaq",
-      value: 14125.50,
+      value: 14125.5,
       change: 85.75,
       changePercent: 0.62,
     },
@@ -124,11 +132,11 @@ export const createMockStockData = (symbol = "AAPL", overrides = {}) => ({
   symbol,
   name: symbol === "AAPL" ? "Apple Inc." : `${symbol} Company`,
   currentPrice: 150.25,
-  change: 2.50,
+  change: 2.5,
   changePercent: 1.69,
   volume: 50000000,
   marketCap: 2500000000000,
-  high52Week: 180.50,
+  high52Week: 180.5,
   low52Week: 125.25,
   dividend: 0.92,
   dividendYield: 0.61,
@@ -197,7 +205,10 @@ export const buildTextFieldProps = (overrides = {}) => ({
 });
 
 // Error boundary test helper
-export const ErrorThrowingComponent = ({ shouldThrow = true, error = new Error("Test error") }) => {
+export const ErrorThrowingComponent = ({
+  shouldThrow = true,
+  error = new Error("Test error"),
+}) => {
   if (shouldThrow) {
     throw error;
   }
@@ -207,12 +218,12 @@ export const ErrorThrowingComponent = ({ shouldThrow = true, error = new Error("
 // Async component test helper
 export const AsyncComponent = ({ delay = 100, children }) => {
   const [loaded, setLoaded] = React.useState(false);
-  
+
   React.useEffect(() => {
     const timer = setTimeout(() => setLoaded(true), delay);
     return () => clearTimeout(timer);
   }, [delay]);
-  
+
   return loaded ? children : <div>Loading...</div>;
 };
 
@@ -230,16 +241,24 @@ export const fillTextField = async (label, value, user) => {
 // Accessibility test helpers
 export const checkAccessibility = (element) => {
   const violations = [];
-  
+
   // Check for basic accessibility attributes
-  if (element.getAttribute("role") === "button" && !element.getAttribute("aria-label") && !element.textContent.trim()) {
+  if (
+    element.getAttribute("role") === "button" &&
+    !element.getAttribute("aria-label") &&
+    !element.textContent.trim()
+  ) {
     violations.push("Button missing accessible name");
   }
-  
-  if (element.tagName === "INPUT" && !element.getAttribute("aria-label") && !element.labels?.length) {
+
+  if (
+    element.tagName === "INPUT" &&
+    !element.getAttribute("aria-label") &&
+    !element.labels?.length
+  ) {
     violations.push("Input missing label");
   }
-  
+
   return violations;
 };
 
@@ -248,7 +267,7 @@ export const measureRenderTime = (renderFn) => {
   const start = performance.now();
   const result = renderFn();
   const end = performance.now();
-  
+
   return {
     result,
     renderTime: end - start,
@@ -259,7 +278,8 @@ export const measureRenderTime = (renderFn) => {
 export const testComponentLifecycle = (Component, props = {}) => ({
   mount: () => render(<Component {...props} />),
   unmount: (result) => result.unmount(),
-  rerender: (result, newProps) => result.rerender(<Component {...props} {...newProps} />),
+  rerender: (result, newProps) =>
+    result.rerender(<Component {...props} {...newProps} />),
 });
 
 // Snapshot test helper (for visual regression)

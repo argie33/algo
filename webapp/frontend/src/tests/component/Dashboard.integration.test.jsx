@@ -8,10 +8,10 @@ import { AuthProvider } from "../../contexts/AuthContext";
 
 // Mock the API service with comprehensive mock
 vi.mock("../../services/api", async (_importOriginal) => {
-  const { createApiServiceMock } = await import('../mocks/api-service-mock');
+  const { createApiServiceMock } = await import("../mocks/api-service-mock");
   return {
     default: createApiServiceMock(),
-    ...createApiServiceMock()
+    ...createApiServiceMock(),
   };
 });
 
@@ -44,11 +44,11 @@ const renderWithProviders = (component) => {
 };
 
 const mockAuthContext = {
-  user: { id: 'test-user', email: 'test@example.com' },
+  user: { id: "test-user", email: "test@example.com" },
   isAuthenticated: true,
   login: vi.fn(),
   logout: vi.fn(),
-  loading: false
+  loading: false,
 };
 
 describe("Dashboard Integration Tests", () => {
@@ -174,8 +174,10 @@ describe("Dashboard Integration Tests", () => {
 
       // Check ProTrade Analytics branding
       expect(screen.getByText("ProTrade Analytics")).toBeInTheDocument();
-      expect(screen.getByText("Elite Financial Intelligence Platform")).toBeInTheDocument();
-      
+      expect(
+        screen.getByText("Elite Financial Intelligence Platform")
+      ).toBeInTheDocument();
+
       // Check branded feature chips (there are multiple Real-Time elements)
       expect(screen.getAllByText("Real-Time")).toHaveLength(2);
       expect(screen.getByText("AI-Powered")).toBeInTheDocument();
@@ -217,7 +219,7 @@ describe("Dashboard Integration Tests", () => {
       });
 
       // Verify the mocked API service functions are available
-      expect(typeof api.getMarketOverview).toBe('function');
+      expect(typeof api.getMarketOverview).toBe("function");
     });
   });
 
@@ -687,7 +689,7 @@ describe("Dashboard Integration Tests", () => {
   describe("Market Status Integration", () => {
     it("should display market status bar", async () => {
       renderWithProviders(<Dashboard />);
-      
+
       // Market status bar should be rendered via mock
       expect(screen.getByTestId("market-status-bar")).toBeInTheDocument();
       expect(screen.getByText("Market Status: Open")).toBeInTheDocument();

@@ -88,7 +88,8 @@ const MarketStatusBar = () => {
       setMarketStatus(data);
       setLoading(false);
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch market status:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to fetch market status:", error);
       setLoading(false);
     }
   };
@@ -154,43 +155,46 @@ const MarketStatusBar = () => {
 
         {/* Market Indices */}
         <Box display="flex" alignItems="center" gap={3}>
-          {marketStatus.indices && (marketStatus.indices || []).map((index, i) => (
-            <React.Fragment key={index.symbol}>
-              {i > 0 && <Divider orientation="vertical" flexItem />}
-              <Box display="flex" alignItems="center" gap={1}>
-                <Box>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontWeight: 500 }}
-                  >
-                    {index.name}
-                  </Typography>
-                  <Box display="flex" alignItems="center" gap={0.5}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {formatNumber(index.value, 0)}
-                    </Typography>
-                    {index.change >= 0 ? (
-                      <TrendingUp
-                        sx={{ fontSize: 16, color: "success.main" }}
-                      />
-                    ) : (
-                      <TrendingDown
-                        sx={{ fontSize: 16, color: "error.main" }}
-                      />
-                    )}
+          {marketStatus.indices &&
+            (marketStatus.indices || []).map((index, i) => (
+              <React.Fragment key={index.symbol}>
+                {i > 0 && <Divider orientation="vertical" flexItem />}
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Box>
                     <Typography
-                      variant="body2"
-                      color={index.change >= 0 ? "success.main" : "error.main"}
-                      fontWeight="medium"
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
                     >
-                      {formatPercentage(index.changePercent)}
+                      {index.name}
                     </Typography>
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {formatNumber(index.value, 0)}
+                      </Typography>
+                      {index.change >= 0 ? (
+                        <TrendingUp
+                          sx={{ fontSize: 16, color: "success.main" }}
+                        />
+                      ) : (
+                        <TrendingDown
+                          sx={{ fontSize: 16, color: "error.main" }}
+                        />
+                      )}
+                      <Typography
+                        variant="body2"
+                        color={
+                          index.change >= 0 ? "success.main" : "error.main"
+                        }
+                        fontWeight="medium"
+                      >
+                        {formatPercentage(index.changePercent)}
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
-              </Box>
-            </React.Fragment>
-          ))}
+              </React.Fragment>
+            ))}
         </Box>
 
         {/* Cache Stats (Development Only) */}
@@ -200,7 +204,11 @@ const MarketStatusBar = () => {
               variant="caption"
               color="text.secondary"
               sx={{ cursor: "pointer" }}
-              onClick={() => import.meta.env && import.meta.env.DEV && console.log("Cache Stats:", dataCache.getStats())}
+              onClick={() =>
+                import.meta.env &&
+                import.meta.env.DEV &&
+                console.log("Cache Stats:", dataCache.getStats())
+              }
             >
               Cache: {dataCache.cache.size} items
             </Typography>

@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import { describe, it, beforeEach, expect, vi } from "vitest";
-import { renderWithProviders, screen, fireEvent, waitFor, act } from "../test-utils";
+import {
+  renderWithProviders,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "../test-utils";
 import AuthModal from "../../components/auth/AuthModal";
 import LoginForm from "../../components/auth/LoginForm";
 
@@ -31,11 +37,11 @@ import devAuth from "../../services/devAuth";
 // Use TestWrapper from test-utils for consistent rendering
 
 const mockAuthContext = {
-  user: { id: 'test-user', email: 'test@example.com' },
+  user: { id: "test-user", email: "test@example.com" },
   isAuthenticated: true,
   login: vi.fn(),
   logout: vi.fn(),
-  loading: false
+  loading: false,
 };
 
 describe("Authentication Flow Components", () => {
@@ -49,7 +55,9 @@ describe("Authentication Flow Components", () => {
 
       expect(screen.getAllByText(/Sign In/i)).toHaveLength(3); // header, title, button
       expect(screen.getByLabelText(/Username or Email/i)).toBeInTheDocument();
-      expect(screen.getByRole('textbox', { name: /Username or Email/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("textbox", { name: /Username or Email/i })
+      ).toBeInTheDocument();
     });
 
     it("should switch to signup form when requested", () => {
@@ -57,8 +65,12 @@ describe("Authentication Flow Components", () => {
 
       fireEvent.click(screen.getByText(/Sign up here/i));
 
-      expect(screen.getByRole('heading', { name: /Create Account/i })).toBeInTheDocument();
-      expect(screen.getByRole('textbox', { name: /First Name/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: /Create Account/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("textbox", { name: /First Name/i })
+      ).toBeInTheDocument();
     });
 
     it("should close modal when close button is clicked", () => {
@@ -66,7 +78,7 @@ describe("Authentication Flow Components", () => {
       renderWithProviders(<AuthModal open={true} onClose={onClose} />);
 
       // Find close button by CloseIcon testid
-      fireEvent.click(screen.getByTestId('CloseIcon').closest('button'));
+      fireEvent.click(screen.getByTestId("CloseIcon").closest("button"));
 
       expect(onClose).toHaveBeenCalled();
     });
@@ -76,7 +88,7 @@ describe("Authentication Flow Components", () => {
       renderWithProviders(<AuthModal open={true} onClose={onClose} />);
 
       // Click on the backdrop (outside the modal content)
-      const backdrop = document.querySelector('.MuiBackdrop-root');
+      const backdrop = document.querySelector(".MuiBackdrop-root");
       fireEvent.click(backdrop);
 
       expect(onClose).toHaveBeenCalled();
@@ -95,7 +107,9 @@ describe("Authentication Flow Components", () => {
 
       expect(screen.getByLabelText(/Username or Email/i)).toBeInTheDocument();
       // Use more specific selector for login form password field
-      expect(screen.getByRole('textbox', { name: /Username or Email/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("textbox", { name: /Username or Email/i })
+      ).toBeInTheDocument();
       // Find the password input specifically
       const passwordInputs = screen.getAllByLabelText(/Password/i);
       expect(passwordInputs.length).toBeGreaterThanOrEqual(1);
@@ -111,7 +125,9 @@ describe("Authentication Flow Components", () => {
 
       await waitFor(() => {
         // Test the actual validation message from your LoginForm
-        expect(screen.getByText(/Please enter both username and password/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Please enter both username and password/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -121,7 +137,7 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(screen.getByLabelText(/Username or Email/i), {
         target: { value: "invalid-email" },
       });
-      
+
       // Get the password field correctly
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
@@ -132,13 +148,15 @@ describe("Authentication Flow Components", () => {
 
       // Should not show validation error since component accepts any username format
       await waitFor(() => {
-        expect(screen.queryByText(/Please enter a valid email/i)).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(/Please enter a valid email/i)
+        ).not.toBeInTheDocument();
       });
     });
 
     it("should handle successful login", async () => {
       const onSuccess = vi.fn();
-      
+
       // Mock successful login
       mockAuthContext.login.mockResolvedValue({ success: true });
 
@@ -165,9 +183,9 @@ describe("Authentication Flow Components", () => {
 
     it("should handle login errors", async () => {
       // Mock login failure
-      mockAuthContext.login.mockResolvedValue({ 
-        success: false, 
-        error: "Incorrect username or password." 
+      mockAuthContext.login.mockResolvedValue({
+        success: false,
+        error: "Incorrect username or password.",
       });
 
       renderWithProviders(<LoginForm onSuccess={() => {}} />);
@@ -191,9 +209,9 @@ describe("Authentication Flow Components", () => {
 
     it("should handle user not confirmed error", async () => {
       // Mock login with user not confirmed error
-      mockAuthContext.login.mockResolvedValue({ 
-        success: false, 
-        error: "User is not confirmed." 
+      mockAuthContext.login.mockResolvedValue({
+        success: false,
+        error: "User is not confirmed.",
       });
 
       renderWithProviders(<LoginForm onSuccess={() => {}} />);
@@ -209,17 +227,15 @@ describe("Authentication Flow Components", () => {
       fireEvent.click(screen.getByRole("button", { name: /Sign In/i }));
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/User is not confirmed/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/User is not confirmed/i)).toBeInTheDocument();
       });
     });
 
     it("should handle MFA challenge", async () => {
       // Mock login with MFA challenge response
-      mockAuthContext.login.mockResolvedValue({ 
-        success: false, 
-        error: "MFA code required. Please check your phone." 
+      mockAuthContext.login.mockResolvedValue({
+        success: false,
+        error: "MFA code required. Please check your phone.",
       });
 
       renderWithProviders(<LoginForm onSuccess={() => {}} />);
@@ -254,7 +270,7 @@ describe("Authentication Flow Components", () => {
       expect(
         screen.getByRole("button", { name: /Signing In/i })
       ).toBeDisabled();
-      
+
       // Reset loading state for other tests
       mockAuthContext.isLoading = false;
     });
@@ -287,7 +303,7 @@ describe("Authentication Flow Components", () => {
       // Use getAllByLabelText to handle multiple password fields in RegisterForm
       const passwordFields = screen.getAllByLabelText(/Password/i);
       expect(passwordFields.length).toBeGreaterThanOrEqual(2); // Password and Confirm Password
-      expect(document.getElementById('confirmPassword')).toBeInTheDocument();
+      expect(document.getElementById("confirmPassword")).toBeInTheDocument();
     });
 
     it("should validate password confirmation", async () => {
@@ -299,7 +315,7 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
       });
-      fireEvent.change(document.getElementById('username'), {
+      fireEvent.change(document.getElementById("username"), {
         target: { value: "testuser" },
       });
 
@@ -309,9 +325,9 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(passwordFields[0], {
         target: { value: "password123" },
       });
-      
+
       // Find confirm password input specifically by ID to avoid ambiguity with toggle button
-      const confirmPasswordInput = document.getElementById('confirmPassword');
+      const confirmPasswordInput = document.getElementById("confirmPassword");
       fireEvent.change(confirmPasswordInput, {
         target: { value: "differentpassword" },
       });
@@ -332,7 +348,7 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
       });
-      fireEvent.change(document.getElementById('username'), {
+      fireEvent.change(document.getElementById("username"), {
         target: { value: "testuser" },
       });
 
@@ -340,9 +356,9 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(passwordFields[0], {
         target: { value: "weak" },
       });
-      
+
       // Also fill confirm password to avoid that validation error
-      const confirmPasswordInput = document.getElementById('confirmPassword');
+      const confirmPasswordInput = document.getElementById("confirmPassword");
       fireEvent.change(confirmPasswordInput, {
         target: { value: "weak" },
       });
@@ -364,14 +380,14 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
       });
-      fireEvent.change(document.getElementById('username'), {
+      fireEvent.change(document.getElementById("username"), {
         target: { value: "testuser" },
       });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
       });
-      const confirmPasswordInput = document.getElementById('confirmPassword');
+      const confirmPasswordInput = document.getElementById("confirmPassword");
       fireEvent.change(confirmPasswordInput, {
         target: { value: "Password123!" },
       });
@@ -402,14 +418,14 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "existing@example.com" },
       });
-      fireEvent.change(document.getElementById('username'), {
+      fireEvent.change(document.getElementById("username"), {
         target: { value: "existing" },
       });
       const passwordFields = screen.getAllByLabelText(/Password/i);
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
       });
-      const confirmPasswordInput = document.getElementById('confirmPassword');
+      const confirmPasswordInput = document.getElementById("confirmPassword");
       fireEvent.change(confirmPasswordInput, {
         target: { value: "Password123!" },
       });
@@ -443,7 +459,7 @@ describe("Authentication Flow Components", () => {
       fireEvent.change(passwordFields[0], {
         target: { value: "Password123!" },
       });
-      const confirmPasswordInput = document.getElementById('confirmPassword');
+      const confirmPasswordInput = document.getElementById("confirmPassword");
       fireEvent.change(confirmPasswordInput, {
         target: { value: "Password123!" },
       });
@@ -470,9 +486,14 @@ describe("Authentication Flow Components", () => {
 
       // Render directly in confirmation state
       renderWithProviders(
-        <AuthModal open={true} onClose={() => {}} onSuccess={onSuccess} initialMode="confirm" />
+        <AuthModal
+          open={true}
+          onClose={() => {}}
+          onSuccess={onSuccess}
+          initialMode="confirm"
+        />
       );
-      
+
       fireEvent.change(screen.getByLabelText(/Verification Code/i), {
         target: { value: "123456" },
       });
@@ -546,7 +567,9 @@ describe("Authentication Flow Components", () => {
         target: { value: "test@example.com" },
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /Send Reset Email/i }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Send Reset Email/i })
+      );
 
       await waitFor(() => {
         expect(Auth.forgotPassword).toHaveBeenCalledWith("test@example.com");
@@ -594,11 +617,11 @@ describe("Authentication Flow Components", () => {
       renderWithProviders(<AuthModal open={true} onClose={() => {}} />);
 
       expect(screen.getByRole("dialog")).toBeInTheDocument();
-      
+
       // Check for required fields (Material-UI handles aria-required automatically)
       const usernameField = screen.getByLabelText(/Username or Email/i);
       expect(usernameField).toBeRequired();
-      
+
       const passwordFields = screen.getAllByLabelText(/Password/i);
       expect(passwordFields[0]).toBeRequired();
     });
@@ -608,14 +631,14 @@ describe("Authentication Flow Components", () => {
 
       const modal = screen.getByRole("dialog");
       expect(modal).toBeInTheDocument();
-      
+
       // Check that focusable elements are present within modal
       const firstFocusable = screen.getByLabelText(/Username or Email/i);
       const submitButton = screen.getByRole("button", { name: /Sign In/i });
-      
+
       expect(firstFocusable).toBeInTheDocument();
       expect(submitButton).toBeInTheDocument();
-      
+
       // Test basic focus management (focus trapping is complex and may not be fully implemented)
       firstFocusable.focus();
       expect(firstFocusable).toHaveFocus();
@@ -659,10 +682,13 @@ describe("Authentication Flow Components", () => {
       expect(screen.getByText(/Sign In/i)).toBeInTheDocument();
 
       // Wait for authentication to complete and forms to be enabled
-      await waitFor(() => {
-        const passwordFields = screen.getAllByLabelText(/Password/i);
-        expect(passwordFields[0]).not.toBeDisabled();
-      }, { timeout: 10000 });
+      await waitFor(
+        () => {
+          const passwordFields = screen.getAllByLabelText(/Password/i);
+          expect(passwordFields[0]).not.toBeDisabled();
+        },
+        { timeout: 10000 }
+      );
 
       // Enter password in login form
       const passwordFields = screen.getAllByLabelText(/Password/i);

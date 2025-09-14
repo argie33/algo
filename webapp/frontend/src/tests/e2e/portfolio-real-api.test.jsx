@@ -37,9 +37,7 @@ const RealApiWrapper = ({ children }) => {
     <BrowserRouter>
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
@@ -56,7 +54,7 @@ describe("Portfolio Real API Integration", () => {
   beforeEach(() => {
     // Clear localStorage to ensure clean state
     localStorage.clear();
-    
+
     // Set up dev auth session with the correct token
     const devSession = {
       user: {
@@ -68,12 +66,12 @@ describe("Portfolio Real API Integration", () => {
       },
       tokens: {
         accessToken: "dev-bypass-token",
-        idToken: "dev-bypass-token", 
+        idToken: "dev-bypass-token",
         refreshToken: "dev-bypass-token",
       },
       expiresAt: Date.now() + 3600000, // 1 hour from now
     };
-    
+
     localStorage.setItem("dev_session", JSON.stringify(devSession));
   });
 
@@ -86,12 +84,12 @@ describe("Portfolio Real API Integration", () => {
         // Look for any stock symbol pattern in the rendered content
         const content = document.body.textContent;
         console.log("Page content sample:", content.substring(0, 500));
-        
+
         // Check for the presence of stock symbols from our test data
         const hasApple = content.includes("AAPL");
         const hasMicrosoft = content.includes("MSFT");
         const hasSPY = content.includes("SPY");
-        
+
         // At least one of our test symbols should be present
         expect(hasApple || hasMicrosoft || hasSPY).toBe(true);
       },
@@ -105,21 +103,21 @@ describe("Portfolio Real API Integration", () => {
     await waitFor(
       async () => {
         const content = document.body.textContent;
-        
+
         // Look for dollar amounts (our test portfolio has ~$94K)
         const dollarAmounts = content.match(/\$[\d,]+/g);
         console.log("Found dollar amounts:", dollarAmounts);
-        
+
         // Should find some dollar amounts
         expect(dollarAmounts).toBeTruthy();
         expect(dollarAmounts.length).toBeGreaterThan(0);
-        
+
         // At least one amount should be substantial (> $1000)
-        const hasSubstantialAmount = dollarAmounts?.some(amount => {
-          const numValue = parseInt(amount.replace(/[$,]/g, ''));
+        const hasSubstantialAmount = dollarAmounts?.some((amount) => {
+          const numValue = parseInt(amount.replace(/[$,]/g, ""));
           return numValue > 1000;
         });
-        
+
         expect(hasSubstantialAmount).toBe(true);
       },
       { timeout: 20000 }
@@ -132,13 +130,13 @@ describe("Portfolio Real API Integration", () => {
     await waitFor(
       async () => {
         const content = document.body.textContent;
-        
+
         // Should NOT contain these error messages if API is working
         expect(content).not.toContain("Analytics data not available");
-        expect(content).not.toContain("Risk assessment data not available");  
+        expect(content).not.toContain("Risk assessment data not available");
         expect(content).not.toContain("Factor analysis data not available");
         expect(content).not.toContain("No data available");
-        
+
         console.log("✅ No error messages found - API is working");
       },
       { timeout: 15000 }
@@ -152,15 +150,15 @@ describe("Portfolio Real API Integration", () => {
     await waitFor(
       async () => {
         const content = document.body.textContent;
-        
+
         // Should not show authentication errors
         expect(content).not.toContain("Authentication failed");
         expect(content).not.toContain("Access denied");
         expect(content).not.toContain("Login required");
-        
+
         // Should show the portfolio interface
         expect(content).toContain("Portfolio Holdings");
-        
+
         console.log("✅ Authentication successful");
       },
       { timeout: 10000 }

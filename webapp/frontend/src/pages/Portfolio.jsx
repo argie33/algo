@@ -107,6 +107,7 @@ import {
   testApiConnection,
   importPortfolioFromBroker,
   getApiKeys,
+  getPortfolioData,
 } from "../services/api";
 import {
   formatCurrency,
@@ -135,18 +136,26 @@ const calculatePortfolioBeta = () => 1.0; // Market beta
 const calculateVaR = () => 0.05; // 5% VaR
 const calculateMaxDrawdown = () => 0.08; // 8% max drawdown
 const calculateInformationRatio = () => 0.75; // Default information ratio
-const calculateFactorExposure = () => ({ growth: 0.6, value: 0.4, momentum: 0.3 });
+const calculateFactorExposure = () => ({
+  growth: 0.6,
+  value: 0.4,
+  momentum: 0.3,
+});
 const calculateConcentrationRisk = () => 0.25; // 25% concentration
-const calculateGeographicDiversification = () => ({ US: 0.7, International: 0.3 });
+const calculateGeographicDiversification = () => ({
+  US: 0.7,
+  International: 0.3,
+});
 const calculateMarketCapExposure = () => ({ large: 0.6, mid: 0.3, small: 0.1 });
 const calculateHerfindahlIndex = () => 0.15; // Diversification index
-const generateAIInsights = () => "Portfolio shows balanced diversification with moderate risk profile.";
+const generateAIInsights = () =>
+  "Portfolio shows balanced diversification with moderate risk profile.";
 const CHART_COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7c7c", "#8dd1e1"];
 
 const Portfolio = () => {
   useDocumentTitle("Portfolio");
-  const { apiUrl: API_BASE } = getApiConfig();
-  const { user, isAuthenticated, isLoading, tokens } = useAuth();
+  const { apiUrl: _API_BASE } = getApiConfig();
+  const { user, isAuthenticated, isLoading, tokens: _tokens } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(0);
@@ -154,7 +163,7 @@ const Portfolio = () => {
   const [portfolioData, setPortfolioData] = useState({
     holdings: [],
     summary: { totalValue: 0, totalCost: 0, totalPnl: 0, totalPnlPercent: 0 },
-    isMockData: false
+    isMockData: false,
   });
   const [loading, setLoading] = useState(true);
   const [_error, setError] = useState(null);
@@ -243,43 +252,22 @@ const Portfolio = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch real portfolio data from production API with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-      
-      const response = await fetch(
-        `${API_BASE}/api/portfolio/holdings`,
-        {
-          headers: {
-            Authorization: `Bearer ${tokens?.accessToken || "dev-bypass-token"}`,
-            "Content-Type": "application/json",
-          },
-          signal: controller.signal,
-        }
-      );
-      
-      clearTimeout(timeoutId);
+      // Fetch real portfolio data using API service
+      const portfolioResponse = await getPortfolioData();
 
-      if (!response) {
+      if (!portfolioResponse) {
         throw new Error("Portfolio API request failed - no response received");
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          `Portfolio API failed: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const portfolioResponse = await response.json();
-
-      if (!portfolioResponse?.success || !portfolioResponse?.data) {
-        throw new Error("Invalid portfolio data structure received from API");
       }
 
       // Use real portfolio data from database
       setPortfolioData({
-        holdings: portfolioResponse.data.holdings || [],
-        summary: portfolioResponse.data.summary || { totalValue: 0, totalCost: 0, totalPnl: 0, totalPnlPercent: 0 },
+        holdings: portfolioResponse.holdings || [],
+        summary: portfolioResponse.summary || {
+          totalValue: 0,
+          totalCost: 0,
+          totalPnl: 0,
+          totalPnlPercent: 0,
+        },
         tradingMode: portfolioResponse.trading_mode,
         paperTrading: portfolioResponse.paper_trading,
         userId: user?.userId,
@@ -299,7 +287,7 @@ const Portfolio = () => {
     } finally {
       setLoading(false);
     }
-  }, [API_BASE, tokens?.accessToken, user?.userId, user?.username]);
+  }, [user?.userId, user?.username]);
 
   // Load available API connections
   const loadAvailableConnections = useCallback(async () => {
@@ -319,15 +307,33 @@ const Portfolio = () => {
   // Market regime analysis component
   const renderMarketRegimeAnalysis = useCallback(() => {
     const regimeData = {
-      normal: { color: "success", description: "Normal market conditions", confidence: 85 },
-      volatile: { color: "warning", description: "High volatility period", confidence: 70 },
-      bear: { color: "error", description: "Bear market conditions", confidence: 60 }
+      normal: {
+        color: "success",
+        description: "Normal market conditions",
+        confidence: 85,
+      },
+      volatile: {
+        color: "warning",
+        description: "High volatility period",
+        confidence: 70,
+      },
+      bear: {
+        color: "error",
+        description: "Bear market conditions",
+        confidence: 60,
+      },
     };
     const currentRegime = regimeData[marketRegime];
     return (
       <Box mb={3}>
-        <Typography variant="h6" gutterBottom>Market Regime Analysis</Typography>
-        <Chip label={currentRegime.description} color={currentRegime.color} sx={{ mb: 2 }} />
+        <Typography variant="h6" gutterBottom>
+          Market Regime Analysis
+        </Typography>
+        <Chip
+          label={currentRegime.description}
+          color={currentRegime.color}
+          sx={{ mb: 2 }}
+        />
         <Typography variant="body2" color="text.secondary">
           Confidence: {currentRegime.confidence}%
         </Typography>
@@ -335,17 +341,19 @@ const Portfolio = () => {
     );
   }, [marketRegime]);
 
-  // Correlation matrix component  
+  // Correlation matrix component
   const renderCorrelationMatrix = useCallback(() => {
     const correlationData = [
       { asset: "Tech Stocks", correlation: 0.75 },
       { asset: "Financial", correlation: 0.45 },
       { asset: "Healthcare", correlation: 0.3 },
-      { asset: "Consumer", correlation: 0.5 }
+      { asset: "Consumer", correlation: 0.5 },
     ];
     return (
       <Box>
-        <Typography variant="h6" gutterBottom>Sector Correlations</Typography>
+        <Typography variant="h6" gutterBottom>
+          Sector Correlations
+        </Typography>
         {(correlationData || []).map((item, index) => (
           <Box key={index} mb={1}>
             <Box display="flex" justifyContent="space-between">
@@ -354,7 +362,10 @@ const Portfolio = () => {
                 {formatNumber(item.correlation, 2)}
               </Typography>
             </Box>
-            <LinearProgress variant="determinate" value={item.correlation * 100} />
+            <LinearProgress
+              variant="determinate"
+              value={item.correlation * 100}
+            />
           </Box>
         ))}
       </Box>
@@ -368,20 +379,32 @@ const Portfolio = () => {
       recommendedAllocation: "Conservative",
       expectedReturn: 7.8,
       volatility: 12.3,
-      sharpeRatio: 0.63
+      sharpeRatio: 0.63,
     };
     return (
       <Box>
-        <Typography variant="h6" gutterBottom>Portfolio Optimization</Typography>
+        <Typography variant="h6" gutterBottom>
+          Portfolio Optimization
+        </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <Typography variant="body2">Current: {optimizationData.currentAllocation}</Typography>
-            <Typography variant="body2">Recommended: {optimizationData.recommendedAllocation}</Typography>
+            <Typography variant="body2">
+              Current: {optimizationData.currentAllocation}
+            </Typography>
+            <Typography variant="body2">
+              Recommended: {optimizationData.recommendedAllocation}
+            </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography variant="body2">Expected Return: {optimizationData.expectedReturn}%</Typography>
-            <Typography variant="body2">Volatility: {optimizationData.volatility}%</Typography>
-            <Typography variant="body2">Sharpe Ratio: {optimizationData.sharpeRatio}</Typography>
+            <Typography variant="body2">
+              Expected Return: {optimizationData.expectedReturn}%
+            </Typography>
+            <Typography variant="body2">
+              Volatility: {optimizationData.volatility}%
+            </Typography>
+            <Typography variant="body2">
+              Sharpe Ratio: {optimizationData.sharpeRatio}
+            </Typography>
           </Grid>
         </Grid>
       </Box>
@@ -391,15 +414,38 @@ const Portfolio = () => {
   // Detailed recommendations component
   const renderDetailedRecommendations = useCallback(() => {
     const recommendations = [
-      { action: "Reduce", asset: "Tech Stocks", percentage: "5%", reason: "Overweight position" },
-      { action: "Increase", asset: "Bonds", percentage: "3%", reason: "Improve stability" },
-      { action: "Add", asset: "REITs", percentage: "2%", reason: "Diversification" }
+      {
+        action: "Reduce",
+        asset: "Tech Stocks",
+        percentage: "5%",
+        reason: "Overweight position",
+      },
+      {
+        action: "Increase",
+        asset: "Bonds",
+        percentage: "3%",
+        reason: "Improve stability",
+      },
+      {
+        action: "Add",
+        asset: "REITs",
+        percentage: "2%",
+        reason: "Diversification",
+      },
     ];
     return (
       <Box>
-        <Typography variant="h6" gutterBottom>Recommendations</Typography>
+        <Typography variant="h6" gutterBottom>
+          Recommendations
+        </Typography>
         {(recommendations || []).map((rec, index) => (
-          <Box key={index} mb={2} p={2} bgcolor="background.paper" borderRadius={1}>
+          <Box
+            key={index}
+            mb={2}
+            p={2}
+            bgcolor="background.paper"
+            borderRadius={1}
+          >
             <Typography variant="body2" fontWeight="bold">
               {rec.action} {rec.asset} by {rec.percentage}
             </Typography>
@@ -424,7 +470,7 @@ const Portfolio = () => {
   // Load portfolio data (authenticated users get real data, others get demo data)
   useEffect(() => {
     let cancelled = false;
-    
+
     if (isAuthenticated && user) {
       // Add timeout to prevent test timeouts
       const timeoutId = setTimeout(async () => {
@@ -432,17 +478,20 @@ const Portfolio = () => {
           try {
             await Promise.race([
               Promise.all([loadUserPortfolio(), loadAvailableConnections()]),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Portfolio load timeout')), 5000)
-              )
+              new Promise((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Portfolio load timeout")),
+                  5000
+                )
+              ),
             ]);
           } catch (error) {
-            console.warn('Portfolio load timed out or failed:', error.message);
+            console.warn("Portfolio load timed out or failed:", error.message);
             setLoading(false);
           }
         }
       }, 100);
-      
+
       return () => {
         cancelled = true;
         clearTimeout(timeoutId);
@@ -455,7 +504,10 @@ const Portfolio = () => {
 
   // Auto-refresh effect (skip in test environment)
   useEffect(() => {
-    if (autoRefresh && (typeof process === 'undefined' || process.env.NODE_ENV !== 'test')) {
+    if (
+      autoRefresh &&
+      (typeof process === "undefined" || process.env.NODE_ENV !== "test")
+    ) {
       const interval = setInterval(() => {
         setLastRefresh(new Date());
         if (isAuthenticated && user) {
@@ -504,11 +556,8 @@ const Portfolio = () => {
     };
   }, [portfolioData]);
 
-  // Factor analysis calculations
-  const factorAnalysis = useMemo(() => {
-    if (!portfolioData?.holdings) return null;
-    return calculateFactorExposure(portfolioData.holdings);
-  }, [portfolioData.holdings]);
+  // Factor analysis calculations (simplified - removed)
+  const factorAnalysis = [];
 
   // Sector and geographic diversification
   const diversificationMetrics = useMemo(() => {
@@ -860,26 +909,27 @@ const Portfolio = () => {
   const exportToPDF = () => {
     // In a real implementation, you would use jsPDF or similar
     console.log("📄 PDF Export: Portfolio report generation requested");
-    
+
     // Show a non-blocking notification instead of alert
-    if (typeof window !== 'undefined') {
-      const notification = document.createElement('div');
+    if (typeof window !== "undefined") {
+      const notification = document.createElement("div");
       notification.style.cssText = `
         position: fixed; top: 20px; right: 20px; z-index: 9999;
         background: #2196f3; color: white; padding: 12px 16px;
         border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         font-family: inherit; font-size: 14px; max-width: 300px;
       `;
-      notification.textContent = 'PDF export would be implemented here with detailed portfolio report';
+      notification.textContent =
+        "PDF export would be implemented here with detailed portfolio report";
       document.body.appendChild(notification);
-      
+
       setTimeout(() => {
         if (notification.parentNode) {
           notification.parentNode.removeChild(notification);
         }
       }, 4000);
     }
-    
+
     handleExportClose();
   };
 
@@ -1217,7 +1267,10 @@ const Portfolio = () => {
     // Calculate confidence based on data quality and market conditions
     const dataQuality = 0.85; // Assume good data quality
     const marketStability = marketRegime === "normal" ? 0.9 : 0.7;
-    const portfolioSize = Math.min(1, (portfolioData.holdings?.length || 0) / 20);
+    const portfolioSize = Math.min(
+      1,
+      (portfolioData.holdings?.length || 0) / 20
+    );
 
     return Math.round(dataQuality * marketStability * portfolioSize * 100);
   };
@@ -1275,7 +1328,8 @@ const Portfolio = () => {
     // Black-Litterman optimization with market views
     return (holdings || []).map((holding) => {
       const marketView = getMarketView(holding.symbol);
-      const equilibriumWeight = holding.allocation || 100 / (holdings?.length || 0);
+      const equilibriumWeight =
+        holding.allocation || 100 / (holdings?.length || 0);
       const adjustedWeight = equilibriumWeight * (1 + marketView * 0.2);
 
       return {
@@ -1448,7 +1502,6 @@ const Portfolio = () => {
     return returns.reduce((sum, ret) => sum + ret, 0) / (returns?.length || 0);
   };
 
-
   if (isLoading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -1491,7 +1544,7 @@ const Portfolio = () => {
               label="Timeframe"
               onChange={(e) => setTimeframe(e.target.value)}
               inputProps={{
-                'aria-label': 'Portfolio performance timeframe selector'
+                "aria-label": "Portfolio performance timeframe selector",
               }}
             >
               <MenuItem value="1D">1 Day</MenuItem>
@@ -1513,14 +1566,17 @@ const Portfolio = () => {
               color={notifications.length > 0 ? "warning" : "default"}
               aria-label="View portfolio notifications"
             >
-              <Badge badgeContent={(notifications?.length || 0)} color="error">
+              <Badge badgeContent={notifications?.length || 0} color="error">
                 <NotificationsNone />
               </Badge>
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Watchlist">
-            <IconButton onClick={() => setWatchlistDialogOpen(true)} aria-label="Open watchlist">
+            <IconButton
+              onClick={() => setWatchlistDialogOpen(true)}
+              aria-label="Open watchlist"
+            >
               <Visibility />
             </IconButton>
           </Tooltip>
@@ -1530,7 +1586,7 @@ const Portfolio = () => {
               onClick={handleManualRefresh}
               onDoubleClick={() => setAutoRefresh(!autoRefresh)}
               color={autoRefresh ? "primary" : "default"}
-              aria-label={`Refresh portfolio data (auto-refresh ${autoRefresh ? 'enabled' : 'disabled'})`}
+              aria-label={`Refresh portfolio data (auto-refresh ${autoRefresh ? "enabled" : "disabled"})`}
             >
               <Refresh />
             </IconButton>
@@ -1570,13 +1626,21 @@ const Portfolio = () => {
               startIcon={<Upload />}
               onClick={() => setImportDialogOpen(true)}
               disabled={importing}
-              aria-label={importing ? "Importing portfolio data" : "Import portfolio data from broker"}
+              aria-label={
+                importing
+                  ? "Importing portfolio data"
+                  : "Import portfolio data from broker"
+              }
             >
               {importing ? "Importing..." : "Import Portfolio"}
             </Button>
           )}
 
-          <Button variant="contained" startIcon={<Add />} aria-label="Add new position to portfolio">
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            aria-label="Add new position to portfolio"
+          >
             Add Position
           </Button>
         </Box>
@@ -1632,7 +1696,10 @@ const Portfolio = () => {
                       ml={0.5}
                     >
                       {formatCurrency(portfolioMetrics?.totalGainLoss || 0)} (
-                      {formatPercentage(portfolioMetrics?.totalGainLossPercent || 0)})
+                      {formatPercentage(
+                        portfolioMetrics?.totalGainLossPercent || 0
+                      )}
+                      )
                     </Typography>
                   </Box>
                 </Box>
@@ -1742,7 +1809,7 @@ const Portfolio = () => {
                 title="Portfolio Holdings"
                 action={
                   <Chip
-                    label={`${(portfolioData.holdings?.length || 0)} positions`}
+                    label={`${portfolioData.holdings?.length || 0} positions`}
                     color="primary"
                     variant="outlined"
                   />
@@ -1822,7 +1889,9 @@ const Portfolio = () => {
                           page * rowsPerPage + rowsPerPage
                         )
                         .map((holding, index) => (
-                          <TableRow key={`${holding.symbol}-${holding.id || index}`}>
+                          <TableRow
+                            key={`${holding.symbol}-${holding.id || index}`}
+                          >
                             <TableCell>
                               <Box>
                                 <Typography
@@ -1892,10 +1961,18 @@ const Portfolio = () => {
                               </Box>
                             </TableCell>
                             <TableCell align="center">
-                              <IconButton size="small" color="primary" aria-label="Edit position">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                aria-label="Edit position"
+                              >
                                 <Edit />
                               </IconButton>
-                              <IconButton size="small" color="error" aria-label="Delete position">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                aria-label="Delete position"
+                              >
                                 <Delete />
                               </IconButton>
                             </TableCell>
@@ -1907,7 +1984,7 @@ const Portfolio = () => {
                 <TablePagination
                   rowsPerPageOptions={[10, 25, 50]}
                   component="div"
-                  count={(portfolioData.holdings?.length || 0)}
+                  count={portfolioData.holdings?.length || 0}
                   rowsPerPage={rowsPerPage}
                   page={page}
                   onPageChange={(e, newPage) => setPage(newPage)}
@@ -1943,7 +2020,11 @@ const Portfolio = () => {
                             (entry, index) => (
                               <Cell
                                 key={`cell-${index}`}
-                                fill={CHART_COLORS[index % (CHART_COLORS?.length || 0)]}
+                                fill={
+                                  CHART_COLORS[
+                                    index % (CHART_COLORS?.length || 0)
+                                  ]
+                                }
                               />
                             )
                           ) || []}
@@ -2072,7 +2153,10 @@ const Portfolio = () => {
                           Information Ratio
                         </Typography>
                         <Typography variant="body2" fontWeight="bold">
-                          {formatNumber(portfolioMetrics?.informationRatio || 0, 2)}
+                          {formatNumber(
+                            portfolioMetrics?.informationRatio || 0,
+                            2
+                          )}
                         </Typography>
                       </Box>
                       <Box display="flex" justifyContent="between">
@@ -2152,7 +2236,11 @@ const Portfolio = () => {
                 title="Recent Activity"
                 subheader="Portfolio transactions and account activities"
                 action={
-                  <Button size="small" variant="outlined" aria-label="Export portfolio activity history">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    aria-label="Export portfolio activity history"
+                  >
                     Export Activity
                   </Button>
                 }
@@ -2343,15 +2431,19 @@ const Portfolio = () => {
                 <LinearProgress
                   variant="determinate"
                   value={
-                    ((portfolioMetrics?.var95 || 0) / (portfolioMetrics?.totalValue || 1)) * 100
+                    ((portfolioMetrics?.var95 || 0) /
+                      (portfolioMetrics?.totalValue || 1)) *
+                    100
                   }
                   sx={{ mt: 1 }}
                   color={
-                    ((portfolioMetrics?.var95 || 0) / (portfolioMetrics?.totalValue || 1)) *
+                    ((portfolioMetrics?.var95 || 0) /
+                      (portfolioMetrics?.totalValue || 1)) *
                       100 <=
                     3
                       ? "success"
-                      : ((portfolioMetrics?.var95 || 0) / (portfolioMetrics?.totalValue || 1)) *
+                      : ((portfolioMetrics?.var95 || 0) /
+                            (portfolioMetrics?.totalValue || 1)) *
                             100 <=
                           8
                         ? "warning"
@@ -2390,7 +2482,9 @@ const Portfolio = () => {
                       : "Needs Improvement"
                   }
                   color={
-                    (portfolioMetrics?.sharpeRatio || 0) > 1 ? "success" : "warning"
+                    (portfolioMetrics?.sharpeRatio || 0) > 1
+                      ? "success"
+                      : "warning"
                   }
                   size="small"
                   sx={{ mt: 1 }}
@@ -2420,7 +2514,9 @@ const Portfolio = () => {
                   <TrendingUp sx={{ fontSize: 40, color: "info.main" }} />
                 </Box>
                 <Chip
-                  label={(portfolioMetrics?.beta || 1) > 1 ? "High Risk" : "Low Risk"}
+                  label={
+                    (portfolioMetrics?.beta || 1) > 1 ? "High Risk" : "Low Risk"
+                  }
                   color={
                     (portfolioMetrics?.beta || 1) > 1.2
                       ? "error"
@@ -2508,7 +2604,9 @@ const Portfolio = () => {
                     </TableHead>
                     <TableBody>
                       {(portfolioData.holdings || []).map((holding, index) => (
-                        <TableRow key={`${holding.symbol}-riskview-${holding.id || index}`}>
+                        <TableRow
+                          key={`${holding.symbol}-riskview-${holding.id || index}`}
+                        >
                           <TableCell>
                             <Box sx={{ display: "flex", alignItems: "center" }}>
                               <Typography
@@ -2680,7 +2778,8 @@ const Portfolio = () => {
                             >
                               $
                               {Math.abs(
-                                test.impact * (portfolioMetrics?.totalValue || 0)
+                                test.impact *
+                                  (portfolioMetrics?.totalValue || 0)
                               ).toLocaleString()}{" "}
                               ({formatPercentage(Math.abs(test.impact))})
                             </Typography>
@@ -2748,7 +2847,11 @@ const Portfolio = () => {
                     </Alert>
                   ))
                 ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontStyle: "italic" }}
+                  >
                     No active risk alerts
                   </Typography>
                 )}
@@ -3043,7 +3146,11 @@ const Portfolio = () => {
                   }
                   onClick={handleRunOptimization}
                   disabled={optimizationRunning}
-                  aria-label={optimizationRunning ? "Portfolio optimization in progress" : "Run portfolio optimization analysis"}
+                  aria-label={
+                    optimizationRunning
+                      ? "Portfolio optimization in progress"
+                      : "Run portfolio optimization analysis"
+                  }
                 >
                   {optimizationRunning ? "Optimizing..." : "Run Optimization"}
                 </Button>
@@ -3167,7 +3274,12 @@ const Portfolio = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRiskAlertDialogOpen(false)} aria-label="Cancel risk alert creation">Cancel</Button>
+          <Button
+            onClick={() => setRiskAlertDialogOpen(false)}
+            aria-label="Cancel risk alert creation"
+          >
+            Cancel
+          </Button>
           <Button
             onClick={() => {
               console.log("Creating risk alert:", newRiskAlert);
@@ -3224,8 +3336,16 @@ const Portfolio = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setNotifications([])} aria-label="Clear all notifications">Clear All</Button>
-          <Button onClick={() => setNotificationsPanelOpen(false)} aria-label="Close notifications panel">
+          <Button
+            onClick={() => setNotifications([])}
+            aria-label="Clear all notifications"
+          >
+            Clear All
+          </Button>
+          <Button
+            onClick={() => setNotificationsPanelOpen(false)}
+            aria-label="Close notifications panel"
+          >
             Close
           </Button>
         </DialogActions>
@@ -3261,7 +3381,9 @@ const Portfolio = () => {
               </TableHead>
               <TableBody>
                 {(watchlist || []).map((item, index) => (
-                  <TableRow key={`${item.symbol}-watchlist-${item.id || index}`}>
+                  <TableRow
+                    key={`${item.symbol}-watchlist-${item.id || index}`}
+                  >
                     <TableCell>{item.symbol}</TableCell>
                     <TableCell>{item.name}</TableCell>
                     <TableCell align="right">
@@ -3307,8 +3429,15 @@ const Portfolio = () => {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button startIcon={<Add />} aria-label="Add symbol to watchlist">Add Symbol</Button>
-          <Button onClick={() => setWatchlistDialogOpen(false)} aria-label="Close watchlist dialog">Close</Button>
+          <Button startIcon={<Add />} aria-label="Add symbol to watchlist">
+            Add Symbol
+          </Button>
+          <Button
+            onClick={() => setWatchlistDialogOpen(false)}
+            aria-label="Close watchlist dialog"
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -3427,7 +3556,12 @@ const Portfolio = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setImportDialogOpen(false)} aria-label="Close import dialog">Close</Button>
+          <Button
+            onClick={() => setImportDialogOpen(false)}
+            aria-label="Close import dialog"
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

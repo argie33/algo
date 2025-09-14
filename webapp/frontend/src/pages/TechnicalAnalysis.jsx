@@ -51,8 +51,7 @@ function TechnicalAnalysis() {
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
   const navigate = useNavigate();
-  
-  
+
   // --- FIX: Move these above useQuery ---
   const [indicatorFilter, setIndicatorFilter] = useState("");
   const [indicatorMin, setIndicatorMin] = useState("");
@@ -95,7 +94,17 @@ function TechnicalAnalysis() {
     if (Array.isArray(result)) return { data: result };
     if (!Array.isArray(result?.data)) return { ...result, data: [] };
     return result;
-  }, [timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order]);
+  }, [
+    timeframe,
+    symbolFilter,
+    indicatorFilter,
+    indicatorMin,
+    indicatorMax,
+    page,
+    rowsPerPage,
+    orderBy,
+    order,
+  ]);
 
   // Fetch technical data
   const {
@@ -129,7 +138,6 @@ function TechnicalAnalysis() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-
 
   // Update activeFilters count (consolidated from duplicate useEffects)
   useEffect(() => {
@@ -242,13 +250,13 @@ function TechnicalAnalysis() {
                 backgroundColor: expandedRow === idx ? "grey.100" : "grey.50",
                 "&:hover": { backgroundColor: "grey.200" },
                 minHeight: 100,
-                '& .MuiAccordionSummary-content': {
-                  margin: '16px 0',
-                  flexDirection: 'column',
+                "& .MuiAccordionSummary-content": {
+                  margin: "16px 0",
+                  flexDirection: "column",
                 },
               }}
             >
-              <Box sx={{ width: '100%' }}>
+              <Box sx={{ width: "100%" }}>
                 {/* Top row - Symbol and key metrics */}
                 <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
                   <Grid item xs={12} sm={3}>
@@ -257,7 +265,11 @@ function TechnicalAnalysis() {
                         {row.symbol}
                       </Typography>
                       {row.company_name && (
-                        <Typography variant="body2" color="text.secondary" noWrap>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          noWrap
+                        >
                           {row.company_name}
                         </Typography>
                       )}
@@ -267,7 +279,11 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={2}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         RSI
                       </Typography>
@@ -284,7 +300,11 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={2}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         MACD
                       </Typography>
@@ -301,7 +321,11 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={2}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         ADX
                       </Typography>
@@ -318,7 +342,11 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={1.5}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         ATR
                       </Typography>
@@ -335,7 +363,11 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={1.5}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         MFI
                       </Typography>
@@ -352,12 +384,16 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                 </Grid>
-                
+
                 {/* Bottom row - Price info */}
                 <Divider sx={{ mb: 1 }} />
                 <Grid container spacing={1} alignItems="center">
                   <Grid item xs={6} sm={2}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         Price
                       </Typography>
@@ -370,7 +406,11 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={2}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         Change
                       </Typography>
@@ -396,17 +436,25 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={2.5}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         Range
                       </Typography>
-                      <Typography variant="body2" fontWeight="bold" sx={{ 
-                        fontSize: '0.8rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '100%'
-                      }}>
+                      <Typography
+                        variant="body2"
+                        fontWeight="bold"
+                        sx={{
+                          fontSize: "0.8rem",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: "100%",
+                        }}
+                      >
                         {row.high_price && row.low_price
                           ? `${formatNumber(row.low_price, 2)} - ${formatNumber(row.high_price, 2)}`
                           : "N/A"}
@@ -414,23 +462,35 @@ function TechnicalAnalysis() {
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={1.5}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         Volume
                       </Typography>
-                      <Typography variant="body2" fontWeight="bold" sx={{ 
-                        fontSize: '0.8rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '100%'
-                      }}>
+                      <Typography
+                        variant="body2"
+                        fontWeight="bold"
+                        sx={{
+                          fontSize: "0.8rem",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: "100%",
+                        }}
+                      >
                         {row.volume ? formatNumber(row.volume) : "N/A"}
                       </Typography>
                     </Box>
                   </Grid>
                   <Grid item xs={6} sm={1.5}>
-                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                    >
                       <Typography variant="caption" color="text.secondary">
                         Open
                       </Typography>
@@ -499,7 +559,6 @@ function TechnicalAnalysis() {
     </Box>
   );
 
-
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
@@ -512,11 +571,10 @@ function TechnicalAnalysis() {
         </Typography>
       </Box>
 
-
       {/* Technical Screener */}
       <Box display="flex" alignItems="flex-start" gap={4} sx={{ mt: 3 }}>
-          {/* Left filter/search panel */}
-          <Box minWidth={260} maxWidth={320}>
+        {/* Left filter/search panel */}
+        <Box minWidth={260} maxWidth={320}>
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -692,7 +750,6 @@ function TechnicalAnalysis() {
           )}
         </Box>
       </Box>
-
     </Container>
   );
 }

@@ -11,40 +11,44 @@ import { createComponentLogger } from "./utils/errorLogger";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // Initialize comprehensive error logging service
-const logger = createComponentLogger('Main');
+const logger = createComponentLogger("Main");
 
 // RESTORED: Professional error logging service integration
 const _originalConsoleError = console.error;
 const _originalConsoleWarn = console.warn;
 
 // RESTORED: Professional error service integration for window errors
-window.addEventListener('error', function(e) {
-  const errorContext = {
-    filename: e.filename,
-    lineno: e.lineno,
-    colno: e.colno,
-    userAgent: navigator.userAgent,
-    url: window.location.href,
-    timestamp: new Date().toISOString()
-  };
-  
-  logger.error('WindowError', e.error || new Error(e.message), errorContext);
-  
-  // Let all errors through for debugging
-  return false;
-}, true);
+window.addEventListener(
+  "error",
+  function (e) {
+    const errorContext = {
+      filename: e.filename,
+      lineno: e.lineno,
+      colno: e.colno,
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+    };
+
+    logger.error("WindowError", e.error || new Error(e.message), errorContext);
+
+    // Let all errors through for debugging
+    return false;
+  },
+  true
+);
 
 // RESTORED: Professional promise rejection handling
-window.addEventListener('unhandledrejection', function(e) {
+window.addEventListener("unhandledrejection", function (e) {
   const errorContext = {
     url: window.location.href,
     timestamp: new Date().toISOString(),
-    promiseState: 'rejected'
+    promiseState: "rejected",
   };
-  
-  logger.error('UnhandledPromiseRejection', e.reason, errorContext);
-  
-  // Let all errors through for debugging  
+
+  logger.error("UnhandledPromiseRejection", e.reason, errorContext);
+
+  // Let all errors through for debugging
   return false;
 });
 
@@ -166,12 +170,12 @@ const theme = createTheme({
         root: {
           textTransform: "none",
           fontWeight: 500,
-          '&:focus': {
+          "&:focus": {
             outline: "3px solid #1976d2",
             outlineOffset: "2px",
             boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
           },
-          '&:focus-visible': {
+          "&:focus-visible": {
             outline: "3px solid #1976d2",
             outlineOffset: "2px",
             boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
@@ -182,12 +186,12 @@ const theme = createTheme({
     MuiIconButton: {
       styleOverrides: {
         root: {
-          '&:focus': {
+          "&:focus": {
             outline: "3px solid #1976d2",
             outlineOffset: "2px",
             boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
           },
-          '&:focus-visible': {
+          "&:focus-visible": {
             outline: "3px solid #1976d2",
             outlineOffset: "2px",
             boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
@@ -198,14 +202,14 @@ const theme = createTheme({
     MuiTextField: {
       styleOverrides: {
         root: {
-          '& .MuiOutlinedInput-root': {
-            '&.Mui-focused': {
-              '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: '#1976d2',
-                borderWidth: '2px',
+          "& .MuiOutlinedInput-root": {
+            "&.Mui-focused": {
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#1976d2",
+                borderWidth: "2px",
               },
             },
-            '&:focus-within': {
+            "&:focus-within": {
               outline: "3px solid rgba(25, 118, 210, 0.3)",
               outlineOffset: "2px",
             },
@@ -260,15 +264,15 @@ if (!rootElement) {
 
 try {
   logger.info("React application initialization starting");
-  
+
   const rootElement = document.getElementById("root");
   if (!rootElement) {
     throw new Error("Root element not found in DOM");
   }
-  
+
   const root = ReactDOM.createRoot(rootElement);
   logger.info("React root created successfully");
-  
+
   root.render(
     <ErrorBoundary>
       <BrowserRouter
@@ -288,33 +292,38 @@ try {
       </BrowserRouter>
     </ErrorBoundary>
   );
-  
+
   logger.success("React application render initiated");
-  
+
   // Post-render validation
   setTimeout(() => {
     const rootContent = document.getElementById("root");
     if (rootContent && rootContent.innerHTML.trim() === "") {
-      logger.error("EmptyRender", new Error("React rendered but root is empty"), {
-        innerHTML: rootContent.innerHTML,
-        config: window.__CONFIG__,
-        timestamp: new Date().toISOString()
-      });
+      logger.error(
+        "EmptyRender",
+        new Error("React rendered but root is empty"),
+        {
+          innerHTML: rootContent.innerHTML,
+          config: window.__CONFIG__,
+          timestamp: new Date().toISOString(),
+        }
+      );
     } else if (rootContent) {
       logger.success("React application rendered successfully", {
         contentLength: rootContent.innerHTML.length,
-        hasContent: rootContent.innerHTML.length > 0
+        hasContent: rootContent.innerHTML.length > 0,
       });
     }
   }, 2000);
-  
 } catch (error) {
   logger.error("ReactInitialization", error, {
     phase: "main_render",
     config: window.__CONFIG__,
-    userAgent: navigator.userAgent
+    userAgent: navigator.userAgent,
   });
-  
+
   // Show user-friendly error
-  alert("Application failed to start. Please refresh the page or contact support.");
+  alert(
+    "Application failed to start. Please refresh the page or contact support."
+  );
 }

@@ -18,22 +18,24 @@ const mockStorage = {
   }),
   clear: vi.fn(() => {
     mockStorage.storage = {};
-  })
+  }),
 };
 
-Object.defineProperty(window, 'localStorage', { value: mockStorage });
-Object.defineProperty(window, 'sessionStorage', { value: { ...mockStorage, storage: {} } });
-
-// Mock document for event listeners
-Object.defineProperty(document, 'addEventListener', {
-  value: vi.fn(),
-  writable: true
+Object.defineProperty(window, "localStorage", { value: mockStorage });
+Object.defineProperty(window, "sessionStorage", {
+  value: { ...mockStorage, storage: {} },
 });
 
-Object.defineProperty(document, 'hidden', {
+// Mock document for event listeners
+Object.defineProperty(document, "addEventListener", {
+  value: vi.fn(),
+  writable: true,
+});
+
+Object.defineProperty(document, "hidden", {
   value: false,
   writable: true,
-  configurable: true
+  configurable: true,
 });
 
 describe("SessionManager", () => {
@@ -43,7 +45,7 @@ describe("SessionManager", () => {
     vi.clearAllMocks();
     vi.clearAllTimers();
     vi.useFakeTimers();
-    
+
     // Reset session manager state
     sessionManager.clearAllTimers();
     sessionManager.clearSessionStorage();
@@ -56,8 +58,10 @@ describe("SessionManager", () => {
 
     // Mock auth context
     mockAuthContext = {
-      refreshSession: vi.fn().mockResolvedValue({ success: true, accessToken: "new-token" }),
-      logout: vi.fn().mockResolvedValue()
+      refreshSession: vi
+        .fn()
+        .mockResolvedValue({ success: true, accessToken: "new-token" }),
+      logout: vi.fn().mockResolvedValue(),
     };
 
     mockStorage.storage = {};
@@ -72,22 +76,29 @@ describe("SessionManager", () => {
 
   describe("Initialization", () => {
     it("should initialize session manager with auth context", () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
-      
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
+
       sessionManager.initialize(mockAuthContext);
 
       expect(sessionManager.authContext).toBe(mockAuthContext);
       expect(document.addEventListener).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith("🔐 Session manager initialized");
-      
+
       consoleSpy.mockRestore();
     });
 
     it("should set up event listeners for user activity", () => {
       sessionManager.initialize(mockAuthContext);
 
-      const expectedEvents = ["mousedown", "mousemove", "keypress", "scroll", "touchstart", "click"];
-      expectedEvents.forEach(event => {
+      const expectedEvents = [
+        "mousedown",
+        "mousemove",
+        "keypress",
+        "scroll",
+        "touchstart",
+        "click",
+      ];
+      expectedEvents.forEach((event) => {
         expect(document.addEventListener).toHaveBeenCalledWith(
           event,
           expect.any(Function),
@@ -104,7 +115,7 @@ describe("SessionManager", () => {
 
   describe("Session Management", () => {
     it("should start session without remember me", () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
       const now = Date.now();
       vi.setSystemTime(now);
 
@@ -114,32 +125,45 @@ describe("SessionManager", () => {
       expect(sessionManager.sessionData.lastActivity).toBe(now);
       expect(sessionManager.sessionData.rememberMe).toBe(false);
       expect(sessionManager.sessionData.refreshAttempts).toBe(0);
-      
-      expect(sessionStorage.setItem).toHaveBeenCalledWith("sessionStart", now.toString());
-      expect(sessionStorage.setItem).toHaveBeenCalledWith("rememberMe", "false");
-      
-      expect(consoleSpy).toHaveBeenCalledWith("🔐 Session started (remember me: false)");
+
+      expect(sessionStorage.setItem).toHaveBeenCalledWith(
+        "sessionStart",
+        now.toString()
+      );
+      expect(sessionStorage.setItem).toHaveBeenCalledWith(
+        "rememberMe",
+        "false"
+      );
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "🔐 Session started (remember me: false)"
+      );
       consoleSpy.mockRestore();
     });
 
     it("should start session with remember me", () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
       const now = Date.now();
       vi.setSystemTime(now);
 
       sessionManager.startSession(true);
 
       expect(sessionManager.sessionData.rememberMe).toBe(true);
-      expect(localStorage.setItem).toHaveBeenCalledWith("sessionStart", now.toString());
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        "sessionStart",
+        now.toString()
+      );
       expect(localStorage.setItem).toHaveBeenCalledWith("rememberMe", "true");
-      
-      expect(consoleSpy).toHaveBeenCalledWith("🔐 Session started (remember me: true)");
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "🔐 Session started (remember me: true)"
+      );
       consoleSpy.mockRestore();
     });
 
     it("should end session properly", () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
-      
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
+
       sessionManager.startSession(true);
       sessionManager.endSession();
 
@@ -152,7 +176,7 @@ describe("SessionManager", () => {
       const laterTime = initialTime + 5000;
 
       sessionManager.sessionData.lastActivity = initialTime;
-      
+
       vi.setSystemTime(laterTime);
       sessionManager.updateActivity();
 
@@ -166,8 +190,8 @@ describe("SessionManager", () => {
     });
 
     it("should refresh tokens successfully", async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
-      
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
+
       const onTokenRefresh = vi.fn();
       sessionManager.setCallbacks({ onTokenRefresh });
 
@@ -176,17 +200,25 @@ describe("SessionManager", () => {
 
       expect(mockAuthContext.refreshSession).toHaveBeenCalled();
       expect(sessionManager.sessionData.refreshAttempts).toBe(0);
-      expect(onTokenRefresh).toHaveBeenCalledWith({ success: true, accessToken: "new-token" });
-      expect(consoleSpy).toHaveBeenCalledWith("✅ Tokens refreshed successfully");
-      
+      expect(onTokenRefresh).toHaveBeenCalledWith({
+        success: true,
+        accessToken: "new-token",
+      });
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "✅ Tokens refreshed successfully"
+      );
+
       consoleSpy.mockRestore();
     });
 
     it("should handle token refresh failure", async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
-      
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation();
+
       const _refreshError = new Error("Refresh failed");
-      mockAuthContext.refreshSession.mockResolvedValueOnce({ success: false, error: "Network error" });
+      mockAuthContext.refreshSession.mockResolvedValueOnce({
+        success: false,
+        error: "Network error",
+      });
 
       const onRefreshError = vi.fn();
       sessionManager.setCallbacks({ onRefreshError });
@@ -195,29 +227,34 @@ describe("SessionManager", () => {
       await sessionManager.refreshTokens();
 
       expect(sessionManager.sessionData.refreshAttempts).toBe(1);
-      expect(onRefreshError).toHaveBeenCalledWith(
-        expect.any(Error),
-        1
-      );
-      
+      expect(onRefreshError).toHaveBeenCalledWith(expect.any(Error), 1);
+
       consoleSpy.mockRestore();
     });
 
     it("should logout after max refresh attempts", async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
-      
-      mockAuthContext.refreshSession.mockResolvedValue({ success: false, error: "Always fails" });
-      
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation();
+
+      mockAuthContext.refreshSession.mockResolvedValue({
+        success: false,
+        error: "Always fails",
+      });
+
       // Set to max-1 attempts
-      sessionManager.sessionData.refreshAttempts = sessionManager.config.maxRefreshAttempts - 1;
-      
-      const handleSessionExpiredSpy = vi.spyOn(sessionManager, 'handleSessionExpired').mockImplementation();
-      
+      sessionManager.sessionData.refreshAttempts =
+        sessionManager.config.maxRefreshAttempts - 1;
+
+      const handleSessionExpiredSpy = vi
+        .spyOn(sessionManager, "handleSessionExpired")
+        .mockImplementation();
+
       await sessionManager.refreshTokens();
 
       expect(handleSessionExpiredSpy).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith("❌ Max refresh attempts reached, logging out");
-      
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "❌ Max refresh attempts reached, logging out"
+      );
+
       consoleSpy.mockRestore();
       handleSessionExpiredSpy.mockRestore();
     });
@@ -231,8 +268,8 @@ describe("SessionManager", () => {
     });
 
     it("should schedule token refresh", () => {
-      const setIntervalSpy = vi.spyOn(global, 'setInterval');
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
+      const setIntervalSpy = vi.spyOn(global, "setInterval");
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
 
       sessionManager.scheduleTokenRefresh();
 
@@ -253,8 +290,8 @@ describe("SessionManager", () => {
     });
 
     it("should handle session warning", () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
-      
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
+
       const onSessionWarning = vi.fn();
       sessionManager.setCallbacks({ onSessionWarning });
 
@@ -262,20 +299,22 @@ describe("SessionManager", () => {
 
       expect(onSessionWarning).toHaveBeenCalledWith({
         timeRemaining: sessionManager.config.warningTime,
-        canExtend: true
+        canExtend: true,
       });
       expect(consoleSpy).toHaveBeenCalledWith("⚠️ Session expiring soon");
-      
+
       consoleSpy.mockRestore();
     });
 
     it("should handle session expired", async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
-      
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
+
       const onSessionExpired = vi.fn();
       sessionManager.setCallbacks({ onSessionExpired });
 
-      const endSessionSpy = vi.spyOn(sessionManager, 'endSession').mockImplementation();
+      const endSessionSpy = vi
+        .spyOn(sessionManager, "endSession")
+        .mockImplementation();
 
       await sessionManager.handleSessionExpired();
 
@@ -283,31 +322,35 @@ describe("SessionManager", () => {
       expect(mockAuthContext.logout).toHaveBeenCalled();
       expect(endSessionSpy).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith("❌ Session expired");
-      
+
       consoleSpy.mockRestore();
       endSessionSpy.mockRestore();
     });
 
     it("should extend session", () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
-      
-      const startSessionTimeoutSpy = vi.spyOn(sessionManager, 'startSessionTimeout').mockImplementation();
-      const startWarningTimerSpy = vi.spyOn(sessionManager, 'startWarningTimer').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
+
+      const startSessionTimeoutSpy = vi
+        .spyOn(sessionManager, "startSessionTimeout")
+        .mockImplementation();
+      const startWarningTimerSpy = vi
+        .spyOn(sessionManager, "startWarningTimer")
+        .mockImplementation();
 
       sessionManager.extendSession();
 
       expect(startSessionTimeoutSpy).toHaveBeenCalled();
       expect(startWarningTimerSpy).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith("🔄 Extending session");
-      
+
       consoleSpy.mockRestore();
       startSessionTimeoutSpy.mockRestore();
       startWarningTimerSpy.mockRestore();
     });
 
     it("should use different timeout duration for remember me", () => {
-      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
-      
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+
       sessionManager.sessionData.rememberMe = true;
       sessionManager.startSessionTimeout();
 
@@ -320,8 +363,8 @@ describe("SessionManager", () => {
     });
 
     it("should use regular timeout duration for non-remember me", () => {
-      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
-      
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+
       sessionManager.sessionData.rememberMe = false;
       sessionManager.startSessionTimeout();
 
@@ -336,8 +379,8 @@ describe("SessionManager", () => {
 
   describe("Timer Management", () => {
     it("should clear all timers", () => {
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+      const clearTimeoutSpy = vi.spyOn(global, "clearTimeout");
 
       // Set up some mock timers
       sessionManager.refreshTimer = 123;
@@ -359,8 +402,8 @@ describe("SessionManager", () => {
     });
 
     it("should handle clearing null timers", () => {
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+      const clearTimeoutSpy = vi.spyOn(global, "clearTimeout");
 
       sessionManager.refreshTimer = null;
       sessionManager.warningTimer = null;
@@ -392,12 +435,12 @@ describe("SessionManager", () => {
       const lastActivity = now - 30000; // 30 seconds ago
 
       vi.setSystemTime(now);
-      
+
       sessionManager.sessionData = {
         loginTime,
         lastActivity,
         rememberMe: false,
-        refreshAttempts: 2
+        refreshAttempts: 2,
       };
 
       const info = sessionManager.getSessionInfo();
@@ -407,16 +450,18 @@ describe("SessionManager", () => {
       expect(info.lastActivity).toBe(lastActivity);
       expect(info.rememberMe).toBe(false);
       expect(info.refreshAttempts).toBe(2);
-      expect(info.timeRemaining).toBe(sessionManager.config.sessionTimeout - 60000);
+      expect(info.timeRemaining).toBe(
+        sessionManager.config.sessionTimeout - 60000
+      );
     });
 
     it("should check if session is valid", () => {
       const now = Date.now();
-      
+
       // Valid session
       sessionManager.sessionData = {
         loginTime: now - 60000, // 1 minute ago
-        rememberMe: false
+        rememberMe: false,
       };
       vi.setSystemTime(now);
 
@@ -424,8 +469,8 @@ describe("SessionManager", () => {
 
       // Invalid session (expired)
       sessionManager.sessionData = {
-        loginTime: now - (9 * 60 * 60 * 1000), // 9 hours ago
-        rememberMe: false
+        loginTime: now - 9 * 60 * 60 * 1000, // 9 hours ago
+        rememberMe: false,
       };
 
       expect(sessionManager.isSessionValid()).toBe(false);
@@ -433,10 +478,10 @@ describe("SessionManager", () => {
 
     it("should use remember me duration for validation", () => {
       const now = Date.now();
-      
+
       sessionManager.sessionData = {
-        loginTime: now - (20 * 24 * 60 * 60 * 1000), // 20 days ago
-        rememberMe: true
+        loginTime: now - 20 * 24 * 60 * 60 * 1000, // 20 days ago
+        rememberMe: true,
       };
       vi.setSystemTime(now);
 
@@ -453,27 +498,37 @@ describe("SessionManager", () => {
     it("should set and merge callbacks", () => {
       const callbacks1 = {
         onTokenRefresh: vi.fn(),
-        onSessionWarning: vi.fn()
+        onSessionWarning: vi.fn(),
       };
 
       const callbacks2 = {
         onSessionExpired: vi.fn(),
-        onRefreshError: vi.fn()
+        onRefreshError: vi.fn(),
       };
 
       sessionManager.setCallbacks(callbacks1);
-      expect(sessionManager.callbacks.onTokenRefresh).toBe(callbacks1.onTokenRefresh);
-      expect(sessionManager.callbacks.onSessionWarning).toBe(callbacks1.onSessionWarning);
+      expect(sessionManager.callbacks.onTokenRefresh).toBe(
+        callbacks1.onTokenRefresh
+      );
+      expect(sessionManager.callbacks.onSessionWarning).toBe(
+        callbacks1.onSessionWarning
+      );
 
       sessionManager.setCallbacks(callbacks2);
-      expect(sessionManager.callbacks.onTokenRefresh).toBe(callbacks1.onTokenRefresh); // Should be preserved
-      expect(sessionManager.callbacks.onSessionExpired).toBe(callbacks2.onSessionExpired);
-      expect(sessionManager.callbacks.onRefreshError).toBe(callbacks2.onRefreshError);
+      expect(sessionManager.callbacks.onTokenRefresh).toBe(
+        callbacks1.onTokenRefresh
+      ); // Should be preserved
+      expect(sessionManager.callbacks.onSessionExpired).toBe(
+        callbacks2.onSessionExpired
+      );
+      expect(sessionManager.callbacks.onRefreshError).toBe(
+        callbacks2.onRefreshError
+      );
     });
 
     it("should handle missing callbacks gracefully", async () => {
       sessionManager.initialize(mockAuthContext);
-      
+
       // Clear callbacks
       sessionManager.callbacks = {
         onTokenRefresh: null,

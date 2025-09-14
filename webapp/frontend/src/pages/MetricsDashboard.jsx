@@ -108,7 +108,8 @@ const MetricsDashboard = () => {
       setTotalPages(data.pagination?.totalPages || 1);
       setError(null);
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching metrics:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error fetching metrics:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -124,7 +125,8 @@ const MetricsDashboard = () => {
       const data = await response.json();
       setSectors(data.sectors || []);
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching sector analysis:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error fetching sector analysis:", err);
       setError(err.message);
     }
   };
@@ -147,7 +149,8 @@ const MetricsDashboard = () => {
 
       setTopStocks(topStocksData);
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching top stocks:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error fetching top stocks:", err);
       setError(err.message);
     }
   };

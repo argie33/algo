@@ -822,56 +822,57 @@ function EarningsCalendar() {
                       {Array.isArray(
                         earningsMetricsData?.data?.[epsSymbol]?.metrics
                       ) &&
-                      earningsMetricsData?.data[epsSymbol].metrics.length > 0 ? (
-                        (earningsMetricsData?.data[epsSymbol]?.metrics || []).map(
-                          (row, idx) => (
-                            <TableRow key={row.report_date + idx}>
-                              <TableCell>{row.report_date}</TableCell>
-                              <TableCell align="right">
-                                {row.eps_growth_1q ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_growth_2q ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_growth_4q ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_growth_8q ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_acceleration_qtrs ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_surprise_last_q ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_estimate_revision_1m ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_estimate_revision_3m ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_estimate_revision_6m ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.annual_eps_growth_1y ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.annual_eps_growth_3y ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.annual_eps_growth_5y ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.consecutive_eps_growth_years ?? "-"}
-                              </TableCell>
-                              <TableCell align="right">
-                                {row.eps_estimated_change_this_year ?? "-"}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        )
+                      earningsMetricsData?.data[epsSymbol].metrics.length >
+                        0 ? (
+                        (
+                          earningsMetricsData?.data[epsSymbol]?.metrics || []
+                        ).map((row, idx) => (
+                          <TableRow key={row.report_date + idx}>
+                            <TableCell>{row.report_date}</TableCell>
+                            <TableCell align="right">
+                              {row.eps_growth_1q ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_growth_2q ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_growth_4q ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_growth_8q ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_acceleration_qtrs ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_surprise_last_q ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_estimate_revision_1m ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_estimate_revision_3m ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_estimate_revision_6m ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.annual_eps_growth_1y ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.annual_eps_growth_3y ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.annual_eps_growth_5y ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.consecutive_eps_growth_years ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.eps_estimated_change_this_year ?? "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))
                       ) : (
                         <TableRow>
                           <TableCell colSpan={15} align="center">

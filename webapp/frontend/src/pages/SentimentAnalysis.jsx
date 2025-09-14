@@ -114,19 +114,24 @@ const SentimentAnalysis = () => {
   const [orderBy, setOrderBy] = useState("impact");
   const [order, setOrder] = useState("desc");
   const [realTimeNews, setRealTimeNews] = useState([]);
-  const [realtimeConnectionStatus, setRealtimeConnectionStatus] = useState('disconnected');
+  const [realtimeConnectionStatus, setRealtimeConnectionStatus] =
+    useState("disconnected");
   const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
 
   // Fetch real sentiment data from backend APIs
   const fetchAllSentimentData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Fetch sentiment analysis data from multiple endpoints
       const [sentimentResponse, newsResponse] = await Promise.allSettled([
-        api.get(`/api/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`),
-        api.get(`/api/news/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`)
+        api.get(
+          `/api/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`
+        ),
+        api.get(
+          `/api/news/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`
+        ),
       ]);
 
       // Process sentiment data
@@ -138,37 +143,45 @@ const SentimentAnalysis = () => {
         contrarianOpportunities: [],
         newsImpact: [],
         socialPlatforms: [],
-        viralContent: []
+        viralContent: [],
       };
 
       // Handle sentiment analysis response
-      if (sentimentResponse.status === 'fulfilled' && sentimentResponse.value?.success) {
+      if (
+        sentimentResponse.status === "fulfilled" &&
+        sentimentResponse.value?.success
+      ) {
         const sentimentData = sentimentResponse.value?.data;
-        
+
         if (sentimentData) {
           processedData.sources = sentimentData.sources || [];
           processedData.historicalData = sentimentData.historical || [];
           processedData.trends = sentimentData.trends || processedData.trends;
           processedData.contrarianData = sentimentData.contrarian_data || [];
-          processedData.contrarianOpportunities = sentimentData.contrarian_opportunities || [];
+          processedData.contrarianOpportunities =
+            sentimentData.contrarian_opportunities || [];
           processedData.socialPlatforms = sentimentData.social_platforms || [];
         }
       }
 
       // Handle news sentiment response
-      if (newsResponse.status === 'fulfilled' && newsResponse.value?.success) {
+      if (newsResponse.status === "fulfilled" && newsResponse.value?.success) {
         const newsData = newsResponse.value?.data;
-        
+
         if (newsData?.articles) {
-          processedData.newsImpact = (newsData.articles || []).map(article => ({
-            timestamp: article.publishedAt || article.created_at,
-            headline: article.title,
-            source: article.source?.name || article.source || 'Unknown',
-            sentiment: article.sentiment || calculateSentimentLabel(article.sentiment_score),
-            sentimentScore: article.sentiment_score || 50,
-            impact: article.market_impact || 0, // Default neutral impact when no data available
-            confidence: article.confidence || 70
-          }));
+          processedData.newsImpact = (newsData.articles || []).map(
+            (article) => ({
+              timestamp: article.publishedAt || article.created_at,
+              headline: article.title,
+              source: article.source?.name || article.source || "Unknown",
+              sentiment:
+                article.sentiment ||
+                calculateSentimentLabel(article.sentiment_score),
+              sentimentScore: article.sentiment_score || 50,
+              impact: article.market_impact || 0, // Default neutral impact when no data available
+              confidence: article.confidence || 70,
+            })
+          );
         }
 
         if (newsData?.viral_content) {
@@ -177,9 +190,9 @@ const SentimentAnalysis = () => {
       }
 
       setSentimentData(processedData);
-
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching sentiment data:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error fetching sentiment data:", err);
       setError("Failed to load sentiment data. Please try again later.");
     } finally {
       setLoading(false);
@@ -198,38 +211,48 @@ const SentimentAnalysis = () => {
     let newsSubscriptionId = null;
 
     const handleRealTimeNews = (newsArticles) => {
-      setRealTimeNews(prev => {
+      setRealTimeNews((prev) => {
         // Add new articles to the beginning and keep last 50
         const updated = [...newsArticles, ...prev].slice(0, 50);
         return updated;
       });
 
       // Update connection status
-      setRealtimeConnectionStatus('connected');
+      setRealtimeConnectionStatus("connected");
 
       // Merge real-time news with existing sentiment data
       if (newsArticles?.length > 0 && sentimentData) {
-        setSentimentData(prev => ({
+        setSentimentData((prev) => ({
           ...prev,
           newsImpact: [
-            ...newsArticles.map(article => ({
+            ...newsArticles.map((article) => ({
               timestamp: article.publishedAt || article.timestamp,
               headline: article.title,
               source: article.source,
-              sentiment: article.sentiment?.label || 'Neutral',
-              sentimentScore: Math.round((article.sentiment?.score || 0.5) * 100),
-              impact: (article.sentiment?.score || 0.5) > 0.6 ? 1 : (article.sentiment?.score || 0.5) < 0.4 ? -1 : 0,
-              confidence: Math.round((article.sentiment?.confidence || 0.5) * 100),
-              isRealTime: true
+              sentiment: article.sentiment?.label || "Neutral",
+              sentimentScore: Math.round(
+                (article.sentiment?.score || 0.5) * 100
+              ),
+              impact:
+                (article.sentiment?.score || 0.5) > 0.6
+                  ? 1
+                  : (article.sentiment?.score || 0.5) < 0.4
+                    ? -1
+                    : 0,
+              confidence: Math.round(
+                (article.sentiment?.confidence || 0.5) * 100
+              ),
+              isRealTime: true,
             })),
-            ...(prev?.newsImpact || [])
-          ].slice(0, 100) // Keep last 100 articles
+            ...(prev?.newsImpact || []),
+          ].slice(0, 100), // Keep last 100 articles
         }));
       }
     };
 
     // Subscribe to real-time news
-    newsSubscriptionId = realTimeNewsService.subscribeToNews(handleRealTimeNews);
+    newsSubscriptionId =
+      realTimeNewsService.subscribeToNews(handleRealTimeNews);
 
     // Handle connection status changes
     const handleConnectionChange = (status) => {
@@ -237,7 +260,7 @@ const SentimentAnalysis = () => {
     };
 
     // Add connection listener (if available)
-    if (typeof realTimeNewsService.addConnectionListener === 'function') {
+    if (typeof realTimeNewsService.addConnectionListener === "function") {
       realTimeNewsService.addConnectionListener(handleConnectionChange);
     }
 
@@ -268,10 +291,10 @@ const SentimentAnalysis = () => {
         divergence: 0,
       };
     }
-    
+
     const sources = sentimentData.sources;
     const historicalData = sentimentData.historicalData || [];
-    
+
     const overall = sources.reduce(
       (sum, source) => sum + (source.score || 0) * (source.weight || 0.25),
       0
@@ -301,7 +324,7 @@ const SentimentAnalysis = () => {
         risks: [],
         forecast: "",
         technicalDetails: "",
-        modelStats: { accuracy: 0, precision: 0, recall: 0, dataSources: 0 }
+        modelStats: { accuracy: 0, precision: 0, recall: 0, dataSources: 0 },
       };
     }
     return generateSentimentInsights(sentimentMetrics, sentimentData);
@@ -354,8 +377,8 @@ const SentimentAnalysis = () => {
   if (error) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           action={
             <Button color="inherit" size="small" onClick={handleRefresh}>
               Retry
@@ -384,7 +407,12 @@ const SentimentAnalysis = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="space-between"
+        mb={4}
+      >
         <Box>
           <Typography variant="h3" component="h1" gutterBottom>
             Advanced Sentiment Analysis
@@ -426,10 +454,15 @@ const SentimentAnalysis = () => {
 
           {/* Real-time connection status */}
           <Tooltip title={`Real-time updates: ${realtimeConnectionStatus}`}>
-            <IconButton size="small" color={realtimeConnectionStatus === 'connected' ? 'success' : 'default'}>
-              {realtimeConnectionStatus === 'connected' ? (
+            <IconButton
+              size="small"
+              color={
+                realtimeConnectionStatus === "connected" ? "success" : "default"
+              }
+            >
+              {realtimeConnectionStatus === "connected" ? (
                 <SignalCellular4Bar />
-              ) : realtimeConnectionStatus === 'connecting' ? (
+              ) : realtimeConnectionStatus === "connecting" ? (
                 <SignalCellularConnectedNoInternet4Bar />
               ) : (
                 <SignalCellularNodata />
@@ -437,7 +470,7 @@ const SentimentAnalysis = () => {
             </IconButton>
           </Tooltip>
 
-          <Button 
+          <Button
             variant={liveUpdatesEnabled ? "contained" : "outlined"}
             color={liveUpdatesEnabled ? "success" : "default"}
             size="small"
@@ -449,8 +482,8 @@ const SentimentAnalysis = () => {
           <Button variant="outlined" startIcon={<Download />}>
             Export
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             startIcon={<Refresh />}
             onClick={handleRefresh}
             disabled={loading}
@@ -463,8 +496,8 @@ const SentimentAnalysis = () => {
       {/* Sentiment Alert */}
       {sentimentMetrics.extremeReadings > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }} icon={<Warning />}>
-          <strong>Extreme Sentiment Alert:</strong>{" "}
-          Extreme sentiment readings detected in {sentimentMetrics.extremeReadings} source(s).
+          <strong>Extreme Sentiment Alert:</strong> Extreme sentiment readings
+          detected in {sentimentMetrics.extremeReadings} source(s).
           {sentimentMetrics.contrarian > 75 &&
             " Strong contrarian signal detected."}
         </Alert>
@@ -475,7 +508,7 @@ const SentimentAnalysis = () => {
         {/* Real-time Sentiment Score Card */}
         {liveUpdatesEnabled && (
           <Grid item xs={12} md={6} lg={4}>
-            <RealTimeSentimentScore 
+            <RealTimeSentimentScore
               symbol={selectedSymbol}
               showDetails={true}
               size="medium"
@@ -486,7 +519,11 @@ const SentimentAnalysis = () => {
         <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
                   <Typography variant="h6" color="text.secondary">
                     Overall Sentiment
@@ -524,7 +561,11 @@ const SentimentAnalysis = () => {
         <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
                   <Typography variant="h6" color="text.secondary">
                     Sentiment Momentum
@@ -556,7 +597,11 @@ const SentimentAnalysis = () => {
         <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
                   <Typography variant="h6" color="text.secondary">
                     Contrarian Signal
@@ -581,7 +626,11 @@ const SentimentAnalysis = () => {
         <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
                   <Typography variant="h6" color="text.secondary">
                     AI Confidence
@@ -616,10 +665,7 @@ const SentimentAnalysis = () => {
           <Tab label="Social Sentiment" icon={<Reddit />} />
           <Tab label="AI Insights" icon={<Lightbulb />} />
           {liveUpdatesEnabled && (
-            <Tab 
-              label="Real-Time Updates" 
-              icon={<SignalCellular4Bar />} 
-            />
+            <Tab label="Real-Time Updates" icon={<SignalCellular4Bar />} />
           )}
         </Tabs>
       </Box>
@@ -661,7 +707,12 @@ const SentimentAnalysis = () => {
                     </RadarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    height={400}
+                  >
                     <Typography variant="body1" color="text.secondary">
                       No sentiment source data available
                     </Typography>
@@ -683,28 +734,38 @@ const SentimentAnalysis = () => {
                         {sentimentData.sources
                           .sort((a, b) => (b.score || 0) - (a.score || 0))
                           .map((source, index) => (
-                            <ListItem key={source.source || index} disablePadding>
+                            <ListItem
+                              key={source.source || index}
+                              disablePadding
+                            >
                               <ListItemAvatar>
                                 <Avatar
                                   sx={{
                                     bgcolor:
-                                      getSentimentColor(source.score || 0) + ".main",
+                                      getSentimentColor(source.score || 0) +
+                                      ".main",
                                   }}
                                 >
                                   {index + 1}
                                 </Avatar>
                               </ListItemAvatar>
                               <ListItemText
-                                primary={source.source || 'Unknown Source'}
+                                primary={source.source || "Unknown Source"}
                                 secondary={
-                                  <Box display="flex" alignItems="center" gap={1}>
+                                  <Box
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                  >
                                     <Typography variant="body2">
                                       Score: {source.score || 0}
                                     </Typography>
                                     <Chip
                                       label={`${(source.change || 0) >= 0 ? "+" : ""}${source.change || 0}`}
                                       color={
-                                        (source.change || 0) >= 0 ? "success" : "error"
+                                        (source.change || 0) >= 0
+                                          ? "success"
+                                          : "error"
                                       }
                                       size="small"
                                       variant="outlined"
@@ -735,7 +796,10 @@ const SentimentAnalysis = () => {
                       </Typography>
                       <LinearProgress
                         variant="determinate"
-                        value={Math.max(0, Math.min(100, sentimentMetrics.divergence))}
+                        value={Math.max(
+                          0,
+                          Math.min(100, sentimentMetrics.divergence)
+                        )}
                         color={
                           sentimentMetrics.divergence > 30
                             ? "warning"
@@ -812,7 +876,12 @@ const SentimentAnalysis = () => {
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    height={400}
+                  >
                     <Typography variant="body1" color="text.secondary">
                       No historical trend data available
                     </Typography>
@@ -871,7 +940,9 @@ const SentimentAnalysis = () => {
                               : "Bearish"
                           }
                           color={
-                            (sentimentData.trends?.long || 0) >= 0 ? "success" : "error"
+                            (sentimentData.trends?.long || 0) >= 0
+                              ? "success"
+                              : "error"
                           }
                           size="small"
                         />
@@ -903,7 +974,10 @@ const SentimentAnalysis = () => {
 
                     <LinearProgress
                       variant="determinate"
-                      value={Math.min(100, Math.max(0, sentimentMetrics.volatility * 5))}
+                      value={Math.min(
+                        100,
+                        Math.max(0, sentimentMetrics.volatility * 5)
+                      )}
                       color="warning"
                       sx={{ mb: 2 }}
                     />
@@ -948,14 +1022,21 @@ const SentimentAnalysis = () => {
                         cursor={{ strokeDasharray: "3 3" }}
                         formatter={(value, name) => [
                           name === "priceChange" ? `${value}%` : value,
-                          name === "priceChange" ? "Future Returns" : "Sentiment",
+                          name === "priceChange"
+                            ? "Future Returns"
+                            : "Sentiment",
                         ]}
                       />
                       <Scatter dataKey="priceChange" fill="#8884d8" />
                     </ScatterChart>
                   </ResponsiveContainer>
                 ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    height={400}
+                  >
                     <Typography variant="body1" color="text.secondary">
                       No contrarian signal data available
                     </Typography>
@@ -966,7 +1047,8 @@ const SentimentAnalysis = () => {
                   color="text.secondary"
                   sx={{ mt: 2, display: "block" }}
                 >
-                  Scatter plot showing relationship between sentiment extremes and future price movements
+                  Scatter plot showing relationship between sentiment extremes
+                  and future price movements
                 </Typography>
               </CardContent>
             </Card>
@@ -983,14 +1065,20 @@ const SentimentAnalysis = () => {
                         <ListItem
                           key={index}
                           divider={
-                            index < (sentimentData.contrarianOpportunities?.length || 0) - 1
+                            index <
+                            (sentimentData.contrarianOpportunities?.length ||
+                              0) -
+                              1
                           }
                         >
                           <ListItemText
                             primary={
                               <Box display="flex" alignItems="center" gap={1}>
-                                <Typography variant="subtitle2" fontWeight="bold">
-                                  {opportunity.symbol || 'Unknown'}
+                                <Typography
+                                  variant="subtitle2"
+                                  fontWeight="bold"
+                                >
+                                  {opportunity.symbol || "Unknown"}
                                 </Typography>
                                 <Chip
                                   label={`${opportunity.probability || 0}%`}
@@ -1006,16 +1094,16 @@ const SentimentAnalysis = () => {
                             secondary={
                               <Box>
                                 <Typography variant="body2" gutterBottom>
-                                  {opportunity.reason || 'No reason provided'}
+                                  {opportunity.reason || "No reason provided"}
                                 </Typography>
                                 <Box display="flex" gap={1}>
                                   <Chip
-                                    label={`Sentiment: ${opportunity.currentSentiment || 'N/A'}`}
+                                    label={`Sentiment: ${opportunity.currentSentiment || "N/A"}`}
                                     size="small"
                                     variant="outlined"
                                   />
                                   <Chip
-                                    label={opportunity.signal || 'Hold'}
+                                    label={opportunity.signal || "Hold"}
                                     color={
                                       opportunity.signal === "Buy"
                                         ? "success"
@@ -1056,17 +1144,25 @@ const SentimentAnalysis = () => {
                   subheader={`${realTimeNews.length} live articles`}
                   action={
                     <Box display="flex" alignItems="center" gap={1}>
-                      <Chip 
-                        label="LIVE" 
-                        color="success" 
-                        size="small" 
+                      <Chip
+                        label="LIVE"
+                        color="success"
+                        size="small"
                         variant="filled"
                       />
-                      <Tooltip title={`Connection: ${realtimeConnectionStatus}`}>
-                        {realtimeConnectionStatus === 'connected' ? (
-                          <SignalCellular4Bar color="success" fontSize="small" />
+                      <Tooltip
+                        title={`Connection: ${realtimeConnectionStatus}`}
+                      >
+                        {realtimeConnectionStatus === "connected" ? (
+                          <SignalCellular4Bar
+                            color="success"
+                            fontSize="small"
+                          />
                         ) : (
-                          <SignalCellularNodata color="error" fontSize="small" />
+                          <SignalCellularNodata
+                            color="error"
+                            fontSize="small"
+                          />
                         )}
                       </Tooltip>
                     </Box>
@@ -1083,19 +1179,34 @@ const SentimentAnalysis = () => {
                                 {article.title}
                               </Typography>
                               {article.isRealTime && (
-                                <Chip label="NEW" color="success" size="small" />
+                                <Chip
+                                  label="NEW"
+                                  color="success"
+                                  size="small"
+                                />
                               )}
                             </Box>
                           }
                           secondary={
                             <Box>
-                              <Typography variant="body2" color="text.secondary" gutterBottom>
-                                {article.source} • {new Date(article.timestamp || article.publishedAt).toLocaleTimeString()}
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                gutterBottom
+                              >
+                                {article.source} •{" "}
+                                {new Date(
+                                  article.timestamp || article.publishedAt
+                                ).toLocaleTimeString()}
                               </Typography>
                               <Box display="flex" gap={1}>
                                 <Chip
-                                  label={article.sentiment?.label || 'Neutral'}
-                                  color={getSentimentColor(Math.round((article.sentiment?.score || 0.5) * 100))}
+                                  label={article.sentiment?.label || "Neutral"}
+                                  color={getSentimentColor(
+                                    Math.round(
+                                      (article.sentiment?.score || 0.5) * 100
+                                    )
+                                  )}
                                   size="small"
                                 />
                                 <Chip
@@ -1112,7 +1223,8 @@ const SentimentAnalysis = () => {
                   </List>
                   {realTimeNews.length > 5 && (
                     <Alert severity="info" sx={{ mt: 2 }}>
-                      Showing 5 most recent articles. {realTimeNews.length - 5} more available.
+                      Showing 5 most recent articles. {realTimeNews.length - 5}{" "}
+                      more available.
                     </Alert>
                   )}
                 </CardContent>
@@ -1141,7 +1253,9 @@ const SentimentAnalysis = () => {
                           <TableCell>
                             <TableSortLabel
                               active={orderBy === "timestamp"}
-                              direction={orderBy === "timestamp" ? order : "asc"}
+                              direction={
+                                orderBy === "timestamp" ? order : "asc"
+                              }
                               onClick={() => handleSort("timestamp")}
                             >
                               Time
@@ -1151,7 +1265,9 @@ const SentimentAnalysis = () => {
                           <TableCell align="center">
                             <TableSortLabel
                               active={orderBy === "sentiment"}
-                              direction={orderBy === "sentiment" ? order : "asc"}
+                              direction={
+                                orderBy === "sentiment" ? order : "asc"
+                              }
                               onClick={() => handleSort("sentiment")}
                             >
                               Sentiment
@@ -1186,7 +1302,9 @@ const SentimentAnalysis = () => {
                             <TableRow key={index}>
                               <TableCell>
                                 <Typography variant="caption">
-                                  {new Date(news.timestamp).toLocaleTimeString()}
+                                  {new Date(
+                                    news.timestamp
+                                  ).toLocaleTimeString()}
                                 </Typography>
                               </TableCell>
                               <TableCell>
@@ -1196,20 +1314,22 @@ const SentimentAnalysis = () => {
                                     fontWeight="bold"
                                     gutterBottom
                                   >
-                                    {news.headline || 'No headline'}
+                                    {news.headline || "No headline"}
                                   </Typography>
                                   <Typography
                                     variant="caption"
                                     color="text.secondary"
                                   >
-                                    {news.source || 'Unknown source'}
+                                    {news.source || "Unknown source"}
                                   </Typography>
                                 </Box>
                               </TableCell>
                               <TableCell align="center">
                                 <Chip
-                                  label={news.sentiment || 'Neutral'}
-                                  color={getSentimentColor(news.sentimentScore || 50)}
+                                  label={news.sentiment || "Neutral"}
+                                  color={getSentimentColor(
+                                    news.sentimentScore || 50
+                                  )}
                                   size="small"
                                 />
                               </TableCell>
@@ -1221,7 +1341,11 @@ const SentimentAnalysis = () => {
                                   <LinearProgress
                                     variant="determinate"
                                     value={Math.abs(news.impact || 0) * 10}
-                                    color={(news.impact || 0) >= 0 ? "success" : "error"}
+                                    color={
+                                      (news.impact || 0) >= 0
+                                        ? "success"
+                                        : "error"
+                                    }
                                     sx={{ width: 60, mt: 0.5 }}
                                   />
                                 </Box>
@@ -1247,7 +1371,12 @@ const SentimentAnalysis = () => {
                     </Table>
                   </TableContainer>
                 ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    height={200}
+                  >
                     <Typography variant="body1" color="text.secondary">
                       No news sentiment data available
                     </Typography>
@@ -1280,18 +1409,29 @@ const SentimentAnalysis = () => {
                           `${name} ${(percent * 100).toFixed(0)}%`
                         }
                       >
-                        {(sentimentData.socialPlatforms || []).map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={CHART_COLORS[index % (CHART_COLORS?.length || 0)]}
-                          />
-                        ))}
+                        {(sentimentData.socialPlatforms || []).map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={
+                                CHART_COLORS[
+                                  index % (CHART_COLORS?.length || 0)
+                                ]
+                              }
+                            />
+                          )
+                        )}
                       </Pie>
                       <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    height={300}
+                  >
                     <Typography variant="body1" color="text.secondary">
                       No social platform data available
                     </Typography>
@@ -1307,51 +1447,58 @@ const SentimentAnalysis = () => {
               <CardContent>
                 {sentimentData.viralContent?.length > 0 ? (
                   <List>
-                    {(sentimentData.viralContent || []).map((content, index) => (
-                      <ListItem
-                        key={index}
-                        divider={index < (sentimentData.viralContent?.length || 0) - 1}
-                      >
-                        <ListItemAvatar>
-                          <Avatar
-                            sx={{
-                              bgcolor:
-                                content.platform === "Twitter"
-                                  ? "#1DA1F2"
-                                  : "#FF4500",
-                            }}
-                          >
-                            {content.platform === "Twitter" ? (
-                              <Twitter />
-                            ) : (
-                              <Reddit />
-                            )}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={content.content || 'No content'}
-                          secondary={
-                            <Box
-                              display="flex"
-                              alignItems="center"
-                              gap={1}
-                              mt={1}
-                            >
-                              <Chip
-                                label={`${content.engagement || 0} engagements`}
-                                size="small"
-                                variant="outlined"
-                              />
-                              <Chip
-                                label={content.sentiment || 'Neutral'}
-                                color={getSentimentColor(content.sentimentScore || 50)}
-                                size="small"
-                              />
-                            </Box>
+                    {(sentimentData.viralContent || []).map(
+                      (content, index) => (
+                        <ListItem
+                          key={index}
+                          divider={
+                            index <
+                            (sentimentData.viralContent?.length || 0) - 1
                           }
-                        />
-                      </ListItem>
-                    ))}
+                        >
+                          <ListItemAvatar>
+                            <Avatar
+                              sx={{
+                                bgcolor:
+                                  content.platform === "Twitter"
+                                    ? "#1DA1F2"
+                                    : "#FF4500",
+                              }}
+                            >
+                              {content.platform === "Twitter" ? (
+                                <Twitter />
+                              ) : (
+                                <Reddit />
+                              )}
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={content.content || "No content"}
+                            secondary={
+                              <Box
+                                display="flex"
+                                alignItems="center"
+                                gap={1}
+                                mt={1}
+                              >
+                                <Chip
+                                  label={`${content.engagement || 0} engagements`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                                <Chip
+                                  label={content.sentiment || "Neutral"}
+                                  color={getSentimentColor(
+                                    content.sentimentScore || 50
+                                  )}
+                                  size="small"
+                                />
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      )
+                    )}
                   </List>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
@@ -1396,14 +1543,16 @@ const SentimentAnalysis = () => {
                     </StepLabel>
                     <StepContent>
                       <List>
-                        {(aiInsights.opportunities || []).map((opportunity, index) => (
-                          <ListItem key={index}>
-                            <CheckCircle color="success" sx={{ mr: 2 }} />
-                            <Typography variant="body2">
-                              {opportunity}
-                            </Typography>
-                          </ListItem>
-                        ))}
+                        {(aiInsights.opportunities || []).map(
+                          (opportunity, index) => (
+                            <ListItem key={index}>
+                              <CheckCircle color="success" sx={{ mr: 2 }} />
+                              <Typography variant="body2">
+                                {opportunity}
+                              </Typography>
+                            </ListItem>
+                          )
+                        )}
                       </List>
                     </StepContent>
                   </Step>
@@ -1525,7 +1674,7 @@ const SentimentAnalysis = () => {
           <Grid container spacing={3}>
             {/* Real-Time Sentiment Score */}
             <Grid item xs={12} md={6}>
-              <RealTimeSentimentScore 
+              <RealTimeSentimentScore
                 symbol={selectedSymbol}
                 showDetails={true}
                 size="large"
@@ -1541,15 +1690,27 @@ const SentimentAnalysis = () => {
                   <Box display="flex" flexDirection="column" gap={2}>
                     <Box display="flex" alignItems="center" gap={2}>
                       <Typography variant="body2">WebSocket Status:</Typography>
-                      <Chip 
+                      <Chip
                         label={realtimeConnectionStatus}
-                        color={realtimeConnectionStatus === 'connected' ? 'success' : 'error'}
-                        icon={realtimeConnectionStatus === 'connected' ? <SignalCellular4Bar /> : <SignalCellularNodata />}
+                        color={
+                          realtimeConnectionStatus === "connected"
+                            ? "success"
+                            : "error"
+                        }
+                        icon={
+                          realtimeConnectionStatus === "connected" ? (
+                            <SignalCellular4Bar />
+                          ) : (
+                            <SignalCellularNodata />
+                          )
+                        }
                       />
                     </Box>
 
                     <Box display="flex" alignItems="center" gap={2}>
-                      <Typography variant="body2">Live News Articles:</Typography>
+                      <Typography variant="body2">
+                        Live News Articles:
+                      </Typography>
                       <Typography variant="body2" fontWeight="bold">
                         {realTimeNews.length}
                       </Typography>
@@ -1558,16 +1719,19 @@ const SentimentAnalysis = () => {
                     <Box display="flex" alignItems="center" gap={2}>
                       <Typography variant="body2">Last Update:</Typography>
                       <Typography variant="body2" fontWeight="bold">
-                        {realTimeNews.length > 0 ? 
-                          new Date(realTimeNews[0].timestamp || realTimeNews[0].publishedAt).toLocaleTimeString() : 
-                          'No updates yet'
-                        }
+                        {realTimeNews.length > 0
+                          ? new Date(
+                              realTimeNews[0].timestamp ||
+                                realTimeNews[0].publishedAt
+                            ).toLocaleTimeString()
+                          : "No updates yet"}
                       </Typography>
                     </Box>
 
-                    {realtimeConnectionStatus !== 'connected' && (
+                    {realtimeConnectionStatus !== "connected" && (
                       <Alert severity="warning" sx={{ mt: 2 }}>
-                        Real-time updates are not available. Please check your connection.
+                        Real-time updates are not available. Please check your
+                        connection.
                       </Alert>
                     )}
                   </Box>
@@ -1582,9 +1746,17 @@ const SentimentAnalysis = () => {
                   title="Live News Stream"
                   subheader={`Displaying ${Math.min(20, realTimeNews.length)} most recent articles`}
                   action={
-                    <Chip 
-                      label={realtimeConnectionStatus === 'connected' ? "LIVE" : "OFFLINE"}
-                      color={realtimeConnectionStatus === 'connected' ? "success" : "error"}
+                    <Chip
+                      label={
+                        realtimeConnectionStatus === "connected"
+                          ? "LIVE"
+                          : "OFFLINE"
+                      }
+                      color={
+                        realtimeConnectionStatus === "connected"
+                          ? "success"
+                          : "error"
+                      }
                       variant="filled"
                     />
                   }
@@ -1593,22 +1765,41 @@ const SentimentAnalysis = () => {
                   {realTimeNews.length > 0 ? (
                     <List>
                       {realTimeNews.slice(0, 20).map((article, index) => (
-                        <ListItem key={index} divider={index < Math.min(19, realTimeNews.length - 1)}>
+                        <ListItem
+                          key={index}
+                          divider={
+                            index < Math.min(19, realTimeNews.length - 1)
+                          }
+                        >
                           <ListItemText
                             primary={
                               <Box display="flex" alignItems="center" gap={1}>
-                                <Typography variant="subtitle1" fontWeight="bold">
+                                <Typography
+                                  variant="subtitle1"
+                                  fontWeight="bold"
+                                >
                                   {article.title}
                                 </Typography>
                                 {article.isRealTime && (
-                                  <Chip label="LIVE" color="success" size="small" />
+                                  <Chip
+                                    label="LIVE"
+                                    color="success"
+                                    size="small"
+                                  />
                                 )}
                               </Box>
                             }
                             secondary={
                               <Box mt={1}>
-                                <Typography variant="body2" color="text.secondary" gutterBottom>
-                                  <strong>{article.source}</strong> • {new Date(article.timestamp || article.publishedAt).toLocaleString()}
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                  gutterBottom
+                                >
+                                  <strong>{article.source}</strong> •{" "}
+                                  {new Date(
+                                    article.timestamp || article.publishedAt
+                                  ).toLocaleString()}
                                 </Typography>
                                 {article.summary && (
                                   <Typography variant="body2" gutterBottom>
@@ -1617,8 +1808,14 @@ const SentimentAnalysis = () => {
                                 )}
                                 <Box display="flex" gap={1} mt={1}>
                                   <Chip
-                                    label={article.sentiment?.label || 'Neutral'}
-                                    color={getSentimentColor(Math.round((article.sentiment?.score || 0.5) * 100))}
+                                    label={
+                                      article.sentiment?.label || "Neutral"
+                                    }
+                                    color={getSentimentColor(
+                                      Math.round(
+                                        (article.sentiment?.score || 0.5) * 100
+                                      )
+                                    )}
                                     size="small"
                                   />
                                   <Chip
@@ -1633,8 +1830,12 @@ const SentimentAnalysis = () => {
                                   />
                                   {article.impact && (
                                     <Chip
-                                      label={`Impact: ${article.impact.level || 'Low'}`}
-                                      color={article.impact.level === 'high' ? 'error' : 'default'}
+                                      label={`Impact: ${article.impact.level || "Low"}`}
+                                      color={
+                                        article.impact.level === "high"
+                                          ? "error"
+                                          : "default"
+                                      }
                                       variant="outlined"
                                       size="small"
                                     />
@@ -1647,12 +1848,16 @@ const SentimentAnalysis = () => {
                       ))}
                     </List>
                   ) : (
-                    <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                    <Box
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                      height={200}
+                    >
                       <Typography variant="body1" color="text.secondary">
-                        {realtimeConnectionStatus === 'connected' ? 
-                          'Waiting for real-time news updates...' : 
-                          'Connect to view live news updates'
-                        }
+                        {realtimeConnectionStatus === "connected"
+                          ? "Waiting for real-time news updates..."
+                          : "Connect to view live news updates"}
                       </Typography>
                     </Box>
                   )}
@@ -1686,8 +1891,9 @@ function calculateSentimentMomentum(historicalData) {
   if ((older?.length || 0) === 0) return 0;
 
   const recentAvg =
-    recent.reduce((sum, d) => sum + (d.overall || 0), 0) / (recent?.length || 0);
-  const olderAvg = 
+    recent.reduce((sum, d) => sum + (d.overall || 0), 0) /
+    (recent?.length || 0);
+  const olderAvg =
     older.reduce((sum, d) => sum + (d.overall || 0), 0) / (older?.length || 0);
 
   if (olderAvg === 0) return 0;
@@ -1711,34 +1917,35 @@ function calculateSentimentVolatility(historicalData) {
 
   const mean = returns.reduce((sum, r) => sum + r, 0) / (returns?.length || 0);
   const variance =
-    returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / (returns?.length || 0);
+    returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) /
+    (returns?.length || 0);
 
   return Math.sqrt(variance) * 100 * Math.sqrt(252); // Annualized
 }
 
 function detectExtremeReadings(sources) {
   if (!sources || (sources?.length || 0) === 0) return 0;
-  
-  const extremes = sources.filter(source => 
-    (source.score || 0) > 80 || (source.score || 0) < 20
+
+  const extremes = sources.filter(
+    (source) => (source.score || 0) > 80 || (source.score || 0) < 20
   );
-  
-  return (extremes?.length || 0);
+
+  return extremes?.length || 0;
 }
 
 function calculateContrarianSignal(sources) {
   if (!sources || (sources?.length || 0) === 0) return 0;
-  
+
   const extremeCount = sources.filter(
     (s) => (s.score || 0) > 80 || (s.score || 0) < 20
   ).length;
-  const totalSources = (sources?.length || 0);
+  const totalSources = sources?.length || 0;
   return Math.round((extremeCount / totalSources) * 100);
 }
 
 function calculateConfidenceScore(sources) {
   if (!sources || (sources?.length || 0) === 0) return 0;
-  
+
   const weightedReliability = sources.reduce(
     (sum, s) => sum + (s.reliability || 0.5) * (s.weight || 0.25),
     0
@@ -1748,11 +1955,12 @@ function calculateConfidenceScore(sources) {
 
 function calculateSentimentDivergence(sources) {
   if (!sources || (sources?.length || 0) === 0) return 0;
-  
+
   const scores = (sources || []).map((s) => s.score || 0);
   const mean = scores.reduce((sum, s) => sum + s, 0) / (scores?.length || 0);
   const variance =
-    scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / (scores?.length || 0);
+    scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) /
+    (scores?.length || 0);
   return Math.round(Math.sqrt(variance));
 }
 
@@ -1775,10 +1983,22 @@ function generateSentimentInsights(metrics, data) {
     technicalDetails:
       "Analysis incorporates real-time data from multiple sources including news sentiment, social media analysis, and institutional flow. Advanced NLP and machine learning models provide robust signal generation with continuous model refinement.",
     modelStats: {
-      accuracy: Math.max(70, Math.min(95, 75 + Math.floor(metrics.confidence / 5))),
-      precision: Math.max(65, Math.min(90, 70 + Math.floor(metrics.confidence / 6))),
-      recall: Math.max(70, Math.min(95, 75 + Math.floor(metrics.confidence / 4))),
-      dataSources: (data?.sources?.length || 0) + (data?.socialPlatforms?.length || 0) + (data?.newsImpact?.length || 0) / 10,
+      accuracy: Math.max(
+        70,
+        Math.min(95, 75 + Math.floor(metrics.confidence / 5))
+      ),
+      precision: Math.max(
+        65,
+        Math.min(90, 70 + Math.floor(metrics.confidence / 6))
+      ),
+      recall: Math.max(
+        70,
+        Math.min(95, 75 + Math.floor(metrics.confidence / 4))
+      ),
+      dataSources:
+        (data?.sources?.length || 0) +
+        (data?.socialPlatforms?.length || 0) +
+        (data?.newsImpact?.length || 0) / 10,
     },
   };
 }

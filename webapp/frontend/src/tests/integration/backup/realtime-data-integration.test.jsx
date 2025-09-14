@@ -28,7 +28,7 @@ const _mockWebSocket = {
   isConnected: vi.fn(() => true),
   on: vi.fn(),
   off: vi.fn(),
-  readyState: 1 // WebSocket.OPEN
+  readyState: 1, // WebSocket.OPEN
 };
 
 const mockRealTimeService = {
@@ -39,15 +39,15 @@ const mockRealTimeService = {
   emit: vi.fn(),
   getLatestPrice: vi.fn(),
   isConnected: vi.fn(() => true),
-  getConnectionStatus: vi.fn(() => 'connected')
+  getConnectionStatus: vi.fn(() => "connected"),
 };
 
 vi.mock("../../services/realTimeDataService.js", () => ({
-  default: mockRealTimeService
+  default: mockRealTimeService,
 }));
 
 vi.mock("../../hooks/useWebSocket.js", () => ({
-  useWebSocket: vi.fn()
+  useWebSocket: vi.fn(),
 }));
 
 describe("Real-Time Data Integration", () => {
@@ -55,17 +55,17 @@ describe("Real-Time Data Integration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup WebSocket hook mock
     mockWebSocketHook = {
       isConnected: true,
-      connectionState: 'connected',
+      connectionState: "connected",
       lastMessage: null,
       sendMessage: vi.fn(),
       connect: vi.fn(),
       disconnect: vi.fn(),
       subscribe: vi.fn(),
-      unsubscribe: vi.fn()
+      unsubscribe: vi.fn(),
     };
 
     useWebSocket.mockReturnValue(mockWebSocketHook);
@@ -97,9 +97,11 @@ describe("Real-Time Data Integration", () => {
 
     it("should handle connection failures gracefully", async () => {
       // Mock connection failure
-      mockRealTimeService.connect.mockRejectedValue(new Error("Connection failed"));
+      mockRealTimeService.connect.mockRejectedValue(
+        new Error("Connection failed")
+      );
       mockWebSocketHook.isConnected = false;
-      mockWebSocketHook.connectionState = 'disconnected';
+      mockWebSocketHook.connectionState = "disconnected";
 
       render(
         <TestWrapper>
@@ -110,9 +112,9 @@ describe("Real-Time Data Integration", () => {
       await waitFor(() => {
         // Should show offline state or connection error
         expect(
-          screen.getByText(/connection failed/i) || 
-          screen.getByText(/offline/i) ||
-          screen.getByTestId("connection-error")
+          screen.getByText(/connection failed/i) ||
+            screen.getByText(/offline/i) ||
+            screen.getByTestId("connection-error")
         ).toBeInTheDocument();
       });
     });
@@ -120,7 +122,7 @@ describe("Real-Time Data Integration", () => {
     it("should reconnect automatically after connection loss", async () => {
       // Start connected
       mockWebSocketHook.isConnected = true;
-      
+
       const { rerender } = render(
         <TestWrapper>
           <MarketStatusBar />
@@ -130,7 +132,7 @@ describe("Real-Time Data Integration", () => {
       // Simulate connection loss
       act(() => {
         mockWebSocketHook.isConnected = false;
-        mockWebSocketHook.connectionState = 'reconnecting';
+        mockWebSocketHook.connectionState = "reconnecting";
       });
 
       rerender(
@@ -141,13 +143,16 @@ describe("Real-Time Data Integration", () => {
 
       // Should show reconnecting state
       await waitFor(() => {
-        expect(screen.getByText(/reconnecting/i) || screen.getByTestId("reconnecting")).toBeInTheDocument();
+        expect(
+          screen.getByText(/reconnecting/i) ||
+            screen.getByTestId("reconnecting")
+        ).toBeInTheDocument();
       });
 
       // Simulate successful reconnection
       act(() => {
         mockWebSocketHook.isConnected = true;
-        mockWebSocketHook.connectionState = 'connected';
+        mockWebSocketHook.connectionState = "connected";
       });
 
       rerender(
@@ -157,7 +162,9 @@ describe("Real-Time Data Integration", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/connected/i) || screen.getByTestId("connected")).toBeInTheDocument();
+        expect(
+          screen.getByText(/connected/i) || screen.getByTestId("connected")
+        ).toBeInTheDocument();
       });
     });
   });
@@ -165,11 +172,11 @@ describe("Real-Time Data Integration", () => {
   describe("Real-Time Data Flow Integration", () => {
     it("should receive and display real-time price updates", async () => {
       const mockPriceData = {
-        symbol: 'AAPL',
+        symbol: "AAPL",
         price: 150.25,
         change: 2.15,
         changePercent: 1.45,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       // Mock real-time price subscription
@@ -184,31 +191,34 @@ describe("Real-Time Data Integration", () => {
       );
 
       // Should eventually display real-time price
-      await waitFor(() => {
-        expect(screen.getByText(/150\.25/)).toBeInTheDocument();
-        expect(screen.getByText(/\+2\.15/)).toBeInTheDocument();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expect(screen.getByText(/150\.25/)).toBeInTheDocument();
+          expect(screen.getByText(/\+2\.15/)).toBeInTheDocument();
+        },
+        { timeout: 2000 }
+      );
     });
 
     it("should handle multiple simultaneous subscriptions", async () => {
-      const symbols = ['AAPL', 'GOOGL', 'MSFT'];
-      const mockData = symbols.map(symbol => ({
+      const symbols = ["AAPL", "GOOGL", "MSFT"];
+      const mockData = symbols.map((symbol) => ({
         symbol,
         price: Math.random() * 1000,
         change: Math.random() * 10 - 5,
         changePercent: Math.random() * 5 - 2.5,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }));
 
       // Mock multiple subscriptions
       mockRealTimeService.subscribe.mockImplementation((symbol, callback) => {
-        const data = mockData.find(d => d.symbol === symbol);
+        const data = mockData.find((d) => d.symbol === symbol);
         setTimeout(() => callback(data), 100);
       });
 
       const MultiSymbolComponent = () => (
         <div>
-          {symbols.map(symbol => (
+          {symbols.map((symbol) => (
             <RealTimePriceWidget key={symbol} symbol={symbol} />
           ))}
         </div>
@@ -222,7 +232,7 @@ describe("Real-Time Data Integration", () => {
 
       // Should handle all subscriptions
       await waitFor(() => {
-        symbols.forEach(symbol => {
+        symbols.forEach((symbol) => {
           expect(mockRealTimeService.subscribe).toHaveBeenCalledWith(
             symbol,
             expect.any(Function)
@@ -233,10 +243,10 @@ describe("Real-Time Data Integration", () => {
 
     it("should batch and throttle rapid updates", async () => {
       const rapidUpdates = Array.from({ length: 10 }, (_, i) => ({
-        symbol: 'AAPL',
+        symbol: "AAPL",
         price: 150 + i * 0.1,
         change: i * 0.1,
-        timestamp: Date.now() + i * 100
+        timestamp: Date.now() + i * 100,
       }));
 
       let updateCallback;
@@ -252,7 +262,7 @@ describe("Real-Time Data Integration", () => {
 
       // Send rapid updates
       act(() => {
-        rapidUpdates.forEach(update => {
+        rapidUpdates.forEach((update) => {
           updateCallback(update);
         });
       });
@@ -268,15 +278,15 @@ describe("Real-Time Data Integration", () => {
     it("should synchronize data across multiple components", async () => {
       const mockMarketData = {
         indices: [
-          { symbol: 'SPX', value: 4500, change: 25.3 },
-          { symbol: 'NASDAQ', value: 14000, change: -15.2 }
+          { symbol: "SPX", value: 4500, change: 25.3 },
+          { symbol: "NASDAQ", value: 14000, change: -15.2 },
         ],
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       // Mock market data subscription
       mockRealTimeService.subscribe.mockImplementation((channel, callback) => {
-        if (channel === 'market-overview') {
+        if (channel === "market-overview") {
           setTimeout(() => callback(mockMarketData), 100);
         }
       });
@@ -303,8 +313,12 @@ describe("Real-Time Data Integration", () => {
 
     it("should handle data conflicts and maintain consistency", async () => {
       // Mock conflicting price data
-      const oldPrice = { symbol: 'AAPL', price: 148.50, timestamp: Date.now() - 1000 };
-      const newPrice = { symbol: 'AAPL', price: 150.25, timestamp: Date.now() };
+      const oldPrice = {
+        symbol: "AAPL",
+        price: 148.5,
+        timestamp: Date.now() - 1000,
+      };
+      const newPrice = { symbol: "AAPL", price: 150.25, timestamp: Date.now() };
 
       let subscriptionCallback;
       mockRealTimeService.subscribe.mockImplementation((symbol, callback) => {
@@ -341,7 +355,7 @@ describe("Real-Time Data Integration", () => {
   describe("Error Handling Integration", () => {
     it("should handle WebSocket errors gracefully", async () => {
       // Mock WebSocket error
-      mockWebSocketHook.connectionState = 'error';
+      mockWebSocketHook.connectionState = "error";
       mockWebSocketHook.isConnected = false;
 
       render(
@@ -353,13 +367,13 @@ describe("Real-Time Data Integration", () => {
       await waitFor(() => {
         expect(
           screen.getByText(/connection error/i) ||
-          screen.getByTestId("connection-error")
+            screen.getByTestId("connection-error")
         ).toBeInTheDocument();
       });
     });
 
     it("should handle malformed data gracefully", async () => {
-      const malformedData = { invalid: 'data' };
+      const malformedData = { invalid: "data" };
 
       let subscriptionCallback;
       mockRealTimeService.subscribe.mockImplementation((symbol, callback) => {
@@ -380,7 +394,9 @@ describe("Real-Time Data Integration", () => {
       // Should not crash and show appropriate fallback
       await waitFor(() => {
         expect(screen.getByTestId("price-widget")).toBeInTheDocument();
-        expect(screen.getByText(/loading/i) || screen.getByText(/--/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/loading/i) || screen.getByText(/--/)
+        ).toBeInTheDocument();
       });
     });
   });
@@ -393,7 +409,10 @@ describe("Real-Time Data Integration", () => {
         </TestWrapper>
       );
 
-      expect(mockRealTimeService.subscribe).toHaveBeenCalledWith("AAPL", expect.any(Function));
+      expect(mockRealTimeService.subscribe).toHaveBeenCalledWith(
+        "AAPL",
+        expect.any(Function)
+      );
 
       unmount();
 
@@ -401,11 +420,11 @@ describe("Real-Time Data Integration", () => {
     });
 
     it("should prevent memory leaks with proper cleanup", async () => {
-      const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];
-      
+      const symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"];
+
       const DynamicSubscriptions = ({ activeSymbols }) => (
         <div>
-          {activeSymbols.map(symbol => (
+          {activeSymbols.map((symbol) => (
             <RealTimePriceWidget key={symbol} symbol={symbol} />
           ))}
         </div>
@@ -418,8 +437,11 @@ describe("Real-Time Data Integration", () => {
       );
 
       // All symbols should be subscribed
-      symbols.forEach(symbol => {
-        expect(mockRealTimeService.subscribe).toHaveBeenCalledWith(symbol, expect.any(Function));
+      symbols.forEach((symbol) => {
+        expect(mockRealTimeService.subscribe).toHaveBeenCalledWith(
+          symbol,
+          expect.any(Function)
+        );
       });
 
       // Remove some symbols
@@ -432,14 +454,14 @@ describe("Real-Time Data Integration", () => {
 
       // Removed symbols should be unsubscribed
       const removedSymbols = symbols.slice(2);
-      removedSymbols.forEach(symbol => {
+      removedSymbols.forEach((symbol) => {
         expect(mockRealTimeService.unsubscribe).toHaveBeenCalledWith(symbol);
       });
 
       unmount();
 
       // All remaining should be cleaned up
-      reducedSymbols.forEach(symbol => {
+      reducedSymbols.forEach((symbol) => {
         expect(mockRealTimeService.unsubscribe).toHaveBeenCalledWith(symbol);
       });
     });

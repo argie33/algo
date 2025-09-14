@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Card,
@@ -10,8 +10,8 @@ import {
   Tooltip,
   Alert,
   IconButton,
-  Badge
-} from '@mui/material';
+  Badge,
+} from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
@@ -21,21 +21,21 @@ import {
   Update,
   Speed,
   SignalCellular4Bar,
-  SignalCellularNodata
-} from '@mui/icons-material';
-import realTimeNewsService from '../services/realTimeNewsService.js';
+  SignalCellularNodata,
+} from "@mui/icons-material";
+import realTimeNewsService from "../services/realTimeNewsService.js";
 
-const RealTimeSentimentScore = ({ 
-  symbol, 
-  showDetails = true, 
-  size = 'medium',
+const RealTimeSentimentScore = ({
+  symbol,
+  showDetails = true,
+  size = "medium",
   autoRefresh = true,
-  refreshInterval = 30000
+  refreshInterval = 30000,
 }) => {
   const [sentiment, setSentiment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [realtimeUpdates, setRealtimeUpdates] = useState(0);
 
   // Subscribe to real-time sentiment updates
@@ -51,33 +51,38 @@ const RealTimeSentimentScore = ({
     const handleSentimentUpdate = (sentimentData) => {
       setSentiment(sentimentData);
       setLastUpdate(new Date());
-      setRealtimeUpdates(prev => prev + 1);
-      setConnectionStatus('connected');
+      setRealtimeUpdates((prev) => prev + 1);
+      setConnectionStatus("connected");
       setLoading(false);
     };
 
     const handleConnectionError = () => {
-      setConnectionStatus('error');
+      setConnectionStatus("error");
     };
 
     // Subscribe to sentiment updates for this symbol
-    subscriptionId = realTimeNewsService.subscribeToSentiment(symbol, handleSentimentUpdate);
+    subscriptionId = realTimeNewsService.subscribeToSentiment(
+      symbol,
+      handleSentimentUpdate
+    );
 
     // Initial fetch
     const fetchInitialSentiment = async () => {
       try {
-        const existingSentiment = realTimeNewsService.getLatestSentiment(symbol);
+        const existingSentiment =
+          realTimeNewsService.getLatestSentiment(symbol);
         if (existingSentiment) {
           handleSentimentUpdate(existingSentiment);
         } else {
           // Fetch from API if no cached data
-          const sentimentData = await realTimeNewsService.fetchNewsSentiment(symbol);
+          const sentimentData =
+            await realTimeNewsService.fetchNewsSentiment(symbol);
           if (sentimentData) {
             handleSentimentUpdate(sentimentData);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch initial sentiment:', error);
+        console.error("Failed to fetch initial sentiment:", error);
         handleConnectionError();
         setLoading(false);
       }
@@ -98,14 +103,15 @@ const RealTimeSentimentScore = ({
 
     const interval = setInterval(async () => {
       try {
-        const sentimentData = await realTimeNewsService.fetchNewsSentiment(symbol);
+        const sentimentData =
+          await realTimeNewsService.fetchNewsSentiment(symbol);
         if (sentimentData) {
           setSentiment(sentimentData);
           setLastUpdate(new Date());
         }
       } catch (error) {
-        console.error('Auto-refresh failed:', error);
-        setConnectionStatus('error');
+        console.error("Auto-refresh failed:", error);
+        setConnectionStatus("error");
       }
     }, refreshInterval);
 
@@ -114,18 +120,19 @@ const RealTimeSentimentScore = ({
 
   const refreshSentiment = useCallback(async () => {
     if (!symbol) return;
-    
+
     setLoading(true);
     try {
-      const sentimentData = await realTimeNewsService.fetchNewsSentiment(symbol);
+      const sentimentData =
+        await realTimeNewsService.fetchNewsSentiment(symbol);
       if (sentimentData) {
         setSentiment(sentimentData);
         setLastUpdate(new Date());
-        setConnectionStatus('connected');
+        setConnectionStatus("connected");
       }
     } catch (error) {
-      console.error('Manual refresh failed:', error);
-      setConnectionStatus('error');
+      console.error("Manual refresh failed:", error);
+      setConnectionStatus("error");
     } finally {
       setLoading(false);
     }
@@ -136,28 +143,28 @@ const RealTimeSentimentScore = ({
     if (!sentiment) {
       return {
         score: 0,
-        label: 'No Data',
-        color: 'text.secondary',
+        label: "No Data",
+        color: "text.secondary",
         icon: <SignalCellularNodata />,
         confidence: 0,
-        trend: 'flat'
+        trend: "flat",
       };
     }
 
     const score = sentiment.score || 0;
     const confidence = sentiment.confidence || 0;
-    
-    let label = 'Neutral';
-    let color = 'text.secondary';
+
+    let label = "Neutral";
+    let color = "text.secondary";
     let icon = <TrendingFlat />;
-    
+
     if (score >= 0.6) {
-      label = 'Bullish';
-      color = 'success.main';
+      label = "Bullish";
+      color = "success.main";
       icon = <TrendingUp />;
     } else if (score <= 0.4) {
-      label = 'Bearish';
-      color = 'error.main';
+      label = "Bearish";
+      color = "error.main";
       icon = <TrendingDown />;
     }
 
@@ -167,29 +174,29 @@ const RealTimeSentimentScore = ({
       color,
       icon,
       confidence: Math.round(confidence * 100),
-      trend: sentiment.trend || 'flat'
+      trend: sentiment.trend || "flat",
     };
   }, [sentiment]);
 
   const getSizeStyles = () => {
     switch (size) {
-      case 'small':
+      case "small":
         return {
           padding: 1,
-          fontSize: '0.875rem',
-          scoreSize: 'h6'
+          fontSize: "0.875rem",
+          scoreSize: "h6",
         };
-      case 'large':
+      case "large":
         return {
           padding: 3,
-          fontSize: '1.125rem',
-          scoreSize: 'h3'
+          fontSize: "1.125rem",
+          scoreSize: "h3",
         };
       default:
         return {
           padding: 2,
-          fontSize: '1rem',
-          scoreSize: 'h4'
+          fontSize: "1rem",
+          scoreSize: "h4",
         };
     }
   };
@@ -198,9 +205,9 @@ const RealTimeSentimentScore = ({
 
   const getConnectionIcon = () => {
     switch (connectionStatus) {
-      case 'connected':
+      case "connected":
         return <SignalCellular4Bar color="success" />;
-      case 'error':
+      case "error":
         return <SignalCellularNodata color="error" />;
       default:
         return <Speed color="action" />;
@@ -211,7 +218,12 @@ const RealTimeSentimentScore = ({
     return (
       <Card>
         <CardContent sx={{ padding: styles.padding }}>
-          <Box display="flex" alignItems="center" justifyContent="center" gap={2}>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            gap={2}
+          >
             <CircularProgress size={24} />
             <Typography>Loading sentiment...</Typography>
           </Box>
@@ -236,7 +248,12 @@ const RealTimeSentimentScore = ({
     <Card>
       <CardContent sx={{ padding: styles.padding }}>
         {/* Header */}
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Box display="flex" alignItems="center" gap={1}>
             <Psychology color="primary" />
             <Typography variant="h6" component="h3">
@@ -249,13 +266,13 @@ const RealTimeSentimentScore = ({
               </Badge>
             )}
           </Box>
-          
+
           <Box display="flex" alignItems="center" gap={1}>
             <Tooltip title={`Connection: ${connectionStatus}`}>
               {getConnectionIcon()}
             </Tooltip>
-            <IconButton 
-              size="small" 
+            <IconButton
+              size="small"
               onClick={refreshSentiment}
               disabled={loading}
             >
@@ -267,9 +284,15 @@ const RealTimeSentimentScore = ({
         {/* Main Score Display */}
         <Box display="flex" alignItems="center" justifyContent="center" mb={2}>
           <Box textAlign="center">
-            <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              gap={1}
+              mb={1}
+            >
               {displayValues.icon}
-              <Typography 
+              <Typography
                 variant={styles.scoreSize}
                 color={displayValues.color}
                 fontWeight="bold"
@@ -277,24 +300,27 @@ const RealTimeSentimentScore = ({
                 {displayValues.score}
               </Typography>
             </Box>
-            
+
             <Typography variant="body2" color="text.secondary">
               {displayValues.label}
             </Typography>
-            
+
             {/* Progress Bar */}
             <LinearProgress
               variant="determinate"
               value={displayValues.score}
               color={
-                displayValues.score >= 60 ? 'success' : 
-                displayValues.score <= 40 ? 'error' : 'warning'
+                displayValues.score >= 60
+                  ? "success"
+                  : displayValues.score <= 40
+                    ? "error"
+                    : "warning"
               }
-              sx={{ 
-                mt: 1, 
-                height: 8, 
+              sx={{
+                mt: 1,
+                height: 8,
                 borderRadius: 4,
-                backgroundColor: 'rgba(0,0,0,0.1)'
+                backgroundColor: "rgba(0,0,0,0.1)",
               }}
             />
           </Box>
@@ -303,7 +329,12 @@ const RealTimeSentimentScore = ({
         {/* Details */}
         {showDetails && (
           <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={1}
+            >
               <Typography variant="body2" color="text.secondary">
                 Confidence
               </Typography>
@@ -313,7 +344,12 @@ const RealTimeSentimentScore = ({
             </Box>
 
             {sentiment?.articles && (
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={1}
+              >
                 <Typography variant="body2" color="text.secondary">
                   Articles Analyzed
                 </Typography>
@@ -324,7 +360,12 @@ const RealTimeSentimentScore = ({
             )}
 
             {lastUpdate && (
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={1}
+              >
                 <Typography variant="body2" color="text.secondary">
                   Last Update
                 </Typography>
@@ -335,15 +376,15 @@ const RealTimeSentimentScore = ({
             )}
 
             {/* Trend Indicator */}
-            {sentiment?.trend && sentiment.trend !== 'flat' && (
+            {sentiment?.trend && sentiment.trend !== "flat" && (
               <Box display="flex" alignItems="center" gap={1} mt={2}>
                 <Update color="action" />
                 <Typography variant="body2" color="text.secondary">
-                  Trend: 
+                  Trend:
                 </Typography>
-                <Chip 
+                <Chip
                   label={sentiment.trend}
-                  color={sentiment.trend === 'improving' ? 'success' : 'error'}
+                  color={sentiment.trend === "improving" ? "success" : "error"}
                   size="small"
                   variant="outlined"
                 />
@@ -360,7 +401,7 @@ const RealTimeSentimentScore = ({
                   {sentiment.sources.slice(0, 3).map((source, index) => (
                     <Chip
                       key={index}
-                      label={source.source || 'Unknown'}
+                      label={source.source || "Unknown"}
                       size="small"
                       variant="outlined"
                     />
@@ -372,7 +413,7 @@ const RealTimeSentimentScore = ({
         )}
 
         {/* Connection Status Alert */}
-        {connectionStatus === 'error' && (
+        {connectionStatus === "error" && (
           <Alert severity="warning" sx={{ mt: 2 }}>
             <Typography variant="body2">
               Real-time updates unavailable. Using cached data.

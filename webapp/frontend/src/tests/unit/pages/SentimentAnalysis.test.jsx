@@ -31,7 +31,7 @@ vi.mock("../../../components/RealTimeSentimentScore", () => ({
       {showDetails && <span>Details shown</span>}
       <span>Size: {size}</span>
     </div>
-  )
+  ),
 }));
 
 // Mock realTimeNewsService
@@ -41,9 +41,9 @@ vi.mock("../../../services/realTimeNewsService", () => ({
     unsubscribeFromNews: vi.fn(),
     getLatestNews: vi.fn(),
     fetchBreakingNews: vi.fn(),
-    getAllLatestSentiments: vi.fn()
+    getAllLatestSentiments: vi.fn(),
   },
-  __esModule: true
+  __esModule: true,
 }));
 
 // Mock API service
@@ -120,59 +120,61 @@ const mockSocialData = {
 
 const mockNewsData = [
   {
-    id: 'news_1',
-    title: 'Apple reports strong quarterly earnings',
-    summary: 'Apple exceeded analyst expectations with record revenue growth',
-    source: 'Reuters',
-    publishedAt: '2024-01-01T10:00:00Z',
-    url: 'https://reuters.com/apple-earnings',
-    symbols: ['AAPL'],
-    sentiment: { score: 0.8, label: 'positive', confidence: 0.9 },
-    impact: { score: 0.7, level: 'medium' },
+    id: "news_1",
+    title: "Apple reports strong quarterly earnings",
+    summary: "Apple exceeded analyst expectations with record revenue growth",
+    source: "Reuters",
+    publishedAt: "2024-01-01T10:00:00Z",
+    url: "https://reuters.com/apple-earnings",
+    symbols: ["AAPL"],
+    sentiment: { score: 0.8, label: "positive", confidence: 0.9 },
+    impact: { score: 0.7, level: "medium" },
     isRealTime: true,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   },
   {
-    id: 'news_2',
-    title: 'Tech sector outlook remains uncertain',
-    summary: 'Mixed signals from technology companies create market volatility',
-    source: 'Bloomberg',
-    publishedAt: '2024-01-01T09:30:00Z',
-    url: 'https://bloomberg.com/tech-outlook',
-    symbols: ['AAPL', 'GOOGL', 'MSFT'],
-    sentiment: { score: 0.4, label: 'negative', confidence: 0.8 },
-    impact: { score: 0.6, level: 'medium' },
+    id: "news_2",
+    title: "Tech sector outlook remains uncertain",
+    summary: "Mixed signals from technology companies create market volatility",
+    source: "Bloomberg",
+    publishedAt: "2024-01-01T09:30:00Z",
+    url: "https://bloomberg.com/tech-outlook",
+    symbols: ["AAPL", "GOOGL", "MSFT"],
+    sentiment: { score: 0.4, label: "negative", confidence: 0.8 },
+    impact: { score: 0.6, level: "medium" },
     isRealTime: true,
-    timestamp: Date.now() - 300000
-  }
+    timestamp: Date.now() - 300000,
+  },
 ];
 
 const mockRealTimeSentimentData = {
-  'AAPL': {
-    symbol: 'AAPL',
+  AAPL: {
+    symbol: "AAPL",
     score: 0.75,
-    label: 'positive',
+    label: "positive",
     confidence: 0.85,
-    trend: 'improving',
+    trend: "improving",
     articles: [mockNewsData[0]],
     timestamp: Date.now(),
-    isRealTime: true
+    isRealTime: true,
   },
-  'GOOGL': {
-    symbol: 'GOOGL',
+  GOOGL: {
+    symbol: "GOOGL",
     score: 0.45,
-    label: 'negative',
+    label: "negative",
     confidence: 0.7,
-    trend: 'declining',
+    trend: "declining",
     articles: [mockNewsData[1]],
     timestamp: Date.now(),
-    isRealTime: true
-  }
+    isRealTime: true,
+  },
 };
 
 describe("SentimentAnalysis Component", () => {
   const { api } = require("../../../services/api.js");
-  const { default: mockRealTimeNewsService } = require("../../../services/realTimeNewsService");
+  const {
+    default: mockRealTimeNewsService,
+  } = require("../../../services/realTimeNewsService");
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -198,15 +200,19 @@ describe("SentimentAnalysis Component", () => {
     });
 
     // Setup real-time news service mocks
-    mockRealTimeNewsService.subscribeToNews.mockReturnValue('news-subscription-id');
+    mockRealTimeNewsService.subscribeToNews.mockReturnValue(
+      "news-subscription-id"
+    );
     mockRealTimeNewsService.getLatestNews.mockReturnValue(mockNewsData);
-    mockRealTimeNewsService.getAllLatestSentiments.mockReturnValue(mockRealTimeSentimentData);
+    mockRealTimeNewsService.getAllLatestSentiments.mockReturnValue(
+      mockRealTimeSentimentData
+    );
     mockRealTimeNewsService.fetchBreakingNews.mockResolvedValue([]);
   });
 
   it("renders sentiment analysis page", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     expect(screen.getByText(/sentiment analysis/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(api.getMarketSentiment).toHaveBeenCalled();
@@ -215,7 +221,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays overall market sentiment", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Bullish")).toBeInTheDocument();
       expect(screen.getByText("0.65")).toBeInTheDocument();
@@ -226,7 +232,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("shows sentiment breakdown", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("25")).toBeInTheDocument(); // very bullish
       expect(screen.getByText("35")).toBeInTheDocument(); // bullish
@@ -238,7 +244,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays top sentiment symbols", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("GOOGL")).toBeInTheDocument();
@@ -251,17 +257,17 @@ describe("SentimentAnalysis Component", () => {
 
   it("shows loading state initially", () => {
     api.getMarketSentiment.mockImplementation(() => new Promise(() => {}));
-    
+
     renderWithProviders(<SentimentAnalysis />);
-    
+
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
     api.getMarketSentiment.mockRejectedValue(new Error("API Error"));
-    
+
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -269,7 +275,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays sentiment trends chart", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -281,7 +287,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("shows social media sentiment", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("25,000")).toBeInTheDocument(); // Twitter volume
       expect(screen.getByText("15,000")).toBeInTheDocument(); // Reddit volume
@@ -292,7 +298,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays trending topics", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$AAPL")).toBeInTheDocument();
       expect(screen.getByText("$TSLA")).toBeInTheDocument();
@@ -303,7 +309,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("switches between different time periods", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Bullish")).toBeInTheDocument();
     });
@@ -312,11 +318,11 @@ describe("SentimentAnalysis Component", () => {
     const timeSelects = screen.getAllByRole("combobox");
     if (timeSelects.length > 0) {
       fireEvent.mouseDown(timeSelects[0]);
-      
+
       const weekOption = screen.getByText(/week/i);
       if (weekOption) {
         fireEvent.click(weekOption);
-        
+
         await waitFor(() => {
           expect(api.getSentimentTrends).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -338,23 +344,24 @@ describe("SentimentAnalysis Component", () => {
         trends: mockTrendsData,
       },
     });
-    
+
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
     // Look for symbol search input
-    const searchInput = screen.getByPlaceholderText(/symbol/i) || 
-                       screen.getByLabelText(/search/i);
-    
+    const searchInput =
+      screen.getByPlaceholderText(/symbol/i) ||
+      screen.getByLabelText(/search/i);
+
     if (searchInput) {
       await userEvent.type(searchInput, "AAPL");
-      
+
       const searchButton = screen.getByRole("button", { name: /search/i });
       fireEvent.click(searchButton);
-      
+
       await waitFor(() => {
         expect(api.getSymbolSentiment).toHaveBeenCalledWith("AAPL");
       });
@@ -363,7 +370,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays sentiment indicators", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("75")).toBeInTheDocument(); // Fear & Greed Index
       expect(screen.getByText("18.5")).toBeInTheDocument(); // VIX
@@ -373,7 +380,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("shows sentiment volume information", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("45,000")).toBeInTheDocument(); // AAPL volume
       expect(screen.getByText("38,000")).toBeInTheDocument(); // GOOGL volume
@@ -383,7 +390,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays sentiment change indicators", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       // Positive sentiment change
       expect(screen.getByText("0.12")).toBeInTheDocument();
@@ -393,15 +400,16 @@ describe("SentimentAnalysis Component", () => {
 
   it("refreshes sentiment data", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(api.getMarketSentiment).toHaveBeenCalledTimes(1);
     });
 
-    const refreshButton = screen.getByLabelText(/refresh/i) || 
-                         screen.getByRole("button", { name: /refresh/i });
+    const refreshButton =
+      screen.getByLabelText(/refresh/i) ||
+      screen.getByRole("button", { name: /refresh/i });
     fireEvent.click(refreshButton);
-    
+
     await waitFor(() => {
       expect(api.getMarketSentiment).toHaveBeenCalledTimes(2);
     });
@@ -409,7 +417,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("switches between tabs (overview/trends/social)", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Bullish")).toBeInTheDocument();
     });
@@ -418,7 +426,7 @@ describe("SentimentAnalysis Component", () => {
     const trendsTab = screen.getByRole("tab", { name: /trends/i });
     if (trendsTab) {
       fireEvent.click(trendsTab);
-      
+
       await waitFor(() => {
         expect(api.getSentimentTrends).toHaveBeenCalled();
       });
@@ -427,7 +435,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays confidence levels", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("78%")).toBeInTheDocument(); // overall confidence
       expect(screen.getByText(/confidence/i)).toBeInTheDocument();
@@ -443,18 +451,20 @@ describe("SentimentAnalysis Component", () => {
         topSymbols: [],
       },
     });
-    
+
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/no sentiment data/i) || 
-             screen.getByText(/unavailable/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no sentiment data/i) ||
+          screen.getByText(/unavailable/i)
+      ).toBeInTheDocument();
     });
   });
 
   it("shows sentiment score colors", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       // Should show different colored indicators for bullish/bearish
       const sentimentElements = screen.getAllByText(/bullish|bearish/i);
@@ -464,7 +474,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("displays historical sentiment comparison", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       // Should show historical data
       expect(screen.getByText("2024-01-15")).toBeInTheDocument();
@@ -474,7 +484,7 @@ describe("SentimentAnalysis Component", () => {
 
   it("handles real-time sentiment updates", async () => {
     renderWithProviders(<SentimentAnalysis />);
-    
+
     await waitFor(() => {
       expect(api.getMarketSentiment).toHaveBeenCalledTimes(1);
     });
@@ -489,20 +499,26 @@ describe("SentimentAnalysis Component", () => {
   describe("Real-Time News Sentiment Integration", () => {
     it("displays real-time sentiment components for tracked symbols", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        expect(screen.getByText("Real-Time Sentiment for AAPL")).toBeInTheDocument();
-        expect(screen.getByText("Real-Time Sentiment for GOOGL")).toBeInTheDocument();
+        expect(
+          screen.getByText("Real-Time Sentiment for AAPL")
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Real-Time Sentiment for GOOGL")
+        ).toBeInTheDocument();
       });
     });
 
     it("configures real-time sentiment components with correct props", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        const sentimentComponents = screen.getAllByTestId('real-time-sentiment-score');
+        const sentimentComponents = screen.getAllByTestId(
+          "real-time-sentiment-score"
+        );
         expect(sentimentComponents).toHaveLength(2);
-        
+
         expect(screen.getByText("Details shown")).toBeInTheDocument();
         expect(screen.getByText("Size: medium")).toBeInTheDocument();
       });
@@ -510,10 +526,14 @@ describe("SentimentAnalysis Component", () => {
 
     it("displays real-time news feed", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        expect(screen.getByText("Apple reports strong quarterly earnings")).toBeInTheDocument();
-        expect(screen.getByText("Tech sector outlook remains uncertain")).toBeInTheDocument();
+        expect(
+          screen.getByText("Apple reports strong quarterly earnings")
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Tech sector outlook remains uncertain")
+        ).toBeInTheDocument();
         expect(screen.getByText("Reuters")).toBeInTheDocument();
         expect(screen.getByText("Bloomberg")).toBeInTheDocument();
       });
@@ -521,7 +541,7 @@ describe("SentimentAnalysis Component", () => {
 
     it("subscribes to real-time news updates on mount", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         expect(mockRealTimeNewsService.subscribeToNews).toHaveBeenCalledWith(
           expect.any(Function)
@@ -531,15 +551,15 @@ describe("SentimentAnalysis Component", () => {
 
     it("unsubscribes from news updates on unmount", async () => {
       const { unmount } = renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         expect(mockRealTimeNewsService.subscribeToNews).toHaveBeenCalled();
       });
-      
+
       unmount();
-      
+
       expect(mockRealTimeNewsService.unsubscribeFromNews).toHaveBeenCalledWith(
-        'news-subscription-id'
+        "news-subscription-id"
       );
     });
 
@@ -547,74 +567,86 @@ describe("SentimentAnalysis Component", () => {
       let newsCallback;
       mockRealTimeNewsService.subscribeToNews.mockImplementation((callback) => {
         newsCallback = callback;
-        return 'news-subscription-id';
+        return "news-subscription-id";
       });
-      
+
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         expect(mockRealTimeNewsService.subscribeToNews).toHaveBeenCalled();
       });
-      
+
       // Simulate new news arrival
-      const newNews = [{
-        id: 'news_3',
-        title: 'Breaking: New market development',
-        source: 'CNBC',
-        publishedAt: new Date().toISOString(),
-        sentiment: { score: 0.9, label: 'positive' },
-        isRealTime: true
-      }];
-      
+      const newNews = [
+        {
+          id: "news_3",
+          title: "Breaking: New market development",
+          source: "CNBC",
+          publishedAt: new Date().toISOString(),
+          sentiment: { score: 0.9, label: "positive" },
+          isRealTime: true,
+        },
+      ];
+
       newsCallback(newNews);
-      
+
       await waitFor(() => {
-        expect(screen.getByText('Breaking: New market development')).toBeInTheDocument();
+        expect(
+          screen.getByText("Breaking: New market development")
+        ).toBeInTheDocument();
       });
     });
 
     it("fetches and handles breaking news", async () => {
-      const breakingNews = [{
-        id: 'breaking_1',
-        title: 'BREAKING: Major market event',
-        source: 'CNBC',
-        isBreaking: true,
-        priority: 'high'
-      }];
-      
+      const breakingNews = [
+        {
+          id: "breaking_1",
+          title: "BREAKING: Major market event",
+          source: "CNBC",
+          isBreaking: true,
+          priority: "high",
+        },
+      ];
+
       mockRealTimeNewsService.fetchBreakingNews.mockResolvedValue(breakingNews);
-      
+
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         expect(mockRealTimeNewsService.fetchBreakingNews).toHaveBeenCalled();
       });
     });
 
     it("handles breaking news fetch errors gracefully", async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockRealTimeNewsService.fetchBreakingNews.mockRejectedValue(new Error('API Error'));
-      
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockRealTimeNewsService.fetchBreakingNews.mockRejectedValue(
+        new Error("API Error")
+      );
+
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         expect(mockRealTimeNewsService.fetchBreakingNews).toHaveBeenCalled();
       });
-      
+
       consoleSpy.mockRestore();
     });
 
     it("displays real-time sentiment indicators", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        expect(mockRealTimeNewsService.getAllLatestSentiments).toHaveBeenCalled();
+        expect(
+          mockRealTimeNewsService.getAllLatestSentiments
+        ).toHaveBeenCalled();
       });
     });
 
     it("shows news article sentiment scores", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         // Should display sentiment scores for news articles
         const newsElements = screen.getAllByText(/positive|negative/i);
@@ -624,47 +656,63 @@ describe("SentimentAnalysis Component", () => {
 
     it("filters news by sentiment", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        expect(screen.getByText("Apple reports strong quarterly earnings")).toBeInTheDocument();
-        expect(screen.getByText("Tech sector outlook remains uncertain")).toBeInTheDocument();
+        expect(
+          screen.getByText("Apple reports strong quarterly earnings")
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Tech sector outlook remains uncertain")
+        ).toBeInTheDocument();
       });
-      
+
       // Simulate filter for positive sentiment only
       const filterSelect = screen.queryByLabelText(/filter by sentiment/i);
       if (filterSelect) {
-        fireEvent.change(filterSelect, { target: { value: 'positive' } });
-        
+        fireEvent.change(filterSelect, { target: { value: "positive" } });
+
         await waitFor(() => {
-          expect(screen.getByText("Apple reports strong quarterly earnings")).toBeInTheDocument();
-          expect(screen.queryByText("Tech sector outlook remains uncertain")).not.toBeInTheDocument();
+          expect(
+            screen.getByText("Apple reports strong quarterly earnings")
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByText("Tech sector outlook remains uncertain")
+          ).not.toBeInTheDocument();
         });
       }
     });
 
     it("searches news articles by text", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        expect(screen.getByText("Apple reports strong quarterly earnings")).toBeInTheDocument();
-        expect(screen.getByText("Tech sector outlook remains uncertain")).toBeInTheDocument();
+        expect(
+          screen.getByText("Apple reports strong quarterly earnings")
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Tech sector outlook remains uncertain")
+        ).toBeInTheDocument();
       });
-      
+
       // Simulate search for Apple
       const searchInput = screen.queryByPlaceholderText(/search news/i);
       if (searchInput) {
         await userEvent.type(searchInput, "Apple");
-        
+
         await waitFor(() => {
-          expect(screen.getByText("Apple reports strong quarterly earnings")).toBeInTheDocument();
-          expect(screen.queryByText("Tech sector outlook remains uncertain")).not.toBeInTheDocument();
+          expect(
+            screen.getByText("Apple reports strong quarterly earnings")
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByText("Tech sector outlook remains uncertain")
+          ).not.toBeInTheDocument();
         });
       }
     });
 
     it("displays news article impact levels", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         // Should show impact levels for news articles
         const impactElements = screen.getAllByText(/medium|high|low/i);
@@ -674,7 +722,7 @@ describe("SentimentAnalysis Component", () => {
 
     it("shows live indicators for real-time data", async () => {
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
         // Should display live indicators
         const liveIndicators = screen.queryAllByText(/live|real-time/i);
@@ -685,12 +733,14 @@ describe("SentimentAnalysis Component", () => {
     it("handles empty news feed gracefully", async () => {
       mockRealTimeNewsService.getLatestNews.mockReturnValue([]);
       mockRealTimeNewsService.getAllLatestSentiments.mockReturnValue({});
-      
+
       renderWithProviders(<SentimentAnalysis />);
-      
+
       await waitFor(() => {
-        expect(screen.getByText(/no news available|no sentiment data/i) || 
-               screen.getByText(/loading/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/no news available|no sentiment data/i) ||
+            screen.getByText(/loading/i)
+        ).toBeInTheDocument();
       });
     });
   });

@@ -666,10 +666,14 @@ describe("Performance Monitoring Tests", () => {
 
       // Wait for the setTimeout to trigger and resource metrics to load
       await waitFor(() => {
-        expect(screen.getByTestId("total-bundle-size")).toHaveTextContent("Total: 670000 bytes");
+        expect(screen.getByTestId("total-bundle-size")).toHaveTextContent(
+          "Total: 670000 bytes"
+        );
       });
 
-      expect(screen.getByTestId("total-bundle-size")).toHaveTextContent("Total: 670000 bytes");
+      expect(screen.getByTestId("total-bundle-size")).toHaveTextContent(
+        "Total: 670000 bytes"
+      );
       expect(
         screen.getByText("main.js: 245000 bytes, 850ms")
       ).toBeInTheDocument();

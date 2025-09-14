@@ -208,7 +208,10 @@ function StockExplorer() {
         // Add debug logging to see the actual response structure
         console.log("StockExplorer: Raw API response:", result);
         console.log("StockExplorer: Data array:", result?.data);
-        console.log("StockExplorer: First item structure:", result?.data?.results?.[0]);
+        console.log(
+          "StockExplorer: First item structure:",
+          result?.data?.results?.[0]
+        );
 
         logger.info("screenStocks - Request completed", {
           resultCount: result?.data?.length || 0,
@@ -220,7 +223,8 @@ function StockExplorer() {
         });
         return result;
       } catch (err) {
-        if (import.meta.env && import.meta.env.DEV) console.error("StockExplorer: API Error:", err);
+        if (import.meta.env && import.meta.env.DEV)
+          console.error("StockExplorer: API Error:", err);
         logger.error("screenStocks", err, {
           params: buildQueryParams().toString(),
           page: page + 1,
@@ -298,7 +302,7 @@ function StockExplorer() {
   // Fetch comprehensive price history for a stock
   const handleFetchPriceHistory = async (symbol) => {
     // Skip API calls in test environment to prevent hanging
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
       return;
     }
 
@@ -315,17 +319,17 @@ function StockExplorer() {
         console.log(
           "Comprehensive price history loaded for",
           symbol,
-          (result.data?.length || 0),
+          result.data?.length || 0,
           "records"
         );
 
         // Calculate summary statistics from the data
         const priceData = result?.data;
         const summary = {
-          dataPoints: (priceData?.length || 0),
+          dataPoints: priceData?.length || 0,
           priceStats: {
             current: priceData[0]?.close || 0,
-            periodHigh: Math.max(...((priceData || []).map((d) => d.high || 0))),
+            periodHigh: Math.max(...(priceData || []).map((d) => d.high || 0)),
             periodLow: Math.min(
               ...priceData.filter((d) => d.low > 0).map((d) => d.low)
             ),
@@ -354,11 +358,12 @@ function StockExplorer() {
         throw new Error("No price data available");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error(
-        "Error fetching comprehensive price history for",
-        symbol,
-        error
-      );
+      if (import.meta.env && import.meta.env.DEV)
+        console.error(
+          "Error fetching comprehensive price history for",
+          symbol,
+          error
+        );
 
       // Show error in modal
       setPriceHistoryModal({
@@ -414,7 +419,9 @@ function StockExplorer() {
   const deduplicatedCount = stocksList.length;
   if (originalCount > deduplicatedCount) {
     const duplicatesRemoved = originalCount - deduplicatedCount;
-    console.warn(`StockExplorer: Deduplicated ${duplicatesRemoved} duplicate stock symbols. Original: ${originalCount}, After deduplication: ${deduplicatedCount}`);
+    console.warn(
+      `StockExplorer: Deduplicated ${duplicatesRemoved} duplicate stock symbols. Original: ${originalCount}, After deduplication: ${deduplicatedCount}`
+    );
   }
 
   const _renderRangeFilter = (
@@ -686,7 +693,7 @@ function StockExplorer() {
                   )}
                   {stocksList.length > 0 && (
                     <Chip
-                      label={`Showing ${(stocksList?.length || 0)}`}
+                      label={`Showing ${stocksList?.length || 0}`}
                       color="secondary"
                       variant="outlined"
                       sx={{ ml: 1 }}
@@ -733,7 +740,8 @@ function StockExplorer() {
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       API:{" "}
-                      {(import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001"}
+                      {(import.meta.env && import.meta.env.VITE_API_URL) ||
+                        "http://localhost:3001"}
                     </Typography>
                   </Box>
                 </Box>
@@ -752,7 +760,8 @@ function StockExplorer() {
                       <li>Incorrect API endpoint configuration</li>
                     </ul>
                     Current API URL:{" "}
-                    {(import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001"}
+                    {(import.meta.env && import.meta.env.VITE_API_URL) ||
+                      "http://localhost:3001"}
                   </small>
                 </Alert>
               )}
@@ -1467,7 +1476,9 @@ function StockExplorer() {
                       <Box sx={{ width: "100%", height: 400 }}>
                         <ResponsiveContainer>
                           <AreaChart
-                            data={[...(priceHistoryModal?.data || [])].reverse()}
+                            data={[
+                              ...(priceHistoryModal?.data || []),
+                            ].reverse()}
                           >
                             <defs>
                               <linearGradient
@@ -1490,13 +1501,8 @@ function StockExplorer() {
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis
-                              dataKey="date"
-                              interval="preserveStartEnd"
-                            />
-                            <YAxis
-                              domain={["dataMin", "dataMax"]}
-                            />
+                            <XAxis dataKey="date" interval="preserveStartEnd" />
+                            <YAxis domain={["dataMin", "dataMax"]} />
                             <RechartsTooltip
                               formatter={(value) => [
                                 `$${value.toFixed(2)}`,
@@ -1553,7 +1559,10 @@ function StockExplorer() {
                       </TableHead>
                       <TableBody>
                         {(priceHistoryModal.data || []).map((row, index) => (
-                          <TableRow key={`price-${priceHistoryModal.symbol}-${row.date}-${index}`} hover>
+                          <TableRow
+                            key={`price-${priceHistoryModal.symbol}-${row.date}-${index}`}
+                            hover
+                          >
                             <TableCell>
                               {new Date(row.date).toLocaleDateString()}
                             </TableCell>
@@ -1612,8 +1621,8 @@ function StockExplorer() {
                       color: "text.secondary",
                     }}
                   >
-                    Showing {(priceHistoryModal.data?.length || 0)} price records from
-                    your database tables
+                    Showing {priceHistoryModal.data?.length || 0} price records
+                    from your database tables
                   </Typography>
                 </>
               ) : (

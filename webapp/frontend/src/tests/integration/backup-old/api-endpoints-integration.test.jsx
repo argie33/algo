@@ -7,7 +7,7 @@
 // Mock API service at the top level (hoisted) using the working pattern
 vi.mock("../../services/api", () => ({
   // Portfolio API functions
-  getPortfolioData: vi.fn(() => 
+  getPortfolioData: vi.fn(() =>
     Promise.resolve({
       data: {
         holdings: [
@@ -16,15 +16,15 @@ vi.mock("../../services/api", () => ({
         ],
         totalValue: 15500,
         dayChange: 123.45,
-      }
+      },
     })
   ),
-  addHolding: vi.fn((holding) => 
+  addHolding: vi.fn((holding) =>
     Promise.resolve({
-      data: { ...holding, id: "holding-123" }
+      data: { ...holding, id: "holding-123" },
     })
   ),
-  getPortfolioAnalytics: vi.fn((_timeframe) => 
+  getPortfolioAnalytics: vi.fn((_timeframe) =>
     Promise.resolve({
       data: {
         totalReturn: 15.3,
@@ -32,12 +32,12 @@ vi.mock("../../services/api", () => ({
         sharpeRatio: 1.2,
         maxDrawdown: -12.5,
         volatility: 18.2,
-      }
+      },
     })
   ),
-  
+
   // Market Data API functions
-  getMarketOverview: vi.fn(() => 
+  getMarketOverview: vi.fn(() =>
     Promise.resolve({
       data: {
         indices: [
@@ -48,20 +48,20 @@ vi.mock("../../services/api", () => ({
           { name: "Technology", performance: 2.1 },
           { name: "Healthcare", performance: 1.3 },
         ],
-      }
+      },
     })
   ),
-  getMarketSentiment: vi.fn(() => 
+  getMarketSentiment: vi.fn(() =>
     Promise.resolve({
       data: {
         fearGreedIndex: 65,
         sentiment: "Greed",
         vixLevel: 18.5,
         putCallRatio: 0.85,
-      }
+      },
     })
   ),
-  getEconomicIndicators: vi.fn((_days) => 
+  getEconomicIndicators: vi.fn((_days) =>
     Promise.resolve({
       data: {
         indicators: [
@@ -69,20 +69,20 @@ vi.mock("../../services/api", () => ({
           { name: "Inflation", value: 3.2, unit: "%" },
           { name: "Unemployment", value: 4.1, unit: "%" },
         ],
-      }
+      },
     })
   ),
 
   // Stocks API functions
-  searchStocks: vi.fn((_query) => 
+  searchStocks: vi.fn((_query) =>
     Promise.resolve({
       data: [
         { symbol: "AAPL", name: "Apple Inc.", sector: "Technology" },
         { symbol: "MSFT", name: "Microsoft Corp.", sector: "Technology" },
-      ]
+      ],
     })
   ),
-  getStockProfile: vi.fn((symbol) => 
+  getStockProfile: vi.fn((symbol) =>
     Promise.resolve({
       data: {
         symbol: symbol,
@@ -90,20 +90,34 @@ vi.mock("../../services/api", () => ({
         sector: "Technology",
         marketCap: 2800000000000,
         description: "Technology company focused on consumer electronics",
-      }
+      },
     })
   ),
-  getStockPrices: vi.fn((_symbol, _timeframe, _limit) => 
+  getStockPrices: vi.fn((_symbol, _timeframe, _limit) =>
     Promise.resolve({
       data: [
-        { date: "2024-01-01", open: 190, high: 195, low: 188, close: 193, volume: 50000000 },
-        { date: "2024-01-02", open: 193, high: 197, low: 191, close: 196, volume: 48000000 },
-      ]
+        {
+          date: "2024-01-01",
+          open: 190,
+          high: 195,
+          low: 188,
+          close: 193,
+          volume: 50000000,
+        },
+        {
+          date: "2024-01-02",
+          open: 193,
+          high: 197,
+          low: 191,
+          close: 196,
+          volume: 48000000,
+        },
+      ],
     })
   ),
 
   // Technical Analysis API functions
-  getTechnicalIndicators: vi.fn((_symbol, _timeframe, _indicators) => 
+  getTechnicalIndicators: vi.fn((_symbol, _timeframe, _indicators) =>
     Promise.resolve({
       data: {
         rsi: 65.5,
@@ -117,43 +131,43 @@ vi.mock("../../services/api", () => ({
           sma50: 178.9,
           sma200: 165.1,
         },
-      }
+      },
     })
   ),
-  getSupportResistanceLevels: vi.fn((_symbol) => 
+  getSupportResistanceLevels: vi.fn((_symbol) =>
     Promise.resolve({
       data: {
         support: [180, 175, 170],
         resistance: [200, 210, 220],
         current: 185,
-      }
+      },
     })
   ),
 
   // Settings and API Keys functions
-  getApiKeys: vi.fn(() => 
+  getApiKeys: vi.fn(() =>
     Promise.resolve({
       data: {
         apiKeys: [
           { id: "key-1", provider: "alpaca", status: "active" },
           { id: "key-2", provider: "polygon", status: "active" },
         ],
-      }
+      },
     })
   ),
-  addApiKey: vi.fn((apiKeyData) => 
+  addApiKey: vi.fn((apiKeyData) =>
     Promise.resolve({
-      data: { ...apiKeyData, id: "key-3", status: "active" }
+      data: { ...apiKeyData, id: "key-3", status: "active" },
     })
   ),
-  deleteApiKey: vi.fn((keyId) => 
+  deleteApiKey: vi.fn((keyId) =>
     Promise.resolve({
-      data: { deleted: true, id: keyId }
+      data: { deleted: true, id: keyId },
     })
   ),
 
   // Health Check functions
-  getHealth: vi.fn(() => 
+  getHealth: vi.fn(() =>
     Promise.resolve({
       data: {
         status: "healthy",
@@ -164,22 +178,22 @@ vi.mock("../../services/api", () => ({
           externalApis: "healthy",
         },
         uptime: 86400,
-      }
+      },
     })
   ),
-  testApiConnection: vi.fn(() => 
+  testApiConnection: vi.fn(() =>
     Promise.resolve({
       data: {
         connected: true,
         responseTime: 150,
         apiUrl: "https://api.example.com",
         timestamp: new Date().toISOString(),
-      }
+      },
     })
   ),
 
   // Dashboard functions
-  getDashboardSummary: vi.fn(() => 
+  getDashboardSummary: vi.fn(() =>
     Promise.resolve({
       data: {
         user: {
@@ -192,13 +206,11 @@ vi.mock("../../services/api", () => ({
           nasdaq: 14000,
           volatility: 18.5,
         },
-        alerts: [
-          { type: "price", message: "AAPL reached $200" },
-        ],
-      }
+        alerts: [{ type: "price", message: "AAPL reached $200" }],
+      },
     })
   ),
-  getDashboardPortfolioMetrics: vi.fn(() => 
+  getDashboardPortfolioMetrics: vi.fn(() =>
     Promise.resolve({
       data: {
         totalValue: 50000,
@@ -208,7 +220,7 @@ vi.mock("../../services/api", () => ({
           { symbol: "NVDA", return: 85.3 },
           { symbol: "TSLA", return: 42.1 },
         ],
-      }
+      },
     })
   ),
 
@@ -220,7 +232,7 @@ vi.mock("../../services/api", () => ({
     isDevelopment: true,
     isProduction: false,
   })),
-  initializeApi: vi.fn(() => 
+  initializeApi: vi.fn(() =>
     Promise.resolve({
       data: {
         initialized: true,
@@ -228,7 +240,7 @@ vi.mock("../../services/api", () => ({
           baseURL: "http://localhost:3001",
           timeout: 30000,
         },
-      }
+      },
     })
   ),
 
@@ -238,20 +250,19 @@ vi.mock("../../services/api", () => ({
     post: vi.fn(() => Promise.resolve({ data: {} })),
     put: vi.fn(() => Promise.resolve({ data: {} })),
     delete: vi.fn(() => Promise.resolve({ data: {} })),
-  }
+  },
 }));
 
 import { describe, it, expect, vi } from "vitest";
 
 describe("Comprehensive API Endpoints Testing", () => {
-
   describe("Portfolio API Endpoints", () => {
     it("should fetch portfolio data successfully", async () => {
       // Dynamic import to test the mock
       const api = await import("../../services/api");
 
       const result = await api.getPortfolioData();
-      
+
       // Test specific return values instead of just checking existence
       expect(result.data.holdings).toHaveLength(2);
       expect(result.data.holdings[0].symbol).toBe("AAPL");
@@ -265,7 +276,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const newHolding = { symbol: "TSLA", shares: 5, avgPrice: 800 };
 
       const result = await api.addHolding(newHolding);
-      
+
       // Test specific return values
       expect(result.data.symbol).toBe("TSLA");
       expect(result.data.shares).toBe(5);
@@ -277,7 +288,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getPortfolioAnalytics("1y");
-      
+
       // Test specific analytics values
       expect(result.data.totalReturn).toBe(15.3);
       expect(result.data.annualizedReturn).toBe(8.7);
@@ -292,7 +303,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getMarketOverview();
-      
+
       // Test specific market data structure and values
       expect(result.data.indices).toHaveLength(2);
       expect(result.data.indices[0].symbol).toBe("SPX");
@@ -306,7 +317,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getMarketSentiment();
-      
+
       // Test specific sentiment data values
       expect(result.data.fearGreedIndex).toBe(65);
       expect(result.data.sentiment).toBe("Greed");
@@ -318,7 +329,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getEconomicIndicators(90);
-      
+
       expect(api.getEconomicIndicators).toBeDefined();
       expect(result.data.indicators).toHaveLength(3);
       expect(result.data.indicators[0].name).toBe("GDP");
@@ -328,7 +339,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getMarketCorrelation();
-      
+
       expect(result.success).toBe(true);
       expect(result.message).toContain("Market correlation analysis");
       expect(result.data.correlation_matrix).toBeDefined();
@@ -337,11 +348,11 @@ describe("Comprehensive API Endpoints Testing", () => {
     });
 
     it("should get economics data via redirect", async () => {
-      const response = await fetch('/api/market/economics');
-      
+      const response = await fetch("/api/market/economics");
+
       // Should redirect and return data
       expect([200, 302]).toContain(response.status);
-      
+
       if (response.status === 200) {
         const result = await response.json();
         expect(result.success).toBe(true);
@@ -355,7 +366,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.searchStocks("apple");
-      
+
       expect(api.searchStocks).toBeDefined();
       expect(result.data).toHaveLength(2);
       expect(result.data[0].symbol).toBe("AAPL");
@@ -366,7 +377,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getStockProfile("AAPL");
-      
+
       expect(api.getStockProfile).toBeDefined();
       expect(result.data.symbol).toBe("AAPL");
       expect(result.data.name).toBe("Apple Inc.");
@@ -377,7 +388,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getStockPrices("AAPL", "daily", 30);
-      
+
       expect(api.getStockPrices).toBeDefined();
       expect(result.data).toHaveLength(2);
       expect(result.data[0].date).toBe("2024-01-01");
@@ -388,8 +399,12 @@ describe("Comprehensive API Endpoints Testing", () => {
     it("should get technical indicators", async () => {
       const api = await import("../../services/api");
 
-      const result = await api.getTechnicalIndicators("AAPL", "daily", ["RSI", "MACD", "SMA"]);
-      
+      const result = await api.getTechnicalIndicators("AAPL", "daily", [
+        "RSI",
+        "MACD",
+        "SMA",
+      ]);
+
       expect(api.getTechnicalIndicators).toBeDefined();
       expect(result.data.rsi).toBe(65.5);
       expect(result.data.macd.macd).toBe(2.3);
@@ -400,7 +415,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getSupportResistanceLevels("AAPL");
-      
+
       expect(api.getSupportResistanceLevels).toBeDefined();
       expect(result.data.support).toHaveLength(3);
       expect(result.data.resistance).toHaveLength(3);
@@ -413,7 +428,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getApiKeys();
-      
+
       expect(api.getApiKeys).toBeDefined();
       expect(result.data.apiKeys).toHaveLength(2);
       expect(result.data.apiKeys[0].provider).toBe("alpaca");
@@ -428,7 +443,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       };
 
       const result = await api.addApiKey(newApiKey);
-      
+
       expect(api.addApiKey).toBeDefined();
       expect(result.data.provider).toBe("finnhub");
       expect(result.data.id).toBe("key-3");
@@ -438,7 +453,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.deleteApiKey("key-1");
-      
+
       expect(api.deleteApiKey).toBeDefined();
       expect(result.data.deleted).toBe(true);
       expect(result.data.id).toBe("key-1");
@@ -450,7 +465,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getHealth();
-      
+
       expect(api.getHealth).toBeDefined();
       expect(result.data.status).toBe("healthy");
       expect(result.data.services).toBeDefined();
@@ -461,7 +476,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.testApiConnection();
-      
+
       expect(api.testApiConnection).toBeDefined();
       expect(result.data.connected).toBe(true);
       expect(result.data.responseTime).toBe(150);
@@ -473,7 +488,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getDashboardSummary();
-      
+
       expect(api.getDashboardSummary).toBeDefined();
       expect(result.data.user.portfolioValue).toBe(50000);
       expect(result.data.alerts).toHaveLength(1);
@@ -483,7 +498,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.getDashboardPortfolioMetrics();
-      
+
       expect(api.getDashboardPortfolioMetrics).toBeDefined();
       expect(result.data.totalValue).toBe(50000);
       expect(result.data.topPerformers).toHaveLength(2);
@@ -494,7 +509,7 @@ describe("Comprehensive API Endpoints Testing", () => {
     it("should get API configuration", async () => {
       const api = await import("../../services/api");
       const config = api.getApiConfig();
-      
+
       expect(config).toHaveProperty("baseURL");
       expect(config).toHaveProperty("isServerless");
       expect(config).toHaveProperty("environment");
@@ -504,7 +519,7 @@ describe("Comprehensive API Endpoints Testing", () => {
       const api = await import("../../services/api");
 
       const result = await api.initializeApi();
-      
+
       expect(api.initializeApi).toBeDefined();
       expect(result.data.initialized).toBe(true);
       expect(result.data.config).toBeDefined();

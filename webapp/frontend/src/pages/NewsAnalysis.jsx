@@ -37,7 +37,7 @@ import {
   Psychology,
   SmartToy,
 } from "@mui/icons-material";
-import api from '../services/api';
+import api from "../services/api";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -65,41 +65,44 @@ const NewsAnalysis = () => {
   const [bookmarkedNews, setBookmarkedNews] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  const logger = useMemo(() => ({
-    info: (msg) => console.log(`[NewsAnalysis] ${msg}`),
-    error: (msg) => console.error(`[NewsAnalysis] ${msg}`),
-    warn: (msg) => console.warn(`[NewsAnalysis] ${msg}`)
-  }), []);
+
+  const logger = useMemo(
+    () => ({
+      info: (msg) => console.log(`[NewsAnalysis] ${msg}`),
+      error: (msg) => console.error(`[NewsAnalysis] ${msg}`),
+      warn: (msg) => console.warn(`[NewsAnalysis] ${msg}`),
+    }),
+    []
+  );
 
   const fetchAllNewsData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Convert selectedTimeframe to API format
       const timeframeMap = {
         "1h": "1h",
-        "4h": "4h", 
+        "4h": "4h",
         "24h": "1d",
         "7d": "7d",
-        "30d": "1m"
+        "30d": "1m",
       };
-      
+
       const apiTimeframe = timeframeMap[selectedTimeframe] || "1d";
-      
-      logger.info("Fetching news data", { 
-        category: selectedCategory, 
-        timeframe: apiTimeframe 
+
+      logger.info("Fetching news data", {
+        category: selectedCategory,
+        timeframe: apiTimeframe,
       });
-      
+
       // Fetch articles
       const articlesParams = {
         category: selectedCategory !== "all" ? selectedCategory : undefined,
         timeframe: apiTimeframe,
-        limit: 50
+        limit: 50,
       };
-      
+
       const articlesResponse = await api.get(
         `/api/news/articles?${new URLSearchParams(
           Object.entries(articlesParams).filter(([_k, v]) => v !== undefined)
@@ -107,37 +110,38 @@ const NewsAnalysis = () => {
         { method: "GET" },
         "NewsAnalysis"
       );
-      
+
       if (articlesResponse?.articles) {
         setArticles(articlesResponse.articles);
-        logger.info("Articles loaded successfully", { count: (articlesResponse.articles?.length || 0) });
+        logger.info("Articles loaded successfully", {
+          count: articlesResponse.articles?.length || 0,
+        });
       }
-      
-      // Fetch market sentiment  
+
+      // Fetch market sentiment
       const sentimentResponse = await api.get(
         "/api/news/market-sentiment",
         { method: "GET" },
         "NewsAnalysis"
       );
-      
+
       if (sentimentResponse) {
         setMarketSentiment(sentimentResponse);
         logger.info("Market sentiment loaded successfully");
       }
-      
+
       // Fetch sentiment dashboard
       const dashboardResponse = await api.get(
-        "/api/news/sentiment-dashboard", 
+        "/api/news/sentiment-dashboard",
         { method: "GET" },
         "NewsAnalysis"
       );
-      
+
       if (dashboardResponse) {
         setSentimentDashboard(dashboardResponse);
         _setNewsData(dashboardResponse);
         logger.info("Sentiment dashboard loaded successfully");
       }
-      
     } catch (err) {
       logger.error("Failed to fetch news data", err);
       setError(err.message || "Failed to load news data");
@@ -155,7 +159,7 @@ const NewsAnalysis = () => {
   };
 
   const handleBookmark = (articleId) => {
-    setBookmarkedNews(prev => {
+    setBookmarkedNews((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(articleId)) {
         newSet.delete(articleId);
@@ -171,7 +175,7 @@ const NewsAnalysis = () => {
     { value: "4h", label: "Last 4 Hours" },
     { value: "24h", label: "Last 24 Hours" },
     { value: "7d", label: "Last 7 Days" },
-    { value: "30d", label: "Last 30 Days" }
+    { value: "30d", label: "Last 30 Days" },
   ];
 
   const getCategoryOptions = () => [
@@ -180,13 +184,18 @@ const NewsAnalysis = () => {
     { value: "fed", label: "Federal Reserve" },
     { value: "market", label: "Market News" },
     { value: "tech", label: "Technology" },
-    { value: "finance", label: "Finance" }
+    { value: "finance", label: "Finance" },
   ];
 
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="60vh"
+        >
           <Box textAlign="center">
             <CircularProgress size={60} sx={{ mb: 2 }} />
             <Typography variant="h6" color="text.secondary">
@@ -205,15 +214,9 @@ const NewsAnalysis = () => {
           <Typography variant="h6" gutterBottom>
             Error Loading News Data
           </Typography>
-          <Typography variant="body2">
-            {error}
-          </Typography>
+          <Typography variant="body2">{error}</Typography>
         </Alert>
-        <Button 
-          variant="contained" 
-          onClick={fetchAllNewsData}
-          sx={{ mt: 2 }}
-        >
+        <Button variant="contained" onClick={fetchAllNewsData} sx={{ mt: 2 }}>
           Retry Loading
         </Button>
       </Container>
@@ -247,7 +250,9 @@ const NewsAnalysis = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
-                  startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
+                  startAdornment: (
+                    <Search sx={{ mr: 1, color: "text.secondary" }} />
+                  ),
                 }}
               />
             </Grid>
@@ -284,7 +289,9 @@ const NewsAnalysis = () => {
                 variant="outlined"
                 onClick={fetchAllNewsData}
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : <Analytics />}
+                startIcon={
+                  loading ? <CircularProgress size={16} /> : <Analytics />
+                }
               >
                 {loading ? "Loading..." : "Analyze"}
               </Button>
@@ -306,16 +313,8 @@ const NewsAnalysis = () => {
             icon={<Psychology />}
             iconPosition="start"
           />
-          <Tab
-            label="AI Insights"
-            icon={<Insights />}
-            iconPosition="start"
-          />
-          <Tab
-            label="News Articles"
-            icon={<Article />}
-            iconPosition="start"
-          />
+          <Tab label="AI Insights" icon={<Insights />} iconPosition="start" />
+          <Tab label="News Articles" icon={<Article />} iconPosition="start" />
           <Tab
             label="Market Impact"
             icon={<ShowChart />}
@@ -330,7 +329,7 @@ const NewsAnalysis = () => {
           {/* Market Sentiment Overview */}
           <Grid item xs={12} lg={8}>
             <Card>
-              <CardHeader 
+              <CardHeader
                 title="Market Sentiment Overview"
                 subheader="Real-time sentiment analysis from multiple sources"
               />
@@ -358,7 +357,8 @@ const NewsAnalysis = () => {
               <CardHeader title="Sentiment Distribution" />
               <CardContent>
                 <Typography variant="body2" color="text.secondary">
-                  Sentiment breakdown will be displayed here when data is available.
+                  Sentiment breakdown will be displayed here when data is
+                  available.
                 </Typography>
               </CardContent>
             </Card>
@@ -368,7 +368,7 @@ const NewsAnalysis = () => {
 
       <TabPanel value={tabValue} index={1}>
         <Card>
-          <CardHeader 
+          <CardHeader
             title="AI-Powered Insights"
             subheader="Machine learning analysis of market trends and patterns"
           />
@@ -393,18 +393,23 @@ const NewsAnalysis = () => {
 
       <TabPanel value={tabValue} index={2}>
         <Card>
-          <CardHeader 
+          <CardHeader
             title="Latest News Articles"
-            subheader={`Showing ${(articles?.length || 0)} articles`}
+            subheader={`Showing ${articles?.length || 0} articles`}
           />
           <CardContent>
             {articles.length > 0 ? (
               <List>
                 {articles
-                  .filter(article => 
-                    !searchTerm || 
-                    article.headline?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
+                  .filter(
+                    (article) =>
+                      !searchTerm ||
+                      article.headline
+                        ?.toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                      article.summary
+                        ?.toLowerCase()
+                        .includes(searchTerm.toLowerCase())
                   )
                   .slice(0, 20)
                   .map((article, index) => (
@@ -417,50 +422,84 @@ const NewsAnalysis = () => {
                         </ListItemAvatar>
                         <ListItemText
                           primary={
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                              <Typography variant="h6" component="div" sx={{ flexGrow: 1, pr: 1 }}>
-                                {article.headline || article.title || "Untitled Article"}
+                            <Box
+                              display="flex"
+                              justifyContent="space-between"
+                              alignItems="flex-start"
+                            >
+                              <Typography
+                                variant="h6"
+                                component="div"
+                                sx={{ flexGrow: 1, pr: 1 }}
+                              >
+                                {article.headline ||
+                                  article.title ||
+                                  "Untitled Article"}
                               </Typography>
                               <IconButton
                                 size="small"
                                 onClick={() => handleBookmark(article.id)}
                                 sx={{ ml: 1 }}
                               >
-                                {bookmarkedNews.has(article.id) ? 
-                                  <Bookmark color="primary" /> : 
+                                {bookmarkedNews.has(article.id) ? (
+                                  <Bookmark color="primary" />
+                                ) : (
                                   <BookmarkBorder />
-                                }
+                                )}
                               </IconButton>
                             </Box>
                           }
                           secondary={
                             <Box>
-                              <Typography variant="body2" color="text.secondary" paragraph>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                paragraph
+                              >
                                 {article.summary || "No summary available"}
                               </Typography>
-                              <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-                                <Typography variant="caption" color="text.secondary">
+                              <Box
+                                display="flex"
+                                alignItems="center"
+                                gap={2}
+                                flexWrap="wrap"
+                              >
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
                                   {article.source || "Unknown Source"}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
                                   <AccessTime sx={{ fontSize: 14, mr: 0.5 }} />
-                                  {article.timestamp ? new Date(article.timestamp).toLocaleString() : "Unknown Time"}
+                                  {article.timestamp
+                                    ? new Date(
+                                        article.timestamp
+                                      ).toLocaleString()
+                                    : "Unknown Time"}
                                 </Typography>
                                 {article.sentiment && (
-                                  <Chip 
-                                    label={article.sentiment} 
-                                    size="small" 
+                                  <Chip
+                                    label={article.sentiment}
+                                    size="small"
                                     color={
-                                      article.sentiment === "Positive" || article.sentiment === "Bullish" ? "success" :
-                                      article.sentiment === "Negative" || article.sentiment === "Bearish" ? "error" : 
-                                      "default"
+                                      article.sentiment === "Positive" ||
+                                      article.sentiment === "Bullish"
+                                        ? "success"
+                                        : article.sentiment === "Negative" ||
+                                            article.sentiment === "Bearish"
+                                          ? "error"
+                                          : "default"
                                     }
                                   />
                                 )}
                                 {article.impact && (
-                                  <Chip 
-                                    label={`${article.impact} Impact`} 
-                                    size="small" 
+                                  <Chip
+                                    label={`${article.impact} Impact`}
+                                    size="small"
                                     variant="outlined"
                                   />
                                 )}
@@ -469,12 +508,19 @@ const NewsAnalysis = () => {
                           }
                         />
                       </ListItem>
-                      {index < (articles?.length || 0) - 1 && <Divider variant="inset" component="li" />}
+                      {index < (articles?.length || 0) - 1 && (
+                        <Divider variant="inset" component="li" />
+                      )}
                     </React.Fragment>
                   ))}
               </List>
             ) : (
-              <Typography variant="body2" color="text.secondary" textAlign="center" py={4}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                textAlign="center"
+                py={4}
+              >
                 No news articles available for the selected criteria
               </Typography>
             )}
@@ -484,13 +530,14 @@ const NewsAnalysis = () => {
 
       <TabPanel value={tabValue} index={3}>
         <Card>
-          <CardHeader 
+          <CardHeader
             title="Market Impact Analysis"
             subheader="How news events are affecting market movements"
           />
           <CardContent>
             <Typography variant="body2" color="text.secondary">
-              Market impact analysis will be displayed here when data is available.
+              Market impact analysis will be displayed here when data is
+              available.
             </Typography>
           </CardContent>
         </Card>

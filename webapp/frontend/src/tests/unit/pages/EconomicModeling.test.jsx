@@ -97,7 +97,7 @@ describe("EconomicModeling Component", () => {
 
   it("renders economic modeling page", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     expect(screen.getByText(/economic modeling/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(api.getEconomicIndicators).toHaveBeenCalled();
@@ -106,7 +106,7 @@ describe("EconomicModeling Component", () => {
 
   it("displays economic indicators", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Consumer Confidence")).toBeInTheDocument();
       expect(screen.getByText("Manufacturing PMI")).toBeInTheDocument();
@@ -117,17 +117,17 @@ describe("EconomicModeling Component", () => {
 
   it("shows loading state initially", () => {
     api.getEconomicIndicators.mockImplementation(() => new Promise(() => {}));
-    
+
     renderWithProviders(<EconomicModeling />);
-    
+
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
     api.getEconomicIndicators.mockRejectedValue(new Error("API Error"));
-    
+
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -135,7 +135,7 @@ describe("EconomicModeling Component", () => {
 
   it("displays GDP data with growth rates", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("2023-Q4")).toBeInTheDocument();
       expect(screen.getByText("2.4%")).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe("EconomicModeling Component", () => {
 
   it("shows inflation trends", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("3.1")).toBeInTheDocument();
       expect(screen.getByText("3.2")).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe("EconomicModeling Component", () => {
 
   it("displays unemployment data", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("3.7")).toBeInTheDocument();
       expect(screen.getByText("3.9")).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe("EconomicModeling Component", () => {
 
   it("switches between different tabs", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Consumer Confidence")).toBeInTheDocument();
     });
@@ -171,7 +171,7 @@ describe("EconomicModeling Component", () => {
     const tabs = screen.getAllByRole("tab");
     if (tabs.length > 1) {
       fireEvent.click(tabs[1]);
-      
+
       await waitFor(() => {
         expect(api.getGDPData).toHaveBeenCalled();
       });
@@ -180,12 +180,12 @@ describe("EconomicModeling Component", () => {
 
   it("shows trend indicators with colors", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       // Look for trend indicators (up/down arrows or colors)
       const positiveElements = screen.getAllByText(/2.3/);
       const negativeElements = screen.getAllByText(/-1.2/);
-      
+
       expect(positiveElements.length).toBeGreaterThan(0);
       expect(negativeElements.length).toBeGreaterThan(0);
     });
@@ -193,17 +193,18 @@ describe("EconomicModeling Component", () => {
 
   it("refreshes data when refresh button is clicked", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(api.getEconomicIndicators).toHaveBeenCalledTimes(1);
     });
 
-    const refreshButton = screen.getByLabelText(/refresh/i) || 
-                         screen.getByRole("button", { name: /refresh/i });
-    
+    const refreshButton =
+      screen.getByLabelText(/refresh/i) ||
+      screen.getByRole("button", { name: /refresh/i });
+
     if (refreshButton) {
       fireEvent.click(refreshButton);
-      
+
       await waitFor(() => {
         expect(api.getEconomicIndicators).toHaveBeenCalledTimes(2);
       });
@@ -215,11 +216,13 @@ describe("EconomicModeling Component", () => {
       success: true,
       data: [],
     });
-    
+
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/no data/i) || screen.getByText(/no indicators/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no data/i) || screen.getByText(/no indicators/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -228,14 +231,14 @@ describe("EconomicModeling Component", () => {
       { metric: "GDP Growth", forecast: 2.8, period: "2024-Q1" },
       { metric: "Inflation Rate", forecast: 2.2, period: "2024-Q1" },
     ];
-    
+
     api.getEconomicForecasts.mockResolvedValue({
       success: true,
       data: mockForecasts,
     });
-    
+
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(api.getEconomicForecasts).toHaveBeenCalled();
     });
@@ -243,7 +246,7 @@ describe("EconomicModeling Component", () => {
 
   it("allows toggling between different time periods", async () => {
     renderWithProviders(<EconomicModeling />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Consumer Confidence")).toBeInTheDocument();
     });
@@ -252,11 +255,11 @@ describe("EconomicModeling Component", () => {
     const selects = screen.getAllByRole("combobox");
     if (selects.length > 0) {
       fireEvent.mouseDown(selects[0]);
-      
+
       const options = screen.getAllByRole("option");
       if (options.length > 1) {
         fireEvent.click(options[1]);
-        
+
         await waitFor(() => {
           expect(api.getEconomicIndicators).toHaveBeenCalledTimes(2);
         });

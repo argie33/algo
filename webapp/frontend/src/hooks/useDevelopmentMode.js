@@ -1,5 +1,5 @@
 // Development mode detection and API availability checking
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 export function useDevelopmentMode() {
   const [isDevelopment, setIsDevelopment] = useState(false);
@@ -7,10 +7,11 @@ export function useDevelopmentMode() {
 
   useEffect(() => {
     // Check if we're in development mode
-    const isDevMode = window.location.hostname === 'localhost' || 
-                     window.location.hostname === '127.0.0.1' ||
-                     window.location.port === '5173';
-    
+    const isDevMode =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.port === "5173";
+
     setIsDevelopment(isDevMode);
 
     // In development mode, quickly check if API is available
@@ -19,13 +20,13 @@ export function useDevelopmentMode() {
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout
-          
-          const apiUrl = window.__CONFIG__?.API_URL || 'http://localhost:3001';
+
+          const apiUrl = window.__CONFIG__?.API_URL || "http://localhost:3001";
           const response = await fetch(`${apiUrl}/api/health`, {
             signal: controller.signal,
-            headers: { 'Accept': 'application/json' }
+            headers: { Accept: "application/json" },
           });
-          
+
           clearTimeout(timeoutId);
           const available = response.ok;
           // API availability check
@@ -45,14 +46,14 @@ export function useDevelopmentMode() {
   }, []);
 
   const shouldEnableQueries = !isDevelopment || apiAvailable;
-  
+
   // Development mode debugging available
 
   return {
     isDevelopment,
     apiAvailable,
     // Helper to determine if queries should be enabled
-    shouldEnableQueries
+    shouldEnableQueries,
   };
 }
 

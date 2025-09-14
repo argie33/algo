@@ -57,7 +57,7 @@ import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 const logger = {
   info: (msg) => console.log(`[TradingSignals] ${msg}`),
   error: (msg) => console.error(`[TradingSignals] ${msg}`),
-  warn: (msg) => console.warn(`[TradingSignals] ${msg}`)
+  warn: (msg) => console.warn(`[TradingSignals] ${msg}`),
 };
 
 function TradingSignals() {
@@ -172,7 +172,7 @@ function TradingSignals() {
     if (!signalsData?.data || !Array.isArray(signalsData?.data)) return null;
 
     const signals = signalsData?.data;
-    const totalSignals = (signals?.length || 0);
+    const totalSignals = signals?.length || 0;
     const recentSignals = signals.filter((s) => isRecentSignal(s.date)).length;
     const buySignals = signals.filter((s) => s.signal === "Buy").length;
     const sellSignals = signals.filter((s) => s.signal === "Sell").length;
@@ -220,8 +220,8 @@ function TradingSignals() {
     }
 
     logger.info("filteredSignals", "Data filtered", {
-      originalCount: (signalsData.data?.length || 0),
-      filteredCount: (filtered?.length || 0),
+      originalCount: signalsData.data?.length || 0,
+      filteredCount: filtered?.length || 0,
       showRecentOnly,
       symbolFilter,
     });

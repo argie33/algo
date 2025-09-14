@@ -53,7 +53,8 @@ const mockNewsData = [
   {
     id: 2,
     title: "Market Volatility Continues",
-    summary: "Stock market faces continued volatility amid economic uncertainty...",
+    summary:
+      "Stock market faces continued volatility amid economic uncertainty...",
     url: "https://example.com/news/2",
     source: "Bloomberg",
     publishedAt: "2024-01-15T08:15:00Z",
@@ -97,7 +98,7 @@ describe("NewsAnalysis Component", () => {
 
   it("renders news analysis page", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     expect(screen.getByText(/news analysis/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(api.getNewsAnalysis).toHaveBeenCalled();
@@ -106,10 +107,14 @@ describe("NewsAnalysis Component", () => {
 
   it("displays news articles", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText("Apple Reports Strong Q4 Earnings")).toBeInTheDocument();
-      expect(screen.getByText("Market Volatility Continues")).toBeInTheDocument();
+      expect(
+        screen.getByText("Apple Reports Strong Q4 Earnings")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Market Volatility Continues")
+      ).toBeInTheDocument();
       expect(screen.getByText("Reuters")).toBeInTheDocument();
       expect(screen.getByText("Bloomberg")).toBeInTheDocument();
     });
@@ -117,7 +122,7 @@ describe("NewsAnalysis Component", () => {
 
   it("shows sentiment indicators", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/positive/i)).toBeInTheDocument();
       expect(screen.getByText(/negative/i)).toBeInTheDocument();
@@ -128,7 +133,7 @@ describe("NewsAnalysis Component", () => {
 
   it("displays overall sentiment summary", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("neutral")).toBeInTheDocument();
       expect(screen.getByText("45")).toBeInTheDocument(); // positive count
@@ -138,17 +143,17 @@ describe("NewsAnalysis Component", () => {
 
   it("shows loading state initially", () => {
     api.getNewsAnalysis.mockImplementation(() => new Promise(() => {}));
-    
+
     renderWithProviders(<NewsAnalysis />);
-    
+
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
     api.getNewsAnalysis.mockRejectedValue(new Error("API Error"));
-    
+
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -159,20 +164,23 @@ describe("NewsAnalysis Component", () => {
       success: true,
       data: [mockNewsData[0]], // Only AAPL news
     });
-    
+
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText("Apple Reports Strong Q4 Earnings")).toBeInTheDocument();
+      expect(
+        screen.getByText("Apple Reports Strong Q4 Earnings")
+      ).toBeInTheDocument();
     });
 
     // Look for symbol filter
-    const searchInput = screen.getByPlaceholderText(/search/i) || 
-                       screen.getByLabelText(/filter/i);
-    
+    const searchInput =
+      screen.getByPlaceholderText(/search/i) ||
+      screen.getByLabelText(/filter/i);
+
     if (searchInput) {
       await userEvent.type(searchInput, "AAPL");
-      
+
       await waitFor(() => {
         expect(api.searchNews).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -185,29 +193,35 @@ describe("NewsAnalysis Component", () => {
 
   it("filters news by sentiment", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText("Apple Reports Strong Q4 Earnings")).toBeInTheDocument();
+      expect(
+        screen.getByText("Apple Reports Strong Q4 Earnings")
+      ).toBeInTheDocument();
     });
 
     // Look for sentiment filter dropdown
-    const sentimentFilter = screen.getByRole("combobox", { name: /sentiment/i });
+    const sentimentFilter = screen.getByRole("combobox", {
+      name: /sentiment/i,
+    });
     if (sentimentFilter) {
       fireEvent.mouseDown(sentimentFilter);
-      
+
       const positiveOption = screen.getByText(/positive/i);
       fireEvent.click(positiveOption);
-      
+
       await waitFor(() => {
         // Should show filtered results
-        expect(screen.getByText("Apple Reports Strong Q4 Earnings")).toBeInTheDocument();
+        expect(
+          screen.getByText("Apple Reports Strong Q4 Earnings")
+        ).toBeInTheDocument();
       });
     }
   });
 
   it("displays trending keywords", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("earnings")).toBeInTheDocument();
       expect(screen.getByText("inflation")).toBeInTheDocument();
@@ -216,16 +230,18 @@ describe("NewsAnalysis Component", () => {
 
   it("shows news timestamps", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       // Should display formatted timestamps
-      expect(screen.getByText(/Jan/i) || screen.getByText(/2024/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Jan/i) || screen.getByText(/2024/i)
+      ).toBeInTheDocument();
     });
   });
 
   it("displays news sources", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Reuters")).toBeInTheDocument();
       expect(screen.getByText("Bloomberg")).toBeInTheDocument();
@@ -234,24 +250,30 @@ describe("NewsAnalysis Component", () => {
 
   it("shows article summaries", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/Apple Inc. reported better-than-expected/)).toBeInTheDocument();
-      expect(screen.getByText(/Stock market faces continued volatility/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Apple Inc. reported better-than-expected/)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Stock market faces continued volatility/)
+      ).toBeInTheDocument();
     });
   });
 
   it("handles clicking on news articles", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText("Apple Reports Strong Q4 Earnings")).toBeInTheDocument();
+      expect(
+        screen.getByText("Apple Reports Strong Q4 Earnings")
+      ).toBeInTheDocument();
     });
 
     // Click on news title (should open in new tab or show details)
     const newsTitle = screen.getByText("Apple Reports Strong Q4 Earnings");
     fireEvent.click(newsTitle);
-    
+
     // Since it's a link, check if it has proper attributes
     const linkElement = newsTitle.closest("a");
     if (linkElement) {
@@ -261,15 +283,16 @@ describe("NewsAnalysis Component", () => {
 
   it("refreshes news data", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(api.getNewsAnalysis).toHaveBeenCalledTimes(1);
     });
 
-    const refreshButton = screen.getByLabelText(/refresh/i) || 
-                         screen.getByRole("button", { name: /refresh/i });
+    const refreshButton =
+      screen.getByLabelText(/refresh/i) ||
+      screen.getByRole("button", { name: /refresh/i });
     fireEvent.click(refreshButton);
-    
+
     await waitFor(() => {
       expect(api.getNewsAnalysis).toHaveBeenCalledTimes(2);
     });
@@ -277,7 +300,7 @@ describe("NewsAnalysis Component", () => {
 
   it("displays related symbols for each article", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("SPY")).toBeInTheDocument();
@@ -290,17 +313,19 @@ describe("NewsAnalysis Component", () => {
       success: true,
       data: [],
     });
-    
+
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/no news/i) || screen.getByText(/no articles/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no news/i) || screen.getByText(/no articles/i)
+      ).toBeInTheDocument();
     });
   });
 
   it("displays keyword tags", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("earnings")).toBeInTheDocument();
       expect(screen.getByText("market")).toBeInTheDocument();
@@ -310,9 +335,11 @@ describe("NewsAnalysis Component", () => {
 
   it("filters by date range", async () => {
     renderWithProviders(<NewsAnalysis />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText("Apple Reports Strong Q4 Earnings")).toBeInTheDocument();
+      expect(
+        screen.getByText("Apple Reports Strong Q4 Earnings")
+      ).toBeInTheDocument();
     });
 
     // Look for date filter inputs
@@ -320,7 +347,7 @@ describe("NewsAnalysis Component", () => {
     if (dateInputs.length > 0) {
       await userEvent.clear(dateInputs[0]);
       await userEvent.type(dateInputs[0], "2024-01-15");
-      
+
       await waitFor(() => {
         expect(api.getNewsAnalysis).toHaveBeenCalledWith(
           expect.objectContaining({

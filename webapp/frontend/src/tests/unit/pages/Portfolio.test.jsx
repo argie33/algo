@@ -1,31 +1,32 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import { vi } from 'vitest';
-import Portfolio from '../../../pages/Portfolio';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
+import { vi } from "vitest";
+import Portfolio from "../../../pages/Portfolio";
 
 // Mock hooks and context
-vi.mock('../../../contexts/AuthContext', () => ({
+vi.mock("../../../contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: { id: 'test-user', username: 'testuser' },
-    isAuthenticated: true
-  })
+    user: { id: "test-user", username: "testuser" },
+    isAuthenticated: true,
+  }),
 }));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
   return {
     ...actual,
     useNavigate: () => vi.fn(),
-    useLocation: () => ({ pathname: '/portfolio' })
+    useLocation: () => ({ pathname: "/portfolio" }),
   };
 });
 
-vi.mock('../../../hooks/useDocumentTitle', () => ({
-  useDocumentTitle: vi.fn()
+const mockUseDocumentTitle = vi.fn();
+vi.mock("../../../hooks/useDocumentTitle", () => ({
+  useDocumentTitle: mockUseDocumentTitle,
 }));
 
 // Mock API service
-vi.mock('../../../services/api', () => ({
+vi.mock("../../../services/api", () => ({
   default: {
     get: vi.fn().mockResolvedValue({
       data: {
@@ -34,21 +35,29 @@ vi.mock('../../../services/api', () => ({
           portfolio: {
             value: 100000,
             dayChange: 1500,
-            dayChangePercent: 1.52
+            dayChangePercent: 1.52,
           },
           positions: [],
           performance: {
             totalReturn: 15000,
-            totalReturnPercent: 17.5
-          }
-        }
-      }
+            totalReturnPercent: 17.5,
+          },
+        },
+      },
     }),
-    post: vi.fn().mockResolvedValue({ data: { success: true } })
-  }
+    post: vi.fn().mockResolvedValue({ data: { success: true } }),
+  },
+  getApiConfig: vi.fn(() => ({
+    baseURL: "http://localhost:3001",
+    apiUrl: "http://localhost:3001",
+    isDevelopment: true,
+  })),
+  getApiKeys: vi.fn(),
+  testApiConnection: vi.fn(),
+  importPortfolioFromBroker: vi.fn(),
 }));
 
-describe('Portfolio', () => {
+describe("Portfolio", () => {
   const renderPortfolio = () => {
     return render(
       <BrowserRouter>
@@ -59,24 +68,28 @@ describe('Portfolio', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseDocumentTitle.mockClear();
   });
 
-  describe('Basic Rendering', () => {
-    test('renders portfolio page', async () => {
+  describe("Basic Rendering", () => {
+    test("renders portfolio page", async () => {
       renderPortfolio();
-      
+
       // Should render without crashing
       expect(document.body).toBeInTheDocument();
-      
+
       // Wait for any loading states to resolve
-      await waitFor(() => {
-        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-      }, { timeout: 5000 });
+      await waitFor(
+        () => {
+          expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
 
-    test('displays portfolio title', async () => {
+    test("displays portfolio title", async () => {
       renderPortfolio();
-      
+
       await waitFor(() => {
         const title = screen.queryByText(/portfolio/i);
         if (title) {
@@ -85,9 +98,9 @@ describe('Portfolio', () => {
       });
     });
 
-    test('shows portfolio value when data loads', async () => {
+    test("shows portfolio value when data loads", async () => {
       renderPortfolio();
-      
+
       await waitFor(() => {
         // Look for any monetary value display
         const values = screen.queryAllByText(/\$|,/);
@@ -96,43 +109,43 @@ describe('Portfolio', () => {
     });
   });
 
-  describe('Data Loading', () => {
-    test('handles loading state', () => {
+  describe("Data Loading", () => {
+    test("handles loading state", () => {
       renderPortfolio();
-      
+
       // Should handle initial render without errors
       expect(document.body).toBeInTheDocument();
     });
 
-    test('handles API error gracefully', async () => {
-      const mockApi = await import('../../../services/api');
-      mockApi.default.get.mockRejectedValueOnce(new Error('API Error'));
-      
+    test("handles API error gracefully", async () => {
+      const mockApi = await import("../../../services/api");
+      mockApi.default.get.mockRejectedValueOnce(new Error("API Error"));
+
       renderPortfolio();
-      
+
       // Should not crash on API error
       await waitFor(() => {
         expect(document.body).toBeInTheDocument();
       });
     });
 
-    test('displays data when API succeeds', async () => {
+    test("displays data when API succeeds", async () => {
       renderPortfolio();
-      
+
       await waitFor(() => {
         // Should show some content after data loads
-        const content = document.querySelector('body');
+        const content = document.querySelector("body");
         expect(content).toBeInTheDocument();
       });
     });
   });
 
-  describe('User Interactions', () => {
-    test('handles button clicks without errors', async () => {
+  describe("User Interactions", () => {
+    test("handles button clicks without errors", async () => {
       renderPortfolio();
-      
+
       await waitFor(() => {
-        const buttons = screen.queryAllByRole('button');
+        const buttons = screen.queryAllByRole("button");
         if (buttons.length > 0) {
           fireEvent.click(buttons[0]);
           // Should not throw errors
@@ -141,11 +154,11 @@ describe('Portfolio', () => {
       });
     });
 
-    test('handles tab switching if present', async () => {
+    test("handles tab switching if present", async () => {
       renderPortfolio();
-      
+
       await waitFor(() => {
-        const tabs = screen.queryAllByRole('tab');
+        const tabs = screen.queryAllByRole("tab");
         if (tabs.length > 0) {
           fireEvent.click(tabs[0]);
           expect(tabs[0]).toBeInTheDocument();
@@ -154,10 +167,10 @@ describe('Portfolio', () => {
     });
   });
 
-  describe('Portfolio Data Display', () => {
-    test('shows portfolio summary', async () => {
+  describe("Portfolio Data Display", () => {
+    test("shows portfolio summary", async () => {
       renderPortfolio();
-      
+
       await waitFor(() => {
         // Should display some form of portfolio information
         const content = document.body.textContent;
@@ -165,22 +178,22 @@ describe('Portfolio', () => {
       });
     });
 
-    test('displays positions if available', async () => {
-      const mockApi = await import('../../../services/api');
+    test("displays positions if available", async () => {
+      const mockApi = await import("../../../services/api");
       mockApi.default.get.mockResolvedValueOnce({
         data: {
           success: true,
           data: {
             positions: [
-              { symbol: 'AAPL', quantity: 100, value: 15000 },
-              { symbol: 'GOOGL', quantity: 50, value: 12500 }
-            ]
-          }
-        }
+              { symbol: "AAPL", quantity: 100, value: 15000 },
+              { symbol: "GOOGL", quantity: 50, value: 12500 },
+            ],
+          },
+        },
       });
 
       renderPortfolio();
-      
+
       await waitFor(() => {
         // Should handle positions data
         expect(document.body).toBeInTheDocument();
@@ -188,27 +201,27 @@ describe('Portfolio', () => {
     });
   });
 
-  describe('Error Handling', () => {
-    test('handles network errors', async () => {
-      const mockApi = await import('../../../services/api');
-      mockApi.default.get.mockRejectedValue(new Error('Network error'));
-      
+  describe("Error Handling", () => {
+    test("handles network errors", async () => {
+      const mockApi = await import("../../../services/api");
+      mockApi.default.get.mockRejectedValue(new Error("Network error"));
+
       renderPortfolio();
-      
+
       // Should not crash
       await waitFor(() => {
         expect(document.body).toBeInTheDocument();
       });
     });
 
-    test('handles malformed API response', async () => {
-      const mockApi = await import('../../../services/api');
+    test("handles malformed API response", async () => {
+      const mockApi = await import("../../../services/api");
       mockApi.default.get.mockResolvedValue({
-        data: { success: false, error: 'Invalid data' }
+        data: { success: false, error: "Invalid data" },
       });
-      
+
       renderPortfolio();
-      
+
       // Should handle gracefully
       await waitFor(() => {
         expect(document.body).toBeInTheDocument();
@@ -216,51 +229,49 @@ describe('Portfolio', () => {
     });
   });
 
-  describe('Responsive Behavior', () => {
-    test('renders on mobile viewport', () => {
-      Object.defineProperty(window, 'innerWidth', {
+  describe("Responsive Behavior", () => {
+    test("renders on mobile viewport", () => {
+      Object.defineProperty(window, "innerWidth", {
         writable: true,
         configurable: true,
         value: 400,
       });
 
       renderPortfolio();
-      
+
       expect(document.body).toBeInTheDocument();
     });
 
-    test('renders on desktop viewport', () => {
-      Object.defineProperty(window, 'innerWidth', {
+    test("renders on desktop viewport", () => {
+      Object.defineProperty(window, "innerWidth", {
         writable: true,
         configurable: true,
         value: 1200,
       });
 
       renderPortfolio();
-      
+
       expect(document.body).toBeInTheDocument();
     });
   });
 
-  describe('Component Integration', () => {
-    test('integrates with authentication', () => {
+  describe("Component Integration", () => {
+    test("integrates with authentication", () => {
       renderPortfolio();
-      
+
       // Should work with mocked auth context
       expect(document.body).toBeInTheDocument();
     });
 
-    test('integrates with routing', () => {
+    test("integrates with routing", () => {
       renderPortfolio();
-      
+
       // Should work with mocked navigation
       expect(document.body).toBeInTheDocument();
     });
 
-    test('sets document title', () => {
+    test("sets document title", async () => {
       renderPortfolio();
-      
-      const mockUseDocumentTitle = vi.mocked(vi.importActual('../../../hooks/useDocumentTitle').useDocumentTitle);
       expect(mockUseDocumentTitle).toHaveBeenCalled();
     });
   });

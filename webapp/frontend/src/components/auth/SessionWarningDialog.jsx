@@ -36,7 +36,7 @@ const SessionWarningDialog = ({
         clearInterval(timer);
         return;
       }
-      
+
       setCountdown((prev) => {
         const newTime = prev - 1000;
         if (newTime <= 0) {

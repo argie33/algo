@@ -45,49 +45,76 @@ vi.mock("../../../services/api.js", () => ({
     environment: "test",
   })),
   // Dashboard-specific API functions
-  getMarketOverview: vi.fn().mockResolvedValue({ 
-    success: true, 
-    data: { 
-      sentiment_indicators: { fear_greed: { value: 50, status: 'neutral' } },
+  getMarketOverview: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      sentiment_indicators: { fear_greed: { value: 50, status: "neutral" } },
       market_breadth: { advancing: 1500, declining: 1200 },
-      market_cap: { total: 45000000000000 }
-    } 
+      market_cap: { total: 45000000000000 },
+    },
   }),
-  getTopStocks: vi.fn().mockResolvedValue({ 
-    success: true, 
+  getTopStocks: vi.fn().mockResolvedValue({
+    success: true,
     data: [
-      { symbol: 'AAPL', name: 'Apple Inc.', price: 150.25, change: 2.5, change_percent: 1.69 },
-      { symbol: 'MSFT', name: 'Microsoft Corp.', price: 280.75, change: -1.2, change_percent: -0.43 }
-    ] 
+      {
+        symbol: "AAPL",
+        name: "Apple Inc.",
+        price: 150.25,
+        change: 2.5,
+        change_percent: 1.69,
+      },
+      {
+        symbol: "MSFT",
+        name: "Microsoft Corp.",
+        price: 280.75,
+        change: -1.2,
+        change_percent: -0.43,
+      },
+    ],
   }),
-  getTradingSignalsDaily: vi.fn().mockResolvedValue({ 
-    success: true, 
+  getTradingSignalsDaily: vi.fn().mockResolvedValue({
+    success: true,
     data: [
-      { symbol: 'AAPL', signal: 'BUY', strength: 0.8, timestamp: new Date().toISOString() },
-      { symbol: 'MSFT', signal: 'HOLD', strength: 0.6, timestamp: new Date().toISOString() }
-    ] 
+      {
+        symbol: "AAPL",
+        signal: "BUY",
+        strength: 0.8,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        symbol: "MSFT",
+        signal: "HOLD",
+        strength: 0.6,
+        timestamp: new Date().toISOString(),
+      },
+    ],
   }),
-  getPortfolioAnalytics: vi.fn().mockResolvedValue({ 
-    success: true, 
+  getPortfolioAnalytics: vi.fn().mockResolvedValue({
+    success: true,
     data: {
       total_value: 100000,
       daily_change: 1500,
       daily_change_percent: 1.5,
       holdings: [],
-      performance: { ytd: 12.5, month: 2.1, week: 0.8 }
-    } 
+      performance: { ytd: 12.5, month: 2.1, week: 0.8 },
+    },
   }),
-  getScores: vi.fn().mockResolvedValue({ 
-    success: true, 
+  getScores: vi.fn().mockResolvedValue({
+    success: true,
     data: [
-      { symbol: 'AAPL', score: 85, category: 'Large Cap' },
-      { symbol: 'MSFT', score: 92, category: 'Large Cap' }
-    ] 
+      { symbol: "AAPL", score: 85, category: "Large Cap" },
+      { symbol: "MSFT", score: 92, category: "Large Cap" },
+    ],
   }),
   getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
   getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   getPriceHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  getMarketStatus: vi.fn().mockResolvedValue({ success: true, data: { isOpen: true, status: 'OPEN' } })
+  getMarketStatus: vi
+    .fn()
+    .mockResolvedValue({
+      success: true,
+      data: { isOpen: true, status: "OPEN" },
+    }),
 }));
 
 // Mock chart components

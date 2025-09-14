@@ -15,7 +15,7 @@ const mockDevAuth = {
   signUp: vi.fn(),
   signOut: vi.fn(),
   getCurrentSession: vi.fn(),
-  isAuthenticated: vi.fn(() => false)
+  isAuthenticated: vi.fn(() => false),
 };
 
 // Mock AuthContext
@@ -24,7 +24,7 @@ const mockAuthContext = {
   isAuthenticated: false,
   loading: false,
   signIn: mockDevAuth.signIn,
-  signOut: mockDevAuth.signOut
+  signOut: mockDevAuth.signOut,
 };
 
 const AuthContext = React.createContext(mockAuthContext);
@@ -32,18 +32,18 @@ const AuthContext = React.createContext(mockAuthContext);
 describe("Authentication Flow Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    Object.values(mockDevAuth).forEach(fn => {
-      if (typeof fn === 'function') fn.mockReset();
+    Object.values(mockDevAuth).forEach((fn) => {
+      if (typeof fn === "function") fn.mockReset();
     });
   });
 
   describe("Login Flow Integration", () => {
     it("should handle login form submission", async () => {
       const user = userEvent.setup();
-      
+
       mockDevAuth.signIn.mockResolvedValue({
         user: { username: "testuser", email: "test@example.com" },
-        tokens: { accessToken: "token123" }
+        tokens: { accessToken: "token123" },
       });
 
       const MockLoginForm = () => {
@@ -55,7 +55,11 @@ describe("Authentication Flow Integration", () => {
         return (
           <form onSubmit={handleSubmit}>
             <input aria-label="Email" type="email" data-testid="email-input" />
-            <input aria-label="Password" type="password" data-testid="password-input" />
+            <input
+              aria-label="Password"
+              type="password"
+              data-testid="password-input"
+            />
             <button type="submit">Sign In</button>
           </form>
         );
@@ -70,18 +74,21 @@ describe("Authentication Flow Integration", () => {
       await user.click(screen.getByRole("button", { name: /sign in/i }));
 
       await waitFor(() => {
-        expect(mockDevAuth.signIn).toHaveBeenCalledWith("test@example.com", "password123");
+        expect(mockDevAuth.signIn).toHaveBeenCalledWith(
+          "test@example.com",
+          "password123"
+        );
       });
     });
 
     it("should handle login errors", async () => {
       const user = userEvent.setup();
-      
+
       mockDevAuth.signIn.mockRejectedValue(new Error("Invalid credentials"));
 
       const LoginWithError = () => {
         const [error, setError] = React.useState(null);
-        
+
         const handleLogin = async () => {
           try {
             await mockDevAuth.signIn("invalid@example.com", "wrongpassword");
@@ -109,7 +116,9 @@ describe("Authentication Flow Integration", () => {
       await user.click(screen.getByTestId("login-btn"));
 
       await waitFor(() => {
-        expect(screen.getByTestId("error-message")).toHaveTextContent("Invalid credentials");
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Invalid credentials"
+        );
       });
     });
   });
@@ -120,7 +129,7 @@ describe("Authentication Flow Integration", () => {
         const context = React.useContext(AuthContext);
         return (
           <div data-testid="auth-context">
-            {context ? 'has-context' : 'no-context'}
+            {context ? "has-context" : "no-context"}
           </div>
         );
       };
@@ -133,7 +142,9 @@ describe("Authentication Flow Integration", () => {
         </TestWrapper>
       );
 
-      expect(screen.getByTestId("auth-context")).toHaveTextContent("has-context");
+      expect(screen.getByTestId("auth-context")).toHaveTextContent(
+        "has-context"
+      );
     });
 
     it("should handle auth state changes", () => {
@@ -142,7 +153,7 @@ describe("Authentication Flow Integration", () => {
         isAuthenticated: true,
         loading: false,
         signIn: mockDevAuth.signIn,
-        signOut: mockDevAuth.signOut
+        signOut: mockDevAuth.signOut,
       };
 
       const TestComponent = () => {
@@ -150,10 +161,10 @@ describe("Authentication Flow Integration", () => {
         return (
           <div>
             <div data-testid="auth-status">
-              {isAuthenticated ? 'authenticated' : 'not-authenticated'}
+              {isAuthenticated ? "authenticated" : "not-authenticated"}
             </div>
             <div data-testid="user-info">
-              {user ? user.username : 'no-user'}
+              {user ? user.username : "no-user"}
             </div>
           </div>
         );
@@ -167,7 +178,9 @@ describe("Authentication Flow Integration", () => {
         </TestWrapper>
       );
 
-      expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+      expect(screen.getByTestId("auth-status")).toHaveTextContent(
+        "authenticated"
+      );
       expect(screen.getByTestId("user-info")).toHaveTextContent("testuser");
     });
   });
@@ -177,16 +190,16 @@ describe("Authentication Flow Integration", () => {
       const authState = {
         user: { username: "testuser" },
         isAuthenticated: true,
-        loading: false
+        loading: false,
       };
 
       const ProtectedContent = () => {
         const { isAuthenticated } = React.useContext(AuthContext);
-        
+
         if (!isAuthenticated) {
           return <div data-testid="login-required">Please login</div>;
         }
-        
+
         return <div data-testid="protected-content">Protected Content</div>;
       };
 
@@ -206,16 +219,16 @@ describe("Authentication Flow Integration", () => {
       const authState = {
         user: null,
         isAuthenticated: false,
-        loading: false
+        loading: false,
       };
 
       const ProtectedContent = () => {
         const { isAuthenticated } = React.useContext(AuthContext);
-        
+
         if (!isAuthenticated) {
           return <div data-testid="login-required">Please login</div>;
         }
-        
+
         return <div data-testid="protected-content">Protected Content</div>;
       };
 
@@ -236,7 +249,7 @@ describe("Authentication Flow Integration", () => {
     it("should handle session initialization", () => {
       mockDevAuth.getCurrentSession.mockReturnValue({
         user: { username: "testuser" },
-        tokens: { accessToken: "token123" }
+        tokens: { accessToken: "token123" },
       });
       mockDevAuth.isAuthenticated.mockReturnValue(true);
 
@@ -244,7 +257,7 @@ describe("Authentication Flow Integration", () => {
         const [authState, setAuthState] = React.useState({
           user: null,
           isAuthenticated: false,
-          loading: true
+          loading: true,
         });
 
         React.useEffect(() => {
@@ -252,13 +265,17 @@ describe("Authentication Flow Integration", () => {
           setAuthState({
             user: session?.user || null,
             isAuthenticated: mockDevAuth.isAuthenticated(),
-            loading: false
+            loading: false,
           });
         }, []);
 
         return (
           <div data-testid="auth-state">
-            {authState.loading ? 'loading' : authState.isAuthenticated ? 'authenticated' : 'not authenticated'}
+            {authState.loading
+              ? "loading"
+              : authState.isAuthenticated
+                ? "authenticated"
+                : "not authenticated"}
           </div>
         );
       };
@@ -269,17 +286,19 @@ describe("Authentication Flow Integration", () => {
         </TestWrapper>
       );
 
-      expect(screen.getByTestId("auth-state")).toHaveTextContent("authenticated");
+      expect(screen.getByTestId("auth-state")).toHaveTextContent(
+        "authenticated"
+      );
     });
 
     it("should handle logout flow", async () => {
       const user = userEvent.setup();
-      
+
       mockDevAuth.signOut.mockResolvedValue();
 
       const LogoutButton = () => {
         const [loggedOut, setLoggedOut] = React.useState(false);
-        
+
         const handleLogout = async () => {
           await mockDevAuth.signOut();
           setLoggedOut(true);
@@ -314,43 +333,47 @@ describe("Authentication Flow Integration", () => {
     it("should handle authenticated API calls", async () => {
       const mockToken = "auth-token-123";
       mockDevAuth.getCurrentSession.mockReturnValue({
-        tokens: { accessToken: mockToken }
+        tokens: { accessToken: mockToken },
       });
 
       const mockApiService = {
-        get: vi.fn().mockResolvedValue({ data: { success: true } })
+        get: vi.fn().mockResolvedValue({ data: { success: true } }),
       };
 
       // Simulate authenticated API call
       const session = mockDevAuth.getCurrentSession();
       await mockApiService.get("/api/protected", {
         headers: {
-          Authorization: `Bearer ${session.tokens.accessToken}`
-        }
+          Authorization: `Bearer ${session.tokens.accessToken}`,
+        },
       });
 
       expect(mockApiService.get).toHaveBeenCalledWith("/api/protected", {
         headers: {
-          Authorization: `Bearer ${mockToken}`
-        }
+          Authorization: `Bearer ${mockToken}`,
+        },
       });
     });
 
     it("should handle token refresh scenarios", async () => {
       const mockApiService = {
-        get: vi.fn()
-          .mockRejectedValueOnce({ 
-            response: { status: 401, data: { error: "Token expired" } }
+        get: vi
+          .fn()
+          .mockRejectedValueOnce({
+            response: { status: 401, data: { error: "Token expired" } },
           })
-          .mockResolvedValueOnce({ data: { success: true } })
+          .mockResolvedValueOnce({ data: { success: true } }),
       };
 
       mockDevAuth.getCurrentSession
         .mockReturnValueOnce({
-          tokens: { accessToken: "expired-token", refreshToken: "refresh-token" }
+          tokens: {
+            accessToken: "expired-token",
+            refreshToken: "refresh-token",
+          },
         })
         .mockReturnValueOnce({
-          tokens: { accessToken: "new-token", refreshToken: "refresh-token" }
+          tokens: { accessToken: "new-token", refreshToken: "refresh-token" },
         });
 
       // Test automatic retry behavior

@@ -14,17 +14,17 @@ vi.mock("../../services/api.js", () => ({
     delete: vi.fn(),
     interceptors: {
       request: { use: vi.fn() },
-      response: { use: vi.fn() }
-    }
-  }
+      response: { use: vi.fn() },
+    },
+  },
 }));
 
 vi.mock("../../services/dataService.js", () => ({
   default: {
     fetchData: vi.fn(),
     clearCache: vi.fn(),
-    invalidateCache: vi.fn()
-  }
+    invalidateCache: vi.fn(),
+  },
 }));
 
 vi.mock("../../services/devAuth.js", () => ({
@@ -32,8 +32,8 @@ vi.mock("../../services/devAuth.js", () => ({
     signIn: vi.fn(),
     signOut: vi.fn(),
     isAuthenticated: vi.fn(),
-    getCurrentSession: vi.fn()
-  }
+    getCurrentSession: vi.fn(),
+  },
 }));
 
 describe("Simple Services Integration", () => {
@@ -41,12 +41,14 @@ describe("Simple Services Integration", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    
+
     // Import mocked services
     const { default: api } = await import("../../services/api.js");
-    const { default: dataService } = await import("../../services/dataService.js");
+    const { default: dataService } = await import(
+      "../../services/dataService.js"
+    );
     const { default: authService } = await import("../../services/devAuth.js");
-    
+
     mockApi = api;
     mockDataService = dataService;
     mockAuthService = authService;
@@ -56,7 +58,7 @@ describe("Simple Services Integration", () => {
     it("should coordinate API calls with data service", async () => {
       // Mock API response
       mockApi.get.mockResolvedValue({
-        data: { users: ["user1", "user2"] }
+        data: { users: ["user1", "user2"] },
       });
 
       // Mock data service using API
@@ -83,7 +85,9 @@ describe("Simple Services Integration", () => {
       });
 
       // Test error handling
-      await expect(mockDataService.fetchData("/api/error")).rejects.toThrow("Network error");
+      await expect(mockDataService.fetchData("/api/error")).rejects.toThrow(
+        "Network error"
+      );
       expect(mockApi.get).toHaveBeenCalledWith("/api/error");
     });
   });
@@ -93,16 +97,19 @@ describe("Simple Services Integration", () => {
       // Mock successful login
       mockAuthService.signIn.mockResolvedValue({
         user: { username: "testuser" },
-        tokens: { accessToken: "token123" }
+        tokens: { accessToken: "token123" },
       });
 
       mockAuthService.isAuthenticated.mockReturnValue(true);
       mockAuthService.getCurrentSession.mockReturnValue({
-        user: { username: "testuser" }
+        user: { username: "testuser" },
       });
 
       // Test auth flow
-      const loginResult = await mockAuthService.signIn("test@example.com", "password123");
+      const loginResult = await mockAuthService.signIn(
+        "test@example.com",
+        "password123"
+      );
       const isAuth = mockAuthService.isAuthenticated();
       const session = mockAuthService.getCurrentSession();
 
@@ -113,7 +120,9 @@ describe("Simple Services Integration", () => {
 
     it("should handle authentication errors", async () => {
       // Mock failed login
-      mockAuthService.signIn.mockRejectedValue(new Error("Invalid credentials"));
+      mockAuthService.signIn.mockRejectedValue(
+        new Error("Invalid credentials")
+      );
       mockAuthService.isAuthenticated.mockReturnValue(false);
 
       // Test error handling
@@ -130,7 +139,7 @@ describe("Simple Services Integration", () => {
       // Mock authenticated state
       mockAuthService.isAuthenticated.mockReturnValue(true);
       mockAuthService.getCurrentSession.mockReturnValue({
-        tokens: { accessToken: "valid-token" }
+        tokens: { accessToken: "valid-token" },
       });
 
       // Mock API call with auth
@@ -145,8 +154,8 @@ describe("Simple Services Integration", () => {
       const session = mockAuthService.getCurrentSession();
       const result = await mockApi.get("/api/protected", {
         headers: {
-          Authorization: `Bearer ${session.tokens.accessToken}`
-        }
+          Authorization: `Bearer ${session.tokens.accessToken}`,
+        },
       });
 
       expect(result.data).toEqual({ protected: "data" });
@@ -155,7 +164,7 @@ describe("Simple Services Integration", () => {
     it("should handle cache invalidation on auth changes", async () => {
       // Mock auth state change
       mockAuthService.signOut.mockResolvedValue();
-      
+
       // Mock cache clearing
       mockDataService.clearCache.mockImplementation(() => {
         return Promise.resolve();
@@ -206,7 +215,7 @@ describe("Simple Services Integration", () => {
       const results = await Promise.allSettled([
         mockApi.get("/api/user1"),
         mockApi.get("/api/user2"),
-        mockApi.get("/api/user3")
+        mockApi.get("/api/user3"),
       ]);
 
       expect(results[0].status).toBe("fulfilled");
@@ -226,7 +235,7 @@ describe("Simple Services Integration", () => {
       const promises = [
         mockApi.get("/api/endpoint1"),
         mockApi.get("/api/endpoint2"),
-        mockApi.get("/api/endpoint3")
+        mockApi.get("/api/endpoint3"),
       ];
 
       const results = await Promise.all(promises);

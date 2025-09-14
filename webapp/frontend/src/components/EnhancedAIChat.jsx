@@ -20,8 +20,8 @@ import {
   ThumbDown as ThumbDownIcon,
   ContentCopy as CopyIcon,
   Edit as EditIcon,
-  Reply as ReplyIcon
-} from '@mui/icons-material';
+  Reply as ReplyIcon,
+} from "@mui/icons-material";
 import {
   Box,
   Container,
@@ -52,109 +52,114 @@ import {
   MenuItem,
   Badge,
   Stack,
-  ButtonGroup
-} from '@mui/material';
-import { useState, useRef, useEffect } from 'react';
+  ButtonGroup,
+} from "@mui/material";
+import { useState, useRef, useEffect } from "react";
 
-import { useAuth } from '../contexts/AuthContext.jsx';
-import { useWebSocket } from '../hooks/useWebSocket.js';
-import { 
-  sendChatMessage, 
+import { useAuth } from "../contexts/AuthContext.jsx";
+import { useWebSocket } from "../hooks/useWebSocket.js";
+import {
+  sendChatMessage,
   clearChatHistory,
-  // streamChatMessage // Temporarily disabled 
-} from '../services/api.js';
+  // streamChatMessage // Temporarily disabled
+} from "../services/api.js";
 
 // Constants
 const RANDOM_STRING_CONFIG = {
   BASE: 36, // Base-36 for alphanumeric string generation
   START_INDEX: 2, // Skip first 2 characters from random string
-  END_INDEX: 9 // Take substring up to index 9
+  END_INDEX: 9, // Take substring up to index 9
 };
 
 const EnhancedAIChat = () => {
   const { _user } = useAuth();
-  
+
   // Core state
   const [messages, setMessages] = useState([
     {
       id: 1,
-      type: 'assistant',
-      content: "Hello! I'm your enhanced AI investment assistant. I can provide real-time market analysis, personalized portfolio insights, and comprehensive investment guidance. What would you like to explore today?",
+      type: "assistant",
+      content:
+        "Hello! I'm your enhanced AI investment assistant. I can provide real-time market analysis, personalized portfolio insights, and comprehensive investment guidance. What would you like to explore today?",
       timestamp: new Date(),
       suggestions: [
         "Analyze my portfolio performance",
         "Current market opportunities",
         "Risk assessment and optimization",
-        "Investment strategy review"
+        "Investment strategy review",
       ],
-      enhanced: true
-    }
+      enhanced: true,
+    },
   ]);
-  
-  const [inputMessage, setInputMessage] = useState('');
+
+  const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState('');
+  const [streamingMessage, setStreamingMessage] = useState("");
   const [currentStreamId, setCurrentStreamId] = useState(null);
-  
+
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [optionsMenuAnchor, setOptionsMenuAnchor] = useState(null);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [bookmarkedMessages, setBookmarkedMessages] = useState(new Set());
   const [feedback, setFeedback] = useState({}); // { messageId: 'thumbup' | 'thumbdown' }
-  
+
   // Enhanced features state
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [autoSuggestions, setAutoSuggestions] = useState(true);
-  const [conversationId, _setConversationId] = useState('default');
-  const [aiModel, setAiModel] = useState('claude-3-haiku');
-  const [responseStyle, setResponseStyle] = useState('balanced');
-  
+  const [conversationId, _setConversationId] = useState("default");
+  const [aiModel, setAiModel] = useState("claude-3-haiku");
+  const [responseStyle, setResponseStyle] = useState("balanced");
+
   // Refs
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const messageRefs = useRef({});
-  
+
   // WebSocket connection for real-time streaming
-  const { 
-    isConnected, 
-    sendMessage: sendWSMessage, 
+  const {
+    isConnected,
+    sendMessage: sendWSMessage,
     _lastMessage,
-    _connectionId 
-  } = useWebSocket('/ws/ai', {
+    _connectionId,
+  } = useWebSocket("/ws/ai", {
     enabled: streamingEnabled,
-    onMessage: handleWebSocketMessage
+    onMessage: handleWebSocketMessage,
   });
-  
+
   // Enhanced quick actions with more sophisticated options
   const quickActions = [
     {
       icon: <TrendingUpIcon />,
       text: "Market Pulse",
-      action: "Give me a comprehensive market analysis with current trends, sector performance, and key opportunities to watch today",
-      color: "primary"
+      action:
+        "Give me a comprehensive market analysis with current trends, sector performance, and key opportunities to watch today",
+      color: "primary",
     },
     {
       icon: <AccountBalanceIcon />,
       text: "Portfolio Deep Dive",
-      action: "Perform a detailed analysis of my portfolio including risk assessment, sector allocation, performance metrics, and optimization recommendations",
-      color: "secondary"
+      action:
+        "Perform a detailed analysis of my portfolio including risk assessment, sector allocation, performance metrics, and optimization recommendations",
+      color: "secondary",
     },
     {
       icon: <AssessmentIcon />,
       text: "Investment Research",
-      action: "Help me research and analyze potential investment opportunities based on my current portfolio and risk profile",
-      color: "success"
+      action:
+        "Help me research and analyze potential investment opportunities based on my current portfolio and risk profile",
+      color: "success",
     },
     {
       icon: <LightbulbIcon />,
       text: "Strategy Advisor",
-      action: "Review my investment strategy and provide recommendations for optimization, rebalancing, and future planning",
-      color: "warning"
-    }
+      action:
+        "Review my investment strategy and provide recommendations for optimization, rebalancing, and future planning",
+      color: "warning",
+    },
   ];
 
   // Scroll to bottom when messages change
@@ -170,61 +175,61 @@ const EnhancedAIChat = () => {
   function handleWebSocketMessage(event) {
     try {
       const data = JSON.parse(event?.data);
-      
+
       switch (data.type) {
-        case 'connection_established':
-          console.log('✅ WebSocket connected:', data._connectionId);
+        case "connection_established":
+          console.log("✅ WebSocket connected:", data._connectionId);
           break;
-          
-        case 'ai_response_chunk':
+
+        case "ai_response_chunk":
           if (data.streamId === currentStreamId) {
-            setStreamingMessage(prev => prev + (data.content || ''));
+            setStreamingMessage((prev) => prev + (data.content || ""));
           }
           break;
-          
-        case 'ai_response_complete':
+
+        case "ai_response_complete":
           if (data.streamId === currentStreamId) {
             const assistantMessage = {
               id: data.messageId || Date.now(),
-              type: 'assistant',
+              type: "assistant",
               content: data.fullResponse || streamingMessage,
               suggestions: data.suggestions || [],
               metadata: data.metadata || {},
               timestamp: new Date(),
               enhanced: true,
-              streamId: data.streamId
+              streamId: data.streamId,
             };
-            
-            setMessages(prev => [...prev, assistantMessage]);
-            setStreamingMessage('');
+
+            setMessages((prev) => [...prev, assistantMessage]);
+            setStreamingMessage("");
             setCurrentStreamId(null);
             setIsStreaming(false);
           }
           break;
-          
-        case 'ai_streamerror': {
-          console.error('Streaming error:', data.error);
+
+        case "ai_streamerror": {
+          console.error("Streaming error:", data.error);
           setIsStreaming(false);
-          setStreamingMessage('');
+          setStreamingMessage("");
           setCurrentStreamId(null);
-          
+
           const errorMessage = {
             id: Date.now(),
-            type: 'assistant',
+            type: "assistant",
             content: `I encountered an error while processing your request: ${data.error}. Please try again.`,
             timestamp: new Date(),
-            isError: true
+            isError: true,
           };
-          setMessages(prev => [...prev, errorMessage]);
+          setMessages((prev) => [...prev, errorMessage]);
           break;
         }
-          
-        case 'error':
-          console.error('WebSocket error:', data.error);
+
+        case "error":
+          console.error("WebSocket error:", data.error);
           break;
-          
+
         default:
-          console.warn('Unknown WebSocket message type:', data.type);
+          console.warn("Unknown WebSocket message type:", data.type);
           break;
       }
     } catch (error) {
@@ -239,71 +244,71 @@ const EnhancedAIChat = () => {
 
     const userMessage = {
       id: Date.now(),
-      type: 'user',
+      type: "user",
       content,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    
+    setMessages((prev) => [...prev, userMessage]);
+    setInputMessage("");
+
     if (streamingEnabled && isConnected) {
       // Use WebSocket streaming
       setIsStreaming(true);
-      setStreamingMessage('');
-      
+      setStreamingMessage("");
+
       const streamId = `stream_${Date.now()}_${Math.random().toString(RANDOM_STRING_CONFIG.BASE).substring(RANDOM_STRING_CONFIG.START_INDEX, RANDOM_STRING_CONFIG.END_INDEX)}`;
       setCurrentStreamId(streamId);
-      
+
       sendWSMessage({
-        type: 'ai_chat_request',
+        type: "ai_chat_request",
         content,
         conversationId,
         context: {
           streamingEnabled: true,
           model: aiModel,
-          responseStyle
+          responseStyle,
         },
         options: {
-          model: aiModel
-        }
+          model: aiModel,
+        },
       });
     } else {
       // Fallback to HTTP request
       setIsLoading(true);
-      
+
       try {
         const response = await sendChatMessage(content, {
           conversationId,
           model: aiModel,
-          responseStyle
+          responseStyle,
         });
-        
+
         if (response.success) {
           const assistantMessage = {
             id: response.message.id || Date.now(),
-            type: 'assistant',
+            type: "assistant",
             content: response.message.content,
             suggestions: response.message.suggestions || [],
             metadata: response.message.metadata || {},
             timestamp: new Date(response.message.timestamp || new Date()),
-            enhanced: response.enhanced || false
+            enhanced: response.enhanced || false,
           };
 
-          setMessages(prev => [...prev, assistantMessage]);
+          setMessages((prev) => [...prev, assistantMessage]);
         } else {
-          throw new Error(response.error || 'Failed to send message');
+          throw new Error(response.error || "Failed to send message");
         }
       } catch (error) {
         console.error(error);
         const errorMessage = {
           id: Date.now() + 1,
-          type: 'assistant',
+          type: "assistant",
           content: "I'm sorry, I encountered an error. Please try again later.",
           timestamp: new Date(),
-          isError: true
+          isError: true,
         };
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages((prev) => [...prev, errorMessage]);
       } finally {
         setIsLoading(false);
       }
@@ -314,23 +319,23 @@ const EnhancedAIChat = () => {
   const handleStopStreaming = () => {
     if (currentStreamId && isConnected) {
       sendWSMessage({
-        type: 'stream_stop',
-        streamId: currentStreamId
+        type: "stream_stop",
+        streamId: currentStreamId,
       });
     }
     setIsStreaming(false);
-    setStreamingMessage('');
+    setStreamingMessage("");
     setCurrentStreamId(null);
   };
 
   // Enhanced message actions
   const handleMessageAction = (action, message) => {
     switch (action) {
-      case 'copy':
+      case "copy":
         navigator.clipboard.writeText(message.content);
         break;
-      case 'bookmark':
-        setBookmarkedMessages(prev => {
+      case "bookmark":
+        setBookmarkedMessages((prev) => {
           const newSet = new Set(prev);
           if (newSet.has(message.id)) {
             newSet.delete(message.id);
@@ -340,45 +345,47 @@ const EnhancedAIChat = () => {
           return newSet;
         });
         break;
-      case 'share':
+      case "share":
         if (navigator.share) {
-          navigator.share({
-            title: 'AI Chat Message',
-            text: message.content,
-            url: window.location.href
-          }).catch(err => console.error('Error sharing:', err));
+          navigator
+            .share({
+              title: "AI Chat Message",
+              text: message.content,
+              url: window.location.href,
+            })
+            .catch((err) => console.error("Error sharing:", err));
         } else {
           // Fallback to clipboard
           navigator.clipboard.writeText(`AI Chat Message: ${message.content}`);
-          alert('Message copied to clipboard!');
+          alert("Message copied to clipboard!");
         }
         break;
-      case 'thumbup':
-        setFeedback(prev => ({
+      case "thumbup":
+        setFeedback((prev) => ({
           ...prev,
-          [message.id]: prev[message.id] === 'thumbup' ? null : 'thumbup'
+          [message.id]: prev[message.id] === "thumbup" ? null : "thumbup",
         }));
         break;
-      case 'thumbdown':
-        setFeedback(prev => ({
+      case "thumbdown":
+        setFeedback((prev) => ({
           ...prev,
-          [message.id]: prev[message.id] === 'thumbdown' ? null : 'thumbdown'
+          [message.id]: prev[message.id] === "thumbdown" ? null : "thumbdown",
         }));
         break;
-      case 'edit':
-        if (message.type === 'user') {
+      case "edit":
+        if (message.type === "user") {
           setInputMessage(message.content);
           inputRef.current?.focus();
           // Remove the message being edited
-          setMessages(prev => prev.filter(m => m.id !== message.id));
+          setMessages((prev) => prev.filter((m) => m.id !== message.id));
         }
         break;
-      case 'reply':
+      case "reply":
         setInputMessage(`Regarding "${message.content.substring(0, 50)}...": `);
         inputRef.current?.focus();
         break;
       default:
-        console.warn('Unexpected message action:', action);
+        console.warn("Unexpected message action:", action);
         break;
     }
     setSelectedMessageId(null);
@@ -387,20 +394,22 @@ const EnhancedAIChat = () => {
   // Search functionality
   const handleSearch = (query) => {
     setSearchQuery(query);
-    
+
     if (!query.trim()) {
       return; // No search if empty query
     }
 
     // Filter messages based on search query
-    const filteredMessages = messages.filter(message => {
+    const filteredMessages = messages.filter((message) => {
       const searchTerm = query.toLowerCase();
       return (
         message.content.toLowerCase().includes(searchTerm) ||
-        (message.type === 'user' && message.content.toLowerCase().includes(searchTerm)) ||
-        (message.suggestions && message.suggestions.some(suggestion => 
-          suggestion.toLowerCase().includes(searchTerm)
-        ))
+        (message.type === "user" &&
+          message.content.toLowerCase().includes(searchTerm)) ||
+        (message.suggestions &&
+          message.suggestions.some((suggestion) =>
+            suggestion.toLowerCase().includes(searchTerm)
+          ))
       );
     });
 
@@ -409,15 +418,15 @@ const EnhancedAIChat = () => {
       const firstMatch = filteredMessages[0];
       const messageElement = messageRefs.current[firstMatch.id];
       if (messageElement) {
-        messageElement.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center' 
+        messageElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
         });
-        
+
         // Highlight the message temporarily
-        messageElement.style.backgroundColor = '#fff3cd';
+        messageElement.style.backgroundColor = "#fff3cd";
         setTimeout(() => {
-          messageElement.style.backgroundColor = '';
+          messageElement.style.backgroundColor = "";
         }, 2000);
       }
     }
@@ -427,18 +436,20 @@ const EnhancedAIChat = () => {
   const handleClearChat = async () => {
     try {
       await clearChatHistory();
-      setMessages([{
-        id: 1,
-        type: 'assistant',
-        content: "Chat cleared. How can I help you today?",
-        timestamp: new Date(),
-        suggestions: [
-          "Analyze my portfolio performance",
-          "Current market opportunities",
-          "Risk assessment and optimization",
-          "Investment strategy review"
-        ]
-      }]);
+      setMessages([
+        {
+          id: 1,
+          type: "assistant",
+          content: "Chat cleared. How can I help you today?",
+          timestamp: new Date(),
+          suggestions: [
+            "Analyze my portfolio performance",
+            "Current market opportunities",
+            "Risk assessment and optimization",
+            "Investment strategy review",
+          ],
+        },
+      ]);
     } catch (error) {
       console.error(error);
     }
@@ -450,19 +461,21 @@ const EnhancedAIChat = () => {
     const conversationData = {
       conversationId,
       timestamp: new Date().toISOString(),
-      messages: (messages || []).map(msg => ({
+      messages: (messages || []).map((msg) => ({
         type: msg.type,
         content: msg.content,
         timestamp: msg.timestamp,
-        suggestions: msg.suggestions
-      }))
+        suggestions: msg.suggestions,
+      })),
     };
-    
-    const blob = new Blob([JSON.stringify(conversationData, null, 2)], { type: 'application/json' });
+
+    const blob = new Blob([JSON.stringify(conversationData, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `ai-conversation-${conversationId}-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `ai-conversation-${conversationId}-${new Date().toISOString().split("T")[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
     setOptionsMenuAnchor(null);
@@ -470,10 +483,10 @@ const EnhancedAIChat = () => {
 
   // Handle keyboard shortcuts
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
-    } else if (e.key === 'Escape' && isStreaming) {
+    } else if (e.key === "Escape" && isStreaming) {
       handleStopStreaming();
     }
   };
@@ -481,46 +494,57 @@ const EnhancedAIChat = () => {
   // Render streaming message
   const renderStreamingMessage = () => {
     if (!isStreaming || !streamingMessage) return null;
-    
+
     return (
-      <ListItem sx={{ flexDirection: 'row', alignItems: 'flex-start', mb: 2 }}>
+      <ListItem sx={{ flexDirection: "row", alignItems: "flex-start", mb: 2 }}>
         <ListItemAvatar>
-          <Avatar sx={{ bgcolor: 'primary.main', mr: 1 }}>
+          <Avatar sx={{ bgcolor: "primary.main", mr: 1 }}>
             <PsychologyIcon />
           </Avatar>
         </ListItemAvatar>
-        
-        <Box sx={{ flex: 1, maxWidth: '70%' }}>
+
+        <Box sx={{ flex: 1, maxWidth: "70%" }}>
           <Paper
             elevation={1}
             sx={{
               p: 2,
-              bgcolor: 'grey.100',
+              bgcolor: "grey.100",
               borderRadius: 2,
-              position: 'relative'
+              position: "relative",
             }}
           >
-            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
               {streamingMessage}
               <Box
                 component="span"
                 sx={{
-                  display: 'inline-block',
-                  width: '8px',
-                  height: '16px',
-                  bgcolor: 'primary.main',
+                  display: "inline-block",
+                  width: "8px",
+                  height: "16px",
+                  bgcolor: "primary.main",
                   ml: 0.5,
-                  animation: 'blink 1s infinite'
+                  animation: "blink 1s infinite",
                 }}
               />
             </Typography>
-            
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mt: 1,
+              }}
+            >
               <Typography variant="caption" sx={{ opacity: 0.7 }}>
                 Streaming...
               </Typography>
               <Tooltip title="Stop streaming">
-                <IconButton size="small" onClick={handleStopStreaming} sx={{ opacity: 0.7 }}>
+                <IconButton
+                  size="small"
+                  onClick={handleStopStreaming}
+                  sx={{ opacity: 0.7 }}
+                >
                   <StopIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -533,101 +557,119 @@ const EnhancedAIChat = () => {
 
   // Render enhanced message with actions
   const renderMessage = (message) => {
-    const isUser = message.type === 'user';
+    const isUser = message.type === "user";
     const isBookmarked = bookmarkedMessages.has(message.id);
     const messageFeedback = feedback[message.id];
-    
+
     return (
-      <ListItem 
+      <ListItem
         key={message.id}
-        ref={el => { messageRefs.current[message.id] = el; }}
+        ref={(el) => {
+          messageRefs.current[message.id] = el;
+        }}
         sx={{
-          flexDirection: isUser ? 'row-reverse' : 'row',
-          alignItems: 'flex-start',
-          mb: 2
+          flexDirection: isUser ? "row-reverse" : "row",
+          alignItems: "flex-start",
+          mb: 2,
         }}
       >
         <ListItemAvatar>
-          <Avatar 
-            sx={{ 
-              bgcolor: isUser ? 'secondary.main' : 'primary.main',
+          <Avatar
+            sx={{
+              bgcolor: isUser ? "secondary.main" : "primary.main",
               ml: isUser ? 1 : 0,
-              mr: isUser ? 0 : 1
+              mr: isUser ? 0 : 1,
             }}
           >
             {isUser ? <PersonIcon /> : <PsychologyIcon />}
           </Avatar>
         </ListItemAvatar>
-        
-        <Box sx={{ flex: 1, maxWidth: '70%' }}>
+
+        <Box sx={{ flex: 1, maxWidth: "70%" }}>
           <Paper
             elevation={1}
             sx={{
               p: 2,
-              bgcolor: isUser ? 'primary.light' : 'grey.100',
-              color: isUser ? 'primary.contrastText' : 'text.primary',
+              bgcolor: isUser ? "primary.light" : "grey.100",
+              color: isUser ? "primary.contrastText" : "text.primary",
               borderRadius: 2,
-              position: 'relative',
-              ...(message.isError && { bgcolor: 'error.light' }),
-              ...(isBookmarked && { 
-                border: '2px solid',
-                borderColor: 'primary.main',
-                bgcolor: isUser ? 'primary.light' : 'primary.50'
-              })
+              position: "relative",
+              ...(message.isError && { bgcolor: "error.light" }),
+              ...(isBookmarked && {
+                border: "2px solid",
+                borderColor: "primary.main",
+                bgcolor: isUser ? "primary.light" : "primary.50",
+              }),
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', flex: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+              <Typography
+                variant="body1"
+                sx={{ whiteSpace: "pre-wrap", flex: 1 }}
+              >
                 {message.content}
               </Typography>
-              
+
               {/* Status indicators */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 0.5,
+                  mt: 0.5,
+                }}
+              >
                 {isBookmarked && (
-                  <BookmarkIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                  <BookmarkIcon sx={{ fontSize: 16, color: "primary.main" }} />
                 )}
-                {messageFeedback === 'thumbup' && (
-                  <ThumbUpIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                {messageFeedback === "thumbup" && (
+                  <ThumbUpIcon sx={{ fontSize: 16, color: "success.main" }} />
                 )}
-                {messageFeedback === 'thumbdown' && (
-                  <ThumbDownIcon sx={{ fontSize: 16, color: 'error.main' }} />
+                {messageFeedback === "thumbdown" && (
+                  <ThumbDownIcon sx={{ fontSize: 16, color: "error.main" }} />
                 )}
               </Box>
             </Box>
-            
+
             {/* Enhanced metadata display */}
             {message.enhanced && message.metadata && (
-              <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+              <Box
+                sx={{ mt: 1, pt: 1, borderTop: "1px solid rgba(0,0,0,0.1)" }}
+              >
                 <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                  Enhanced • {message.metadata.model} • {message.metadata.tokensUsed} tokens
-                  {message.metadata.cost && ` • $${message.metadata.cost.toFixed(4)}`}
+                  Enhanced • {message.metadata.model} •{" "}
+                  {message.metadata.tokensUsed} tokens
+                  {message.metadata.cost &&
+                    ` • $${message.metadata.cost.toFixed(4)}`}
                 </Typography>
               </Box>
             )}
-            
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: isUser ? 'flex-end' : 'space-between',
-              alignItems: 'center',
-              mt: 1 
-            }}>
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: isUser ? "flex-end" : "space-between",
+                alignItems: "center",
+                mt: 1,
+              }}
+            >
               <Typography variant="caption" sx={{ opacity: 0.7 }}>
                 {message.timestamp.toLocaleTimeString()}
               </Typography>
-              
+
               {!isUser && (
                 <Stack direction="row" spacing={0.5}>
                   <Tooltip title="Copy message">
-                    <IconButton 
-                      size="small" 
-                      onClick={() => handleMessageAction('copy', message)}
+                    <IconButton
+                      size="small"
+                      onClick={() => handleMessageAction("copy", message)}
                       sx={{ opacity: 0.7 }}
                     >
                       <CopyIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="More actions">
-                    <IconButton 
+                    <IconButton
                       size="small"
                       onClick={(e) => {
                         setSelectedMessageId(message.id);
@@ -642,21 +684,24 @@ const EnhancedAIChat = () => {
               )}
             </Box>
           </Paper>
-          
+
           {/* Enhanced suggestions */}
           {message.suggestions && message.suggestions.length > 0 && (
-            <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
               {(message.suggestions || []).map((suggestion) => (
                 <Chip
-                  key={`suggestion-${message.id}-${suggestion.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)}`}
+                  key={`suggestion-${message.id}-${suggestion.replace(/[^a-zA-Z0-9]/g, "").slice(0, 20)}`}
                   label={suggestion}
                   size="small"
                   variant="outlined"
                   clickable
                   onClick={() => handleSendMessage(suggestion)}
-                  sx={{ 
-                    fontSize: '0.75rem',
-                    '&:hover': { bgcolor: 'primary.light', color: 'primary.contrastText' }
+                  sx={{
+                    fontSize: "0.75rem",
+                    "&:hover": {
+                      bgcolor: "primary.light",
+                      color: "primary.contrastText",
+                    },
                   }}
                 />
               ))}
@@ -669,16 +714,30 @@ const EnhancedAIChat = () => {
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
+      <Box
+        sx={{
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          py: 2,
+        }}
+      >
         {/* Enhanced Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Badge 
-              color={isConnected ? 'success' : 'error'} 
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <Badge
+              color={isConnected ? "success" : "error"}
               variant="dot"
               sx={{ mr: 2 }}
             >
-              <Avatar sx={{ bgcolor: 'primary.main' }}>
+              <Avatar sx={{ bgcolor: "primary.main" }}>
                 <SmartToyIcon />
               </Avatar>
             </Badge>
@@ -688,12 +747,12 @@ const EnhancedAIChat = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Real-time financial advisor with streaming responses
-                {streamingEnabled && isConnected && ' • Connected'}
-                {streamingEnabled && !isConnected && ' • Connecting...'}
+                {streamingEnabled && isConnected && " • Connected"}
+                {streamingEnabled && !isConnected && " • Connecting..."}
               </Typography>
             </Box>
           </Box>
-          
+
           <Stack direction="row" spacing={1}>
             <Tooltip title="Search conversation">
               <IconButton onClick={() => setShowSearch(!showSearch)}>
@@ -706,7 +765,9 @@ const EnhancedAIChat = () => {
               </IconButton>
             </Tooltip>
             <Tooltip title="More options">
-              <IconButton onClick={(e) => setOptionsMenuAnchor(e.currentTarget)}>
+              <IconButton
+                onClick={(e) => setOptionsMenuAnchor(e.currentTarget)}
+              >
                 <MoreVertIcon />
               </IconButton>
             </Tooltip>
@@ -723,7 +784,7 @@ const EnhancedAIChat = () => {
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.6 }} />
+                startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.6 }} />,
               }}
             />
           </Paper>
@@ -732,20 +793,26 @@ const EnhancedAIChat = () => {
         {/* Enhanced Quick Actions */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {(quickActions || []).map((action) => (
-            <Grid item xs={12} sm={6} md={3} key={`quickaction-${action.color || 'unknown'}-${(action.text || 'untitled').replace(/\s+/g, '')}`}>
-              <Card 
-                sx={{ 
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  '&:hover': { 
-                    transform: 'translateY(-4px)', 
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={3}
+              key={`quickaction-${action.color || "unknown"}-${(action.text || "untitled").replace(/\s+/g, "")}`}
+            >
+              <Card
+                sx={{
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  "&:hover": {
+                    transform: "translateY(-4px)",
                     boxShadow: 6,
-                    bgcolor: `${action.color}.50`
-                  }
+                    bgcolor: `${action.color}.50`,
+                  },
                 }}
                 onClick={() => handleSendMessage(action.action)}
               >
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <CardContent sx={{ textAlign: "center", py: 2 }}>
                   <Box sx={{ color: `${action.color}.main`, mb: 1 }}>
                     {action.icon}
                   </Box>
@@ -759,44 +826,50 @@ const EnhancedAIChat = () => {
         </Grid>
 
         {/* Enhanced Messages Container */}
-        <Paper 
-          elevation={2} 
-          sx={{ 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column',
-            overflow: 'hidden'
+        <Paper
+          elevation={2}
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
             <List>
               {(messages || []).map(renderMessage)}
               {renderStreamingMessage()}
             </List>
-            
+
             {(isLoading || isStreaming) && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
                 <Stack direction="row" spacing={2} alignItems="center">
                   <CircularProgress size={24} />
                   <Typography variant="body2">
-                    {isStreaming ? 'AI is streaming response...' : 'AI is thinking...'}
+                    {isStreaming
+                      ? "AI is streaming response..."
+                      : "AI is thinking..."}
                   </Typography>
                   {isStreaming && (
-                    <Button size="small" onClick={handleStopStreaming} startIcon={<StopIcon />}>
+                    <Button
+                      size="small"
+                      onClick={handleStopStreaming}
+                      startIcon={<StopIcon />}
+                    >
                       Stop
                     </Button>
                   )}
                 </Stack>
               </Box>
             )}
-            
+
             <div ref={messagesEndRef} />
           </Box>
-          
+
           {/* Enhanced Input Area */}
           <Divider />
           <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>
               <TextField
                 ref={inputRef}
                 fullWidth
@@ -810,24 +883,30 @@ const EnhancedAIChat = () => {
                 disabled={isLoading || isStreaming}
                 size="small"
                 sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 3
-                  }
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 3,
+                  },
                 }}
               />
-              
+
               <Tooltip title={isStreaming ? "Stop streaming" : "Send message"}>
                 <span>
-                  <IconButton 
-                    color="primary" 
-                    onClick={isStreaming ? handleStopStreaming : () => handleSendMessage()}
-                    disabled={(!inputMessage.trim() && !isStreaming) || isLoading}
+                  <IconButton
+                    color="primary"
+                    onClick={
+                      isStreaming
+                        ? handleStopStreaming
+                        : () => handleSendMessage()
+                    }
+                    disabled={
+                      (!inputMessage.trim() && !isStreaming) || isLoading
+                    }
                     aria-label={isStreaming ? "Stop streaming" : "Send message"}
-                    sx={{ 
-                      bgcolor: 'primary.main',
-                      color: 'white',
-                      '&:hover': { bgcolor: 'primary.dark' },
-                      '&:disabled': { bgcolor: 'grey.300' }
+                    sx={{
+                      bgcolor: "primary.main",
+                      color: "white",
+                      "&:hover": { bgcolor: "primary.dark" },
+                      "&:disabled": { bgcolor: "grey.300" },
                     }}
                   >
                     {isStreaming ? <StopIcon /> : <SendIcon />}
@@ -835,19 +914,27 @@ const EnhancedAIChat = () => {
                 </span>
               </Tooltip>
             </Box>
-            
+
             {/* Connection Status */}
-            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box
+              sx={{
+                mt: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
               <Typography variant="caption" color="text.secondary">
                 Model: {aiModel} • Style: {responseStyle}
-                {streamingEnabled && ` • Streaming: ${isConnected ? 'Connected' : 'Disconnected'}`}
+                {streamingEnabled &&
+                  ` • Streaming: ${isConnected ? "Connected" : "Disconnected"}`}
               </Typography>
-              
+
               {streamingEnabled && !isConnected && (
-                <Chip 
-                  size="small" 
-                  label="Reconnecting..." 
-                  color="warning" 
+                <Chip
+                  size="small"
+                  label="Reconnecting..."
+                  color="warning"
                   variant="outlined"
                 />
               )}
@@ -861,67 +948,121 @@ const EnhancedAIChat = () => {
           open={Boolean(optionsMenuAnchor)}
           onClose={() => setOptionsMenuAnchor(null)}
         >
-          {selectedMessageId ? (() => {
-            const message = messages.find(m => m.id === selectedMessageId);
-            const isBookmarked = bookmarkedMessages.has(selectedMessageId);
-            const currentFeedback = feedback[selectedMessageId];
-            
-            return [
-              <MenuItem key="bookmark" onClick={() => handleMessageAction('bookmark', message)}>
-                <BookmarkIcon sx={{ mr: 1, color: isBookmarked ? 'primary.main' : 'inherit' }} />
-                {isBookmarked ? 'Remove Bookmark' : 'Bookmark'}
-              </MenuItem>,
-              <MenuItem key="share" onClick={() => handleMessageAction('share', message)}>
-                <ShareIcon sx={{ mr: 1 }} />
-                Share
-              </MenuItem>,
-              <MenuItem key="thumbup" onClick={() => handleMessageAction('thumbup', message)}>
-                <ThumbUpIcon sx={{ mr: 1, color: currentFeedback === 'thumbup' ? 'success.main' : 'inherit' }} />
-                Helpful
-              </MenuItem>,
-              <MenuItem key="thumbdown" onClick={() => handleMessageAction('thumbdown', message)}>
-                <ThumbDownIcon sx={{ mr: 1, color: currentFeedback === 'thumbdown' ? 'error.main' : 'inherit' }} />
-                Not Helpful
-              </MenuItem>,
-              ...(message?.type === 'user' ? [
-                <MenuItem key="edit" onClick={() => handleMessageAction('edit', message)}>
-                  <EditIcon sx={{ mr: 1 }} />
-                  Edit Message
-                </MenuItem>
-              ] : []),
-              <MenuItem key="reply" onClick={() => handleMessageAction('reply', message)}>
-                <ReplyIcon sx={{ mr: 1 }} />
-                Reply
-              </MenuItem>
-            ];
-          })() : (
-            // General actions
-            [
-              <MenuItem key="export" onClick={handleExportConversation}>
-                <DownloadIcon sx={{ mr: 1 }} />
-                Export Conversation
-              </MenuItem>,
-              <MenuItem key="clear" onClick={handleClearChat}>
-                <ClearIcon sx={{ mr: 1 }} />
-                Clear Chat
-              </MenuItem>,
-              <MenuItem key="refresh" onClick={() => window.location.reload()}>
-                <RefreshIcon sx={{ mr: 1 }} />
-                Refresh
-              </MenuItem>
-            ]
-          )}
+          {selectedMessageId
+            ? (() => {
+                const message = messages.find(
+                  (m) => m.id === selectedMessageId
+                );
+                const isBookmarked = bookmarkedMessages.has(selectedMessageId);
+                const currentFeedback = feedback[selectedMessageId];
+
+                return [
+                  <MenuItem
+                    key="bookmark"
+                    onClick={() => handleMessageAction("bookmark", message)}
+                  >
+                    <BookmarkIcon
+                      sx={{
+                        mr: 1,
+                        color: isBookmarked ? "primary.main" : "inherit",
+                      }}
+                    />
+                    {isBookmarked ? "Remove Bookmark" : "Bookmark"}
+                  </MenuItem>,
+                  <MenuItem
+                    key="share"
+                    onClick={() => handleMessageAction("share", message)}
+                  >
+                    <ShareIcon sx={{ mr: 1 }} />
+                    Share
+                  </MenuItem>,
+                  <MenuItem
+                    key="thumbup"
+                    onClick={() => handleMessageAction("thumbup", message)}
+                  >
+                    <ThumbUpIcon
+                      sx={{
+                        mr: 1,
+                        color:
+                          currentFeedback === "thumbup"
+                            ? "success.main"
+                            : "inherit",
+                      }}
+                    />
+                    Helpful
+                  </MenuItem>,
+                  <MenuItem
+                    key="thumbdown"
+                    onClick={() => handleMessageAction("thumbdown", message)}
+                  >
+                    <ThumbDownIcon
+                      sx={{
+                        mr: 1,
+                        color:
+                          currentFeedback === "thumbdown"
+                            ? "error.main"
+                            : "inherit",
+                      }}
+                    />
+                    Not Helpful
+                  </MenuItem>,
+                  ...(message?.type === "user"
+                    ? [
+                        <MenuItem
+                          key="edit"
+                          onClick={() => handleMessageAction("edit", message)}
+                        >
+                          <EditIcon sx={{ mr: 1 }} />
+                          Edit Message
+                        </MenuItem>,
+                      ]
+                    : []),
+                  <MenuItem
+                    key="reply"
+                    onClick={() => handleMessageAction("reply", message)}
+                  >
+                    <ReplyIcon sx={{ mr: 1 }} />
+                    Reply
+                  </MenuItem>,
+                ];
+              })()
+            : // General actions
+              [
+                <MenuItem key="export" onClick={handleExportConversation}>
+                  <DownloadIcon sx={{ mr: 1 }} />
+                  Export Conversation
+                </MenuItem>,
+                <MenuItem key="clear" onClick={handleClearChat}>
+                  <ClearIcon sx={{ mr: 1 }} />
+                  Clear Chat
+                </MenuItem>,
+                <MenuItem
+                  key="refresh"
+                  onClick={() => window.location.reload()}
+                >
+                  <RefreshIcon sx={{ mr: 1 }} />
+                  Refresh
+                </MenuItem>,
+              ]}
         </Menu>
 
         {/* Enhanced Settings Dialog */}
-        <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="md" fullWidth>
+        <Dialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
           <DialogTitle>Enhanced AI Assistant Settings</DialogTitle>
           <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
-              
+            <Box
+              sx={{ display: "flex", flexDirection: "column", gap: 3, mt: 1 }}
+            >
               {/* Streaming Settings */}
               <Box>
-                <Typography variant="h6" gutterBottom>Streaming & Performance</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Streaming & Performance
+                </Typography>
                 <FormControlLabel
                   control={
                     <Switch
@@ -931,24 +1072,34 @@ const EnhancedAIChat = () => {
                   }
                   label="Enable Real-time Streaming"
                 />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ ml: 4 }}
+                >
                   Get responses as they&apos;re generated for faster interaction
                 </Typography>
               </Box>
 
               {/* AI Model Selection */}
               <Box>
-                <Typography variant="h6" gutterBottom>AI Model</Typography>
+                <Typography variant="h6" gutterBottom>
+                  AI Model
+                </Typography>
                 <ButtonGroup variant="outlined" size="small">
-                  <Button 
-                    variant={aiModel === 'claude-3-haiku' ? 'contained' : 'outlined'}
-                    onClick={() => setAiModel('claude-3-haiku')}
+                  <Button
+                    variant={
+                      aiModel === "claude-3-haiku" ? "contained" : "outlined"
+                    }
+                    onClick={() => setAiModel("claude-3-haiku")}
                   >
                     Claude 3 Haiku (Fast)
                   </Button>
-                  <Button 
-                    variant={aiModel === 'claude-3-sonnet' ? 'contained' : 'outlined'}
-                    onClick={() => setAiModel('claude-3-sonnet')}
+                  <Button
+                    variant={
+                      aiModel === "claude-3-sonnet" ? "contained" : "outlined"
+                    }
+                    onClick={() => setAiModel("claude-3-sonnet")}
                   >
                     Claude 3 Sonnet (Advanced)
                   </Button>
@@ -957,23 +1108,31 @@ const EnhancedAIChat = () => {
 
               {/* Response Style */}
               <Box>
-                <Typography variant="h6" gutterBottom>Response Style</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Response Style
+                </Typography>
                 <ButtonGroup variant="outlined" size="small">
-                  <Button 
-                    variant={responseStyle === 'concise' ? 'contained' : 'outlined'}
-                    onClick={() => setResponseStyle('concise')}
+                  <Button
+                    variant={
+                      responseStyle === "concise" ? "contained" : "outlined"
+                    }
+                    onClick={() => setResponseStyle("concise")}
                   >
                     Concise
                   </Button>
-                  <Button 
-                    variant={responseStyle === 'balanced' ? 'contained' : 'outlined'}
-                    onClick={() => setResponseStyle('balanced')}
+                  <Button
+                    variant={
+                      responseStyle === "balanced" ? "contained" : "outlined"
+                    }
+                    onClick={() => setResponseStyle("balanced")}
                   >
                     Balanced
                   </Button>
-                  <Button 
-                    variant={responseStyle === 'detailed' ? 'contained' : 'outlined'}
-                    onClick={() => setResponseStyle('detailed')}
+                  <Button
+                    variant={
+                      responseStyle === "detailed" ? "contained" : "outlined"
+                    }
+                    onClick={() => setResponseStyle("detailed")}
                   >
                     Detailed
                   </Button>
@@ -982,7 +1141,9 @@ const EnhancedAIChat = () => {
 
               {/* Auto Suggestions */}
               <Box>
-                <Typography variant="h6" gutterBottom>Interface</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Interface
+                </Typography>
                 <FormControlLabel
                   control={
                     <Switch
@@ -995,11 +1156,10 @@ const EnhancedAIChat = () => {
               </Box>
 
               {/* Connection Status */}
-              <Alert severity={isConnected ? 'success' : 'warning'}>
-                WebSocket Status: {isConnected ? 'Connected' : 'Disconnected'}
-                {!isConnected && ' - Using HTTP fallback'}
+              <Alert severity={isConnected ? "success" : "warning"}>
+                WebSocket Status: {isConnected ? "Connected" : "Disconnected"}
+                {!isConnected && " - Using HTTP fallback"}
               </Alert>
-              
             </Box>
           </DialogContent>
           <DialogActions>
@@ -1007,7 +1167,7 @@ const EnhancedAIChat = () => {
           </DialogActions>
         </Dialog>
       </Box>
-      
+
       {/* CSS for blinking cursor */}
       <style>{`
         @keyframes blink {

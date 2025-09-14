@@ -2,16 +2,7 @@ import React from "react";
 import { Tabs as MuiTabs, Tab, Box } from "@mui/material";
 
 export const Tabs = React.forwardRef(
-  (
-    {
-      className,
-      value = 0,
-      onValueChange,
-      children,
-      ...props
-    },
-    ref
-  ) => {
+  ({ className, value = 0, onValueChange, children, ...props }, ref) => {
     const [activeTab, setActiveTab] = React.useState(value);
 
     const handleChange = (event, newValue) => {
@@ -26,25 +17,32 @@ export const Tabs = React.forwardRef(
 
     return (
       <div ref={ref} className={className} {...divProps}>
-        <MuiTabs 
-          value={activeTab} 
+        <MuiTabs
+          value={activeTab}
           onChange={handleChange}
-          {...(fullWidth !== undefined && { variant: fullWidth ? 'fullWidth' : 'standard' })}
-          {...(selectionFollowsFocus !== undefined && { selectionFollowsFocus })}
+          {...(fullWidth !== undefined && {
+            variant: fullWidth ? "fullWidth" : "standard",
+          })}
+          {...(selectionFollowsFocus !== undefined && {
+            selectionFollowsFocus,
+          })}
           {...(textColor !== undefined && { textColor })}
         >
           {React.Children.map(children, (child) => {
             if (child?.type?.displayName === "TabsList") {
-              return React.cloneElement(child, { value: activeTab, onChange: handleChange });
+              return React.cloneElement(child, {
+                value: activeTab,
+                onChange: handleChange,
+              });
             }
             return child;
           })}
         </MuiTabs>
         {React.Children.map(children, (child) => {
           if (child?.type?.displayName === "TabsContent") {
-            return React.cloneElement(child, { 
-              value: child.props.value, 
-              active: activeTab === child.props.value 
+            return React.cloneElement(child, {
+              value: child.props.value,
+              active: activeTab === child.props.value,
             });
           }
           return null;
@@ -60,17 +58,19 @@ export const TabsList = React.forwardRef(
     // Filter out non-MUI props to prevent DOM warnings
     const { fullWidth, selectionFollowsFocus, textColor, ...muiProps } = props;
     const muiTabsProps = {
-      ...(fullWidth !== undefined && { variant: fullWidth ? 'fullWidth' : 'standard' }),
+      ...(fullWidth !== undefined && {
+        variant: fullWidth ? "fullWidth" : "standard",
+      }),
       ...(selectionFollowsFocus !== undefined && { selectionFollowsFocus }),
-      ...(textColor !== undefined && { textColor })
+      ...(textColor !== undefined && { textColor }),
     };
-    
+
     return (
-      <MuiTabs 
-        ref={ref} 
-        className={className} 
-        value={value} 
-        onChange={onChange} 
+      <MuiTabs
+        ref={ref}
+        className={className}
+        value={value}
+        onChange={onChange}
         {...muiTabsProps}
         {...muiProps}
       >
@@ -97,14 +97,19 @@ TabsTrigger.displayName = "TabsTrigger";
 export const TabsContent = React.forwardRef(
   ({ className, value: _value, children, active, ...props }, ref) => {
     // Filter out MUI-specific props to prevent DOM warnings
-    const { fullWidth: _fullWidth, selectionFollowsFocus: _selectionFollowsFocus, textColor: _textColor, ...boxProps } = props;
-    
+    const {
+      fullWidth: _fullWidth,
+      selectionFollowsFocus: _selectionFollowsFocus,
+      textColor: _textColor,
+      ...boxProps
+    } = props;
+
     return (
-      <Box 
-        ref={ref} 
-        className={className} 
+      <Box
+        ref={ref}
+        className={className}
         data-testid="content-box"
-        style={{ display: active ? 'block' : 'none' }}
+        style={{ display: active ? "block" : "none" }}
         {...boxProps}
       >
         {children}

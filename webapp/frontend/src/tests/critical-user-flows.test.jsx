@@ -49,7 +49,7 @@ describe("Critical User Flows", () => {
       };
 
       renderWithProviders(<TestComponent />);
-      
+
       await waitFor(() => {
         expect(screen.getByTestId("auth-test")).toBeTruthy();
       });
@@ -60,10 +60,11 @@ describe("Critical User Flows", () => {
     it("should handle API configuration loading", async () => {
       global.fetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          success: true,
-          data: { message: "API is healthy" }
-        }),
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: { message: "API is healthy" },
+          }),
       });
 
       // Test that fetch is configured and working
@@ -81,7 +82,7 @@ describe("Critical User Flows", () => {
 
       const TestComponent = () => {
         const [loading, setLoading] = useState(true);
-        
+
         useEffect(() => {
           fetch("/api/test").then(() => setLoading(false));
         }, []);
@@ -97,7 +98,7 @@ describe("Critical User Flows", () => {
       // Resolve the promise and check loaded state
       resolvePromise({
         ok: true,
-        json: () => Promise.resolve({ success: true })
+        json: () => Promise.resolve({ success: true }),
       });
 
       await waitFor(() => {
@@ -112,9 +113,9 @@ describe("Critical User Flows", () => {
 
       const TestComponent = () => {
         const [error, setError] = useState(null);
-        
+
         useEffect(() => {
-          fetch("/api/test").catch(err => setError(err.message));
+          fetch("/api/test").catch((err) => setError(err.message));
         }, []);
 
         return <div>{error ? `Error: ${error}` : "No error"}</div>;
@@ -135,7 +136,7 @@ describe("Critical User Flows", () => {
       );
 
       renderWithProviders(<ErrorComponent error={true} />);
-      
+
       expect(screen.getByTestId("error-display")).toHaveTextContent(
         "Something went wrong. Please try again."
       );

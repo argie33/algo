@@ -139,18 +139,9 @@ const ProfessionalChart = ({
               {showGrid && (
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               )}
-              <XAxis
-                dataKey={xAxisDataKey}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                domain={yAxisDomain}
-              />
-              {showTooltip && (
-                <RechartsTooltip
-                />
-              )}
+              <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
+              {showTooltip && <RechartsTooltip />}
               <Area
                 type="monotone"
                 dataKey={dataKey}
@@ -172,18 +163,9 @@ const ProfessionalChart = ({
               {showGrid && (
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               )}
-              <XAxis
-                dataKey={xAxisDataKey}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                domain={yAxisDomain}
-              />
-              {showTooltip && (
-                <RechartsTooltip
-                />
-              )}
+              <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
+              {showTooltip && <RechartsTooltip />}
               <Bar dataKey={dataKey} fill={chartColor} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -197,7 +179,7 @@ const ProfessionalChart = ({
                 data={data}
                 cx="50%"
                 cy="50%"
-                labelLine={{stroke: 'none'}}
+                labelLine={{ stroke: "none" }}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey={dataKey}
@@ -209,10 +191,7 @@ const ProfessionalChart = ({
                   />
                 ))}
               </Pie>
-              {showTooltip && (
-                <RechartsTooltip
-                />
-              )}
+              {showTooltip && <RechartsTooltip />}
             </PieChart>
           </ResponsiveContainer>
         );
@@ -227,18 +206,9 @@ const ProfessionalChart = ({
               {showGrid && (
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               )}
-              <XAxis
-                dataKey={xAxisDataKey}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                domain={yAxisDomain}
-              />
-              {showTooltip && (
-                <RechartsTooltip
-                />
-              )}
+              <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
+              {showTooltip && <RechartsTooltip />}
               <Bar dataKey="volume" fill="#8884d8" opacity={0.3} />
               <Line
                 type="monotone"
@@ -260,24 +230,15 @@ const ProfessionalChart = ({
               {showGrid && (
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               )}
-              <XAxis
-                dataKey={xAxisDataKey}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                domain={yAxisDomain}
-              />
-              {showTooltip && (
-                <RechartsTooltip
-                />
-              )}
+              <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
+              {showTooltip && <RechartsTooltip />}
               <Line
                 type="monotone"
                 dataKey={dataKey}
                 stroke={chartColor}
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>

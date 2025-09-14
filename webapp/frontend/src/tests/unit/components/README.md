@@ -10,7 +10,7 @@ unit/components/
 │   ├── Button.unit.test.jsx     # Button component props, variants, events
 │   ├── Card.unit.test.jsx       # Card composition and rendering
 │   └── ...
-├── domain/                      # Business domain components  
+├── domain/                      # Business domain components
 │   ├── MarketStatusBar.unit.test.jsx  # Market status logic
 │   ├── RealTimePriceWidget.unit.test.jsx  # Price display logic
 │   └── ...
@@ -24,6 +24,7 @@ unit/components/
 ## What These Tests Cover
 
 ### ✅ **Pure React Component Testing**
+
 - **Props testing**: Component renders correctly with different props
 - **State testing**: Component state changes work as expected
 - **Event handling**: onClick, onChange, onSubmit handlers work
@@ -32,8 +33,9 @@ unit/components/
 - **Error boundaries**: Component handles errors gracefully
 
 ### ❌ **What These Tests DON'T Cover**
+
 - API integration (covered by integration tests)
-- Full user workflows (covered by E2E tests)  
+- Full user workflows (covered by E2E tests)
 - Authentication flows (covered by integration tests)
 - Database operations (covered by backend tests)
 - Cross-browser compatibility (covered by E2E tests)
@@ -49,6 +51,7 @@ unit/components/
 ## Test Utilities
 
 Use `test-helpers/component-test-utils.js` for:
+
 - **renderWithTheme**: Render components with MUI theme
 - **createMockData**: Generate consistent test data
 - **createMockEventHandlers**: Mock event functions

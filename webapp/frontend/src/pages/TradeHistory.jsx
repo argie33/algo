@@ -116,7 +116,7 @@ const TradeHistory = () => {
   ]);
 
   const fetchTradeHistory = async () => {
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isDevelopment = process.env.NODE_ENV === "development";
     if (!user?.token && !isDevelopment) {
       console.warn("No user token available for fetching trade history");
       setLoading(false);
@@ -165,7 +165,7 @@ const TradeHistory = () => {
   };
 
   const fetchAnalytics = async () => {
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isDevelopment = process.env.NODE_ENV === "development";
     if (!user?.token && !isDevelopment) {
       console.warn("No user token available for fetching analytics");
       return;
@@ -180,12 +180,13 @@ const TradeHistory = () => {
         setAnalytics(data);
       }
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch analytics:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to fetch analytics:", err);
     }
   };
 
   const fetchInsights = async () => {
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isDevelopment = process.env.NODE_ENV === "development";
     if (!user?.token && !isDevelopment) {
       console.warn("No user token available for fetching insights");
       return;
@@ -200,12 +201,13 @@ const TradeHistory = () => {
         setInsights(data.insights || []);
       }
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch insights:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to fetch insights:", err);
     }
   };
 
   const fetchPerformance = async () => {
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isDevelopment = process.env.NODE_ENV === "development";
     if (!user?.token && !isDevelopment) {
       console.warn("No user token available for fetching performance data");
       return;
@@ -220,7 +222,8 @@ const TradeHistory = () => {
         setPerformance(data);
       }
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch performance:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to fetch performance:", err);
     }
   };
 
@@ -737,7 +740,7 @@ const TradeHistory = () => {
             <TablePagination
               rowsPerPageOptions={[10, 25, 50, 100]}
               component="div"
-              count={(filteredTrades?.length || 0)}
+              count={filteredTrades?.length || 0}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={(e, newPage) => setPage(newPage)}
@@ -761,7 +764,9 @@ const TradeHistory = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <RechartsTooltip formatter={(value) => formatCurrency(value)} />
+                      <RechartsTooltip
+                        formatter={(value) => formatCurrency(value)}
+                      />
                       <Bar dataKey="pnl" fill="#8884d8" />
                       <Line
                         type="monotone"

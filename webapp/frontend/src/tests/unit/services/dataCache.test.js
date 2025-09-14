@@ -61,13 +61,16 @@ const createMockDataCache = () => {
 
       // Determine cache duration based on endpoint type
       const cacheType = options.cacheType || "marketData";
-      const cacheDuration = this.refreshIntervals[cacheType] || this.refreshIntervals.marketData;
+      const cacheDuration =
+        this.refreshIntervals[cacheType] || this.refreshIntervals.marketData;
 
       // Check if we have valid cached data
       if (cached && !options.forceRefresh) {
         const age = Date.now() - cached.timestamp;
         if (age < cacheDuration) {
-          console.log(`[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`);
+          console.log(
+            `[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`
+          );
           return cached.data;
         }
       }
@@ -110,7 +113,9 @@ const createMockDataCache = () => {
 
         // Return stale cache if available
         if (cached) {
-          console.log(`[Cache Fallback] Using stale cache after error for ${endpoint}`);
+          console.log(
+            `[Cache Fallback] Using stale cache after error for ${endpoint}`
+          );
           return cached.data;
         }
 
@@ -191,7 +196,8 @@ const createMockDataCache = () => {
               {},
               {
                 cacheType: endpoint.cacheType,
-                fetchFunction: () => fetch(endpoint.endpoint).then((r) => r.json()),
+                fetchFunction: () =>
+                  fetch(endpoint.endpoint).then((r) => r.json()),
               }
             );
             // Skip delay in tests
@@ -215,14 +221,19 @@ const createMockDataCache = () => {
         stats.cacheEntries.push({
           endpoint: value.endpoint,
           age: Math.round(age / 1000),
-          expired: age > (this.refreshIntervals[value.cacheType] || this.refreshIntervals.marketData),
+          expired:
+            age >
+            (this.refreshIntervals[value.cacheType] ||
+              this.refreshIntervals.marketData),
         });
       }
 
       for (const [apiType, calls] of this.apiCallCounts.entries()) {
         const limit = this.rateLimits[apiType] || this.rateLimits.default;
         const windowStart = Date.now() - limit.window;
-        const recentCalls = calls.filter((timestamp) => timestamp > windowStart);
+        const recentCalls = calls.filter(
+          (timestamp) => timestamp > windowStart
+        );
 
         stats.apiCallCounts[apiType] = {
           recent: recentCalls.length,
@@ -232,7 +243,7 @@ const createMockDataCache = () => {
       }
 
       return stats;
-    }
+    },
   };
 };
 
@@ -247,11 +258,11 @@ describe("DataCacheService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    
+
     // Completely clear and reset all state
     dataCache.cache.clear();
     dataCache.apiCallCounts.clear();
-    
+
     // Ensure the cache starts fresh for every test
     dataCache.cache = new Map();
     dataCache.apiCallCounts = new Map();
@@ -261,14 +272,14 @@ describe("DataCacheService", () => {
       ok: true,
       json: () => Promise.resolve({ data: "test response" }),
       status: 200,
-      statusText: "OK"
+      statusText: "OK",
     });
   });
 
   afterEach(() => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
-    
+
     // Complete cleanup
     dataCache.cache.clear();
     dataCache.apiCallCounts.clear();
@@ -279,7 +290,7 @@ describe("DataCacheService", () => {
   describe("Market Hours Detection", () => {
     it("should detect market hours on weekdays", () => {
       // Mock Tuesday, 2:30 PM local time (market hours)
-      const marketHoursDate = new Date('2024-01-16T14:30:00'); // Tuesday 2:30 PM local
+      const marketHoursDate = new Date("2024-01-16T14:30:00"); // Tuesday 2:30 PM local
       vi.setSystemTime(marketHoursDate);
 
       expect(dataCache.isMarketHours()).toBe(true);
@@ -287,13 +298,13 @@ describe("DataCacheService", () => {
 
     it("should detect non-market hours on weekdays", () => {
       // Mock Tuesday, 8:00 AM local time (before market open)
-      const beforeMarketDate = new Date('2024-01-16T08:00:00'); // Tuesday 8:00 AM local
+      const beforeMarketDate = new Date("2024-01-16T08:00:00"); // Tuesday 8:00 AM local
       vi.setSystemTime(beforeMarketDate);
 
       expect(dataCache.isMarketHours()).toBe(false);
 
       // Mock Tuesday, 6:00 PM local time (after market close)
-      const afterMarketDate = new Date('2024-01-16T18:00:00'); // Tuesday 6:00 PM local
+      const afterMarketDate = new Date("2024-01-16T18:00:00"); // Tuesday 6:00 PM local
       vi.setSystemTime(afterMarketDate);
 
       expect(dataCache.isMarketHours()).toBe(false);
@@ -301,13 +312,13 @@ describe("DataCacheService", () => {
 
     it("should detect weekends as non-market hours", () => {
       // Mock Saturday afternoon
-      const saturdayDate = new Date('2024-01-13T14:30:00.000Z'); // Saturday 2:30 PM
+      const saturdayDate = new Date("2024-01-13T14:30:00.000Z"); // Saturday 2:30 PM
       vi.setSystemTime(saturdayDate);
 
       expect(dataCache.isMarketHours()).toBe(false);
 
       // Mock Sunday afternoon
-      const sundayDate = new Date('2024-01-14T14:30:00.000Z'); // Sunday 2:30 PM
+      const sundayDate = new Date("2024-01-14T14:30:00.000Z"); // Sunday 2:30 PM
       vi.setSystemTime(sundayDate);
 
       expect(dataCache.isMarketHours()).toBe(false);
@@ -315,13 +326,13 @@ describe("DataCacheService", () => {
 
     it("should handle market boundary times correctly", () => {
       // Mock exactly 9:30 AM local time (market open)
-      const marketOpenDate = new Date('2024-01-16T09:30:00'); // Local time
+      const marketOpenDate = new Date("2024-01-16T09:30:00"); // Local time
       vi.setSystemTime(marketOpenDate);
 
       expect(dataCache.isMarketHours()).toBe(true);
 
       // Mock exactly 4:00 PM local time (market close)
-      const marketCloseDate = new Date('2024-01-16T16:00:00'); // Local time
+      const marketCloseDate = new Date("2024-01-16T16:00:00"); // Local time
       vi.setSystemTime(marketCloseDate);
 
       expect(dataCache.isMarketHours()).toBe(false);
@@ -331,7 +342,7 @@ describe("DataCacheService", () => {
   describe("Cache Key Generation", () => {
     it("should generate cache key from endpoint only", () => {
       const key = dataCache.getCacheKey("/api/test");
-      expect(key).toBe('/api/test-{}');
+      expect(key).toBe("/api/test-{}");
     });
 
     it("should generate cache key with parameters", () => {
@@ -342,7 +353,7 @@ describe("DataCacheService", () => {
 
     it("should handle empty parameters", () => {
       const key = dataCache.getCacheKey("/api/test", {});
-      expect(key).toBe('/api/test-{}');
+      expect(key).toBe("/api/test-{}");
     });
   });
 
@@ -376,20 +387,29 @@ describe("DataCacheService", () => {
     it("should fetch fresh data when cache is stale", async () => {
       const oldData = { prices: [100, 101, 102] };
       const newData = { prices: [103, 104, 105] };
-      
-      const fetchFunction = vi.fn()
+
+      const fetchFunction = vi
+        .fn()
         .mockResolvedValueOnce(oldData)
         .mockResolvedValueOnce(newData);
 
       // First call
-      await dataCache.get("/api/prices", {}, { fetchFunction, cacheType: "marketData" });
+      await dataCache.get(
+        "/api/prices",
+        {},
+        { fetchFunction, cacheType: "marketData" }
+      );
       expect(fetchFunction).toHaveBeenCalledTimes(1);
 
       // Advance time beyond cache duration
       vi.advanceTimersByTime(dataCache.refreshIntervals.marketData + 1000);
 
       // Second call - should fetch fresh data
-      const result = await dataCache.get("/api/prices", {}, { fetchFunction, cacheType: "marketData" });
+      const result = await dataCache.get(
+        "/api/prices",
+        {},
+        { fetchFunction, cacheType: "marketData" }
+      );
       expect(result).toEqual(newData);
       expect(fetchFunction).toHaveBeenCalledTimes(2);
     });
@@ -397,8 +417,9 @@ describe("DataCacheService", () => {
     it("should force refresh when requested", async () => {
       const oldData = { prices: [100, 101, 102] };
       const newData = { prices: [103, 104, 105] };
-      
-      const fetchFunction = vi.fn()
+
+      const fetchFunction = vi
+        .fn()
         .mockResolvedValueOnce(oldData)
         .mockResolvedValueOnce(newData);
 
@@ -407,7 +428,11 @@ describe("DataCacheService", () => {
       expect(fetchFunction).toHaveBeenCalledTimes(1);
 
       // Force refresh
-      const result = await dataCache.get("/api/prices", {}, { fetchFunction, forceRefresh: true });
+      const result = await dataCache.get(
+        "/api/prices",
+        {},
+        { fetchFunction, forceRefresh: true }
+      );
       expect(result).toEqual(newData);
       expect(fetchFunction).toHaveBeenCalledTimes(2);
     });
@@ -422,7 +447,7 @@ describe("DataCacheService", () => {
 
     it("should block requests exceeding rate limit", () => {
       const limit = dataCache.rateLimits.default.calls;
-      
+
       // Make requests up to the limit
       for (let i = 0; i < limit; i++) {
         expect(dataCache.checkRateLimit("default")).toBe(true);
@@ -434,7 +459,7 @@ describe("DataCacheService", () => {
 
     it("should reset rate limit after time window", () => {
       const limit = dataCache.rateLimits.default.calls;
-      
+
       // Exhaust rate limit
       for (let i = 0; i < limit; i++) {
         dataCache.checkRateLimit("default");
@@ -476,16 +501,24 @@ describe("DataCacheService", () => {
         dataCache.checkRateLimit("default");
       }
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
-      const cacheLogSpy = vi.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation();
+      const cacheLogSpy = vi.spyOn(console, "log").mockImplementation();
 
       // This should use cached data due to rate limiting
-      const result2 = await dataCache.get("/api/test", {}, { fetchFunction, forceRefresh: true });
+      const result2 = await dataCache.get(
+        "/api/test",
+        {},
+        { fetchFunction, forceRefresh: true }
+      );
       expect(result2).toEqual(mockData);
       expect(fetchFunction).toHaveBeenCalledTimes(1); // No additional fetch
-      
-      expect(consoleSpy).toHaveBeenCalledWith("[Rate Limit] Blocked request to /api/test");
-      expect(cacheLogSpy).toHaveBeenCalledWith("[Cache Fallback] Using stale cache for /api/test");
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Rate Limit] Blocked request to /api/test"
+      );
+      expect(cacheLogSpy).toHaveBeenCalledWith(
+        "[Cache Fallback] Using stale cache for /api/test"
+      );
 
       consoleSpy.mockRestore();
       cacheLogSpy.mockRestore();
@@ -500,13 +533,15 @@ describe("DataCacheService", () => {
         dataCache.checkRateLimit("default");
       }
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation();
 
       await expect(
         dataCache.get("/api/new-endpoint", {}, { fetchFunction })
       ).rejects.toThrow("Rate limit exceeded - please try again later");
 
-      expect(consoleSpy).toHaveBeenCalledWith("[Rate Limit] Blocked request to /api/new-endpoint");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Rate Limit] Blocked request to /api/new-endpoint"
+      );
       consoleSpy.mockRestore();
     });
   });
@@ -514,7 +549,8 @@ describe("DataCacheService", () => {
   describe("Error Handling", () => {
     it("should return stale cache on fetch error", async () => {
       const cachedData = { data: "cached response" };
-      const fetchFunction = vi.fn()
+      const fetchFunction = vi
+        .fn()
         .mockResolvedValueOnce(cachedData)
         .mockRejectedValueOnce(new Error("Network error"));
 
@@ -524,15 +560,20 @@ describe("DataCacheService", () => {
       // Advance time to make cache stale
       vi.advanceTimersByTime(dataCache.refreshIntervals.marketData + 1000);
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
-      const cacheLogSpy = vi.spyOn(console, 'log').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
+      const cacheLogSpy = vi.spyOn(console, "log").mockImplementation();
 
       // Second request should fail but return stale cache
       const result = await dataCache.get("/api/test", {}, { fetchFunction });
       expect(result).toEqual(cachedData);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith("[API Error] /api/test:", "Network error");
-      expect(cacheLogSpy).toHaveBeenCalledWith("[Cache Fallback] Using stale cache after error for /api/test");
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "[API Error] /api/test:",
+        "Network error"
+      );
+      expect(cacheLogSpy).toHaveBeenCalledWith(
+        "[Cache Fallback] Using stale cache after error for /api/test"
+      );
 
       consoleErrorSpy.mockRestore();
       cacheLogSpy.mockRestore();
@@ -542,39 +583,42 @@ describe("DataCacheService", () => {
       const error = new Error("Network error");
       const fetchFunction = vi.fn().mockRejectedValue(error);
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
 
       await expect(
         dataCache.get("/api/test", {}, { fetchFunction })
       ).rejects.toThrow("Network error");
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith("[API Error] /api/test:", "Network error");
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "[API Error] /api/test:",
+        "Network error"
+      );
       consoleErrorSpy.mockRestore();
     });
 
     it("should throw error when no fetch function provided", async () => {
-      await expect(
-        dataCache.get("/api/test", {})
-      ).rejects.toThrow("No fetch function provided");
+      await expect(dataCache.get("/api/test", {})).rejects.toThrow(
+        "No fetch function provided"
+      );
     });
   });
 
   describe("Cache Management", () => {
     it("should clean up old cache entries", () => {
       const now = Date.now();
-      
+
       // Add fresh entry
       dataCache.cache.set("fresh", {
         data: "fresh data",
         timestamp: now,
-        endpoint: "/api/fresh"
+        endpoint: "/api/fresh",
       });
 
       // Add old entry
       dataCache.cache.set("old", {
-        data: "old data", 
-        timestamp: now - (25 * 60 * 60 * 1000), // 25 hours ago
-        endpoint: "/api/old"
+        data: "old data",
+        timestamp: now - 25 * 60 * 60 * 1000, // 25 hours ago
+        endpoint: "/api/old",
       });
 
       expect(dataCache.cache.size).toBe(2);
@@ -587,12 +631,14 @@ describe("DataCacheService", () => {
     });
 
     it("should trigger cleanup when cache size exceeds limit", async () => {
-      const cleanupSpy = vi.spyOn(dataCache, 'cleanupCache').mockImplementation();
+      const cleanupSpy = vi
+        .spyOn(dataCache, "cleanupCache")
+        .mockImplementation();
 
       // Mock cache size over limit
-      Object.defineProperty(dataCache.cache, 'size', {
+      Object.defineProperty(dataCache.cache, "size", {
         value: 101,
-        writable: false
+        writable: false,
       });
 
       const fetchFunction = vi.fn().mockResolvedValue({ data: "test" });
@@ -606,9 +652,25 @@ describe("DataCacheService", () => {
   describe("Batch Fetching", () => {
     it("should execute multiple requests in parallel", async () => {
       const requests = [
-        { endpoint: "/api/prices", params: { symbol: "AAPL" }, options: { fetchFunction: vi.fn().mockResolvedValue({ price: 150 }) } },
-        { endpoint: "/api/prices", params: { symbol: "GOOGL" }, options: { fetchFunction: vi.fn().mockResolvedValue({ price: 2800 }) } },
-        { endpoint: "/api/news", params: {}, options: { fetchFunction: vi.fn().mockResolvedValue({ articles: [] }) } }
+        {
+          endpoint: "/api/prices",
+          params: { symbol: "AAPL" },
+          options: { fetchFunction: vi.fn().mockResolvedValue({ price: 150 }) },
+        },
+        {
+          endpoint: "/api/prices",
+          params: { symbol: "GOOGL" },
+          options: {
+            fetchFunction: vi.fn().mockResolvedValue({ price: 2800 }),
+          },
+        },
+        {
+          endpoint: "/api/news",
+          params: {},
+          options: {
+            fetchFunction: vi.fn().mockResolvedValue({ articles: [] }),
+          },
+        },
       ];
 
       const results = await dataCache.batchFetch(requests);
@@ -624,19 +686,21 @@ describe("DataCacheService", () => {
 
     it("should handle mixed success and failure in batch", async () => {
       const requests = [
-        { 
-          endpoint: "/api/success", 
-          params: {}, 
-          options: { fetchFunction: vi.fn().mockResolvedValue({ data: "ok" }) } 
+        {
+          endpoint: "/api/success",
+          params: {},
+          options: { fetchFunction: vi.fn().mockResolvedValue({ data: "ok" }) },
         },
-        { 
-          endpoint: "/api/failure", 
-          params: {}, 
-          options: { fetchFunction: vi.fn().mockRejectedValue(new Error("Failed")) } 
-        }
+        {
+          endpoint: "/api/failure",
+          params: {},
+          options: {
+            fetchFunction: vi.fn().mockRejectedValue(new Error("Failed")),
+          },
+        },
       ];
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
 
       const results = await dataCache.batchFetch(requests);
 
@@ -654,29 +718,31 @@ describe("DataCacheService", () => {
 
   describe("Preload Common Data", () => {
     it("should preload data during non-market hours", async () => {
-      const sundayDate = new Date('2024-01-14T10:00:00.000Z'); // Sunday
+      const sundayDate = new Date("2024-01-14T10:00:00.000Z"); // Sunday
       vi.setSystemTime(sundayDate);
 
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
 
       fetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ data: "preloaded" })
+        json: () => Promise.resolve({ data: "preloaded" }),
       });
 
       await dataCache.preloadCommonData();
 
-      expect(consoleSpy).toHaveBeenCalledWith("[Cache] Preloading common data during off-hours");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Cache] Preloading common data during off-hours"
+      );
       expect(fetch).toHaveBeenCalledTimes(3); // Should preload 3 common endpoints
 
       consoleSpy.mockRestore();
     });
 
     it("should not preload data during market hours", async () => {
-      const tuesdayMarketHours = new Date('2024-01-16T14:30:00'); // Tuesday 2:30 PM local
+      const tuesdayMarketHours = new Date("2024-01-16T14:30:00"); // Tuesday 2:30 PM local
       vi.setSystemTime(tuesdayMarketHours);
 
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation();
 
       await dataCache.preloadCommonData();
 
@@ -687,10 +753,10 @@ describe("DataCacheService", () => {
     });
 
     it("should handle preload errors gracefully", async () => {
-      const sundayDate = new Date('2024-01-14T10:00:00.000Z'); // Sunday
+      const sundayDate = new Date("2024-01-14T10:00:00.000Z"); // Sunday
       vi.setSystemTime(sundayDate);
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
 
       fetch.mockRejectedValue(new Error("Preload failed"));
 
@@ -709,20 +775,20 @@ describe("DataCacheService", () => {
   describe("Cache Statistics", () => {
     it("should return cache statistics", () => {
       const now = Date.now();
-      
+
       // Add cache entries
       dataCache.cache.set("test1", {
         data: "data1",
         timestamp: now - 1000,
         endpoint: "/api/test1",
-        cacheType: "marketData"
+        cacheType: "marketData",
       });
 
       dataCache.cache.set("test2", {
         data: "data2",
         timestamp: now - 5000,
         endpoint: "/api/test2",
-        cacheType: "portfolio"
+        cacheType: "portfolio",
       });
 
       // Add API call counts
@@ -752,9 +818,9 @@ describe("DataCacheService", () => {
 
       // Add calls inside and outside window
       dataCache.apiCallCounts.set("default", [
-        now - 1000,           // Recent (within window)
-        now - window + 1000,  // Just within window
-        now - window - 1000   // Outside window
+        now - 1000, // Recent (within window)
+        now - window + 1000, // Just within window
+        now - window - 1000, // Outside window
       ]);
 
       vi.setSystemTime(now);
@@ -770,17 +836,29 @@ describe("DataCacheService", () => {
       const fetchFunction = vi.fn().mockResolvedValue({ data: "test" });
 
       // Test marketData caching
-      await dataCache.get("/api/market", {}, { fetchFunction, cacheType: "marketData" });
+      await dataCache.get(
+        "/api/market",
+        {},
+        { fetchFunction, cacheType: "marketData" }
+      );
       expect(fetchFunction).toHaveBeenCalledTimes(1);
 
       // Should use cached data within market data duration
       vi.advanceTimersByTime(dataCache.refreshIntervals.marketData - 1000);
-      await dataCache.get("/api/market", {}, { fetchFunction, cacheType: "marketData" });
+      await dataCache.get(
+        "/api/market",
+        {},
+        { fetchFunction, cacheType: "marketData" }
+      );
       expect(fetchFunction).toHaveBeenCalledTimes(1); // Still cached
 
       // Should fetch fresh data after market data duration
       vi.advanceTimersByTime(2000);
-      await dataCache.get("/api/market", {}, { fetchFunction, cacheType: "marketData" });
+      await dataCache.get(
+        "/api/market",
+        {},
+        { fetchFunction, cacheType: "marketData" }
+      );
       expect(fetchFunction).toHaveBeenCalledTimes(2); // New fetch
     });
 

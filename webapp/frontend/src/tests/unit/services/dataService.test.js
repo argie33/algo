@@ -4,34 +4,39 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import dataService, { fetchData, invalidateCache, refetchData, clearAllCache } from "../../../services/dataService.js";
+import dataService, {
+  fetchData,
+  invalidateCache,
+  refetchData,
+  clearAllCache,
+} from "../../../services/dataService.js";
 
 // Mock fetch globally
 global.fetch = vi.fn();
 
 // Mock window object
-Object.defineProperty(window, '__CONFIG__', {
-  value: { API_URL: 'https://test-api.example.com' },
+Object.defineProperty(window, "__CONFIG__", {
+  value: { API_URL: "https://test-api.example.com" },
   writable: true,
-  configurable: true
+  configurable: true,
 });
 
 // Mock devAuth service - needs to handle both static and dynamic imports
 vi.mock("../../../services/devAuth.js", () => ({
   default: {
     session: {
-      accessToken: "test-token-12345"
-    }
-  }
+      accessToken: "test-token-12345",
+    },
+  },
 }));
 
 // Also mock the dynamic import path used by dataService
 vi.mock("../../../services/devAuth", () => ({
   default: {
     session: {
-      accessToken: "test-token-12345"
-    }
-  }
+      accessToken: "test-token-12345",
+    },
+  },
 }));
 
 describe("DataService", () => {
@@ -40,13 +45,13 @@ describe("DataService", () => {
     dataService.clearCache();
     // Also clear subscribers to avoid test interference
     dataService.subscribers.clear();
-    
+
     // Reset fetch mock
     fetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: "test response" }),
       status: 200,
-      statusText: "OK"
+      statusText: "OK",
     });
   });
 
@@ -61,7 +66,9 @@ describe("DataService", () => {
     });
 
     it("should generate cache key with query parameters", () => {
-      const key = dataService.getCacheKey("/api/test", { params: { id: 1, type: "user" } });
+      const key = dataService.getCacheKey("/api/test", {
+        params: { id: 1, type: "user" },
+      });
       expect(key).toBe("/api/test?id=1&type=user");
     });
 
@@ -85,7 +92,7 @@ describe("DataService", () => {
     });
 
     it("should use default stale time when not provided", () => {
-      const cacheEntry = { timestamp: Date.now() - (6 * 60 * 1000) }; // 6 minutes ago
+      const cacheEntry = { timestamp: Date.now() - 6 * 60 * 1000 }; // 6 minutes ago
       const isFresh = dataService.isFresh(cacheEntry); // Should use default 5 minute stale time
       expect(isFresh).toBe(false);
     });
@@ -99,50 +106,50 @@ describe("DataService", () => {
 
     it("should fallback to environment variable when window config unavailable", () => {
       const originalConfig = window.__CONFIG__;
-      
+
       // Temporarily set __CONFIG__ to undefined instead of deleting
-      Object.defineProperty(window, '__CONFIG__', {
+      Object.defineProperty(window, "__CONFIG__", {
         value: undefined,
         writable: true,
-        configurable: true
+        configurable: true,
       });
-      
+
       // Use vi.stubEnv to mock environment variables
-      vi.stubEnv('VITE_API_URL', 'https://env-api.example.com');
+      vi.stubEnv("VITE_API_URL", "https://env-api.example.com");
 
       const apiUrl = dataService.getApiUrl();
       expect(apiUrl).toBe("https://env-api.example.com");
 
       // Restore original config and environment
-      Object.defineProperty(window, '__CONFIG__', {
+      Object.defineProperty(window, "__CONFIG__", {
         value: originalConfig,
         writable: true,
-        configurable: true
+        configurable: true,
       });
       vi.unstubAllEnvs();
     });
 
     it("should fallback to localhost when no config available", () => {
       const originalConfig = window.__CONFIG__;
-      
+
       // Temporarily set __CONFIG__ to undefined instead of deleting
-      Object.defineProperty(window, '__CONFIG__', {
+      Object.defineProperty(window, "__CONFIG__", {
         value: undefined,
         writable: true,
-        configurable: true
+        configurable: true,
       });
-      
+
       // Ensure no environment variable is set
-      vi.stubEnv('VITE_API_URL', undefined);
+      vi.stubEnv("VITE_API_URL", undefined);
 
       const apiUrl = dataService.getApiUrl();
       expect(apiUrl).toBe("http://localhost:3001");
 
       // Restore original config
-      Object.defineProperty(window, '__CONFIG__', {
+      Object.defineProperty(window, "__CONFIG__", {
         value: originalConfig,
         writable: true,
-        configurable: true
+        configurable: true,
       });
       vi.unstubAllEnvs();
     });
@@ -170,24 +177,26 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve(testData),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
-      const result = await dataService.fetchData("https://external-api.com/data");
+      const result = await dataService.fetchData(
+        "https://external-api.com/data"
+      );
 
       expect(fetch).toHaveBeenCalledWith("https://external-api.com/data", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer test-token-12345"
-        }
+          Authorization: "Bearer test-token-12345",
+        },
       });
 
       expect(result).toEqual({
         data: testData,
         isLoading: false,
         error: null,
-        isStale: false
+        isStale: false,
       });
     });
 
@@ -197,18 +206,21 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve(testData),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       const result = await dataService.fetchData("/api/users");
 
-      expect(fetch).toHaveBeenCalledWith("https://test-api.example.com/api/users", expect.objectContaining({
-        method: "GET",
-        headers: expect.objectContaining({
-          "Content-Type": "application/json",
-          "Authorization": "Bearer test-token-12345"
+      expect(fetch).toHaveBeenCalledWith(
+        "https://test-api.example.com/api/users",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            Authorization: "Bearer test-token-12345",
+          }),
         })
-      }));
+      );
 
       expect(result.data).toEqual(testData);
     });
@@ -221,22 +233,25 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve(responseData),
         status: 201,
-        statusText: "Created"
+        statusText: "Created",
       });
 
       const result = await dataService.fetchData("/api/users", {
         method: "POST",
-        body: requestBody
+        body: requestBody,
       });
 
-      expect(fetch).toHaveBeenCalledWith("https://test-api.example.com/api/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer test-token-12345"
-        },
-        body: JSON.stringify(requestBody)
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        "https://test-api.example.com/api/users",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer test-token-12345",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       expect(result.data).toEqual(responseData);
     });
@@ -245,7 +260,7 @@ describe("DataService", () => {
       fetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
-        statusText: "Not Found"
+        statusText: "Not Found",
       });
 
       const result = await dataService.fetchData("/api/nonexistent");
@@ -260,7 +275,7 @@ describe("DataService", () => {
       const networkError = new Error("Network error");
       fetch.mockRejectedValueOnce(networkError);
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
 
       const result = await dataService.fetchData("/api/test");
 
@@ -279,7 +294,7 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "first" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       const result1 = await dataService.fetchData("/api/test");
@@ -299,7 +314,7 @@ describe("DataService", () => {
       const staleTimestamp = Date.now() - 10 * 60 * 1000; // 10 minutes ago
       dataService.cache.set("/api/test", {
         data: staleData,
-        timestamp: staleTimestamp
+        timestamp: staleTimestamp,
       });
 
       // Fresh fetch
@@ -307,17 +322,19 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "fresh" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
-      const result = await dataService.fetchData("/api/test", { staleTime: 5 * 60 * 1000 });
+      const result = await dataService.fetchData("/api/test", {
+        staleTime: 5 * 60 * 1000,
+      });
       expect(result.data).toEqual({ data: "fresh" });
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
     it("should return loading state for concurrent requests", async () => {
       let resolveFirstFetch;
-      const firstFetchPromise = new Promise(resolve => {
+      const firstFetchPromise = new Promise((resolve) => {
         resolveFirstFetch = resolve;
       });
 
@@ -336,7 +353,7 @@ describe("DataService", () => {
       // Complete first request
       resolveFirstFetch({
         ok: true,
-        json: () => Promise.resolve({ data: "completed" })
+        json: () => Promise.resolve({ data: "completed" }),
       });
 
       const firstResult = await firstRequest;
@@ -348,14 +365,14 @@ describe("DataService", () => {
     it("should notify subscribers when data changes", async () => {
       const subscriber = vi.fn();
       const cacheKey = "/api/test";
-      
+
       const unsubscribe = dataService.subscribe(cacheKey, subscriber);
 
       fetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ data: "test" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       await dataService.fetchData(cacheKey);
@@ -364,7 +381,7 @@ describe("DataService", () => {
         data: { data: "test" },
         isLoading: false,
         error: null,
-        isStale: false
+        isStale: false,
       });
 
       unsubscribe();
@@ -374,7 +391,7 @@ describe("DataService", () => {
       const faultySubscriber = vi.fn().mockImplementation(() => {
         throw new Error("Subscriber error");
       });
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
 
       const cacheKey = "/api/test";
       dataService.subscribe(cacheKey, faultySubscriber);
@@ -383,19 +400,22 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "test" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       await dataService.fetchData(cacheKey);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith("Error notifying subscriber:", expect.any(Error));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Error notifying subscriber:",
+        expect.any(Error)
+      );
       consoleErrorSpy.mockRestore();
     });
 
     it("should clean up empty subscriber sets", () => {
       const subscriber = vi.fn();
       const cacheKey = "/api/test";
-      
+
       const unsubscribe = dataService.subscribe(cacheKey, subscriber);
       expect(dataService.subscribers.has(cacheKey)).toBe(true);
 
@@ -421,7 +441,7 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "original" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       await dataService.fetchData("/api/test");
@@ -432,7 +452,7 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "updated" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       const result = await dataService.refetch("/api/test");
@@ -447,7 +467,10 @@ describe("DataService", () => {
 
       // Add entries
       dataService.cache.set("old", { data: "old", timestamp: oldTimestamp });
-      dataService.cache.set("recent", { data: "recent", timestamp: recentTimestamp });
+      dataService.cache.set("recent", {
+        data: "recent",
+        timestamp: recentTimestamp,
+      });
 
       expect(dataService.cache.size).toBe(2);
 
@@ -473,8 +496,8 @@ describe("DataService", () => {
 
   describe("Service Lifecycle", () => {
     it("should destroy service properly", () => {
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+
       dataService.cache.set("test", { data: "test", timestamp: Date.now() });
       dataService.subscribers.set("test", new Set([vi.fn()]));
 
@@ -494,7 +517,7 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "convenience test" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       const result = await fetchData("/api/convenience");
@@ -502,10 +525,13 @@ describe("DataService", () => {
     });
 
     it("should invalidate cache via convenience function", () => {
-      dataService.cache.set("/api/test", { data: "test", timestamp: Date.now() });
-      
+      dataService.cache.set("/api/test", {
+        data: "test",
+        timestamp: Date.now(),
+      });
+
       invalidateCache("/api/test");
-      
+
       expect(dataService.cache.has("/api/test")).toBe(false);
     });
 
@@ -514,7 +540,7 @@ describe("DataService", () => {
         ok: true,
         json: () => Promise.resolve({ data: "refetch test" }),
         status: 200,
-        statusText: "OK"
+        statusText: "OK",
       });
 
       const result = await refetchData("/api/refetch");
@@ -523,9 +549,9 @@ describe("DataService", () => {
 
     it("should clear all cache via convenience function", () => {
       dataService.cache.set("test", { data: "test", timestamp: Date.now() });
-      
+
       clearAllCache();
-      
+
       expect(dataService.cache.size).toBe(0);
     });
   });

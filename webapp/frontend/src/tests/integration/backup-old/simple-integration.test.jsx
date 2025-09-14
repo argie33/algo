@@ -10,8 +10,10 @@ import { TestWrapper } from "../test-utils.jsx";
 
 // Simple mock for testing
 const mockSimpleService = {
-  getData: vi.fn(() => Promise.resolve({ message: "Integration test working!" })),
-  isConnected: vi.fn(() => true)
+  getData: vi.fn(() =>
+    Promise.resolve({ message: "Integration test working!" })
+  ),
+  isConnected: vi.fn(() => true),
 };
 
 describe("Simple Integration Test", () => {
@@ -22,19 +24,19 @@ describe("Simple Integration Test", () => {
   describe("Basic Integration Scenarios", () => {
     it("should demonstrate integration testing works", async () => {
       const result = await mockSimpleService.getData();
-      
+
       expect(result.message).toBe("Integration test working!");
       expect(mockSimpleService.isConnected()).toBe(true);
     });
 
     it("should handle mock service coordination", async () => {
-      mockSimpleService.getData.mockResolvedValue({ 
+      mockSimpleService.getData.mockResolvedValue({
         data: { users: ["user1", "user2"] },
-        status: "success" 
+        status: "success",
       });
 
       const result = await mockSimpleService.getData();
-      
+
       expect(result.status).toBe("success");
       expect(result.data.users).toHaveLength(2);
       expect(mockSimpleService.getData).toHaveBeenCalledTimes(1);
@@ -77,7 +79,7 @@ describe("Simple Integration Test", () => {
       mockSimpleService.getData.mockResolvedValue({ flow: "complete" });
 
       const result = await asyncFlow();
-      
+
       expect(result.flow).toBe("complete");
       expect(mockSimpleService.isConnected).toHaveBeenCalled();
       expect(mockSimpleService.getData).toHaveBeenCalled();
@@ -90,20 +92,27 @@ describe("Simple Integration Test", () => {
         const [data, setData] = React.useState(null);
 
         React.useEffect(() => {
-          mockSimpleService.getData().then(result => {
-            setData(result);
-          }).catch(() => {
-            setData({ error: "Failed to load" });
-          });
+          mockSimpleService
+            .getData()
+            .then((result) => {
+              setData(result);
+            })
+            .catch(() => {
+              setData({ error: "Failed to load" });
+            });
         }, []);
 
         if (!data) return <div data-testid="loading">Loading...</div>;
         if (data.error) return <div data-testid="error">{data.error}</div>;
-        
-        return <div data-testid="content">{data.message || "Content loaded"}</div>;
+
+        return (
+          <div data-testid="content">{data.message || "Content loaded"}</div>
+        );
       };
 
-      mockSimpleService.getData.mockResolvedValue({ message: "Hello Integration!" });
+      mockSimpleService.getData.mockResolvedValue({
+        message: "Hello Integration!",
+      });
 
       render(
         <TestWrapper>
@@ -126,16 +135,19 @@ describe("Simple Integration Test", () => {
         const [data, setData] = React.useState(null);
 
         React.useEffect(() => {
-          mockSimpleService.getData().then(result => {
-            setData(result);
-          }).catch(() => {
-            setData({ error: "Failed to load" });
-          });
+          mockSimpleService
+            .getData()
+            .then((result) => {
+              setData(result);
+            })
+            .catch(() => {
+              setData({ error: "Failed to load" });
+            });
         }, []);
 
         if (!data) return <div data-testid="loading">Loading...</div>;
         if (data.error) return <div data-testid="error">{data.error}</div>;
-        
+
         return <div data-testid="content">Content loaded</div>;
       };
 
@@ -158,11 +170,11 @@ describe("Simple Integration Test", () => {
   describe("Integration Test Patterns", () => {
     it("should demonstrate service integration pattern", async () => {
       // Setup multiple services
-      const serviceA = { 
-        process: vi.fn(() => Promise.resolve("A done")) 
+      const serviceA = {
+        process: vi.fn(() => Promise.resolve("A done")),
       };
-      const serviceB = { 
-        process: vi.fn(() => Promise.resolve("B done")) 
+      const serviceB = {
+        process: vi.fn(() => Promise.resolve("B done")),
       };
 
       // Integration coordinator
@@ -183,11 +195,14 @@ describe("Simple Integration Test", () => {
       let sharedState = { value: 0 };
 
       const incrementer = {
-        increment: () => { sharedState.value += 1; return sharedState.value; }
+        increment: () => {
+          sharedState.value += 1;
+          return sharedState.value;
+        },
       };
 
       const reader = {
-        read: () => sharedState.value
+        read: () => sharedState.value,
       };
 
       // Test data flow
@@ -200,13 +215,13 @@ describe("Simple Integration Test", () => {
 
     it("should demonstrate event-driven integration", async () => {
       const events = [];
-      
+
       const publisher = {
-        publish: (event) => events.push(event)
+        publish: (event) => events.push(event),
       };
 
       const subscriber = {
-        handleEvent: vi.fn((event) => `Handled: ${event}`)
+        handleEvent: vi.fn((event) => `Handled: ${event}`),
       };
 
       // Integration flow
@@ -214,7 +229,7 @@ describe("Simple Integration Test", () => {
       publisher.publish("event2");
 
       // Process events
-      events.forEach(event => subscriber.handleEvent(event));
+      events.forEach((event) => subscriber.handleEvent(event));
 
       expect(subscriber.handleEvent).toHaveBeenCalledTimes(2);
       expect(subscriber.handleEvent).toHaveBeenCalledWith("event1");

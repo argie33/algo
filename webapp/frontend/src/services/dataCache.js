@@ -50,7 +50,10 @@ class DataCacheService {
       const safeParams = params || {};
       return `${endpoint}-${JSON.stringify(safeParams)}`;
     } catch (error) {
-      console.warn('[Cache] Failed to stringify params, using endpoint only:', error);
+      console.warn(
+        "[Cache] Failed to stringify params, using endpoint only:",
+        error
+      );
       return endpoint;
     }
   }
@@ -69,7 +72,9 @@ class DataCacheService {
       const age = Date.now() - cached.timestamp;
       if (age < cacheDuration) {
         if (import.meta.env.DEV) {
-          console.log(`[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`);
+          console.log(
+            `[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`
+          );
         }
         return cached?.data;
       }
@@ -122,7 +127,9 @@ class DataCacheService {
       // Return stale cache if available
       if (cached) {
         if (import.meta.env.DEV) {
-          console.log(`[Cache Fallback] Using stale cache after error for ${endpoint}`);
+          console.log(
+            `[Cache Fallback] Using stale cache after error for ${endpoint}`
+          );
         }
         return cached?.data;
       }
@@ -165,24 +172,30 @@ class DataCacheService {
 
       for (const [cacheKey, value] of this.cache.entries()) {
         // Handle invalid cache entries
-        if (!value || typeof value !== 'object' || typeof value.timestamp !== 'number') {
+        if (
+          !value ||
+          typeof value !== "object" ||
+          typeof value.timestamp !== "number"
+        ) {
           keysToDelete.push(cacheKey);
           continue;
         }
-        
+
         if (now - value.timestamp > maxAge) {
           keysToDelete.push(cacheKey);
         }
       }
 
       // Delete entries outside the iteration to avoid modification during iteration
-      keysToDelete.forEach(key => this.cache.delete(key));
-      
+      keysToDelete.forEach((key) => this.cache.delete(key));
+
       if (import.meta.env.DEV && keysToDelete.length > 0) {
-        console.log(`[Cache] Cleaned up ${keysToDelete.length} expired entries`);
+        console.log(
+          `[Cache] Cleaned up ${keysToDelete.length} expired entries`
+        );
       }
     } catch (error) {
-      console.error('[Cache] Error during cleanup:', error);
+      console.error("[Cache] Error during cleanup:", error);
     }
   }
 
@@ -196,10 +209,10 @@ class DataCacheService {
     const results = await Promise.allSettled(
       requests.map((req) => {
         // Validate request object
-        if (!req || typeof req !== 'object' || !req.endpoint) {
-          return Promise.reject(new Error('Invalid request object'));
+        if (!req || typeof req !== "object" || !req.endpoint) {
+          return Promise.reject(new Error("Invalid request object"));
         }
-        
+
         return this.get(req.endpoint, req.params, {
           ...options,
           ...req.options,
@@ -261,24 +274,28 @@ class DataCacheService {
     try {
       for (const [cacheKey, value] of this.cache.entries()) {
         // Handle invalid cache entries gracefully
-        if (!value || typeof value !== 'object') {
+        if (!value || typeof value !== "object") {
           stats.cacheEntries.push({
             endpoint: cacheKey,
             age: 0,
             expired: true,
-            invalid: true
+            invalid: true,
           });
           continue;
         }
 
-        const timestamp = typeof value.timestamp === 'number' ? value.timestamp : 0;
+        const timestamp =
+          typeof value.timestamp === "number" ? value.timestamp : 0;
         const age = Date.now() - timestamp;
-        const cacheType = value.cacheType || 'marketData';
-        
+        const cacheType = value.cacheType || "marketData";
+
         stats.cacheEntries.push({
           endpoint: value.endpoint || cacheKey,
           age: Math.round(age / 1000),
-          expired: age > (this.refreshIntervals[cacheType] || this.refreshIntervals.marketData),
+          expired:
+            age >
+            (this.refreshIntervals[cacheType] ||
+              this.refreshIntervals.marketData),
         });
       }
 
@@ -288,26 +305,27 @@ class DataCacheService {
           stats.apiCallCounts[apiType] = {
             recent: 0,
             limit: 0,
-            window: '0s',
-            invalid: true
+            window: "0s",
+            invalid: true,
           };
           continue;
         }
 
         const limit = this.rateLimits[apiType] || this.rateLimits.default;
         const windowStart = Date.now() - limit.window;
-        const recentCalls = calls.filter((timestamp) => 
-          typeof timestamp === 'number' && timestamp > windowStart
+        const recentCalls = calls.filter(
+          (timestamp) =>
+            typeof timestamp === "number" && timestamp > windowStart
         );
 
         stats.apiCallCounts[apiType] = {
           recent: recentCalls.length,
           limit: limit.calls,
-          window: (limit.window / 1000) + "s",
+          window: limit.window / 1000 + "s",
         };
       }
     } catch (error) {
-      console.error('[Cache] Error generating stats:', error);
+      console.error("[Cache] Error generating stats:", error);
     }
 
     return stats;

@@ -10,13 +10,13 @@ class DevAuthService {
     this.users = this.loadUsers();
     this.session = this.loadSession();
     this.pendingVerifications = this.loadPendingVerifications();
-    
+
     // Create default dev user if none exist
     this.ensureDevUser();
   }
 
   loadUsers() {
-    if (typeof localStorage === 'undefined') {
+    if (typeof localStorage === "undefined") {
       return {}; // Return empty object in test environment
     }
     const stored = localStorage.getItem(DEV_USERS_KEY);
@@ -24,13 +24,13 @@ class DevAuthService {
   }
 
   saveUsers() {
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.setItem(DEV_USERS_KEY, JSON.stringify(this.users));
     }
   }
 
   loadSession() {
-    if (typeof localStorage === 'undefined') {
+    if (typeof localStorage === "undefined") {
       return null; // Return null in test environment
     }
     const stored = localStorage.getItem(DEV_SESSION_KEY);
@@ -39,20 +39,20 @@ class DevAuthService {
 
   saveSession(session) {
     this.session = session;
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.setItem(DEV_SESSION_KEY, JSON.stringify(session));
     }
   }
 
   clearSession() {
     this.session = null;
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.removeItem(DEV_SESSION_KEY);
     }
   }
 
   loadPendingVerifications() {
-    if (typeof localStorage === 'undefined') {
+    if (typeof localStorage === "undefined") {
       return {}; // Return empty object in test environment
     }
     const stored = localStorage.getItem(DEV_PENDING_KEY);
@@ -60,7 +60,7 @@ class DevAuthService {
   }
 
   savePendingVerifications() {
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.setItem(
         DEV_PENDING_KEY,
         JSON.stringify(this.pendingVerifications)
@@ -71,26 +71,26 @@ class DevAuthService {
   ensureDevUser() {
     // Always ensure the default user exists with consistent credentials
     const defaultUser = {
-      username: 'devuser',
-      email: 'argeropolos@gmail.com',
-      firstName: 'Dev',
-      lastName: 'User',
-      password: 'password123',
+      username: "devuser",
+      email: "argeropolos@gmail.com",
+      firstName: "Dev",
+      lastName: "User",
+      password: "password123",
       confirmed: true,
       createdAt: Date.now(),
     };
-    
+
     // Always set/update the default user to ensure consistency
-    this.users['devuser'] = defaultUser;
-    this.users['argeropolos@gmail.com'] = defaultUser; // Allow email login too
+    this.users["devuser"] = defaultUser;
+    this.users["argeropolos@gmail.com"] = defaultUser; // Allow email login too
     this.saveUsers();
-    
-    if (typeof console !== 'undefined') {
-      console.log('🔧 DEV: Ensured default dev user exists');
-      console.log('📧 Email: argeropolos@gmail.com');
-      console.log('🔑 Username: devuser');
-      console.log('🔒 Password: password123');
-      console.log('✅ User can sign in with either email or username');
+
+    if (typeof console !== "undefined") {
+      console.log("🔧 DEV: Ensured default dev user exists");
+      console.log("📧 Email: argeropolos@gmail.com");
+      console.log("🔑 Username: devuser");
+      console.log("🔒 Password: password123");
+      console.log("✅ User can sign in with either email or username");
     }
   }
 
@@ -152,25 +152,37 @@ class DevAuthService {
     this.savePendingVerifications();
 
     // Simulate email being sent
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("📧 DEV: Email verification code sent to", email);
       console.log("🔑 DEV: Verification code:", verificationCode);
-      console.log("📧 DEV AUTH: Verification code for", email, ":", verificationCode);
+      console.log(
+        "📧 DEV AUTH: Verification code for",
+        email,
+        ":",
+        verificationCode
+      );
       console.log("🔑 DEV AUTH: Copy this code to complete registration");
     }
-    
+
     // Store dev code for debugging (non-production only)
-    if (typeof window !== 'undefined' && window.DEV_AUTH_DEBUG !== false) {
+    if (typeof window !== "undefined" && window.DEV_AUTH_DEBUG !== false) {
       window.lastDevCode = verificationCode;
-      if (typeof console !== 'undefined') {
+      if (typeof console !== "undefined") {
         console.log("💡 DEV AUTH: Access code via window.lastDevCode");
       }
     }
-    
+
     // Show verification code in browser alert for easy access in development
-    if (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    if (
+      typeof window !== "undefined" &&
+      window.location &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1")
+    ) {
       setTimeout(() => {
-        alert(`🔑 DEV AUTH VERIFICATION CODE\n\nFor: ${email}\nCode: ${verificationCode}\n\nCopy this code to complete your registration.`);
+        alert(
+          `🔑 DEV AUTH VERIFICATION CODE\n\nFor: ${email}\nCode: ${verificationCode}\n\nCopy this code to complete your registration.`
+        );
       }, 100);
     }
 
@@ -187,7 +199,7 @@ class DevAuthService {
   }
 
   async confirmSignUp(username, confirmationCode) {
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("🔧 DEV: Confirming sign up for", username);
     }
 
@@ -221,7 +233,7 @@ class DevAuthService {
     delete this.pendingVerifications[username];
     this.savePendingVerifications();
 
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("✅ DEV: User confirmed successfully");
     }
 
@@ -231,7 +243,7 @@ class DevAuthService {
   }
 
   async signIn(usernameOrEmail, password) {
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("🔧 DEV: Signing in user", usernameOrEmail);
     }
 
@@ -247,8 +259,11 @@ class DevAuthService {
       if (userEntry) {
         actualUsername = userEntry[0];
         user = userEntry[1];
-        if (typeof console !== 'undefined') {
-          console.log("🔧 DEV: Found user by email, username is", actualUsername);
+        if (typeof console !== "undefined") {
+          console.log(
+            "🔧 DEV: Found user by email, username is",
+            actualUsername
+          );
         }
       }
     }
@@ -259,7 +274,7 @@ class DevAuthService {
       if (pendingUser) {
         throw new Error("UserNotConfirmedException: User not confirmed");
       }
-      
+
       // Check if user exists by email in pending verifications
       const pendingByEmail = Object.values(this.pendingVerifications).find(
         (pending) => pending.email === usernameOrEmail
@@ -267,7 +282,7 @@ class DevAuthService {
       if (pendingByEmail) {
         throw new Error("UserNotConfirmedException: User not confirmed");
       }
-      
+
       throw new Error("UserNotFoundException: User not found");
     }
 
@@ -294,7 +309,7 @@ class DevAuthService {
     };
 
     this.saveSession(session);
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("✅ DEV: User signed in successfully");
     }
 
@@ -306,7 +321,7 @@ class DevAuthService {
   }
 
   async signOut() {
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("🔧 DEV: Signing out user");
     }
     this.clearSession();
@@ -330,7 +345,7 @@ class DevAuthService {
   }
 
   async resetPassword(username) {
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("🔧 DEV: Initiating password reset for", username);
     }
 
@@ -349,25 +364,37 @@ class DevAuthService {
     };
     this.savePendingVerifications();
 
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("📧 DEV: Password reset code sent to", user.email);
       console.log("🔑 DEV: Reset code:", resetCode);
-      console.log("📧 DEV AUTH: Password reset code for", user.email, ":", resetCode);
+      console.log(
+        "📧 DEV AUTH: Password reset code for",
+        user.email,
+        ":",
+        resetCode
+      );
       console.log("🔑 DEV AUTH: Copy this code to reset your password");
     }
-    
+
     // Store dev code for debugging (non-production only)
-    if (typeof window !== 'undefined' && window.DEV_AUTH_DEBUG !== false) {
+    if (typeof window !== "undefined" && window.DEV_AUTH_DEBUG !== false) {
       window.lastDevResetCode = resetCode;
-      if (typeof console !== 'undefined') {
+      if (typeof console !== "undefined") {
         console.log("💡 DEV AUTH: Access code via window.lastDevResetCode");
       }
     }
-    
+
     // Show reset code in browser alert for easy access in development
-    if (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    if (
+      typeof window !== "undefined" &&
+      window.location &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1")
+    ) {
       setTimeout(() => {
-        alert(`🔑 DEV AUTH PASSWORD RESET CODE\n\nFor: ${user.email}\nReset Code: ${resetCode}\n\nCopy this code to reset your password.`);
+        alert(
+          `🔑 DEV AUTH PASSWORD RESET CODE\n\nFor: ${user.email}\nReset Code: ${resetCode}\n\nCopy this code to reset your password.`
+        );
       }, 100);
     }
 
@@ -383,7 +410,7 @@ class DevAuthService {
   }
 
   async confirmResetPassword(username, confirmationCode, newPassword) {
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("🔧 DEV: Confirming password reset for", username);
     }
 
@@ -411,7 +438,7 @@ class DevAuthService {
     delete this.pendingVerifications[resetKey];
     this.savePendingVerifications();
 
-    if (typeof console !== 'undefined') {
+    if (typeof console !== "undefined") {
       console.log("✅ DEV: Password reset successfully");
     }
 
@@ -435,15 +462,15 @@ class DevAuthService {
   async signUpWrapper(userData) {
     try {
       const { username, password, email, firstName, lastName } = userData;
-      
+
       // Check if user already exists in confirmed users
       if (this.users[username]) {
         return {
           success: false,
           error: {
-            code: 'UsernameExistsException',
-            message: 'Username already exists'
-          }
+            code: "UsernameExistsException",
+            message: "Username already exists",
+          },
         };
       }
 
@@ -452,9 +479,9 @@ class DevAuthService {
         return {
           success: false,
           error: {
-            code: 'UsernameExistsException',
-            message: 'Username already exists'
-          }
+            code: "UsernameExistsException",
+            message: "Username already exists",
+          },
         };
       }
 
@@ -466,9 +493,9 @@ class DevAuthService {
         return {
           success: false,
           error: {
-            code: 'UsernameExistsException',
-            message: 'Email already exists'
-          }
+            code: "UsernameExistsException",
+            message: "Email already exists",
+          },
         };
       }
 
@@ -480,53 +507,64 @@ class DevAuthService {
         return {
           success: false,
           error: {
-            code: 'UsernameExistsException',
-            message: 'Email already exists'
-          }
+            code: "UsernameExistsException",
+            message: "Email already exists",
+          },
         };
       }
-      
+
       // Call the original signUp method directly to avoid circular reference
-      const result = await DevAuthService.prototype.signUp.call(this, username, password, email, firstName || 'Dev', lastName || 'User');
-      
+      const result = await DevAuthService.prototype.signUp.call(
+        this,
+        username,
+        password,
+        email,
+        firstName || "Dev",
+        lastName || "User"
+      );
+
       return {
         success: true,
         user: {
           username,
-          email
+          email,
         },
         userConfirmed: false,
         isSignUpComplete: result.isSignUpComplete,
-        nextStep: result.nextStep
+        nextStep: result.nextStep,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: error.message.split(':')[0],
-          message: error.message.split(':')[1] || error.message
-        }
+          code: error.message.split(":")[0],
+          message: error.message.split(":")[1] || error.message,
+        },
       };
     }
   }
 
-  // Wrapper method for tests - matches expected API  
+  // Wrapper method for tests - matches expected API
   async signInWrapper(username, password) {
     try {
-      const result = await DevAuthService.prototype.signIn.call(this, username, password);
+      const result = await DevAuthService.prototype.signIn.call(
+        this,
+        username,
+        password
+      );
       return {
         success: true,
         user: result.user,
         tokens: result.tokens,
-        isSignedIn: result.isSignedIn
+        isSignedIn: result.isSignedIn,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: error.message.split(':')[0],
-          message: error.message.split(':')[1] || error.message
-        }
+          code: error.message.split(":")[0],
+          message: error.message.split(":")[1] || error.message,
+        },
       };
     }
   }
@@ -534,30 +572,30 @@ class DevAuthService {
   // Password validation method
   validatePassword(password) {
     const errors = [];
-    
+
     if (password.length < 8) {
-      errors.push('Password must be at least 8 characters long');
+      errors.push("Password must be at least 8 characters long");
     }
-    
+
     if (!/[a-z]/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter');
+      errors.push("Password must contain at least one lowercase letter");
     }
-    
+
     if (!/[A-Z]/.test(password)) {
-      errors.push('Password must contain at least one uppercase letter');
+      errors.push("Password must contain at least one uppercase letter");
     }
-    
+
     if (!/\d/.test(password)) {
-      errors.push('Password must contain at least one digit');
+      errors.push("Password must contain at least one digit");
     }
-    
+
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      errors.push('Password must contain at least one special character');
+      errors.push("Password must contain at least one special character");
     }
-    
+
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -567,15 +605,15 @@ class DevAuthService {
       const user = await DevAuthService.prototype.getCurrentUser.call(this);
       return {
         success: true,
-        user
+        user,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: 'NotAuthorizedException',
-          message: error.message
-        }
+          code: "NotAuthorizedException",
+          message: error.message,
+        },
       };
     }
   }
@@ -595,15 +633,15 @@ class DevAuthService {
     try {
       await DevAuthService.prototype.signOut.call(this);
       return {
-        success: true
+        success: true,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: 'SignOutError',
-          message: error.message
-        }
+          code: "SignOutError",
+          message: error.message,
+        },
       };
     }
   }
@@ -613,15 +651,15 @@ class DevAuthService {
     try {
       await DevAuthService.prototype.resetPassword.call(this, username);
       return {
-        success: true
+        success: true,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: error.message.split(':')[0],
-          message: error.message.split(':')[1] || error.message
-        }
+          code: error.message.split(":")[0],
+          message: error.message.split(":")[1] || error.message,
+        },
       };
     }
   }
@@ -629,17 +667,22 @@ class DevAuthService {
   // Confirm password reset wrapper for tests
   async confirmResetPasswordWrapper(username, code, newPassword) {
     try {
-      await DevAuthService.prototype.confirmResetPassword.call(this, username, code, newPassword);
+      await DevAuthService.prototype.confirmResetPassword.call(
+        this,
+        username,
+        code,
+        newPassword
+      );
       return {
-        success: true
+        success: true,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: error.message.split(':')[0],
-          message: error.message.split(':')[1] || error.message
-        }
+          code: error.message.split(":")[0],
+          message: error.message.split(":")[1] || error.message,
+        },
       };
     }
   }
@@ -647,7 +690,7 @@ class DevAuthService {
   // JWT token validation methods
   validateJwtToken(token) {
     // Simple validation for dev environment
-    return !!(token && typeof token === 'string' && token.length > 0);
+    return !!(token && typeof token === "string" && token.length > 0);
   }
 
   isTokenExpired(_token) {
@@ -660,7 +703,7 @@ class DevAuthService {
     // Dev environment doesn't have real MFA, so just return success
     return {
       success: true,
-      user: user || { username: 'testuser' }
+      user: user || { username: "testuser" },
     };
   }
 
@@ -673,15 +716,15 @@ class DevAuthService {
         this.saveUsers();
       }
       return {
-        success: true
+        success: true,
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          code: 'UpdateAttributesError',
-          message: error.message
-        }
+          code: "UpdateAttributesError",
+          message: error.message,
+        },
       };
     }
   }
@@ -696,23 +739,33 @@ devAuthService.signIn = devAuthService.signInWrapper;
 devAuthService.getCurrentUser = devAuthService.getCurrentUserWrapper;
 devAuthService.signOut = devAuthService.signOutWrapper;
 devAuthService.forgotPassword = devAuthService.forgotPasswordWrapper;
-devAuthService.forgotPasswordSubmit = devAuthService.confirmResetPasswordWrapper;
+devAuthService.forgotPasswordSubmit =
+  devAuthService.confirmResetPasswordWrapper;
 devAuthService.changePassword = devAuthService.confirmResetPasswordWrapper;
 
 // Ensure all methods are available on the instance
-devAuthService.generateVerificationCode = devAuthService.generateVerificationCode.bind(devAuthService);
-devAuthService.generateDevTokens = devAuthService.generateDevTokens.bind(devAuthService);
+devAuthService.generateVerificationCode =
+  devAuthService.generateVerificationCode.bind(devAuthService);
+devAuthService.generateDevTokens =
+  devAuthService.generateDevTokens.bind(devAuthService);
 devAuthService.loadUsers = devAuthService.loadUsers.bind(devAuthService);
 devAuthService.saveUsers = devAuthService.saveUsers.bind(devAuthService);
 devAuthService.loadSession = devAuthService.loadSession.bind(devAuthService);
 devAuthService.saveSession = devAuthService.saveSession.bind(devAuthService);
-devAuthService.loadPendingVerifications = devAuthService.loadPendingVerifications.bind(devAuthService);
-devAuthService.savePendingVerifications = devAuthService.savePendingVerifications.bind(devAuthService);
-devAuthService.confirmSignUp = devAuthService.confirmSignUp.bind(devAuthService);
-devAuthService.validateJwtToken = devAuthService.validateJwtToken.bind(devAuthService);
-devAuthService.isTokenExpired = devAuthService.isTokenExpired.bind(devAuthService);
+devAuthService.loadPendingVerifications =
+  devAuthService.loadPendingVerifications.bind(devAuthService);
+devAuthService.savePendingVerifications =
+  devAuthService.savePendingVerifications.bind(devAuthService);
+devAuthService.confirmSignUp =
+  devAuthService.confirmSignUp.bind(devAuthService);
+devAuthService.validateJwtToken =
+  devAuthService.validateJwtToken.bind(devAuthService);
+devAuthService.isTokenExpired =
+  devAuthService.isTokenExpired.bind(devAuthService);
 devAuthService.confirmMFA = devAuthService.confirmMFA.bind(devAuthService);
-devAuthService.updateUserAttributes = devAuthService.updateUserAttributes.bind(devAuthService);
-devAuthService.validatePassword = devAuthService.validatePassword.bind(devAuthService);
+devAuthService.updateUserAttributes =
+  devAuthService.updateUserAttributes.bind(devAuthService);
+devAuthService.validatePassword =
+  devAuthService.validatePassword.bind(devAuthService);
 
 export default devAuthService;

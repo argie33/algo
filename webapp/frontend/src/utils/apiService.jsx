@@ -32,9 +32,14 @@ export const createLogger = (componentName) => ({
     // Safe data handling for info to avoid circular references
     let safeData;
     try {
-      safeData = data && typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data;
+      safeData =
+        data && typeof data === "object"
+          ? JSON.parse(JSON.stringify(data))
+          : data;
     } catch (error) {
-      safeData = data ? String(data) : 'Unable to stringify data (circular reference)';
+      safeData = data
+        ? String(data)
+        : "Unable to stringify data (circular reference)";
     }
     if (import.meta.env && import.meta.env.DEV) {
       console.log(`[${componentName}] ${message}`, safeData);
@@ -43,19 +48,21 @@ export const createLogger = (componentName) => ({
   error: (message, error, context) => {
     // Safe error object to avoid circular references
     const safeErrorData = {
-      errorMessage: error?.message || String(error || 'Unknown error'),
+      errorMessage: error?.message || String(error || "Unknown error"),
       errorName: error?.name,
       errorCode: error?.code,
       isAxiosError: error?.isAxiosError,
       status: error?.response?.status,
       statusText: error?.response?.statusText,
-      stack: error?.stack?.substring(0, 200) + (error?.stack?.length > 200 ? '...' : ''),
+      stack:
+        error?.stack?.substring(0, 200) +
+        (error?.stack?.length > 200 ? "..." : ""),
       timestamp: new Date().toISOString(),
       component: componentName,
       // Safe context without potential circular refs
       contextUrl: context?.url,
       contextStatus: context?.status,
-      contextMethod: context?.method
+      contextMethod: context?.method,
     };
     console.error(`[${componentName}] ${message}`, safeErrorData);
   },
@@ -63,9 +70,14 @@ export const createLogger = (componentName) => ({
     // Safe data handling for warn to avoid circular references
     let safeData;
     try {
-      safeData = data && typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data;
+      safeData =
+        data && typeof data === "object"
+          ? JSON.parse(JSON.stringify(data))
+          : data;
     } catch (error) {
-      safeData = data ? String(data) : 'Unable to stringify data (circular reference)';
+      safeData = data
+        ? String(data)
+        : "Unable to stringify data (circular reference)";
     }
     if (import.meta.env && import.meta.env.DEV) {
       console.warn(`[${componentName}] ${message}`, safeData);
@@ -76,9 +88,14 @@ export const createLogger = (componentName) => ({
       // Safe data handling for debug to avoid circular references
       let safeData;
       try {
-        safeData = data && typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data;
+        safeData =
+          data && typeof data === "object"
+            ? JSON.parse(JSON.stringify(data))
+            : data;
       } catch (error) {
-        safeData = data ? String(data) : 'Unable to stringify data (circular reference)';
+        safeData = data
+          ? String(data)
+          : "Unable to stringify data (circular reference)";
       }
       console.debug(`[${componentName}] ${message}`, safeData);
     }
@@ -89,17 +106,25 @@ export const createLogger = (componentName) => ({
 const getAuthToken = () => {
   try {
     // Check for dev auth session
-    const devSession = localStorage.getItem('dev_session');
+    const devSession = localStorage.getItem("dev_session");
     if (devSession) {
       const session = JSON.parse(devSession);
-      if (session && session.tokens && session.tokens.accessToken && Date.now() < session.expiresAt) {
+      if (
+        session &&
+        session.tokens &&
+        session.tokens.accessToken &&
+        Date.now() < session.expiresAt
+      ) {
         return session.tokens.accessToken;
       }
     }
-    
+
     // Fallback: check for dev-bypass-token
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'dev-bypass-token';
+    if (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+    ) {
+      return "dev-bypass-token";
     }
   } catch (error) {
     // Silent failure for auth token retrieval
@@ -181,7 +206,11 @@ export const apiCall = async (
       dataSize = JSON.stringify(data).length;
     } catch (error) {
       // If circular reference error, estimate size differently
-      dataSize = data ? (typeof data === 'string' ? (data?.length || 0) : 'unknown') : 0;
+      dataSize = data
+        ? typeof data === "string"
+          ? data?.length || 0
+          : "unknown"
+        : 0;
     }
 
     logger.info("API request successful", {
@@ -292,10 +321,13 @@ export const apiPatterns = {
       );
     } catch (error) {
       // Skip caching if data contains circular references
-      createLogger(componentName).warn("Cannot cache data due to circular references", {
-        cacheKey,
-        error: error.message
-      });
+      createLogger(componentName).warn(
+        "Cannot cache data due to circular references",
+        {
+          cacheKey,
+          error: error.message,
+        }
+      );
     }
 
     return data;

@@ -54,7 +54,7 @@ import {
   Add,
   Delete,
 } from "@mui/icons-material";
-import { getApiConfig } from "../services/api";
+import api, { getApiConfig } from "../services/api";
 import { createComponentLogger } from "../utils/errorLogger";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -76,11 +76,11 @@ const Settings = () => {
   const { user, isAuthenticated, isLoading, logout, checkAuthState } =
     useAuth();
   const navigate = useNavigate();
-  
+
   // Memoize API config to prevent new object creation on every render
   const apiConfig = useMemo(() => getApiConfig(), []);
   const { apiUrl } = apiConfig;
-  
+
   // Memoize logger to prevent useCallback recreation on every render
   const logger = useMemo(() => createComponentLogger("Settings"), []);
 
@@ -119,7 +119,7 @@ const Settings = () => {
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
-    errors: {}
+    errors: {},
   });
   const [notifications, setNotifications] = useState({
     email: true,
@@ -148,21 +148,26 @@ const Settings = () => {
   // Define loadApiKeys first since it's referenced in loadUserSettings
   const loadApiKeys = useCallback(async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
-        headers: {
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-      });
+      const response = await api.getApiKeys();
 
-      if (response.ok) {
-        const data = await response.json();
-        _setApiKeys(data.data || []);
+      if (response && response.ok) {
+        // Convert object to array format that the component expects
+        const apiKeysData = response.data || {};
+        const apiKeysArray = Object.entries(apiKeysData).map(([brokerName, keyData]) => ({
+          brokerName,
+          ...keyData,
+          createdAt: keyData.lastValidated || new Date().toISOString()
+        }));
+        _setApiKeys(apiKeysArray);
       } else {
-        if (import.meta.env && import.meta.env.DEV) console.error(
-          "API keys endpoint returned non-OK status:",
-          response.status
+        if (import.meta.env && import.meta.env.DEV)
+          console.error(
+            "API keys endpoint returned non-OK status:",
+            response?.status || "unknown"
+          );
+        throw new Error(
+          `API keys endpoint failed: ${response?.status || "unknown"}`
         );
-        throw new Error(`API keys endpoint failed: ${response.status}`);
       }
     } catch (error) {
       logger.error("Load API Keys Failed", error, {
@@ -170,7 +175,7 @@ const Settings = () => {
         apiUrl,
         operation: "loadApiKeys",
         responseStatus: error.response?.status,
-        responseData: error.response?.data
+        responseData: error.response?.data,
       });
       _setApiKeys([]); // Set empty array and let user see there's no data
       throw error; // Re-throw so parent catch can handle it
@@ -200,7 +205,7 @@ const Settings = () => {
           userId: user?.sub || user?.id,
           apiUrl,
           operation: "loadApiKeys",
-          context: "settings initialization"
+          context: "settings initialization",
         });
         showSnackbar(`Failed to load API keys: ${apiError.message}`, "error");
         // Don't fail the entire settings load if API keys fail
@@ -208,11 +213,14 @@ const Settings = () => {
 
       // Load notification preferences
       try {
-        const notifResponse = await fetch(`${apiUrl}/api/settings/preferences`, {
-          headers: {
-            Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-          },
-        });
+        const notifResponse = await fetch(
+          `${apiUrl}/api/settings/preferences`,
+          {
+            headers: {
+              Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
+            },
+          }
+        );
         if (notifResponse.ok) {
           const notifData = await notifResponse.json();
           setNotifications((prev) => ({ ...prev, ...notifData.preferences }));
@@ -226,11 +234,14 @@ const Settings = () => {
 
       // Load theme preferences
       try {
-        const themeResponse = await fetch(`${apiUrl}/api/settings/preferences`, {
-          headers: {
-            Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-          },
-        });
+        const themeResponse = await fetch(
+          `${apiUrl}/api/settings/preferences`,
+          {
+            headers: {
+              Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
+            },
+          }
+        );
         if (themeResponse.ok) {
           const themeData = await themeResponse.json();
           setThemeSettings((prev) => ({ ...prev, ...themeData.preferences }));
@@ -242,7 +253,8 @@ const Settings = () => {
         console.log("Failed to load theme preferences, using defaults");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error loading settings:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error loading settings:", error);
       showSnackbar("Failed to load settings", "error");
 
       // Set empty profile data to show there's an issue
@@ -257,45 +269,78 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, logger, loadApiKeys, user?.currency, user?.email, user?.firstName, user?.id, user?.lastName, user?.phone, user?.sub, user?.timezone, user?.tokens?.accessToken]); // Dependencies required by ESLint
+  }, [
+    apiUrl,
+    logger,
+    loadApiKeys,
+    user?.currency,
+    user?.email,
+    user?.firstName,
+    user?.id,
+    user?.lastName,
+    user?.phone,
+    user?.sub,
+    user?.timezone,
+    user?.tokens?.accessToken,
+  ]); // Dependencies required by ESLint
 
   // Load settings when authenticated - USING REF TO AVOID USER OBJECT DEPENDENCY
   const hasLoadedRef = useRef(false);
-  
+
   useEffect(() => {
-    console.log("🔥 Settings useEffect triggered!", { 
+    console.log("🔥 Settings useEffect triggered!", {
       isAuthenticated,
       isAuthenticatedType: typeof isAuthenticated,
       hasLoaded: hasLoadedRef.current,
       loading,
       loadingType: typeof loading,
       timestamp: new Date().toISOString(),
-      loadUserSettingsRef: loadUserSettings
+      loadUserSettingsRef: loadUserSettings,
     });
-    
+
     // Only load if authenticated and we haven't loaded yet
     if (isAuthenticated && !hasLoadedRef.current && !loading) {
-      console.log("🚨 CALLING loadUserSettings - this should happen ONLY ONCE!");
+      console.log(
+        "🚨 CALLING loadUserSettings - this should happen ONLY ONCE!"
+      );
       hasLoadedRef.current = true; // Mark as loaded immediately
-      
+
       logger.info("User authenticated, loading settings", {
         userId: user?.sub || user?.id,
-        email: user?.email
+        email: user?.email,
       });
       loadUserSettings();
     }
-  }, [isAuthenticated, loadUserSettings, loading, logger, user?.email, user?.id, user?.sub]); // Dependencies required by ESLint
+  }, [
+    isAuthenticated,
+    loadUserSettings,
+    loading,
+    logger,
+    user?.email,
+    user?.id,
+    user?.sub,
+  ]); // Dependencies required by ESLint
 
   // Separate session recovery logic (production only)
   useEffect(() => {
-    if (!isLoading && !user && !isAuthenticated && (import.meta.env && import.meta.env.PROD)) {
-      logger.error("No authenticated session found", new Error("Session check failed"), {
-        isAuthenticated,
-        isLoading,
-        hasUser: !!user
-      });
+    if (
+      !isLoading &&
+      !user &&
+      !isAuthenticated &&
+      import.meta.env &&
+      import.meta.env.PROD
+    ) {
+      logger.error(
+        "No authenticated session found",
+        new Error("Session check failed"),
+        {
+          isAuthenticated,
+          isLoading,
+          hasUser: !!user,
+        }
+      );
       // Only attempt recovery once, don't include checkAuthState in dependencies
-      checkAuthState().catch(error => {
+      checkAuthState().catch((error) => {
         logger.error("Session recovery failed", error);
       });
     }
@@ -334,13 +379,17 @@ const Settings = () => {
         }
       } else {
         const error = await response.json();
-        logger.error("Profile Update Failed", new Error(`Profile update rejected: ${response.status}`), {
-          userId: user?.sub || user?.id,
-          profileData,
-          responseStatus: response.status,
-          errorData: error,
-          operation: "updateProfile"
-        });
+        logger.error(
+          "Profile Update Failed",
+          new Error(`Profile update rejected: ${response.status}`),
+          {
+            userId: user?.sub || user?.id,
+            profileData,
+            responseStatus: response.status,
+            errorData: error,
+            operation: "updateProfile",
+          }
+        );
         showSnackbar(error.error || "Failed to update profile", "error");
       }
     } catch (error) {
@@ -348,7 +397,7 @@ const Settings = () => {
         userId: user?.sub || user?.id,
         profileData,
         operation: "handleSaveProfile",
-        context: "network or server error"
+        context: "network or server error",
       });
       showSnackbar("Failed to update profile", "error");
     } finally {
@@ -360,16 +409,9 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-        body: JSON.stringify(newApiKey),
-      });
+      const response = await api.saveApiKey(newApiKey);
 
-      if (response.ok) {
+      if (response && response.ok) {
         showSnackbar("API key added successfully");
         setAddApiKeyDialog(false);
         setNewApiKey({
@@ -384,7 +426,8 @@ const Settings = () => {
         showSnackbar(error.error || "Failed to add API key", "error");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error adding API key:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error adding API key:", error);
       showSnackbar("Failed to add API key", "error");
     } finally {
       setLoading(false);
@@ -393,24 +436,12 @@ const Settings = () => {
 
   const _deleteApiKey = async (brokerName) => {
     try {
-      const response = await fetch(
-        `${apiUrl}/api/portfolio/api-keys/${brokerName}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        showSnackbar("API key deleted successfully");
-        await loadApiKeys();
-      } else {
-        showSnackbar("Failed to delete API key", "error");
-      }
+      const response = await api.deleteApiKey(brokerName);
+      showSnackbar("API key deleted successfully");
+      await loadApiKeys();
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error deleting API key:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error deleting API key:", error);
       showSnackbar("Failed to delete API key", "error");
     }
   };
@@ -419,38 +450,26 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        `${apiUrl}/api/portfolio/test-connection/${brokerName}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-          },
-        }
-      );
+      const response = await api.testApiKey({
+        provider: brokerName,
+        keyId: newApiKey.keyId || newApiKey.key,
+        secret: newApiKey.secret
+      });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.connection.valid) {
-          const accountInfo = data.connection.accountInfo;
-          showSnackbar(
-            `✅ Connection successful! Account: ${accountInfo.accountId}, 
-            Portfolio Value: $${accountInfo.portfolioValue?.toLocaleString()}, 
-            Environment: ${accountInfo.environment}`,
-            "success"
-          );
-        } else {
-          showSnackbar(
-            `❌ Connection failed: ${data.connection.error}`,
-            "error"
-          );
-        }
+      if (response.ok && response.isValid) {
+        showSnackbar(
+          `✅ Connection successful! API key is valid.`,
+          "success"
+        );
       } else {
-        const error = await response.json();
-        showSnackbar(error.error || "Failed to test connection", "error");
+        showSnackbar(
+          `❌ Connection failed: ${response.error || "Invalid API key"}`,
+          "error"
+        );
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error testing connection:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error testing connection:", error);
       showSnackbar("Failed to test connection", "error");
     } finally {
       setLoading(false);
@@ -461,37 +480,30 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        `${apiUrl}/api/portfolio/import/${newApiKey.brokerName}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-          },
-        }
-      );
+      const response = await api.saveApiKey({
+        provider: newApiKey.brokerName,
+        keyId: newApiKey.keyId || newApiKey.key,
+        secret: newApiKey.secret
+      });
 
       if (response.ok) {
-        const data = await response.json();
-        const summary = data?.data.summary;
         showSnackbar(
-          `✅ Portfolio imported! ${summary.positions} positions, 
-          $${summary.totalValue?.toLocaleString()} total value, 
-          $${summary.totalPnL?.toLocaleString()} P&L (${summary.totalPnLPercent?.toFixed(2)}%)`,
+          `✅ API key saved successfully!`,
           "success"
         );
 
-        // Refresh the page or redirect to portfolio view
-        setTimeout(() => {
-          window.location.href = "/portfolio";
-        }, 2000);
+        // Refresh API keys list
+        await loadApiKeys();
+        
+        // Reset form
+        setNewApiKey({ provider: "", keyId: "", secret: "" });
       } else {
-        const error = await response.json();
-        showSnackbar(error.error || "Failed to import portfolio", "error");
+        showSnackbar(response.error || "Failed to save API key", "error");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error importing portfolio:", error);
-      showSnackbar("Failed to import portfolio", "error");
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error saving API key:", error);
+      showSnackbar("Failed to save API key", "error");
     } finally {
       setLoading(false);
     }
@@ -501,26 +513,21 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/settings/preferences`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-        body: JSON.stringify({ preferences: { ...themeSettings, ...notifications } }),
+      const response = await api.updateSettings({ 
+        preferences: { ...themeSettings, ...notifications } 
       });
 
       if (response.ok) {
         showSnackbar("Notification preferences updated successfully");
       } else {
-        const error = await response.json();
         showSnackbar(
-          error.error || "Failed to update notification preferences",
+          response.error || "Failed to update notification preferences",
           "error"
         );
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error saving notifications:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error saving notifications:", error);
       showSnackbar("Failed to update notification preferences", "error");
     } finally {
       setLoading(false);
@@ -531,26 +538,21 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/settings/preferences`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-        body: JSON.stringify({ preferences: { ...themeSettings, ...notifications } }),
+      const response = await api.updateSettings({ 
+        preferences: { ...themeSettings, ...notifications } 
       });
 
       if (response.ok) {
         showSnackbar("Theme preferences updated successfully");
       } else {
-        const error = await response.json();
         showSnackbar(
-          error.error || "Failed to update theme preferences",
+          response.error || "Failed to update theme preferences",
           "error"
         );
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error saving theme:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error saving theme:", error);
       showSnackbar("Failed to update theme preferences", "error");
     } finally {
       setLoading(false);
@@ -563,47 +565,51 @@ const Settings = () => {
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
-      errors: {}
+      errors: {},
     });
   };
 
   const validatePasswordChange = () => {
     const errors = {};
-    
+
     if (!passwordDialog.currentPassword) {
       errors.currentPassword = "Current password is required";
     }
-    
+
     if (!passwordDialog.newPassword) {
       errors.newPassword = "New password is required";
     } else if (passwordDialog.newPassword.length < 8) {
       errors.newPassword = "Password must be at least 8 characters";
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(passwordDialog.newPassword)) {
-      errors.newPassword = "Password must contain uppercase, lowercase, and number";
+    } else if (
+      !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(passwordDialog.newPassword)
+    ) {
+      errors.newPassword =
+        "Password must contain uppercase, lowercase, and number";
     }
-    
+
     if (passwordDialog.newPassword !== passwordDialog.confirmPassword) {
       errors.confirmPassword = "Passwords do not match";
     }
-    
+
     if (passwordDialog.currentPassword === passwordDialog.newPassword) {
-      errors.newPassword = "New password must be different from current password";
+      errors.newPassword =
+        "New password must be different from current password";
     }
-    
+
     return errors;
   };
 
   const handlePasswordDialogSubmit = async () => {
     const errors = validatePasswordChange();
-    
+
     if (Object.keys(errors).length > 0) {
-      setPasswordDialog(prev => ({ ...prev, errors }));
+      setPasswordDialog((prev) => ({ ...prev, errors }));
       return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       const response = await fetch(`${apiUrl}/api/user/change-password`, {
         method: "POST",
         headers: {
@@ -615,7 +621,7 @@ const Settings = () => {
           newPassword: passwordDialog.newPassword,
         }),
       });
-      
+
       if (response.ok) {
         showSnackbar("Password changed successfully", "success");
         setPasswordDialog({
@@ -623,14 +629,14 @@ const Settings = () => {
           currentPassword: "",
           newPassword: "",
           confirmPassword: "",
-          errors: {}
+          errors: {},
         });
       } else {
         const errorData = await response.json();
         if (response.status === 401) {
-          setPasswordDialog(prev => ({ 
-            ...prev, 
-            errors: { currentPassword: "Current password is incorrect" }
+          setPasswordDialog((prev) => ({
+            ...prev,
+            errors: { currentPassword: "Current password is incorrect" },
           }));
         } else {
           showSnackbar(
@@ -652,7 +658,7 @@ const Settings = () => {
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
-      errors: {}
+      errors: {},
     });
   };
 
@@ -694,7 +700,8 @@ const Settings = () => {
         );
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error toggling two-factor auth:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error toggling two-factor auth:", error);
       showSnackbar("Failed to toggle two-factor authentication", "error");
     } finally {
       setLoading(false);
@@ -733,7 +740,8 @@ const Settings = () => {
         );
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error downloading recovery codes:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error downloading recovery codes:", error);
       showSnackbar("Failed to download recovery codes", "error");
     } finally {
       setLoading(false);
@@ -774,7 +782,8 @@ const Settings = () => {
               showSnackbar(error.error || "Failed to delete account", "error");
             }
           } catch (error) {
-            if (import.meta.env && import.meta.env.DEV) console.error("Error deleting account:", error);
+            if (import.meta.env && import.meta.env.DEV)
+              console.error("Error deleting account:", error);
             showSnackbar("Failed to delete account", "error");
           } finally {
             setLoading(false);
@@ -807,7 +816,8 @@ const Settings = () => {
           showSnackbar(error.error || "Failed to revoke sessions", "error");
         }
       } catch (error) {
-        if (import.meta.env && import.meta.env.DEV) console.error("Error revoking sessions:", error);
+        if (import.meta.env && import.meta.env.DEV)
+          console.error("Error revoking sessions:", error);
         showSnackbar("Failed to revoke sessions", "error");
       } finally {
         setLoading(false);
@@ -835,17 +845,24 @@ const Settings = () => {
   if (!user && !isLoading) {
     // Log authentication info to console for debugging (but don't log as error in development)
     if (import.meta.env && import.meta.env.PROD) {
-      logger.error("Authentication Error", new Error("Unable to load user information"), {
-        userObject: user,
-        isAuthenticated,
-        isLoading,
-        apiUrl,
-        reason: "No user object available after authentication loading completed",
-        suggestedActions: ["refresh page", "login again", "check session"],
-        url: window.location.href
-      });
+      logger.error(
+        "Authentication Error",
+        new Error("Unable to load user information"),
+        {
+          userObject: user,
+          isAuthenticated,
+          isLoading,
+          apiUrl,
+          reason:
+            "No user object available after authentication loading completed",
+          suggestedActions: ["refresh page", "login again", "check session"],
+          url: window.location.href,
+        }
+      );
     } else {
-      console.log("🔧 DEV: Settings page - no authenticated user, showing login prompt");
+      console.log(
+        "🔧 DEV: Settings page - no authenticated user, showing login prompt"
+      );
     }
 
     return (
@@ -888,11 +905,37 @@ const Settings = () => {
           sx={{ borderBottom: 1, borderColor: "divider" }}
           aria-label="Settings navigation tabs"
         >
-          <Tab value={0} icon={<AccountCircle />} label="Profile" aria-label="Profile settings" />
-          <Tab value={1} icon={<Api />} label="API Keys" data-testid="api-keys-tab" aria-label="API keys management" />
-          <Tab value={2} icon={<Notifications />} label="Notifications" aria-label="Notification preferences" />
-          <Tab value={3} icon={<Palette />} label="Appearance" aria-label="Appearance and theme settings" />
-          <Tab value={4} icon={<Security />} label="Security" aria-label="Security and account settings" />
+          <Tab
+            value={0}
+            icon={<AccountCircle />}
+            label="Profile"
+            aria-label="Profile settings"
+          />
+          <Tab
+            value={1}
+            icon={<Api />}
+            label="API Keys"
+            data-testid="api-keys-tab"
+            aria-label="API keys management"
+          />
+          <Tab
+            value={2}
+            icon={<Notifications />}
+            label="Notifications"
+            aria-label="Notification preferences"
+          />
+          <Tab
+            value={3}
+            icon={<Palette />}
+            label="Appearance"
+            aria-label="Appearance and theme settings"
+          />
+          <Tab
+            value={4}
+            icon={<Security />}
+            label="Security"
+            aria-label="Security and account settings"
+          />
         </Tabs>
 
         {/* Profile Tab */}
@@ -1085,7 +1128,8 @@ const Settings = () => {
                 <CardContent>
                   {_apiKeys.length === 0 ? (
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      No API keys configured. Add your first API key to start accessing real market data.
+                      No API keys configured. Add your first API key to start
+                      accessing real market data.
                     </Alert>
                   ) : (
                     <Grid container spacing={2}>
@@ -1093,21 +1137,39 @@ const Settings = () => {
                         <Grid item xs={12} md={6} key={apiKey.brokerName}>
                           <Card variant="outlined">
                             <CardContent>
-                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Box
+                                display="flex"
+                                justifyContent="space-between"
+                                alignItems="center"
+                              >
                                 <Box>
-                                  <Typography variant="h6">{apiKey.brokerName}</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Added: {new Date(apiKey.createdAt).toLocaleDateString()}
+                                  <Typography variant="h6">
+                                    {apiKey.brokerName}
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                  >
+                                    Added:{" "}
+                                    {new Date(
+                                      apiKey.createdAt
+                                    ).toLocaleDateString()}
                                   </Typography>
                                 </Box>
                                 <Box>
                                   <Chip
-                                    label={apiKey.status || 'Active'}
-                                    color={apiKey.status === 'active' ? 'success' : 'default'}
+                                    label={apiKey.status || "Active"}
+                                    color={
+                                      apiKey.status === "active"
+                                        ? "success"
+                                        : "default"
+                                    }
                                     size="small"
                                   />
                                   <IconButton
-                                    onClick={() => _deleteApiKey(apiKey.brokerName)}
+                                    onClick={() =>
+                                      _deleteApiKey(apiKey.brokerName)
+                                    }
                                     color="error"
                                     aria-label={`Delete ${apiKey.brokerName} API key`}
                                   >
@@ -1486,9 +1548,18 @@ const Settings = () => {
                     setNewApiKey({ ...newApiKey, brokerName: e.target.value })
                   }
                 >
-                  <MenuItem value="alpaca" data-provider="alpaca">Alpaca</MenuItem>
-                  <MenuItem value="robinhood" data-provider="robinhood">Robinhood</MenuItem>
-                  <MenuItem value="td_ameritrade" data-provider="td_ameritrade">TD Ameritrade</MenuItem>
+                  <MenuItem value="alpaca" data-provider="alpaca">
+                    Alpaca
+                  </MenuItem>
+                  <MenuItem value="polygon" data-provider="polygon">
+                    Polygon
+                  </MenuItem>
+                  <MenuItem value="robinhood" data-provider="robinhood">
+                    Robinhood
+                  </MenuItem>
+                  <MenuItem value="td_ameritrade" data-provider="td_ameritrade">
+                    TD Ameritrade
+                  </MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -1511,7 +1582,9 @@ const Settings = () => {
                           apiKey: !showApiKeys.apiKey,
                         })
                       }
-                      aria-label={showApiKeys.apiKey ? "Hide API key" : "Show API key"}
+                      aria-label={
+                        showApiKeys.apiKey ? "Hide API key" : "Show API key"
+                      }
                     >
                       {showApiKeys.apiKey ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
@@ -1537,7 +1610,11 @@ const Settings = () => {
                           apiSecret: !showApiKeys.apiSecret,
                         })
                       }
-                      aria-label={showApiKeys.apiSecret ? "Hide API secret" : "Show API secret"}
+                      aria-label={
+                        showApiKeys.apiSecret
+                          ? "Hide API secret"
+                          : "Show API secret"
+                      }
                     >
                       {showApiKeys.apiSecret ? (
                         <VisibilityOff />
@@ -1569,7 +1646,12 @@ const Settings = () => {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddApiKeyDialog(false)} aria-label="Cancel adding API key">Cancel</Button>
+          <Button
+            onClick={() => setAddApiKeyDialog(false)}
+            aria-label="Cancel adding API key"
+          >
+            Cancel
+          </Button>
           <Button
             onClick={handleAddApiKey}
             variant="contained"
@@ -1599,10 +1681,10 @@ const Settings = () => {
             variant="outlined"
             value={passwordDialog.currentPassword}
             onChange={(e) =>
-              setPasswordDialog(prev => ({ 
-                ...prev, 
+              setPasswordDialog((prev) => ({
+                ...prev,
                 currentPassword: e.target.value,
-                errors: { ...prev.errors, currentPassword: "" }
+                errors: { ...prev.errors, currentPassword: "" },
               }))
             }
             error={Boolean(passwordDialog.errors.currentPassword)}
@@ -1617,10 +1699,10 @@ const Settings = () => {
             variant="outlined"
             value={passwordDialog.newPassword}
             onChange={(e) =>
-              setPasswordDialog(prev => ({ 
-                ...prev, 
+              setPasswordDialog((prev) => ({
+                ...prev,
                 newPassword: e.target.value,
-                errors: { ...prev.errors, newPassword: "" }
+                errors: { ...prev.errors, newPassword: "" },
               }))
             }
             error={Boolean(passwordDialog.errors.newPassword)}
@@ -1638,10 +1720,10 @@ const Settings = () => {
             variant="outlined"
             value={passwordDialog.confirmPassword}
             onChange={(e) =>
-              setPasswordDialog(prev => ({ 
-                ...prev, 
+              setPasswordDialog((prev) => ({
+                ...prev,
                 confirmPassword: e.target.value,
-                errors: { ...prev.errors, confirmPassword: "" }
+                errors: { ...prev.errors, confirmPassword: "" },
               }))
             }
             error={Boolean(passwordDialog.errors.confirmPassword)}

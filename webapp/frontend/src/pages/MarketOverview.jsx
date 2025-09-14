@@ -73,12 +73,13 @@ import {
 import {
   formatCurrency,
   formatPercentage,
+  formatPercentageChange,
   getChangeColor,
 } from "../utils/formatters";
 import { createComponentLogger } from "../utils/errorLogger";
 
 // Create logger instance for this component
-const _logger = createComponentLogger('MarketOverview');
+const _logger = createComponentLogger("MarketOverview");
 
 const _CHART_COLORS = [
   "#0088FE",
@@ -382,7 +383,10 @@ const fetchSentimentHistory = async (days = 30) => {
     const response = await getMarketSentimentHistory(days);
     return response;
   } catch (error) {
-    _logger.error("Sentiment history error:", error.message || error.toString());
+    _logger.error(
+      "Sentiment history error:",
+      error.message || error.toString()
+    );
     throw error;
   }
 };
@@ -394,7 +398,10 @@ const fetchSectorPerformance = async () => {
     console.log("🏭 Sector performance response:", response);
     return response;
   } catch (error) {
-    _logger.error("Sector performance error:", error.message || error.toString());
+    _logger.error(
+      "Sector performance error:",
+      error.message || error.toString()
+    );
     throw error;
   }
 };
@@ -418,7 +425,10 @@ const fetchEconomicIndicators = async (days = 90) => {
     console.log("💰 Economic indicators response:", response);
     return response;
   } catch (error) {
-    _logger.error("Economic indicators error:", error.message || error.toString());
+    _logger.error(
+      "Economic indicators error:",
+      error.message || error.toString()
+    );
     throw error;
   }
 };
@@ -442,7 +452,10 @@ const fetchResearchIndicators = async () => {
     console.log("🔬 Research indicators response:", response);
     return response;
   } catch (error) {
-    _logger.error("Research indicators error:", error.message || error.toString());
+    _logger.error(
+      "Research indicators error:",
+      error.message || error.toString()
+    );
     throw error;
   }
 };
@@ -565,6 +578,14 @@ function MarketOverview() {
   const economicIndicators =
     marketData?.data?.economic_indicators ||
     marketData?.economic_indicators ||
+    [];
+  const indices =
+    marketData?.data?.indices || 
+    marketData?.indices || 
+    [];
+  const mainSectors =
+    marketData?.data?.sectors ||
+    marketData?.sectors ||
     [];
 
   // Handle sector data - it could be at data.sectors or just data array
@@ -740,7 +761,7 @@ function MarketOverview() {
                 name="Fear & Greed"
                 stroke="#FF8042"
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
               <Line
                 yAxisId="left"
@@ -749,7 +770,7 @@ function MarketOverview() {
                 name="NAAIM Exposure"
                 stroke="#0088FE"
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
               <Line
                 yAxisId="right"
@@ -758,7 +779,7 @@ function MarketOverview() {
                 name="AAII Bullish"
                 stroke="#10B981"
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
               <Line
                 yAxisId="right"
@@ -767,7 +788,7 @@ function MarketOverview() {
                 name="AAII Bearish"
                 stroke="#DC2626"
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
               <Line
                 yAxisId="right"
@@ -776,7 +797,7 @@ function MarketOverview() {
                 name="AAII Neutral"
                 stroke="#8884d8"
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -873,6 +894,47 @@ function MarketOverview() {
           </Box>
         )}
       </Box>
+
+      {/* Major Indices Display */}
+      {indices && indices.length > 0 && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {indices.map((index, idx) => (
+            <Grid item xs={12} md={4} key={index.symbol}>
+              <AnimatedCard delay={idx}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {index.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {index.symbol}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(index.price, 2)}
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            color: getChangeColor(index.changePercent),
+                            fontWeight: 600,
+                          }}
+                          className={index.changePercent > 0 ? "text-green-600" : "text-red-600"}
+                        >
+                          {formatPercentageChange(index.changePercent)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </AnimatedCard>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       {/* Enhanced Market Sentiment Indicators */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -1035,8 +1097,14 @@ function MarketOverview() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.aaii.bullish !== undefined
                           ? (() => {
-                              const val = parseFloat(sentimentIndicators.aaii.bullish);
-                              return isNaN(val) ? "N/A" : val <= 1 ? (val * 100).toFixed(1) + "%" : val.toFixed(1) + "%";
+                              const val = parseFloat(
+                                sentimentIndicators.aaii.bullish
+                              );
+                              return isNaN(val)
+                                ? "N/A"
+                                : val <= 1
+                                  ? (val * 100).toFixed(1) + "%"
+                                  : val.toFixed(1) + "%";
                             })()
                           : "N/A"}
                       </Typography>
@@ -1057,8 +1125,14 @@ function MarketOverview() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.aaii.neutral !== undefined
                           ? (() => {
-                              const val = parseFloat(sentimentIndicators.aaii.neutral);
-                              return isNaN(val) ? "N/A" : val <= 1 ? (val * 100).toFixed(1) + "%" : val.toFixed(1) + "%";
+                              const val = parseFloat(
+                                sentimentIndicators.aaii.neutral
+                              );
+                              return isNaN(val)
+                                ? "N/A"
+                                : val <= 1
+                                  ? (val * 100).toFixed(1) + "%"
+                                  : val.toFixed(1) + "%";
                             })()
                           : "N/A"}
                       </Typography>
@@ -1079,8 +1153,14 @@ function MarketOverview() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.aaii.bearish !== undefined
                           ? (() => {
-                              const val = parseFloat(sentimentIndicators.aaii.bearish);
-                              return isNaN(val) ? "N/A" : val <= 1 ? (val * 100).toFixed(1) + "%" : val.toFixed(1) + "%";
+                              const val = parseFloat(
+                                sentimentIndicators.aaii.bearish
+                              );
+                              return isNaN(val)
+                                ? "N/A"
+                                : val <= 1
+                                  ? (val * 100).toFixed(1) + "%"
+                                  : val.toFixed(1) + "%";
                             })()
                           : "N/A"}
                       </Typography>
@@ -1147,7 +1227,9 @@ function MarketOverview() {
                     <Typography variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
                       {sentimentIndicators.naaim.average !== undefined
                         ? (() => {
-                            const val = parseFloat(sentimentIndicators.naaim.average);
+                            const val = parseFloat(
+                              sentimentIndicators.naaim.average
+                            );
                             return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                           })()
                         : "N/A"}
@@ -1168,7 +1250,9 @@ function MarketOverview() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.naaim.bullish_8100 !== undefined
                           ? (() => {
-                              const val = parseFloat(sentimentIndicators.naaim.bullish_8100);
+                              const val = parseFloat(
+                                sentimentIndicators.naaim.bullish_8100
+                              );
                               return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                             })()
                           : "N/A"}
@@ -1190,7 +1274,9 @@ function MarketOverview() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {sentimentIndicators.naaim.bearish !== undefined
                           ? (() => {
-                              const val = parseFloat(sentimentIndicators.naaim.bearish);
+                              const val = parseFloat(
+                                sentimentIndicators.naaim.bearish
+                              );
                               return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                             })()
                           : "N/A"}
@@ -1370,55 +1456,55 @@ function MarketOverview() {
                 },
               }}
             >
-            <Tab
-              label="Market Overview"
-              icon={<ShowChart />}
-              iconPosition="start"
-              id="market-tab-0"
-              aria-controls="market-tabpanel-0"
-            />
-            <Tab
-              label="Sentiment History"
-              icon={<Timeline />}
-              iconPosition="start"
-              id="market-tab-1"
-              aria-controls="market-tabpanel-1"
-            />
-            <Tab
-              label="Sector Performance"
-              icon={<Business />}
-              iconPosition="start"
-              id="market-tab-2"
-              aria-controls="market-tabpanel-2"
-            />
-            <Tab
-              label="Market Breadth"
-              icon={<Equalizer />}
-              iconPosition="start"
-              id="market-tab-3"
-              aria-controls="market-tabpanel-3"
-            />
-            <Tab
-              label="Economic Indicators"
-              icon={<Public />}
-              iconPosition="start"
-              id="market-tab-4"
-              aria-controls="market-tabpanel-4"
-            />
-            <Tab
-              label="Seasonality"
-              icon={<CalendarToday />}
-              iconPosition="start"
-              id="market-tab-5"
-              aria-controls="market-tabpanel-5"
-            />
-            <Tab
-              label="Research Indicators"
-              icon={<Analytics />}
-              iconPosition="start"
-              id="market-tab-6"
-              aria-controls="market-tabpanel-6"
-            />
+              <Tab
+                label="Market Overview"
+                icon={<ShowChart />}
+                iconPosition="start"
+                id="market-tab-0"
+                aria-controls="market-tabpanel-0"
+              />
+              <Tab
+                label="Sentiment History"
+                icon={<Timeline />}
+                iconPosition="start"
+                id="market-tab-1"
+                aria-controls="market-tabpanel-1"
+              />
+              <Tab
+                label="Sector Performance"
+                icon={<Business />}
+                iconPosition="start"
+                id="market-tab-2"
+                aria-controls="market-tabpanel-2"
+              />
+              <Tab
+                label="Market Breadth"
+                icon={<Equalizer />}
+                iconPosition="start"
+                id="market-tab-3"
+                aria-controls="market-tabpanel-3"
+              />
+              <Tab
+                label="Economic Indicators"
+                icon={<Public />}
+                iconPosition="start"
+                id="market-tab-4"
+                aria-controls="market-tabpanel-4"
+              />
+              <Tab
+                label="Seasonality"
+                icon={<CalendarToday />}
+                iconPosition="start"
+                id="market-tab-5"
+                aria-controls="market-tabpanel-5"
+              />
+              <Tab
+                label="Research Indicators"
+                icon={<Analytics />}
+                iconPosition="start"
+                id="market-tab-6"
+                aria-controls="market-tabpanel-6"
+              />
             </Tabs>
           )}
         </Box>
@@ -1806,44 +1892,47 @@ function MarketOverview() {
                               indicators = economicData.slice(0, 10);
                             }
 
-                            return (indicators || []).map((indicator, index) => (
-                              <TableRow key={index} hover>
-                                <TableCell>
-                                  {indicator.name ||
-                                    indicator.indicator_name ||
-                                    "N/A"}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {indicator.value} {indicator.unit}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {indicator.previous_value || "N/A"}{" "}
-                                  {indicator.unit}
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    color: getChangeColor(
-                                      parseFloat(indicator.change_percent) || 0
-                                    ),
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {indicator.change_percent
-                                    ? formatPercentage(
-                                        parseFloat(indicator.change_percent)
-                                      )
-                                    : "N/A"}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {indicator.timestamp || indicator.date
-                                    ? new Date(
-                                        indicator.timestamp || indicator.date
-                                      ).toLocaleDateString()
-                                    : "N/A"}
-                                </TableCell>
-                              </TableRow>
-                            ));
+                            return (indicators || []).map(
+                              (indicator, index) => (
+                                <TableRow key={index} hover>
+                                  <TableCell>
+                                    {indicator.name ||
+                                      indicator.indicator_name ||
+                                      "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {indicator.value} {indicator.unit}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {indicator.previous_value || "N/A"}{" "}
+                                    {indicator.unit}
+                                  </TableCell>
+                                  <TableCell
+                                    align="right"
+                                    sx={{
+                                      color: getChangeColor(
+                                        parseFloat(indicator.change_percent) ||
+                                          0
+                                      ),
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {indicator.change_percent
+                                      ? formatPercentage(
+                                          parseFloat(indicator.change_percent)
+                                        )
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {indicator.timestamp || indicator.date
+                                      ? new Date(
+                                          indicator.timestamp || indicator.date
+                                        ).toLocaleDateString()
+                                      : "N/A"}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            );
                           })()}
                         </TableBody>
                       </Table>
@@ -2093,33 +2182,34 @@ function MarketOverview() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {(seasonalityData?.data.presidentialCycle?.data || []).map(
-                                (cycle) => (
-                                  <TableRow
-                                    key={cycle.year}
-                                    sx={{
-                                      backgroundColor: cycle.isCurrent
-                                        ? "primary.light"
-                                        : "inherit",
-                                    }}
-                                  >
-                                    <TableCell>Year {cycle.year}</TableCell>
-                                    <TableCell>{cycle.label}</TableCell>
-                                    <TableCell align="right">
-                                      {formatPercentage(cycle.avgReturn)}
-                                    </TableCell>
-                                    <TableCell align="center">
-                                      {cycle.isCurrent && (
-                                        <Chip
-                                          label="CURRENT"
-                                          color="primary"
-                                          size="small"
-                                        />
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                )
-                              )}
+                              {(
+                                seasonalityData?.data.presidentialCycle?.data ||
+                                []
+                              ).map((cycle) => (
+                                <TableRow
+                                  key={cycle.year}
+                                  sx={{
+                                    backgroundColor: cycle.isCurrent
+                                      ? "primary.light"
+                                      : "inherit",
+                                  }}
+                                >
+                                  <TableCell>Year {cycle.year}</TableCell>
+                                  <TableCell>{cycle.label}</TableCell>
+                                  <TableCell align="right">
+                                    {formatPercentage(cycle.avgReturn)}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {cycle.isCurrent && (
+                                      <Chip
+                                        label="CURRENT"
+                                        color="primary"
+                                        size="small"
+                                      />
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
                             </TableBody>
                           </Table>
                         </TableContainer>
@@ -2137,37 +2227,39 @@ function MarketOverview() {
                         >
                           Day of Week Effects
                         </Typography>
-                        {(seasonalityData?.data.dayOfWeekEffects || []).map((day) => (
-                          <Box
-                            key={day.day}
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              mb: 1,
-                              p: 1,
-                              backgroundColor: day.isCurrent
-                                ? "primary.light"
-                                : "inherit",
-                              borderRadius: 1,
-                            }}
-                          >
-                            <Typography
-                              variant="body2"
-                              fontWeight={day.isCurrent ? 600 : 400}
-                            >
-                              {day.day}
-                            </Typography>
-                            <Typography
-                              variant="body2"
+                        {(seasonalityData?.data.dayOfWeekEffects || []).map(
+                          (day) => (
+                            <Box
+                              key={day.day}
                               sx={{
-                                color: getChangeColor(day.avgReturn * 100),
+                                display: "flex",
+                                justifyContent: "space-between",
+                                mb: 1,
+                                p: 1,
+                                backgroundColor: day.isCurrent
+                                  ? "primary.light"
+                                  : "inherit",
+                                borderRadius: 1,
                               }}
-                              fontWeight={600}
                             >
-                              {formatPercentage(day.avgReturn)}
-                            </Typography>
-                          </Box>
-                        ))}
+                              <Typography
+                                variant="body2"
+                                fontWeight={day.isCurrent ? 600 : 400}
+                              >
+                                {day.day}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: getChangeColor(day.avgReturn * 100),
+                                }}
+                                fontWeight={600}
+                              >
+                                {formatPercentage(day.avgReturn)}
+                              </Typography>
+                            </Box>
+                          )
+                        )}
                       </CardContent>
                     </Card>
                   </Grid>
@@ -2863,17 +2955,17 @@ function MarketOverview() {
                           >
                             Key Opportunities:
                           </Typography>
-                          {(researchData?.data.summary?.keyOpportunities || []).map(
-                            (opportunity, index) => (
-                              <Typography
-                                key={index}
-                                variant="body2"
-                                sx={{ ml: 2, mb: 0.5 }}
-                              >
-                                • {opportunity}
-                              </Typography>
-                            )
-                          )}
+                          {(
+                            researchData?.data.summary?.keyOpportunities || []
+                          ).map((opportunity, index) => (
+                            <Typography
+                              key={index}
+                              variant="body2"
+                              sx={{ ml: 2, mb: 0.5 }}
+                            >
+                              • {opportunity}
+                            </Typography>
+                          ))}
                         </Box>
                       </CardContent>
                     </Card>

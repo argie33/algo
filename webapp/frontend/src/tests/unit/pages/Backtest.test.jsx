@@ -12,7 +12,7 @@ import * as apiService from "../../../services/api.js";
 // Mock the AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
   useAuth: vi.fn(() => ({
-    user: { id: 'test-user', email: 'test@example.com', name: 'Test User' },
+    user: { id: "test-user", email: "test@example.com", name: "Test User" },
     isAuthenticated: true,
     isLoading: false,
     error: null,
@@ -22,15 +22,15 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 
 // Mock the API service
 vi.mock("../../../services/api.js", () => ({
-  runBacktest: vi.fn(() => 
+  runBacktest: vi.fn(() =>
     Promise.resolve({
       success: true,
       data: {
-        id: 'backtest-123',
-        symbol: 'AAPL',
-        strategy: 'moving_average',
-        startDate: '2024-01-01',
-        endDate: '2024-12-31',
+        id: "backtest-123",
+        symbol: "AAPL",
+        strategy: "moving_average",
+        startDate: "2024-01-01",
+        endDate: "2024-12-31",
         initialCapital: 100000,
         results: {
           totalReturn: 15.25,
@@ -40,25 +40,25 @@ vi.mock("../../../services/api.js", () => ({
           winRate: 0.65,
           totalTrades: 45,
           profitFactor: 2.1,
-          finalValue: 115250
+          finalValue: 115250,
         },
         trades: [
           {
-            date: '2024-01-15',
-            type: 'buy',
+            date: "2024-01-15",
+            type: "buy",
             price: 150.25,
             quantity: 100,
-            value: 15025
+            value: 15025,
           },
           {
-            date: '2024-02-15',
-            type: 'sell',
-            price: 165.80,
+            date: "2024-02-15",
+            type: "sell",
+            price: 165.8,
             quantity: 100,
-            value: 16580
-          }
-        ]
-      }
+            value: 16580,
+          },
+        ],
+      },
     })
   ),
   getBacktestHistory: vi.fn(() =>
@@ -66,48 +66,61 @@ vi.mock("../../../services/api.js", () => ({
       success: true,
       data: [
         {
-          id: 'backtest-123',
-          symbol: 'AAPL',
-          strategy: 'moving_average',
-          createdAt: '2024-01-01T10:00:00Z',
-          results: { totalReturn: 15.25 }
-        }
-      ]
+          id: "backtest-123",
+          symbol: "AAPL",
+          strategy: "moving_average",
+          createdAt: "2024-01-01T10:00:00Z",
+          results: { totalReturn: 15.25 },
+        },
+      ],
     })
   ),
   getAvailableStrategies: vi.fn(() =>
     Promise.resolve({
       success: true,
       data: [
-        { id: 'moving_average', name: 'Moving Average Crossover', description: 'Buy/sell signals based on MA crossovers' },
-        { id: 'rsi_oversold', name: 'RSI Oversold/Overbought', description: 'RSI-based entry/exit signals' },
-        { id: 'bollinger_bands', name: 'Bollinger Bands', description: 'Mean reversion strategy using Bollinger Bands' }
-      ]
+        {
+          id: "moving_average",
+          name: "Moving Average Crossover",
+          description: "Buy/sell signals based on MA crossovers",
+        },
+        {
+          id: "rsi_oversold",
+          name: "RSI Oversold/Overbought",
+          description: "RSI-based entry/exit signals",
+        },
+        {
+          id: "bollinger_bands",
+          name: "Bollinger Bands",
+          description: "Mean reversion strategy using Bollinger Bands",
+        },
+      ],
     })
   ),
   api: {
     get: vi.fn(() => Promise.resolve({ data: { success: true } })),
-    post: vi.fn(() => Promise.resolve({ data: { success: true } }))
-  }
+    post: vi.fn(() => Promise.resolve({ data: { success: true } })),
+  },
 }));
 
 describe("Backtest Component - Strategy Testing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Mock global fetch for component
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({
-          success: true,
-          data: {
-            strategies: [
-              { id: 'moving_average', name: 'Moving Average Crossover' }
-            ]
-          }
-        })
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: {
+              strategies: [
+                { id: "moving_average", name: "Moving Average Crossover" },
+              ],
+            },
+          }),
       })
     );
   });
@@ -143,9 +156,10 @@ describe("Backtest Component - Strategy Testing", () => {
 
       await waitFor(() => {
         // Look for symbol input field
-        const symbolInput = screen.queryByLabelText(/symbol/i) || 
-                           screen.queryByPlaceholderText(/symbol/i) ||
-                           screen.queryByDisplayValue(/symbol/i);
+        const symbolInput =
+          screen.queryByLabelText(/symbol/i) ||
+          screen.queryByPlaceholderText(/symbol/i) ||
+          screen.queryByDisplayValue(/symbol/i);
         expect(symbolInput || screen.getByText(/symbol/i)).toBeTruthy();
       });
     });
@@ -180,13 +194,13 @@ describe("Backtest Component - Strategy Testing", () => {
       apiService.runBacktest.mockResolvedValue({
         success: true,
         data: {
-          id: 'test-backtest',
+          id: "test-backtest",
           results: {
             totalReturn: 25.5,
             maxDrawdown: -5.2,
-            sharpeRatio: 1.8
-          }
-        }
+            sharpeRatio: 1.8,
+          },
+        },
       });
 
       await act(async () => {
@@ -196,7 +210,7 @@ describe("Backtest Component - Strategy Testing", () => {
       // Look for run/execute button
       await waitFor(() => {
         const runButton = screen.queryByText(/run|start|execute|backtest/i);
-        if (runButton && runButton.tagName === 'BUTTON') {
+        if (runButton && runButton.tagName === "BUTTON") {
           fireEvent.click(runButton);
         }
       });
@@ -205,7 +219,7 @@ describe("Backtest Component - Strategy Testing", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/loading|running|calculating/i) ||
-          screen.queryByText(/results|return|performance/i)
+            screen.queryByText(/results|return|performance/i)
         ).toBeTruthy();
       });
     });
@@ -218,9 +232,9 @@ describe("Backtest Component - Strategy Testing", () => {
           results: {
             totalReturn: 15.25,
             maxDrawdown: -8.5,
-            sharpeRatio: 1.45
-          }
-        }
+            sharpeRatio: 1.45,
+          },
+        },
       });
 
       await act(async () => {
@@ -230,7 +244,7 @@ describe("Backtest Component - Strategy Testing", () => {
       // Simulate running backtest
       await waitFor(() => {
         const runButton = screen.queryByText(/run|execute|start/i);
-        if (runButton && runButton.tagName === 'BUTTON') {
+        if (runButton && runButton.tagName === "BUTTON") {
           fireEvent.click(runButton);
         }
       });
@@ -239,8 +253,8 @@ describe("Backtest Component - Strategy Testing", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/return|performance|profit/i) ||
-          screen.queryByText(/15\.25|1\.45/i) ||
-          screen.queryByText(/results/i)
+            screen.queryByText(/15\.25|1\.45/i) ||
+            screen.queryByText(/results/i)
         ).toBeTruthy();
       });
     });
@@ -255,16 +269,17 @@ describe("Backtest Component - Strategy Testing", () => {
       // Mock completed backtest state
       global.fetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          success: true,
-          data: {
-            results: {
-              totalReturn: 25.8,
-              sharpeRatio: 1.65,
-              maxDrawdown: -6.2
-            }
-          }
-        })
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: {
+              results: {
+                totalReturn: 25.8,
+                sharpeRatio: 1.65,
+                maxDrawdown: -6.2,
+              },
+            },
+          }),
       });
 
       await waitFor(() => {
@@ -288,7 +303,7 @@ describe("Backtest Component - Strategy Testing", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/error|failed|problem/i) ||
-          screen.getByText(/backtest/i) // At minimum shows backtest interface
+            screen.getByText(/backtest/i) // At minimum shows backtest interface
         ).toBeTruthy();
       });
     });
@@ -297,10 +312,14 @@ describe("Backtest Component - Strategy Testing", () => {
   describe("User Experience", () => {
     it("should show loading state during execution", async () => {
       // Mock slow backtest
-      apiService.runBacktest.mockImplementation(() => 
-        new Promise(resolve => 
-          setTimeout(() => resolve({ success: true, data: { results: {} } }), 100)
-        )
+      apiService.runBacktest.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve({ success: true, data: { results: {} } }),
+              100
+            )
+          )
       );
 
       await act(async () => {
@@ -311,8 +330,8 @@ describe("Backtest Component - Strategy Testing", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/loading|calculating|running/i) ||
-          document.querySelector('[role="progressbar"]') ||
-          screen.getByText(/backtest/i) // At minimum shows interface
+            document.querySelector('[role="progressbar"]') ||
+            screen.getByText(/backtest/i) // At minimum shows interface
         ).toBeTruthy();
       });
     });
@@ -326,8 +345,8 @@ describe("Backtest Component - Strategy Testing", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/required|enter|select/i) ||
-          screen.queryByText(/strategy|symbol/i) ||
-          screen.getByText(/backtest/i)
+            screen.queryByText(/strategy|symbol/i) ||
+            screen.getByText(/backtest/i)
         ).toBeTruthy();
       });
     });
@@ -343,7 +362,7 @@ describe("Backtest Component - Strategy Testing", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/strategy|moving average|rsi|bollinger/i) ||
-          screen.getByText(/backtest/i)
+            screen.getByText(/backtest/i)
         ).toBeTruthy();
       });
     });

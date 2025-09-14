@@ -74,7 +74,15 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
-import { getStockPrices, getStockMetrics, getMarketOverview, getTopStocks, getPortfolioAnalytics, getTradingSignalsDaily, getCurrentUser } from "../services/api";
+import {
+  getStockPrices,
+  getStockMetrics,
+  getMarketOverview,
+  getTopStocks,
+  getPortfolioAnalytics,
+  getTradingSignalsDaily,
+  getCurrentUser,
+} from "../services/api";
 import { format } from "date-fns";
 import { getApiConfig } from "../services/api";
 import HistoricalPriceChart from "../components/HistoricalPriceChart";
@@ -86,7 +94,7 @@ import useDevelopmentMode from "../hooks/useDevelopmentMode";
 
 // Get API configuration
 const config = getApiConfig();
-const API_BASE = config?.apiUrl || 'http://localhost:3001';
+const API_BASE = config?.apiUrl || "http://localhost:3001";
 console.log("Dashboard API Base:", API_BASE);
 
 const WIDGET_COLORS = ["#1976d2", "#43a047", "#ffb300", "#8e24aa", "#e53935"];
@@ -293,11 +301,18 @@ function useMarketOverview(enabled = true) {
               return result?.data;
             } catch (err) {
               // Use console.warn for expected backend offline errors
-              const isExpectedError = err.message?.includes('503') || err.message?.includes('Service Unavailable') || err.message?.includes('Network Error');
+              const isExpectedError =
+                err.message?.includes("503") ||
+                err.message?.includes("Service Unavailable") ||
+                err.message?.includes("Network Error");
               if (isExpectedError) {
-                console.warn("⚠️ Market overview API unavailable:", err.message);
+                console.warn(
+                  "⚠️ Market overview API unavailable:",
+                  err.message
+                );
               } else {
-                if (import.meta.env && import.meta.env.DEV) console.error("❌ Market overview API failed:", err);
+                if (import.meta.env && import.meta.env.DEV)
+                  console.error("❌ Market overview API failed:", err);
               }
               throw new Error("Market data unavailable - check API connection");
             }
@@ -324,17 +339,21 @@ function useTopStocks(enabled = true) {
             try {
               const result = await getTopStocks({
                 limit: 10,
-                sortBy: 'composite_score',
-                sortOrder: 'desc'
+                sortBy: "composite_score",
+                sortOrder: "desc",
               });
               return result?.data;
             } catch (err) {
               // Use console.warn for expected backend offline errors
-              const isExpectedError = err.message?.includes('503') || err.message?.includes('Service Unavailable') || err.message?.includes('Network Error');
+              const isExpectedError =
+                err.message?.includes("503") ||
+                err.message?.includes("Service Unavailable") ||
+                err.message?.includes("Network Error");
               if (isExpectedError) {
                 console.warn("⚠️ Top stocks API unavailable:", err.message);
               } else {
-                if (import.meta.env && import.meta.env.DEV) console.error("❌ Top stocks API failed:", err);
+                if (import.meta.env && import.meta.env.DEV)
+                  console.error("❌ Top stocks API failed:", err);
               }
               throw new Error(
                 "Stock scoring data unavailable - check API connection"
@@ -404,16 +423,16 @@ function TechnicalSignalsWidget({ enabled = true }) {
         console.error("Trading signals API failed:", err);
         // Try to get market data from dashboard instead
         try {
-          const dashboardResponse = await fetch('/api/dashboard/summary', {
-            headers: { 'Authorization': 'Bearer dev-bypass-token' }
+          const dashboardResponse = await fetch("/api/dashboard/summary", {
+            headers: { Authorization: "Bearer dev-bypass-token" },
           });
           if (dashboardResponse.ok) {
             const dashboard = await dashboardResponse.json();
             const topGainers = dashboard.data?.top_gainers || [];
-            const signals = topGainers.slice(0, 5).map(stock => ({
+            const signals = topGainers.slice(0, 5).map((stock) => ({
               symbol: stock.symbol,
               signal: stock.change_percent > 0 ? "Buy" : "Sell",
-              date: new Date().toISOString().split('T')[0],
+              date: new Date().toISOString().split("T")[0],
               current_price: stock.current_price,
               performance_percent: stock.change_percent,
             }));
@@ -430,7 +449,7 @@ function TechnicalSignalsWidget({ enabled = true }) {
     retryDelay: 1000,
   });
 
-  const signals = (data?.data && Array.isArray(data?.data)) ? data?.data : [];
+  const signals = data?.data && Array.isArray(data?.data) ? data?.data : [];
 
   return (
     <Card sx={{ height: "100%" }}>
@@ -459,35 +478,38 @@ function TechnicalSignalsWidget({ enabled = true }) {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {Array.isArray(signals) && (signals || []).map((sig, idx) => (
-                  <TableRow key={sig.symbol + sig.date + idx}>
-                    <TableCell>{sig.symbol}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={sig.signal}
-                        color={sig.signal === "Buy" ? "success" : "error"}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      {sig.current_price ? `$${Number(sig.current_price).toFixed(2)}` : "--"}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        color={
-                          sig.performance_percent >= 0
-                            ? "success.main"
-                            : "error.main"
-                        }
-                      >
-                        {sig.performance_percent
-                          ? Number(sig.performance_percent).toFixed(1) + "%"
+                {Array.isArray(signals) &&
+                  (signals || []).map((sig, idx) => (
+                    <TableRow key={sig.symbol + sig.date + idx}>
+                      <TableCell>{sig.symbol}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={sig.signal}
+                          color={sig.signal === "Buy" ? "success" : "error"}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        {sig.current_price
+                          ? `$${Number(sig.current_price).toFixed(2)}`
                           : "--"}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
+                          variant="body2"
+                          color={
+                            sig.performance_percent >= 0
+                              ? "success.main"
+                              : "error.main"
+                          }
+                        >
+                          {sig.performance_percent
+                            ? Number(sig.performance_percent).toFixed(1) + "%"
+                            : "--"}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           </TableContainer>
@@ -745,9 +767,15 @@ const Dashboard = () => {
   ];
 
   // Enhanced data fetching - conditionally enabled based on API availability
-  const { data: portfolioData } = usePortfolioData(shouldEnableQueries && isAuthenticated);
-  const { data: _marketData } = useMarketOverview(shouldEnableQueries && isAuthenticated);
-  const { data: _topStocksData } = useTopStocks(shouldEnableQueries && isAuthenticated);
+  const { data: portfolioData } = usePortfolioData(
+    shouldEnableQueries && isAuthenticated
+  );
+  const { data: _marketData } = useMarketOverview(
+    shouldEnableQueries && isAuthenticated
+  );
+  const { data: _topStocksData } = useTopStocks(
+    shouldEnableQueries && isAuthenticated
+  );
 
   const { data: priceData, isLoading: _priceLoading } = useQuery({
     queryKey: ["stock-prices", selectedSymbol],
@@ -757,7 +785,9 @@ const Dashboard = () => {
         return await getStockPrices(selectedSymbol, "daily", 30);
       } catch (err) {
         console.error("Stock prices API failed:", err);
-        throw new Error(`Unable to load price data for ${selectedSymbol}: ${err.message}`);
+        throw new Error(
+          `Unable to load price data for ${selectedSymbol}: ${err.message}`
+        );
       }
     },
     staleTime: 5 * 60 * 1000,
@@ -771,7 +801,9 @@ const Dashboard = () => {
         return await getStockMetrics(selectedSymbol);
       } catch (err) {
         console.error("Stock metrics API failed:", err);
-        throw new Error(`Unable to load metrics for ${selectedSymbol}: ${err.message}`);
+        throw new Error(
+          `Unable to load metrics for ${selectedSymbol}: ${err.message}`
+        );
       }
     },
     staleTime: 5 * 60 * 1000,
@@ -879,7 +911,7 @@ const Dashboard = () => {
           </Box>
 
           <Box display="flex" alignItems="center" gap={2}>
-            <Badge badgeContent={(safeSignals?.length || 0)} color="error">
+            <Badge badgeContent={safeSignals?.length || 0} color="error">
               <IconButton aria-label="View notifications" tabIndex={0}>
                 <Notifications />
               </IconButton>
@@ -892,14 +924,14 @@ const Dashboard = () => {
               }
               sx={{ width: 180 }}
               renderInput={(params) => (
-                <TextField 
-                  {...params} 
-                  label="Symbol" 
-                  size="small" 
+                <TextField
+                  {...params}
+                  label="Symbol"
+                  size="small"
                   aria-label="Search for stock symbol"
                   inputProps={{
                     ...params.inputProps,
-                    'aria-describedby': 'symbol-search-help',
+                    "aria-describedby": "symbol-search-help",
                   }}
                 />
               )}
@@ -976,7 +1008,7 @@ const Dashboard = () => {
                         Active Signals
                       </Typography>
                       <Typography variant="h5" fontWeight="bold">
-                        {(safeSignals?.length || 0)}
+                        {safeSignals?.length || 0}
                       </Typography>
                     </Box>
                     <Box textAlign="center">
@@ -1028,7 +1060,13 @@ const Dashboard = () => {
               border: "1px solid #2196f3",
             }}
             action={
-              <Button color="inherit" size="small" variant="outlined" aria-label="Sign in to your account" tabIndex={0}>
+              <Button
+                color="inherit"
+                size="small"
+                variant="outlined"
+                aria-label="Sign in to your account"
+                tabIndex={0}
+              >
                 Sign In
               </Button>
             }
@@ -1177,7 +1215,11 @@ const Dashboard = () => {
 
         {/* Market Summary Bar */}
         <Box sx={{ mb: 4, p: 2, bgcolor: "grey.50", borderRadius: 2 }}>
-          <Typography variant="h2" component="h2" sx={{ mb: 2, fontWeight: 600, fontSize: "1.5rem" }}>
+          <Typography
+            variant="h2"
+            component="h2"
+            sx={{ mb: 2, fontWeight: 600, fontSize: "1.5rem" }}
+          >
             Market Summary
           </Typography>
           <Grid container spacing={2}>
@@ -1240,7 +1282,11 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <AccountBalance sx={{ color: "primary.main", mr: 1 }} />
-                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                  <Typography
+                    variant="h3"
+                    component="h3"
+                    sx={{ fontWeight: 600, fontSize: "1.25rem" }}
+                  >
                     Portfolio Overview
                   </Typography>
                 </Box>
@@ -1281,7 +1327,9 @@ const Dashboard = () => {
                       {(safePortfolio.allocation || []).map((entry, idx) => (
                         <Cell
                           key={`cell-${idx}`}
-                          fill={WIDGET_COLORS[idx % (WIDGET_COLORS?.length || 0)]}
+                          fill={
+                            WIDGET_COLORS[idx % (WIDGET_COLORS?.length || 0)]
+                          }
                         />
                       ))}
                     </Pie>
@@ -1302,7 +1350,11 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <ShowChart sx={{ color: "success.main", mr: 1 }} />
-                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                  <Typography
+                    variant="h3"
+                    component="h3"
+                    sx={{ fontWeight: 600, fontSize: "1.25rem" }}
+                  >
                     Elite Watchlist
                   </Typography>
                 </Box>
@@ -1354,7 +1406,12 @@ const Dashboard = () => {
                             />
                           </TableCell>
                           <TableCell align="center">
-                            <IconButton size="small" color="primary" aria-label="Execute trading strategy" tabIndex={0}>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              aria-label="Execute trading strategy"
+                              tabIndex={0}
+                            >
                               <PlayArrow />
                             </IconButton>
                           </TableCell>
@@ -1388,12 +1445,17 @@ const Dashboard = () => {
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} md={6}>
             <ErrorBoundary componentName="TechnicalSignalsWidget">
-              <TechnicalSignalsWidget enabled={shouldEnableQueries && isAuthenticated} />
+              <TechnicalSignalsWidget
+                enabled={shouldEnableQueries && isAuthenticated}
+              />
             </ErrorBoundary>
           </Grid>
           <Grid item xs={12} md={6}>
             <ErrorBoundary componentName="HistoricalPriceChart">
-              <HistoricalPriceChart symbol={selectedSymbol} defaultPeriod={30} />
+              <HistoricalPriceChart
+                symbol={selectedSymbol}
+                defaultPeriod={30}
+              />
             </ErrorBoundary>
           </Grid>
         </Grid>
@@ -1405,7 +1467,11 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <LocalFireDepartment sx={{ color: "warning.main", mr: 1 }} />
-                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                  <Typography
+                    variant="h3"
+                    component="h3"
+                    sx={{ fontWeight: 600, fontSize: "1.25rem" }}
+                  >
                     Trading Signals
                   </Typography>
                   <Chip
@@ -1481,7 +1547,11 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <Event sx={{ color: "info.main", mr: 1 }} />
-                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                  <Typography
+                    variant="h3"
+                    component="h3"
+                    sx={{ fontWeight: 600, fontSize: "1.25rem" }}
+                  >
                     Economic Calendar
                   </Typography>
                   <Chip
@@ -1534,7 +1604,11 @@ const Dashboard = () => {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <Timeline sx={{ color: "success.main", mr: 1 }} />
-                  <Typography variant="h3" component="h3" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                  <Typography
+                    variant="h3"
+                    component="h3"
+                    sx={{ fontWeight: 600, fontSize: "1.25rem" }}
+                  >
                     Trading Activity
                   </Typography>
                   <Chip
@@ -1615,7 +1689,11 @@ const Dashboard = () => {
                   <Psychology
                     sx={{ color: "primary.main", mr: 1, fontSize: 32 }}
                   />
-                  <Typography variant="h2" component="h2" sx={{ fontWeight: 700, fontSize: "1.5rem" }}>
+                  <Typography
+                    variant="h2"
+                    component="h2"
+                    sx={{ fontWeight: 700, fontSize: "1.5rem" }}
+                  >
                     AI-Powered Intelligence Center
                   </Typography>
                   <Chip
@@ -1849,7 +1927,12 @@ const Dashboard = () => {
                                 primary={`${signal.action} ${signal.symbol}`}
                                 secondary={`${(signal.confidence * 100).toFixed(0)}% confidence • ${signal.type}`}
                               />
-                              <IconButton size="small" color="primary" aria-label="View stock details" tabIndex={0}>
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                aria-label="View stock details"
+                                tabIndex={0}
+                              >
                                 <PlayArrow />
                               </IconButton>
                             </ListItem>
@@ -1884,7 +1967,12 @@ const Dashboard = () => {
         {/* Quick Actions Panel */}
         <Card sx={{ mb: 4, border: "2px solid #e3f2fd" }}>
           <CardContent>
-            <Typography variant="h2" component="h2" gutterBottom sx={{ fontWeight: 600, fontSize: "1.5rem" }}>
+            <Typography
+              variant="h2"
+              component="h2"
+              gutterBottom
+              sx={{ fontWeight: 600, fontSize: "1.5rem" }}
+            >
               Quick Actions
             </Typography>
             <Grid container spacing={2}>

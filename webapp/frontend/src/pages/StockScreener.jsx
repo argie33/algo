@@ -531,10 +531,11 @@ function StockScreener() {
     // Handle the backend response structure: { data: [...], total: number }
     if (Array.isArray(screenResults?.data)) {
       stocksList = screenResults?.data;
-      totalCount = screenResults.total || (screenResults.data?.length || 0);
+      totalCount = screenResults.total || screenResults.data?.length || 0;
     } else if (screenResults?.data && Array.isArray(screenResults?.data.data)) {
       stocksList = screenResults?.data.data;
-      totalCount = screenResults?.data.total || (screenResults?.data.data?.length || 0);
+      totalCount =
+        screenResults?.data.total || screenResults?.data.data?.length || 0;
     }
   }
 
@@ -1258,7 +1259,9 @@ function StockScreener() {
                       value={selectedColumns}
                       onChange={(e) => setSelectedColumns(e.target.value)}
                       label="Columns"
-                      renderValue={(selected) => `${(selected?.length || 0)} columns`}
+                      renderValue={(selected) =>
+                        `${selected?.length || 0} columns`
+                      }
                     >
                       <MenuItem value="symbol">Symbol</MenuItem>
                       <MenuItem value="company_name">Company</MenuItem>
@@ -1599,23 +1602,29 @@ function StockScreener() {
               )}
 
               {/* No Results */}
-              {screenResults && (stocksList?.length || 0) === 0 && !isLoading && (
-                <Box textAlign="center" py={6}>
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No stocks match your criteria
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" mb={3}>
-                    Try adjusting your filters to see more results
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    onClick={handleClearFilters}
-                    startIcon={<Clear />}
-                  >
-                    Clear All Filters
-                  </Button>
-                </Box>
-              )}
+              {screenResults &&
+                (stocksList?.length || 0) === 0 &&
+                !isLoading && (
+                  <Box textAlign="center" py={6}>
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      No stocks match your criteria
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" mb={3}>
+                      Try adjusting your filters to see more results
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      onClick={handleClearFilters}
+                      startIcon={<Clear />}
+                    >
+                      Clear All Filters
+                    </Button>
+                  </Box>
+                )}
             </CardContent>
           </Card>
         </Grid>

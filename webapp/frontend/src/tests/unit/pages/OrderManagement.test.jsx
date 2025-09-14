@@ -18,11 +18,11 @@ const testTheme = createTheme();
 // Mock the AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
   useAuth: vi.fn(() => ({
-    user: { 
-      id: 'test-user', 
-      email: 'test@example.com', 
-      name: 'Test User',
-      token: 'dev-bypass-token'
+    user: {
+      id: "test-user",
+      email: "test@example.com",
+      name: "Test User",
+      token: "dev-bypass-token",
     },
     isAuthenticated: true,
     isLoading: false,
@@ -63,72 +63,72 @@ const renderWithWrapper = (component) => {
 };
 
 // Mock global fetch to prevent network calls
-global.fetch = vi.fn(() => 
+global.fetch = vi.fn(() =>
   Promise.resolve({
     ok: true,
-    json: () => Promise.resolve({ orders: [], positions: [], account: {} })
+    json: () => Promise.resolve({ orders: [], positions: [], account: {} }),
   })
 );
 
 // Mock the API service
 vi.mock("../../../services/api.js", () => ({
-  getOrders: vi.fn(() => 
+  getOrders: vi.fn(() =>
     Promise.resolve({
       success: true,
       data: {
         orders: [
           {
-            id: 'order-123',
-            symbol: 'AAPL',
-            side: 'buy',
-            orderType: 'market',
+            id: "order-123",
+            symbol: "AAPL",
+            side: "buy",
+            orderType: "market",
             quantity: 100,
             price: 150.25,
-            status: 'filled',
-            createdAt: '2024-01-15T10:30:00Z',
-            filledAt: '2024-01-15T10:30:05Z',
-            filledPrice: 150.30,
-            filledQuantity: 100
+            status: "filled",
+            createdAt: "2024-01-15T10:30:00Z",
+            filledAt: "2024-01-15T10:30:05Z",
+            filledPrice: 150.3,
+            filledQuantity: 100,
           },
           {
-            id: 'order-124',
-            symbol: 'MSFT',
-            side: 'sell',
-            orderType: 'limit',
+            id: "order-124",
+            symbol: "MSFT",
+            side: "sell",
+            orderType: "limit",
             quantity: 50,
-            price: 280.00,
-            status: 'pending',
-            createdAt: '2024-01-15T11:00:00Z'
-          }
+            price: 280.0,
+            status: "pending",
+            createdAt: "2024-01-15T11:00:00Z",
+          },
         ],
         summary: {
           totalOrders: 2,
           pendingOrders: 1,
           filledOrders: 1,
-          cancelledOrders: 0
-        }
-      }
+          cancelledOrders: 0,
+        },
+      },
     })
   ),
   cancelOrder: vi.fn(() =>
     Promise.resolve({
       success: true,
-      data: { message: 'Order cancelled successfully' }
+      data: { message: "Order cancelled successfully" },
     })
   ),
   modifyOrder: vi.fn(() =>
     Promise.resolve({
       success: true,
-      data: { message: 'Order modified successfully' }
+      data: { message: "Order modified successfully" },
     })
   ),
   placeOrder: vi.fn(() =>
     Promise.resolve({
       success: true,
       data: {
-        orderId: 'order-125',
-        status: 'submitted'
-      }
+        orderId: "order-125",
+        status: "submitted",
+      },
     })
   ),
   getOrderHistory: vi.fn(() =>
@@ -136,39 +136,40 @@ vi.mock("../../../services/api.js", () => ({
       success: true,
       data: [
         {
-          id: 'order-120',
-          symbol: 'TSLA',
-          side: 'buy',
+          id: "order-120",
+          symbol: "TSLA",
+          side: "buy",
           quantity: 25,
-          status: 'filled',
-          filledPrice: 240.50,
-          createdAt: '2024-01-10T14:20:00Z'
-        }
-      ]
+          status: "filled",
+          filledPrice: 240.5,
+          createdAt: "2024-01-10T14:20:00Z",
+        },
+      ],
     })
   ),
   api: {
     get: vi.fn(() => Promise.resolve({ data: { success: true } })),
     post: vi.fn(() => Promise.resolve({ data: { success: true } })),
     put: vi.fn(() => Promise.resolve({ data: { success: true } })),
-    delete: vi.fn(() => Promise.resolve({ data: { success: true } }))
-  }
+    delete: vi.fn(() => Promise.resolve({ data: { success: true } })),
+  },
 }));
 
 describe("OrderManagement Component - Trading Orders", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({
-          success: true,
-          data: {
-            orders: []
-          }
-        })
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: {
+              orders: [],
+            },
+          }),
       })
     );
   });
@@ -179,8 +180,8 @@ describe("OrderManagement Component - Trading Orders", () => {
 
       expect(
         screen.getByText(/order/i) ||
-        screen.getByText(/management/i) ||
-        screen.getByText(/trading/i)
+          screen.getByText(/management/i) ||
+          screen.getByText(/trading/i)
       ).toBeTruthy();
     });
 
@@ -192,8 +193,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/symbol|quantity|price|status/i) ||
-          screen.queryByText(/buy|sell/i) ||
-          document.querySelector('table')
+            screen.queryByText(/buy|sell/i) ||
+            document.querySelector("table")
         ).toBeTruthy();
       });
     });
@@ -206,14 +207,14 @@ describe("OrderManagement Component - Trading Orders", () => {
         data: {
           orders: [
             {
-              id: 'order-123',
-              symbol: 'AAPL',
-              side: 'buy',
+              id: "order-123",
+              symbol: "AAPL",
+              side: "buy",
               quantity: 100,
-              status: 'pending'
-            }
-          ]
-        }
+              status: "pending",
+            },
+          ],
+        },
       });
 
       await act(async () => {
@@ -223,8 +224,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/AAPL/i) ||
-          screen.queryByText(/100|pending/i) ||
-          screen.getByText(/order/i)
+            screen.queryByText(/100|pending/i) ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -237,7 +238,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/pending|filled|cancelled|rejected/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -250,8 +251,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/price|quantity|symbol|type/i) ||
-          screen.queryByText(/market|limit|stop/i) ||
-          screen.getByText(/order/i)
+            screen.queryByText(/market|limit|stop/i) ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -261,7 +262,7 @@ describe("OrderManagement Component - Trading Orders", () => {
     it("should allow order cancellation", async () => {
       apiService.cancelOrder.mockResolvedValue({
         success: true,
-        data: { message: 'Order cancelled' }
+        data: { message: "Order cancelled" },
       });
 
       await act(async () => {
@@ -270,15 +271,14 @@ describe("OrderManagement Component - Trading Orders", () => {
 
       await waitFor(() => {
         const cancelButton = screen.queryByText(/cancel/i);
-        if (cancelButton && cancelButton.tagName === 'BUTTON') {
+        if (cancelButton && cancelButton.tagName === "BUTTON") {
           fireEvent.click(cancelButton);
         }
       });
 
       await waitFor(() => {
         expect(
-          screen.queryByText(/cancelled|cancel/i) ||
-          apiService.cancelOrder
+          screen.queryByText(/cancelled|cancel/i) || apiService.cancelOrder
         ).toBeTruthy();
       });
     });
@@ -286,7 +286,7 @@ describe("OrderManagement Component - Trading Orders", () => {
     it("should support order modification", async () => {
       apiService.modifyOrder.mockResolvedValue({
         success: true,
-        data: { message: 'Order modified' }
+        data: { message: "Order modified" },
       });
 
       await act(async () => {
@@ -295,7 +295,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
       await waitFor(() => {
         const modifyButton = screen.queryByText(/modify|edit|update/i);
-        if (modifyButton && modifyButton.tagName === 'BUTTON') {
+        if (modifyButton && modifyButton.tagName === "BUTTON") {
           fireEvent.click(modifyButton);
         }
       });
@@ -303,7 +303,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/modify|edit|update/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -318,8 +318,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/new order|place order|create/i) ||
-          screen.queryByText(/symbol|quantity|price/i) ||
-          document.querySelector('input[type="text"]')
+            screen.queryByText(/symbol|quantity|price/i) ||
+            document.querySelector('input[type="text"]')
         ).toBeTruthy();
       });
     });
@@ -327,7 +327,7 @@ describe("OrderManagement Component - Trading Orders", () => {
     it("should handle order submission", async () => {
       apiService.placeOrder.mockResolvedValue({
         success: true,
-        data: { orderId: 'new-order-123' }
+        data: { orderId: "new-order-123" },
       });
 
       await act(async () => {
@@ -336,7 +336,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
       await waitFor(() => {
         const submitButton = screen.queryByText(/submit|place|create/i);
-        if (submitButton && submitButton.tagName === 'BUTTON') {
+        if (submitButton && submitButton.tagName === "BUTTON") {
           fireEvent.click(submitButton);
         }
       });
@@ -344,7 +344,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/submitted|placed|created/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -357,8 +357,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/required|invalid|enter/i) ||
-          screen.queryByText(/symbol|quantity|price/i) ||
-          screen.getByText(/order/i)
+            screen.queryByText(/symbol|quantity|price/i) ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -370,13 +370,13 @@ describe("OrderManagement Component - Trading Orders", () => {
         success: true,
         data: [
           {
-            id: 'order-100',
-            symbol: 'TSLA',
-            side: 'buy',
-            status: 'filled',
-            createdAt: '2024-01-01T10:00:00Z'
-          }
-        ]
+            id: "order-100",
+            symbol: "TSLA",
+            side: "buy",
+            status: "filled",
+            createdAt: "2024-01-01T10:00:00Z",
+          },
+        ],
       });
 
       await act(async () => {
@@ -386,8 +386,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/history|past|previous/i) ||
-          screen.queryByText(/TSLA|filled/i) ||
-          screen.getByText(/order/i)
+            screen.queryByText(/TSLA|filled/i) ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -400,9 +400,9 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/filter|date|range/i) ||
-          screen.queryByText(/from|to/i) ||
-          document.querySelector('input[type="date"]') ||
-          screen.getByText(/order/i)
+            screen.queryByText(/from|to/i) ||
+            document.querySelector('input[type="date"]') ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -417,29 +417,27 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/status|pending|filled/i) ||
-          screen.queryByText(/real.time|live|update/i) ||
-          screen.getByText(/order/i)
+            screen.queryByText(/real.time|live|update/i) ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
 
     it("should handle order state changes", async () => {
       // Mock order status update
-      apiService.getOrders.mockResolvedValueOnce({
-        success: true,
-        data: {
-          orders: [
-            { id: 'order-1', status: 'pending' }
-          ]
-        }
-      }).mockResolvedValueOnce({
-        success: true,
-        data: {
-          orders: [
-            { id: 'order-1', status: 'filled' }
-          ]
-        }
-      });
+      apiService.getOrders
+        .mockResolvedValueOnce({
+          success: true,
+          data: {
+            orders: [{ id: "order-1", status: "pending" }],
+          },
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          data: {
+            orders: [{ id: "order-1", status: "filled" }],
+          },
+        });
 
       await act(async () => {
         renderWithWrapper(<OrderManagement />);
@@ -448,7 +446,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/filled|completed|executed/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -467,7 +465,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/error|failed|unavailable/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -484,7 +482,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       // Simulate order placement error
       await waitFor(() => {
         const submitButton = screen.queryByText(/submit|place/i);
-        if (submitButton && submitButton.tagName === 'BUTTON') {
+        if (submitButton && submitButton.tagName === "BUTTON") {
           fireEvent.click(submitButton);
         }
       });
@@ -492,16 +490,20 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/error|failed|rejected/i) ||
-          screen.getByText(/order/i)
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
 
     it("should show loading state during operations", async () => {
-      apiService.getOrders.mockImplementation(() => 
-        new Promise(resolve => 
-          setTimeout(() => resolve({ success: true, data: { orders: [] } }), 100)
-        )
+      apiService.getOrders.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve({ success: true, data: { orders: [] } }),
+              100
+            )
+          )
       );
 
       await act(async () => {
@@ -511,8 +513,8 @@ describe("OrderManagement Component - Trading Orders", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/loading|fetching/i) ||
-          document.querySelector('[role="progressbar"]') ||
-          screen.getByText(/order/i)
+            document.querySelector('[role="progressbar"]') ||
+            screen.getByText(/order/i)
         ).toBeTruthy();
       });
     });
@@ -533,10 +535,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await waitFor(() => {
-        expect(
-          apiService.getOrders ||
-          screen.getByText(/order/i)
-        ).toBeTruthy();
+        expect(apiService.getOrders || screen.getByText(/order/i)).toBeTruthy();
       });
     });
   });

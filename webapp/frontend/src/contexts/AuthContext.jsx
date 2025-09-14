@@ -185,7 +185,7 @@ export function AuthProvider({ children }) {
       // Check if we're in a real production environment
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
-      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === 'true';
+      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
 
       // Use Cognito in production or when properly configured (unless dev auth is forced)
       if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
@@ -233,7 +233,7 @@ export function AuthProvider({ children }) {
       // Development fallback when Cognito is not configured OR dev auth is forced
       if ((!cognitoConfigured && import.meta.env.DEV) || forceDevAuth) {
         console.log(
-          forceDevAuth 
+          forceDevAuth
             ? "🔧 DEVELOPMENT MODE - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
             : "🔧 DEVELOPMENT MODE - Cognito not configured, using dev auth fallback"
         );
@@ -305,8 +305,8 @@ export function AuthProvider({ children }) {
               `❌ Token refresh failed (attempt ${attempts}):`,
               error
             );
-        },
-      });
+          },
+        });
 
         // Start session
         const rememberMe = localStorage.getItem("rememberMe") === "true";
@@ -320,7 +320,13 @@ export function AuthProvider({ children }) {
       sessionManager.endSession();
       setSessionWarning({ show: false, timeRemaining: 0 });
     }
-  }, [state.isAuthenticated, state.user, refreshSession, logout, setSessionWarning]);
+  }, [
+    state.isAuthenticated,
+    state.user,
+    refreshSession,
+    logout,
+    setSessionWarning,
+  ]);
 
   const login = async (username, password) => {
     try {
@@ -329,7 +335,7 @@ export function AuthProvider({ children }) {
 
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
-      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === 'true';
+      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
 
       // Use Cognito in production or when properly configured (unless dev auth is forced)
       if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
@@ -384,7 +390,7 @@ export function AuthProvider({ children }) {
       // Development fallback when Cognito is not configured OR dev auth is forced
       if ((!cognitoConfigured && import.meta.env.DEV) || forceDevAuth) {
         console.log(
-          forceDevAuth 
+          forceDevAuth
             ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
             : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
         );
@@ -394,7 +400,8 @@ export function AuthProvider({ children }) {
 
           // Check if login was successful and has tokens
           if (!result.success || !result.tokens) {
-            const errorMsg = result.error?.message || "Login failed - no tokens received";
+            const errorMsg =
+              result.error?.message || "Login failed - no tokens received";
             console.error("Dev auth login failed:", errorMsg);
             dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMsg });
             return { success: false, error: errorMsg };
@@ -561,13 +568,14 @@ export function AuthProvider({ children }) {
         );
         try {
           // For dev auth, we simulate sending a new code
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
           dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
 
           return {
             success: true,
-            message: "New verification code sent to your email (development mode)",
+            message:
+              "New verification code sent to your email (development mode)",
           };
         } catch (error) {
           console.error("Dev auth resend error:", error);

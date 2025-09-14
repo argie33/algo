@@ -10,10 +10,12 @@ export const getApiConfig = () => {
       ? window.__CONFIG__.API_URL
       : null;
   const apiUrl =
-    runtimeApiUrl || (import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001";
+    runtimeApiUrl ||
+    (import.meta.env && import.meta.env.VITE_API_URL) ||
+    "http://localhost:3001";
 
   // Only log in development, not in tests
-  if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+  if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
     console.log("🔧 [API CONFIG] URL Resolution:", {
       runtimeApiUrl,
       envApiUrl: import.meta.env && import.meta.env.VITE_API_URL,
@@ -25,10 +27,17 @@ export const getApiConfig = () => {
   }
 
   // Detect environment properly for both runtime and test contexts
-  const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-  const environment = isTestEnv ? 'test' : (import.meta.env && import.meta.env.MODE) || 'development';
-  const isDevelopment = isTestEnv ? true : !!(import.meta.env && import.meta.env.DEV);
-  const isProduction = isTestEnv ? false : !!(import.meta.env && import.meta.env.PROD);
+  const isTestEnv =
+    typeof process !== "undefined" && process.env.NODE_ENV === "test";
+  const environment = isTestEnv
+    ? "test"
+    : (import.meta.env && import.meta.env.MODE) || "development";
+  const isDevelopment = isTestEnv
+    ? true
+    : !!(import.meta.env && import.meta.env.DEV);
+  const isProduction = isTestEnv
+    ? false
+    : !!(import.meta.env && import.meta.env.PROD);
 
   return {
     baseURL: apiUrl,
@@ -57,12 +66,12 @@ const _checkApiHealth = async () => {
   if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL) {
     return apiHealthy;
   }
-  
+
   try {
-    const response = await fetch(`${currentConfig.baseURL}/health`, { 
-      method: 'GET',
+    const response = await fetch(`${currentConfig.baseURL}/health`, {
+      method: "GET",
       timeout: 3000,
-      signal: AbortSignal.timeout(3000)
+      signal: AbortSignal.timeout(3000),
     });
     apiHealthy = response.ok;
     lastHealthCheck = now;
@@ -70,12 +79,12 @@ const _checkApiHealth = async () => {
     apiHealthy = false;
     lastHealthCheck = now;
   }
-  
+
   return apiHealthy;
 };
 
 // Warn if API URL is fallback (localhost) - skip in tests
-if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
   if (!currentConfig.apiUrl || currentConfig.apiUrl.includes("localhost")) {
     console.warn(
       "[API CONFIG] Using fallback API URL:",
@@ -93,13 +102,13 @@ try {
     timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer dev-bypass-token", // Development authentication
+      Authorization: "Bearer dev-bypass-token", // Development authentication
     },
   });
 } catch (error) {
   // In test environment, axios might not be properly mocked
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    console.warn('[API] Axios create failed in test environment, using mock');
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.warn("[API] Axios create failed in test environment, using mock");
     api = null;
   } else {
     throw error;
@@ -110,20 +119,20 @@ try {
 try {
   if (api && api.interceptors) {
     api.interceptors.request.use(
-    (config) => {
-      // Add timestamp for request duration tracking
-      config.metadata = { startTime: new Date() };
-      return config;
-    },
-    (error) => {
-      return Promise.reject(error);
-    }
+      (config) => {
+        // Add timestamp for request duration tracking
+        config.metadata = { startTime: new Date() };
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
     );
   }
 } catch (error) {
   // Ignore interceptor errors in test environment
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    console.warn('[API] Interceptor setup skipped in test environment');
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.warn("[API] Interceptor setup skipped in test environment");
   }
 }
 
@@ -131,84 +140,96 @@ try {
 try {
   if (api && api.interceptors) {
     api.interceptors.response.use(
-  (response) => {
-    // Track request duration for performance monitoring
-    if (response.config.metadata) {
-      const duration = new Date() - response.config.metadata.startTime;
-      if (duration > 10000) { // Log slow requests (>10s)
-        console.warn(`⚠️ Slow API request detected:`, {
-          url: response.config.url,
-          method: response.config.method,
-          duration: `${duration}ms`
-        });
+      (response) => {
+        // Track request duration for performance monitoring
+        if (response.config.metadata) {
+          const duration = new Date() - response.config.metadata.startTime;
+          if (duration > 10000) {
+            // Log slow requests (>10s)
+            console.warn(`⚠️ Slow API request detected:`, {
+              url: response.config.url,
+              method: response.config.method,
+              duration: `${duration}ms`,
+            });
+          }
+        }
+        return response;
+      },
+      (error) => {
+        // Enhanced error handling with user-friendly messages
+        let userMessage = "An unexpected error occurred";
+
+        if (error.code === "ECONNABORTED") {
+          userMessage =
+            "Request timed out. The server may be experiencing high load. Please try again.";
+        } else if (error.code === "ERR_NETWORK") {
+          userMessage =
+            "Network connection failed. Please check your internet connection.";
+        } else if (error.code === "ENOTFOUND") {
+          userMessage = "Server could not be reached. Please try again later.";
+        } else if (error.code === "CERT_UNTRUSTED") {
+          userMessage = "Security certificate error. Please contact support.";
+        } else if (error.response?.status === 401) {
+          userMessage = "Authentication failed. Please sign in again.";
+        } else if (error.response?.status === 403) {
+          userMessage =
+            "Access denied. You do not have permission for this resource.";
+        } else if (error.response?.status === 404) {
+          userMessage =
+            "The requested resource was not found. Please check your request and try again.";
+        } else if (error.response?.status === 429) {
+          userMessage =
+            "Too many requests. Please wait a moment and try again.";
+        } else if (error.response?.status === 500) {
+          userMessage =
+            "Server error occurred. Our team has been notified. Please try again later.";
+        } else if (error.response?.status === 502) {
+          userMessage =
+            "Bad gateway error. The service may be temporarily unavailable.";
+        } else if (error.response?.status === 503) {
+          userMessage =
+            "Service temporarily unavailable. Please try again in a few minutes.";
+        } else if (!navigator.onLine) {
+          userMessage =
+            "No internet connection. Please check your network and try again.";
+        }
+
+        // Add user-friendly message to error object
+        error.userMessage = userMessage;
+
+        // Enhanced error logging with more context
+        const logData = {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.message,
+          code: error.code,
+          userMessage,
+          stack: error.stack?.split("\n")[0], // Just first line of stack
+        };
+
+        // Log different error types with appropriate console methods
+        if (error.response?.status >= 500) {
+          console.error("❌ Server Error:", logData);
+        } else if (error.response?.status >= 400) {
+          console.warn("⚠️ Client Error:", logData);
+        } else if (error.code) {
+          console.error("❌ Network Error:", logData);
+        } else {
+          console.error("❌ Unknown Error:", logData);
+        }
+
+        return Promise.reject(error);
       }
-    }
-    return response;
-  },
-  (error) => {
-    // Enhanced error handling with user-friendly messages
-    let userMessage = 'An unexpected error occurred';
-    
-    if (error.code === 'ECONNABORTED') {
-      userMessage = 'Request timed out. The server may be experiencing high load. Please try again.';
-    } else if (error.code === 'ERR_NETWORK') {
-      userMessage = 'Network connection failed. Please check your internet connection.';
-    } else if (error.code === 'ENOTFOUND') {
-      userMessage = 'Server could not be reached. Please try again later.';
-    } else if (error.code === 'CERT_UNTRUSTED') {
-      userMessage = 'Security certificate error. Please contact support.';
-    } else if (error.response?.status === 401) {
-      userMessage = 'Authentication failed. Please sign in again.';
-    } else if (error.response?.status === 403) {
-      userMessage = 'Access denied. You do not have permission for this resource.';
-    } else if (error.response?.status === 404) {
-      userMessage = 'The requested resource was not found. Please check your request and try again.';
-    } else if (error.response?.status === 429) {
-      userMessage = 'Too many requests. Please wait a moment and try again.';
-    } else if (error.response?.status === 500) {
-      userMessage = 'Server error occurred. Our team has been notified. Please try again later.';
-    } else if (error.response?.status === 502) {
-      userMessage = 'Bad gateway error. The service may be temporarily unavailable.';
-    } else if (error.response?.status === 503) {
-      userMessage = 'Service temporarily unavailable. Please try again in a few minutes.';
-    } else if (!navigator.onLine) {
-      userMessage = 'No internet connection. Please check your network and try again.';
-    }
-    
-    // Add user-friendly message to error object
-    error.userMessage = userMessage;
-    
-    // Enhanced error logging with more context
-    const logData = {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      message: error.message,
-      code: error.code,
-      userMessage,
-      stack: error.stack?.split('\n')[0] // Just first line of stack
-    };
-    
-    // Log different error types with appropriate console methods
-    if (error.response?.status >= 500) {
-      console.error('❌ Server Error:', logData);
-    } else if (error.response?.status >= 400) {
-      console.warn('⚠️ Client Error:', logData);
-    } else if (error.code) {
-      console.error('❌ Network Error:', logData);
-    } else {
-      console.error('❌ Unknown Error:', logData);
-    }
-    
-    return Promise.reject(error);
-  }
     );
   }
 } catch (error) {
   // Ignore interceptor errors in test environment
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    console.warn('[API] Response interceptor setup skipped in test environment');
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.warn(
+      "[API] Response interceptor setup skipped in test environment"
+    );
   }
 }
 
@@ -222,9 +243,9 @@ export const getPortfolioData = async () => {
     return response?.data || null;
   } catch (error) {
     console.error("Error fetching portfolio data:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -233,18 +254,18 @@ export const getPortfolioData = async () => {
 export const getPortfolioHoldings = async (userId) => {
   try {
     // Validate user ID
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      throw new Error('Invalid user ID');
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      throw new Error("Invalid user ID");
     }
-    
+
     const response = await api.get(`/api/portfolio/holdings?userId=${userId}`);
     return response?.data || null;
   } catch (error) {
     console.error("Error fetching portfolio holdings:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
-      userId
+      userId,
     });
     throw error;
   }
@@ -256,10 +277,10 @@ export const getRiskAssessment = async (userId) => {
     return response?.data || null;
   } catch (error) {
     console.error("Error fetching risk assessment:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
-      userId
+      userId,
     });
     throw error;
   }
@@ -271,10 +292,10 @@ export const getFactorAnalysis = async (userId) => {
     return response?.data || null;
   } catch (error) {
     console.error("Error fetching factor analysis:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
-      userId
+      userId,
     });
     throw error;
   }
@@ -286,9 +307,9 @@ export const addHolding = async (holding) => {
     return response?.data;
   } catch (error) {
     console.error("Error adding holding:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -303,9 +324,9 @@ export const updateHolding = async (holdingId, holding) => {
     return response?.data;
   } catch (error) {
     console.error("Error updating holding:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -317,9 +338,9 @@ export const deleteHolding = async (holdingId) => {
     return response?.data;
   } catch (error) {
     console.error("Error deleting holding:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -331,9 +352,9 @@ export const importPortfolioFromBroker = async (broker) => {
     return response?.data;
   } catch (error) {
     console.error("Error importing portfolio from broker:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -347,9 +368,9 @@ export const getPortfolioPerformance = async (timeframe = "1Y") => {
     return response?.data;
   } catch (error) {
     console.error("Error fetching portfolio performance:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -363,9 +384,9 @@ export const getBenchmarkData = async (timeframe = "1Y") => {
     return response?.data;
   } catch (error) {
     console.error("Error fetching benchmark data:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -377,9 +398,9 @@ export const getPortfolioOptimizationData = async () => {
     return response?.data;
   } catch (error) {
     console.error("Error fetching optimization data:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -391,9 +412,9 @@ export const runPortfolioOptimization = async (params) => {
     return response?.data;
   } catch (error) {
     console.error("Error running portfolio optimization:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -405,9 +426,9 @@ export const getRebalancingRecommendations = async () => {
     return response?.data;
   } catch (error) {
     console.error("Error fetching rebalancing recommendations:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -416,16 +437,19 @@ export const getRebalancingRecommendations = async () => {
 export const getRiskAnalysis = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams();
-    if (params.period) queryParams.append('period', params.period);
-    if (params.confidence_level) queryParams.append('confidence_level', params.confidence_level);
-    
-    const response = await api.get(`/api/risk/analysis${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
+    if (params.period) queryParams.append("period", params.period);
+    if (params.confidence_level)
+      queryParams.append("confidence_level", params.confidence_level);
+
+    const response = await api.get(
+      `/api/risk/analysis${queryParams.toString() ? "?" + queryParams.toString() : ""}`
+    );
     return response?.data;
   } catch (error) {
     console.error("Error fetching risk analysis:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -434,15 +458,17 @@ export const getRiskAnalysis = async (params = {}) => {
 export const getRiskDashboard = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams();
-    if (params.period) queryParams.append('period', params.period);
-    
-    const response = await api.get(`/api/risk/dashboard${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
+    if (params.period) queryParams.append("period", params.period);
+
+    const response = await api.get(
+      `/api/risk/dashboard${queryParams.toString() ? "?" + queryParams.toString() : ""}`
+    );
     return response?.data;
   } catch (error) {
     console.error("Error fetching risk dashboard:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -454,9 +480,9 @@ export const getRiskAlerts = async () => {
     return response?.data;
   } catch (error) {
     console.error("Error fetching risk alerts:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -468,9 +494,9 @@ export const createRiskAlert = async (alertData) => {
     return response?.data;
   } catch (error) {
     console.error("Error creating risk alert:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -483,9 +509,9 @@ export const getApiKeys = async () => {
     return response?.data;
   } catch (error) {
     console.error("Error fetching API keys:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -497,9 +523,9 @@ export const addApiKey = async (apiKeyData) => {
     return response?.data;
   } catch (error) {
     console.error("Error adding API key:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -507,16 +533,13 @@ export const addApiKey = async (apiKeyData) => {
 
 export const updateApiKey = async (keyId, apiKeyData) => {
   try {
-    const response = await api.put(
-      `/portfolio/api-keys/${keyId}`,
-      apiKeyData
-    );
+    const response = await api.put(`/portfolio/api-keys/${keyId}`, apiKeyData);
     return response?.data;
   } catch (error) {
     console.error("Error updating API key:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -528,11 +551,70 @@ export const deleteApiKey = async (keyId) => {
     return response?.data;
   } catch (error) {
     console.error("Error deleting API key:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
+  }
+};
+
+// Alias for tests - saveApiKey is equivalent to addApiKey
+export const saveApiKey = async (apiKeyData) => {
+  try {
+    const response = await api.post("/portfolio/api-keys", apiKeyData);
+    return { ok: true, data: response?.data };
+  } catch (error) {
+    console.error("Error saving API key:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    return { ok: false, error: error.message };
+  }
+};
+
+// Test API key functionality
+export const testApiKey = async (apiKeyData) => {
+  try {
+    const response = await api.post("/portfolio/test-api-key", apiKeyData);
+    return { ok: true, isValid: response?.data?.isValid, data: response?.data };
+  } catch (error) {
+    console.error("Error testing API key:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    return { ok: false, isValid: false, error: error.message };
+  }
+};
+
+// User settings functions
+export const getSettings = async () => {
+  try {
+    const response = await api.get("/api/settings");
+    return response?.data;
+  } catch (error) {
+    console.error("Error getting settings:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    throw error;
+  }
+};
+
+export const updateSettings = async (settings) => {
+  try {
+    const response = await api.post("/api/settings", settings);
+    return { ok: true, success: true, data: response?.data };
+  } catch (error) {
+    console.error("Error updating settings:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    return { ok: false, success: false, error: error.message };
   }
 };
 
@@ -573,93 +655,99 @@ const _retryHandler = async (error) => {
 // Request interceptor for logging and Lambda optimization - test-safe
 try {
   api.interceptors.request.use(
-  (config) => {
-    // DEVELOPMENT MODE: Only block API calls if no API server is configured
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                         window.location.hostname === '127.0.0.1' ||
-                         window.location.port === '5173';
-    
-    // Only block API calls in development if we don't have a configured API server
-    const hasValidApiServer = currentConfig && currentConfig.baseURL && 
-                              (currentConfig.baseURL.startsWith('http://localhost:') || 
-                               currentConfig.baseURL.startsWith('https://'));
-    
-    if (isDevelopment && !hasValidApiServer) {
-      console.log('🚫 [API] Blocking API call - no server configured:', {
+    (config) => {
+      // DEVELOPMENT MODE: Only block API calls if no API server is configured
+      const isDevelopment =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.port === "5173";
+
+      // Only block API calls in development if we don't have a configured API server
+      const hasValidApiServer =
+        currentConfig &&
+        currentConfig.baseURL &&
+        (currentConfig.baseURL.startsWith("http://localhost:") ||
+          currentConfig.baseURL.startsWith("https://"));
+
+      if (isDevelopment && !hasValidApiServer) {
+        console.log("🚫 [API] Blocking API call - no server configured:", {
+          baseURL: currentConfig.baseURL,
+          hasValidApiServer,
+        });
+        const error = new Error("API calls disabled - no server configured");
+        error.code = "NO_SERVER_CONFIGURED";
+        return Promise.reject(error);
+      }
+
+      console.log("✅ [API] Allowing API call:", {
+        isDevelopment,
+        hasValidApiServer,
         baseURL: currentConfig.baseURL,
-        hasValidApiServer
+        url: config.url,
       });
-      const error = new Error('API calls disabled - no server configured');
-      error.code = 'NO_SERVER_CONFIGURED';
+      // Remove any double /api/api
+      if (config.url && config.url.startsWith("/api/api")) {
+        config.url = config.url.replace("/api/api", "/api");
+      }
+
+      // Add authentication token if available
+      try {
+        // Try to get auth token from localStorage or sessionStorage
+        let authToken = null;
+
+        // Check if we're in browser context
+        if (typeof window !== "undefined") {
+          // Try various storage locations for auth token
+          authToken =
+            localStorage.getItem("authToken") ||
+            sessionStorage.getItem("authToken") ||
+            localStorage.getItem("accessToken") ||
+            sessionStorage.getItem("accessToken");
+        }
+
+        // Development mode: Use dev-bypass-token for localhost or when dev auth is forced
+        if (
+          import.meta.env.DEV &&
+          (currentConfig.baseURL.includes("localhost:3001") ||
+            import.meta.env.VITE_FORCE_DEV_AUTH === "true")
+        ) {
+          // If we have a dev token from devAuth service, replace it with bypass token
+          if (!authToken || (authToken && authToken.startsWith("dev-"))) {
+            console.log(
+              "🔧 Development mode: Using dev-bypass-token for API calls"
+            );
+            authToken = "dev-bypass-token";
+          }
+        }
+
+        if (authToken) {
+          config.headers["Authorization"] = `Bearer ${authToken}`;
+        }
+      } catch (error) {
+        console.log("Could not retrieve auth token:", error.message);
+      }
+
+      const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
+      console.log("[API REQUEST FINAL URL]", fullUrl, config);
+      if (config.isServerless) {
+        config.headers["X-Lambda-Request"] = "true";
+        config.headers["X-Request-Time"] = new Date().toISOString();
+      }
+      return config;
+    },
+    (error) => {
+      console.error("API Request Error:", {
+        message: error?.message || "Unknown error",
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+      });
       return Promise.reject(error);
     }
-    
-    console.log('✅ [API] Allowing API call:', {
-      isDevelopment,
-      hasValidApiServer,
-      baseURL: currentConfig.baseURL,
-      url: config.url
-    });
-    // Remove any double /api/api
-    if (config.url && config.url.startsWith("/api/api")) {
-      config.url = config.url.replace("/api/api", "/api");
-    }
-
-    // Add authentication token if available
-    try {
-      // Try to get auth token from localStorage or sessionStorage
-      let authToken = null;
-
-      // Check if we're in browser context
-      if (typeof window !== "undefined") {
-        // Try various storage locations for auth token
-        authToken =
-          localStorage.getItem("authToken") ||
-          sessionStorage.getItem("authToken") ||
-          localStorage.getItem("accessToken") ||
-          sessionStorage.getItem("accessToken");
-      }
-
-      // Development mode: Use dev-bypass-token for localhost or when dev auth is forced
-      if (import.meta.env.DEV && (
-        currentConfig.baseURL.includes('localhost:3001') || 
-        import.meta.env.VITE_FORCE_DEV_AUTH === 'true'
-      )) {
-        // If we have a dev token from devAuth service, replace it with bypass token
-        if (!authToken || (authToken && authToken.startsWith('dev-'))) {
-          console.log("🔧 Development mode: Using dev-bypass-token for API calls");
-          authToken = "dev-bypass-token";
-        }
-      }
-
-      if (authToken) {
-        config.headers["Authorization"] = `Bearer ${authToken}`;
-      }
-    } catch (error) {
-      console.log("Could not retrieve auth token:", error.message);
-    }
-
-    const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
-    console.log("[API REQUEST FINAL URL]", fullUrl, config);
-    if (config.isServerless) {
-      config.headers["X-Lambda-Request"] = "true";
-      config.headers["X-Request-Time"] = new Date().toISOString();
-    }
-    return config;
-  },
-  (error) => {
-    console.error("API Request Error:", {
-      message: error?.message || 'Unknown error',
-      status: error.response?.status,
-      statusText: error.response?.statusText
-    });
-    return Promise.reject(error);
-  }
-);
+  );
 } catch (error) {
   // Ignore interceptor errors in test environment
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    console.warn('[API] Request interceptor setup skipped in test environment');
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.warn("[API] Request interceptor setup skipped in test environment");
   }
 }
 
@@ -675,7 +763,11 @@ try {
         {
           status: response.status,
           statusText: response.statusText,
-          dataSize: response?.data ? (Array.isArray(response?.data) ? (response.data?.length || 0) : Object.keys(response?.data).length) : 0
+          dataSize: response?.data
+            ? Array.isArray(response?.data)
+              ? response.data?.length || 0
+              : Object.keys(response?.data).length
+            : 0,
         }
       );
       return response;
@@ -683,19 +775,21 @@ try {
     async (error) => {
       // Suppress all error logging in development mode to avoid console spam
       // Components should handle API errors gracefully with fallback data
-      
+
       // Especially suppress development mode blocked requests
-      if (error?.code === 'DEV_MODE_BLOCKED') {
+      if (error?.code === "DEV_MODE_BLOCKED") {
         return Promise.reject(error);
       }
-      
+
       return Promise.reject(error);
     }
   );
 } catch (error) {
   // Ignore interceptor errors in test environment
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    console.warn('[API] Response interceptor (diagnostics) setup skipped in test environment');
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.warn(
+      "[API] Response interceptor (diagnostics) setup skipped in test environment"
+    );
   }
 }
 
@@ -779,7 +873,7 @@ function normalizeApiResponse(response, expectArray = true) {
   console.log("✅ normalizeApiResponse output:", {
     resultType: typeof response,
     isArray: Array.isArray(response),
-    length: Array.isArray(response) ? (response?.length || 0) : "N/A",
+    length: Array.isArray(response) ? response?.length || 0 : "N/A",
     sample:
       Array.isArray(response) && response.length > 0 ? response[0] : response,
   });
@@ -789,7 +883,10 @@ function normalizeApiResponse(response, expectArray = true) {
 // --- PATCH: Log API config at startup ---
 console.log("🚀 [API STARTUP] Initializing API configuration...");
 console.log("🔧 [API CONFIG]", getApiConfig());
-console.log("📡 [AXIOS DEFAULT BASE URL]", api?.defaults?.baseURL || 'undefined');
+console.log(
+  "📡 [AXIOS DEFAULT BASE URL]",
+  api?.defaults?.baseURL || "undefined"
+);
 
 // DISABLED: Test connection on startup (was causing maximum call stack exceeded)
 // setTimeout(async () => {
@@ -813,7 +910,7 @@ export const getMarketOverview = async () => {
   console.log("📈 [API] Axios baseURL:", api.defaults.baseURL);
 
   try {
-    // Use the correct endpoint for our API  
+    // Use the correct endpoint for our API
     const endpoints = ["/api/dashboard/summary"];
     let response = null;
     let lastError = null;
@@ -833,11 +930,20 @@ export const getMarketOverview = async () => {
 
     if (!response) {
       // Use console.warn for expected backend offline errors
-      const isExpectedError = lastError?.message === 'Network Error' || lastError?.code === 'ERR_NETWORK' || lastError?.response?.status === 503;
+      const isExpectedError =
+        lastError?.message === "Network Error" ||
+        lastError?.code === "ERR_NETWORK" ||
+        lastError?.response?.status === 503;
       if (isExpectedError) {
-        console.warn("⚠️ [API] Market overview endpoints unavailable:", lastError?.message || 'Unknown error');
+        console.warn(
+          "⚠️ [API] Market overview endpoints unavailable:",
+          lastError?.message || "Unknown error"
+        );
       } else {
-        console.error("📈 [API] All market overview endpoints failed:", lastError);
+        console.error(
+          "📈 [API] All market overview endpoints failed:",
+          lastError
+        );
       }
       throw lastError;
     }
@@ -849,22 +955,28 @@ export const getMarketOverview = async () => {
     return { data: result };
   } catch (error) {
     // Use console.warn for expected errors (503 = backend offline), console.error for unexpected
-    const isExpectedError = error.response?.status === 503 || error.response?.status === 502 || error.message === 'Network Error' || error.code === 'ERR_NETWORK';
-    const logLevel = isExpectedError ? 'warn' : 'error';
-    const logPrefix = isExpectedError ? '⚠️ [API] Market overview unavailable' : '❌ [API] Market overview error';
-    
-    console[logLevel](`${logPrefix}:`, error?.message || 'Unknown error');
-    
+    const isExpectedError =
+      error.response?.status === 503 ||
+      error.response?.status === 502 ||
+      error.message === "Network Error" ||
+      error.code === "ERR_NETWORK";
+    const logLevel = isExpectedError ? "warn" : "error";
+    const logPrefix = isExpectedError
+      ? "⚠️ [API] Market overview unavailable"
+      : "❌ [API] Market overview error";
+
+    console[logLevel](`${logPrefix}:`, error?.message || "Unknown error");
+
     // Only log full details for unexpected errors
     if (!isExpectedError) {
       console.error("Full error details:", {
         status: error.response?.status,
         statusText: error.response?.statusText,
         url: error.config?.url,
-        method: error.config?.method
+        method: error.config?.method,
       });
     }
-    
+
     throw new Error(handleApiError(error, "Failed to fetch market overview"));
   }
 };
@@ -872,15 +984,15 @@ export const getMarketOverview = async () => {
 export const getTopStocks = async (params = {}) => {
   console.log("📈 [API] Fetching top stocks...", params);
   console.log("📈 [API] Current config:", getApiConfig());
-  
+
   try {
     const queryParams = new URLSearchParams({
       limit: params.limit || 10,
-      sortBy: params.sortBy || 'composite_score',
-      sortOrder: params.sortOrder || 'desc',
-      ...params
+      sortBy: params.sortBy || "composite_score",
+      sortOrder: params.sortOrder || "desc",
+      ...params,
     }).toString();
-    
+
     // Use the correct endpoint for our API
     const endpoints = [`/api/scores?${queryParams}`];
     let response = null;
@@ -901,9 +1013,15 @@ export const getTopStocks = async (params = {}) => {
 
     if (!response) {
       // Use console.warn for expected backend offline errors
-      const isExpectedError = lastError?.message === 'Network Error' || lastError?.code === 'ERR_NETWORK' || lastError?.response?.status === 503;
+      const isExpectedError =
+        lastError?.message === "Network Error" ||
+        lastError?.code === "ERR_NETWORK" ||
+        lastError?.response?.status === 503;
       if (isExpectedError) {
-        console.warn("⚠️ [API] Top stocks endpoints unavailable:", lastError?.message || 'Unknown error');
+        console.warn(
+          "⚠️ [API] Top stocks endpoints unavailable:",
+          lastError?.message || "Unknown error"
+        );
       } else {
         console.error("📈 [API] All top stocks endpoints failed:", lastError);
       }
@@ -916,19 +1034,25 @@ export const getTopStocks = async (params = {}) => {
     return { data: result };
   } catch (error) {
     // Use console.warn for expected errors (503 = backend offline), console.error for unexpected
-    const isExpectedError = error.response?.status === 503 || error.response?.status === 502 || error.message === 'Network Error' || error.code === 'ERR_NETWORK';
-    const logLevel = isExpectedError ? 'warn' : 'error';
-    const logPrefix = isExpectedError ? '⚠️ [API] Top stocks unavailable' : '❌ [API] Top stocks error';
-    
-    console[logLevel](`${logPrefix}:`, error?.message || 'Unknown error');
-    
+    const isExpectedError =
+      error.response?.status === 503 ||
+      error.response?.status === 502 ||
+      error.message === "Network Error" ||
+      error.code === "ERR_NETWORK";
+    const logLevel = isExpectedError ? "warn" : "error";
+    const logPrefix = isExpectedError
+      ? "⚠️ [API] Top stocks unavailable"
+      : "❌ [API] Top stocks error";
+
+    console[logLevel](`${logPrefix}:`, error?.message || "Unknown error");
+
     // Only log full details for unexpected errors
     if (!isExpectedError) {
       console.error("Full error details:", {
         status: error.response?.status,
         statusText: error.response?.statusText,
         url: error.config?.url,
-        method: error.config?.method
+        method: error.config?.method,
       });
     }
     throw new Error(handleApiError(error, "Failed to fetch top stocks"));
@@ -970,9 +1094,9 @@ export const getMarketSentimentHistory = async (days = 30) => {
 
     if (!response) {
       console.error("📊 [API] All sentiment endpoints failed:", {
-        message: lastError?.message || 'Unknown error',
+        message: lastError?.message || "Unknown error",
         status: lastError.response?.status,
-        url: lastError.config?.url
+        url: lastError.config?.url,
       });
       throw lastError;
     }
@@ -1037,9 +1161,9 @@ export const getMarketSectorPerformance = async () => {
 
     if (!response) {
       console.error("📊 [API] All sector endpoints failed:", {
-        message: lastError?.message || 'Unknown error',
+        message: lastError?.message || "Unknown error",
         status: lastError.response?.status,
-        url: lastError.config?.url
+        url: lastError.config?.url,
       });
       throw lastError;
     }
@@ -1098,9 +1222,9 @@ export const getMarketBreadth = async () => {
 
     if (!response) {
       console.error("📊 [API] All breadth endpoints failed:", {
-        message: lastError?.message || 'Unknown error',
+        message: lastError?.message || "Unknown error",
         status: lastError.response?.status,
-        url: lastError.config?.url
+        url: lastError.config?.url,
       });
       throw lastError;
     }
@@ -1117,7 +1241,7 @@ export const getMarketBreadth = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Market breadth error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
@@ -1163,16 +1287,19 @@ export const getEconomicIndicators = async (days = 90) => {
 
     if (!response) {
       console.error("📊 [API] All economic endpoints failed:", {
-        message: lastError?.message || 'Unknown error',
+        message: lastError?.message || "Unknown error",
         status: lastError.response?.status,
-        url: lastError.config?.url
+        url: lastError.config?.url,
       });
       throw lastError;
     }
 
     // Always return { data: ... } structure for consistency
     if (response?.data && typeof response?.data === "object") {
-      console.log("📊 [API] Returning economic data structure:", response?.data);
+      console.log(
+        "📊 [API] Returning economic data structure:",
+        response?.data
+      );
       return response?.data; // Backend already returns { data: ..., period_days: ..., total_data_points: ... }
     }
 
@@ -1182,7 +1309,7 @@ export const getEconomicIndicators = async (days = 90) => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Economic indicators error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
@@ -1200,33 +1327,35 @@ export const getEconomicIndicators = async (days = 90) => {
 };
 
 export const getMarketCorrelation = async (symbols = null, period = "1y") => {
-  console.log(`📈 [API] Fetching market correlation analysis for period: ${period}...`);
+  console.log(
+    `📈 [API] Fetching market correlation analysis for period: ${period}...`
+  );
 
   try {
     const params = new URLSearchParams();
-    if (symbols) params.append('symbols', symbols);
-    if (period) params.append('period', period);
+    if (symbols) params.append("symbols", symbols);
+    if (period) params.append("period", period);
 
     const queryString = params.toString();
-    const endpoint = `/api/market/correlation${queryString ? '?' + queryString : ''}`;
+    const endpoint = `/api/market/correlation${queryString ? "?" + queryString : ""}`;
 
     const response = await api.get(endpoint);
-    
-    console.log('📈 [API] Market correlation response:', {
+
+    console.log("📈 [API] Market correlation response:", {
       success: response.success,
       hasData: !!response.data,
-      hasCorrelationMatrix: !!response.data?.correlation_matrix
+      hasCorrelationMatrix: !!response.data?.correlation_matrix,
     });
 
     return response;
   } catch (error) {
-    console.error('📈 [API] Market correlation error:', error);
+    console.error("📈 [API] Market correlation error:", error);
     const errorMessage = handleApiError(error, "get market correlation");
     return {
       success: false,
       data: {},
       error: errorMessage,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 };
@@ -1262,9 +1391,9 @@ export const getSeasonalityData = async () => {
 
     if (!response) {
       console.error("📅 [API] All seasonality endpoints failed:", {
-        message: lastError?.message || 'Unknown error',
+        message: lastError?.message || "Unknown error",
         status: lastError.response?.status,
-        url: lastError.config?.url
+        url: lastError.config?.url,
       });
       throw lastError;
     }
@@ -1284,7 +1413,7 @@ export const getSeasonalityData = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Seasonality error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
@@ -1304,9 +1433,7 @@ export const getMarketResearchIndicators = async () => {
 
   try {
     // Use the correct endpoint for our API
-    const endpoints = [
-      "/api/market/research-indicators",
-    ];
+    const endpoints = ["/api/market/research-indicators"];
 
     let response = null;
     let lastError = null;
@@ -1358,7 +1485,7 @@ export const getMarketResearchIndicators = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Research indicators error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
@@ -1380,9 +1507,7 @@ export const getPortfolioAnalytics = async (timeframe = "1y") => {
   console.log("📈 [API] Fetching portfolio analytics...");
 
   try {
-    const endpoints = [
-      `/api/portfolio/analytics?timeframe=${timeframe}`,
-    ];
+    const endpoints = [`/api/portfolio/analytics?timeframe=${timeframe}`];
 
     let response = null;
     let lastError = null;
@@ -1419,12 +1544,12 @@ export const getPortfolioAnalytics = async (timeframe = "1y") => {
     return response?.data;
   } catch (error) {
     console.error("❌ [API] Portfolio analytics error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get portfolio analytics");
     return {
@@ -1439,9 +1564,7 @@ export const getPortfolioRiskAnalysis = async () => {
   console.log("⚠️ [API] Fetching portfolio risk analysis...");
 
   try {
-    const endpoints = [
-      `/api/portfolio/risk-analysis`,
-    ];
+    const endpoints = [`/api/portfolio/risk-analysis`];
 
     let response = null;
     let lastError = null;
@@ -1478,12 +1601,12 @@ export const getPortfolioRiskAnalysis = async () => {
     return response?.data;
   } catch (error) {
     console.error("❌ [API] Portfolio risk analysis error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get portfolio risk analysis");
     return {
@@ -1498,9 +1621,7 @@ export const getPortfolioOptimization = async () => {
   console.log("🎯 [API] Fetching portfolio optimization...");
 
   try {
-    const endpoints = [
-      `/api/portfolio/optimization`,
-    ];
+    const endpoints = [`/api/portfolio/optimization`];
 
     let response = null;
     let lastError = null;
@@ -1537,12 +1658,12 @@ export const getPortfolioOptimization = async () => {
     return response?.data;
   } catch (error) {
     console.error("❌ [API] Portfolio optimization error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get portfolio optimization");
     return {
@@ -1566,9 +1687,7 @@ export const getStocks = async (params = {}) => {
     });
 
     // Use the correct endpoint for our API
-    const endpoints = [
-      `/api/stocks?${queryParams.toString()}`,
-    ];
+    const endpoints = [`/api/stocks?${queryParams.toString()}`];
 
     let response = null;
     let lastError = null;
@@ -1618,12 +1737,12 @@ export const getStocks = async (params = {}) => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching stocks:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get stocks");
     return { data: [], error: errorMessage };
@@ -1702,12 +1821,12 @@ export const getStock = async (ticker) => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching stock:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get stock");
     return { data: null, error: errorMessage };
@@ -1760,12 +1879,12 @@ export const getStockFinancials = async (ticker, type = "income") => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching stock financials:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get stock financials");
     return { data: [], error: errorMessage };
@@ -1957,18 +2076,18 @@ export const screenStocks = async (params) => {
     return {
       success: true,
       data: result,
-      total: (result?.length || 0),
+      total: result?.length || 0,
       pagination: {
-        total: (result?.length || 0),
+        total: result?.length || 0,
         page: 1,
-        limit: (result?.length || 0),
+        limit: result?.length || 0,
       },
     };
   } catch (error) {
     console.error("❌ [API] Error screening stocks:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "screen stocks");
     return {
@@ -2036,9 +2155,9 @@ export const getBuySignals = async () => {
     return { data: mockBuySignals };
   } catch (error) {
     console.error("❌ [API] Buy signals error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to fetch buy signals"));
   }
@@ -2078,9 +2197,9 @@ export const getSellSignals = async () => {
     return { data: mockSellSignals };
   } catch (error) {
     console.error("❌ [API] Sell signals error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to fetch sell signals"));
   }
@@ -2431,9 +2550,9 @@ export const getTechnicalHistory = async (symbol) => {
     return normalizeApiResponse(response, true);
   } catch (error) {
     console.error(`❌ [API] Technical history error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch technical history for ${symbol}`)
@@ -2450,9 +2569,9 @@ export const getStockInfo = async (symbol) => {
     return normalizeApiResponse(response, false);
   } catch (error) {
     console.error(`❌ [API] Stock info error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch stock info for ${symbol}`)
@@ -2468,9 +2587,9 @@ export const getStockPrice = async (symbol) => {
     return normalizeApiResponse(response, false);
   } catch (error) {
     console.error(`❌ [API] Stock price error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch stock price for ${symbol}`)
@@ -2486,9 +2605,9 @@ export const getStockHistory = async (symbol) => {
     return normalizeApiResponse(response, true);
   } catch (error) {
     console.error(`❌ [API] Stock history error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch stock history for ${symbol}`)
@@ -2506,9 +2625,9 @@ export const searchStocks = async (query) => {
     return normalizeApiResponse(response, true);
   } catch (error) {
     console.error(`❌ [API] Stock search error:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to search stocks"));
   }
@@ -2523,9 +2642,9 @@ export const getHealth = async () => {
     return normalizeApiResponse(response, false);
   } catch (error) {
     console.error("❌ [API] Health check error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to check API health"));
   }
@@ -2646,9 +2765,9 @@ export const getPriceHistory = async (timeframe = "daily", params = {}) => {
     };
   } catch (error) {
     console.error("❌ [API] Price history error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get price history");
     return {
@@ -2782,9 +2901,9 @@ export const initializeApi = async () => {
     return healthData;
   } catch (error) {
     console.error("❌ [API] API initialization failed:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -2811,9 +2930,9 @@ export const testApiConnection = async (customUrl = null) => {
     };
   } catch (error) {
     console.error("API connection test failed:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     return {
       success: false,
@@ -2926,9 +3045,9 @@ export const getDataValidationSummary = async () => {
     return { data: result };
   } catch (error) {
     console.error("Error fetching data validation summary:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw error;
   }
@@ -2952,9 +3071,9 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
     return { data: result };
   } catch (error) {
     console.error("BULLETPROOF: Error fetching stock price history:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     // Use the centralized error handler for consistent error messaging
     throw handleApiError(error, `Failed to fetch price history for ${ticker}`);
@@ -3041,9 +3160,9 @@ export const getMarketIndices = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching market indices:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      url: error.config?.url
+      url: error.config?.url,
     });
     const errorMessage = handleApiError(error, "get market indices");
     return { data: [], error: errorMessage };
@@ -3069,9 +3188,9 @@ export const getSectorPerformance = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching sector performance:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      url: error.config?.url
+      url: error.config?.url,
     });
     const errorMessage = handleApiError(error, "get sector performance");
     return { data: [], error: errorMessage };
@@ -3097,9 +3216,9 @@ export const getMarketVolatility = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching market volatility:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get market volatility");
     return { data: [], error: errorMessage };
@@ -3125,9 +3244,9 @@ export const getEconomicCalendar = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching economic calendar:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get economic calendar");
     return { data: [], error: errorMessage };
@@ -3153,9 +3272,9 @@ export const getMarketCapCategories = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching market cap categories:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get market cap categories");
     return { data: [], error: errorMessage };
@@ -3187,9 +3306,9 @@ export const getTechnicalIndicators = async (symbol, timeframe, indicators) => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching technical indicators:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get technical indicators");
     return { data: [], error: errorMessage };
@@ -3217,9 +3336,9 @@ export const getVolumeData = async (symbol, timeframe) => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching volume data:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get volume data");
     return { data: [], error: errorMessage };
@@ -3249,9 +3368,9 @@ export const getSupportResistanceLevels = async (symbol) => {
     return { data: result };
   } catch (error) {
     console.error("❌ Error fetching support resistance levels:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get support resistance levels");
     return { data: null, error: errorMessage };
@@ -3269,9 +3388,9 @@ export const getDashboardSummary = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Dashboard summary error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to fetch dashboard summary"));
   }
@@ -3287,9 +3406,9 @@ export const getDashboardPerformance = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Dashboard performance error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard performance")
@@ -3307,9 +3426,9 @@ export const getDashboardAlerts = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Dashboard alerts error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to fetch dashboard alerts"));
   }
@@ -3325,9 +3444,9 @@ export const getDashboardDebug = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Dashboard debug error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard debug info")
@@ -3346,9 +3465,9 @@ export const getMarketIndicators = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Market indicators error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      url: error.config?.url
+      url: error.config?.url,
     });
     throw new Error(handleApiError(error, "Failed to fetch market indicators"));
   }
@@ -3377,9 +3496,9 @@ export const getMarketSentiment = async () => {
     return { data: mockSentiment };
   } catch (error) {
     console.error("❌ [API] Market sentiment error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      url: error.config?.url
+      url: error.config?.url,
     });
     throw new Error(handleApiError(error, "Failed to fetch market sentiment"));
   }
@@ -3396,10 +3515,10 @@ export const getFinancialData = async (symbol) => {
     return { data: result };
   } catch (error) {
     console.error(`❌ [API] Financial data error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       url: error.config?.url,
-      symbol
+      symbol,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch financial data for ${symbol}`)
@@ -3417,9 +3536,9 @@ export const getEarningsData = async (symbol) => {
     return { data: result };
   } catch (error) {
     console.error(`❌ [API] Earnings data error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch earnings data for ${symbol}`)
@@ -3437,9 +3556,9 @@ export const getCashFlow = async (symbol) => {
     return { data: result };
   } catch (error) {
     console.error(`❌ [API] Cash flow error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, `Failed to fetch cash flow for ${symbol}`)
@@ -3463,9 +3582,9 @@ export const getDashboardUser = async () => {
     return { data: mockUser };
   } catch (error) {
     console.error("❌ [API] Dashboard user error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to fetch dashboard user"));
   }
@@ -3485,18 +3604,26 @@ export const getDashboardWatchlist = async () => {
       console.warn("⚠️ [API] Watchlist endpoint failed, trying stocks list");
     }
 
-    // Fallback: get a subset of stocks from the main stocks API  
+    // Fallback: get a subset of stocks from the main stocks API
     try {
       const stocksResponse = await api.get("/api/stocks?limit=5");
-      if (stocksResponse.data && stocksResponse.data.success && stocksResponse.data.data) {
-        const watchlistData = stocksResponse.data.data.map(stock => ({
+      if (
+        stocksResponse.data &&
+        stocksResponse.data.success &&
+        stocksResponse.data.data
+      ) {
+        const watchlistData = stocksResponse.data.data.map((stock) => ({
           symbol: stock.symbol,
           name: stock.security_name || stock.symbol,
           price: stock.price?.current || 0,
-          change: stock.price?.current ? (stock.price.current * 0.01) : 0, // Approximate
+          change: stock.price?.current ? stock.price.current * 0.01 : 0, // Approximate
           changePercent: stock.price?.current ? 1.0 : 0, // Approximate
         }));
-        console.log("✅ [API] Watchlist created from stocks data:", watchlistData.length, "items");
+        console.log(
+          "✅ [API] Watchlist created from stocks data:",
+          watchlistData.length,
+          "items"
+        );
         return { data: watchlistData, success: true };
       }
     } catch (stocksError) {
@@ -3504,12 +3631,14 @@ export const getDashboardWatchlist = async () => {
     }
 
     // If all else fails, show a helpful error instead of mock data
-    throw new Error("Unable to load watchlist. Please ensure the backend services are running and accessible.");
+    throw new Error(
+      "Unable to load watchlist. Please ensure the backend services are running and accessible."
+    );
   } catch (error) {
     console.error("❌ [API] Dashboard watchlist error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard watchlist")
@@ -3562,9 +3691,9 @@ export const getDashboardPortfolio = async () => {
     return { data: mockPortfolio };
   } catch (error) {
     console.error("❌ [API] Dashboard portfolio error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard portfolio")
@@ -3588,9 +3717,9 @@ export const getDashboardPortfolioMetrics = async () => {
     return { data: mockMetrics };
   } catch (error) {
     console.error("❌ [API] Dashboard portfolio metrics error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard portfolio metrics")
@@ -3653,9 +3782,9 @@ export const getDashboardHoldings = async () => {
     return { data: mockHoldings };
   } catch (error) {
     console.error("❌ [API] Dashboard holdings error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard holdings")
@@ -3679,9 +3808,9 @@ export const getDashboardUserSettings = async () => {
     return { data: mockSettings };
   } catch (error) {
     console.error("❌ [API] Dashboard user settings error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard user settings")
@@ -3727,9 +3856,9 @@ export const getDashboardMarketSummary = async () => {
     return { data: mockMarketSummary };
   } catch (error) {
     console.error("❌ [API] Dashboard market summary error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard market summary")
@@ -3782,16 +3911,15 @@ export const getDashboardEarningsCalendar = async () => {
     return { data: mockEarnings };
   } catch (error) {
     console.error("❌ [API] Dashboard earnings calendar error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard earnings calendar")
     );
   }
 };
-
 
 export const getDashboardFinancialHighlights = async () => {
   console.log("💰 [API] Fetching dashboard financial highlights...");
@@ -3812,9 +3940,9 @@ export const getDashboardFinancialHighlights = async () => {
     return { data: mockHighlights };
   } catch (error) {
     console.error("❌ [API] Dashboard financial highlights error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard financial highlights")
@@ -3842,9 +3970,9 @@ export const getDashboardSymbols = async () => {
     return { data: mockSymbols };
   } catch (error) {
     console.error("❌ [API] Dashboard symbols error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(handleApiError(error, "Failed to fetch dashboard symbols"));
   }
@@ -3852,15 +3980,18 @@ export const getDashboardSymbols = async () => {
 
 export const getTradingSignalsDaily = async (params = {}) => {
   console.log("📈 [API] Fetching daily trading signals...", params);
-  
+
   try {
     const queryParams = new URLSearchParams({
       limit: params.limit || 10,
-      ...params
+      ...params,
     }).toString();
-    
+
     // Try multiple endpoint variations
-    const endpoints = [`/trading/signals/daily?${queryParams}`, `/api/trading/signals/daily?${queryParams}`];
+    const endpoints = [
+      `/trading/signals/daily?${queryParams}`,
+      `/api/trading/signals/daily?${queryParams}`,
+    ];
     let response = null;
     let lastError = null;
 
@@ -3878,7 +4009,10 @@ export const getTradingSignalsDaily = async (params = {}) => {
     }
 
     if (!response) {
-      console.error("📈 [API] All endpoints failed, throwing last error:", lastError);
+      console.error(
+        "📈 [API] All endpoints failed, throwing last error:",
+        lastError
+      );
       throw lastError;
     }
 
@@ -3888,20 +4022,22 @@ export const getTradingSignalsDaily = async (params = {}) => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Trading signals daily error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
-    throw new Error(handleApiError(error, "Failed to fetch daily trading signals"));
+    throw new Error(
+      handleApiError(error, "Failed to fetch daily trading signals")
+    );
   }
 };
 
 export const getCurrentUser = async () => {
   console.log("👤 [API] Fetching current user info...");
-  
+
   try {
     // Try multiple endpoint variations
     const endpoints = ["/api/auth/me"];
@@ -3922,7 +4058,10 @@ export const getCurrentUser = async () => {
     }
 
     if (!response) {
-      console.error("👤 [API] All endpoints failed, throwing last error:", lastError);
+      console.error(
+        "👤 [API] All endpoints failed, throwing last error:",
+        lastError
+      );
       throw lastError;
     }
 
@@ -3932,12 +4071,12 @@ export const getCurrentUser = async () => {
     return { data: result };
   } catch (error) {
     console.error("❌ [API] Current user error details:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
       statusText: error.response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
-      stack: error?.stack?.substring(0, 500) + "..."
+      stack: error?.stack?.substring(0, 500) + "...",
     });
     throw new Error(handleApiError(error, "Failed to fetch current user"));
   }
@@ -3988,9 +4127,9 @@ export const getDashboardTechnicalSignals = async () => {
     return { data: mockSignals };
   } catch (error) {
     console.error("❌ [API] Dashboard technical signals error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
     throw new Error(
       handleApiError(error, "Failed to fetch dashboard technical signals")
@@ -4017,11 +4156,13 @@ export const getQuote = async (symbol) => {
     return result;
   } catch (error) {
     console.error(`❌ [API] Quote error for ${symbol}:`, {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
-    throw new Error(`Failed to fetch quote for ${symbol}: ${error?.message || 'Unknown error'}`);
+    throw new Error(
+      `Failed to fetch quote for ${symbol}: ${error?.message || "Unknown error"}`
+    );
   }
 };
 
@@ -4044,38 +4185,39 @@ export const placeOrder = async (orderRequest) => {
     return result;
   } catch (error) {
     console.error("❌ [API] Order placement error:", {
-      message: error?.message || 'Unknown error',
+      message: error?.message || "Unknown error",
       status: error.response?.status,
-      statusText: error.response?.statusText
+      statusText: error.response?.statusText,
     });
-    throw new Error(`Failed to place order: ${error?.message || 'Unknown error'}`);
+    throw new Error(
+      `Failed to place order: ${error?.message || "Unknown error"}`
+    );
   }
 };
 
 // AI Chat functions for EnhancedAIChat component
 export const sendChatMessage = async (message, options = {}) => {
   try {
-    const response = await api.post('/api/ai/chat', {
+    const response = await api.post("/api/ai/chat", {
       message,
-      ...options
+      ...options,
     });
     return response?.data;
   } catch (error) {
-    console.error('Failed to send chat message:', error);
+    console.error("Failed to send chat message:", error);
     throw new Error(handleApiError(error, "Failed to send chat message"));
   }
 };
 
 export const clearChatHistory = async () => {
   try {
-    const response = await api.delete('/api/ai/chat/history');
+    const response = await api.delete("/api/ai/chat/history");
     return response?.data;
   } catch (error) {
-    console.error('Failed to clear chat history:', error);
+    console.error("Failed to clear chat history:", error);
     throw new Error(handleApiError(error, "Failed to clear chat history"));
   }
 };
-
 
 // Export all methods as a default object for easier importing
 export default {
@@ -4206,6 +4348,12 @@ export default {
   addApiKey,
   updateApiKey,
   deleteApiKey,
+  saveApiKey,
+  testApiKey,
+
+  // User Settings
+  getSettings,
+  updateSettings,
 
   // Trading functions
   placeOrder,
@@ -4215,35 +4363,54 @@ export default {
   sendChatMessage,
   clearChatHistory,
 
-
   // Generic HTTP methods for direct API calls - test-safe
   get: (url, config) => {
     // In test environment, use mocked axios directly if api is null
-    if (!api && typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (
+      !api &&
+      typeof process !== "undefined" &&
+      process.env.NODE_ENV === "test"
+    ) {
       return axios.get(url, config);
     }
     return api?.get(url, config) || Promise.resolve({ data: {} });
   },
   post: (url, data, config) => {
-    if (!api && typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (
+      !api &&
+      typeof process !== "undefined" &&
+      process.env.NODE_ENV === "test"
+    ) {
       return axios.post(url, data, config);
     }
     return api?.post(url, data, config) || Promise.resolve({ data: {} });
   },
   put: (url, data, config) => {
-    if (!api && typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (
+      !api &&
+      typeof process !== "undefined" &&
+      process.env.NODE_ENV === "test"
+    ) {
       return axios.put(url, data, config);
     }
     return api?.put(url, data, config) || Promise.resolve({ data: {} });
   },
   delete: (url, config) => {
-    if (!api && typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (
+      !api &&
+      typeof process !== "undefined" &&
+      process.env.NODE_ENV === "test"
+    ) {
       return axios.delete(url, config);
     }
     return api?.delete(url, config) || Promise.resolve({ data: {} });
   },
   patch: (url, data, config) => {
-    if (!api && typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (
+      !api &&
+      typeof process !== "undefined" &&
+      process.env.NODE_ENV === "test"
+    ) {
       return axios.patch(url, data, config);
     }
     return api?.patch(url, data, config) || Promise.resolve({ data: {} });
@@ -4263,199 +4430,223 @@ export const fetchHistoricalData = getStockHistory;
 // Advanced Analytics API functions
 export const getAnalyticsOverview = async () => {
   try {
-    const response = await api.get('/api/analytics/overview');
+    const response = await api.get("/api/analytics/overview");
     return response.data;
   } catch (error) {
-    console.error('Error fetching analytics overview:', error);
-    throw new Error(handleApiError(error, "Failed to fetch analytics overview"));
+    console.error("Error fetching analytics overview:", error);
+    throw new Error(
+      handleApiError(error, "Failed to fetch analytics overview")
+    );
   }
 };
 
-export const getPerformanceAnalytics = async (period = '1m', benchmark = 'SPY') => {
+export const getPerformanceAnalytics = async (
+  period = "1m",
+  benchmark = "SPY"
+) => {
   try {
-    const response = await api.get('/api/analytics/performance', {
-      params: { period, benchmark }
+    const response = await api.get("/api/analytics/performance", {
+      params: { period, benchmark },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching performance analytics:', error);
-    throw new Error(handleApiError(error, "Failed to fetch performance analytics"));
+    console.error("Error fetching performance analytics:", error);
+    throw new Error(
+      handleApiError(error, "Failed to fetch performance analytics")
+    );
   }
 };
 
-export const getRiskAnalytics = async (timeframe = '1m') => {
+export const getRiskAnalytics = async (timeframe = "1m") => {
   try {
-    const response = await api.get('/api/analytics/risk', {
-      params: { timeframe }
+    const response = await api.get("/api/analytics/risk", {
+      params: { timeframe },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching risk analytics:', error);
+    console.error("Error fetching risk analytics:", error);
     throw new Error(handleApiError(error, "Failed to fetch risk analytics"));
   }
 };
 
-export const getCorrelationAnalytics = async (period = '3m', assets = 'all') => {
+export const getCorrelationAnalytics = async (
+  period = "3m",
+  assets = "all"
+) => {
   try {
-    const response = await api.get('/api/analytics/correlation', {
-      params: { period, assets }
+    const response = await api.get("/api/analytics/correlation", {
+      params: { period, assets },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching correlation analytics:', error);
-    throw new Error(handleApiError(error, "Failed to fetch correlation analytics"));
+    console.error("Error fetching correlation analytics:", error);
+    throw new Error(
+      handleApiError(error, "Failed to fetch correlation analytics")
+    );
   }
 };
 
-export const getAllocationAnalytics = async (period = 'current') => {
+export const getAllocationAnalytics = async (period = "current") => {
   try {
-    const response = await api.get('/api/analytics/allocation', {
-      params: { period }
+    const response = await api.get("/api/analytics/allocation", {
+      params: { period },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching allocation analytics:', error);
-    throw new Error(handleApiError(error, "Failed to fetch allocation analytics"));
+    console.error("Error fetching allocation analytics:", error);
+    throw new Error(
+      handleApiError(error, "Failed to fetch allocation analytics")
+    );
   }
 };
 
-export const getReturnsAnalytics = async (period = '1m') => {
+export const getReturnsAnalytics = async (period = "1m") => {
   try {
-    const response = await api.get('/api/analytics/returns', {
-      params: { period }
+    const response = await api.get("/api/analytics/returns", {
+      params: { period },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching returns analytics:', error);
+    console.error("Error fetching returns analytics:", error);
     throw new Error(handleApiError(error, "Failed to fetch returns analytics"));
   }
 };
 
 export const getSectorsAnalytics = async () => {
   try {
-    const response = await api.get('/api/analytics/sectors');
+    const response = await api.get("/api/analytics/sectors");
     return response.data;
   } catch (error) {
-    console.error('Error fetching sectors analytics:', error);
+    console.error("Error fetching sectors analytics:", error);
     throw new Error(handleApiError(error, "Failed to fetch sectors analytics"));
   }
 };
 
-export const getVolatilityAnalytics = async (period = '1m') => {
+export const getVolatilityAnalytics = async (period = "1m") => {
   try {
-    const response = await api.get('/api/analytics/volatility', {
-      params: { period }
+    const response = await api.get("/api/analytics/volatility", {
+      params: { period },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching volatility analytics:', error);
-    throw new Error(handleApiError(error, "Failed to fetch volatility analytics"));
+    console.error("Error fetching volatility analytics:", error);
+    throw new Error(
+      handleApiError(error, "Failed to fetch volatility analytics")
+    );
   }
 };
 
-export const getTrendsAnalytics = async (period = '1m') => {
+export const getTrendsAnalytics = async (period = "1m") => {
   try {
-    const response = await api.get('/api/analytics/trends', {
-      params: { period }
+    const response = await api.get("/api/analytics/trends", {
+      params: { period },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching trends analytics:', error);
+    console.error("Error fetching trends analytics:", error);
     throw new Error(handleApiError(error, "Failed to fetch trends analytics"));
   }
 };
 
-export const getCustomAnalytics = async (analysisType, parameters = {}, symbols = []) => {
+export const getCustomAnalytics = async (
+  analysisType,
+  parameters = {},
+  symbols = []
+) => {
   try {
-    const response = await api.post('/api/analytics/custom', {
+    const response = await api.post("/api/analytics/custom", {
       analysis_type: analysisType,
       parameters,
-      symbols
+      symbols,
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching custom analytics:', error);
+    console.error("Error fetching custom analytics:", error);
     throw new Error(handleApiError(error, "Failed to fetch custom analytics"));
   }
 };
 
-export const exportAnalytics = async (format = 'json', report = 'performance') => {
+export const exportAnalytics = async (
+  format = "json",
+  report = "performance"
+) => {
   try {
-    const response = await api.get('/api/analytics/export', {
-      params: { format, report }
+    const response = await api.get("/api/analytics/export", {
+      params: { format, report },
     });
     return response.data;
   } catch (error) {
-    console.error('Error exporting analytics:', error);
+    console.error("Error exporting analytics:", error);
     throw new Error(handleApiError(error, "Failed to export analytics"));
   }
 };
 
 // Market Commentary functions
-export const getMarketCommentary = async (category = 'all', period = 'week') => {
+export const getMarketCommentary = async (
+  category = "all",
+  period = "week"
+) => {
   try {
-    const response = await api.get('/api/research/commentary', {
-      params: { category, period }
+    const response = await api.get("/api/research/commentary", {
+      params: { category, period },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching market commentary:', error);
+    console.error("Error fetching market commentary:", error);
     throw new Error(handleApiError(error, "Failed to fetch market commentary"));
   }
 };
 
-export const getMarketTrends = async (period = 'week') => {
+export const getMarketTrends = async (period = "week") => {
   try {
-    const response = await api.get('/api/research/trends', {
-      params: { period }
+    const response = await api.get("/api/research/trends", {
+      params: { period },
     });
     return response.data;
   } catch (error) {
-    console.error('Error fetching market trends:', error);
+    console.error("Error fetching market trends:", error);
     throw new Error(handleApiError(error, "Failed to fetch market trends"));
   }
 };
 
 export const getAnalystOpinions = async () => {
   try {
-    const response = await api.get('/api/research/analysts');
+    const response = await api.get("/api/research/analysts");
     return response.data;
   } catch (error) {
-    console.error('Error fetching analyst opinions:', error);
+    console.error("Error fetching analyst opinions:", error);
     throw new Error(handleApiError(error, "Failed to fetch analyst opinions"));
   }
 };
 
-export const subscribeToCommentary = async (category = 'all') => {
+export const subscribeToCommentary = async (category = "all") => {
   try {
-    const response = await api.post('/api/research/commentary/subscribe', {
-      category
+    const response = await api.post("/api/research/commentary/subscribe", {
+      category,
     });
     return response.data;
   } catch (error) {
-    console.error('Error subscribing to commentary:', error);
+    console.error("Error subscribing to commentary:", error);
     throw new Error(handleApiError(error, "Failed to subscribe to commentary"));
   }
 };
-
-
 
 export const getOrderBook = async (symbol) => {
   try {
     const response = await api.get(`/api/trading/orderbook/${symbol}`);
     return response.data;
   } catch (error) {
-    console.error('Error fetching order book:', error);
+    console.error("Error fetching order book:", error);
     throw new Error(handleApiError(error, "Failed to fetch order book"));
   }
 };
 
 export const getTradingPositions = async () => {
   try {
-    const response = await api.get('/api/trading/positions');
+    const response = await api.get("/api/trading/positions");
     return response.data;
   } catch (error) {
-    console.error('Error fetching trading positions:', error);
+    console.error("Error fetching trading positions:", error);
     throw new Error(handleApiError(error, "Failed to fetch trading positions"));
   }
 };

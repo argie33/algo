@@ -62,7 +62,8 @@ const Watchlist = () => {
       ];
       setWatchlist(defaultWatchlist);
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load watchlist:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to load watchlist:", error);
       setError("Failed to load watchlist");
     }
   };
@@ -70,7 +71,7 @@ const Watchlist = () => {
   const loadMarketData = async (symbols) => {
     try {
       setError(null);
-      
+
       // Use passed symbols or fallback to current watchlist
       const symbolsToLoad = symbols || watchlist;
 
@@ -78,7 +79,9 @@ const Watchlist = () => {
         return;
       }
 
-      console.log(`Loading market data for ${(symbolsToLoad?.length || 0)} symbols`);
+      console.log(
+        `Loading market data for ${symbolsToLoad?.length || 0} symbols`
+      );
 
       const response = await api.get(
         `/api/websocket/stream/${symbolsToLoad.join(",")}`
@@ -122,7 +125,7 @@ const Watchlist = () => {
         setLastUpdate(new Date());
 
         console.log("✅ Watchlist market data loaded successfully", {
-          symbols: (symbolsToLoad?.length || 0),
+          symbols: symbolsToLoad?.length || 0,
           successful: Object.values(transformedData).filter((d) => !d.error)
             .length,
           failed: Object.values(transformedData).filter((d) => d.error).length,
@@ -131,7 +134,8 @@ const Watchlist = () => {
         throw new Error("Failed to fetch watchlist market data");
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load market data:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Failed to load market data:", error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -189,7 +193,7 @@ const Watchlist = () => {
           </Typography>
           <Box display="flex" gap={1} mt={1}>
             <Chip
-              label={`${(watchlist?.length || 0)} symbols`}
+              label={`${watchlist?.length || 0} symbols`}
               color="primary"
               size="small"
             />

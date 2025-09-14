@@ -3,8 +3,8 @@
  * Handles live news and sentiment data streams
  */
 
-import realTimeDataService from './realTimeDataService.js';
-import api from './api.js';
+import realTimeDataService from "./realTimeDataService.js";
+import api from "./api.js";
 
 class RealTimeNewsService {
   constructor() {
@@ -19,28 +19,37 @@ class RealTimeNewsService {
 
   initialize() {
     // Subscribe to news updates via WebSocket
-    realTimeDataService.subscribe('news_updates', this.handleNewsUpdate.bind(this));
-    realTimeDataService.subscribe('sentiment_updates', this.handleSentimentUpdate.bind(this));
-    realTimeDataService.subscribe('breaking_news', this.handleBreakingNews.bind(this));
-    
+    realTimeDataService.subscribe(
+      "news_updates",
+      this.handleNewsUpdate.bind(this)
+    );
+    realTimeDataService.subscribe(
+      "sentiment_updates",
+      this.handleSentimentUpdate.bind(this)
+    );
+    realTimeDataService.subscribe(
+      "breaking_news",
+      this.handleBreakingNews.bind(this)
+    );
+
     // Start buffer processing
     this.startBufferProcessing();
-    
+
     if (import.meta.env.DEV) {
-      console.log('📰 RealTimeNewsService: Initialized');
+      console.log("📰 RealTimeNewsService: Initialized");
     }
   }
 
   // News subscriptions
   subscribeToNews(callback) {
-    const id = Symbol('newsSubscriber');
+    const id = Symbol("newsSubscriber");
     this.newsSubscribers.set(id, callback);
-    
+
     // Send latest news to new subscriber
     if (this.latestNews.length > 0) {
       callback(this.latestNews);
     }
-    
+
     return id;
   }
 
@@ -53,15 +62,15 @@ class RealTimeNewsService {
     if (!this.sentimentSubscribers.has(symbol)) {
       this.sentimentSubscribers.set(symbol, new Map());
     }
-    
-    const id = Symbol('sentimentSubscriber');
+
+    const id = Symbol("sentimentSubscriber");
     this.sentimentSubscribers.get(symbol).set(id, callback);
-    
+
     // Send latest sentiment to new subscriber
     if (this.latestSentiment[symbol]) {
       callback(this.latestSentiment[symbol]);
     }
-    
+
     return id;
   }
 
@@ -84,8 +93,10 @@ class RealTimeNewsService {
       }
 
       // Process each article
-      const processedArticles = newsData.articles.map(article => ({
-        id: article.id || `news_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      const processedArticles = newsData.articles.map((article) => ({
+        id:
+          article.id ||
+          `news_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: article.title || article.headline,
         summary: article.summary || article.description,
         source: article.source,
@@ -95,18 +106,22 @@ class RealTimeNewsService {
         sentiment: article.sentiment || this.analyzeSentiment(article),
         impact: article.impact || this.calculateImpact(article),
         isRealTime: true,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }));
 
       // Add to buffer for processing
       this.newsBuffer.push(...processedArticles);
 
       if (import.meta.env.DEV) {
-        console.log(`📰 RealTimeNewsService: Received ${processedArticles.length} news articles`);
+        console.log(
+          `📰 RealTimeNewsService: Received ${processedArticles.length} news articles`
+        );
       }
-
     } catch (error) {
-      console.error('❌ RealTimeNewsService: Error handling news update:', error);
+      console.error(
+        "❌ RealTimeNewsService: Error handling news update:",
+        error
+      );
     }
   }
 
@@ -118,7 +133,7 @@ class RealTimeNewsService {
       }
 
       const { symbol, sentiment, timestamp } = sentimentData;
-      
+
       // Store latest sentiment
       this.latestSentiment[symbol] = {
         symbol,
@@ -129,26 +144,34 @@ class RealTimeNewsService {
         sources: sentiment.sources || [],
         newsImpact: sentiment.newsImpact || [],
         timestamp: timestamp || Date.now(),
-        isRealTime: true
+        isRealTime: true,
       };
 
       // Notify sentiment subscribers
       if (this.sentimentSubscribers.has(symbol)) {
-        this.sentimentSubscribers.get(symbol).forEach(callback => {
+        this.sentimentSubscribers.get(symbol).forEach((callback) => {
           try {
             callback(this.latestSentiment[symbol]);
           } catch (error) {
-            console.error('❌ RealTimeNewsService: Error in sentiment callback:', error);
+            console.error(
+              "❌ RealTimeNewsService: Error in sentiment callback:",
+              error
+            );
           }
         });
       }
 
       if (import.meta.env.DEV) {
-        console.log(`📊 RealTimeNewsService: Updated sentiment for ${symbol}:`, sentiment);
+        console.log(
+          `📊 RealTimeNewsService: Updated sentiment for ${symbol}:`,
+          sentiment
+        );
       }
-
     } catch (error) {
-      console.error('❌ RealTimeNewsService: Error handling sentiment update:', error);
+      console.error(
+        "❌ RealTimeNewsService: Error handling sentiment update:",
+        error
+      );
     }
   }
 
@@ -162,19 +185,24 @@ class RealTimeNewsService {
       const article = {
         ...breakingNewsData.article,
         isBreaking: true,
-        priority: 'high',
-        timestamp: Date.now()
+        priority: "high",
+        timestamp: Date.now(),
       };
 
       // Immediately notify all news subscribers of breaking news
       this.notifyNewsSubscribers([article]);
 
       if (import.meta.env.DEV) {
-        console.log('🚨 RealTimeNewsService: Breaking news received:', article.title);
+        console.log(
+          "🚨 RealTimeNewsService: Breaking news received:",
+          article.title
+        );
       }
-
     } catch (error) {
-      console.error('❌ RealTimeNewsService: Error handling breaking news:', error);
+      console.error(
+        "❌ RealTimeNewsService: Error handling breaking news:",
+        error
+      );
     }
   }
 
@@ -200,26 +228,29 @@ class RealTimeNewsService {
     }
 
     this.isProcessingNews = true;
-    
+
     try {
       // Get articles to process
       const articlesToProcess = this.newsBuffer.splice(0, 10); // Process up to 10 at a time
-      
+
       // Enhance articles with sentiment analysis
       const enhancedArticles = await Promise.all(
         articlesToProcess.map(async (article) => {
           try {
             // Analyze sentiment if not already provided
-            if (!article.sentiment || typeof article.sentiment !== 'object') {
+            if (!article.sentiment || typeof article.sentiment !== "object") {
               article.sentiment = await this.analyzeSentiment(article);
             }
-            
+
             // Calculate impact score
             article.impact = this.calculateImpact(article);
-            
+
             return article;
           } catch (error) {
-            console.error('❌ RealTimeNewsService: Error processing article:', error);
+            console.error(
+              "❌ RealTimeNewsService: Error processing article:",
+              error
+            );
             return article; // Return original article if processing fails
           }
         })
@@ -233,9 +264,11 @@ class RealTimeNewsService {
 
       // Update symbol sentiment aggregates
       this.updateSymbolSentiments(enhancedArticles);
-
     } catch (error) {
-      console.error('❌ RealTimeNewsService: Error processing news buffer:', error);
+      console.error(
+        "❌ RealTimeNewsService: Error processing news buffer:",
+        error
+      );
     } finally {
       this.isProcessingNews = false;
     }
@@ -243,11 +276,11 @@ class RealTimeNewsService {
 
   // Notify all news subscribers
   notifyNewsSubscribers(articles) {
-    this.newsSubscribers.forEach(callback => {
+    this.newsSubscribers.forEach((callback) => {
       try {
         callback(articles);
       } catch (error) {
-        console.error('❌ RealTimeNewsService: Error in news callback:', error);
+        console.error("❌ RealTimeNewsService: Error in news callback:", error);
       }
     });
   }
@@ -257,14 +290,14 @@ class RealTimeNewsService {
     const symbolSentiments = {};
 
     // Aggregate sentiment by symbol
-    articles.forEach(article => {
+    articles.forEach((article) => {
       if (article.symbols && article.symbols.length > 0) {
-        article.symbols.forEach(symbol => {
+        article.symbols.forEach((symbol) => {
           if (!symbolSentiments[symbol]) {
             symbolSentiments[symbol] = {
               articles: [],
               totalScore: 0,
-              count: 0
+              count: 0,
             };
           }
 
@@ -285,7 +318,7 @@ class RealTimeNewsService {
         confidence: Math.min(1, data.count / 5), // Higher confidence with more articles
         articles: data.articles,
         timestamp: Date.now(),
-        isRealTime: true
+        isRealTime: true,
       };
 
       // Update stored sentiment
@@ -293,11 +326,14 @@ class RealTimeNewsService {
 
       // Notify subscribers
       if (this.sentimentSubscribers.has(symbol)) {
-        this.sentimentSubscribers.get(symbol).forEach(callback => {
+        this.sentimentSubscribers.get(symbol).forEach((callback) => {
           try {
             callback(sentiment);
           } catch (error) {
-            console.error('❌ RealTimeNewsService: Error in sentiment callback:', error);
+            console.error(
+              "❌ RealTimeNewsService: Error in sentiment callback:",
+              error
+            );
           }
         });
       }
@@ -307,42 +343,62 @@ class RealTimeNewsService {
   // Analyze sentiment for an article
   analyzeSentiment(article) {
     try {
-      const text = `${article.title || ''} ${article.summary || ''}`;
-      
+      const text = `${article.title || ""} ${article.summary || ""}`;
+
       // Simple keyword-based sentiment analysis
-      const positiveWords = ['bullish', 'gain', 'profit', 'growth', 'strong', 'beat', 'exceed', 'buy', 'upgrade'];
-      const negativeWords = ['bearish', 'loss', 'decline', 'weak', 'miss', 'below', 'sell', 'downgrade', 'cut'];
-      
+      const positiveWords = [
+        "bullish",
+        "gain",
+        "profit",
+        "growth",
+        "strong",
+        "beat",
+        "exceed",
+        "buy",
+        "upgrade",
+      ];
+      const negativeWords = [
+        "bearish",
+        "loss",
+        "decline",
+        "weak",
+        "miss",
+        "below",
+        "sell",
+        "downgrade",
+        "cut",
+      ];
+
       const words = text.toLowerCase().split(/\s+/);
       let positiveCount = 0;
       let negativeCount = 0;
-      
-      words.forEach(word => {
-        if (positiveWords.some(pw => word.includes(pw))) positiveCount++;
-        if (negativeWords.some(nw => word.includes(nw))) negativeCount++;
+
+      words.forEach((word) => {
+        if (positiveWords.some((pw) => word.includes(pw))) positiveCount++;
+        if (negativeWords.some((nw) => word.includes(nw))) negativeCount++;
       });
-      
+
       const totalSentimentWords = positiveCount + negativeCount;
       let score = 0.5; // neutral
-      
+
       if (totalSentimentWords > 0) {
         score = positiveCount / totalSentimentWords;
       }
-      
+
       return {
         score: Math.round(score * 100) / 100,
         label: this.scoreToLabel(score),
-        confidence: Math.min(0.8, totalSentimentWords / words.length * 5),
+        confidence: Math.min(0.8, (totalSentimentWords / words.length) * 5),
         positiveWords: positiveCount,
         negativeWords: negativeCount,
-        wordCount: words.length
+        wordCount: words.length,
       };
     } catch (error) {
-      console.error('❌ RealTimeNewsService: Sentiment analysis error:', error);
+      console.error("❌ RealTimeNewsService: Sentiment analysis error:", error);
       return {
         score: 0.5,
-        label: 'neutral',
-        confidence: 0
+        label: "neutral",
+        confidence: 0,
       };
     }
   }
@@ -350,37 +406,49 @@ class RealTimeNewsService {
   // Calculate article impact score
   calculateImpact(article) {
     let score = 0.5;
-    
+
     // Source credibility
-    const highCredibilitySources = ['reuters', 'bloomberg', 'wsj', 'cnbc', 'marketwatch'];
-    if (article.source && highCredibilitySources.some(src => 
-      article.source.toLowerCase().includes(src))) {
+    const highCredibilitySources = [
+      "reuters",
+      "bloomberg",
+      "wsj",
+      "cnbc",
+      "marketwatch",
+    ];
+    if (
+      article.source &&
+      highCredibilitySources.some((src) =>
+        article.source.toLowerCase().includes(src)
+      )
+    ) {
       score += 0.2;
     }
-    
+
     // Recency
     if (article.publishedAt) {
-      const hoursAgo = (Date.now() - new Date(article.publishedAt).getTime()) / (1000 * 60 * 60);
+      const hoursAgo =
+        (Date.now() - new Date(article.publishedAt).getTime()) /
+        (1000 * 60 * 60);
       if (hoursAgo < 1) score += 0.2;
       else if (hoursAgo < 6) score += 0.1;
     }
-    
+
     // Content length
     if (article.summary && article.summary.length > 200) {
       score += 0.1;
     }
-    
+
     return {
       score: Math.min(1, score),
-      level: score >= 0.8 ? 'high' : score >= 0.6 ? 'medium' : 'low'
+      level: score >= 0.8 ? "high" : score >= 0.6 ? "medium" : "low",
     };
   }
 
   // Convert sentiment score to label
   scoreToLabel(score) {
-    if (score >= 0.6) return 'positive';
-    if (score <= 0.4) return 'negative';
-    return 'neutral';
+    if (score >= 0.6) return "positive";
+    if (score <= 0.4) return "negative";
+    return "neutral";
   }
 
   // Get latest news
@@ -399,12 +467,17 @@ class RealTimeNewsService {
   }
 
   // Fetch news sentiment analysis from API
-  async fetchNewsSentiment(symbol, timeframe = '24h') {
+  async fetchNewsSentiment(symbol, timeframe = "24h") {
     try {
-      const response = await api.get(`/api/news/sentiment/${symbol}?timeframe=${timeframe}`);
+      const response = await api.get(
+        `/api/news/sentiment/${symbol}?timeframe=${timeframe}`
+      );
       return response.data;
     } catch (error) {
-      console.error(`❌ RealTimeNewsService: Failed to fetch sentiment for ${symbol}:`, error);
+      console.error(
+        `❌ RealTimeNewsService: Failed to fetch sentiment for ${symbol}:`,
+        error
+      );
       throw error;
     }
   }
@@ -412,10 +485,13 @@ class RealTimeNewsService {
   // Fetch breaking news
   async fetchBreakingNews() {
     try {
-      const response = await api.get('/api/news/breaking');
+      const response = await api.get("/api/news/breaking");
       return response.data;
     } catch (error) {
-      console.error('❌ RealTimeNewsService: Failed to fetch breaking news:', error);
+      console.error(
+        "❌ RealTimeNewsService: Failed to fetch breaking news:",
+        error
+      );
       throw error;
     }
   }
@@ -428,9 +504,9 @@ class RealTimeNewsService {
     this.latestNews = [];
     this.latestSentiment = {};
     this.newsBuffer = [];
-    
+
     if (import.meta.env.DEV) {
-      console.log('📰 RealTimeNewsService: Destroyed');
+      console.log("📰 RealTimeNewsService: Destroyed");
     }
   }
 }

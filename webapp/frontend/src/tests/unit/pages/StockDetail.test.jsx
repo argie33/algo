@@ -1,5 +1,5 @@
 /**
- * StockDetail Page Unit Tests  
+ * StockDetail Page Unit Tests
  * Tests the stock detail functionality - stock info, charts, financials, analysis
  */
 
@@ -31,20 +31,20 @@ vi.mock("../../../services/api.js", () => {
     getStockPrices: vi.fn(),
     getStockFinancials: vi.fn(),
   };
-  
+
   const mockGetApiConfig = vi.fn(() => ({
-    baseURL: 'http://localhost:3001',
-    apiUrl: 'http://localhost:3001',
-    environment: 'test',
+    baseURL: "http://localhost:3001",
+    apiUrl: "http://localhost:3001",
+    environment: "test",
     isDevelopment: true,
     isProduction: false,
-    baseUrl: '/',
+    baseUrl: "/",
   }));
 
   return {
     api: mockApi,
     getApiConfig: mockGetApiConfig,
-    default: mockApi
+    default: mockApi,
   };
 });
 
@@ -67,7 +67,7 @@ const mockStockData = {
   symbol: "AAPL",
   name: "Apple Inc.",
   price: 175.25,
-  change: 2.50,
+  change: 2.5,
   changePercent: 1.45,
   volume: 45678900,
   marketCap: 2750000000000,
@@ -85,7 +85,7 @@ const mockStockData = {
 
 const mockChartData = [
   { date: "2024-01-01", price: 170.25, volume: 45000000 },
-  { date: "2024-01-02", price: 172.50, volume: 48000000 },
+  { date: "2024-01-02", price: 172.5, volume: 48000000 },
   { date: "2024-01-03", price: 175.25, volume: 45678900 },
 ];
 
@@ -108,11 +108,11 @@ describe("StockDetail Component", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Mock successful API responses
     mockUseQuery.mockImplementation((options) => {
       const { queryKey } = options;
-      
+
       if (queryKey[0] === "stockDetail") {
         return {
           data: mockStockData,
@@ -135,7 +135,7 @@ describe("StockDetail Component", () => {
           refetch: vi.fn(),
         };
       }
-      
+
       return {
         data: null,
         isLoading: false,
@@ -147,7 +147,7 @@ describe("StockDetail Component", () => {
 
   it("renders stock detail page with symbol from URL", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
@@ -156,7 +156,7 @@ describe("StockDetail Component", () => {
 
   it("displays stock price and change", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$175.25")).toBeInTheDocument();
       expect(screen.getByText("$2.50")).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("StockDetail Component", () => {
 
   it("shows key metrics", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("28.5")).toBeInTheDocument(); // PE Ratio
       expect(screen.getByText("0.52%")).toBeInTheDocument(); // Dividend Yield
@@ -177,7 +177,7 @@ describe("StockDetail Component", () => {
 
   it("displays 52-week high and low", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$198.23")).toBeInTheDocument(); // 52W High
       expect(screen.getByText("$124.17")).toBeInTheDocument(); // 52W Low
@@ -191,9 +191,9 @@ describe("StockDetail Component", () => {
       error: null,
       refetch: vi.fn(),
     }));
-    
+
     renderWithProviders(<StockDetail />);
-    
+
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
@@ -204,9 +204,9 @@ describe("StockDetail Component", () => {
       error: new Error("Failed to fetch stock data"),
       refetch: vi.fn(),
     }));
-    
+
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -214,7 +214,7 @@ describe("StockDetail Component", () => {
 
   it("switches between tabs", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -222,7 +222,7 @@ describe("StockDetail Component", () => {
     // Click on financials tab
     const financialsTab = screen.getByRole("tab", { name: /financials/i });
     fireEvent.click(financialsTab);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/revenue/i)).toBeInTheDocument();
     });
@@ -230,7 +230,7 @@ describe("StockDetail Component", () => {
 
   it("displays financial metrics", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     // Switch to financials tab
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -238,7 +238,7 @@ describe("StockDetail Component", () => {
 
     const financialsTab = screen.getByRole("tab", { name: /financials/i });
     fireEvent.click(financialsTab);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$394,328,000,000")).toBeInTheDocument(); // Revenue
       expect(screen.getByText("$99,803,000,000")).toBeInTheDocument(); // Net Income
@@ -248,17 +248,19 @@ describe("StockDetail Component", () => {
 
   it("displays company description and sector", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Technology")).toBeInTheDocument();
       expect(screen.getByText("Consumer Electronics")).toBeInTheDocument();
-      expect(screen.getByText(/Apple Inc. designs, manufactures/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Apple Inc. designs, manufactures/)
+      ).toBeInTheDocument();
     });
   });
 
   it("shows price chart", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -270,7 +272,7 @@ describe("StockDetail Component", () => {
 
   it("displays volume information", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("45,678,900")).toBeInTheDocument(); // Current volume
       expect(screen.getByText("52,000,000")).toBeInTheDocument(); // Average volume
@@ -279,7 +281,7 @@ describe("StockDetail Component", () => {
 
   it("shows market cap", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$2,750,000,000,000")).toBeInTheDocument();
     });
@@ -287,7 +289,7 @@ describe("StockDetail Component", () => {
 
   it("displays EPS information", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$6.15")).toBeInTheDocument(); // EPS
     });
@@ -296,21 +298,23 @@ describe("StockDetail Component", () => {
   it("handles missing stock symbol in URL", () => {
     const mockUseParams = require("react-router-dom").useParams;
     mockUseParams.mockReturnValue({ symbol: undefined });
-    
+
     renderWithProviders(<StockDetail />);
-    
-    expect(screen.getByText(/invalid stock symbol/i) || 
-           screen.getByText(/stock not found/i)).toBeInTheDocument();
+
+    expect(
+      screen.getByText(/invalid stock symbol/i) ||
+        screen.getByText(/stock not found/i)
+    ).toBeInTheDocument();
   });
 
   it("shows trend indicators with appropriate colors", async () => {
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       // Positive change should show green/up trend
       const changeElement = screen.getByText("$2.50");
       expect(changeElement).toBeInTheDocument();
-      
+
       // Check for trend icons
       const trendIcons = document.querySelectorAll("[data-testid*='trend']");
       expect(trendIcons.length).toBeGreaterThanOrEqual(0);
@@ -321,7 +325,7 @@ describe("StockDetail Component", () => {
     const mockStockWithAnalyst = {
       ...mockStockData,
       analystRating: "Buy",
-      targetPrice: 185.50,
+      targetPrice: 185.5,
       analystCount: 25,
     };
 
@@ -341,9 +345,9 @@ describe("StockDetail Component", () => {
         refetch: vi.fn(),
       };
     });
-    
+
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Buy")).toBeInTheDocument();
       expect(screen.getByText("$185.50")).toBeInTheDocument();
@@ -374,9 +378,9 @@ describe("StockDetail Component", () => {
         refetch: vi.fn(),
       };
     });
-    
+
     renderWithProviders(<StockDetail />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       // Chart loading indicator should be present

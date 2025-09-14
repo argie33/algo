@@ -9,11 +9,11 @@ import {
 } from "@mui/material";
 import { Security } from "@mui/icons-material";
 
-function MFAChallenge({ 
-  challengeType = "SMS_MFA", 
-  message = "Please enter the verification code sent to your device.", 
-  onSuccess, 
-  onCancel 
+function MFAChallenge({
+  challengeType = "SMS_MFA",
+  message = "Please enter the verification code sent to your device.",
+  onSuccess,
+  onCancel,
 }) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,10 +32,10 @@ function MFAChallenge({
     try {
       // Simulate MFA validation
       if (code === "123456") {
-        onSuccess({ 
+        onSuccess({
           username: "testuser",
           code: code,
-          challengeType: challengeType 
+          challengeType: challengeType,
         });
       } else {
         setError("Invalid verification code. Please try again.");
@@ -100,11 +100,7 @@ function MFAChallenge({
         />
 
         <Box display="flex" gap={2} justifyContent="flex-end">
-          <Button
-            variant="outlined"
-            onClick={onCancel}
-            disabled={loading}
-          >
+          <Button variant="outlined" onClick={onCancel} disabled={loading}>
             Cancel
           </Button>
           <Button

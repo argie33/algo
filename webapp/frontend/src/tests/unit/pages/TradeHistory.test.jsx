@@ -49,10 +49,10 @@ const mockTrades = [
     symbol: "AAPL",
     type: "buy",
     quantity: 100,
-    price: 150.50,
+    price: 150.5,
     date: "2024-01-15T10:30:00Z",
-    amount: 15050.00,
-    commission: 1.00,
+    amount: 15050.0,
+    commission: 1.0,
     status: "filled",
     strategy: "Value Investing",
   },
@@ -63,8 +63,8 @@ const mockTrades = [
     quantity: 50,
     price: 175.25,
     date: "2024-01-20T14:15:00Z",
-    amount: 8762.50,
-    commission: 1.00,
+    amount: 8762.5,
+    commission: 1.0,
     status: "filled",
     strategy: "Profit Taking",
   },
@@ -73,10 +73,10 @@ const mockTrades = [
     symbol: "GOOGL",
     type: "buy",
     quantity: 25,
-    price: 2500.00,
+    price: 2500.0,
     date: "2024-01-10T09:45:00Z",
-    amount: 62500.00,
-    commission: 2.50,
+    amount: 62500.0,
+    commission: 2.5,
     status: "filled",
     strategy: "Growth Investing",
   },
@@ -89,7 +89,7 @@ const mockPerformance = {
   winRate: 64.0,
   totalProfit: 12500.75,
   totalLoss: -3250.25,
-  netProfit: 9250.50,
+  netProfit: 9250.5,
   averageWin: 390.65,
   averageLoss: -180.57,
   profitFactor: 3.85,
@@ -121,7 +121,7 @@ describe("TradeHistory Component", () => {
 
   it("renders trade history page", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     expect(screen.getByText(/trade history/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(api.getTradeHistory).toHaveBeenCalled();
@@ -130,7 +130,7 @@ describe("TradeHistory Component", () => {
 
   it("displays trade list", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("GOOGL")).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe("TradeHistory Component", () => {
 
   it("shows buy/sell indicators", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getAllByText(/buy/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/sell/i).length).toBeGreaterThan(0);
@@ -150,7 +150,7 @@ describe("TradeHistory Component", () => {
 
   it("displays performance metrics", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("64.0%")).toBeInTheDocument(); // win rate
       expect(screen.getByText("$9,250.50")).toBeInTheDocument(); // net profit
@@ -160,17 +160,17 @@ describe("TradeHistory Component", () => {
 
   it("shows loading state initially", () => {
     api.getTradeHistory.mockImplementation(() => new Promise(() => {}));
-    
+
     renderWithProviders(<TradeHistory />);
-    
+
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
     api.getTradeHistory.mockRejectedValue(new Error("API Error"));
-    
+
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -178,18 +178,19 @@ describe("TradeHistory Component", () => {
 
   it("filters trades by symbol", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
     // Look for search/filter input
-    const searchInput = screen.getByPlaceholderText(/search/i) || 
-                       screen.getByLabelText(/filter/i);
-    
+    const searchInput =
+      screen.getByPlaceholderText(/search/i) ||
+      screen.getByLabelText(/filter/i);
+
     if (searchInput) {
       await userEvent.type(searchInput, "AAPL");
-      
+
       await waitFor(() => {
         // Should filter to show only AAPL trades
         expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
@@ -199,7 +200,7 @@ describe("TradeHistory Component", () => {
 
   it("filters trades by date range", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -210,7 +211,7 @@ describe("TradeHistory Component", () => {
       // Change date filter
       await userEvent.clear(dateInputs[0]);
       await userEvent.type(dateInputs[0], "2024-01-15");
-      
+
       await waitFor(() => {
         expect(api.getTradeHistory).toHaveBeenCalledTimes(2);
       });
@@ -219,7 +220,7 @@ describe("TradeHistory Component", () => {
 
   it("filters trades by type (buy/sell)", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -228,10 +229,10 @@ describe("TradeHistory Component", () => {
     const typeSelects = screen.getAllByRole("combobox");
     if (typeSelects.length > 0) {
       fireEvent.mouseDown(typeSelects[0]);
-      
+
       const buyOption = screen.getByText(/buy/i);
       fireEvent.click(buyOption);
-      
+
       await waitFor(() => {
         // Should show filtered results
         expect(screen.getAllByText(/buy/i).length).toBeGreaterThan(0);
@@ -241,7 +242,7 @@ describe("TradeHistory Component", () => {
 
   it("sorts trades by different columns", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -249,7 +250,7 @@ describe("TradeHistory Component", () => {
     // Click on a sortable column header
     const dateHeader = screen.getByText(/date/i);
     fireEvent.click(dateHeader);
-    
+
     // Trades should be re-sorted
     await waitFor(() => {
       const rows = screen.getAllByRole("row");
@@ -267,7 +268,7 @@ describe("TradeHistory Component", () => {
       price: 100 + i,
       date: "2024-01-15T10:30:00Z",
       amount: (100 + i) * 10,
-      commission: 1.00,
+      commission: 1.0,
       status: "filled",
     }));
 
@@ -275,9 +276,9 @@ describe("TradeHistory Component", () => {
       success: true,
       data: largeTrades,
     });
-    
+
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("STOCK1")).toBeInTheDocument();
     });
@@ -286,7 +287,7 @@ describe("TradeHistory Component", () => {
     const nextButton = screen.getByLabelText(/next page/i);
     if (nextButton) {
       fireEvent.click(nextButton);
-      
+
       await waitFor(() => {
         // Should show next page
         expect(screen.getByText("STOCK26")).toBeInTheDocument();
@@ -299,17 +300,18 @@ describe("TradeHistory Component", () => {
       success: true,
       data: "csv,data,here",
     });
-    
+
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
-    const exportButton = screen.getByLabelText(/export/i) || 
-                        screen.getByRole("button", { name: /export/i });
+    const exportButton =
+      screen.getByLabelText(/export/i) ||
+      screen.getByRole("button", { name: /export/i });
     fireEvent.click(exportButton);
-    
+
     await waitFor(() => {
       expect(api.exportTrades).toHaveBeenCalled();
     });
@@ -320,17 +322,18 @@ describe("TradeHistory Component", () => {
       success: true,
       message: "Trades uploaded successfully",
     });
-    
+
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
-    const uploadButton = screen.getByLabelText(/upload/i) || 
-                        screen.getByRole("button", { name: /upload/i });
+    const uploadButton =
+      screen.getByLabelText(/upload/i) ||
+      screen.getByRole("button", { name: /upload/i });
     fireEvent.click(uploadButton);
-    
+
     // Mock file upload dialog
     await waitFor(() => {
       expect(screen.getByText(/upload/i)).toBeInTheDocument();
@@ -339,14 +342,14 @@ describe("TradeHistory Component", () => {
 
   it("refreshes trade data", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(api.getTradeHistory).toHaveBeenCalledTimes(1);
     });
 
     const refreshButton = screen.getByLabelText(/refresh/i);
     fireEvent.click(refreshButton);
-    
+
     await waitFor(() => {
       expect(api.getTradeHistory).toHaveBeenCalledTimes(2);
     });
@@ -354,7 +357,7 @@ describe("TradeHistory Component", () => {
 
   it("switches between tabs (trades/performance)", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -362,7 +365,7 @@ describe("TradeHistory Component", () => {
     // Click performance tab
     const performanceTab = screen.getByRole("tab", { name: /performance/i });
     fireEvent.click(performanceTab);
-    
+
     await waitFor(() => {
       expect(screen.getByText("64.0%")).toBeInTheDocument();
       expect(screen.getByText("Profit Factor")).toBeInTheDocument();
@@ -371,7 +374,7 @@ describe("TradeHistory Component", () => {
 
   it("displays trade details in dialog", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -380,7 +383,7 @@ describe("TradeHistory Component", () => {
     const tradeRows = screen.getAllByRole("row");
     if (tradeRows.length > 1) {
       fireEvent.click(tradeRows[1]); // Skip header row
-      
+
       await waitFor(() => {
         expect(screen.getByText(/trade details/i)).toBeInTheDocument();
       });
@@ -392,17 +395,20 @@ describe("TradeHistory Component", () => {
       success: true,
       data: [],
     });
-    
+
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/no trades/i) || screen.getByText(/no trading history/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no trades/i) ||
+          screen.getByText(/no trading history/i)
+      ).toBeInTheDocument();
     });
   });
 
   it("displays strategy information", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Value Investing")).toBeInTheDocument();
       expect(screen.getByText("Profit Taking")).toBeInTheDocument();
@@ -412,7 +418,7 @@ describe("TradeHistory Component", () => {
 
   it("shows commission and fees", async () => {
     renderWithProviders(<TradeHistory />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$1.00")).toBeInTheDocument(); // commission
       expect(screen.getByText("$2.50")).toBeInTheDocument(); // commission

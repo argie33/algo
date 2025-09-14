@@ -6,21 +6,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock import.meta.env BEFORE any imports
-Object.defineProperty(import.meta, 'env', {
+Object.defineProperty(import.meta, "env", {
   value: {
-    VITE_API_URL: 'http://localhost:3001',
-    MODE: 'test',
+    VITE_API_URL: "http://localhost:3001",
+    MODE: "test",
     DEV: true,
     PROD: false,
-    BASE_URL: '/'
+    BASE_URL: "/",
   },
   writable: true,
-  configurable: true
+  configurable: true,
 });
 
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AuthTest from "../../../pages/AuthTest.jsx";
 
 // Mock localStorage
@@ -81,27 +81,27 @@ describe("AuthTest Component", () => {
 
   it("displays authentication-related content", () => {
     renderAuthTest();
-    
+
     // Check that the page renders specific authentication content
     expect(screen.getByText("Authentication Test Page")).toBeInTheDocument();
   });
 
   it("handles loading state", () => {
     renderAuthTest();
-    
+
     // Component should render without hanging
     expect(document.body).toBeInTheDocument();
   });
 
   it("displays basic page structure", () => {
     const { container } = renderAuthTest();
-    
+
     expect(container.firstChild).toBeInTheDocument();
   });
 
   it("interacts with localStorage mock", () => {
     renderAuthTest();
-    
+
     // Should not throw when localStorage is accessed
     expect(localStorageMock.getItem).toBeDefined();
   });

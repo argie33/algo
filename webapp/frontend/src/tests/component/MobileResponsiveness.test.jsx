@@ -276,7 +276,7 @@ describe("Mobile Responsiveness Tests", () => {
       // Clear previous mocks and set up fresh mock for this test
       mockUseMediaQuery.mockClear();
       mockUseMediaQuery.mockReturnValue(true);
-      
+
       const MockTabletPortfolio = () => {
         const isTablet = mockUseMediaQuery("(max-width:1024px)");
 
@@ -588,7 +588,7 @@ describe("Mobile Responsiveness Tests", () => {
         fireEvent.touchStart(button);
         fireEvent.touchEnd(button);
       });
-      
+
       expect(actionButtons).toHaveLength(3);
     });
   });

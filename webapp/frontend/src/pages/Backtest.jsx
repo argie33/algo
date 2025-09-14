@@ -315,11 +315,11 @@ export default function Backtest() {
       setSavedStrategies(localStrategies);
       return;
     }
-    
+
     try {
       const headers = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${user.token}`
+        Authorization: `Bearer ${user.token}`,
       };
 
       const response = await fetch(`${API_BASE}/api/backtest/strategies`, {
@@ -330,7 +330,8 @@ export default function Backtest() {
         setSavedStrategies(data.strategies || []);
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching user strategies:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error fetching user strategies:", error);
       // Fallback to localStorage
       const localStrategies = JSON.parse(
         localStorage.getItem("backtester_strategies") || "[]"
@@ -374,7 +375,7 @@ export default function Backtest() {
         // Save to backend
         const headers = {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`
+          Authorization: `Bearer ${user.token}`,
         };
 
         const response = await fetch(`${API_BASE}/api/backtest/strategies`, {
@@ -405,7 +406,8 @@ export default function Backtest() {
       setStrategyDialogOpen(false);
       setNewStrategy({ name: "", description: "", code: "", isPublic: false });
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error saving strategy:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error saving strategy:", error);
       setError("Failed to save strategy. Please try again.");
     }
   };
@@ -436,7 +438,7 @@ export default function Backtest() {
       if (isAuthenticated && user?.token) {
         const headers = {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`
+          Authorization: `Bearer ${user.token}`,
         };
 
         const response = await fetch(
@@ -460,7 +462,8 @@ export default function Backtest() {
         setSavedStrategies(filtered);
       }
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV) console.error("Error deleting strategy:", error);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("Error deleting strategy:", error);
     }
   };
 
@@ -655,7 +658,9 @@ export default function Backtest() {
     );
     if (!newName || newName === strategy.name) return;
     // Update backend (simulate PATCH by delete+add)
-    await fetch(`${API_BASE}/api/backtest/strategies/${id}`, { method: "DELETE" });
+    await fetch(`${API_BASE}/api/backtest/strategies/${id}`, {
+      method: "DELETE",
+    });
     const res = await fetch(`${API_BASE}/api/backtest/strategies`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -955,7 +960,9 @@ export default function Backtest() {
             <Grid item xs={12} sm={6}>
               <MuiTooltip title="Choose a symbol to backtest" arrow>
                 <Autocomplete
-                  options={symbols.map((s) => typeof s === 'string' ? s : s.symbol || s)}
+                  options={symbols.map((s) =>
+                    typeof s === "string" ? s : s.symbol || s
+                  )}
                   value={params.symbol || null}
                   onChange={(_, v) => handleChange("symbol", v || "")}
                   isOptionEqualToValue={(option, value) => option === value}
@@ -1049,14 +1056,17 @@ export default function Backtest() {
                 </MuiTooltip>
               </Box>
               <Paper sx={{ p: 0, mb: 2, background: "#f7f7f7" }}>
-                <Box 
+                <Box
                   ref={(ref) => {
                     if (ref) {
                       // Add aria-label to CodeMirror content after render
                       setTimeout(() => {
-                        const cmContent = ref.querySelector('.cm-content');
+                        const cmContent = ref.querySelector(".cm-content");
                         if (cmContent) {
-                          cmContent.setAttribute('aria-label', 'Python backtest strategy code editor');
+                          cmContent.setAttribute(
+                            "aria-label",
+                            "Python backtest strategy code editor"
+                          );
                         }
                       }, 100);
                     }
@@ -1079,7 +1089,14 @@ export default function Backtest() {
               >
                 Save Strategy
               </Button>
-              <MuiTooltip title={!strategyCode ? "Select a strategy to clone" : "Clone the selected strategy code"} arrow>
+              <MuiTooltip
+                title={
+                  !strategyCode
+                    ? "Select a strategy to clone"
+                    : "Clone the selected strategy code"
+                }
+                arrow
+              >
                 <span>
                   <Button
                     variant="outlined"
@@ -1411,7 +1428,7 @@ export default function Backtest() {
                   dataKey="value"
                   stroke="#1976d2"
                   strokeWidth={2}
-                  dot={{r: 0}}
+                  dot={{ r: 0 }}
                   name="Equity Curve"
                 />
               </LineChart>
@@ -1658,7 +1675,7 @@ export default function Backtest() {
                       dataKey="value"
                       stroke="#8e24aa"
                       strokeWidth={2}
-                      dot={{r: 0}}
+                      dot={{ r: 0 }}
                       name={metricKey}
                     />
                   </LineChart>
@@ -1967,9 +1984,16 @@ export default function Backtest() {
                       <Button
                         size="small"
                         onClick={() => {
-                          console.log("📊 Strategy History for", s.name, ":", strategyHistory[s.id] || []);
+                          console.log(
+                            "📊 Strategy History for",
+                            s.name,
+                            ":",
+                            strategyHistory[s.id] || []
+                          );
                           // In production, this would open a dialog or modal
-                          setError(`Strategy history logged to console for ${s.name}`);
+                          setError(
+                            `Strategy history logged to console for ${s.name}`
+                          );
                         }}
                       >
                         Show Versions

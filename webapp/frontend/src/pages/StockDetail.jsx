@@ -543,12 +543,8 @@ function StockDetail() {
                         margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="date"
-                        />
-                        <YAxis
-                          domain={["dataMin - 5", "dataMax + 5"]}
-                        />
+                        <XAxis dataKey="date" />
+                        <YAxis domain={["dataMin - 5", "dataMax + 5"]} />
                         <Tooltip
                           formatter={(value, name) => [
                             `$${value.toFixed(2)}`,
@@ -560,7 +556,7 @@ function StockDetail() {
                           dataKey="close"
                           stroke="#2196f3"
                           strokeWidth={2}
-                          dot={{r: 0}}
+                          dot={{ r: 0 }}
                           name="Close Price"
                         />
                       </LineChart>
@@ -631,7 +627,9 @@ function StockDetail() {
                           Latest Volume
                         </Typography>
                         <Typography variant="h6" fontWeight="bold">
-                          {formatNumber(recentPrices?.data.summary.latestVolume)}
+                          {formatNumber(
+                            recentPrices?.data.summary.latestVolume
+                          )}
                         </Typography>
                       </Box>
                     </Grid>
@@ -1022,8 +1020,7 @@ function StockDetail() {
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
-                        <YAxis
-                        />
+                        <YAxis />
                         <Tooltip
                           formatter={(value) => [
                             formatCurrency(value, 0),
@@ -1063,8 +1060,7 @@ function StockDetail() {
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
-                        <YAxis
-                        />
+                        <YAxis />
                         <Tooltip
                           formatter={(value) => [
                             formatCurrency(value, 0),
@@ -1215,7 +1211,7 @@ function StockDetail() {
 
                     // Default scores when real data unavailable
                     const momentumScore = 50; // Neutral momentum score
-                    const sentimentScore = 50; // Neutral sentiment score  
+                    const sentimentScore = 50; // Neutral sentiment score
                     const positioningScore = 50; // Neutral positioning score
 
                     return [
@@ -1427,7 +1423,9 @@ function StockDetail() {
 
                           <Typography variant="caption" color="text.secondary">
                             Components:{" "}
-                            {(factor.components || []).map((c) => c.name).join(", ")}
+                            {(factor.components || [])
+                              .map((c) => c.name)
+                              .join(", ")}
                           </Typography>
                         </CardContent>
                       </Card>
@@ -1989,35 +1987,35 @@ function StockDetail() {
                       <TableContainer>
                         <Table size="small">
                           <TableBody>
-                            {(analystOverview?.data.earnings_estimates || []).map(
-                              (estimate) => (
-                                <TableRow key={estimate.period}>
-                                  <TableCell sx={{ fontWeight: "bold" }}>
-                                    {estimate.period === "0q"
-                                      ? "Current Quarter"
-                                      : estimate.period === "+1q"
-                                        ? "Next Quarter"
-                                        : estimate.period === "0y"
-                                          ? "Current Year"
-                                          : estimate.period === "+1y"
-                                            ? "Next Year"
-                                            : estimate.period}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {estimate.avg_estimate
-                                      ? formatCurrency(estimate.avg_estimate)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={`${estimate.number_of_analysts || 0} analysts`}
-                                      size="small"
-                                      variant="outlined"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            )}
+                            {(
+                              analystOverview?.data.earnings_estimates || []
+                            ).map((estimate) => (
+                              <TableRow key={estimate.period}>
+                                <TableCell sx={{ fontWeight: "bold" }}>
+                                  {estimate.period === "0q"
+                                    ? "Current Quarter"
+                                    : estimate.period === "+1q"
+                                      ? "Next Quarter"
+                                      : estimate.period === "0y"
+                                        ? "Current Year"
+                                        : estimate.period === "+1y"
+                                          ? "Next Year"
+                                          : estimate.period}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {estimate.avg_estimate
+                                    ? formatCurrency(estimate.avg_estimate)
+                                    : "N/A"}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip
+                                    label={`${estimate.number_of_analysts || 0} analysts`}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -2043,35 +2041,35 @@ function StockDetail() {
                       <TableContainer>
                         <Table size="small">
                           <TableBody>
-                            {(analystOverview?.data.revenue_estimates || []).map(
-                              (estimate) => (
-                                <TableRow key={estimate.period}>
-                                  <TableCell sx={{ fontWeight: "bold" }}>
-                                    {estimate.period === "0q"
-                                      ? "Current Quarter"
-                                      : estimate.period === "+1q"
-                                        ? "Next Quarter"
-                                        : estimate.period === "0y"
-                                          ? "Current Year"
-                                          : estimate.period === "+1y"
-                                            ? "Next Year"
-                                            : estimate.period}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {estimate.avg_estimate
-                                      ? formatCurrency(estimate.avg_estimate, 0)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={`${estimate.number_of_analysts || 0} analysts`}
-                                      size="small"
-                                      variant="outlined"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            )}
+                            {(
+                              analystOverview?.data.revenue_estimates || []
+                            ).map((estimate) => (
+                              <TableRow key={estimate.period}>
+                                <TableCell sx={{ fontWeight: "bold" }}>
+                                  {estimate.period === "0q"
+                                    ? "Current Quarter"
+                                    : estimate.period === "+1q"
+                                      ? "Next Quarter"
+                                      : estimate.period === "0y"
+                                        ? "Current Year"
+                                        : estimate.period === "+1y"
+                                          ? "Next Year"
+                                          : estimate.period}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {estimate.avg_estimate
+                                    ? formatCurrency(estimate.avg_estimate, 0)
+                                    : "N/A"}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip
+                                    label={`${estimate.number_of_analysts || 0} analysts`}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
                           </TableBody>
                         </Table>
                       </TableContainer>

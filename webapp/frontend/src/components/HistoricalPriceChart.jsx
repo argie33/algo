@@ -248,21 +248,15 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={[...chartData].reverse()}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                domain={["auto", "auto"]}
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={["auto", "auto"]} />
               <Tooltip content={<CustomTooltip />} />
               <Line
                 type="monotone"
                 dataKey="close"
                 stroke="#1976d2"
                 strokeWidth={2}
-                dot={{r: 0}}
+                dot={{ r: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -283,7 +277,8 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         {chartData.length > 0 && (
           <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
             <Typography variant="caption" color="text.secondary">
-              Showing {(chartData?.length || 0)} {timeframe} data points for {symbol}
+              Showing {chartData?.length || 0} {timeframe} data points for{" "}
+              {symbol}
               {latestPrice && ` • Latest: ${formatDate(latestPrice.date)}`}
             </Typography>
           </Box>

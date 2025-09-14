@@ -90,12 +90,15 @@ class DataService {
       // Add timeout and performance monitoring based on testing insights
       const startTime = Date.now();
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+        setTimeout(
+          () => reject(new Error("Request timeout after 30 seconds")),
+          30000
+        )
       );
-      
+
       const response = await Promise.race([
         fetch(fullUrl, fetchOptions),
-        timeoutPromise
+        timeoutPromise,
       ]);
 
       const duration = Date.now() - startTime;
@@ -169,7 +172,10 @@ class DataService {
     }
 
     // Fallback to environment variable
-    return (import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001";
+    return (
+      (import.meta.env && import.meta.env.VITE_API_URL) ||
+      "http://localhost:3001"
+    );
   }
 
   // Get authentication token

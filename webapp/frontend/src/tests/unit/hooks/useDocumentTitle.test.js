@@ -11,7 +11,7 @@ import { useDocumentTitle } from "../../../hooks/useDocumentTitle.js";
 // Test component to use the hook
 function TestComponent({ title, suffix }) {
   useDocumentTitle(title, suffix);
-  return React.createElement('div', { 'data-testid': 'test-component' });
+  return React.createElement("div", { "data-testid": "test-component" });
 }
 
 describe("useDocumentTitle Hook", () => {
@@ -32,17 +32,21 @@ describe("useDocumentTitle Hook", () => {
   });
 
   it("sets document title with custom suffix", () => {
-    render(React.createElement(TestComponent, { 
-      title: "Test Page", 
-      suffix: "Custom App" 
-    }));
+    render(
+      React.createElement(TestComponent, {
+        title: "Test Page",
+        suffix: "Custom App",
+      })
+    );
     expect(document.title).toBe("Test Page | Custom App");
   });
 
   it("restores previous title on unmount", () => {
-    const { unmount } = render(React.createElement(TestComponent, { title: "Test Page" }));
+    const { unmount } = render(
+      React.createElement(TestComponent, { title: "Test Page" })
+    );
     expect(document.title).toBe("Test Page | Financial Dashboard");
-    
+
     unmount();
     expect(document.title).toBe(originalTitle);
   });
@@ -66,7 +70,9 @@ describe("useDocumentTitle Hook", () => {
   });
 
   it("updates title when prop changes", () => {
-    const { rerender } = render(React.createElement(TestComponent, { title: "Initial Page" }));
+    const { rerender } = render(
+      React.createElement(TestComponent, { title: "Initial Page" })
+    );
     expect(document.title).toBe("Initial Page | Financial Dashboard");
 
     rerender(React.createElement(TestComponent, { title: "Updated Page" }));
@@ -74,21 +80,26 @@ describe("useDocumentTitle Hook", () => {
   });
 
   it("updates suffix when prop changes", () => {
-    const { rerender } = render(React.createElement(TestComponent, { 
-      title: "Test Page", 
-      suffix: "Initial App" 
-    }));
+    const { rerender } = render(
+      React.createElement(TestComponent, {
+        title: "Test Page",
+        suffix: "Initial App",
+      })
+    );
     expect(document.title).toBe("Test Page | Initial App");
 
-    rerender(React.createElement(TestComponent, { 
-      title: "Test Page", 
-      suffix: "Updated App" 
-    }));
+    rerender(
+      React.createElement(TestComponent, {
+        title: "Test Page",
+        suffix: "Updated App",
+      })
+    );
     expect(document.title).toBe("Test Page | Updated App");
   });
 
   it("handles title with special characters", () => {
-    const specialTitle = "Test & Page > Special < Chars \"Quotes\" 'Apostrophes'";
+    const specialTitle =
+      "Test & Page > Special < Chars \"Quotes\" 'Apostrophes'";
     render(React.createElement(TestComponent, { title: specialTitle }));
     expect(document.title).toBe(`${specialTitle} | Financial Dashboard`);
   });
@@ -107,8 +118,10 @@ describe("useDocumentTitle Hook", () => {
 
   it("restores to suffix if previous title was empty", () => {
     document.title = "";
-    
-    const { unmount } = render(React.createElement(TestComponent, { title: "Test Page" }));
+
+    const { unmount } = render(
+      React.createElement(TestComponent, { title: "Test Page" })
+    );
     expect(document.title).toBe("Test Page | Financial Dashboard");
 
     unmount();
@@ -116,18 +129,22 @@ describe("useDocumentTitle Hook", () => {
   });
 
   it("handles multiple instances correctly", () => {
-    const { unmount: unmount1 } = render(React.createElement(TestComponent, { title: "Page 1" }));
+    const { unmount: unmount1 } = render(
+      React.createElement(TestComponent, { title: "Page 1" })
+    );
     expect(document.title).toBe("Page 1 | Financial Dashboard");
-    
-    const { unmount: unmount2 } = render(React.createElement(TestComponent, { title: "Page 2" }));
-    
+
+    const { unmount: unmount2 } = render(
+      React.createElement(TestComponent, { title: "Page 2" })
+    );
+
     // Last rendered should win
     expect(document.title).toBe("Page 2 | Financial Dashboard");
-    
+
     unmount2();
     // Should restore to the original title that was there before Page 2
     expect(document.title).toBe("Page 1 | Financial Dashboard");
-    
+
     unmount1();
     // Should restore to original title
     expect(document.title).toBe(originalTitle);
@@ -139,9 +156,11 @@ describe("useDocumentTitle Hook", () => {
   });
 
   it("handles component cleanup properly", () => {
-    const { unmount } = render(React.createElement(TestComponent, { title: "Cleanup Test" }));
+    const { unmount } = render(
+      React.createElement(TestComponent, { title: "Cleanup Test" })
+    );
     expect(document.title).toBe("Cleanup Test | Financial Dashboard");
-    
+
     unmount();
     expect(document.title).toBe(originalTitle);
   });

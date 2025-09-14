@@ -6,28 +6,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock import.meta.env BEFORE any imports
-Object.defineProperty(import.meta, 'env', {
+Object.defineProperty(import.meta, "env", {
   value: {
-    VITE_API_URL: 'http://localhost:3001',
-    MODE: 'test',
+    VITE_API_URL: "http://localhost:3001",
+    MODE: "test",
     DEV: true,
     PROD: false,
-    BASE_URL: '/'
+    BASE_URL: "/",
   },
   writable: true,
-  configurable: true
+  configurable: true,
 });
 
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import EarningsCalendar from "../../../pages/EarningsCalendar.jsx";
 
 // Mock createMockUser function
 const createMockUser = () => ({
   id: 1,
-  email: 'test@example.com',
-  name: 'Test User'
+  email: "test@example.com",
+  name: "Test User",
 });
 
 // Mock AuthContext
@@ -61,7 +61,7 @@ const mockCalendarData = {
         surprise_percent: null,
         timing: "after_market",
         analyst_count: 28,
-        conference_call_time: "2024-01-25T17:30:00Z"
+        conference_call_time: "2024-01-25T17:30:00Z",
       },
       {
         symbol: "GOOGL",
@@ -78,16 +78,16 @@ const mockCalendarData = {
         surprise_percent: 8.6,
         timing: "after_market",
         analyst_count: 25,
-        conference_call_time: "2024-01-24T17:30:00Z"
+        conference_call_time: "2024-01-24T17:30:00Z",
       },
-    ]
+    ],
   },
   summary: {
     upcoming_events: 12,
     this_week: 8,
     database_integrated: true,
-    real_time_data: true
-  }
+    real_time_data: true,
+  },
 };
 
 const mockEstimatesData = {
@@ -100,26 +100,26 @@ const mockEstimatesData = {
           low: 1.95,
           high: 2.25,
           num_estimates: 24,
-          growth: 5.2
-        }
-      ]
+          growth: 5.2,
+        },
+      ],
     },
     GOOGL: {
       estimates: [
         {
-          period: "Q4 2023", 
+          period: "Q4 2023",
           avg_estimate: 1.34,
-          low: 1.20,
-          high: 1.50,
+          low: 1.2,
+          high: 1.5,
           num_estimates: 18,
-          growth: 8.5
-        }
-      ]
-    }
+          growth: 8.5,
+        },
+      ],
+    },
   },
   summary: {
-    recent_updates: 15
-  }
+    recent_updates: 15,
+  },
 };
 
 const mockHistoryData = {
@@ -131,9 +131,9 @@ const mockHistoryData = {
           actual_eps: 2.18,
           estimated_eps: 2.11,
           difference: 0.07,
-          surprise_percent: 3.32
-        }
-      ]
+          surprise_percent: 3.32,
+        },
+      ],
     },
     GOOGL: {
       history: [
@@ -141,15 +141,15 @@ const mockHistoryData = {
           quarter: "Q3 2023",
           actual_eps: 1.55,
           estimated_eps: 1.45,
-          difference: 0.10,
-          surprise_percent: 6.90
-        }
-      ]
-    }
+          difference: 0.1,
+          surprise_percent: 6.9,
+        },
+      ],
+    },
   },
   summary: {
-    positive_surprises: 5
-  }
+    positive_surprises: 5,
+  },
 };
 
 // Test render helper
@@ -172,53 +172,56 @@ function renderEarningsCalendar(props = {}) {
 }
 
 describe("EarningsCalendar Component", () => {
-
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup fetch mocks for different endpoints
     fetch.mockImplementation((url) => {
-      if (url.includes('/api/calendar/events')) {
+      if (url.includes("/api/calendar/events")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(mockCalendarData)
+          json: () => Promise.resolve(mockCalendarData),
         });
       }
-      
-      if (url.includes('/calendar/earnings-estimates')) {
+
+      if (url.includes("/calendar/earnings-estimates")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(mockEstimatesData)
+          json: () => Promise.resolve(mockEstimatesData),
         });
       }
-      
-      if (url.includes('/calendar/earnings-history')) {
+
+      if (url.includes("/calendar/earnings-history")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(mockHistoryData)
+          json: () => Promise.resolve(mockHistoryData),
         });
       }
-      
+
       // Default mock
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ data: {} })
+        json: () => Promise.resolve({ data: {} }),
       });
     });
   });
 
   it("renders earnings calendar page", async () => {
     renderEarningsCalendar();
-    
-    expect(screen.getByText(/earnings calendar & estimates/i)).toBeInTheDocument();
+
+    expect(
+      screen.getByText(/earnings calendar & estimates/i)
+    ).toBeInTheDocument();
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/calendar/events'));
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/calendar/events")
+      );
     });
   });
 
   it("displays earnings data when loaded", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
@@ -230,17 +233,17 @@ describe("EarningsCalendar Component", () => {
   it("shows loading state initially", async () => {
     // Mock a hanging promise to keep loading state
     fetch.mockImplementationOnce(() => new Promise(() => {}));
-    
+
     renderEarningsCalendar();
-    
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
     fetch.mockRejectedValueOnce(new Error("API Error"));
-    
+
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -248,7 +251,7 @@ describe("EarningsCalendar Component", () => {
 
   it("filters earnings by date range", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -260,7 +263,7 @@ describe("EarningsCalendar Component", () => {
 
   it("displays EPS estimates and actuals", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("2.11")).toBeInTheDocument(); // AAPL estimate
       expect(screen.getByText("1.55")).toBeInTheDocument(); // GOOGL actual from history
@@ -269,7 +272,7 @@ describe("EarningsCalendar Component", () => {
 
   it("shows earnings time (before/after market)", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getAllByText(/after-market/i)).toHaveLength(2);
     });
@@ -277,17 +280,17 @@ describe("EarningsCalendar Component", () => {
 
   it("displays stock symbols when data loaded", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
-    
+
     expect(screen.getByText("GOOGL")).toBeInTheDocument();
   });
 
   it("displays quarter information", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("Q1 2024")).toBeInTheDocument();
       expect(screen.getByText("Q4 2023")).toBeInTheDocument();
@@ -296,20 +299,27 @@ describe("EarningsCalendar Component", () => {
 
   it("handles empty earnings data", async () => {
     fetch.mockImplementation((url) => {
-      if (url.includes('/api/calendar/events')) {
+      if (url.includes("/api/calendar/events")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ data: { data: [] }, summary: { upcoming_events: 0 } })
+          json: () =>
+            Promise.resolve({
+              data: { data: [] },
+              summary: { upcoming_events: 0 },
+            }),
         });
       }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ data: {} }) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      });
     });
-    
+
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       // Check for empty state or zero in summary cards
-      const upcomingElement = screen.getByText('0');
+      const upcomingElement = screen.getByText("0");
       expect(upcomingElement).toBeInTheDocument();
     });
   });
@@ -318,11 +328,11 @@ describe("EarningsCalendar Component", () => {
 
   it("displays database-integrated earnings data with enhanced fields", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
-      
+
       // Check for new database fields
       expect(screen.getByText("28")).toBeInTheDocument(); // analyst_count
       expect(screen.getByText("Q1 2024")).toBeInTheDocument(); // quarter/year info
@@ -331,7 +341,7 @@ describe("EarningsCalendar Component", () => {
 
   it("shows earnings surprise percentages from database", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("8.6")).toBeInTheDocument(); // GOOGL surprise_percent
     });
@@ -339,7 +349,7 @@ describe("EarningsCalendar Component", () => {
 
   it("displays conference call timing information", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       // Should show conference call times from database
       expect(screen.getAllByText(/17:30/)).toHaveLength(2);
@@ -348,11 +358,11 @@ describe("EarningsCalendar Component", () => {
 
   it("handles actual vs estimated EPS from database", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       // AAPL should show estimated (no actual yet)
       expect(screen.getByText("2.11")).toBeInTheDocument(); // estimated
-      
+
       // GOOGL should show both estimated and actual
       expect(screen.getByText("1.51")).toBeInTheDocument(); // estimated
       expect(screen.getByText("1.64")).toBeInTheDocument(); // actual
@@ -361,7 +371,7 @@ describe("EarningsCalendar Component", () => {
 
   it("displays analyst coverage counts", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("28")).toBeInTheDocument(); // AAPL analysts
       expect(screen.getByText("25")).toBeInTheDocument(); // GOOGL analysts
@@ -370,12 +380,14 @@ describe("EarningsCalendar Component", () => {
 
   it("shows database integration status in summary", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       // Should indicate database integration is active
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/calendar/events'));
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/calendar/events")
+      );
     });
-    
+
     // Verify database-integrated flag is present in mock data
     expect(mockCalendarData.summary.database_integrated).toBe(true);
     expect(mockCalendarData.summary.real_time_data).toBe(true);
@@ -383,11 +395,11 @@ describe("EarningsCalendar Component", () => {
 
   it("handles mixed upcoming and historical earnings data", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       // AAPL is upcoming (no actual_eps)
       expect(screen.getByText("AAPL")).toBeInTheDocument();
-      
+
       // GOOGL has historical data (has actual_eps and surprise_percent)
       expect(screen.getByText("GOOGL")).toBeInTheDocument();
       expect(screen.getByText("8.6")).toBeInTheDocument(); // surprise percentage
@@ -396,7 +408,7 @@ describe("EarningsCalendar Component", () => {
 
   it("displays fiscal year and quarter information from database", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText("Q1 2024")).toBeInTheDocument(); // AAPL
       expect(screen.getByText("Q4 2023")).toBeInTheDocument(); // GOOGL
@@ -405,7 +417,7 @@ describe("EarningsCalendar Component", () => {
 
   it("shows earnings timing (before/after market) from database", async () => {
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       // Both stocks report after market in mock data
       expect(screen.getAllByText(/after.market/i)).toHaveLength(2);
@@ -414,22 +426,26 @@ describe("EarningsCalendar Component", () => {
 
   it("handles database connectivity issues gracefully", async () => {
     fetch.mockImplementation((url) => {
-      if (url.includes('/api/calendar/events')) {
+      if (url.includes("/api/calendar/events")) {
         return Promise.resolve({
           ok: false,
           status: 503,
-          json: () => Promise.resolve({ 
-            success: false, 
-            error: "Database temporarily unavailable",
-            message: "Unable to retrieve earnings calendar data"
-          })
+          json: () =>
+            Promise.resolve({
+              success: false,
+              error: "Database temporarily unavailable",
+              message: "Unable to retrieve earnings calendar data",
+            }),
         });
       }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ data: {} }) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      });
     });
-    
+
     renderEarningsCalendar();
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });

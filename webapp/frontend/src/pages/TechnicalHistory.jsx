@@ -206,7 +206,8 @@ function PriceHistory() {
         setTotal(0);
       }
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV) console.error("❌ Error fetching price history:", err);
+      if (import.meta.env && import.meta.env.DEV)
+        console.error("❌ Error fetching price history:", err);
       setError(err.message || "Failed to load price history");
       setData([]);
       setTotal(0);
@@ -731,7 +732,7 @@ function PriceHistory() {
       ) : (
         <>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Showing {(filteredData?.length || 0)} of {total} records
+            Showing {filteredData?.length || 0} of {total} records
           </Typography>
           {viewMode === "table" ? renderTableView() : renderCardView()}
         </>

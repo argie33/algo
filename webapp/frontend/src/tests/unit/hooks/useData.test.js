@@ -21,21 +21,23 @@ vi.mock("../../../services/dataService", () => ({
 
 describe("useData Hook", () => {
   let mockDataService;
-  
+
   beforeEach(async () => {
     vi.clearAllMocks();
     // Get the mocked module
-    const { default: dataService } = await import("../../../services/dataService");
+    const { default: dataService } = await import(
+      "../../../services/dataService"
+    );
     mockDataService = dataService;
-    
+
     // Setup default mock implementations
-    mockDataService.getCacheKey.mockReturnValue('test-cache-key');
+    mockDataService.getCacheKey.mockReturnValue("test-cache-key");
     mockDataService.subscribe.mockReturnValue(() => {}); // Return cleanup function
     mockDataService.refetch.mockResolvedValue({
       data: { test: "refetched data" },
       isLoading: false,
       error: null,
-      isStale: false
+      isStale: false,
     });
   });
 
@@ -85,7 +87,7 @@ describe("useData Hook", () => {
   });
 
   it("skips fetch when enabled is false", async () => {
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useData("/api/test", { enabled: false })
     );
 
@@ -118,11 +120,11 @@ describe("useData Hook", () => {
   });
 
   it("passes options to fetchData", async () => {
-    const options = { 
+    const options = {
       headers: { "Content-Type": "application/json" },
-      timeout: 5000 
+      timeout: 5000,
     };
-    
+
     mockDataService.fetchData.mockResolvedValue({
       data: {},
       isLoading: false,
@@ -133,7 +135,10 @@ describe("useData Hook", () => {
     renderHook(() => useData("/api/test", options));
 
     await waitFor(() => {
-      expect(mockDataService.fetchData).toHaveBeenCalledWith("/api/test", options);
+      expect(mockDataService.fetchData).toHaveBeenCalledWith(
+        "/api/test",
+        options
+      );
     });
   });
 
@@ -205,10 +210,9 @@ describe("useData Hook", () => {
         isStale: false,
       });
 
-    const { result, rerender } = renderHook(
-      ({ url }) => useData(url),
-      { initialProps: { url: "/api/first" } }
-    );
+    const { result, rerender } = renderHook(({ url }) => useData(url), {
+      initialProps: { url: "/api/first" },
+    });
 
     await waitFor(() => {
       expect(result.current.data.endpoint).toBe("first");
@@ -225,15 +229,24 @@ describe("useData Hook", () => {
 
   it("handles concurrent requests correctly", async () => {
     let resolveFirst, resolveSecond;
-    
-    mockDataService.fetchData
-      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
-      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve; }));
 
-    const { result, rerender } = renderHook(
-      ({ url }) => useData(url),
-      { initialProps: { url: "/api/first" } }
-    );
+    mockDataService.fetchData
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          })
+      );
+
+    const { result, rerender } = renderHook(({ url }) => useData(url), {
+      initialProps: { url: "/api/first" },
+    });
 
     // Start second request before first completes
     rerender({ url: "/api/second" });

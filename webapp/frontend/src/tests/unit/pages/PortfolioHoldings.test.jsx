@@ -54,11 +54,11 @@ const mockHoldings = [
     symbol: "AAPL",
     company: "Apple Inc.",
     shares: 100,
-    avgPrice: 150.50,
+    avgPrice: 150.5,
     currentPrice: 175.25,
-    totalValue: 17525.00,
-    totalCost: 15050.00,
-    gainLoss: 2475.00,
+    totalValue: 17525.0,
+    totalCost: 15050.0,
+    gainLoss: 2475.0,
     gainLossPercent: 16.44,
     sector: "Technology",
     lastUpdated: "2024-01-15T14:30:00Z",
@@ -68,11 +68,11 @@ const mockHoldings = [
     symbol: "GOOGL",
     company: "Alphabet Inc.",
     shares: 50,
-    avgPrice: 2500.00,
+    avgPrice: 2500.0,
     currentPrice: 2650.75,
-    totalValue: 132537.50,
-    totalCost: 125000.00,
-    gainLoss: 7537.50,
+    totalValue: 132537.5,
+    totalCost: 125000.0,
+    gainLoss: 7537.5,
     gainLossPercent: 6.03,
     sector: "Technology",
     lastUpdated: "2024-01-15T14:30:00Z",
@@ -80,11 +80,11 @@ const mockHoldings = [
 ];
 
 const mockPortfolioSummary = {
-  totalValue: 150062.50,
-  totalCost: 140050.00,
-  totalGainLoss: 10012.50,
+  totalValue: 150062.5,
+  totalCost: 140050.0,
+  totalGainLoss: 10012.5,
   totalGainLossPercent: 7.15,
-  cash: 5000.00,
+  cash: 5000.0,
   dayChange: 1234.56,
   dayChangePercent: 0.83,
 };
@@ -113,7 +113,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("renders portfolio holdings page", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     expect(screen.getByText(/portfolio holdings/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(api.getPortfolioHoldings).toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("displays portfolio summary", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$150,062.50")).toBeInTheDocument();
       expect(screen.getByText("$10,012.50")).toBeInTheDocument();
@@ -132,7 +132,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("shows individual holdings", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
       expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
@@ -145,7 +145,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("displays gain/loss with appropriate colors", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("$2,475.00")).toBeInTheDocument();
       expect(screen.getByText("16.44%")).toBeInTheDocument();
@@ -156,17 +156,17 @@ describe("PortfolioHoldings Component", () => {
 
   it("shows loading state initially", () => {
     api.getPortfolioHoldings.mockImplementation(() => new Promise(() => {}));
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("handles API errors gracefully", async () => {
     api.getPortfolioHoldings.mockRejectedValue(new Error("API Error"));
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
     });
@@ -174,14 +174,14 @@ describe("PortfolioHoldings Component", () => {
 
   it("opens add holding dialog", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
     const addButton = screen.getByRole("button", { name: /add holding/i });
     fireEvent.click(addButton);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/add new holding/i)).toBeInTheDocument();
     });
@@ -189,39 +189,39 @@ describe("PortfolioHoldings Component", () => {
 
   it("handles adding new holding", async () => {
     api.addHolding.mockResolvedValue({ success: true });
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
     // Open add dialog
     fireEvent.click(screen.getByRole("button", { name: /add holding/i }));
-    
+
     await waitFor(() => {
       expect(screen.getByText(/add new holding/i)).toBeInTheDocument();
     });
-    
+
     // Fill form
     const symbolInput = screen.getByLabelText(/symbol/i);
     const sharesInput = screen.getByLabelText(/shares/i);
     const priceInput = screen.getByLabelText(/price/i);
-    
+
     await userEvent.type(symbolInput, "TSLA");
     await userEvent.type(sharesInput, "25");
     await userEvent.type(priceInput, "800.00");
-    
+
     // Submit
     const saveButton = screen.getByRole("button", { name: /save/i });
     fireEvent.click(saveButton);
-    
+
     await waitFor(() => {
       expect(api.addHolding).toHaveBeenCalledWith(
         expect.objectContaining({
           symbol: "TSLA",
           shares: 25,
-          avgPrice: 800.00,
+          avgPrice: 800.0,
         })
       );
     });
@@ -229,9 +229,9 @@ describe("PortfolioHoldings Component", () => {
 
   it("handles editing existing holding", async () => {
     api.updateHolding.mockResolvedValue({ success: true });
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -239,20 +239,20 @@ describe("PortfolioHoldings Component", () => {
     // Click edit button for first holding
     const editButtons = screen.getAllByLabelText(/edit/i);
     fireEvent.click(editButtons[0]);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/edit holding/i)).toBeInTheDocument();
     });
-    
+
     // Update shares
     const sharesInput = screen.getByDisplayValue("100");
     await userEvent.clear(sharesInput);
     await userEvent.type(sharesInput, "120");
-    
+
     // Save changes
     const saveButton = screen.getByRole("button", { name: /save/i });
     fireEvent.click(saveButton);
-    
+
     await waitFor(() => {
       expect(api.updateHolding).toHaveBeenCalledWith(
         1,
@@ -265,9 +265,9 @@ describe("PortfolioHoldings Component", () => {
 
   it("handles deleting holding", async () => {
     api.deleteHolding.mockResolvedValue({ success: true });
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -275,15 +275,15 @@ describe("PortfolioHoldings Component", () => {
     // Click delete button
     const deleteButtons = screen.getAllByLabelText(/delete/i);
     fireEvent.click(deleteButtons[0]);
-    
+
     // Confirm deletion
     await waitFor(() => {
       expect(screen.getByText(/confirm deletion/i)).toBeInTheDocument();
     });
-    
+
     const confirmButton = screen.getByRole("button", { name: /delete/i });
     fireEvent.click(confirmButton);
-    
+
     await waitFor(() => {
       expect(api.deleteHolding).toHaveBeenCalledWith(1);
     });
@@ -291,14 +291,14 @@ describe("PortfolioHoldings Component", () => {
 
   it("refreshes portfolio data", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(api.getPortfolioHoldings).toHaveBeenCalledTimes(1);
     });
 
     const refreshButton = screen.getByLabelText(/refresh/i);
     fireEvent.click(refreshButton);
-    
+
     await waitFor(() => {
       expect(api.getPortfolioHoldings).toHaveBeenCalledTimes(2);
       expect(api.getStockPrices).toHaveBeenCalledTimes(2);
@@ -307,7 +307,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("sorts holdings by different columns", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -315,7 +315,7 @@ describe("PortfolioHoldings Component", () => {
     // Click on a sortable column header
     const symbolHeader = screen.getByText(/symbol/i);
     fireEvent.click(symbolHeader);
-    
+
     // Holdings should be re-sorted
     await waitFor(() => {
       const rows = screen.getAllByRole("row");
@@ -325,22 +325,23 @@ describe("PortfolioHoldings Component", () => {
 
   it("filters holdings by sector", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
     // Look for sector filter dropdown
-    const filterButton = screen.getByLabelText(/filter/i) || 
-                         screen.getByRole("button", { name: /filter/i });
-    
+    const filterButton =
+      screen.getByLabelText(/filter/i) ||
+      screen.getByRole("button", { name: /filter/i });
+
     if (filterButton) {
       fireEvent.click(filterButton);
-      
+
       // Select Technology sector
       const technologyOption = screen.getByText("Technology");
       fireEvent.click(technologyOption);
-      
+
       await waitFor(() => {
         // Both holdings are Technology, so should still see both
         expect(screen.getByText("AAPL")).toBeInTheDocument();
@@ -351,7 +352,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("displays allocation pie chart", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
@@ -360,7 +361,7 @@ describe("PortfolioHoldings Component", () => {
     const allocationTab = screen.getByRole("tab", { name: /allocation/i });
     if (allocationTab) {
       fireEvent.click(allocationTab);
-      
+
       await waitFor(() => {
         // Should display chart elements
         expect(document.querySelector("svg")).toBeInTheDocument();
@@ -370,7 +371,7 @@ describe("PortfolioHoldings Component", () => {
 
   it("shows sector allocation", async () => {
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("Technology")).toBeInTheDocument();
     });
@@ -396,15 +397,17 @@ describe("PortfolioHoldings Component", () => {
       success: true,
       data: largePortfolio,
     });
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
       expect(screen.getByText("STOCK1")).toBeInTheDocument();
     });
 
     // Look for pagination controls
-    const paginationControls = screen.getByRole("navigation", { name: /pagination/i });
+    const paginationControls = screen.getByRole("navigation", {
+      name: /pagination/i,
+    });
     if (paginationControls) {
       expect(paginationControls).toBeInTheDocument();
     }
@@ -415,11 +418,13 @@ describe("PortfolioHoldings Component", () => {
       success: true,
       data: [],
     });
-    
+
     renderWithProviders(<PortfolioHoldings />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/no holdings/i) || screen.getByText(/empty portfolio/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no holdings/i) || screen.getByText(/empty portfolio/i)
+      ).toBeInTheDocument();
     });
   });
 });

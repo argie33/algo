@@ -2,7 +2,7 @@
  * Shared utilities for contract tests to reduce duplication
  */
 
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 const API_BASE_URL = "http://localhost:3001";
 
@@ -15,7 +15,10 @@ export async function checkServerAvailability() {
     const response = await fetch(`${API_BASE_URL}/api/health`);
     return response.ok;
   } catch (error) {
-    console.warn("Backend server not available for contract tests:", error.message);
+    console.warn(
+      "Backend server not available for contract tests:",
+      error.message
+    );
     return false;
   }
 }
@@ -25,7 +28,10 @@ export async function checkServerAvailability() {
  * @param {boolean} serverAvailable - result from checkServerAvailability
  * @param {string} testName - name of the test for logging
  */
-export function skipIfServerUnavailable(serverAvailable, testName = "contract test") {
+export function skipIfServerUnavailable(
+  serverAvailable,
+  testName = "contract test"
+) {
   if (!serverAvailable) {
     console.warn(`Skipping ${testName} - backend not available`);
     return true;
@@ -37,8 +43,8 @@ export function skipIfServerUnavailable(serverAvailable, testName = "contract te
  * Standard headers for authenticated API calls
  */
 export const AUTH_HEADERS = {
-  'Authorization': 'Bearer mock-access-token',
-  'Content-Type': 'application/json'
+  Authorization: "Bearer mock-access-token",
+  "Content-Type": "application/json",
 };
 
 /**
@@ -50,16 +56,16 @@ export function createMockFetch(mockResponse) {
   const originalFetch = global.fetch;
   const mockFetch = vi.fn().mockResolvedValue({
     ok: true,
-    json: () => Promise.resolve(mockResponse)
+    json: () => Promise.resolve(mockResponse),
   });
-  
+
   global.fetch = mockFetch;
-  
+
   return {
     mockFetch,
     cleanup: () => {
       global.fetch = originalFetch;
-    }
+    },
   };
 }
 

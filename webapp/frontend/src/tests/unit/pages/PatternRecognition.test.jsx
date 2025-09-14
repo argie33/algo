@@ -12,7 +12,7 @@ import * as apiService from "../../../services/api.js";
 // Mock the AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
   useAuth: vi.fn(() => ({
-    user: { id: 'test-user', email: 'test@example.com', name: 'Test User' },
+    user: { id: "test-user", email: "test@example.com", name: "Test User" },
     isAuthenticated: true,
     isLoading: false,
     error: null,
@@ -22,43 +22,43 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 
 // Mock the API service
 vi.mock("../../../services/api.js", () => ({
-  detectPatterns: vi.fn(() => 
+  detectPatterns: vi.fn(() =>
     Promise.resolve({
       success: true,
       data: {
         patterns: [
           {
-            id: 'pattern-1',
-            symbol: 'AAPL',
-            patternType: 'head_and_shoulders',
+            id: "pattern-1",
+            symbol: "AAPL",
+            patternType: "head_and_shoulders",
             confidence: 0.85,
-            timeframe: '1D',
-            detectedAt: '2024-01-15T10:30:00Z',
-            priceTarget: 165.00,
-            stopLoss: 140.00,
-            status: 'active',
-            description: 'Bearish head and shoulders pattern forming'
+            timeframe: "1D",
+            detectedAt: "2024-01-15T10:30:00Z",
+            priceTarget: 165.0,
+            stopLoss: 140.0,
+            status: "active",
+            description: "Bearish head and shoulders pattern forming",
           },
           {
-            id: 'pattern-2',
-            symbol: 'MSFT',
-            patternType: 'ascending_triangle',
+            id: "pattern-2",
+            symbol: "MSFT",
+            patternType: "ascending_triangle",
             confidence: 0.72,
-            timeframe: '4H',
-            detectedAt: '2024-01-15T09:15:00Z',
-            priceTarget: 295.00,
-            stopLoss: 270.00,
-            status: 'completed',
-            description: 'Bullish ascending triangle breakout'
-          }
+            timeframe: "4H",
+            detectedAt: "2024-01-15T09:15:00Z",
+            priceTarget: 295.0,
+            stopLoss: 270.0,
+            status: "completed",
+            description: "Bullish ascending triangle breakout",
+          },
         ],
         summary: {
           totalPatterns: 2,
           activePatterns: 1,
           completedPatterns: 1,
-          averageConfidence: 0.785
-        }
-      }
+          averageConfidence: 0.785,
+        },
+      },
     })
   ),
   getPatternHistory: vi.fn(() =>
@@ -66,15 +66,15 @@ vi.mock("../../../services/api.js", () => ({
       success: true,
       data: [
         {
-          id: 'pattern-old-1',
-          symbol: 'TSLA',
-          patternType: 'double_bottom',
+          id: "pattern-old-1",
+          symbol: "TSLA",
+          patternType: "double_bottom",
           confidence: 0.91,
-          detectedAt: '2024-01-10T14:20:00Z',
-          outcome: 'successful',
-          profitLoss: 12.5
-        }
-      ]
+          detectedAt: "2024-01-10T14:20:00Z",
+          outcome: "successful",
+          profitLoss: 12.5,
+        },
+      ],
     })
   ),
   getAvailablePatterns: vi.fn(() =>
@@ -82,63 +82,68 @@ vi.mock("../../../services/api.js", () => ({
       success: true,
       data: [
         {
-          type: 'head_and_shoulders',
-          name: 'Head and Shoulders',
-          category: 'reversal',
-          reliability: 'high'
+          type: "head_and_shoulders",
+          name: "Head and Shoulders",
+          category: "reversal",
+          reliability: "high",
         },
         {
-          type: 'ascending_triangle',
-          name: 'Ascending Triangle',
-          category: 'continuation',
-          reliability: 'medium'
+          type: "ascending_triangle",
+          name: "Ascending Triangle",
+          category: "continuation",
+          reliability: "medium",
         },
         {
-          type: 'double_bottom',
-          name: 'Double Bottom',
-          category: 'reversal',
-          reliability: 'high'
-        }
-      ]
+          type: "double_bottom",
+          name: "Double Bottom",
+          category: "reversal",
+          reliability: "high",
+        },
+      ],
     })
   ),
   subscribeToPatternAlerts: vi.fn(() =>
     Promise.resolve({
       success: true,
-      data: { message: 'Subscribed to pattern alerts' }
+      data: { message: "Subscribed to pattern alerts" },
     })
   ),
   api: {
     get: vi.fn(() => Promise.resolve({ data: { success: true } })),
-    post: vi.fn(() => Promise.resolve({ data: { success: true } }))
-  }
+    post: vi.fn(() => Promise.resolve({ data: { success: true } })),
+  },
 }));
 
 // Mock chart components
 vi.mock("recharts", () => ({
-  LineChart: ({ children }) => <div data-testid="pattern-chart">{children}</div>,
+  LineChart: ({ children }) => (
+    <div data-testid="pattern-chart">{children}</div>
+  ),
   Line: () => <div data-testid="pattern-line" />,
   XAxis: () => <div data-testid="x-axis" />,
   YAxis: () => <div data-testid="y-axis" />,
   CartesianGrid: () => <div data-testid="grid" />,
   Tooltip: () => <div data-testid="tooltip" />,
-  ResponsiveContainer: ({ children }) => <div data-testid="chart-container">{children}</div>,
+  ResponsiveContainer: ({ children }) => (
+    <div data-testid="chart-container">{children}</div>
+  ),
 }));
 
 describe("PatternRecognition Component - Technical Pattern Analysis", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({
-          success: true,
-          data: {
-            patterns: []
-          }
-        })
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: {
+              patterns: [],
+            },
+          }),
       })
     );
   });
@@ -151,8 +156,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
 
       expect(
         screen.getByText(/pattern/i) ||
-        screen.getByText(/recognition/i) ||
-        screen.getByText(/technical/i)
+          screen.getByText(/recognition/i) ||
+          screen.getByText(/technical/i)
       ).toBeTruthy();
     });
 
@@ -164,9 +169,9 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/detect|scan|analyze/i) ||
-          screen.queryByText(/symbol|timeframe/i) ||
-          document.querySelector('input') ||
-          document.querySelector('select')
+            screen.queryByText(/symbol|timeframe/i) ||
+            document.querySelector("input") ||
+            document.querySelector("select")
         ).toBeTruthy();
       });
     });
@@ -179,12 +184,12 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
         data: {
           patterns: [
             {
-              symbol: 'AAPL',
-              patternType: 'head_and_shoulders',
-              confidence: 0.85
-            }
-          ]
-        }
+              symbol: "AAPL",
+              patternType: "head_and_shoulders",
+              confidence: 0.85,
+            },
+          ],
+        },
       });
 
       await act(async () => {
@@ -193,7 +198,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
 
       await waitFor(() => {
         const detectButton = screen.queryByText(/detect|scan|analyze/i);
-        if (detectButton && detectButton.tagName === 'BUTTON') {
+        if (detectButton && detectButton.tagName === "BUTTON") {
           fireEvent.click(detectButton);
         }
       });
@@ -201,7 +206,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/head and shoulders|AAPL|0\.85/i) ||
-          screen.getByText(/pattern/i)
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -212,14 +217,14 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
         data: {
           patterns: [
             {
-              symbol: 'MSFT',
-              patternType: 'ascending_triangle',
+              symbol: "MSFT",
+              patternType: "ascending_triangle",
               confidence: 0.72,
-              priceTarget: 295.00,
-              stopLoss: 270.00
-            }
-          ]
-        }
+              priceTarget: 295.0,
+              stopLoss: 270.0,
+            },
+          ],
+        },
       });
 
       await act(async () => {
@@ -229,9 +234,9 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/MSFT|ascending|triangle/i) ||
-          screen.queryByText(/295|270|0\.72/i) ||
-          screen.queryByText(/target|stop|confidence/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/295|270|0\.72/i) ||
+            screen.queryByText(/target|stop|confidence/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -244,8 +249,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/confidence|score|probability/i) ||
-          screen.queryByText(/\d+\.\d+|\d+%/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/\d+\.\d+|\d+%/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -257,16 +262,16 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
         success: true,
         data: [
           {
-            type: 'head_and_shoulders',
-            name: 'Head and Shoulders',
-            category: 'reversal'
+            type: "head_and_shoulders",
+            name: "Head and Shoulders",
+            category: "reversal",
           },
           {
-            type: 'triangle',
-            name: 'Triangle Patterns',
-            category: 'continuation'
-          }
-        ]
+            type: "triangle",
+            name: "Triangle Patterns",
+            category: "continuation",
+          },
+        ],
       });
 
       await act(async () => {
@@ -276,8 +281,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/head and shoulders|triangle/i) ||
-          screen.queryByText(/reversal|continuation/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/reversal|continuation/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -290,8 +295,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/reversal|continuation|breakout/i) ||
-          screen.queryByText(/bullish|bearish|neutral/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/bullish|bearish|neutral/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -304,8 +309,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/reliability|accuracy|success rate/i) ||
-          screen.queryByText(/high|medium|low/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/high|medium|low/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -320,9 +325,9 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           document.querySelector('[data-testid*="pattern-chart"]') ||
-          document.querySelector('[data-testid*="chart"]') ||
-          document.querySelector('canvas') ||
-          screen.getByText(/pattern/i)
+            document.querySelector('[data-testid*="chart"]') ||
+            document.querySelector("canvas") ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -335,8 +340,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/formation|highlight|mark/i) ||
-          document.querySelector('[data-testid*="pattern-line"]') ||
-          screen.getByText(/pattern/i)
+            document.querySelector('[data-testid*="pattern-line"]') ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -349,8 +354,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/target|stop loss|price/i) ||
-          screen.queryByText(/\$\d+|\d+\.\d+/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/\$\d+|\d+\.\d+/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -362,12 +367,12 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
         success: true,
         data: [
           {
-            symbol: 'TSLA',
-            patternType: 'double_bottom',
-            outcome: 'successful',
-            profitLoss: 12.5
-          }
-        ]
+            symbol: "TSLA",
+            patternType: "double_bottom",
+            outcome: "successful",
+            profitLoss: 12.5,
+          },
+        ],
       });
 
       await act(async () => {
@@ -377,8 +382,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/TSLA|double bottom|successful/i) ||
-          screen.queryByText(/12\.5|profit|history/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/12\.5|profit|history/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -391,8 +396,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/outcome|result|success|failed/i) ||
-          screen.queryByText(/profit|loss|performance/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/profit|loss|performance/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -405,8 +410,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/statistics|total|average|success rate/i) ||
-          screen.queryByText(/\d+\.\d+%|\d+ patterns/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/\d+\.\d+%|\d+ patterns/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -416,7 +421,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
     it("should support pattern alert subscriptions", async () => {
       apiService.subscribeToPatternAlerts.mockResolvedValue({
         success: true,
-        data: { message: 'Subscribed successfully' }
+        data: { message: "Subscribed successfully" },
       });
 
       await act(async () => {
@@ -425,7 +430,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
 
       await waitFor(() => {
         const subscribeButton = screen.queryByText(/subscribe|alert|notify/i);
-        if (subscribeButton && subscribeButton.tagName === 'BUTTON') {
+        if (subscribeButton && subscribeButton.tagName === "BUTTON") {
           fireEvent.click(subscribeButton);
         }
       });
@@ -433,7 +438,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/subscribed|alerts|notification/i) ||
-          screen.getByText(/pattern/i)
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -446,8 +451,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/alert|notification|new pattern/i) ||
-          screen.queryByText(/active|pending|detected/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/active|pending|detected/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -462,8 +467,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/symbol|ticker|stock/i) ||
-          document.querySelector('input[type="text"]') ||
-          screen.getByText(/pattern/i)
+            document.querySelector('input[type="text"]') ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -476,8 +481,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/timeframe|1D|4H|1H|daily/i) ||
-          document.querySelector('select') ||
-          screen.getByText(/pattern/i)
+            document.querySelector("select") ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -490,7 +495,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/type|category|reversal|continuation/i) ||
-          screen.getByText(/pattern/i)
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -508,7 +513,7 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
 
       await waitFor(() => {
         const detectButton = screen.queryByText(/detect|scan/i);
-        if (detectButton && detectButton.tagName === 'BUTTON') {
+        if (detectButton && detectButton.tagName === "BUTTON") {
           fireEvent.click(detectButton);
         }
       });
@@ -516,16 +521,20 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/error|failed|unavailable/i) ||
-          screen.getByText(/pattern/i)
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
 
     it("should show loading state during pattern analysis", async () => {
-      apiService.detectPatterns.mockImplementation(() => 
-        new Promise(resolve => 
-          setTimeout(() => resolve({ success: true, data: { patterns: [] } }), 100)
-        )
+      apiService.detectPatterns.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve({ success: true, data: { patterns: [] } }),
+              100
+            )
+          )
       );
 
       await act(async () => {
@@ -535,8 +544,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/loading|analyzing|detecting/i) ||
-          document.querySelector('[role="progressbar"]') ||
-          screen.getByText(/pattern/i)
+            document.querySelector('[role="progressbar"]') ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -546,8 +555,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
         success: true,
         data: {
           patterns: [],
-          summary: { totalPatterns: 0 }
-        }
+          summary: { totalPatterns: 0 },
+        },
       });
 
       await act(async () => {
@@ -557,8 +566,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           screen.queryByText(/no patterns|empty|not found/i) ||
-          screen.queryByText(/0 patterns/i) ||
-          screen.getByText(/pattern/i)
+            screen.queryByText(/0 patterns/i) ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });
@@ -581,8 +590,8 @@ describe("PatternRecognition Component - Technical Pattern Analysis", () => {
       await waitFor(() => {
         expect(
           apiService.detectPatterns ||
-          apiService.getAvailablePatterns ||
-          screen.getByText(/pattern/i)
+            apiService.getAvailablePatterns ||
+            screen.getByText(/pattern/i)
         ).toBeTruthy();
       });
     });

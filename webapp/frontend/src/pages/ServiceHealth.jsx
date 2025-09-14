@@ -114,7 +114,8 @@ function ServiceHealth() {
     queryKey: ["databaseHealth"],
     queryFn: async () => {
       try {
-        if (import.meta.env && import.meta.env.DEV) console.log("Starting cached database health check...");
+        if (import.meta.env && import.meta.env.DEV)
+          console.log("Starting cached database health check...");
 
         // Use the standard api instance but with better error handling
         const response = await api.get("/health/database", {
@@ -122,20 +123,24 @@ function ServiceHealth() {
           validateStatus: (status) => status < 500, // Don't throw on 4xx errors
         });
 
-        if (import.meta.env && import.meta.env.DEV) console.log("Database health response:", response?.data);
-        
+        if (import.meta.env && import.meta.env.DEV)
+          console.log("Database health response:", response?.data);
+
         // Extract the actual data from the success wrapper
-        const healthData = response?.data?.success ? response?.data.data : response?.data;
-        
-        if (import.meta.env && import.meta.env.DEV) console.log("Response structure:", {
-          hasData: !!healthData,
-          hasDatabase: !!healthData?.database,
-          hasTables: !!healthData?.database?.tables,
-          hasSummary: !!healthData?.database?.summary,
-          tableCount: healthData?.database?.tables
-            ? Object.keys(healthData.database.tables).length
-            : 0,
-        });
+        const healthData = response?.data?.success
+          ? response?.data.data
+          : response?.data;
+
+        if (import.meta.env && import.meta.env.DEV)
+          console.log("Response structure:", {
+            hasData: !!healthData,
+            hasDatabase: !!healthData?.database,
+            hasTables: !!healthData?.database?.tables,
+            hasSummary: !!healthData?.database?.summary,
+            tableCount: healthData?.database?.tables
+              ? Object.keys(healthData.database.tables).length
+              : 0,
+          });
 
         // Ensure we return a proper object structure
         if (healthData && typeof healthData === "object") {
@@ -232,7 +237,7 @@ function ServiceHealth() {
   // Test all endpoints
   const testAllEndpoints = useCallback(async () => {
     // Skip API calls in test environment to prevent hanging
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
       setTestingInProgress(false);
       return;
     }
@@ -240,13 +245,15 @@ function ServiceHealth() {
     setTestingInProgress(true);
     const results = {};
 
-    if (import.meta.env && import.meta.env.DEV) console.log("Starting endpoint tests...");
+    if (import.meta.env && import.meta.env.DEV)
+      console.log("Starting endpoint tests...");
 
     // Test each endpoint with timeout and error handling
     for (const endpoint of endpoints) {
       try {
         const startTime = Date.now();
-        if (import.meta.env && import.meta.env.DEV) console.log(`Testing ${endpoint.name}...`);
+        if (import.meta.env && import.meta.env.DEV)
+          console.log(`Testing ${endpoint.name}...`);
 
         await Promise.race([
           endpoint.fn(),
@@ -262,7 +269,8 @@ function ServiceHealth() {
           responseTime: endTime - startTime,
           critical: endpoint.critical,
         };
-        if (import.meta.env && import.meta.env.DEV) console.log(`✅ ${endpoint.name} passed (${endTime - startTime}ms)`);
+        if (import.meta.env && import.meta.env.DEV)
+          console.log(`✅ ${endpoint.name} passed (${endTime - startTime}ms)`);
       } catch (error) {
         console.error(`❌ ${endpoint.name} failed:`, error);
         results[endpoint.name] = {
@@ -276,7 +284,8 @@ function ServiceHealth() {
 
     setTestResults(results);
     setTestingInProgress(false);
-    if (import.meta.env && import.meta.env.DEV) console.log("Endpoint tests completed:", results);
+    if (import.meta.env && import.meta.env.DEV)
+      console.log("Endpoint tests completed:", results);
   }, [endpoints]);
 
   // Service health query
@@ -288,10 +297,12 @@ function ServiceHealth() {
   } = useQuery({
     queryKey: ["serviceHealth"],
     queryFn: async () => {
-      if (import.meta.env && import.meta.env.DEV) console.log("Fetching service health...");
+      if (import.meta.env && import.meta.env.DEV)
+        console.log("Fetching service health...");
       try {
         const response = await api.get("/health");
-        if (import.meta.env && import.meta.env.DEV) console.log("Service health response:", response?.data);
+        if (import.meta.env && import.meta.env.DEV)
+          console.log("Service health response:", response?.data);
         return response?.data;
       } catch (error) {
         console.error("Service health error:", error);
@@ -576,8 +587,9 @@ function ServiceHealth() {
               <Typography variant="body2" color="textSecondary">
                 {(() => {
                   const env =
-                    (import.meta.env && import.meta.env.VITE_ENV) || 
-                    (import.meta.env && import.meta.env.MODE) || "";
+                    (import.meta.env && import.meta.env.VITE_ENV) ||
+                    (import.meta.env && import.meta.env.MODE) ||
+                    "";
                   if (env.toLowerCase().startsWith("prod")) return "Production";
                   if (env.toLowerCase().startsWith("stag")) return "Staging";
                   if (env.toLowerCase().startsWith("dev")) return "Development";
@@ -591,7 +603,7 @@ function ServiceHealth() {
                 sx={{ mt: 1 }}
                 title={(import.meta.env && import.meta.env.VITE_API_URL) || ""}
               >
-                {(import.meta.env && import.meta.env.VITE_API_URL)
+                {import.meta.env && import.meta.env.VITE_API_URL
                   ? `API: ${import.meta.env.VITE_API_URL}`
                   : ""}
               </Typography>
@@ -714,7 +726,7 @@ function ServiceHealth() {
                   {refreshing ? "Updating..." : "Update All Tables"}
                 </Button>
               </Box>
-              
+
               {dbLoading && (
                 <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
                   <CircularProgress size={24} />
