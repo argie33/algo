@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Typography,
@@ -30,7 +30,7 @@ import {
   TrendingDown,
 } from "@mui/icons-material";
 import { useAuth } from "../contexts/AuthContext";
-import api from "../utils/apiService.jsx";
+import api from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
@@ -62,23 +62,26 @@ const Watchlist = () => {
       ];
       setWatchlist(defaultWatchlist);
     } catch (error) {
-      console.error("Failed to load watchlist:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load watchlist:", error);
       setError("Failed to load watchlist");
     }
   };
 
-  const loadMarketData = useCallback(async () => {
+  const loadMarketData = async (symbols) => {
     try {
       setError(null);
+      
+      // Use passed symbols or fallback to current watchlist
+      const symbolsToLoad = symbols || watchlist;
 
-      if (!user || (watchlist?.length || 0) === 0) {
+      if (!user || (symbolsToLoad?.length || 0) === 0) {
         return;
       }
 
-      console.log(`Loading market data for ${(watchlist?.length || 0)} symbols`);
+      console.log(`Loading market data for ${(symbolsToLoad?.length || 0)} symbols`);
 
       const response = await api.get(
-        `/api/websocket/stream/${watchlist.join(",")}`
+        `/api/websocket/stream/${symbolsToLoad.join(",")}`
       );
 
       if (response?.data.success) {
@@ -86,8 +89,8 @@ const Watchlist = () => {
 
         // Transform API data for display
         const transformedData = {};
-        for (const symbol of watchlist) {
-          const symbolData = liveData?.data[symbol];
+        for (const symbol of symbolsToLoad) {
+          const symbolData = liveData?.data && liveData.data[symbol];
           if (symbolData && !symbolData.error) {
             const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
             transformedData[symbol] = {
@@ -101,9 +104,9 @@ const Watchlist = () => {
               volume: symbolData.bidSize + symbolData.askSize,
               timestamp: symbolData.timestamp,
               dataSource: "live",
-              // Mock change data for now (would need historical data for real calculation)
-              change: (Math.random() - 0.5) * midPrice * 0.02,
-              changePercent: (Math.random() - 0.5) * 2,
+              // Real change data would need historical comparison - set to 0 for now
+              change: 0,
+              changePercent: 0,
             };
           } else {
             transformedData[symbol] = {
@@ -119,7 +122,7 @@ const Watchlist = () => {
         setLastUpdate(new Date());
 
         console.log("✅ Watchlist market data loaded successfully", {
-          symbols: (watchlist?.length || 0),
+          symbols: (symbolsToLoad?.length || 0),
           successful: Object.values(transformedData).filter((d) => !d.error)
             .length,
           failed: Object.values(transformedData).filter((d) => d.error).length,
@@ -128,12 +131,12 @@ const Watchlist = () => {
         throw new Error("Failed to fetch watchlist market data");
       }
     } catch (error) {
-      console.error("Failed to load market data:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load market data:", error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [user, watchlist]);
+  };
 
   // Initialize watchlist on component mount
   useEffect(() => {
@@ -143,9 +146,10 @@ const Watchlist = () => {
   // Load market data when watchlist changes
   useEffect(() => {
     if (watchlist.length > 0) {
-      loadMarketData();
+      loadMarketData(watchlist);
     }
-  }, [watchlist, loadMarketData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchlist]);
 
   const addSymbol = () => {
     const symbol = newSymbol.toUpperCase().trim();
@@ -215,7 +219,7 @@ const Watchlist = () => {
           <Button
             variant="outlined"
             startIcon={<Refresh />}
-            onClick={loadMarketData}
+            onClick={() => loadMarketData(watchlist)}
             disabled={loading}
           >
             Refresh
@@ -245,7 +249,7 @@ const Watchlist = () => {
           <Button
             variant="outlined"
             size="small"
-            onClick={loadMarketData}
+            onClick={() => loadMarketData(watchlist)}
             sx={{ mt: 1 }}
           >
             Retry

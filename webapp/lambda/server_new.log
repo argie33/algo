@@ -3,106 +3,59 @@
 > node index.js
 
 Cognito environment variables not set - JWT verification disabled
-Initializing database connection pool...
-Getting DB credentials from Secrets Manager...
-🚀 Real-Time Data Service initialized
 🚨 Alert System initialized
 📊 Monitoring started
 🔍 Alert monitoring started
 🚨 Alert system integration initialized
 🎛️ Live Data Manager initialized
-Financial Dashboard API server running on port 3003 (local mode)
-Health check: http://localhost:3003/health
-Stocks: http://localhost:3003/stocks
-Technical: http://localhost:3003/technical/daily
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/health
+Initializing database connection...
+Initializing database connection pool...
+Getting DB credentials from Secrets Manager...
 Failed to get secrets from Secrets Manager, falling back to environment variables: Invalid name. Must be a valid name containing alphanumeric characters, or any of the following: -/_+=.@!
 Using database config from environment variables
 Database config loaded from environment: localhost:5432/stocks
 ✅ Database connection pool initialized successfully
 Initializing database schema...
-Database query error: {
-  error: 'column "sector" does not exist',
-  query: 'CREATE TABLE IF NOT EXISTS stock_symbols (\n' +
-    '  symbol VARCHAR(10) NOT NULL PRIMARY KEY,\n' +
-    '  name VARCHAR...',
-  params: []
-}
-⚠️  Warning creating table stock_symbols: column "sector" does not exist
-Database query error: {
-  error: 'column "symbol" does not exist',
-  query: 'CREATE TABLE IF NOT EXISTS market_data (\n' +
-    '  symbol VARCHAR(20) NOT NULL,\n' +
-    '  name VARCHAR(255),\n' +
-    '  date ...',
-  params: []
-}
-⚠️  Warning creating table market_data: column "symbol" does not exist
-✅ Created/verified table: price_daily
-Database query error: {
-  error: 'column "exchange" does not exist',
-  query: 'CREATE TABLE IF NOT EXISTS company_profile (\n' +
-    '  ticker VARCHAR(10) NOT NULL PRIMARY KEY,\n' +
-    '  name VARCH...',
-  params: []
-}
-⚠️  Warning creating table company_profile: column "exchange" does not exist
-✅ Created/verified table: earnings_reports
-✅ Created/verified table: fear_greed_index
-✅ Created/verified table: aaii_sentiment
-✅ Created/verified table: naaim
-Database query error: {
-  error: 'column "indicator" does not exist',
-  query: 'CREATE TABLE IF NOT EXISTS economic_data (\n' +
-    '  id SERIAL PRIMARY KEY,\n' +
-    '  indicator VARCHAR(50) NOT NULL...',
-  params: []
-}
-⚠️  Warning creating table economic_data: column "indicator" does not exist
-✅ Created/verified table: comprehensive_scores
-✅ Created/verified table: user_api_keys
-✅ Created/verified table: portfolio_metadata
-✅ Created/verified table: portfolio_holdings
-✅ Created/verified table: portfolio_performance
-✅ Created/verified table: portfolio_transactions
-✅ Created/verified table: trading_alerts
-✅ Created/verified table: stocks
-✅ Created/verified table: stock_prices
-✅ Created/verified table: watchlists
-✅ Created/verified table: watchlist_items
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
 ✅ Created/verified table: technical_data_daily
 ✅ Created/verified table: technical_data_weekly
 ✅ Created/verified table: technical_data_monthly
-✅ Created/verified table: user_profiles
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
 ✅ Database schema initialization completed
-Processing request: GET /api/technical/daily
-Initializing database connection...
 Database connection established successfully
 Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:03:06:44 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 2346 "-" "curl/8.5.0"
-Processing request: GET /api/technical/daily
+Starting health check with database...
+::1 - - [09/Sep/2025:15:28:41 +0000] "GET /api/health HTTP/1.1" 200 330 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
 Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:03:08:15 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 2346 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
-Processing request: GET /api/technical/daily
-Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:03:08:24 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 2346 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
-Processing request: GET /api/technical/daily
-Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:03:08:34 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 2346 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
-Processing request: GET /api/stocks
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 5 market, 6 gainers, 4 losers, 2 sectors, 6 earnings, 0 sentiment, 10 volume, 1 breadth
+::1 - - [09/Sep/2025:15:28:49 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5222 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/summary
 Database connection verified for database-dependent endpoint
 🔧 Development mode: Using dev-bypass-token for authentication
-OPTIMIZED Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
-Triggering workflow deploy
-OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
-Executing FAST queries with schema validation...
-FAST query results: 42 stocks, 42 total
-::1 - - [03/Sep/2025:03:08:34 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 38938 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
-Processing request: GET /api/technical/daily
+📊 Portfolio summary requested for user: dev-user-bypass
+🎯 Executing paper trading query on table: portfolio_holdings
+🎯 Executing paper trading query on table: portfolio_performance
+::1 - - [09/Sep/2025:15:29:01 +0000] "GET /api/portfolio/summary HTTP/1.1" 200 682 "-" "curl/8.5.0"
+Processing request: GET /api/technical/overview
 Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:03:08:49 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 2346 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
-Processing request: GET /api/technical/daily
+::1 - - [09/Sep/2025:15:29:06 +0000] "GET /api/technical/overview HTTP/1.1" 400 61 "-" "curl/8.5.0"
+Processing request: GET /api/technical/overview
 Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:10:46:10 +0000] "GET /api/technical/daily?page=1&limit=5 HTTP/1.1" 200 2345 "-" "curl/8.5.0"
-Processing request: GET /api/technical/daily
-Database connection verified for database-dependent endpoint
-::1 - - [03/Sep/2025:10:46:16 +0000] "GET /api/technical/daily?page=1&limit=2 HTTP/1.1" 200 1146 "-" "curl/8.5.0"
+::1 - - [09/Sep/2025:15:29:12 +0000] "GET /api/technical/overview?timeframe=daily HTTP/1.1" 400 61 "-" "curl/8.5.0"

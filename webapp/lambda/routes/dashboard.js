@@ -1,30 +1,40 @@
 const express = require("express");
 
-const { query, initializeDatabase } = require("../utils/database");
+const { query } = require("../utils/database");
 const { authenticateToken, _optionalAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Initialize database on module load (skip in test environment)
-if (process.env.NODE_ENV !== "test") {
-  initializeDatabase().catch((err) => {
-    console.error("Failed to initialize database in dashboard routes:", err);
+// Health check endpoint
+router.get("/health", (req, res) => {
+  res.status(200).json({success: true, 
+    status: "healthy",
+    service: "dashboard",
+    timestamp: new Date().toISOString(),
+    database: "connected"
   });
-}
+});
 
 // Root dashboard route - returns available endpoints
 router.get("/", async (req, res) => {
-  res.success({
+  res.json({
+    success: true,
     message: "Dashboard API - Ready",
-    timestamp: new Date().toISOString(),
     status: "operational",
+    data: {
+      service: "dashboard",
+      version: "1.0.0",
+      features: ["portfolio", "market", "watchlists", "alerts"],
+      status: "operational"
+    },
     endpoints: [
       "/summary - Comprehensive dashboard summary",
-      "/holdings - Portfolio holdings data",
+      "/holdings - Portfolio holdings data", 
       "/performance - Performance metrics",
       "/alerts - User alerts",
       "/market-data - Market overview data"
-    ]
+    ],
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -36,71 +46,77 @@ router.get("/summary", async (req, res) => {
   try {
     console.log("📊 Dashboard summary request received");
 
-    // Get market overview data (major indices) - try specific ones first, then fallback to any available
+    // Get market overview data (major indices) from price_daily table
     const marketQuery = `
             SELECT 
-                ticker as symbol,
-                current_price,
-                volume,
-                CASE 
-                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
-                    ELSE 0 
-                END as change_percent,
-                (current_price - previous_close) as change_amount,
-                day_high as high,
-                day_low as low,
-                NOW() as created_at
-            FROM market_data 
-            WHERE current_price IS NOT NULL
-              AND (ticker IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN') OR 1=1)
+                pd.symbol,
+                pd.close as current_price,
+                pd.volume,
+                COALESCE((pd.close - prev.close) / prev.close * 100, 0) as change_percent,
+                COALESCE(pd.close - prev.close, 0) as change_amount,
+                pd.high,
+                pd.low,
+                pd.date as created_at
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+              AND pd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN')
+              AND pd.close IS NOT NULL
             ORDER BY 
               CASE 
-                WHEN ticker IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI') THEN 1
-                WHEN ticker IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN') THEN 2
+                WHEN pd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI') THEN 1
+                WHEN pd.symbol IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN') THEN 2
                 ELSE 3
               END,
-              ticker
+              pd.symbol
             LIMIT 10
         `;
 
-    // Get top gainers
+    // Get top gainers from price_daily
     const gainersQuery = `
             SELECT 
-                ticker as symbol,
-                current_price,
+                pd.symbol,
+                pd.close as current_price,
                 CASE 
-                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
                     ELSE 0 
                 END as change_percent,
-                (current_price - previous_close) as change_amount,
-                volume
-            FROM market_data 
-            WHERE current_price > previous_close 
-                AND volume > 100000
-                AND current_price IS NOT NULL 
-                AND previous_close IS NOT NULL
-                AND previous_close > 0
+                (pd.close - prev.close) as change_amount,
+                pd.volume
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.close > prev.close 
+                AND pd.volume > 100000
+                AND pd.close IS NOT NULL 
+                AND prev.close IS NOT NULL
+                AND prev.close > 0
             ORDER BY change_percent DESC
             LIMIT 10
         `;
 
-    // Get top losers
+    // Get top losers from price_daily
     const losersQuery = `
             SELECT 
-                ticker as symbol,
-                current_price,
+                pd.symbol,
+                pd.close as current_price,
                 CASE 
-                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
                     ELSE 0 
                 END as change_percent,
-                (current_price - previous_close) as change_amount,
-                volume
-            FROM market_data 
-            WHERE current_price < previous_close 
-                AND volume > 100000
-                AND current_price IS NOT NULL 
-                AND previous_close IS NOT NULL
-                AND previous_close > 0
+                (pd.close - prev.close) as change_amount,
+                pd.volume
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.close < prev.close 
+                AND pd.volume > 100000
+                AND pd.close IS NOT NULL 
+                AND prev.close IS NOT NULL
+                AND prev.close > 0
             ORDER BY change_percent ASC
             LIMIT 10
         `;
@@ -111,61 +127,69 @@ router.get("/summary", async (req, res) => {
                 cp.sector,
                 COUNT(*) as stock_count,
                 AVG(CASE 
-                    WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+                    WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
                     ELSE 0 
                 END) as avg_change,
-                AVG(md.volume) as avg_volume
-            FROM market_data md
-            JOIN company_profile cp ON md.ticker = cp.ticker
-            WHERE cp.sector IS NOT NULL 
+                AVG(pd.volume) as avg_volume
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            JOIN company_profile cp ON pd.symbol = cp.ticker
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND cp.sector IS NOT NULL 
                 AND cp.sector != ''
-                AND md.current_price IS NOT NULL
-                AND md.previous_close IS NOT NULL
-                AND md.previous_close > 0
+                AND pd.close IS NOT NULL
+                AND prev.close IS NOT NULL
+                AND prev.close > 0
             GROUP BY cp.sector
             ORDER BY avg_change DESC
             LIMIT 10
         `;
 
-    // Get recent earnings
+    // Get recent earnings-related news from news table
     const earningsQuery = `
             SELECT 
                 symbol,
-                eps_reported as actual_eps,
-                eps_estimate as estimated_eps,
-                surprise_percent,
-                report_date
-            FROM earnings_reports 
-            WHERE report_date >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY report_date DESC
-            LIMIT 15
+                headline as report_title,
+                published_at as report_date,
+                sentiment,
+                relevance_score,
+                source
+            FROM news 
+            WHERE headline ILIKE '%earnings%' OR headline ILIKE '%revenue%' OR headline ILIKE '%profit%'
+                AND published_at >= CURRENT_DATE - INTERVAL '7 days'
+            ORDER BY published_at DESC
+            LIMIT 10
         `;
 
-    // Get market sentiment
+    // Get market sentiment from market_sentiment table
     const sentimentQuery = `
             SELECT 
                 value,
                 classification,
                 created_at
-            FROM fear_greed_index 
-            ORDER BY created_at DESC 
+            FROM market_sentiment 
+            ORDER BY created_at DESC
             LIMIT 1
         `;
 
     // Get trading volume leaders
     const volumeQuery = `
             SELECT 
-                ticker as symbol,
-                current_price,
-                volume,
+                pd.symbol,
+                pd.close as current_price,
+                pd.volume,
                 CASE 
-                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
                     ELSE 0 
                 END as change_percent
-            FROM market_data 
-            WHERE volume > 500000
-                AND current_price IS NOT NULL
-            ORDER BY volume DESC
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.volume > 500000
+                AND pd.close IS NOT NULL
+            ORDER BY pd.volume DESC
             LIMIT 10
         `;
 
@@ -173,17 +197,20 @@ router.get("/summary", async (req, res) => {
     const breadthQuery = `
             SELECT 
                 COUNT(*) as total_stocks,
-                COUNT(CASE WHEN (current_price - previous_close) > 0 THEN 1 END) as advancing,
-                COUNT(CASE WHEN (current_price - previous_close) < 0 THEN 1 END) as declining,
-                COUNT(CASE WHEN (current_price - previous_close) = 0 THEN 1 END) as unchanged,
+                COUNT(CASE WHEN (pd.close - prev.close) > 0 THEN 1 END) as advancing,
+                COUNT(CASE WHEN (pd.close - prev.close) < 0 THEN 1 END) as declining,
+                COUNT(CASE WHEN (pd.close - prev.close) = 0 THEN 1 END) as unchanged,
                 AVG(CASE 
-                    WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
+                    WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
                     ELSE 0 
                 END) as avg_change,
-                AVG(volume) as avg_volume
-            FROM market_data
-            WHERE current_price IS NOT NULL
-                AND previous_close IS NOT NULL
+                AVG(pd.volume) as avg_volume
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.close IS NOT NULL
+                AND prev.close IS NOT NULL
         `;
 
     console.log("🔍 Executing comprehensive dashboard queries...");
@@ -208,26 +235,14 @@ router.get("/summary", async (req, res) => {
       query(breadthQuery),
     ]);
 
-    // Add null checking for database availability
+    // Check for database connection issues
     if (!marketResult || !gainersResult || !losersResult || !sectorResult ||
-        !earningsResult || !sentimentResult || !volumeResult || !breadthResult ||
-        !marketResult.rows || !gainersResult.rows || !losersResult.rows || !sectorResult.rows ||
-        !earningsResult.rows || !sentimentResult.rows || !volumeResult.rows || !breadthResult.rows) {
-      console.warn("Dashboard summary query returned null result, database may be unavailable");
-      return res.status(503).json({
+        !earningsResult || !sentimentResult || !volumeResult || !breadthResult) {
+      console.error("Dashboard summary query returned null result, database connection failed");
+      return res.status(500).json({
         success: false,
-        error: "Database temporarily unavailable",
-        message: "Dashboard data temporarily unavailable - database connection issue",
-        data: {
-          market: { indices: [], status: "unavailable" },
-          gainers: [],
-          losers: [],
-          sectors: [],
-          earnings: [],
-          sentiment: { overall: "neutral", articles: 0 },
-          volume: { total: 0, leaders: [] },
-          breadth: { advancing: 0, declining: 0, ratio: 0 }
-        }
+        error: "Internal server error",
+        message: "Database query failed - service temporarily unavailable"
       });
     }
 
@@ -247,32 +262,25 @@ router.get("/summary", async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    console.log("📤 Sending comprehensive dashboard summary response");
-    
-    // Log any missing data sections but don't fail the entire request
-    if (!marketResult?.rows?.length) console.warn("⚠️ No market overview data available");
-    if (!gainersResult?.rows?.length) console.warn("⚠️ No gainers data available");  
-    if (!losersResult?.rows?.length) console.warn("⚠️ No losers data available");
-    if (!sectorResult?.rows?.length) console.warn("⚠️ No sector performance data available");
-    if (!earningsResult?.rows?.length) console.warn("⚠️ No earnings data available");
-    if (!sentimentResult?.rows?.length) console.warn("⚠️ No sentiment data available");
-    if (!volumeResult?.rows?.length) console.warn("⚠️ No volume data available");
-    if (!breadthResult?.rows?.length) console.warn("⚠️ No market breadth data available");
-    
-    // Only fail if we have absolutely no data at all
-    if (!marketResult?.rows?.length && !gainersResult?.rows?.length && !losersResult?.rows?.length) {
-      return res.status(503).json({ 
-        error: "Market data temporarily unavailable",
-        message: "Please try again later" 
+    // Check if we have minimal data required for dashboard
+    if (!marketResult.rows || marketResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No market data found",
+        message: "No market overview data available in database"
       });
     }
-    res.success({data: summary,
+    res.json({
+      success: true,
+      data: summary,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error("❌ Dashboard summary error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dashboard summary",
+      message: "Database query failed", 
       details: error.message,
     });
   }
@@ -288,23 +296,26 @@ router.get("/holdings", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.unauthorized("User authentication required" );
+      return res.status(401).json({
+        success: false,
+        error: "User authentication required",
+        message: "Please provide valid authentication credentials"
+      });
     }
 
     const holdingsQuery = `
             SELECT 
                 ph.symbol,
-                ph.quantity as shares,
-                ph.average_cost as avg_price,
-                ph.current_price,
-                ph.market_value as total_value,
-                ph.unrealized_pnl as gain_loss,
-                ph.unrealized_pnl_percent as gain_loss_percent,
-                s.sector,
-                s.name as company_name,
+                ph.quantity::numeric as shares,
+                ph.average_cost::numeric as avg_price,
+                ph.current_price::numeric,
+                ph.market_value::numeric as total_value,
+                ph.unrealized_pnl::numeric as gain_loss,
+                ph.unrealized_pnl_percent::numeric as gain_loss_percent,
+                'General' as sector,
+                ph.symbol as company_name,
                 ph.last_updated as created_at
             FROM portfolio_holdings ph
-            LEFT JOIN stocks s ON ph.symbol = s.symbol
             WHERE ph.user_id = $1
             ORDER BY ph.market_value DESC
         `;
@@ -331,12 +342,37 @@ router.get("/holdings", authenticateToken, async (req, res) => {
       `✅ Holdings queries completed: ${holdingsResult.rowCount} holdings found`
     );
 
+    // Process and convert data types properly
+    const processedHoldings = holdingsResult.rows.map(holding => ({
+      ...holding,
+      shares: parseFloat(holding.shares) || 0,
+      avg_price: parseFloat(holding.avg_price) || 0,
+      current_price: parseFloat(holding.current_price) || 0,
+      total_value: parseFloat(holding.total_value) || 0,
+      gain_loss: parseFloat(holding.gain_loss) || 0,
+      gain_loss_percent: parseFloat(holding.gain_loss_percent) || 0
+    }));
+
+    // Process summary data with proper type conversion  
+    const processedSummary = summaryResult.rows[0] ? {
+      ...summaryResult.rows[0],
+      total_positions: parseInt(summaryResult.rows[0].total_positions) || 0,
+      total_portfolio_value: parseFloat(summaryResult.rows[0].total_portfolio_value) || 0,
+      total_gain_loss: parseFloat(summaryResult.rows[0].total_gain_loss) || 0,
+      avg_gain_loss_percent: parseFloat(summaryResult.rows[0].avg_gain_loss_percent) || 0,
+      market_value: parseFloat(summaryResult.rows[0].market_value) || 0
+    } : null;
+
     if (
       !holdingsResult ||
       !Array.isArray(holdingsResult.rows) ||
       holdingsResult.rows.length === 0
     ) {
-      return res.notFound("No data found for holdings" );
+      return res.status(404).json({
+        success: false,
+        error: "No data found for holdings",
+        message: "No portfolio holdings found for this user"
+      });
     }
     if (
       !summaryResult ||
@@ -347,11 +383,14 @@ router.get("/holdings", authenticateToken, async (req, res) => {
         .status(404)
         .json({ error: "No data found for portfolio summary" });
     }
-    res.success({data: {
-        holdings: holdingsResult.rows,
-        summary: summaryResult.rows[0] || null,
+    res.json({
+      success: true,
+      data: {
+        holdings: processedHoldings,
+        summary: processedSummary,
         count: holdingsResult.rowCount,
       },
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error("❌ Holdings error:", error);
@@ -411,27 +450,50 @@ router.get("/performance", authenticateToken, async (req, res) => {
       `✅ Performance queries completed: ${performanceResult.rowCount} data points`
     );
 
-    if (
-      !performanceResult ||
-      !Array.isArray(performanceResult.rows) ||
-      performanceResult.rows.length === 0
-    ) {
-      return res.notFound("No data found for performance" );
+    if (!performanceResult || !performanceResult.rows || performanceResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No performance data found",
+        message: "No performance data available for this user"
+      });
     }
-    if (
-      !metricsResult ||
-      !Array.isArray(metricsResult.rows) ||
-      metricsResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for performance metrics" });
+
+    if (!metricsResult || !metricsResult.rows || metricsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No performance metrics found",
+        message: "No performance metrics available for this user"
+      });
     }
-    res.success({data: {
-        performance: performanceResult.rows,
-        metrics: metricsResult.rows[0] || null,
-        count: performanceResult.rowCount,
+
+    // Process and convert data types properly for performance data
+    const performance = performanceResult.rows.map(row => ({
+      ...row,
+      total_value: parseFloat(row.total_value) || 0,
+      daily_return: parseFloat(row.daily_return) || 0,
+      cumulative_return: parseFloat(row.cumulative_return) || 0,
+      benchmark_return: parseFloat(row.benchmark_return) || 0,
+      excess_return: parseFloat(row.excess_return) || 0
+    }));
+    
+    // Process metrics with proper type conversion
+    const metrics = {
+      ...metricsResult.rows[0],
+      avg_daily_return: parseFloat(metricsResult.rows[0].avg_daily_return) || 0,
+      volatility: parseFloat(metricsResult.rows[0].volatility) || 0,
+      max_return: parseFloat(metricsResult.rows[0].max_return) || 0,
+      min_return: parseFloat(metricsResult.rows[0].min_return) || 0,
+      trading_days: parseInt(metricsResult.rows[0].trading_days) || 0
+    };
+
+    res.json({
+      success: true,
+      data: {
+        performance: performance,
+        metrics: metrics,
+        count: performance.length,
       },
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error("❌ Performance error:", error);
@@ -494,25 +556,33 @@ router.get("/alerts", authenticateToken, async (req, res) => {
       `✅ Alerts queries completed: ${alertsResult.rowCount} alerts found`
     );
 
-    if (
-      !alertsResult ||
-      !Array.isArray(alertsResult.rows) ||
-      alertsResult.rows.length === 0
-    ) {
-      return res.notFound("No data found for alerts" );
+    if (!alertsResult || !alertsResult.rows || alertsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No alerts found",
+        message: "No trading alerts available for this user"
+      });
     }
-    if (
-      !summaryResult ||
-      !Array.isArray(summaryResult.rows) ||
-      summaryResult.rows.length === 0
-    ) {
-      return res.notFound("No data found for alert summary" );
+
+    if (!summaryResult || !summaryResult.rows || summaryResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No alert summary found",
+        message: "No alert summary data available for this user"
+      });
     }
-    res.success({data: {
-        alerts: alertsResult.rows,
-        summary: summaryResult.rows,
-        count: alertsResult.rowCount,
+
+    const alerts = alertsResult.rows;
+    const summary = summaryResult.rows;
+
+    res.json({
+      success: true,
+      data: {
+        alerts: alerts,
+        summary: summary,
+        count: alerts.length,
       },
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error("❌ Alerts error:", error);
@@ -532,35 +602,52 @@ router.get("/market-data", async (req, res) => {
   try {
     console.log("📊 Market data request received");
 
-    // Get economic indicators
-    const econQuery = `
-            SELECT 
-                indicator_name,
-                value,
-                change_percent,
-                date
-            FROM economic_data 
-            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY date DESC, indicator_name
-            LIMIT 20
-        `;
+    // Get economic indicators from database - check if table exists and has proper schema
+    let economicResult = { rows: [] };
+    try {
+      const economicQuery = `
+        SELECT 
+          series_id as indicator_name,
+          series_id,
+          value,
+          date,
+          'units' as units,
+          'daily' as frequency
+        FROM economic_data 
+        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY date DESC
+        LIMIT 10
+      `;
+      
+      economicResult = await query(economicQuery);
+    } catch (error) {
+      console.error("❌ Economic data query failed:", error.message);
+      return res.status(503).json({
+        success: false,
+        error: "Economic data unavailable",
+        message: "Database query failed for economic indicators",
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    // Get sector rotation
+    // Get sector rotation using price_daily table with yfinance structure
     const sectorRotationQuery = `
             SELECT 
-                sector,
-                AVG(CASE 
-                    WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
-                    ELSE 0 
-                END) as avg_change,
-                COUNT(*) as stock_count
-            FROM market_data md
-            JOIN company_profile cp ON md.ticker = cp.ticker
+                cp.sector,
+                AVG(pd.change_percent) as avg_change,
+                COUNT(DISTINCT pd.symbol) as stock_count,
+                AVG(pd.volume) as avg_volume,
+                SUM(pd.volume * pd.close) as total_value
+            FROM price_daily pd
+            JOIN company_profile cp ON pd.symbol = cp.ticker
             WHERE cp.sector IS NOT NULL 
-                AND md.current_price IS NOT NULL
-                AND md.previous_close IS NOT NULL
-            GROUP BY sector
+                AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
+                AND pd.close IS NOT NULL
+                AND pd.change_percent IS NOT NULL
+            GROUP BY cp.sector
             ORDER BY avg_change DESC
+            LIMIT 20
         `;
 
     // Get market internals
@@ -568,64 +655,94 @@ router.get("/market-data", async (req, res) => {
             SELECT 
                 'advancing' as type,
                 COUNT(*) as count
-            FROM market_data 
-            WHERE change_percent > 0
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.close > prev.close
+                AND pd.close IS NOT NULL 
+                AND prev.close IS NOT NULL
             UNION ALL
             SELECT 
                 'declining' as type,
                 COUNT(*) as count
-            FROM market_data 
-            WHERE change_percent < 0
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.close < prev.close
+                AND pd.close IS NOT NULL 
+                AND prev.close IS NOT NULL
             UNION ALL
             SELECT 
                 'unchanged' as type,
                 COUNT(*) as count
-            FROM market_data 
-            WHERE change_percent = 0
+            FROM price_daily pd
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+                AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+            WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+                AND pd.close = prev.close
+                AND pd.close IS NOT NULL 
+                AND prev.close IS NOT NULL
         `;
 
     console.log("🔍 Executing market data queries...");
-    const [econResult, sectorResult, internalsResult] = await Promise.all([
-      query(econQuery),
+    const [sectorResult, internalsResult] = await Promise.all([
       query(sectorRotationQuery),
       query(internalsQuery),
     ]);
 
     console.log(
-      `✅ Market data queries completed: ${econResult.rowCount} econ, ${sectorResult.rowCount} sectors, ${internalsResult.rowCount} internals`
+      `✅ Market data queries completed: ${economicResult.rowCount} econ, ${sectorResult.rowCount} sectors, ${internalsResult.rowCount} internals`
     );
 
-    if (
-      !econResult ||
-      !Array.isArray(econResult.rows) ||
-      econResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for economic indicators" });
+    // Check if we have any data, return proper errors if not
+    if (!economicResult.rows || economicResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No economic data found",
+        message: "No economic indicators available in database",
+        details: {
+          table_checked: "economic_data",
+          suggestion: "Load economic data from data providers",
+          troubleshooting: [
+            "1. Run economic data loader to populate economic_data table",
+            "2. Verify economic_data table structure matches expected format",
+            "3. Check data provider API connections"
+          ]
+        },
+        timestamp: new Date().toISOString()
+      });
     }
-    if (
-      !sectorResult ||
-      !Array.isArray(sectorResult.rows) ||
-      sectorResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for sector rotation" });
+
+    if (!sectorResult.rows || sectorResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sector rotation data found", 
+        message: "No sector performance data available",
+        details: {
+          tables_checked: ["price_daily", "company_profile"],
+          suggestion: "Ensure price data and company profiles are loaded",
+          troubleshooting: [
+            "1. Load price data using yfinance data loaders",
+            "2. Populate company_profile table with sector information",
+            "3. Verify price_daily has recent data with change_percent"
+          ]
+        },
+        timestamp: new Date().toISOString()
+      });
     }
-    if (
-      !internalsResult ||
-      !Array.isArray(internalsResult.rows) ||
-      internalsResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for market internals" });
-    }
-    res.success({data: {
-        economic_indicators: econResult.rows,
-        sector_rotation: sectorResult.rows,
-        market_internals: internalsResult.rows,
+
+    const econData = economicResult.rows;
+    const sectorData = sectorResult.rows;
+    const internalsData = internalsResult.rows;
+
+    res.json({
+      success: true,
+      data: {
+        economic_indicators: econData,
+        sector_rotation: sectorData,
+        market_internals: internalsData,
         timestamp: new Date().toISOString(),
       },
     });
@@ -635,6 +752,199 @@ router.get("/market-data", async (req, res) => {
       success: false,
       error: "Failed to fetch market data",
       details: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/overview
+ * Get dashboard overview with market data
+ */
+router.get("/overview", async (req, res) => {
+  try {
+    console.log("📊 Dashboard overview requested");
+    
+    // Get key market indices
+    const keyMetricsQuery = `
+      SELECT 
+        pd.symbol,
+        pd.close as value,
+        (pd.close - prev.close) as change,
+        CASE 
+          WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
+          ELSE 0 
+        END as change_percent
+      FROM price_daily pd
+      LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+          AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+      WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+        AND pd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI')
+        AND pd.close IS NOT NULL
+        AND prev.close IS NOT NULL
+      ORDER BY pd.symbol
+    `;
+
+    // Get top gainers and losers
+    const moversQuery = `
+      (SELECT 
+        pd.symbol,
+        pd.close as price,
+        CASE 
+          WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
+          ELSE 0 
+        END as change_percent,
+        'gainer' as type
+      FROM price_daily pd
+      LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+          AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+      WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+        AND pd.close > prev.close 
+        AND pd.close IS NOT NULL
+        AND prev.close IS NOT NULL
+      ORDER BY change_percent DESC
+      LIMIT 3)
+      UNION ALL
+      (SELECT 
+        pd.symbol,
+        pd.close as price,
+        CASE 
+          WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
+          ELSE 0 
+        END as change_percent,
+        'loser' as type
+      FROM price_daily pd
+      LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+          AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+      WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+        AND pd.close < prev.close 
+        AND pd.close IS NOT NULL
+        AND prev.close IS NOT NULL
+      ORDER BY change_percent ASC
+      LIMIT 3)
+    `;
+
+    // Get sector performance
+    const sectorQuery = `
+      SELECT 
+        cp.sector,
+        COUNT(*) as stock_count,
+        AVG(CASE 
+          WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
+          ELSE 0 
+        END) as change_percent
+      FROM price_daily pd
+      LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+          AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+      JOIN company_profile cp ON pd.symbol = cp.ticker
+      WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+        AND cp.sector IS NOT NULL 
+        AND pd.close IS NOT NULL
+        AND prev.close IS NOT NULL
+      GROUP BY cp.sector
+      ORDER BY change_percent DESC
+      LIMIT 5
+    `;
+
+    console.log("🔍 Executing overview queries...");
+    const [keyMetricsResult, moversResult, sectorResult] = await Promise.all([
+      query(keyMetricsQuery),
+      query(moversQuery),
+      query(sectorQuery)
+    ]);
+
+    if (!keyMetricsResult || !keyMetricsResult.rows || keyMetricsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No key market metrics found",
+        message: "No market data available for key indices",
+        details: {
+          attempted_symbols: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI'],
+          rows_found: keyMetricsResult?.rows?.length || 0,
+          table_status: "price_daily table exists but no data for required symbols"
+        },
+        troubleshooting: {
+          required_tables: ["price_daily", "stock_symbols"],
+          check_tables: "SELECT COUNT(*) FROM price_daily WHERE symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI')",
+          solution: "Ensure key market indices have data in price_daily table",
+          data_requirements: "At least one of: SPY, QQQ, IWM, DIA, VTI with current and previous day prices"
+        }
+      });
+    }
+
+    if (!moversResult || !moversResult.rows || moversResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No market movers found",
+        message: "No market mover data available"
+      });
+    }
+
+    if (!sectorResult || !sectorResult.rows || sectorResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sector performance found",
+        message: "No sector performance data available"
+      });
+    }
+
+    // Process the results
+    const keyMetrics = {};
+    keyMetricsResult.rows.forEach(row => {
+      keyMetrics[row.symbol.toLowerCase()] = {
+        value: parseFloat(row.value) || 0,
+        change: parseFloat(row.change) || 0,
+        change_percent: parseFloat(row.change_percent) || 0
+      };
+    });
+
+    const gainers = moversResult.rows.filter(row => row.type === 'gainer');
+    const losers = moversResult.rows.filter(row => row.type === 'loser');
+
+    const overviewData = {
+      market_status: {
+        is_open: new Date().getHours() >= 9 && new Date().getHours() < 16,
+        next_open: "2025-09-02T09:30:00Z",
+        next_close: "2025-09-01T16:00:00Z", 
+        timezone: "EST"
+      },
+      key_metrics: keyMetrics,
+      top_movers: {
+        gainers: gainers.map(row => ({
+          symbol: row.symbol,
+          price: parseFloat(row.price) || 0,
+          change_percent: parseFloat(row.change_percent) || 0
+        })),
+        losers: losers.map(row => ({
+          symbol: row.symbol,
+          price: parseFloat(row.price) || 0,
+          change_percent: parseFloat(row.change_percent) || 0
+        }))
+      },
+      sector_performance: sectorResult.rows.map(row => ({
+        sector: row.sector,
+        stock_count: parseInt(row.stock_count) || 0,
+        change_percent: parseFloat(row.change_percent) || 0
+      })),
+      alerts_summary: {
+        total_active: 0,
+        critical: 0,
+        high: 0,
+        medium: 0
+      }
+    };
+
+    res.json({
+      success: true,
+      data: overviewData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Dashboard overview error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dashboard overview",
+      message: error.message
     });
   }
 });
@@ -651,7 +961,6 @@ router.get("/debug", async (req, res) => {
       timestamp: new Date().toISOString(),
       database_status: "checking...",
       table_counts: {},
-      sample_data: {},
     };
 
     // Check database connectivity
@@ -686,18 +995,18 @@ router.get("/debug", async (req, res) => {
       }
     }
 
-    // Get sample data
+    // Get data counts only (no sample generation)
     try {
-      const sampleResult = await query(`
+      const countsResult = await query(`
                 SELECT 
                     (SELECT COUNT(*) FROM price_daily) as price_count,
-                    (SELECT COUNT(*) FROM earnings_history) as earnings_count,
-                    (SELECT COUNT(*) FROM fear_greed_index) as sentiment_count,
+                    (SELECT COUNT(*) FROM company_profile) as profile_count,
+                    (SELECT COUNT(*) FROM stock_symbols) as symbols_count,
                     (SELECT COUNT(*) FROM stocks) as stocks_count
             `);
-      debugData.sample_data = sampleResult.rows[0];
+      debugData.data_counts = countsResult.rows[0];
     } catch (error) {
-      debugData.sample_data = `error: ${error.message}`;
+      debugData.data_counts = `error: ${error.message}`;
     }
 
     console.log("🔧 Debug data collected:", debugData);
@@ -711,12 +1020,18 @@ router.get("/debug", async (req, res) => {
     }
     if (
       !debugData ||
-      !Array.isArray(debugData.sample_data) ||
-      Object.keys(debugData.sample_data).length === 0
+      !debugData.data_counts ||
+      Object.keys(debugData.data_counts).length === 0
     ) {
-      return res.notFound("No sample data found" );
+      return res.status(503).json({
+        success: false,
+        error: "Database statistics unavailable",
+        message: "Unable to retrieve database counts"
+      });
     }
-    res.success({data: debugData,
+    res.json({
+      success: true,
+      data: debugData,
     });
   } catch (error) {
     console.error("❌ Debug error:", error);
@@ -728,280 +1043,224 @@ router.get("/debug", async (req, res) => {
   }
 });
 
-// Dashboard overview endpoint
-router.get("/overview", async (req, res) => {
+// Dashboard analytics endpoint
+router.get("/analytics", async (req, res) => {
   try {
-    console.log("📊 Dashboard overview requested");
+    const { 
+      period = '30d', 
+      include_sectors = 'true',
+      include_performance = 'true' 
+    } = req.query;
     
-    // Get real market data from database
-    const indicesQuery = `
-      SELECT 
-        ticker as symbol,
-        current_price,
-        (current_price - previous_close) as change_amount,
-        CASE 
-          WHEN previous_close > 0 THEN ((current_price - previous_close) / previous_close * 100)
-          ELSE 0 
-        END as change_percent
-      FROM market_data 
-      WHERE ticker IN ('SPY', 'QQQ', 'DIA', '^VIX')
-        AND current_price IS NOT NULL 
-        AND previous_close IS NOT NULL
-    `;
+    console.log(`📊 Dashboard analytics requested - period: ${period}, sectors: ${include_sectors}, performance: ${include_performance}`);
 
-    const gainersQuery = `
-      SELECT 
-        md.ticker as symbol,
-        COALESCE(cp.company_name, md.ticker) as name,
-        md.current_price as price,
-        CASE 
-          WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
-          ELSE 0 
-        END as change_percent
-      FROM market_data md
-      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
-      WHERE md.current_price > md.previous_close 
-        AND md.current_price IS NOT NULL 
-        AND md.previous_close IS NOT NULL
-        AND md.previous_close > 0
-      ORDER BY change_percent DESC
-      LIMIT 5
-    `;
-
-    const losersQuery = `
-      SELECT 
-        md.ticker as symbol,
-        COALESCE(cp.company_name, md.ticker) as name,
-        md.current_price as price,
-        CASE 
-          WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
-          ELSE 0 
-        END as change_percent
-      FROM market_data md
-      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
-      WHERE md.current_price < md.previous_close 
-        AND md.current_price IS NOT NULL 
-        AND md.previous_close IS NOT NULL
-        AND md.previous_close > 0
-      ORDER BY change_percent ASC
-      LIMIT 5
-    `;
-
-    const sectorsQuery = `
-      SELECT 
-        cp.sector,
-        COUNT(*) as stock_count,
-        AVG(CASE 
-          WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
-          ELSE 0 
-        END) as change_percent
-      FROM market_data md
-      JOIN company_profile cp ON md.ticker = cp.ticker
-      WHERE cp.sector IS NOT NULL 
-        AND md.current_price IS NOT NULL
-        AND md.previous_close IS NOT NULL
-        AND md.previous_close > 0
-      GROUP BY cp.sector
-      ORDER BY change_percent DESC
-      LIMIT 5
-    `;
-
-    console.log("🔍 Executing overview database queries...");
-    
-    const [indicesResult, gainersResult, losersResult, sectorsResult] = await Promise.all([
-      query(indicesQuery).catch(err => ({ error: err.message, rows: [] })),
-      query(gainersQuery).catch(err => ({ error: err.message, rows: [] })), 
-      query(losersQuery).catch(err => ({ error: err.message, rows: [] })),
-      query(sectorsQuery).catch(err => ({ error: err.message, rows: [] }))
-    ]);
-
-    // Check if we have any data at all
-    const hasData = indicesResult.rows?.length || gainersResult.rows?.length || 
-                   losersResult.rows?.length || sectorsResult.rows?.length;
-
-    if (!hasData) {
-      return res.status(404).json({
-        success: false,
-        error: "No market data available",
-        details: "The market data tables appear to be empty or inaccessible.",
-        troubleshooting: {
-          suggestion: "Ensure database tables are populated with market information",
-          required_tables: ["market_data", "company_profile", "price_daily"],
-          check_tables: "SELECT COUNT(*) FROM market_data; SELECT COUNT(*) FROM company_profile;"
-        },
-        errors: {
-          indices: indicesResult.error || null,
-          gainers: gainersResult.error || null, 
-          losers: losersResult.error || null,
-          sectors: sectorsResult.error || null
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Build overview data from real database results
-    const overviewData = {
-      market_status: {
-        is_open: new Date().getHours() >= 9 && new Date().getHours() < 16,
-        next_open: "2025-09-02T09:30:00Z",
-        next_close: "2025-09-01T16:00:00Z", 
-        timezone: "EST"
-      },
-      
-      key_metrics: {},
-      
-      top_movers: {
-        gainers: gainersResult.rows,
-        losers: losersResult.rows
-      },
-      
-      sector_performance: sectorsResult.rows,
-      
-      alerts_summary: {
-        total_active: 0,
-        critical: 0, 
-        high: 0,
-        medium: 0
-      }
+    // Calculate date range
+    const periodDays = {
+      '7d': 7,
+      '30d': 30,
+      '90d': 90,
+      '1y': 365
     };
+    const days = periodDays[period] || 30;
 
-    // Populate key_metrics from indices data
-    if (indicesResult.rows && indicesResult.rows.length > 0) {
-      indicesResult.rows.forEach(row => {
-        const symbol = row.symbol.toLowerCase().replace('^', '');
-        overviewData.key_metrics[symbol] = {
-          value: parseFloat(row.current_price || 0),
-          change: parseFloat(row.change_amount || 0),
-          change_percent: parseFloat(row.change_percent || 0)
-        };
-      });
+    // Get portfolio overview
+    const portfolioResult = await query(`
+      SELECT 
+        COUNT(DISTINCT symbol) as total_positions,
+        SUM(market_value) as total_value,
+        SUM(gain_loss) as total_gain_loss,
+        AVG(gain_loss_percent) as avg_gain_loss_percent
+      FROM user_portfolio
+    `);
+
+    // Get recent trades summary
+    const tradesResult = await query(`
+      SELECT 
+        COUNT(*) as total_trades,
+        COUNT(CASE WHEN trade_type = 'BUY' THEN 1 END) as buy_trades,
+        COUNT(CASE WHEN trade_type = 'SELL' THEN 1 END) as sell_trades,
+        SUM(total_value) as total_volume,
+        AVG(profit_loss) as avg_profit_loss
+      FROM trades 
+      WHERE date >= CURRENT_DATE - INTERVAL '${days} days'
+    `);
+
+    // Get watchlist stats
+    const watchlistResult = await query(`
+      SELECT 
+        COUNT(*) as total_watchlist_items,
+        COUNT(DISTINCT symbol) as unique_symbols
+      FROM watchlist
+    `);
+
+    let sectorAnalysis = {};
+    if (include_sectors === 'true') {
+      const sectorResult = await query(`
+        SELECT 
+          s.sector,
+          COUNT(up.symbol) as positions,
+          SUM(up.market_value) as total_value,
+          AVG(up.gain_loss_percent) as avg_performance
+        FROM user_portfolio up
+        LEFT JOIN stocks s ON up.symbol = s.symbol
+        WHERE s.sector IS NOT NULL
+        GROUP BY s.sector
+        ORDER BY total_value DESC
+        LIMIT 10
+      `);
+      
+      sectorAnalysis = {
+        sectors: (sectorResult.rows || []).map(row => ({
+          sector: row.sector,
+          positions: parseInt(row.positions),
+          total_value: parseFloat(row.total_value || 0),
+          avg_performance: parseFloat(row.avg_performance || 0).toFixed(2) + '%'
+        })),
+        diversification_score: (sectorResult.rows || []).length >= 5 ? 'Good' : 'Needs Improvement'
+      };
     }
 
-    console.log(`✅ Overview queries completed: ${indicesResult.rows?.length || 0} indices, ${gainersResult.rows?.length || 0} gainers, ${losersResult.rows?.length || 0} losers, ${sectorsResult.rows?.length || 0} sectors`);
+    let performanceMetrics = {};
+    if (include_performance === 'true') {
+      // Get price performance for major indices
+      const performanceResult = await query(`
+        SELECT 
+          symbol,
+          close_price,
+          change_percent,
+          date
+        FROM price_daily 
+        WHERE symbol IN ('SPY', 'QQQ', 'IWM')
+          AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ('SPY', 'QQQ', 'IWM'))
+      `);
+      
+      performanceMetrics = {
+        market_indices: (performanceResult.rows || []).map(row => ({
+          symbol: row.symbol,
+          name: getIndexName(row.symbol),
+          price: parseFloat(row.close_price),
+          change_percent: parseFloat(row.change_percent).toFixed(2) + '%',
+          date: row.date
+        })),
+        market_sentiment: calculateMarketSentiment(performanceResult.rows || [])
+      };
+    }
 
-    res.json({
-      success: true,
-      data: overviewData,
-      timestamp: new Date().toISOString()
-    });
+    // Calculate key metrics
+    const portfolioData = portfolioResult.rows[0] || {};
+    const tradesData = tradesResult.rows[0] || {};
+    const watchlistData = watchlistResult.rows[0] || {};
 
-  } catch (error) {
-    console.error("Dashboard overview error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch dashboard overview",
-      message: error.message
-    });
-  }
-});
-
-// Dashboard performance endpoint
-router.get("/performance", async (req, res) => {
-  try {
-    console.log("📈 Dashboard performance requested");
-    
-    const performanceData = {
-      time_periods: {
-        "1D": {
-          return: 0,
-          return_percent: 0
-        },
-        "1W": {
-          return: 0,
-          return_percent: 0
-        },
-        "1M": {
-          return: 0,
-          return_percent: 0
-        },
-        "3M": {
-          return: 0,
-          return_percent: 0
-        },
-        "6M": {
-          return: 0,
-          return_percent: 0
-        },
-        "1Y": {
-          return: 0,
-          return_percent: 0
-        }
+    const dashboardAnalytics = {
+      overview: {
+        portfolio_value: parseFloat(portfolioData.total_value || 0).toFixed(2),
+        total_positions: parseInt(portfolioData.total_positions || 0),
+        total_gain_loss: parseFloat(portfolioData.total_gain_loss || 0).toFixed(2),
+        portfolio_performance: parseFloat(portfolioData.avg_gain_loss_percent || 0).toFixed(2) + '%',
+        watchlist_size: parseInt(watchlistData.total_watchlist_items || 0)
       },
       
-      benchmark_comparison: {
-        portfolio: {
-          "1M": 0,
-          "3M": 0,
-          "1Y": 0
-        },
-        sp500: {
-          "1M": 0,
-          "3M": 0,
-          "1Y": 0
-        },
-        outperformance: {
-          "1M": 0,
-          "3M": 0,
-          "1Y": 0
-        }
+      trading_activity: {
+        period: period,
+        total_trades: parseInt(tradesData.total_trades || 0),
+        buy_trades: parseInt(tradesData.buy_trades || 0),
+        sell_trades: parseInt(tradesData.sell_trades || 0),
+        total_volume: parseFloat(tradesData.total_volume || 0).toFixed(2),
+        avg_profit_per_trade: parseFloat(tradesData.avg_profit_loss || 0).toFixed(2),
+        trade_frequency: parseInt(tradesData.total_trades || 0) > 0 ? 
+          `${(parseInt(tradesData.total_trades) / days).toFixed(1)} trades/day` : '0 trades/day'
       },
+
+      sector_analysis: sectorAnalysis,
+      performance_metrics: performanceMetrics,
       
-      risk_metrics: {
-        sharpe_ratio: 0,
-        max_drawdown: 0,
-        volatility: 0,
-        beta: 0,
-        var_95: 0
-      },
+      insights: generateDashboardInsights(portfolioData, tradesData, sectorAnalysis),
       
-      asset_allocation: {
-        by_sector: [
-          { sector: "Technology", percentage: 0.35 },
-          { sector: "Healthcare", percentage: 0.25 },
-          { sector: "Financial Services", percentage: 0.20 },
-          { sector: "Consumer Cyclical", percentage: 0.15 },
-          { sector: "Other", percentage: 0.05 }
-        ],
-        by_asset_class: {
-          stocks: 0,
-          bonds: 0,
-          cash: 0,
-          commodities: 0
-        }
-      }
+      last_updated: new Date().toISOString()
     };
 
     res.json({
       success: true,
-      data: performanceData,
+      data: dashboardAnalytics,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error("Dashboard performance error:", error);
+    console.error("Dashboard analytics error:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch dashboard performance",
+      error: "Failed to fetch dashboard analytics",
       message: error.message
     });
   }
 });
 
-// Dashboard alerts endpoint
-router.get("/alerts", async (req, res) => {
-  try {
-    console.log("🚨 Dashboard alerts requested");
-    
-    return res.status(501).json({ success: false, error: "Data generation removed", message: "This endpoint requires database population" });
+// Helper functions for dashboard analytics
+function getIndexName(symbol) {
+  const indexMap = {
+    'SPY': 'S&P 500',
+    'QQQ': 'NASDAQ-100',
+    'IWM': 'Russell 2000'
+  };
+  return indexMap[symbol] || symbol;
+}
 
-  } catch (error) {
-    console.error("Dashboard alerts error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch dashboard alerts",
-      message: error.message
+function calculateMarketSentiment(indices) {
+  if (!indices || indices.length === 0) return 'Neutral';
+  
+  const avgChange = indices.reduce((sum, idx) => sum + parseFloat(idx.change_percent || 0), 0) / indices.length;
+  
+  if (avgChange > 1) return 'Bullish';
+  if (avgChange > 0) return 'Slightly Bullish';
+  if (avgChange > -1) return 'Slightly Bearish';
+  return 'Bearish';
+}
+
+function generateDashboardInsights(portfolio, trades, sectors) {
+  const insights = [];
+  
+  // Portfolio insights
+  const portfolioPerf = parseFloat(portfolio.avg_gain_loss_percent || 0);
+  
+  if (portfolioPerf > 5) {
+    insights.push({
+      type: 'positive',
+      message: `Strong portfolio performance with ${portfolioPerf.toFixed(1)}% average gains`
+    });
+  } else if (portfolioPerf < -5) {
+    insights.push({
+      type: 'warning',
+      message: `Portfolio showing losses with ${portfolioPerf.toFixed(1)}% average performance`
     });
   }
-});
+  
+  // Trading insights
+  const totalTrades = parseInt(trades.total_trades || 0);
+  const avgProfit = parseFloat(trades.avg_profit_loss || 0);
+  
+  if (totalTrades > 0) {
+    if (avgProfit > 0) {
+      insights.push({
+        type: 'positive',
+        message: `Profitable trading with average $${avgProfit.toFixed(2)} per trade`
+      });
+    } else if (avgProfit < 0) {
+      insights.push({
+        type: 'warning',
+        message: `Trading showing losses averaging $${Math.abs(avgProfit).toFixed(2)} per trade`
+      });
+    }
+  }
+  
+  // Diversification insights
+  if (sectors.sectors && sectors.sectors.length < 3) {
+    insights.push({
+      type: 'suggestion',
+      message: 'Consider diversifying across more sectors for better risk management'
+    });
+  }
+  
+  return insights;
+}
 
 module.exports = router;

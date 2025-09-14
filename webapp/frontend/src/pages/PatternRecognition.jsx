@@ -51,7 +51,7 @@ const logger = {
     console.log(`[PatternRecognition] ${message}`, data);
   },
   error: (message, error, context) => {
-    console.error(`[PatternRecognition] ${message}`, {
+    if (import.meta.env && import.meta.env.DEV) console.error(`[PatternRecognition] ${message}`, {
       error: error?.message || error,
       stack: error?.stack,
       context,

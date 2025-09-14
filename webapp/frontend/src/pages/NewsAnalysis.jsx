@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Alert,
   Avatar,
@@ -37,7 +37,7 @@ import {
   Psychology,
   SmartToy,
 } from "@mui/icons-material";
-import { apiCall, createLogger } from '../utils/apiService';
+import api from '../services/api';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -66,7 +66,11 @@ const NewsAnalysis = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  const logger = createLogger("NewsAnalysis");
+  const logger = useMemo(() => ({
+    info: (msg) => console.log(`[NewsAnalysis] ${msg}`),
+    error: (msg) => console.error(`[NewsAnalysis] ${msg}`),
+    warn: (msg) => console.warn(`[NewsAnalysis] ${msg}`)
+  }), []);
 
   const fetchAllNewsData = useCallback(async () => {
     setLoading(true);
@@ -96,7 +100,7 @@ const NewsAnalysis = () => {
         limit: 50
       };
       
-      const articlesResponse = await apiCall(
+      const articlesResponse = await api.get(
         `/api/news/articles?${new URLSearchParams(
           Object.entries(articlesParams).filter(([_k, v]) => v !== undefined)
         ).toString()}`,
@@ -110,7 +114,7 @@ const NewsAnalysis = () => {
       }
       
       // Fetch market sentiment  
-      const sentimentResponse = await apiCall(
+      const sentimentResponse = await api.get(
         "/api/news/market-sentiment",
         { method: "GET" },
         "NewsAnalysis"
@@ -122,7 +126,7 @@ const NewsAnalysis = () => {
       }
       
       // Fetch sentiment dashboard
-      const dashboardResponse = await apiCall(
+      const dashboardResponse = await api.get(
         "/api/news/sentiment-dashboard", 
         { method: "GET" },
         "NewsAnalysis"

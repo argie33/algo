@@ -42,25 +42,58 @@ describe('Recommendations Routes Unit Tests', () => {
   });
 
   describe('GET /recommendations', () => {
-    test('should return not implemented status', async () => {
+    test('should return recommendations with mocked data', async () => {
+      // Mock successful database response
+      mockQuery.mockResolvedValue({
+        rows: [
+          {
+            symbol: 'AAPL',
+            analyst_firm: 'Goldman Sachs',
+            rating: 'Buy',
+            target_price: 200.00,
+            current_price: 180.00,
+            date_published: '2024-01-15',
+            date_updated: '2024-01-15'
+          }
+        ]
+      });
+
       const response = await request(app)
         .get('/recommendations');
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body).toHaveProperty('error', 'Stock recommendations not implemented');
-      expect(response.body).toHaveProperty('details');
-      expect(response.body).toHaveProperty('troubleshooting');
-      expect(response.body).toHaveProperty('symbol', null);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('recommendations');
+      expect(response.body).toHaveProperty('summary');
       expect(response.body).toHaveProperty('filters');
       expect(response.body).toHaveProperty('timestamp');
       
+      // Verify recommendations structure
+      expect(response.body.recommendations).toHaveLength(1);
+      expect(response.body.recommendations[0]).toHaveProperty('symbol', 'AAPL');
+      expect(response.body.recommendations[0]).toHaveProperty('analyst_firm', 'Goldman Sachs');
+      
       // Verify timestamp is a valid ISO string
       expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
-      expect(mockQuery).not.toHaveBeenCalled(); // Not implemented, doesn't use database
+      expect(mockQuery).toHaveBeenCalled();
     });
 
     test('should handle query parameters', async () => {
+      // Mock successful database response
+      mockQuery.mockResolvedValue({
+        rows: [
+          {
+            symbol: 'AAPL',
+            analyst_firm: 'Goldman Sachs',
+            rating: 'Buy',
+            target_price: 200.00,
+            current_price: 180.00,
+            date_published: '2024-01-15',
+            date_updated: '2024-01-15'
+          }
+        ]
+      });
+
       const response = await request(app)
         .get('/recommendations')
         .query({
@@ -71,14 +104,14 @@ describe('Recommendations Routes Unit Tests', () => {
           timeframe: 'recent'
         });
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body).toHaveProperty('symbol', 'AAPL');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body.filters).toHaveProperty('symbol', 'AAPL');
       expect(response.body.filters).toHaveProperty('category', 'buy');
       expect(response.body.filters).toHaveProperty('analyst', 'goldman_sachs');
       expect(response.body.filters).toHaveProperty('timeframe', 'recent');
       expect(response.body.filters).toHaveProperty('limit', 50);
-      // Parameters are processed but endpoint still returns not implemented
+      // Parameters are processed and endpoint returns real data
     });
 
     test('should include comprehensive troubleshooting information', async () => {

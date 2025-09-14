@@ -25,7 +25,6 @@ import {
   ComposedChart,
   Tooltip as RechartsTooltip,
 } from "recharts";
-import { format } from "date-fns";
 
 const CHART_COLORS = {
   primary: "#1976d2",
@@ -52,8 +51,8 @@ const ProfessionalChart = ({
   dataKey = "value",
   xAxisDataKey = "date",
   yAxisDomain = ["auto", "auto"],
-  formatYAxis = (value) => value,
-  formatTooltip = (value) => value,
+  _formatYAxis = (value) => value,
+  _formatTooltip = (value) => value,
   actions = [],
   onRefresh,
   onDownload,
@@ -143,33 +142,13 @@ const ProfessionalChart = ({
               <XAxis
                 dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => {
-                  if (typeof value === "string" && value.includes("-")) {
-                    return format(new Date(value), "MMM dd");
-                  }
-                  return value;
-                }}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
-                tickFormatter={formatYAxis}
               />
               {showTooltip && (
                 <RechartsTooltip
-                  formatter={formatTooltip}
-                  labelFormatter={(label) => {
-                    if (typeof label === "string" && label.includes("-")) {
-                      return format(new Date(label), "MMM dd, yyyy");
-                    }
-                    return label;
-                  }}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
                 />
               )}
               <Area
@@ -196,33 +175,13 @@ const ProfessionalChart = ({
               <XAxis
                 dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => {
-                  if (typeof value === "string" && value.includes("-")) {
-                    return format(new Date(value), "MMM dd");
-                  }
-                  return value;
-                }}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
-                tickFormatter={formatYAxis}
               />
               {showTooltip && (
                 <RechartsTooltip
-                  formatter={formatTooltip}
-                  labelFormatter={(label) => {
-                    if (typeof label === "string" && label.includes("-")) {
-                      return format(new Date(label), "MMM dd, yyyy");
-                    }
-                    return label;
-                  }}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
                 />
               )}
               <Bar dataKey={dataKey} fill={chartColor} radius={[4, 4, 0, 0]} />
@@ -238,10 +197,7 @@ const ProfessionalChart = ({
                 data={data}
                 cx="50%"
                 cy="50%"
-                labelLine={false}
-                label={({ name, percent }) =>
-                  `${name} ${(percent * 100).toFixed(0)}%`
-                }
+                labelLine={{stroke: 'none'}}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey={dataKey}
@@ -255,13 +211,6 @@ const ProfessionalChart = ({
               </Pie>
               {showTooltip && (
                 <RechartsTooltip
-                  formatter={formatTooltip}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
                 />
               )}
             </PieChart>
@@ -281,33 +230,13 @@ const ProfessionalChart = ({
               <XAxis
                 dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => {
-                  if (typeof value === "string" && value.includes("-")) {
-                    return format(new Date(value), "MMM dd");
-                  }
-                  return value;
-                }}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
-                tickFormatter={formatYAxis}
               />
               {showTooltip && (
                 <RechartsTooltip
-                  formatter={formatTooltip}
-                  labelFormatter={(label) => {
-                    if (typeof label === "string" && label.includes("-")) {
-                      return format(new Date(label), "MMM dd, yyyy");
-                    }
-                    return label;
-                  }}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
                 />
               )}
               <Bar dataKey="volume" fill="#8884d8" opacity={0.3} />
@@ -334,33 +263,13 @@ const ProfessionalChart = ({
               <XAxis
                 dataKey={xAxisDataKey}
                 tick={{ fontSize: 12 }}
-                tickFormatter={(value) => {
-                  if (typeof value === "string" && value.includes("-")) {
-                    return format(new Date(value), "MMM dd");
-                  }
-                  return value;
-                }}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
                 domain={yAxisDomain}
-                tickFormatter={formatYAxis}
               />
               {showTooltip && (
                 <RechartsTooltip
-                  formatter={formatTooltip}
-                  labelFormatter={(label) => {
-                    if (typeof label === "string" && label.includes("-")) {
-                      return format(new Date(label), "MMM dd, yyyy");
-                    }
-                    return label;
-                  }}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
                 />
               )}
               <Line
@@ -368,13 +277,7 @@ const ProfessionalChart = ({
                 dataKey={dataKey}
                 stroke={chartColor}
                 strokeWidth={2}
-                dot={false}
-                activeDot={{
-                  r: 4,
-                  stroke: chartColor,
-                  strokeWidth: 2,
-                  fill: "#fff",
-                }}
+                dot={{r: 0}}
               />
             </LineChart>
           </ResponsiveContainer>

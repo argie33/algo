@@ -37,7 +37,9 @@ router.get("/", authenticateToken, async (req, res) => {
       });
     }
 
-    res.success({data: watchlists.rows,
+    res.json({
+      success: true,
+      data: watchlists.rows,
       total: watchlists.rows.length,
     });
   } catch (error) {
@@ -77,7 +79,7 @@ router.get("/items", authenticateToken, async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
           symbol, close, date
-        FROM stock_prices 
+        FROM price_daily 
         ORDER BY symbol, date DESC
       ) sp ON wi.symbol = sp.symbol
       LEFT JOIN stocks s ON wi.symbol = s.symbol
@@ -94,13 +96,22 @@ router.get("/items", authenticateToken, async (req, res) => {
     }
 
     if (watchlist_id) {
+      const parsedWatchlistId = parseInt(watchlist_id);
+      if (isNaN(parsedWatchlistId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid watchlist_id parameter",
+          message: "watchlist_id must be a valid number"
+        });
+      }
       itemsQuery += ` AND w.id = $${paramIndex}`;
-      queryParams.push(parseInt(watchlist_id));
+      queryParams.push(parsedWatchlistId);
       paramIndex++;
     }
 
     itemsQuery += ` ORDER BY wi.added_at DESC LIMIT $${paramIndex}`;
-    queryParams.push(parseInt(limit));
+    const parsedLimit = parseInt(limit);
+    queryParams.push(isNaN(parsedLimit) ? 100 : parsedLimit);
 
     const itemsResult = await query(itemsQuery, queryParams);
 
@@ -122,7 +133,7 @@ router.get("/items", authenticateToken, async (req, res) => {
     const avgChangePercent = items.length > 0 ? 
       items.reduce((sum, item) => sum + (item.change_percent || 0), 0) / items.length : 0;
 
-    res.success({
+    res.json({
       data: items,
       total: items.length,
       summary: {
@@ -157,6 +168,26 @@ router.get("/items/recent", async (req, res) => {
     
     console.log(`📋 Recent watchlist items requested - limit: ${limit}, days: ${days}`);
     
+    // Validate parameters
+    const parsedDays = parseInt(days);
+    const parsedLimit = parseInt(limit);
+    
+    if (isNaN(parsedDays) || parsedDays < 1 || parsedDays > 365) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid days parameter",
+        message: "days must be a number between 1 and 365"
+      });
+    }
+    
+    if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 1000) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid limit parameter", 
+        message: "limit must be a number between 1 and 1000"
+      });
+    }
+
     // Get recently added items from all watchlists
     const recentItemsQuery = `
       SELECT 
@@ -179,12 +210,12 @@ router.get("/items/recent", async (req, res) => {
       LEFT JOIN price_daily pd ON wi.symbol = pd.symbol 
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = wi.symbol)
       LEFT JOIN stocks s ON wi.symbol = s.symbol
-      WHERE wi.added_at >= NOW() - INTERVAL '${parseInt(days)} days'
+      WHERE wi.added_at >= NOW() - INTERVAL $2 || ' days'
       ORDER BY wi.added_at DESC
       LIMIT $1
     `;
     
-    const result = await query(recentItemsQuery, [parseInt(limit)]);
+    const result = await query(recentItemsQuery, [parsedLimit, parsedDays]);
     
     if (!result || !result.rows) {
       return res.json({
@@ -195,7 +226,7 @@ router.get("/items/recent", async (req, res) => {
             total_items: 0,
             unique_symbols: 0,
             unique_watchlists: 0,
-            days_covered: parseInt(days),
+            days_covered: parsedDays,
             message: "No recent watchlist items found"
           }
         },
@@ -235,7 +266,7 @@ router.get("/items/recent", async (req, res) => {
       total_items: items.length,
       unique_symbols: uniqueSymbols,
       unique_watchlists: uniqueWatchlists,
-      days_covered: parseInt(days),
+      days_covered: parsedDays,
       total_market_value: Math.round(totalValue * 100) / 100,
       avg_change_percent: Math.round(avgChangePercent * 100) / 100,
       most_active_period: items.length > 0 
@@ -255,8 +286,8 @@ router.get("/items/recent", async (req, res) => {
         items: items,
         summary: summary,
         filters: {
-          limit: parseInt(limit),
-          days: parseInt(days)
+          limit: parsedLimit,
+          days: parsedDays
         }
       },
       timestamp: new Date().toISOString()
@@ -287,10 +318,147 @@ function calculateTopSectors(items) {
 }
 
 // Get specific watchlist with items
+// Get watchlist performance metrics
+router.get("/performance", authenticateToken, async (req, res) => {
+  console.log("🎯 Watchlist performance endpoint called");
+  try {
+    const userId = req.user?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        message: "User authentication required to access watchlist performance data"
+      });
+    }
+
+    // Check if watchlist_performance table exists
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'watchlist_performance'
+      );
+    `;
+
+    const tableExists = await query(tableCheckQuery, []);
+    
+    if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
+      console.error("Watchlist performance table does not exist");
+      return res.status(503).json({
+        success: false,
+        error: "Watchlist performance service not available",
+        message: "Watchlist performance tracking requires watchlist_performance table",
+        details: "watchlist_performance table does not exist in database schema",
+        requirements: [
+          "watchlist_performance table must be created with schema: user_id, watchlist_id, date, total_return, daily_return, etc.",
+          "Performance calculation processes must run regularly to update metrics",
+          "Price data must be available to calculate returns"
+        ],
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Query watchlist performance data
+    const performanceQuery = `
+      SELECT 
+        total_return,
+        daily_return,
+        weekly_return,
+        monthly_return,
+        best_performer,
+        worst_performer,
+        last_updated
+      FROM watchlist_performance 
+      WHERE user_id = $1 
+      ORDER BY last_updated DESC 
+      LIMIT 1
+    `;
+
+    const result = await query(performanceQuery, [userId]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No watchlist performance data available",
+        message: "Watchlist performance data not found for user",
+        details: "User has no calculated performance metrics - watchlists may be empty or data not calculated yet",
+        requirements: [
+          "User must have active watchlists with symbols",
+          "Performance calculation jobs must run to generate metrics",
+          "Price data must be available for all watchlist symbols"
+        ],
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.json({
+      success: true,
+      performance: result.rows[0],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching watchlist performance:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch watchlist performance"
+    });
+  }
+});
+
+// Get watchlist alerts
+router.get("/alerts", authenticateToken, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        message: "Watchlist alerts endpoint",
+        status: "under_development"
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching watchlist alerts:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch watchlist alerts"
+    });
+  }
+});
+
+// Export watchlist data
+router.get("/export", authenticateToken, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        message: "Watchlist export endpoint",
+        status: "under_development"
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error exporting watchlist:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to export watchlist"
+    });
+  }
+});
+
 router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const watchlistId = req.params.id;
+
+    // Validate that ID is numeric to prevent database errors
+    if (!/^\d+$/.test(watchlistId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid watchlist ID",
+        message: "Watchlist ID must be a numeric value"
+      });
+    }
 
     // Get watchlist
     const watchlistResult = await query(
@@ -325,7 +493,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
       `
       SELECT wi.*, sp.price, sp.change_amount, sp.change_percent
       FROM watchlist_items wi
-      LEFT JOIN stock_prices sp ON wi.symbol = sp.symbol
+      LEFT JOIN price_daily sp ON wi.symbol = sp.symbol
       WHERE wi.watchlist_id = $1
       ORDER BY wi.added_at ASC
     `,
@@ -383,7 +551,9 @@ router.get("/:id", authenticateToken, async (req, res) => {
       }
     }
 
-    res.success({data: watchlist,
+    res.json({
+      success: true,
+      data: watchlist,
     });
   } catch (error) {
     console.error("Error fetching watchlist:", error);
@@ -462,6 +632,16 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const watchlistId = req.params.id;
     const { name, description, is_public } = req.body;
 
+    // Validate that ID is numeric
+    if (!/^\d+$/.test(watchlistId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid watchlist ID format",
+        message: `Watchlist ID must be a number, got: "${watchlistId}"`,
+        hint: "Use PUT /api/watchlist/{id} to update watchlist metadata"
+      });
+    }
+
     if (!name || name.trim() === "") {
       return res.status(400).json({
         success: false,
@@ -497,7 +677,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    res.success({data: result.rows[0],
+    res.json({
+      success: true,
+      data: result.rows[0],
     });
   } catch (error) {
     console.error("Error updating watchlist:", error);
@@ -514,6 +696,16 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const watchlistId = req.params.id;
+
+    // Validate that ID is numeric
+    if (!/^\d+$/.test(watchlistId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid watchlist ID format",
+        message: `Watchlist ID must be a number, got: "${watchlistId}"`,
+        hint: "Use DELETE /api/watchlist/{id}/items/{symbol} to remove a symbol from a watchlist"
+      });
+    }
 
     // Check if this is a default watchlist
     const watchlistCheck = await query(
@@ -561,7 +753,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    res.success({message: "Watchlist deleted successfully",
+    res.json({message: "Watchlist deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting watchlist:", error);
@@ -787,7 +979,7 @@ router.delete("/:id/items/:symbol", authenticateToken, async (req, res) => {
       });
     }
 
-    res.success({message: "removed successfully",
+    res.json({message: "removed successfully",
     });
   } catch (error) {
     console.error("Error removing item from watchlist:", error);

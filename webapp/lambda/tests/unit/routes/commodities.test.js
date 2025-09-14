@@ -575,7 +575,7 @@ describe('Commodities Routes', () => {
         
         if (response.status === 200) {
           // Check if response has success field, if not just verify body exists
-          if (response.body.hasOwnProperty('success')) {
+          if (Object.prototype.hasOwnProperty.call(response.body, 'success')) {
             expect(response.body.success).toBe(true);
           } else {
             // Some endpoints return direct data without success wrapper

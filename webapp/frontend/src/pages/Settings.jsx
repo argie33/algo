@@ -51,9 +51,10 @@ import {
   CheckCircle,
   Save,
   Cancel,
+  Add,
+  Delete,
 } from "@mui/icons-material";
 import { getApiConfig } from "../services/api";
-import SettingsApiKeys from "./SettingsApiKeys";
 import { createComponentLogger } from "../utils/errorLogger";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -113,6 +114,13 @@ const Settings = () => {
   });
 
   // Notification preferences
+  const [passwordDialog, setPasswordDialog] = useState({
+    open: false,
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+    errors: {}
+  });
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
@@ -148,9 +156,9 @@ const Settings = () => {
 
       if (response.ok) {
         const data = await response.json();
-        _setApiKeys(data.apiKeys || []);
+        _setApiKeys(data.data || []);
       } else {
-        console.error(
+        if (import.meta.env && import.meta.env.DEV) console.error(
           "API keys endpoint returned non-OK status:",
           response.status
         );
@@ -234,7 +242,7 @@ const Settings = () => {
         console.log("Failed to load theme preferences, using defaults");
       }
     } catch (error) {
-      console.error("Error loading settings:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error loading settings:", error);
       showSnackbar("Failed to load settings", "error");
 
       // Set empty profile data to show there's an issue
@@ -280,7 +288,7 @@ const Settings = () => {
 
   // Separate session recovery logic (production only)
   useEffect(() => {
-    if (!isLoading && !user && !isAuthenticated && import.meta.env.PROD) {
+    if (!isLoading && !user && !isAuthenticated && (import.meta.env && import.meta.env.PROD)) {
       logger.error("No authenticated session found", new Error("Session check failed"), {
         isAuthenticated,
         isLoading,
@@ -376,7 +384,7 @@ const Settings = () => {
         showSnackbar(error.error || "Failed to add API key", "error");
       }
     } catch (error) {
-      console.error("Error adding API key:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error adding API key:", error);
       showSnackbar("Failed to add API key", "error");
     } finally {
       setLoading(false);
@@ -402,7 +410,7 @@ const Settings = () => {
         showSnackbar("Failed to delete API key", "error");
       }
     } catch (error) {
-      console.error("Error deleting API key:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error deleting API key:", error);
       showSnackbar("Failed to delete API key", "error");
     }
   };
@@ -442,7 +450,7 @@ const Settings = () => {
         showSnackbar(error.error || "Failed to test connection", "error");
       }
     } catch (error) {
-      console.error("Error testing connection:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error testing connection:", error);
       showSnackbar("Failed to test connection", "error");
     } finally {
       setLoading(false);
@@ -482,7 +490,7 @@ const Settings = () => {
         showSnackbar(error.error || "Failed to import portfolio", "error");
       }
     } catch (error) {
-      console.error("Error importing portfolio:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error importing portfolio:", error);
       showSnackbar("Failed to import portfolio", "error");
     } finally {
       setLoading(false);
@@ -512,7 +520,7 @@ const Settings = () => {
         );
       }
     } catch (error) {
-      console.error("Error saving notifications:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error saving notifications:", error);
       showSnackbar("Failed to update notification preferences", "error");
     } finally {
       setLoading(false);
@@ -542,7 +550,7 @@ const Settings = () => {
         );
       }
     } catch (error) {
-      console.error("Error saving theme:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error saving theme:", error);
       showSnackbar("Failed to update theme preferences", "error");
     } finally {
       setLoading(false);
@@ -550,11 +558,102 @@ const Settings = () => {
   };
 
   const handleChangePassword = async () => {
-    // TODO: Implement password change dialog
-    showSnackbar(
-      "Password change functionality will be available soon",
-      "info"
-    );
+    setPasswordDialog({
+      open: true,
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+      errors: {}
+    });
+  };
+
+  const validatePasswordChange = () => {
+    const errors = {};
+    
+    if (!passwordDialog.currentPassword) {
+      errors.currentPassword = "Current password is required";
+    }
+    
+    if (!passwordDialog.newPassword) {
+      errors.newPassword = "New password is required";
+    } else if (passwordDialog.newPassword.length < 8) {
+      errors.newPassword = "Password must be at least 8 characters";
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(passwordDialog.newPassword)) {
+      errors.newPassword = "Password must contain uppercase, lowercase, and number";
+    }
+    
+    if (passwordDialog.newPassword !== passwordDialog.confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+    }
+    
+    if (passwordDialog.currentPassword === passwordDialog.newPassword) {
+      errors.newPassword = "New password must be different from current password";
+    }
+    
+    return errors;
+  };
+
+  const handlePasswordDialogSubmit = async () => {
+    const errors = validatePasswordChange();
+    
+    if (Object.keys(errors).length > 0) {
+      setPasswordDialog(prev => ({ ...prev, errors }));
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/user/change-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
+        },
+        body: JSON.stringify({
+          currentPassword: passwordDialog.currentPassword,
+          newPassword: passwordDialog.newPassword,
+        }),
+      });
+      
+      if (response.ok) {
+        showSnackbar("Password changed successfully", "success");
+        setPasswordDialog({
+          open: false,
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+          errors: {}
+        });
+      } else {
+        const errorData = await response.json();
+        if (response.status === 401) {
+          setPasswordDialog(prev => ({ 
+            ...prev, 
+            errors: { currentPassword: "Current password is incorrect" }
+          }));
+        } else {
+          showSnackbar(
+            errorData.message || "Failed to change password",
+            "error"
+          );
+        }
+      }
+    } catch (error) {
+      showSnackbar("Network error. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordDialogClose = () => {
+    setPasswordDialog({
+      open: false,
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+      errors: {}
+    });
   };
 
   const handleToggleTwoFactor = async () => {
@@ -595,7 +694,7 @@ const Settings = () => {
         );
       }
     } catch (error) {
-      console.error("Error toggling two-factor auth:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error toggling two-factor auth:", error);
       showSnackbar("Failed to toggle two-factor authentication", "error");
     } finally {
       setLoading(false);
@@ -634,7 +733,7 @@ const Settings = () => {
         );
       }
     } catch (error) {
-      console.error("Error downloading recovery codes:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error downloading recovery codes:", error);
       showSnackbar("Failed to download recovery codes", "error");
     } finally {
       setLoading(false);
@@ -675,7 +774,7 @@ const Settings = () => {
               showSnackbar(error.error || "Failed to delete account", "error");
             }
           } catch (error) {
-            console.error("Error deleting account:", error);
+            if (import.meta.env && import.meta.env.DEV) console.error("Error deleting account:", error);
             showSnackbar("Failed to delete account", "error");
           } finally {
             setLoading(false);
@@ -708,7 +807,7 @@ const Settings = () => {
           showSnackbar(error.error || "Failed to revoke sessions", "error");
         }
       } catch (error) {
-        console.error("Error revoking sessions:", error);
+        if (import.meta.env && import.meta.env.DEV) console.error("Error revoking sessions:", error);
         showSnackbar("Failed to revoke sessions", "error");
       } finally {
         setLoading(false);
@@ -735,7 +834,7 @@ const Settings = () => {
   // If we don't have a user object at all, show a fallback with more options
   if (!user && !isLoading) {
     // Log authentication info to console for debugging (but don't log as error in development)
-    if (import.meta.env.PROD) {
+    if (import.meta.env && import.meta.env.PROD) {
       logger.error("Authentication Error", new Error("Unable to load user information"), {
         userObject: user,
         isAuthenticated,
@@ -965,7 +1064,67 @@ const Settings = () => {
 
         {/* API Keys Tab */}
         <TabPanel value={activeTab} index={1}>
-          <SettingsApiKeys />
+          <Grid container spacing={4}>
+            <Grid item xs={12}>
+              <Card>
+                <CardHeader
+                  title="API Keys"
+                  subheader="Manage your API keys for data providers and trading platforms"
+                  action={
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={() => setAddApiKeyDialog(true)}
+                      data-testid="add-api-key-button"
+                      aria-label="Add new API key"
+                    >
+                      Add API Key
+                    </Button>
+                  }
+                />
+                <CardContent>
+                  {_apiKeys.length === 0 ? (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      No API keys configured. Add your first API key to start accessing real market data.
+                    </Alert>
+                  ) : (
+                    <Grid container spacing={2}>
+                      {_apiKeys.map((apiKey) => (
+                        <Grid item xs={12} md={6} key={apiKey.brokerName}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                  <Typography variant="h6">{apiKey.brokerName}</Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Added: {new Date(apiKey.createdAt).toLocaleDateString()}
+                                  </Typography>
+                                </Box>
+                                <Box>
+                                  <Chip
+                                    label={apiKey.status || 'Active'}
+                                    color={apiKey.status === 'active' ? 'success' : 'default'}
+                                    size="small"
+                                  />
+                                  <IconButton
+                                    onClick={() => _deleteApiKey(apiKey.brokerName)}
+                                    color="error"
+                                    aria-label={`Delete ${apiKey.brokerName} API key`}
+                                  >
+                                    <Delete />
+                                  </IconButton>
+                                </Box>
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         </TabPanel>
 
         {/* Notifications Tab */}
@@ -1418,6 +1577,91 @@ const Settings = () => {
             aria-label="Add new API key"
           >
             Add API Key
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Password Change Dialog */}
+      <Dialog
+        open={passwordDialog.open}
+        onClose={handlePasswordDialogClose}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Current Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={passwordDialog.currentPassword}
+            onChange={(e) =>
+              setPasswordDialog(prev => ({ 
+                ...prev, 
+                currentPassword: e.target.value,
+                errors: { ...prev.errors, currentPassword: "" }
+              }))
+            }
+            error={Boolean(passwordDialog.errors.currentPassword)}
+            helperText={passwordDialog.errors.currentPassword}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="New Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={passwordDialog.newPassword}
+            onChange={(e) =>
+              setPasswordDialog(prev => ({ 
+                ...prev, 
+                newPassword: e.target.value,
+                errors: { ...prev.errors, newPassword: "" }
+              }))
+            }
+            error={Boolean(passwordDialog.errors.newPassword)}
+            helperText={
+              passwordDialog.errors.newPassword ||
+              "Must be at least 8 characters with uppercase, lowercase, and number"
+            }
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Confirm New Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={passwordDialog.confirmPassword}
+            onChange={(e) =>
+              setPasswordDialog(prev => ({ 
+                ...prev, 
+                confirmPassword: e.target.value,
+                errors: { ...prev.errors, confirmPassword: "" }
+              }))
+            }
+            error={Boolean(passwordDialog.errors.confirmPassword)}
+            helperText={passwordDialog.errors.confirmPassword}
+            onKeyPress={(e) => {
+              if (e.key === "Enter") {
+                handlePasswordDialogSubmit();
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handlePasswordDialogClose}>Cancel</Button>
+          <Button
+            onClick={handlePasswordDialogSubmit}
+            variant="contained"
+            disabled={loading}
+            startIcon={loading && <CircularProgress size={20} />}
+          >
+            {loading ? "Changing..." : "Change Password"}
           </Button>
         </DialogActions>
       </Dialog>

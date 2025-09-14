@@ -805,4 +805,170 @@ describe("News Routes", () => {
       });
     });
   });
+
+  describe("GET /news/search", () => {
+    test("should return search results for valid query", async () => {
+      const mockSearchResults = [
+        {
+          id: 1,
+          headline: "Apple reports strong earnings",
+          summary: "Apple Inc. reported better than expected quarterly earnings",
+          url: "https://example.com/apple-earnings",
+          source: "Reuters",
+          category: "earnings",
+          symbol: "AAPL",
+          published_at: new Date().toISOString(),
+          sentiment: "positive",
+          relevance_score: 0.9,
+          search_relevance_score: 15,
+          matching_snippet: "Apple reports strong earnings"
+        }
+      ];
+
+      const mockStats = {
+        total_matches: 1,
+        positive_count: 1,
+        negative_count: 0,
+        neutral_count: 0,
+        unique_categories: 1,
+        unique_sources: 1,
+        avg_relevance: 0.9
+      };
+
+      query
+        .mockResolvedValueOnce({ rows: mockSearchResults })
+        .mockResolvedValueOnce({ rows: [mockStats] });
+
+      const response = await request(app)
+        .get("/news/search?query=Apple earnings")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: {
+          articles: expect.arrayContaining([
+            expect.objectContaining({
+              id: 1,
+              headline: "Apple reports strong earnings",
+              symbol: "AAPL",
+              search_relevance_score: expect.any(Number),
+              matching_snippet: expect.any(String),
+              time_ago: expect.any(String)
+            })
+          ]),
+          total_results: 1,
+          estimated_total: 1,
+          search_metadata: expect.objectContaining({
+            query: "Apple earnings",
+            relevance_scores: expect.objectContaining({
+              min: expect.any(Number),
+              max: expect.any(Number),
+              avg: expect.any(Number)
+            }),
+            suggestions: expect.any(Array)
+          }),
+          search_statistics: expect.objectContaining({
+            total_matches: 1,
+            sentiment_distribution: expect.any(Object),
+            unique_categories: 1,
+            unique_sources: 1
+          })
+        },
+        filters: expect.objectContaining({
+          query: "Apple earnings",
+          category: "all",
+          sentiment: "all",
+          timeframe: "30d"
+        }),
+        methodology: expect.any(Object)
+      });
+    });
+
+    test("should require search query parameter", async () => {
+      const response = await request(app)
+        .get("/news/search")
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: "Search query is required",
+        message: "Please provide a search query using the 'query' parameter"
+      });
+    });
+
+    test("should handle empty search results", async () => {
+      query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ total_matches: 0 }] });
+
+      const response = await request(app)
+        .get("/news/search?query=nonexistent")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: {
+          articles: [],
+          total_results: 0,
+          search_metadata: {
+            query: "nonexistent",
+            suggestions: expect.arrayContaining([
+              "Try broader search terms",
+              "Check spelling and try synonyms"
+            ])
+          }
+        }
+      });
+    });
+
+    test("should handle database errors gracefully", async () => {
+      query.mockRejectedValueOnce(new Error("Database connection failed"));
+
+      const response = await request(app)
+        .get("/news/search?query=test")
+        .expect(500);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: "Failed to search news",
+        message: "Database connection failed"
+      });
+    });
+
+    test("should support filtering parameters", async () => {
+      const mockResults = [
+        {
+          id: 1,
+          headline: "AAPL positive news",
+          summary: "Good news for Apple",
+          url: "https://example.com/apple",
+          source: "Reuters",
+          category: "earnings",
+          symbol: "AAPL",
+          published_at: new Date().toISOString(),
+          sentiment: "positive",
+          relevance_score: 0.9,
+          search_relevance_score: 12,
+          matching_snippet: "AAPL positive news"
+        }
+      ];
+
+      query
+        .mockResolvedValueOnce({ rows: mockResults })
+        .mockResolvedValueOnce({ rows: [{ total_matches: 1, positive_count: 1, negative_count: 0, neutral_count: 0 }] });
+
+      const response = await request(app)
+        .get("/news/search?query=AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10")
+        .expect(200);
+
+      expect(response.body.filters).toMatchObject({
+        query: "AAPL",
+        category: "earnings",
+        sentiment: "positive",
+        symbol: "AAPL",
+        timeframe: "7d",
+        limit: 10
+      });
+    });
+  });
 });

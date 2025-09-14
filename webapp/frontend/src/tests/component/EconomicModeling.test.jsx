@@ -36,7 +36,7 @@ describe("EconomicModeling Real Functionality Tests", () => {
       renderWithAuth(<EconomicModeling />);
       
       // Should show loading initially (if real API is slow)
-      const loadingIndicators = screen.queryAllByRole('progressbar');
+      const _loadingIndicators = screen.queryAllByRole('progressbar');
       
       // Wait for either loading to complete or API to respond
       await waitFor(() => {

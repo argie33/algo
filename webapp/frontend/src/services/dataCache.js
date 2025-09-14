@@ -45,7 +45,14 @@ class DataCacheService {
   }
 
   getCacheKey(endpoint, params = {}) {
-    return `${endpoint}-${JSON.stringify(params)}`;
+    try {
+      // Handle null/undefined params safely
+      const safeParams = params || {};
+      return `${endpoint}-${JSON.stringify(safeParams)}`;
+    } catch (error) {
+      console.warn('[Cache] Failed to stringify params, using endpoint only:', error);
+      return endpoint;
+    }
   }
 
   async get(endpoint, params = {}, options = {}) {
@@ -61,16 +68,22 @@ class DataCacheService {
     if (cached && !options.forceRefresh) {
       const age = Date.now() - cached.timestamp;
       if (age < cacheDuration) {
-        // console.log(`[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`);
+        if (import.meta.env.DEV) {
+          console.log(`[Cache Hit] ${endpoint} - Age: ${Math.round(age / 1000)}s`);
+        }
         return cached?.data;
       }
     }
 
     // Check rate limiting
     if (!this.checkRateLimit(options.apiType || "default")) {
-      // console.warn(`[Rate Limit] Blocked request to ${endpoint}`);
+      if (import.meta.env.DEV) {
+        console.warn(`[Rate Limit] Blocked request to ${endpoint}`);
+      }
       if (cached) {
-        // console.log(`[Cache Fallback] Using stale cache for ${endpoint}`);
+        if (import.meta.env.DEV) {
+          console.log(`[Cache Fallback] Using stale cache for ${endpoint}`);
+        }
         return cached?.data;
       }
       throw new Error("Rate limit exceeded - please try again later");
@@ -78,7 +91,9 @@ class DataCacheService {
 
     // Fetch fresh data
     try {
-      // console.log(`[API Call] Fetching ${endpoint}`);
+      if (import.meta.env.DEV) {
+        console.log(`[API Call] Fetching ${endpoint}`);
+      }
       const fetchFunction = options.fetchFunction;
       if (!fetchFunction) {
         throw new Error("No fetch function provided");
@@ -100,11 +115,15 @@ class DataCacheService {
 
       return data;
     } catch (error) {
-      // console.error(`[API Error] ${endpoint}:`, error.message);
+      if (import.meta.env.DEV) {
+        console.error(`[API Error] ${endpoint}:`, error.message);
+      }
 
       // Return stale cache if available
       if (cached) {
-        // console.log(`[Cache Fallback] Using stale cache after error for ${endpoint}`);
+        if (import.meta.env.DEV) {
+          console.log(`[Cache Fallback] Using stale cache after error for ${endpoint}`);
+        }
         return cached?.data;
       }
 
@@ -139,29 +158,57 @@ class DataCacheService {
   }
 
   cleanupCache() {
-    const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    try {
+      const now = Date.now();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      const keysToDelete = [];
 
-    for (const [cacheKey, value] of this.cache.entries()) {
-      if (now - value.timestamp > maxAge) {
-        this.cache.delete(cacheKey);
+      for (const [cacheKey, value] of this.cache.entries()) {
+        // Handle invalid cache entries
+        if (!value || typeof value !== 'object' || typeof value.timestamp !== 'number') {
+          keysToDelete.push(cacheKey);
+          continue;
+        }
+        
+        if (now - value.timestamp > maxAge) {
+          keysToDelete.push(cacheKey);
+        }
       }
+
+      // Delete entries outside the iteration to avoid modification during iteration
+      keysToDelete.forEach(key => this.cache.delete(key));
+      
+      if (import.meta.env.DEV && keysToDelete.length > 0) {
+        console.log(`[Cache] Cleaned up ${keysToDelete.length} expired entries`);
+      }
+    } catch (error) {
+      console.error('[Cache] Error during cleanup:', error);
     }
   }
 
   // Batch fetch to reduce API calls
   async batchFetch(requests, options = {}) {
+    // Handle empty or invalid requests array
+    if (!requests || !Array.isArray(requests) || requests.length === 0) {
+      return [];
+    }
+
     const results = await Promise.allSettled(
-      (requests || []).map((req) =>
-        this.get(req.endpoint, req.params, {
+      requests.map((req) => {
+        // Validate request object
+        if (!req || typeof req !== 'object' || !req.endpoint) {
+          return Promise.reject(new Error('Invalid request object'));
+        }
+        
+        return this.get(req.endpoint, req.params, {
           ...options,
           ...req.options,
-        })
-      )
+        });
+      })
     );
 
-    return (results || []).map((result, index) => ({
-      ...requests[index],
+    return results.map((result, index) => ({
+      ...(requests[index] || {}),
       success: result.status === "fulfilled",
       data: result.status === "fulfilled" ? result.value : null,
       error: result.status === "rejected" ? result.reason : null,
@@ -171,7 +218,9 @@ class DataCacheService {
   // Preload common data during low-activity periods
   async preloadCommonData() {
     if (!this.isMarketHours()) {
-      // console.log("[Cache] Preloading common data during off-hours");
+      if (import.meta.env.DEV) {
+        console.log("[Cache] Preloading common data during off-hours");
+      }
 
       const commonEndpoints = [
         { endpoint: "/api/market/overview", cacheType: "marketData" },
@@ -193,7 +242,9 @@ class DataCacheService {
           );
           await new Promise((resolve) => setTimeout(resolve, 2000)); // 2s delay
         } catch (error) {
-          // console.error("[Preload Error]", endpoint.endpoint, error);
+          if (import.meta.env.DEV) {
+            console.error("[Preload Error]", endpoint.endpoint, error);
+          }
         }
       }
     }
@@ -207,28 +258,56 @@ class DataCacheService {
       apiCallCounts: {},
     };
 
-    for (const [_cacheKey, value] of this.cache.entries()) {
-      const age = Date.now() - value.timestamp;
-      stats.cacheEntries.push({
-        endpoint: value.endpoint,
-        age: Math.round(age / 1000),
-        expired:
-          age >
-          (this.refreshIntervals[value.cacheType] ||
-            this.refreshIntervals.default),
-      });
-    }
+    try {
+      for (const [cacheKey, value] of this.cache.entries()) {
+        // Handle invalid cache entries gracefully
+        if (!value || typeof value !== 'object') {
+          stats.cacheEntries.push({
+            endpoint: cacheKey,
+            age: 0,
+            expired: true,
+            invalid: true
+          });
+          continue;
+        }
 
-    for (const [apiType, calls] of this.apiCallCounts.entries()) {
-      const limit = this.rateLimits[apiType] || this.rateLimits.default;
-      const windowStart = Date.now() - limit.window;
-      const recentCalls = calls.filter((timestamp) => timestamp > windowStart);
+        const timestamp = typeof value.timestamp === 'number' ? value.timestamp : 0;
+        const age = Date.now() - timestamp;
+        const cacheType = value.cacheType || 'marketData';
+        
+        stats.cacheEntries.push({
+          endpoint: value.endpoint || cacheKey,
+          age: Math.round(age / 1000),
+          expired: age > (this.refreshIntervals[cacheType] || this.refreshIntervals.marketData),
+        });
+      }
 
-      stats.apiCallCounts[apiType] = {
-        recent: (recentCalls?.length || 0),
-        limit: limit.calls,
-        window: limit.window / 1000 + "s",
-      };
+      for (const [apiType, calls] of this.apiCallCounts.entries()) {
+        // Handle invalid call tracking gracefully
+        if (!Array.isArray(calls)) {
+          stats.apiCallCounts[apiType] = {
+            recent: 0,
+            limit: 0,
+            window: '0s',
+            invalid: true
+          };
+          continue;
+        }
+
+        const limit = this.rateLimits[apiType] || this.rateLimits.default;
+        const windowStart = Date.now() - limit.window;
+        const recentCalls = calls.filter((timestamp) => 
+          typeof timestamp === 'number' && timestamp > windowStart
+        );
+
+        stats.apiCallCounts[apiType] = {
+          recent: recentCalls.length,
+          limit: limit.calls,
+          window: (limit.window / 1000) + "s",
+        };
+      }
+    } catch (error) {
+      console.error('[Cache] Error generating stats:', error);
     }
 
     return stats;

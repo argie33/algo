@@ -61,6 +61,9 @@ import {
   Speed,
   TrendingFlat,
   Lightbulb,
+  SignalCellular4Bar,
+  SignalCellularConnectedNoInternet4Bar,
+  SignalCellularNodata,
 } from "@mui/icons-material";
 import {
   PieChart,
@@ -83,7 +86,9 @@ import {
   Scatter,
 } from "recharts";
 import { formatPercentage, formatNumber } from "../utils/formatters";
-import { apiCall } from "../utils/apiService";
+import api from "../services/api";
+import RealTimeSentimentScore from "../components/RealTimeSentimentScore";
+import realTimeNewsService from "../services/realTimeNewsService";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -108,6 +113,9 @@ const SentimentAnalysis = () => {
   const [selectedSymbol, setSelectedSymbol] = useState("SPY");
   const [orderBy, setOrderBy] = useState("impact");
   const [order, setOrder] = useState("desc");
+  const [realTimeNews, setRealTimeNews] = useState([]);
+  const [realtimeConnectionStatus, setRealtimeConnectionStatus] = useState('disconnected');
+  const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
 
   // Fetch real sentiment data from backend APIs
   const fetchAllSentimentData = useCallback(async () => {
@@ -117,8 +125,8 @@ const SentimentAnalysis = () => {
     try {
       // Fetch sentiment analysis data from multiple endpoints
       const [sentimentResponse, newsResponse] = await Promise.allSettled([
-        apiCall(`/api/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`),
-        apiCall(`/api/news/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`)
+        api.get(`/api/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`),
+        api.get(`/api/news/sentiment?symbol=${selectedSymbol}&timeframe=${selectedTimeframe}`)
       ]);
 
       // Process sentiment data
@@ -158,7 +166,7 @@ const SentimentAnalysis = () => {
             source: article.source?.name || article.source || 'Unknown',
             sentiment: article.sentiment || calculateSentimentLabel(article.sentiment_score),
             sentimentScore: article.sentiment_score || 50,
-            impact: article.market_impact || (Math.random() - 0.5) * 4, // Fallback if no impact data
+            impact: article.market_impact || 0, // Default neutral impact when no data available
             confidence: article.confidence || 70
           }));
         }
@@ -171,7 +179,7 @@ const SentimentAnalysis = () => {
       setSentimentData(processedData);
 
     } catch (err) {
-      console.error("Error fetching sentiment data:", err);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching sentiment data:", err);
       setError("Failed to load sentiment data. Please try again later.");
     } finally {
       setLoading(false);
@@ -182,6 +190,63 @@ const SentimentAnalysis = () => {
   useEffect(() => {
     fetchAllSentimentData();
   }, [fetchAllSentimentData]);
+
+  // Subscribe to real-time news updates
+  useEffect(() => {
+    if (!liveUpdatesEnabled) return;
+
+    let newsSubscriptionId = null;
+
+    const handleRealTimeNews = (newsArticles) => {
+      setRealTimeNews(prev => {
+        // Add new articles to the beginning and keep last 50
+        const updated = [...newsArticles, ...prev].slice(0, 50);
+        return updated;
+      });
+
+      // Update connection status
+      setRealtimeConnectionStatus('connected');
+
+      // Merge real-time news with existing sentiment data
+      if (newsArticles?.length > 0 && sentimentData) {
+        setSentimentData(prev => ({
+          ...prev,
+          newsImpact: [
+            ...newsArticles.map(article => ({
+              timestamp: article.publishedAt || article.timestamp,
+              headline: article.title,
+              source: article.source,
+              sentiment: article.sentiment?.label || 'Neutral',
+              sentimentScore: Math.round((article.sentiment?.score || 0.5) * 100),
+              impact: (article.sentiment?.score || 0.5) > 0.6 ? 1 : (article.sentiment?.score || 0.5) < 0.4 ? -1 : 0,
+              confidence: Math.round((article.sentiment?.confidence || 0.5) * 100),
+              isRealTime: true
+            })),
+            ...(prev?.newsImpact || [])
+          ].slice(0, 100) // Keep last 100 articles
+        }));
+      }
+    };
+
+    // Subscribe to real-time news
+    newsSubscriptionId = realTimeNewsService.subscribeToNews(handleRealTimeNews);
+
+    // Handle connection status changes
+    const handleConnectionChange = (status) => {
+      setRealtimeConnectionStatus(status);
+    };
+
+    // Add connection listener (if available)
+    if (typeof realTimeNewsService.addConnectionListener === 'function') {
+      realTimeNewsService.addConnectionListener(handleConnectionChange);
+    }
+
+    return () => {
+      if (newsSubscriptionId) {
+        realTimeNewsService.unsubscribeFromNews(newsSubscriptionId);
+      }
+    };
+  }, [liveUpdatesEnabled, sentimentData]);
 
   // Helper function to calculate sentiment label from score
   const calculateSentimentLabel = (score) => {
@@ -359,6 +424,28 @@ const SentimentAnalysis = () => {
             </Select>
           </FormControl>
 
+          {/* Real-time connection status */}
+          <Tooltip title={`Real-time updates: ${realtimeConnectionStatus}`}>
+            <IconButton size="small" color={realtimeConnectionStatus === 'connected' ? 'success' : 'default'}>
+              {realtimeConnectionStatus === 'connected' ? (
+                <SignalCellular4Bar />
+              ) : realtimeConnectionStatus === 'connecting' ? (
+                <SignalCellularConnectedNoInternet4Bar />
+              ) : (
+                <SignalCellularNodata />
+              )}
+            </IconButton>
+          </Tooltip>
+
+          <Button 
+            variant={liveUpdatesEnabled ? "contained" : "outlined"}
+            color={liveUpdatesEnabled ? "success" : "default"}
+            size="small"
+            onClick={() => setLiveUpdatesEnabled(!liveUpdatesEnabled)}
+          >
+            {liveUpdatesEnabled ? "Live" : "Static"}
+          </Button>
+
           <Button variant="outlined" startIcon={<Download />}>
             Export
           </Button>
@@ -385,7 +472,18 @@ const SentimentAnalysis = () => {
 
       {/* Key Metrics Cards */}
       <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
+        {/* Real-time Sentiment Score Card */}
+        {liveUpdatesEnabled && (
+          <Grid item xs={12} md={6} lg={4}>
+            <RealTimeSentimentScore 
+              symbol={selectedSymbol}
+              showDetails={true}
+              size="medium"
+              autoRefresh={true}
+            />
+          </Grid>
+        )}
+        <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -423,7 +521,7 @@ const SentimentAnalysis = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -455,7 +553,7 @@ const SentimentAnalysis = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -480,7 +578,7 @@ const SentimentAnalysis = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={6} lg={liveUpdatesEnabled ? 2 : 3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -517,6 +615,12 @@ const SentimentAnalysis = () => {
           <Tab label="News Impact" icon={<Newspaper />} />
           <Tab label="Social Sentiment" icon={<Reddit />} />
           <Tab label="AI Insights" icon={<Lightbulb />} />
+          {liveUpdatesEnabled && (
+            <Tab 
+              label="Real-Time Updates" 
+              icon={<SignalCellular4Bar />} 
+            />
+          )}
         </Tabs>
       </Box>
 
@@ -943,6 +1047,79 @@ const SentimentAnalysis = () => {
       <TabPanel value={activeTab} index={3}>
         {/* News Impact */}
         <Grid container spacing={3}>
+          {/* Real-Time News Feed */}
+          {liveUpdatesEnabled && realTimeNews.length > 0 && (
+            <Grid item xs={12} mb={3}>
+              <Card>
+                <CardHeader
+                  title="Real-Time News Updates"
+                  subheader={`${realTimeNews.length} live articles`}
+                  action={
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Chip 
+                        label="LIVE" 
+                        color="success" 
+                        size="small" 
+                        variant="filled"
+                      />
+                      <Tooltip title={`Connection: ${realtimeConnectionStatus}`}>
+                        {realtimeConnectionStatus === 'connected' ? (
+                          <SignalCellular4Bar color="success" fontSize="small" />
+                        ) : (
+                          <SignalCellularNodata color="error" fontSize="small" />
+                        )}
+                      </Tooltip>
+                    </Box>
+                  }
+                />
+                <CardContent>
+                  <List>
+                    {realTimeNews.slice(0, 5).map((article, index) => (
+                      <ListItem key={index} divider={index < 4}>
+                        <ListItemText
+                          primary={
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                {article.title}
+                              </Typography>
+                              {article.isRealTime && (
+                                <Chip label="NEW" color="success" size="small" />
+                              )}
+                            </Box>
+                          }
+                          secondary={
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" gutterBottom>
+                                {article.source} • {new Date(article.timestamp || article.publishedAt).toLocaleTimeString()}
+                              </Typography>
+                              <Box display="flex" gap={1}>
+                                <Chip
+                                  label={article.sentiment?.label || 'Neutral'}
+                                  color={getSentimentColor(Math.round((article.sentiment?.score || 0.5) * 100))}
+                                  size="small"
+                                />
+                                <Chip
+                                  label={`${Math.round((article.sentiment?.confidence || 0.5) * 100)}% confidence`}
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </Box>
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                  {realTimeNews.length > 5 && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Showing 5 most recent articles. {realTimeNews.length - 5} more available.
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
           <Grid item xs={12}>
             <Card>
               <CardHeader
@@ -1341,6 +1518,150 @@ const SentimentAnalysis = () => {
           </Grid>
         </Grid>
       </TabPanel>
+
+      {/* Real-Time Updates Tab Panel */}
+      {liveUpdatesEnabled && (
+        <TabPanel value={activeTab} index={6}>
+          <Grid container spacing={3}>
+            {/* Real-Time Sentiment Score */}
+            <Grid item xs={12} md={6}>
+              <RealTimeSentimentScore 
+                symbol={selectedSymbol}
+                showDetails={true}
+                size="large"
+                autoRefresh={true}
+              />
+            </Grid>
+
+            {/* Connection Status */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Real-Time Connection Status" />
+                <CardContent>
+                  <Box display="flex" flexDirection="column" gap={2}>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Typography variant="body2">WebSocket Status:</Typography>
+                      <Chip 
+                        label={realtimeConnectionStatus}
+                        color={realtimeConnectionStatus === 'connected' ? 'success' : 'error'}
+                        icon={realtimeConnectionStatus === 'connected' ? <SignalCellular4Bar /> : <SignalCellularNodata />}
+                      />
+                    </Box>
+
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Typography variant="body2">Live News Articles:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {realTimeNews.length}
+                      </Typography>
+                    </Box>
+
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Typography variant="body2">Last Update:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {realTimeNews.length > 0 ? 
+                          new Date(realTimeNews[0].timestamp || realTimeNews[0].publishedAt).toLocaleTimeString() : 
+                          'No updates yet'
+                        }
+                      </Typography>
+                    </Box>
+
+                    {realtimeConnectionStatus !== 'connected' && (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        Real-time updates are not available. Please check your connection.
+                      </Alert>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Real-Time News Feed */}
+            <Grid item xs={12}>
+              <Card>
+                <CardHeader
+                  title="Live News Stream"
+                  subheader={`Displaying ${Math.min(20, realTimeNews.length)} most recent articles`}
+                  action={
+                    <Chip 
+                      label={realtimeConnectionStatus === 'connected' ? "LIVE" : "OFFLINE"}
+                      color={realtimeConnectionStatus === 'connected' ? "success" : "error"}
+                      variant="filled"
+                    />
+                  }
+                />
+                <CardContent>
+                  {realTimeNews.length > 0 ? (
+                    <List>
+                      {realTimeNews.slice(0, 20).map((article, index) => (
+                        <ListItem key={index} divider={index < Math.min(19, realTimeNews.length - 1)}>
+                          <ListItemText
+                            primary={
+                              <Box display="flex" alignItems="center" gap={1}>
+                                <Typography variant="subtitle1" fontWeight="bold">
+                                  {article.title}
+                                </Typography>
+                                {article.isRealTime && (
+                                  <Chip label="LIVE" color="success" size="small" />
+                                )}
+                              </Box>
+                            }
+                            secondary={
+                              <Box mt={1}>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                  <strong>{article.source}</strong> • {new Date(article.timestamp || article.publishedAt).toLocaleString()}
+                                </Typography>
+                                {article.summary && (
+                                  <Typography variant="body2" gutterBottom>
+                                    {article.summary}
+                                  </Typography>
+                                )}
+                                <Box display="flex" gap={1} mt={1}>
+                                  <Chip
+                                    label={article.sentiment?.label || 'Neutral'}
+                                    color={getSentimentColor(Math.round((article.sentiment?.score || 0.5) * 100))}
+                                    size="small"
+                                  />
+                                  <Chip
+                                    label={`Score: ${Math.round((article.sentiment?.score || 0.5) * 100)}`}
+                                    variant="outlined"
+                                    size="small"
+                                  />
+                                  <Chip
+                                    label={`Confidence: ${Math.round((article.sentiment?.confidence || 0.5) * 100)}%`}
+                                    variant="outlined"
+                                    size="small"
+                                  />
+                                  {article.impact && (
+                                    <Chip
+                                      label={`Impact: ${article.impact.level || 'Low'}`}
+                                      color={article.impact.level === 'high' ? 'error' : 'default'}
+                                      variant="outlined"
+                                      size="small"
+                                    />
+                                  )}
+                                </Box>
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                      <Typography variant="body1" color="text.secondary">
+                        {realtimeConnectionStatus === 'connected' ? 
+                          'Waiting for real-time news updates...' : 
+                          'Connect to view live news updates'
+                        }
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
+      )}
     </Container>
   );
 };

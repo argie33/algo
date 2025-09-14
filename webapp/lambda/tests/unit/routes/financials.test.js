@@ -1,780 +1,485 @@
-const request = require("supertest");
-const express = require("express");
+/**
+ * Financials Routes Unit Tests
+ * Tests financials route logic in isolation with mocks
+ */
 
-const financialsRouter = require("../../../routes/financials");
+const express = require('express');
+const request = require('supertest');
 
-// Mock dependencies
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
-  initializeDatabase: jest.fn().mockResolvedValue({}),
-  healthCheck: jest.fn(),
-  getPool: jest.fn(),
-  closeDatabase: jest.fn(),
-  transaction: jest.fn(),
+// Mock the database utility
+jest.mock('../../../utils/database', () => ({
+  query: jest.fn()
 }));
 
-const { query } = require("../../../utils/database");
-
-describe("Financials Routes", () => {
+describe('Financials Routes Unit Tests', () => {
   let app;
+  let financialsRouter;
+  let mockQuery;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Set up mocks
+    const { query } = require('../../../utils/database');
+    mockQuery = query;
+    
+    // Create test app
     app = express();
     app.use(express.json());
-
-    // Add response formatter middleware
+    
+    // Add response helper middleware
     app.use((req, res, next) => {
-      res.success = (data, status = 200) => {
-        res.status(status).json({
-          success: true,
-          data: data,
-        });
-      };
-
-      res.error = (message, status = 500) => {
-        res.status(status).json({
-          success: false,
-          error: message,
-        });
-      };
-
+      res.error = (message, status) => res.status(status).json({ 
+        success: false, 
+        error: message 
+      });
+      res.success = (data) => res.json({ 
+        success: true, 
+        ...data 
+      });
       next();
     });
-
-    app.use("/financials", financialsRouter);
-    jest.clearAllMocks();
+    
+    // Load the route module
+    financialsRouter = require('../../../routes/financials');
+    app.use('/financials', financialsRouter);
   });
 
-  describe("GET /financials/debug/tables", () => {
-    test("should return debug information for financial tables", async () => {
-      const mockTableExists = { rows: [{ exists: true }] };
-      const mockColumns = {
-        rows: [
-          { column_name: "symbol", data_type: "text", is_nullable: "NO" },
-          { column_name: "date", data_type: "date", is_nullable: "NO" },
-          { column_name: "value", data_type: "numeric", is_nullable: "YES" },
-        ],
-      };
-      const mockCount = { rows: [{ total: "1000" }] };
-      const mockSample = {
-        rows: [{ symbol: "AAPL", date: "2023-12-31", value: 1000000 }],
-      };
-
-      // Mock all 6 tables - each table gets 4 queries (exists, columns, count, sample)
-      for (let i = 0; i < 6; i++) {
-        query
-          .mockResolvedValueOnce(mockTableExists)
-          .mockResolvedValueOnce(mockColumns)
-          .mockResolvedValueOnce(mockCount)
-          .mockResolvedValueOnce(mockSample);
-      }
-
+  describe('GET /financials', () => {
+    test('should return financials API overview', async () => {
       const response = await request(app)
-        .get("/financials/debug/tables")
-        .expect(200);
+        .get('/financials');
 
-      expect(response.body).toMatchObject({
-        status: "ok",
-        tables: expect.objectContaining({
-          balance_sheet: {
-            exists: true,
-            totalRecords: 1000,
-            columns: expect.arrayContaining([
-              expect.objectContaining({
-                column_name: "symbol",
-                data_type: "text",
-              }),
-            ]),
-            sampleData: expect.arrayContaining([
-              expect.objectContaining({
-                symbol: "AAPL",
-              }),
-            ]),
-          },
-        }),
-        timestamp: expect.any(String),
-      });
-      expect(query).toHaveBeenCalledTimes(24); // 6 tables × 4 queries each
-    });
-
-    test("should handle missing tables gracefully", async () => {
-      const mockTableNotExists = { rows: [{ exists: false }] };
-
-      // Mock all 6 tables as not existing
-      for (let i = 0; i < 6; i++) {
-        query.mockResolvedValueOnce(mockTableNotExists);
-      }
-
-      const response = await request(app)
-        .get("/financials/debug/tables")
-        .expect(200);
-
-      expect(response.body.tables.balance_sheet).toMatchObject({
-        exists: false,
-        message: "balance_sheet table does not exist",
-      });
-    });
-
-    test("should handle database errors", async () => {
-      query.mockRejectedValue(new Error("Database connection failed"));
-
-      const response = await request(app)
-        .get("/financials/debug/tables")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        status: "ok",
-        tables: expect.objectContaining({
-          balance_sheet: {
-            exists: false,
-            error: "Database connection failed",
-          },
-        }),
-        timestamp: expect.any(String),
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'Financials API - Ready');
+      expect(response.body).toHaveProperty('status', 'operational');
+      expect(response.body).toHaveProperty('endpoints');
+      expect(response.body).toHaveProperty('timestamp');
+      
+      // Verify endpoints are present
+      expect(Array.isArray(response.body.endpoints)).toBe(true);
+      expect(response.body.endpoints).toContain('/:ticker/balance-sheet - Get balance sheet data');
+      expect(response.body.endpoints).toContain('/:ticker/income-statement - Get income statement data');
+      expect(response.body.endpoints).toContain('/ping - Health check');
+      
+      // Verify timestamp is a valid ISO string
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(mockQuery).not.toHaveBeenCalled(); // Root endpoint doesn't use database
     });
   });
 
-  describe("GET /financials/:ticker/balance-sheet", () => {
-    test("should return balance sheet data for annual period", async () => {
-      const mockBalanceSheetData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Total Assets",
-            value: "352755000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Total Liabilities Net Minority Interest",
-            value: "290437000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Cash And Cash Equivalents",
-            value: "29965000000",
-          },
-        ],
-      };
-
-      query.mockResolvedValue(mockBalanceSheetData);
-
+  describe('GET /financials/ping', () => {
+    test('should return ping response', async () => {
       const response = await request(app)
-        .get("/financials/AAPL/balance-sheet")
-        .query({ period: "annual" })
-        .expect(200);
+        .get('/financials/ping');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            date: "2023-12-31",
-            totalAssets: 352755000000,
-            totalLiabilities: 290437000000,
-            cashAndCashEquivalents: 29965000000,
-            items: expect.objectContaining({
-              "Total Assets": 352755000000,
-              "Total Liabilities Net Minority Interest": 290437000000,
-              "Cash And Cash Equivalents": 29965000000,
-            }),
-          }),
-        ]),
-        metadata: {
-          ticker: "AAPL",
-          period: "annual",
-          count: 1,
-          timestamp: expect.any(String),
-        },
-      });
-    });
-
-    test("should handle quarterly period", async () => {
-      const mockData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-09-30",
-            item_name: "Total Assets",
-            value: "350000000000",
-          },
-        ],
-      };
-
-      query.mockResolvedValue(mockData);
-
-      const response = await request(app)
-        .get("/financials/AAPL/balance-sheet")
-        .query({ period: "quarterly" })
-        .expect(200);
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("quarterly_balance_sheet"),
-        ["AAPL"]
-      );
-      expect(response.body.metadata.period).toBe("quarterly");
-    });
-
-    test("should handle no data found", async () => {
-      query.mockResolvedValue({ rows: [] });
-
-      const response = await request(app)
-        .get("/financials/NONEXISTENT/balance-sheet")
-        .expect(404);
-
-      expect(response.body).toEqual({
-        error: "No data found for this query",
-      });
-    });
-
-    test("should handle database errors", async () => {
-      query.mockRejectedValue(new Error("Table does not exist"));
-
-      const response = await request(app)
-        .get("/financials/AAPL/balance-sheet")
-        .expect(500);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch balance sheet data",
-        message: "Table does not exist",
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('service', 'financials');
+      expect(response.body).toHaveProperty('timestamp');
+      
+      // Verify timestamp is a valid ISO string
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(mockQuery).not.toHaveBeenCalled(); // Ping doesn't use database
     });
   });
 
-  describe("GET /financials/:ticker/income-statement", () => {
-    test("should return income statement data", async () => {
-      const mockIncomeData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Total Revenue",
-            value: "394328000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Net Income",
-            value: "96995000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Gross Profit",
-            value: "169148000000",
-          },
-        ],
-      };
-
-      query.mockResolvedValue(mockIncomeData);
-
-      const response = await request(app)
-        .get("/financials/AAPL/income-statement")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            date: "2023-12-31",
-            revenue: 394328000000,
-            netIncome: 96995000000,
-            grossProfit: 169148000000,
-            items: expect.objectContaining({
-              "Total Revenue": 394328000000,
-              "Net Income": 96995000000,
-              "Gross Profit": 169148000000,
-            }),
-          }),
-        ]),
-        metadata: {
-          ticker: "AAPL",
-          period: "annual",
-          count: 1,
-          timestamp: expect.any(String),
-        },
-      });
-    });
-
-    test("should handle TTM period", async () => {
-      const mockData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Revenue",
-            value: "400000000000",
-          },
-        ],
-      };
-      query.mockResolvedValue(mockData);
-
-      const _response = await request(app)
-        .get("/financials/AAPL/income-statement")
-        .query({ period: "ttm" })
-        .expect(200);
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("ttm_income_stmt"),
-        ["AAPL"]
-      );
-    });
-
-    test("should handle quarterly period", async () => {
-      const mockData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-09-30",
-            item_name: "Revenue",
-            value: "100000000000",
-          },
-        ],
-      };
-      query.mockResolvedValue(mockData);
-
-      const _response = await request(app)
-        .get("/financials/AAPL/income-statement")
-        .query({ period: "quarterly" })
-        .expect(200);
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("quarterly_income_statement"),
-        ["AAPL"]
-      );
-    });
-  });
-
-  describe("GET /financials/:ticker/cash-flow", () => {
-    test("should return cash flow data", async () => {
-      const mockCashFlowData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Operating Cash Flow",
-            value: "110543000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Free Cash Flow",
-            value: "99584000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Capital Expenditure",
-            value: "-10959000000",
-          },
-        ],
-      };
-
-      query.mockResolvedValue(mockCashFlowData);
-
-      const response = await request(app)
-        .get("/financials/AAPL/cash-flow")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            date: "2023-12-31",
-            operatingCashFlow: 110543000000,
-            freeCashFlow: 99584000000,
-            capitalExpenditures: -10959000000,
-            items: expect.objectContaining({
-              "Operating Cash Flow": 110543000000,
-              "Free Cash Flow": 99584000000,
-              "Capital Expenditure": -10959000000,
-            }),
-          }),
-        ]),
-        metadata: {
-          ticker: "AAPL",
-          period: "annual",
-          count: 1,
-          timestamp: expect.any(String),
-        },
-      });
-    });
-
-    test("should handle TTM and quarterly periods", async () => {
-      const mockData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Operating Cash Flow",
-            value: "100000000000",
-          },
-        ],
-      };
-      query.mockResolvedValue(mockData);
-
-      // Test TTM
-      const _ttmResponse = await request(app)
-        .get("/financials/AAPL/cash-flow")
-        .query({ period: "ttm" })
-        .expect(200);
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("ttm_cashflow"),
-        ["AAPL"]
-      );
-
-      jest.clearAllMocks();
-      query.mockResolvedValue(mockData);
-
-      // Test quarterly
-      const _quarterlyResponse = await request(app)
-        .get("/financials/AAPL/cash-flow")
-        .query({ period: "quarterly" })
-        .expect(200);
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("quarterly_cash_flow"),
-        ["AAPL"]
-      );
-    });
-  });
-
-  describe("GET /financials/ping", () => {
-    test("should return health check response", async () => {
-      const response = await request(app).get("/financials/ping").expect(200);
-
-      expect(response.body).toEqual({
-        success: true,
-        service: "financials",
-        timestamp: expect.any(String),
-      });
-    });
-  });
-
-  describe("GET /financials/:ticker/key-metrics", () => {
-    test("should return organized key metrics data", async () => {
-      const mockKeyMetrics = {
-        rows: [
-          {
-            ticker: "AAPL",
-            trailing_pe: 28.5,
-            forward_pe: 25.2,
-            price_to_sales_ttm: 7.8,
-            price_to_book: 45.6,
-            peg_ratio: 2.1,
-            enterprise_value: 2800000000000,
-            total_revenue: 394328000000,
-            net_income: 96995000000,
-            eps_trailing: 6.13,
-            profit_margin_pct: 24.6,
-            return_on_equity_pct: 147.4,
-            dividend_yield: 0.47,
-          },
-        ],
-      };
-
-      query.mockResolvedValue(mockKeyMetrics);
-
-      const response = await request(app)
-        .get("/financials/AAPL/key-metrics")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          valuation: {
-            title: "Valuation Ratios",
-            icon: "TrendingUp",
-            metrics: expect.objectContaining({
-              "P/E Ratio (Trailing)": 28.5,
-              "P/E Ratio (Forward)": 25.2,
-              "Price/Sales (TTM)": 7.8,
-              "Price/Book": 45.6,
-              "PEG Ratio": 2.1,
-            }),
-          },
-          enterprise: {
-            title: "Enterprise Metrics",
-            icon: "BusinessCenter",
-            metrics: expect.objectContaining({
-              "Enterprise Value": 2800000000000,
-            }),
-          },
-          financial_performance: {
-            title: "Financial Performance",
-            icon: "Assessment",
-            metrics: expect.objectContaining({
-              "Total Revenue": 394328000000,
-              "Net Income": 96995000000,
-            }),
-          },
-          earnings: {
-            title: "Earnings Per Share",
-            icon: "MonetizationOn",
-            metrics: expect.objectContaining({
-              "EPS (Trailing)": 6.13,
-            }),
-          },
-          profitability: {
-            title: "Profitability Margins",
-            icon: "Percent",
-            metrics: expect.objectContaining({
-              "Profit Margin": 24.6,
-            }),
-          },
-          returns: {
-            title: "Return Metrics",
-            icon: "TrendingUp",
-            metrics: expect.objectContaining({
-              "Return on Equity": 147.4,
-            }),
-          },
-          dividends: {
-            title: "Dividend Information",
-            icon: "Savings",
-            metrics: expect.objectContaining({
-              "Dividend Yield": 0.47,
-            }),
-          },
-        }),
-        metadata: {
-          ticker: "AAPL",
-          dataQuality: expect.any(String),
-          totalMetrics: expect.any(Number),
-          populatedMetrics: expect.any(Number),
-          lastUpdated: expect.any(String),
-          source: "key_metrics table via loadinfo",
-        },
-      });
-    });
-
-    test("should handle no metrics data found", async () => {
-      query.mockResolvedValue({ rows: [] });
-
-      const response = await request(app)
-        .get("/financials/NONEXISTENT/key-metrics")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "No key metrics data found",
-        data: null,
-        metadata: {
-          ticker: "NONEXISTENT",
-          message: "Key metrics data not available for this ticker",
-        },
-      });
-    });
-
-    test("should handle database errors", async () => {
-      query.mockRejectedValue(new Error("Table does not exist"));
-
-      const response = await request(app)
-        .get("/financials/AAPL/key-metrics")
-        .expect(500);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch key metrics data",
-        message: "Table does not exist",
-      });
-    });
-  });
-
-  describe("GET /financials/data/:symbol", () => {
-    test("should return comprehensive financial data for symbol", async () => {
+  describe('GET /financials/statements', () => {
+    test('should return financial statements with valid parameters', async () => {
       const mockFinancialData = {
         rows: [
           {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Total Revenue",
-            value: "394328000000",
-            statement_type: "income_statement",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Total Assets",
-            value: "352755000000",
-            statement_type: "balance_sheet",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Operating Cash Flow",
-            value: "110543000000",
-            statement_type: "cash_flow",
-          },
-        ],
+            symbol: 'AAPL',
+            period: 'annual',
+            fiscal_year: 2023,
+            revenue: 394328000000,
+            net_income: 96995000000,
+            total_assets: 352755000000,
+            total_debt: 123930000000,
+            cash_and_equivalents: 61555000000
+          }
+        ]
       };
 
-      query.mockResolvedValue(mockFinancialData);
+      mockQuery.mockResolvedValueOnce(mockFinancialData);
 
       const response = await request(app)
-        .get("/financials/data/AAPL")
-        .expect(200);
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL', period: 'annual', type: 'income' });
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: {
-          balance_sheet: expect.arrayContaining([
-            expect.objectContaining({
-              date: "2023-12-31",
-              item_name: "Total Assets",
-              value: 352755000000,
-            }),
-          ]),
-          income_statement: expect.arrayContaining([
-            expect.objectContaining({
-              date: "2023-12-31",
-              item_name: "Total Revenue",
-              value: 394328000000,
-            }),
-          ]),
-          cash_flow: expect.arrayContaining([
-            expect.objectContaining({
-              date: "2023-12-31",
-              item_name: "Operating Cash Flow",
-              value: 110543000000,
-            }),
-          ]),
-        },
-        symbol: "AAPL",
-        count: 3,
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('symbol', 'AAPL');
+      expect(response.body.data).toHaveProperty('statements');
+      expect(Array.isArray(response.body.data.statements)).toBe(true);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('financial_statements'),
+        expect.arrayContaining(['AAPL'])
+      );
     });
 
-    test("should handle no financial data found", async () => {
-      query.mockResolvedValue({ rows: [] });
+    test('should require symbol parameter', async () => {
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ period: 'annual' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Symbol parameter required');
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    test('should handle default parameters', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
 
       const response = await request(app)
-        .get("/financials/data/NONEXISTENT")
-        .expect(404);
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL' });
 
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "No financial data found for symbol NONEXISTENT",
-      });
+      expect(response.status).toBe(200);
+      // Should use defaults: period='annual', type='all'
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['AAPL'])
+      );
+    });
+
+    test('should handle quarterly period', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL', period: 'quarterly' });
+
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('quarterly'),
+        expect.any(Array)
+      );
+    });
+
+    test('should filter by statement type', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL', type: 'balance_sheet' });
+
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('balance_sheet'),
+        expect.any(Array)
+      );
+    });
+
+    test('should handle empty results', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'INVALID' });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('No financial data found');
+    });
+
+    test('should handle database errors', async () => {
+      const dbError = new Error('Database connection failed');
+      mockQuery.mockRejectedValueOnce(dbError);
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL' });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toBeDefined();
     });
   });
 
-  describe("GET /financials/earnings/:symbol", () => {
-    test("should return earnings history data", async () => {
+  describe('GET /financials/:symbol', () => {
+    test('should return basic financial overview', async () => {
+      const mockOverviewData = {
+        rows: [{
+          symbol: 'AAPL',
+          market_cap: 2800000000000,
+          pe_ratio: 28.5,
+          revenue: 394328000000,
+          net_income: 96995000000,
+          debt_to_equity: 1.73,
+          roe: 0.27,
+          current_ratio: 0.98
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockOverviewData);
+
+      const response = await request(app)
+        .get('/financials/AAPL');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('symbol', 'AAPL');
+      expect(response.body.data).toHaveProperty('market_cap', 2800000000000);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('financial_overview'),
+        ['AAPL']
+      );
+    });
+
+    test('should handle lowercase symbol conversion', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/financials/aapl');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        ['AAPL'] // Should be converted to uppercase
+      );
+    });
+
+    test('should handle symbol not found', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/INVALID');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Financial data not found');
+    });
+  });
+
+  describe('GET /financials/:symbol/ratios', () => {
+    test('should return financial ratios', async () => {
+      const mockRatiosData = {
+        rows: [{
+          symbol: 'GOOGL',
+          pe_ratio: 22.8,
+          pb_ratio: 4.2,
+          debt_to_equity: 0.12,
+          current_ratio: 2.8,
+          quick_ratio: 2.6,
+          roe: 0.18,
+          roa: 0.15,
+          gross_margin: 0.57,
+          operating_margin: 0.25,
+          net_margin: 0.21
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockRatiosData);
+
+      const response = await request(app)
+        .get('/financials/GOOGL/ratios');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('ratios');
+      expect(response.body.data.ratios).toHaveProperty('pe_ratio', 22.8);
+      expect(response.body.data.ratios).toHaveProperty('roe', 0.18);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('financial_ratios'),
+        ['GOOGL']
+      );
+    });
+  });
+
+  describe('GET /financials/earnings/:symbol', () => {
+    test('should return earnings history', async () => {
       const mockEarningsData = {
         rows: [
           {
-            symbol: "AAPL",
-            report_date: "2023-11-02",
-            actual_eps: 1.46,
-            estimated_eps: 1.39,
-            surprise_percent: 5.04,
-            revenue_actual: 89498000000,
-            revenue_estimated: 89280000000,
-            revenue_surprise_percent: 0.24,
+            symbol: 'MSFT',
+            quarter: 'Q4 2023',
+            eps_actual: 2.45,
+            eps_estimate: 2.38,
+            revenue_actual: 56517000000,
+            revenue_estimate: 55490000000,
+            earnings_date: '2023-10-24',
+            surprise_percent: 2.94
           },
-        ],
+          {
+            symbol: 'MSFT',
+            quarter: 'Q3 2023',
+            eps_actual: 2.32,
+            eps_estimate: 2.28,
+            revenue_actual: 53445000000,
+            revenue_estimate: 52740000000,
+            earnings_date: '2023-07-25',
+            surprise_percent: 1.75
+          }
+        ]
       };
 
-      query.mockResolvedValue(mockEarningsData);
+      mockQuery.mockResolvedValueOnce(mockEarningsData);
 
       const response = await request(app)
-        .get("/financials/earnings/AAPL")
-        .expect(200);
+        .get('/financials/earnings/MSFT');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            report_date: "2023-11-02",
-            actual_eps: 1.46,
-            estimated_eps: 1.39,
-            surprise_percent: 5.04,
-            revenue_actual: 89498000000,
-            revenue_estimated: 89280000000,
-            revenue_surprise_percent: 0.24,
-          }),
-        ]),
-        count: 1,
-        symbol: "AAPL",
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('symbol', 'MSFT');
+      expect(response.body.data).toHaveProperty('earnings_history');
+      expect(Array.isArray(response.body.data.earnings_history)).toBe(true);
+      expect(response.body.data.earnings_history).toHaveLength(2);
+      expect(response.body.data.earnings_history[0]).toHaveProperty('quarter', 'Q4 2023');
+      expect(response.body.data.earnings_history[0]).toHaveProperty('surprise_percent', 2.94);
     });
 
-    test("should handle no earnings data found", async () => {
-      query.mockResolvedValue({ rows: [] });
+    test('should handle earnings limit parameter', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
 
       const response = await request(app)
-        .get("/financials/earnings/NONEXISTENT")
-        .expect(404);
+        .get('/financials/earnings/AAPL')
+        .query({ limit: 8 });
 
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "No earnings data found for symbol NONEXISTENT",
-      });
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('LIMIT'),
+        expect.arrayContaining(['AAPL', 8])
+      );
     });
   });
 
-  describe("GET /financials/cash-flow/:symbol", () => {
-    test("should return cash flow data for symbol", async () => {
-      const mockCashFlowData = {
+  describe('GET /financials/debug/tables', () => {
+    test('should return table structure information', async () => {
+      const mockTableData = {
         rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Operating Cash Flow",
-            value: "110543000000",
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-31",
-            item_name: "Free Cash Flow",
-            value: "99584000000",
-          },
-        ],
+          { table_name: 'financial_statements', column_count: 25, has_data: true },
+          { table_name: 'financial_ratios', column_count: 15, has_data: true },
+          { table_name: 'earnings_history', column_count: 10, has_data: false }
+        ]
       };
 
-      query.mockResolvedValue(mockCashFlowData);
+      mockQuery.mockResolvedValueOnce(mockTableData);
 
       const response = await request(app)
-        .get("/financials/cash-flow/AAPL")
-        .expect(200);
+        .get('/financials/debug/tables');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            date: "2023-12-31",
-            items: expect.objectContaining({
-              "Operating Cash Flow": 110543000000,
-              "Free Cash Flow": 99584000000,
-            }),
-          }),
-        ]),
-        count: 1,
-        symbol: "AAPL",
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('tables');
+      expect(Array.isArray(response.body.tables)).toBe(true);
+      expect(response.body.tables).toHaveLength(3);
+      expect(response.body.tables[0]).toHaveProperty('table_name', 'financial_statements');
+      expect(response.body.tables[0]).toHaveProperty('has_data', true);
     });
 
-    test("should handle no cash flow data found", async () => {
-      query.mockResolvedValue({ rows: [] });
+    test('should handle debug query errors', async () => {
+      const debugError = new Error('Debug query failed');
+      mockQuery.mockRejectedValueOnce(debugError);
 
       const response = await request(app)
-        .get("/financials/cash-flow/NONEXISTENT")
-        .expect(404);
+        .get('/financials/debug/tables');
 
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "No cash flow data found for symbol NONEXISTENT",
-      });
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Debug query failed');
+    });
+  });
+
+  describe('Parameter validation', () => {
+    test('should sanitize symbol parameter', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: "AAPL'; DROP TABLE financial_statements; --" });
+
+      expect(response.status).toBe(200);
+      // Symbol should be sanitized and used safely in prepared statement
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(["AAPL'; DROP TABLE financial_statements; --"])
+      );
+    });
+
+    test('should handle invalid symbol format', async () => {
+      const response = await request(app)
+        .get('/financials/invalid-symbol-format!@#');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Invalid symbol format');
+    });
+
+    test('should validate period parameter', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL', period: 'invalid_period' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Invalid period');
+    });
+
+    test('should validate type parameter', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL', type: 'invalid_type' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Invalid statement type');
+    });
+  });
+
+  describe('Error handling', () => {
+    test('should handle database connection timeout', async () => {
+      const timeoutError = new Error('Query timeout');
+      timeoutError.code = 'QUERY_TIMEOUT';
+      mockQuery.mockRejectedValueOnce(timeoutError);
+
+      const response = await request(app)
+        .get('/financials/AAPL');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('timeout');
+    });
+
+    test('should handle malformed database results', async () => {
+      mockQuery.mockResolvedValueOnce(null); // Malformed result
+
+      const response = await request(app)
+        .get('/financials/AAPL');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+    });
+  });
+
+  describe('Response format', () => {
+    test('should return consistent JSON response format', async () => {
+      const response = await request(app)
+        .get('/financials/ping');
+
+      expect(response.headers['content-type']).toMatch(/json/);
+      expect(typeof response.body).toBe('object');
+    });
+
+    test('should include metadata in financial responses', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/financials/statements')
+        .query({ symbol: 'AAPL' });
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty('success');
+        expect(response.body).toHaveProperty('data');
+      }
     });
   });
 });

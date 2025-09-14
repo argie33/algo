@@ -39,7 +39,7 @@ class ErrorBoundary extends React.Component {
     // Only catch React rendering errors, not API/async errors
     const isReactRenderError = errorInfo && errorInfo.componentStack;
     const isNetworkError =
-      error.message &&
+      error && error.message &&
       (error.message.includes("Network Error") ||
         error.message.includes("fetch") ||
         error.message.includes("ECONNREFUSED") ||

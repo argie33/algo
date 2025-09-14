@@ -52,10 +52,13 @@ import {
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
-import { createLogger } from "../utils/apiService.jsx";
 
-// Use standardized logger
-const logger = createLogger("TradingSignals");
+// Use console logger for now
+const logger = {
+  info: (msg) => console.log(`[TradingSignals] ${msg}`),
+  error: (msg) => console.error(`[TradingSignals] ${msg}`),
+  warn: (msg) => console.warn(`[TradingSignals] ${msg}`)
+};
 
 function TradingSignals() {
   useDocumentTitle("Trading Signals");

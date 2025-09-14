@@ -608,4 +608,477 @@ describe("Factor Scoring Engine", () => {
       expect(typeof result.compositeScore).toBe("number");
     });
   });
+
+  describe("Error Handling and Edge Cases", () => {
+    test("should handle percentile calculation with insufficient data", () => {
+      const universeData = [{ pe_ratio: 10 }]; // Only one stock
+      
+      const result = scoringEngine.calculatePercentileScore(15, "pe_ratio", [], true);
+      expect(typeof result).toBe("number");
+      expect(result).toBeGreaterThanOrEqual(0);
+      expect(result).toBeLessThanOrEqual(1);
+    });
+
+    test("should handle percentile calculation errors gracefully", () => {
+      // Force an error by passing invalid universe data
+      const invalidUniverse = null;
+      
+      const result = scoringEngine.calculatePercentileScore(15, "pe_ratio", invalidUniverse, false);
+      expect(typeof result).toBe("number");
+      expect(logger.warn).toHaveBeenCalledWith("Percentile score calculation error", expect.any(Object));
+    });
+
+    test("should handle universe scoring errors", () => {
+      const invalidUniverse = [{ invalid: "data" }];
+      
+      expect(() => {
+        scoringEngine.scoreUniverse(invalidUniverse);
+      }).not.toThrow();
+    });
+
+    test("should apply custom weights and normalize", () => {
+      const customWeights = {
+        value: 0.4,
+        growth: 0.3,
+        profitability: 0.2,
+        financial_health: 0.1
+      };
+
+      scoringEngine.applyCustomWeights(customWeights);
+      
+      const totalWeight = Object.values(scoringEngine.factors)
+        .reduce((sum, cat) => sum + cat.weight, 0);
+      
+      expect(Math.abs(totalWeight - 1.0)).toBeLessThan(0.001);
+    });
+
+    test("should handle custom weights for non-existent categories", () => {
+      const customWeights = {
+        nonexistent_category: 0.5,
+        value: 0.5
+      };
+
+      scoringEngine.applyCustomWeights(customWeights);
+      expect(scoringEngine.factors.value.weight).toBeGreaterThan(0);
+    });
+
+    test("should get factor explanations for stock", () => {
+      const stockData = {
+        symbol: "TEST",
+        pe_ratio: 15.5,
+        pb_ratio: 2.0,
+        roe: 0.15,
+        revenue_growth_1y: 0.1
+      };
+
+      const explanations = scoringEngine.getFactorExplanations(stockData);
+      expect(explanations).toBeDefined();
+      expect(typeof explanations).toBe("object");
+    });
+
+    test("should handle factor explanations with null values", () => {
+      const stockData = {
+        symbol: "NULL_TEST",
+        pe_ratio: null,
+        pb_ratio: undefined,
+        roe: 0.15
+      };
+
+      const explanations = scoringEngine.getFactorExplanations(stockData);
+      expect(explanations).toBeDefined();
+      expect(typeof explanations).toBe("object");
+    });
+
+    test("should handle empty factor explanations", () => {
+      const stockData = {};
+      
+      const explanations = scoringEngine.getFactorExplanations(stockData);
+      expect(explanations).toBeDefined();
+      expect(typeof explanations).toBe("object");
+    });
+
+    test("should handle additional scoring edge cases", () => {
+      const stocksWithMissingData = [
+        { symbol: "TEST1", pe_ratio: 15 },
+        { symbol: "TEST2" }, // Missing all data
+        { symbol: "TEST3", pe_ratio: null, roe: 0.15 }
+      ];
+
+      expect(() => {
+        const scores = stocksWithMissingData.map(stock => 
+          scoringEngine.calculateCompositeScore(stock)
+        );
+        expect(scores).toHaveLength(3);
+      }).not.toThrow();
+    });
+
+    test("should handle extreme scoring scenarios", () => {
+      const extremeStock = {
+        symbol: "EXTREME",
+        pe_ratio: Number.MAX_SAFE_INTEGER,
+        pb_ratio: 0.001,
+        roe: -1.5,
+        revenue_growth_1y: 10.0
+      };
+
+      const result = scoringEngine.calculateCompositeScore(extremeStock);
+      expect(result).toBeDefined();
+      expect(result.compositeScore).toBeGreaterThanOrEqual(0);
+      expect(result.compositeScore).toBeLessThanOrEqual(1);
+    });
+
+    test("should handle universe with single stock", () => {
+      const singleStockUniverse = [
+        { symbol: "SINGLE", pe_ratio: 15, roe: 0.15, revenue_growth_1y: 0.1 }
+      ];
+
+      expect(() => {
+        const scores = scoringEngine.scoreUniverse(singleStockUniverse);
+        expect(Array.isArray(scores)).toBe(true);
+        expect(scores.length).toBe(1);
+      }).not.toThrow();
+    });
+
+    test("should validate scoreUniverse error handling", () => {
+      // Test with universe that causes errors
+      const problematicUniverse = [
+        { symbol: "PROB1" },
+        null,
+        undefined,
+        { symbol: "PROB2", invalid_field: "test" }
+      ];
+
+      expect(() => {
+        scoringEngine.scoreUniverse(problematicUniverse);
+      }).not.toThrow();
+    });
+  });
+
+  describe("Edge Cases and Error Handling", () => {
+    test("should handle empty stock data in scoreUniverse", () => {
+      const result = scoringEngine.scoreUniverse([]);
+      expect(result).toEqual([]);
+    });
+
+    test("should handle null stock data in scoreUniverse", () => {
+      const result = scoringEngine.scoreUniverse(null);
+      expect(result).toEqual([]);
+    });
+
+    test("should apply custom weights correctly", () => {
+      const stockData = [
+        {
+          symbol: "TEST",
+          pe_ratio: 15,
+          roe: 0.15,
+          revenue_growth_1y: 0.10,
+        },
+      ];
+
+      const customWeights = {
+        value: 0.5,
+        profitability: 0.3,
+        growth: 0.2,
+      };
+
+      const result = scoringEngine.scoreUniverse(stockData, customWeights);
+      expect(result).toHaveLength(1);
+      expect(result[0].factorScore.compositeScore).toBeDefined();
+      
+      // Verify the custom weights were applied (weights get normalized)
+      // The weights should sum to 1, so check they're proportional rather than exact
+      expect(scoringEngine.factors.value.weight).toBeGreaterThan(0.3);
+      expect(scoringEngine.factors.profitability.weight).toBeGreaterThan(0.2);
+      expect(scoringEngine.factors.growth.weight).toBeGreaterThan(0.1);
+    });
+  });
+
+  describe("Statistical Analysis", () => {
+    test("should calculate quartiles correctly", () => {
+      const testData = Array.from({ length: 100 }, (_, i) => ({
+        symbol: `STOCK${i}`,
+        pe_ratio: 10 + i, // Values from 10 to 109
+        roe: 0.01 + i * 0.001,
+      }));
+
+      const scored = scoringEngine.scoreUniverse(testData);
+      expect(scored).toHaveLength(100);
+      
+      // Check that quartiles exist in the ranking metadata
+      const scores = scored.map(s => s.factorScore.compositeScore);
+      const quartiles = scoringEngine.calculateQuartiles(scores);
+      
+      expect(quartiles).toHaveProperty('q1');
+      expect(quartiles).toHaveProperty('q2');
+      expect(quartiles).toHaveProperty('q3');
+      expect(quartiles.q1).toBeLessThanOrEqual(quartiles.q2);
+      expect(quartiles.q2).toBeLessThanOrEqual(quartiles.q3);
+    });
+  });
+
+  describe("Factor Screening", () => {
+    let scoredStocks;
+
+    beforeEach(() => {
+      const testData = [
+        {
+          symbol: "HIGH_SCORE",
+          pe_ratio: 10,
+          roe: 0.20,
+          revenue_growth_1y: 0.15,
+          debt_to_equity: 0.3,
+        },
+        {
+          symbol: "MED_SCORE", 
+          pe_ratio: 20,
+          roe: 0.10,
+          revenue_growth_1y: 0.08,
+          debt_to_equity: 0.5,
+        },
+        {
+          symbol: "LOW_SCORE",
+          pe_ratio: 35,
+          roe: 0.05,
+          revenue_growth_1y: 0.02,
+          debt_to_equity: 0.8,
+        },
+      ];
+
+      scoredStocks = scoringEngine.scoreUniverse(testData);
+    });
+
+    test("should filter by minimum composite score", () => {
+      const criteria = { minCompositeScore: 50 };
+      const filtered = scoringEngine.screenByFactors(scoredStocks, criteria);
+      
+      filtered.forEach(stock => {
+        expect(stock.factorScore.compositeScore).toBeGreaterThanOrEqual(50);
+      });
+    });
+
+    test("should filter by maximum composite score", () => {
+      const criteria = { maxCompositeScore: 60 };
+      const filtered = scoringEngine.screenByFactors(scoredStocks, criteria);
+      
+      filtered.forEach(stock => {
+        expect(stock.factorScore.compositeScore).toBeLessThanOrEqual(60);
+      });
+    });
+
+    test("should filter by minimum percentile", () => {
+      const criteria = { minPercentile: 50 };
+      const filtered = scoringEngine.screenByFactors(scoredStocks, criteria);
+      
+      filtered.forEach(stock => {
+        expect(stock.factorScore.percentile).toBeGreaterThanOrEqual(50);
+      });
+    });
+
+    test("should filter by category scores", () => {
+      const criteria = {
+        categoryFilters: {
+          profitability: 40,
+          value: 30,
+        }
+      };
+      
+      const filtered = scoringEngine.screenByFactors(scoredStocks, criteria);
+      
+      filtered.forEach(stock => {
+        if (stock.factorScore.categoryScores.profitability) {
+          expect(stock.factorScore.categoryScores.profitability).toBeGreaterThanOrEqual(40);
+        }
+        if (stock.factorScore.categoryScores.value) {
+          expect(stock.factorScore.categoryScores.value).toBeGreaterThanOrEqual(30);
+        }
+      });
+    });
+
+    test("should handle stocks without factor scores", () => {
+      const stocksWithoutScores = [
+        { symbol: "NO_SCORE", pe_ratio: 15 },
+      ];
+      
+      const criteria = { minCompositeScore: 50 };
+      const filtered = scoringEngine.screenByFactors(stocksWithoutScores, criteria);
+      
+      expect(filtered).toHaveLength(0);
+    });
+
+    test("should handle complex multi-criteria filtering", () => {
+      const criteria = {
+        minCompositeScore: 30,
+        maxCompositeScore: 80,
+        minPercentile: 25,
+        categoryFilters: {
+          value: 20,
+        }
+      };
+      
+      const filtered = scoringEngine.screenByFactors(scoredStocks, criteria);
+      
+      filtered.forEach(stock => {
+        const score = stock.factorScore;
+        expect(score.compositeScore).toBeGreaterThanOrEqual(30);
+        expect(score.compositeScore).toBeLessThanOrEqual(80);
+        expect(score.percentile).toBeGreaterThanOrEqual(25);
+        if (score.categoryScores.value) {
+          expect(score.categoryScores.value).toBeGreaterThanOrEqual(20);
+        }
+      });
+    });
+  });
+
+  describe("Module Exports", () => {
+    test("should export singleton functions correctly", () => {
+      const {
+        calculateCompositeScore,
+        scoreUniverse,
+        getFactorExplanations,
+        getFactorDefinitions,
+        createCustomProfile,
+        screenByFactors,
+        FACTOR_DEFINITIONS
+      } = require("../../utils/factorScoring");
+
+      const testStock = {
+        symbol: "TEST",
+        pe_ratio: 15,
+        roe: 0.10,
+      };
+
+      // Test singleton function exports
+      const compositeScore = calculateCompositeScore(testStock, [testStock]);
+      expect(compositeScore).toBeDefined();
+      expect(compositeScore.compositeScore).toBeGreaterThanOrEqual(0);
+
+      const universeResult = scoreUniverse([testStock]);
+      expect(universeResult).toHaveLength(1);
+
+      const explanations = getFactorExplanations(testStock);
+      expect(explanations).toBeDefined();
+
+      const definitions = getFactorDefinitions();
+      expect(definitions).toBeDefined();
+      expect(definitions.value).toBeDefined();
+
+      // Test constants export
+      expect(FACTOR_DEFINITIONS).toBeDefined();
+      expect(FACTOR_DEFINITIONS.value).toBeDefined();
+    });
+
+    test("should handle custom profile creation through exports", () => {
+      const { createCustomProfile } = require("../../utils/factorScoring");
+      
+      const profile = createCustomProfile("TestProfile", {
+        value: 0.4,
+        growth: 0.6,
+      }, "Test profile");
+
+      expect(profile).toBeDefined();
+      expect(profile.name).toBe("TestProfile");
+      expect(profile.description).toBe("Test profile");
+      expect(profile.weights.value).toBe(0.4);
+      expect(profile.weights.growth).toBe(0.6);
+    });
+
+    test("should handle screening through exports", () => {
+      const { scoreUniverse, screenByFactors } = require("../../utils/factorScoring");
+      
+      const testData = [
+        { symbol: "TEST1", pe_ratio: 15, roe: 0.15 },
+        { symbol: "TEST2", pe_ratio: 25, roe: 0.08 },
+      ];
+
+      const scored = scoreUniverse(testData);
+      const filtered = screenByFactors(scored, { minCompositeScore: 40 });
+      
+      expect(Array.isArray(filtered)).toBe(true);
+      filtered.forEach(stock => {
+        expect(stock.factorScore.compositeScore).toBeGreaterThanOrEqual(40);
+      });
+    });
+  });
+
+  describe("Coverage Completion Tests", () => {
+    test("should handle scoreUniverse with various inputs", () => {
+      // Test with challenging data that the engine should handle gracefully
+      const challengingStockData = [
+        { 
+          symbol: "TEST", 
+          pe_ratio: "invalid", 
+          roe: {},
+          debt_to_equity: NaN
+        }
+      ];
+
+      // Should handle invalid data gracefully without throwing
+      const result = scoringEngine.scoreUniverse(challengingStockData);
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    test("should handle normalizeFactors with empty array", () => {
+      // Test the empty array path (line 662)
+      const result = scoringEngine.normalizeFactors([]);
+      expect(result).toEqual([]);
+      
+      // Also test with null/undefined
+      const result2 = scoringEngine.normalizeFactors(null);
+      expect(result2).toEqual([]);
+    });
+
+    test("should calculate quartiles in statistical analysis", () => {
+      // Test the quartile calculation path (lines 701-705)
+      const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      
+      // This should hit the quartile calculation code
+      const testStocks = values.map(val => ({
+        symbol: `TEST${val}`,
+        pe_ratio: val,
+        roe: val * 0.1,
+        revenue_growth: val * 0.05
+      }));
+
+      const result = scoringEngine.scoreUniverse(testStocks);
+      expect(result.length).toBe(values.length);
+    });
+
+    test("should filter by maxCompositeScore criteria", () => {
+      // Create stocks with known high scores
+      const highScoreStocks = [
+        { symbol: "HIGH1", pe_ratio: 5, roe: 0.3, revenue_growth: 0.25, debt_to_equity: 0.1 },
+        { symbol: "HIGH2", pe_ratio: 8, roe: 0.25, revenue_growth: 0.2, debt_to_equity: 0.2 },
+        { symbol: "LOW", pe_ratio: 50, roe: 0.05, revenue_growth: 0.01, debt_to_equity: 2.0 }
+      ];
+
+      const scored = scoringEngine.scoreUniverse(highScoreStocks);
+      
+      // Filter with maxCompositeScore to trigger line 733
+      const filtered = scoringEngine.screenByFactors(scored, { 
+        maxCompositeScore: 50  // This should filter out high scores
+      });
+      
+      expect(Array.isArray(filtered)).toBe(true);
+      // Should filter out some stocks based on max score
+    });
+
+    test("should handle edge cases in factor calculations", () => {
+      // Test with extreme values that might cause calculation issues
+      const extremeStocks = [
+        { 
+          symbol: "EXTREME", 
+          pe_ratio: Number.MAX_VALUE, 
+          roe: Infinity, 
+          revenue_growth: -Infinity,
+          debt_to_equity: 0
+        }
+      ];
+
+      // Should handle extreme values gracefully
+      const result = scoringEngine.scoreUniverse(extremeStocks);
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+    });
+  });
 });

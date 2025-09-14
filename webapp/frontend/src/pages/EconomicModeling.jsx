@@ -175,7 +175,7 @@ const EconomicModeling = () => {
 
         setEconomicData(combinedData);
       } catch (err) {
-        console.error('Failed to fetch economic data:', err);
+        if (import.meta.env && import.meta.env.DEV) console.error('Failed to fetch economic data:', err);
         setError(err.message || 'Failed to fetch economic data');
       } finally {
         setLoading(false);
@@ -197,10 +197,10 @@ const EconomicModeling = () => {
     };
 
     const weightedSum = economicData.forecastModels.reduce((sum, model) => {
-      return sum + model.probability * (weights[model.name] || 0);
+      return sum + (model.probability || 0) * (weights[model.name] || 0);
     }, 0);
 
-    return Math.round(weightedSum);
+    return Math.round(weightedSum) || 0;
   }, [economicData]);
 
   // Calculate economic stress index
@@ -212,9 +212,9 @@ const EconomicModeling = () => {
     ).length;
 
     const totalSignals = (economicData.leadingIndicators?.length || 0);
-    const stressScore = (negativeSignals / totalSignals) * 100;
+    const stressScore = totalSignals > 0 ? (negativeSignals / totalSignals) * 100 : 0;
 
-    return Math.round(stressScore);
+    return Math.round(stressScore) || 0;
   }, [economicData]);
 
   // Calculate yield curve signal strength

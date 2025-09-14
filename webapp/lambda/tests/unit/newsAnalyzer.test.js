@@ -228,6 +228,23 @@ describe("News Analyzer", () => {
         );
       });
 
+      test("should determine negative overall sentiment when negative articles dominate", () => {
+        const negativeArticles = [
+          { title: "bearish decline loss weak downgrade" },
+          { title: "sell down miss below cut" },
+          { title: "negative outlook with decline" },
+        ];
+
+        const result = newsAnalyzer.analyzeArticles(negativeArticles);
+        expect(result.overallSentiment).toBe("negative");
+        expect(result.sentimentDistribution.negative).toBeGreaterThan(
+          result.sentimentDistribution.positive
+        );
+        expect(result.sentimentDistribution.negative).toBeGreaterThan(
+          result.sentimentDistribution.neutral
+        );
+      });
+
       test("should handle analysis errors gracefully", () => {
         // Mock analyzeSentiment to throw error
         const originalAnalyzeSentiment = newsAnalyzer.analyzeSentiment;

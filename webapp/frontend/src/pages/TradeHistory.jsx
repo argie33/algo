@@ -116,6 +116,13 @@ const TradeHistory = () => {
   ]);
 
   const fetchTradeHistory = async () => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (!user?.token && !isDevelopment) {
+      console.warn("No user token available for fetching trade history");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -158,6 +165,12 @@ const TradeHistory = () => {
   };
 
   const fetchAnalytics = async () => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (!user?.token && !isDevelopment) {
+      console.warn("No user token available for fetching analytics");
+      return;
+    }
+
     try {
       const response = await fetch("/api/trades/analytics/overview", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -167,11 +180,17 @@ const TradeHistory = () => {
         setAnalytics(data);
       }
     } catch (err) {
-      console.error("Failed to fetch analytics:", err);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch analytics:", err);
     }
   };
 
   const fetchInsights = async () => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (!user?.token && !isDevelopment) {
+      console.warn("No user token available for fetching insights");
+      return;
+    }
+
     try {
       const response = await fetch("/api/trades/insights", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -181,11 +200,17 @@ const TradeHistory = () => {
         setInsights(data.insights || []);
       }
     } catch (err) {
-      console.error("Failed to fetch insights:", err);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch insights:", err);
     }
   };
 
   const fetchPerformance = async () => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (!user?.token && !isDevelopment) {
+      console.warn("No user token available for fetching performance data");
+      return;
+    }
+
     try {
       const response = await fetch("/api/trades/performance", {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -195,11 +220,16 @@ const TradeHistory = () => {
         setPerformance(data);
       }
     } catch (err) {
-      console.error("Failed to fetch performance:", err);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch performance:", err);
     }
   };
 
   const handleImportTrades = async () => {
+    if (!user?.token) {
+      setError("No authentication token available");
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch("/api/trades/import/alpaca", {
@@ -221,6 +251,11 @@ const TradeHistory = () => {
   };
 
   const handleExportTrades = async (format = "csv") => {
+    if (!user?.token) {
+      setError("No authentication token available");
+      return;
+    }
+
     try {
       const response = await fetch(`/api/trades/export?format=${format}`, {
         headers: { Authorization: `Bearer ${user.token}` },

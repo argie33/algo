@@ -1,0 +1,171 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/alerts/active
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Created/verified table: price_alerts
+✅ Created/verified table: risk_alerts
+✅ Created/verified table: stock_scores
+✅ Created/verified table: key_metrics
+✅ Created/verified table: dividend_calendar
+✅ Created/verified table: trading_strategies
+✅ Created/verified table: user_risk_limits
+✅ Created/verified table: trade_history
+✅ Created/verified table: portfolio_summary
+✅ Created/verified table: user_dashboard_settings
+✅ Database schema initialization completed
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+::1 - - [12/Sep/2025:09:57:21 +0000] "GET /api/alerts/active HTTP/1.1" 200 2526 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:09:57:30 +0000] "GET /api/health HTTP/1.1" 200 331 "-" "curl/8.5.0"
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:57:35 +0000] "GET /api/technical/daily HTTP/1.1" 200 11582 "-" "curl/8.5.0"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+::1 - - [12/Sep/2025:09:58:17 +0000] "GET /api/alerts/active HTTP/1.1" 200 2526 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio holdings endpoint called for authenticated user: dev-user-bypass
+::1 - - [12/Sep/2025:10:00:31 +0000] "GET /api/portfolio/holdings?user_id=dev-user-bypass HTTP/1.1" 200 6468 "-" "curl/8.5.0"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:00:34 +0000] "GET /api/watchlist?user_id=dev-user-bypass HTTP/1.1" 200 36 "-" "curl/8.5.0"
+Processing request: GET /api/scores/AAPL
+Database connection verified for database-dependent endpoint
+Getting detailed scores for AAPL
+::1 - - [12/Sep/2025:10:00:35 +0000] "GET /api/scores/AAPL HTTP/1.1" 200 2107 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+Available earnings_reports columns: [
+  'symbol',
+  'report_date',
+  'quarter',
+  'year',
+  'revenue',
+  'net_income',
+  'eps_reported',
+  'eps_estimate',
+  'surprise_percent'
+]
+Using select columns: [ 'symbol', 'report_date', 'quarter', 'year', 'surprise_percent' ]
+::1 - - [12/Sep/2025:10:00:49 +0000] "GET /api/calendar/earnings?start=2025-09-10&end=2025-09-20 HTTP/1.1" 200 6644 "-" "curl/8.5.0"
+Processing request: GET /api/news/analysis
+Database connection verified for database-dependent endpoint
+📰 Symbol news requested for analysis
+::1 - - [12/Sep/2025:10:00:51 +0000] "GET /api/news/analysis?symbol=AAPL&limit=5 HTTP/1.1" 200 139 "-" "curl/8.5.0"
+Processing request: GET /api/trading/signals
+Database connection verified for database-dependent endpoint
+🎯 Trading signals requested - user: undefined, symbol: AAPL, type: undefined, timeframe: daily
+::1 - - [12/Sep/2025:10:00:53 +0000] "GET /api/trading/signals?symbol=AAPL HTTP/1.1" 200 47329 "-" "curl/8.5.0"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Database query error: {
+  error: 'column ph.shares does not exist',
+  query: '\n' +
+    '      SELECT ph.symbol, ph.shares, ph.cost_basis, ph.current_price, ph.market_value,\n' +
+    '             p...',
+  params: '1 parameters',
+  code: '42703'
+}
+Portfolio performance database error: error: column ph.shares does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:944:20)
+    at async /home/stocks/algo/webapp/lambda/routes/performance.js:318:28 {
+  length: 107,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '26',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [12/Sep/2025:10:00:55 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 503 542 "-" "curl/8.5.0"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Database query error: {
+  error: 'column ph.shares does not exist',
+  query: '\n' +
+    '      SELECT ph.symbol, ph.shares, ph.cost_basis, ph.current_price, ph.market_value,\n' +
+    '             p...',
+  params: '1 parameters',
+  code: '42703'
+}
+Portfolio performance database error: error: column ph.shares does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:944:20)
+    at async /home/stocks/algo/webapp/lambda/routes/performance.js:318:28 {
+  length: 107,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '26',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [12/Sep/2025:10:01:36 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 503 542 "-" "curl/8.5.0"
+Terminated

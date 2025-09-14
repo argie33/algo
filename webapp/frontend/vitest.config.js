@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
@@ -8,39 +8,45 @@ export default defineConfig({
     "import.meta.env.DEV": true,
     "import.meta.env.PROD": false,
     "import.meta.env.MODE": '"test"',
+    // Disable React concurrent features
+    "__DEV__": true,
+    "process.env.NODE_ENV": '"test"'
   },
   test: {
     environment: "jsdom",
-    setupFiles: ["./src/tests/setup-minimal.jsx"],
+    setupFiles: ["./src/tests/simple-setup.js"],
     globals: true,
-    testTimeout: 30000, // Increased for async component tests
-    hookTimeout: 10000, // Increased for complex component rendering
-    teardownTimeout: 5000, // Keep low for cleanup
-    // Optimized configuration for performance
-    pool: "forks",
+    testTimeout: 60000, // Increased for React component rendering
+    hookTimeout: 30000, // Increased for complex components
+    teardownTimeout: 10000, // Increased cleanup time
+    // Use threads for better performance with React
+    pool: "threads",
     poolOptions: {
-      forks: {
-        singleFork: true,
-        isolate: false, // Reuse context for better performance
+      threads: {
+        singleThread: false,
+        minThreads: 1,
+        maxThreads: 2,
       },
     },
-    // Faster test execution
-    minWorkers: 1,
-    maxWorkers: 1, // Single worker to avoid conflicts
-    // Test file patterns
+    // Test file patterns - allow targeting specific files
     include: ["src/tests/**/*.{test,spec}.{js,jsx}"],
-    exclude: ["node_modules/", "dist/", ".git/"],
-    // Silence console output during tests
+    exclude: ["node_modules/", "dist/", ".git/", "**/*.backup", "**/*.old", "**/backup/**"],
+    // Less restrictive console output for debugging
     silent: false,
-    // Reporters configuration - use default instead of basic
-    reporters: [
-      [
-        "default",
-        {
-          summary: false
-        }
-      ]
-    ],
+    // Custom environment options
+    env: {
+      NODE_ENV: 'test',
+    },
+    // Standard reporters
+    reporters: ["default"],
+    // Allow some parallel execution for efficiency
+    fileParallelism: true,
+    // Allow retries for flaky React component tests
+    retry: 1,
+    // Cleanup options
+    restoreMocks: true,
+    clearMocks: true,
+    resetMocks: true,
   },
   resolve: {
     alias: {

@@ -38,7 +38,7 @@ import {
   Tooltip,
 } from "recharts";
 import { useAuth } from "../contexts/AuthContext";
-import api from "../utils/apiService.jsx";
+import api from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
@@ -85,6 +85,12 @@ const SectorAnalysis = () => {
 
       // Get sector ETF data
       const symbols = Object.keys(sectorETFs);
+      
+      if (!symbols || symbols.length === 0) {
+        console.warn("No sector ETF symbols available for streaming");
+        return;
+      }
+      
       const response = await api.get(
         `/api/websocket/stream/${symbols.join(",")}`
       );
@@ -98,9 +104,9 @@ const SectorAnalysis = () => {
             const symbolData = liveData?.data[etfSymbol];
             if (symbolData && !symbolData.error) {
               const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
-              // Mock performance data - in a real implementation this would be calculated from historical data
-              const mockChange = (Math.random() - 0.5) * 4; // ±2% range
-              const mockChangePercent = (mockChange / midPrice) * 100;
+              // Default neutral performance when historical data unavailable
+              const mockChange = 0; // Neutral change
+              const mockChangePercent = 0; // Neutral change percentage
 
               return {
                 sector: sectorInfo.name,
@@ -138,7 +144,7 @@ const SectorAnalysis = () => {
         throw new Error("Failed to fetch sector data");
       }
     } catch (error) {
-      console.error("Failed to load sector data:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to load sector data:", error);
       setError(error.message);
 
       // Fallback to demo data for presentation
@@ -146,11 +152,11 @@ const SectorAnalysis = () => {
         Object.entries(sectorETFs).map(([etfSymbol, sectorInfo]) => ({
           sector: sectorInfo.name,
           etfSymbol: etfSymbol,
-          price: 50 + Math.random() * 100,
-          change: (Math.random() - 0.5) * 4,
-          changePercent: (Math.random() - 0.5) * 4,
-          volume: Math.floor(Math.random() * 10000000),
-          marketCap: (50 + Math.random() * 100) * 1000000000,
+          price: 100, // Default price when real data unavailable
+          change: 0, // Neutral change
+          changePercent: 0, // Neutral change percentage  
+          volume: 1000000, // Default volume
+          marketCap: 50000000000, // Default market cap
           color: sectorInfo.color,
           dataSource: "demo",
           error: "Using demo data",
@@ -283,13 +289,9 @@ const SectorAnalysis = () => {
                       height={80}
                       interval={0}
                     />
-                    <YAxis tickFormatter={(value) => `${value}%`} />
+                    <YAxis />
                     <Tooltip
                       formatter={(value) => [`${value}%`, "Performance"]}
-                      labelFormatter={(label) => {
-                        const item = chartData.find((d) => d.name === label);
-                        return item ? item.fullName : label;
-                      }}
                     />
                     <Bar
                       dataKey="performance"

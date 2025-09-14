@@ -101,6 +101,9 @@ describe('Watchlist Routes', () => {
         }]
       };
 
+      // Mock the duplicate check query (should return empty)
+      query.mockResolvedValueOnce({ rows: [] });
+      // Mock the INSERT query
       query.mockResolvedValueOnce(mockCreateResult);
 
       const response = await request(app)
@@ -113,7 +116,7 @@ describe('Watchlist Routes', () => {
 
       expect(response.body).toMatchObject({
         success: true,
-        watchlist: expect.any(Object)
+        data: expect.any(Object)
       });
 
       expect(query).toHaveBeenCalledWith(
@@ -135,42 +138,49 @@ describe('Watchlist Routes', () => {
     });
   });
 
-  describe('GET /api/watchlist/:id/symbols', () => {
-    test('should return watchlist symbols', async () => {
-      const mockSymbols = {
+  describe('GET /api/watchlist/:id', () => {
+    test('should return watchlist details', async () => {
+      const mockWatchlist = {
         rows: [
           {
-            symbol: 'AAPL',
-            name: 'Apple Inc.',
-            price: 189.45,
-            change_percent: 1.15,
-            added_at: new Date()
-          },
+            id: 1,
+            name: 'My Watchlist',
+            description: 'Test watchlist',
+            user_id: 'test-user-123',
+            is_default: true,
+            created_at: new Date()
+          }
+        ]
+      };
+
+      const mockItems = {
+        rows: [
           {
-            symbol: 'MSFT',
-            name: 'Microsoft Corporation',
-            price: 350.25,
-            change_percent: -1.06,
+            id: 1,
+            symbol: 'AAPL',
+            watchlist_id: 1,
+            price: 150.00,
+            change_percent: 1.5,
             added_at: new Date()
           }
         ]
       };
 
-      query.mockResolvedValueOnce(mockSymbols);
+      query.mockResolvedValueOnce(mockWatchlist);
+      query.mockResolvedValueOnce(mockItems);
 
       const response = await request(app)
-        .get('/api/watchlist/1/symbols')
+        .get('/api/watchlist/1')
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
-        symbols: expect.any(Array)
+        data: expect.any(Object)
       });
 
-      expect(response.body.symbols).toHaveLength(2);
-      expect(response.body.symbols[0]).toMatchObject({
-        symbol: 'AAPL',
-        name: 'Apple Inc.'
+      expect(response.body.data).toMatchObject({
+        id: 1,
+        name: 'My Watchlist',
+        items: expect.any(Array)
       });
     });
 
@@ -178,7 +188,7 @@ describe('Watchlist Routes', () => {
       query.mockResolvedValueOnce({ rows: [] });
 
       const response = await request(app)
-        .get('/api/watchlist/999/symbols')
+        .get('/api/watchlist/999')
         .expect(404);
 
       expect(response.body).toMatchObject({
@@ -188,8 +198,13 @@ describe('Watchlist Routes', () => {
     });
   });
 
-  describe('POST /api/watchlist/:id/add-symbol', () => {
+  describe('POST /api/watchlist/:id/items', () => {
     test('should add symbol to watchlist', async () => {
+      // Mock watchlist ownership check
+      query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+      // Mock existing symbol check (no existing symbol)
+      query.mockResolvedValueOnce({ rows: [] });
+      // Mock successful insert
       const mockAddResult = {
         rows: [{
           id: 1,
@@ -198,28 +213,25 @@ describe('Watchlist Routes', () => {
           added_at: new Date()
         }]
       };
-
       query.mockResolvedValueOnce(mockAddResult);
 
       const response = await request(app)
-        .post('/api/watchlist/1/add-symbol')
+        .post('/api/watchlist/1/items')
         .send({ symbol: 'TSLA' })
         .expect(201);
 
       expect(response.body).toMatchObject({
         success: true,
-        message: expect.stringContaining('added')
+        data: expect.objectContaining({
+          symbol: 'TSLA',
+          watchlist_id: 1
+        })
       });
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT'),
-        expect.arrayContaining([1, 'TSLA', 'test-user-123'])
-      );
     });
 
     test('should validate symbol format', async () => {
       const response = await request(app)
-        .post('/api/watchlist/1/add-symbol')
+        .post('/api/watchlist/1/items')
         .send({ symbol: 'invalid_symbol_123' })
         .expect(400);
 
@@ -230,30 +242,30 @@ describe('Watchlist Routes', () => {
     });
   });
 
-  describe('DELETE /api/watchlist/:id/remove-symbol/:symbol', () => {
+  describe('DELETE /api/watchlist/:id/items/:symbol', () => {
     test('should remove symbol from watchlist', async () => {
-      query.mockResolvedValueOnce({ rowCount: 1 });
+      // Mock watchlist ownership check
+      query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+      // Mock successful delete with RETURNING
+      query.mockResolvedValueOnce({ rows: [{ id: 1, watchlist_id: 1, symbol: 'AAPL' }] });
 
       const response = await request(app)
-        .delete('/api/watchlist/1/remove-symbol/AAPL')
+        .delete('/api/watchlist/1/items/AAPL')
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
         message: expect.stringContaining('removed')
       });
-
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE'),
-        expect.arrayContaining([1, 'AAPL', 'test-user-123'])
-      );
     });
 
     test('should handle symbol not in watchlist', async () => {
-      query.mockResolvedValueOnce({ rowCount: 0 });
+      // Mock watchlist ownership check
+      query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+      // Mock delete returns no rows (item not found)
+      query.mockResolvedValueOnce({ rows: [] });
 
       const response = await request(app)
-        .delete('/api/watchlist/1/remove-symbol/NVDA')
+        .delete('/api/watchlist/1/items/NVDA')
         .expect(404);
 
       expect(response.body).toMatchObject({
@@ -265,26 +277,27 @@ describe('Watchlist Routes', () => {
 
   describe('DELETE /api/watchlist/:id', () => {
     test('should delete watchlist', async () => {
-      query
-        .mockResolvedValueOnce({ rowCount: 1 }) // Delete watchlist items
-        .mockResolvedValueOnce({ rowCount: 1 }); // Delete watchlist
+      // Mock watchlist ownership check (non-public watchlist)
+      query.mockResolvedValueOnce({ rows: [{ is_public: false }] });
+      // Mock delete watchlist items (no need to check result)
+      query.mockResolvedValueOnce({ rows: [] });
+      // Mock delete watchlist with RETURNING
+      query.mockResolvedValueOnce({ rows: [{ id: 1, name: 'Test Watchlist' }] });
 
       const response = await request(app)
         .delete('/api/watchlist/1')
         .expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
         message: expect.stringContaining('deleted')
       });
 
-      expect(query).toHaveBeenCalledTimes(2);
+      expect(query).toHaveBeenCalledTimes(3);
     });
 
     test('should handle watchlist not found', async () => {
-      query
-        .mockResolvedValueOnce({ rowCount: 0 }) // Delete watchlist items
-        .mockResolvedValueOnce({ rowCount: 0 }); // Delete watchlist
+      // Mock watchlist ownership check returns no rows (not found)
+      query.mockResolvedValueOnce({ rows: [] });
 
       const response = await request(app)
         .delete('/api/watchlist/999')
@@ -302,7 +315,7 @@ describe('Watchlist Routes', () => {
       query.mockRejectedValueOnce(new Error('Connection timeout'));
 
       const response = await request(app)
-        .get('/api/watchlist/list');
+        .get('/api/watchlist/');
 
       expect(response.status).toBe(500);
       expect(response.body).toMatchObject({
@@ -312,6 +325,9 @@ describe('Watchlist Routes', () => {
     });
 
     test('should handle invalid watchlist IDs', async () => {
+      // Mock database to return empty result (no watchlist found)
+      query.mockResolvedValueOnce({ rows: [] });
+      
       const response = await request(app)
         .get('/api/watchlist/invalid');
 

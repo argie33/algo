@@ -70,7 +70,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function FinancialData() {
-  console.log("🚀 FinancialData: Component rendering...");
+  if (import.meta.env && import.meta.env.DEV) console.log("🚀 FinancialData: Component rendering...");
 
   const logger = createComponentLogger("FinancialData");
 
@@ -84,15 +84,16 @@ function FinancialData() {
     queryKey: ["companies"],
     queryFn: () => getStocks({ limit: 1000, sortBy: "ticker" }),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) =>
-      console.log("✅ FinancialData: Companies data loaded:", data),
+    onSuccess: (data) => {
+      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Companies data loaded:", data);
+    },
     onError: (error) =>
       console.error("❌ FinancialData: Companies data error:", error),
   });
 
   const companies =
     companiesData?.data?.data ?? companiesData?.data ?? companiesData ?? [];
-  console.log("📊 FinancialData: Companies data:", {
+  if (import.meta.env && import.meta.env.DEV) console.log("📊 FinancialData: Companies data:", {
     hasData: !!companiesData,
     companiesLength: (companies?.length || 0),
     sampleCompany: companies[0],
@@ -102,13 +103,13 @@ function FinancialData() {
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   const handleTabChange = (event, newValue) => {
-    console.log("🔄 FinancialData: Tab changed to:", newValue);
+    if (import.meta.env && import.meta.env.DEV) console.log("🔄 FinancialData: Tab changed to:", newValue);
     setTabValue(newValue);
   };
 
   const _handleTickerSubmit = () => {
     if (searchTicker.trim()) {
-      console.log(
+      if (import.meta.env && import.meta.env.DEV) console.log(
         "🔍 FinancialData: Searching for ticker:",
         searchTicker.trim().toUpperCase()
       );
@@ -118,7 +119,7 @@ function FinancialData() {
 
   const handlePeriodChange = (event, newPeriod) => {
     if (newPeriod !== null) {
-      console.log("📅 FinancialData: Period changed to:", newPeriod);
+      if (import.meta.env && import.meta.env.DEV) console.log("📅 FinancialData: Period changed to:", newPeriod);
       setPeriod(newPeriod);
     }
   };
@@ -132,8 +133,9 @@ function FinancialData() {
     queryKey: ["balanceSheet", ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
     enabled: !!ticker && tabValue === 0,
-    onSuccess: (data) =>
-      console.log("✅ FinancialData: Balance sheet loaded:", data),
+    onSuccess: (data) => {
+      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Balance sheet loaded:", data);
+    },
     onError: (error) => {
       console.error("❌ FinancialData: Balance sheet error:", error);
       logger.queryError("balanceSheet", error, { ticker, period });
@@ -148,8 +150,9 @@ function FinancialData() {
     queryKey: ["incomeStatement", ticker, period],
     queryFn: () => getIncomeStatement(ticker, period),
     enabled: !!ticker && tabValue === 1,
-    onSuccess: (data) =>
-      console.log("✅ FinancialData: Income statement loaded:", data),
+    onSuccess: (data) => {
+      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Income statement loaded:", data);
+    },
     onError: (error) => {
       console.error("❌ FinancialData: Income statement error:", error);
       logger.queryError("incomeStatement", error, { ticker, period });
@@ -164,15 +167,16 @@ function FinancialData() {
     queryKey: ["cashFlowStatement", ticker, period],
     queryFn: () => getCashFlowStatement(ticker, period),
     enabled: !!ticker && tabValue === 2,
-    onSuccess: (data) =>
-      console.log("✅ FinancialData: Cash flow statement loaded:", data),
+    onSuccess: (data) => {
+      if (import.meta.env && import.meta.env.DEV) console.log("✅ FinancialData: Cash flow statement loaded:", data);
+    },
     onError: (error) => {
       console.error("❌ FinancialData: Cash flow statement error:", error);
       logger.queryError("cashFlowStatement", error, { ticker, period });
     },
   });
 
-  console.log("📊 FinancialData: Data summary:", {
+  if (import.meta.env && import.meta.env.DEV) console.log("📊 FinancialData: Data summary:", {
     ticker,
     period,
     tabValue,
@@ -513,13 +517,12 @@ function FinancialData() {
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="year" />
-                  <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
+                  <YAxis />
                   <Tooltip
                     formatter={(value, _name) => [
                       formatCurrency(value, 0),
                       "Value",
                     ]}
-                    labelFormatter={(year) => `Year: ${year}`}
                   />
                   <Line
                     type="monotone"
@@ -646,13 +649,12 @@ function FinancialData() {
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year" />
-                <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
+                <YAxis />
                 <Tooltip
                   formatter={(value, _name) => [
                     formatCurrency(value, 0),
                     "Value",
                   ]}
-                  labelFormatter={(year) => `Year: ${year}`}
                 />
                 <Line
                   type="monotone"

@@ -11,6 +11,7 @@ import {
   signIn,
   signUp,
   confirmSignUp,
+  resendSignUpCode,
   signOut,
   resetPassword,
   confirmResetPassword,
@@ -391,6 +392,14 @@ export function AuthProvider({ children }) {
         try {
           const result = await devAuth.signIn(username, password);
 
+          // Check if login was successful and has tokens
+          if (!result.success || !result.tokens) {
+            const errorMsg = result.error?.message || "Login failed - no tokens received";
+            console.error("Dev auth login failed:", errorMsg);
+            dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMsg });
+            return { success: false, error: errorMsg };
+          }
+
           // Store access token for API requests
           localStorage.setItem("accessToken", result.tokens.accessToken);
 
@@ -534,6 +543,50 @@ export function AuthProvider({ children }) {
       };
     } catch (error) {
       console.error("Confirmation error:", error);
+      const errorMessage = getErrorMessage(error);
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const resendConfirmationCode = async (username) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
+      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
+
+      // If Cognito is not configured, use dev auth
+      if (!isCognitoConfigured()) {
+        console.log(
+          "Cognito not configured - using development authentication"
+        );
+        try {
+          // For dev auth, we simulate sending a new code
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+
+          return {
+            success: true,
+            message: "New verification code sent to your email (development mode)",
+          };
+        } catch (error) {
+          console.error("Dev auth resend error:", error);
+          const errorMessage = getErrorMessage(error);
+          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+          return { success: false, error: errorMessage };
+        }
+      }
+
+      await resendSignUpCode({ username });
+
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+
+      return {
+        success: true,
+        message: "New verification code sent to your email",
+      };
+    } catch (error) {
+      console.error("Resend confirmation error:", error);
       const errorMessage = getErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
@@ -686,6 +739,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     confirmRegistration,
+    resendConfirmationCode,
     logout,
     forgotPassword,
     confirmForgotPassword,
@@ -720,4 +774,8 @@ export function useAuth() {
   return context;
 }
 
-export default AuthContext;
+// Export AuthContext for advanced usage
+export { AuthContext };
+
+// Make AuthProvider the default export for Fast Refresh compatibility
+export default AuthProvider;

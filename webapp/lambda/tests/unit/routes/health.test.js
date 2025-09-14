@@ -70,10 +70,10 @@ describe("Health Routes - Testing Your Actual Site", () => {
         status: "connected",
         responseTime: 0,
         tables: {
-          user_portfolio: true,
-          user_api_keys: true,
-          stock_prices: true,
-          risk_alerts: true,
+          portfolio_holdings: true,
+          company_profile: true,
+          price_daily: true,
+          trading_alerts: true,
         },
       };
 
@@ -92,10 +92,10 @@ describe("Health Routes - Testing Your Actual Site", () => {
           status: "connected",
           responseTime: expect.any(Number),
           tables: expect.objectContaining({
-            user_portfolio: expect.any(Boolean),
-            user_api_keys: expect.any(Boolean),
-            stock_prices: expect.any(Boolean),
-            risk_alerts: expect.any(Boolean),
+            portfolio_holdings: expect.any(Boolean),
+            company_profile: expect.any(Boolean),
+            price_daily: expect.any(Boolean),
+            trading_alerts: expect.any(Boolean),
           }),
         }),
         api: expect.objectContaining({
@@ -111,8 +111,13 @@ describe("Health Routes - Testing Your Actual Site", () => {
       initializeDatabase.mockRejectedValue(
         new Error("Database connection failed")
       );
+      // Also mock getPool to throw error for initialization flow
+      const mockGetPool = require("../../../utils/database").getPool;
+      mockGetPool.mockImplementation(() => {
+        throw new Error("Pool not initialized");
+      });
 
-      const response = await request(app).get("/health").expect(200); // Your site returns 200 even for database failures
+      const response = await request(app).get("/health").expect(200); // In test mode, returns 200 with fallback
 
       expect(response.body).toMatchObject({
         status: expect.any(String), // May be "error" or "unhealthy"

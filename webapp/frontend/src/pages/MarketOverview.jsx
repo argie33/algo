@@ -369,24 +369,20 @@ const _DataTable = ({ title, columns, data }) => (
 // Simplified API functions that work directly with your data
 const fetchMarketOverview = async () => {
   try {
-    console.log("📈 Fetching market overview...");
     const response = await getMarketOverview();
-    console.log("📈 Market overview response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Market overview error:", error.message || error.toString());
+    _logger.error("Market overview error:", error.message || error.toString());
     throw error;
   }
 };
 
 const fetchSentimentHistory = async (days = 30) => {
   try {
-    console.log(`📊 Fetching sentiment history for ${days} days...`);
     const response = await getMarketSentimentHistory(days);
-    console.log("📊 Sentiment history response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Sentiment history error:", error.message || error.toString());
+    _logger.error("Sentiment history error:", error.message || error.toString());
     throw error;
   }
 };
@@ -398,7 +394,7 @@ const fetchSectorPerformance = async () => {
     console.log("🏭 Sector performance response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Sector performance error:", error.message || error.toString());
+    _logger.error("Sector performance error:", error.message || error.toString());
     throw error;
   }
 };
@@ -410,7 +406,7 @@ const fetchMarketBreadth = async () => {
     console.log("📏 Market breadth response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Market breadth error:", error.message || error.toString());
+    _logger.error("Market breadth error:", error.message || error.toString());
     throw error;
   }
 };
@@ -422,7 +418,7 @@ const fetchEconomicIndicators = async (days = 90) => {
     console.log("💰 Economic indicators response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Economic indicators error:", error.message || error.toString());
+    _logger.error("Economic indicators error:", error.message || error.toString());
     throw error;
   }
 };
@@ -434,7 +430,7 @@ const fetchSeasonalityData = async () => {
     console.log("📅 Seasonality response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Seasonality error:", error.message || error.toString());
+    _logger.error("Seasonality error:", error.message || error.toString());
     throw error;
   }
 };
@@ -446,7 +442,7 @@ const fetchResearchIndicators = async () => {
     console.log("🔬 Research indicators response:", response);
     return response;
   } catch (error) {
-    console.log("❌ Safe log: Research indicators error:", error.message || error.toString());
+    _logger.error("Research indicators error:", error.message || error.toString());
     throw error;
   }
 };
@@ -542,6 +538,17 @@ function MarketOverview() {
             <code>{window.__CONFIG__?.API_URL}/market/debug</code>
           </small>
         </Alert>
+      </Box>
+    );
+  }
+
+  if (marketLoading || !marketData) {
+    return (
+      <Box>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
+          Market Overview
+        </Typography>
+        <CircularProgress />
       </Box>
     );
   }
@@ -733,7 +740,7 @@ function MarketOverview() {
                 name="Fear & Greed"
                 stroke="#FF8042"
                 strokeWidth={2}
-                dot={false}
+                dot={{r: 0}}
               />
               <Line
                 yAxisId="left"
@@ -742,7 +749,7 @@ function MarketOverview() {
                 name="NAAIM Exposure"
                 stroke="#0088FE"
                 strokeWidth={2}
-                dot={false}
+                dot={{r: 0}}
               />
               <Line
                 yAxisId="right"
@@ -751,7 +758,7 @@ function MarketOverview() {
                 name="AAII Bullish"
                 stroke="#10B981"
                 strokeWidth={2}
-                dot={false}
+                dot={{r: 0}}
               />
               <Line
                 yAxisId="right"
@@ -760,7 +767,7 @@ function MarketOverview() {
                 name="AAII Bearish"
                 stroke="#DC2626"
                 strokeWidth={2}
-                dot={false}
+                dot={{r: 0}}
               />
               <Line
                 yAxisId="right"
@@ -769,7 +776,7 @@ function MarketOverview() {
                 name="AAII Neutral"
                 stroke="#8884d8"
                 strokeWidth={2}
-                dot={false}
+                dot={{r: 0}}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -2053,10 +2060,6 @@ function MarketOverview() {
                                 `${value.toFixed(1)}%`,
                                 "Average Return",
                               ]}
-                              labelFormatter={(label, payload) => {
-                                const data = payload[0]?.payload;
-                                return `${label} (${data?.months})`;
-                              }}
                             />
                             <Bar
                               dataKey="avgReturn"

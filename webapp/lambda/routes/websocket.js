@@ -1,3 +1,5 @@
+const encrypt = require("crypto");
+
 const express = require("express");
 
 // eslint-disable-next-line import/order
@@ -29,6 +31,7 @@ router.get("/", async (req, res) => {
         "/test - Debug test endpoint",
         "/health - WebSocket service health check", 
         "/stream/:symbols - Stream real-time data for symbols",
+        "/stream/?symbols= - Stream real-time data using query parameter",
         "/connect - WebSocket connection endpoint"
       ]
     },
@@ -57,7 +60,7 @@ router.get("/health", (req, res) => {
   try {
     // Check if responseFormatter is available
     if (typeof success !== "function") {
-      return res.success({status: "operational",
+      return res.json({status: "operational",
         service: "websocket",
         timestamp: new Date().toISOString(),
         message: "WebSocket service is running",
@@ -177,7 +180,7 @@ const UPDATE_INTERVAL = 5000; // 5 seconds
  * This endpoint replaces WebSocket functionality with HTTP polling for Lambda compatibility
  */
 router.get("/stream/:symbols", authenticateToken, async (req, res) => {
-  const requestId = require("crypto").randomUUID().split("-")[0];
+  const requestId = encrypt.randomUUID().split("-")[0];
   const requestStart = Date.now();
 
   try {
@@ -602,6 +605,49 @@ router.get("/stream/:symbols", authenticateToken, async (req, res) => {
             : "Internal server error",
       })
     );
+  }
+});
+
+/**
+ * Get real-time market data for subscribed symbols using query parameters
+ * This endpoint provides the same functionality as /stream/:symbols but accepts symbols via query parameter
+ */
+router.get("/stream/", authenticateToken, async (req, res) => {
+  const symbols = req.query.symbols;
+  if (!symbols) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing symbols parameter",
+      message: "Please provide symbols as a query parameter: ?symbols=AAPL,MSFT"
+    });
+  }
+  
+  // Forward to the main stream handler by modifying the request
+  req.params.symbols = symbols;
+
+  // Get the main handler and call the actual route handler (not the auth middleware)
+  const mainHandler = router.stack.find(layer =>
+    layer.route && layer.route.path === '/stream/:symbols'
+  );
+
+  if (mainHandler && mainHandler.route.stack[1]) {
+    try {
+      // Call the actual route handler (skip the authentication middleware at index 0)
+      await mainHandler.route.stack[1].handle(req, res);
+    } catch (error) {
+      console.error('Error in stream query parameter handler:', error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to process streaming request"
+      });
+    }
+  } else {
+    res.status(500).json({
+      success: false,
+      error: "Stream handler not found",
+      message: "Unable to locate main streaming functionality"
+    });
   }
 });
 

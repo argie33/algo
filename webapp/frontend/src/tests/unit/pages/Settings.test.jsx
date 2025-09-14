@@ -24,15 +24,18 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 }));
 
 // Mock API service
+const mockApi = {
+  getSettings: vi.fn(),
+  updateSettings: vi.fn(),
+  getApiKeys: vi.fn(),
+  saveApiKey: vi.fn(),
+  deleteApiKey: vi.fn(),
+  testApiKey: vi.fn(),
+};
+
 vi.mock("../../../services/api.js", () => ({
-  api: {
-    getSettings: vi.fn(),
-    updateSettings: vi.fn(),
-    getApiKeys: vi.fn(),
-    saveApiKey: vi.fn(),
-    deleteApiKey: vi.fn(),
-    testApiKey: vi.fn(),
-  },
+  default: mockApi,
+  api: mockApi,
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
@@ -56,8 +59,7 @@ describe("Settings Page", () => {
 
   describe("Settings Page Layout", () => {
     it("should display settings navigation tabs", async () => {
-      const { api } = await import("../../../services/api.js");
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: true, push: false },
         privacy: { shareData: false },
         trading: { confirmOrders: true },
@@ -77,7 +79,6 @@ describe("Settings Page", () => {
     });
 
     it("should load user settings on mount", async () => {
-      const { api } = await import("../../../services/api.js");
       const mockSettings = {
         notifications: {
           email: true,
@@ -94,22 +95,21 @@ describe("Settings Page", () => {
         },
       };
 
-      api.getSettings.mockResolvedValue(mockSettings);
+      mockApi.getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
       await waitFor(() => {
-        expect(api.getSettings).toHaveBeenCalled();
+        expect(mockApi.getSettings).toHaveBeenCalled();
       });
     });
   });
 
   describe("API Keys Management", () => {
     it("should display existing API keys", async () => {
-      const { api: _api } = await import("../../../services/api.js");
-      const { useApiKeys } = await import(
+      const { useApiKeys } = vi.mocked(await import(
         "../../../components/ApiKeyProvider.jsx"
-      );
+      ));
 
       const mockApiKeys = {
         alpaca: {
@@ -145,11 +145,10 @@ describe("Settings Page", () => {
     });
 
     it("should allow adding new API keys", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.saveApiKey.mockResolvedValue({ success: true });
-      api.testApiKey.mockResolvedValue({ isValid: true });
+      mockApi.saveApiKey.mockResolvedValue({ success: true });
+      mockApi.testApiKey.mockResolvedValue({ isValid: true });
 
       renderWithProviders(<Settings />);
 
@@ -177,10 +176,9 @@ describe("Settings Page", () => {
     });
 
     it("should validate API keys before saving", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.testApiKey.mockResolvedValue({
+      mockApi.testApiKey.mockResolvedValue({
         isValid: false,
         error: "Invalid credentials",
       });
@@ -201,7 +199,7 @@ describe("Settings Page", () => {
         await user.click(testButton);
 
         await waitFor(() => {
-          expect(api.testApiKey).toHaveBeenCalledWith(
+          expect(mockApi.testApiKey).toHaveBeenCalledWith(
             expect.objectContaining({
               keyId: "invalid-key",
             })
@@ -217,10 +215,9 @@ describe("Settings Page", () => {
     });
 
     it("should allow deleting API keys", async () => {
-      const { api } = await import("../../../services/api.js");
-      const { useApiKeys } = await import(
+      const { useApiKeys } = vi.mocked(await import(
         "../../../components/ApiKeyProvider.jsx"
-      );
+      ));
       const user = userEvent.setup();
 
       const mockApiKeys = {
@@ -234,7 +231,7 @@ describe("Settings Page", () => {
         refreshApiKeys: vi.fn(),
       });
 
-      api.deleteApiKey.mockResolvedValue({ success: true });
+      mockApi.deleteApiKey.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -263,7 +260,6 @@ describe("Settings Page", () => {
 
   describe("User Preferences", () => {
     it("should display notification preferences", async () => {
-      const { api } = await import("../../../services/api.js");
       const mockSettings = {
         notifications: {
           email: true,
@@ -273,7 +269,7 @@ describe("Settings Page", () => {
         },
       };
 
-      api.getSettings.mockResolvedValue(mockSettings);
+      mockApi.getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -288,13 +284,12 @@ describe("Settings Page", () => {
     });
 
     it("should allow updating notification preferences", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: false, push: false },
       });
-      api.updateSettings.mockResolvedValue({ success: true });
+      mockApi.updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -310,7 +305,7 @@ describe("Settings Page", () => {
       await user.click(emailToggle);
 
       await waitFor(() => {
-        expect(api.updateSettings).toHaveBeenCalledWith(
+        expect(mockApi.updateSettings).toHaveBeenCalledWith(
           expect.objectContaining({
             notifications: expect.objectContaining({
               email: true,
@@ -321,7 +316,6 @@ describe("Settings Page", () => {
     });
 
     it("should display trading preferences", async () => {
-      const { api } = await import("../../../services/api.js");
       const mockSettings = {
         trading: {
           confirmOrders: true,
@@ -331,7 +325,7 @@ describe("Settings Page", () => {
         },
       };
 
-      api.getSettings.mockResolvedValue(mockSettings);
+      mockApi.getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -346,7 +340,6 @@ describe("Settings Page", () => {
     });
 
     it("should display privacy settings", async () => {
-      const { api } = await import("../../../services/api.js");
       const mockSettings = {
         privacy: {
           shareData: false,
@@ -355,7 +348,7 @@ describe("Settings Page", () => {
         },
       };
 
-      api.getSettings.mockResolvedValue(mockSettings);
+      mockApi.getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -372,13 +365,12 @@ describe("Settings Page", () => {
 
   describe("Settings Persistence", () => {
     it("should save settings changes automatically", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: false },
       });
-      api.updateSettings.mockResolvedValue({ success: true });
+      mockApi.updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -394,17 +386,16 @@ describe("Settings Page", () => {
       // Should automatically save after a short delay
       await waitFor(
         () => {
-          expect(api.updateSettings).toHaveBeenCalled();
+          expect(mockApi.updateSettings).toHaveBeenCalled();
         },
         { timeout: 2000 }
       );
     });
 
     it("should show save status indicators", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.updateSettings.mockImplementation(
+      mockApi.updateSettings.mockImplementation(
         () =>
           new Promise((resolve) =>
             setTimeout(() => resolve({ success: true }), 1000)
@@ -433,7 +424,6 @@ describe("Settings Page", () => {
 
   describe("Account Management", () => {
     it("should display account information", async () => {
-      const { api } = await import("../../../services/api.js");
       const mockSettings = {
         account: {
           email: "user@example.com",
@@ -442,7 +432,7 @@ describe("Settings Page", () => {
         },
       };
 
-      api.getSettings.mockResolvedValue(mockSettings);
+      mockApi.getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -455,10 +445,9 @@ describe("Settings Page", () => {
     });
 
     it("should allow password change", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.updateSettings.mockResolvedValue({ success: true });
+      mockApi.updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -482,7 +471,6 @@ describe("Settings Page", () => {
 
   describe("Data Export/Import", () => {
     it("should allow data export", async () => {
-      const { api: _api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
       renderWithProviders(<Settings />);
@@ -506,8 +494,7 @@ describe("Settings Page", () => {
 
   describe("Error Handling", () => {
     it("should handle settings load errors", async () => {
-      const { api } = await import("../../../services/api.js");
-      api.getSettings.mockRejectedValue(new Error("Settings unavailable"));
+      mockApi.getSettings.mockRejectedValue(new Error("Settings unavailable"));
 
       renderWithProviders(<Settings />);
 
@@ -521,13 +508,12 @@ describe("Settings Page", () => {
     });
 
     it("should handle save errors gracefully", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: false },
       });
-      api.updateSettings.mockRejectedValue(new Error("Save failed"));
+      mockApi.updateSettings.mockRejectedValue(new Error("Save failed"));
 
       renderWithProviders(<Settings />);
 
@@ -544,8 +530,7 @@ describe("Settings Page", () => {
     });
 
     it("should handle API key validation errors", async () => {
-      const { api } = await import("../../../services/api.js");
-      api.testApiKey.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.testApiKey.mockRejectedValue(new Error("Connection timeout"));
 
       renderWithProviders(<Settings />);
 
@@ -556,8 +541,7 @@ describe("Settings Page", () => {
 
   describe("Accessibility", () => {
     it("should have proper form labels", async () => {
-      const { api } = await import("../../../services/api.js");
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: true },
       });
 
@@ -575,10 +559,9 @@ describe("Settings Page", () => {
     });
 
     it("should be keyboard navigable", async () => {
-      const { api } = await import("../../../services/api.js");
       const user = userEvent.setup();
 
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: true },
       });
 
@@ -595,8 +578,7 @@ describe("Settings Page", () => {
 
   describe("Responsive Design", () => {
     it("should adapt to mobile layout", async () => {
-      const { api } = await import("../../../services/api.js");
-      api.getSettings.mockResolvedValue({
+      mockApi.getSettings.mockResolvedValue({
         notifications: { email: true },
       });
 

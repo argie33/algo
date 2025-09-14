@@ -676,4 +676,411 @@ describe("Risk Engine", () => {
       riskEngine.getMonitoringStatus = originalMethod;
     });
   });
+
+  describe("Edge Cases and Error Handling", () => {
+    test("should handle extreme portfolio values that cause calculation errors", async () => {
+      // Test with positions that might cause mathematical errors
+      const extremePositions = [
+        { symbol: "TEST", quantity: Number.MAX_VALUE, price: Number.MAX_VALUE },
+        { symbol: "NULL", quantity: Infinity, price: -Infinity },
+        { symbol: "ZERO", quantity: 0, price: 0 },
+      ];
+
+      const result = await riskEngine.calculatePortfolioRisk("test_extreme_user", extremePositions);
+
+      expect(result).toBeDefined();
+      // Should handle extreme values gracefully
+      expect(typeof result.riskScore).toBe("number");
+    });
+
+    test("should handle invalid position data structures", async () => {
+      // Test with malformed position objects
+      const invalidPositions = [
+        null,
+        undefined,
+        { symbol: null, quantity: "invalid", price: {} },
+        { missingRequiredFields: true },
+        "not_an_object",
+      ];
+
+      const result = await riskEngine.validatePosition(invalidPositions[2]);
+
+      expect(result).toBeDefined();
+      expect(typeof result.isValid).toBe("boolean");
+    });
+
+    test("should handle VaR calculation with no historical data", async () => {
+      // Test with user that has no portfolio data in database
+      const result = await riskEngine.calculateVaR("nonexistent_user_12345");
+
+      expect(result).toBeDefined();
+      // Should handle missing data gracefully
+    });
+
+    test("should handle position validation with extreme values", async () => {
+      // Test with extreme position values that might cause errors
+      const extremePosition = {
+        symbol: "TEST",
+        value: Number.MAX_SAFE_INTEGER,
+        volatility: Infinity,
+        correlation: NaN
+      };
+      
+      const result = await riskEngine.validatePosition(extremePosition, 1000000);
+
+      expect(result).toBeDefined();
+      expect(typeof result.isValid).toBe("boolean");
+    });
+
+    test("should handle stress test with extreme market scenarios", async () => {
+      // Test with scenarios that might cause calculation issues
+      const extremeScenarios = {
+        marketCrash: -0.99, // 99% market drop
+        hyperInflation: 10000, // 10,000% inflation
+        currencyCollapse: -1, // Complete currency collapse
+        interestRateShock: 100, // 100% interest rate
+      };
+
+      const result = await riskEngine.performStressTest("test_user", extremeScenarios);
+
+      expect(result).toBeDefined();
+    });
+
+    test("should handle correlation matrix with insufficient data", async () => {
+      // Test with user that has minimal or no position history
+      const result = await riskEngine.calculateCorrelationMatrix("minimal_data_user");
+
+      expect(result).toBeDefined();
+      // Should handle insufficient data gracefully
+    });
+
+    test("should handle risk attribution with empty portfolios", async () => {
+      // Test with user that has empty or very small portfolios
+      const result = await riskEngine.calculateRiskAttribution("empty_portfolio_user");
+
+      expect(result).toBeDefined();
+    });
+
+    test("should handle real-time monitoring startup failures", async () => {
+      // Test monitoring with invalid user data or system constraints
+      const result = await riskEngine.startRealTimeMonitoring("invalid_user_with_special_chars_!@#$%");
+
+      expect(result).toBeDefined();
+    });
+
+    test("should handle monitoring status for non-monitored users", async () => {
+      // Test status check for users not in monitoring system
+      const result = await riskEngine.getMonitoringStatus("never_monitored_user_54321");
+
+      expect(result).toBeDefined();
+      // Should return some status information
+      expect(typeof result).toBe("object");
+    });
+
+    test("should handle portfolio calculations with circular references", async () => {
+      // Test with positions that might create circular calculation issues
+      const circularPositions = [
+        { symbol: "A", quantity: 100, price: 50, dependsOn: "B" },
+        { symbol: "B", quantity: 200, price: 25, dependsOn: "A" },
+      ];
+
+      const result = await riskEngine.calculatePortfolioRisk("circular_test_user", circularPositions);
+
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe("Error Handling Coverage", () => {
+    test("should handle risk calculation errors gracefully", () => {
+      // Force an error by passing malformed position data
+      const malformedPositions = [
+        { symbol: null, quantity: "invalid", price: undefined },
+        { symbol: "AAPL", quantity: NaN, price: -1 },
+      ];
+
+      const result = riskEngine.calculatePortfolioRisk(malformedPositions);
+
+      expect(result.overallRisk).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle position validation errors", () => {
+      // Create a scenario that would cause validation to throw an error
+      const invalidPosition = {
+        symbol: "AAPL", 
+        quantity: null,  // This might cause calculation errors
+        price: undefined
+      };
+      
+      const result = riskEngine.validatePosition(invalidPosition, null); // null portfolio value
+      
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle VaR calculation errors", () => {
+      // Try to trigger an error in VaR calculation by passing invalid parameters
+      const result = riskEngine.calculateVaR(
+        null,     // null portfolio ID
+        "invalid_method", // invalid method
+        NaN,      // invalid confidence level
+        "invalid", // invalid time horizon
+        -1        // invalid lookback days
+      );
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle stress test calculation errors", async () => {
+      // Try to cause an error in stress testing
+      const invalidScenarios = [
+        { name: null, factor: undefined, impact: "invalid" },
+        { name: "test", factor: NaN, impact: null },
+      ];
+
+      const result = await riskEngine.performStressTest(
+        null,  // null portfolio ID
+        invalidScenarios
+      );
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle risk attribution errors", async () => {
+      // Force an error in risk attribution
+      const result = await riskEngine.calculateRiskAttribution(
+        undefined,  // undefined portfolio ID
+        "invalid_method"
+      );
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle correlation matrix calculation errors", async () => {
+      // Try to cause an error with invalid portfolio ID
+      const result = await riskEngine.calculateCorrelationMatrix(
+        null,  // null portfolio ID
+        -1     // invalid lookback days
+      );
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle VaR calculation with invalid inputs", async () => {
+      // Test VaR with invalid parameters to trigger error handling
+      const result = await riskEngine.calculateVaR(
+        null,        // null portfolio ID
+        "invalid_method",
+        NaN,         // invalid confidence level
+        "invalid",  // invalid time horizon
+        -1           // invalid lookback days
+      );
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle real-time monitoring errors", async () => {
+      // Try to cause an error in real-time monitoring
+      const result = await riskEngine.startRealTimeMonitoring(
+        null,         // null user ID
+        undefined     // undefined options
+      );
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle position sizing with extreme values", () => {
+      // Test with extreme values that might cause errors
+      const extremePosition = {
+        symbol: "AAPL",
+        quantity: Infinity,
+        price: -Infinity
+      };
+
+      const result = riskEngine.validatePosition(extremePosition, 0); // Zero portfolio value
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+    });
+
+    test("should handle calculation with division by zero scenarios", () => {
+      // Create positions that might lead to division by zero
+      const zeroValuePositions = [
+        { symbol: "ZERO1", quantity: 100, price: 0 },
+        { symbol: "ZERO2", quantity: 0, price: 100 },
+      ];
+
+      const result = riskEngine.calculatePortfolioRisk(zeroValuePositions);
+
+      expect(result).toBeDefined();
+      expect(typeof result.overallRisk).toBe('string');
+      expect(typeof result.riskScore).toBe('number');
+    });
+
+    test("should handle risk calculations with missing required properties", () => {
+      // Test with positions missing critical properties
+      const incompletePositions = [
+        { symbol: "INCOMPLETE1" }, // missing quantity and price
+        { quantity: 100 }, // missing symbol and price
+        { price: 50 }, // missing symbol and quantity
+        {}, // completely empty object
+      ];
+
+      const result = riskEngine.calculatePortfolioRisk(incompletePositions);
+
+      expect(result).toBeDefined();
+      expect(result.overallRisk).toBeDefined();
+    });
+
+    test("should handle logger errors gracefully", () => {
+      // Mock logger to throw an error to test error handling in error handlers
+      const logger = require('../../utils/logger');
+      const originalError = logger.error;
+      logger.error = jest.fn(() => {
+        throw new Error('Logger failed');
+      });
+
+      try {
+        // This should trigger error logging but not crash
+        const result = riskEngine.calculatePortfolioRisk(null);
+        expect(result).toBeDefined();
+      } finally {
+        logger.error = originalError;
+      }
+    });
+  });
+});
+
+// Additional edge case tests for maximum coverage
+describe("Risk Engine Edge Cases", () => {
+  let riskEngine;
+
+  beforeEach(() => {
+    riskEngine = new RiskEngine();
+  });
+
+  test("should handle async operations that might fail", async () => {
+    // Test various async methods with error-inducing parameters
+    const asyncMethods = [
+      () => riskEngine.getMonitoringStatus(null),
+      () => riskEngine.calculatePortfolioRisk(null, []),
+    ];
+
+    for (const method of asyncMethods) {
+      try {
+        const result = await method();
+        expect(result).toBeDefined();
+      } catch (error) {
+        // Errors are acceptable here, we're testing error handling
+        expect(error).toBeInstanceOf(Error);
+      }
+    }
+  });
+
+  test("should handle extreme portfolio sizes", () => {
+    // Test with very large portfolios that might cause performance issues
+    const largePositions = [];
+    for (let i = 0; i < 1000; i++) {
+      largePositions.push({
+        symbol: `STOCK${i}`,
+        quantity: Math.random() * 1000,
+        price: Math.random() * 500
+      });
+    }
+
+    const start = Date.now();
+    const result = riskEngine.calculatePortfolioRisk(largePositions);
+    const duration = Date.now() - start;
+
+    expect(result).toBeDefined();
+    expect(duration).toBeLessThan(5000); // Should complete in under 5 seconds
+  });
+
+  test("should handle circular data structures", () => {
+    // Create positions with circular references
+    const pos1 = { symbol: "A", quantity: 100, price: 50 };
+    const pos2 = { symbol: "B", quantity: 200, price: 25 };
+    pos1.related = pos2;
+    pos2.related = pos1;
+
+    const result = riskEngine.calculatePortfolioRisk([pos1, pos2]);
+
+    expect(result).toBeDefined();
+    expect(typeof result.overallRisk).toBe('string');
+  });
+
+  test("should maintain performance with repeated calculations", () => {
+    const positions = [
+      { symbol: "AAPL", quantity: 100, price: 150 },
+      { symbol: "GOOGL", quantity: 50, price: 2500 },
+      { symbol: "MSFT", quantity: 75, price: 300 },
+    ];
+
+    const start = Date.now();
+    
+    // Run the same calculation multiple times
+    for (let i = 0; i < 100; i++) {
+      const result = riskEngine.calculatePortfolioRisk(positions);
+      expect(result).toBeDefined();
+    }
+    
+    const duration = Date.now() - start;
+    expect(duration).toBeLessThan(2000); // Should complete 100 calculations in under 2 seconds
+  });
+
+  test("should handle memory cleanup properly", () => {
+    // Test that repeated calculations don't cause memory leaks
+    const initialMemory = process.memoryUsage().heapUsed;
+    
+    for (let i = 0; i < 50; i++) {
+      const positions = Array.from({ length: 100 }, (_, idx) => ({
+        symbol: `STOCK${idx}`,
+        quantity: Math.random() * 100,
+        price: Math.random() * 100
+      }));
+      
+      const result = riskEngine.calculatePortfolioRisk(positions);
+      expect(result).toBeDefined();
+    }
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+    
+    const finalMemory = process.memoryUsage().heapUsed;
+    const memoryIncrease = finalMemory - initialMemory;
+    
+    // Memory increase should be reasonable (less than 50MB)
+    expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
+  });
+
+  test("should handle risk calculation errors by triggering catch blocks", () => {
+    // Mock to trigger error paths in calculatePortfolioRisk
+    const mockPositions = [
+      { symbol: "AAPL", quantity: 100, price: 150, value: 15000 }
+    ];
+    
+    // Mock a function to throw an error to trigger error handling paths
+    const originalConsoleError = console.error;
+    console.error = jest.fn();
+    
+    try {
+      // Create invalid data that might trigger error paths
+      const invalidPositions = [
+        { symbol: null, quantity: "invalid", price: undefined }
+      ];
+      
+      const result = riskEngine.calculatePortfolioRisk(invalidPositions);
+      expect(result).toBeDefined();
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
 });

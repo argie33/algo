@@ -88,9 +88,9 @@ test.describe('Financial Platform - Authentication Flows', () => {
     
     console.log(`🏢 Provider elements found: ${providerElements}`);
     
-    // Check for setup wizard or onboarding
+    // Check for setup wizard or configuration options
     const setupElements = await page.locator(
-      '.wizard, .onboarding, .setup, button:has-text("Setup"), button:has-text("Configure"), button:has-text("Add")'
+      '.wizard, .setup, button:has-text("Setup"), button:has-text("Configure"), button:has-text("Add")'
     ).count();
     
     console.log(`⚙️ Setup elements found: ${setupElements}`);

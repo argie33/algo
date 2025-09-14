@@ -25,17 +25,21 @@ vi.mock("../../contexts/AuthContext", () => ({
 
 // Mock API service functions
 const mockApiService = {
-  get: vi.fn().mockResolvedValue({
-    data: {
+  get: vi.fn().mockImplementation((url) => {
+    // Ensure we always return a promise
+    return Promise.resolve({
       data: {
-        symbol: "AAPL",
-        price: 150.0,
-        change: 2.5,
-        changePercent: 1.69,
-        volume: 1000000,
-        timestamp: new Date().toISOString(),
+        success: true,
+        data: {
+          symbol: "AAPL",
+          price: 150.0,
+          change: 2.5,
+          changePercent: 1.69,
+          volume: 1000000,
+          timestamp: new Date().toISOString(),
+        },
       },
-    },
+    });
   }),
   post: vi.fn().mockResolvedValue({ success: true }),
 };
@@ -209,9 +213,15 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
 
   React.useEffect(() => {
     // Initial portfolio load
-    api.get(`/api/portfolio/${portfolioId}`).then((response) => {
-      setPortfolio(response.data.data);
-    });
+    api.get(`/api/portfolio/${portfolioId}`)
+      .then((response) => {
+        if (response && response.data && response.data.data) {
+          setPortfolio(response.data.data);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load portfolio:', error);
+      });
 
     if (realtimeUpdates) {
       const interval = setInterval(() => {
@@ -292,12 +302,66 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
 };
 
 const renderWithRouter = (component) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return render(
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      {component}
+    </BrowserRouter>
+  );
 };
 
 describe("Real-time Data Components", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Re-establish API mock after clearing
+    api.get.mockImplementation((url) => {
+      // Handle portfolio endpoints specifically
+      if (url.includes('/api/portfolio/')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              id: "portfolio-123",
+              holdings: [
+                {
+                  symbol: "AAPL",
+                  quantity: 100,
+                  currentPrice: 150.0,
+                  costBasis: 120.0,
+                },
+                {
+                  symbol: "MSFT",
+                  quantity: 50,
+                  currentPrice: 300.0,
+                  costBasis: 250.0,
+                },
+              ],
+              totalValue: 30000.0,
+              lastUpdate: Date.now(),
+            },
+          },
+        });
+      }
+      
+      // Default mock for other endpoints
+      return Promise.resolve({
+        data: {
+          success: true,
+          data: {
+            symbol: "AAPL",
+            price: 150.0,
+            change: 2.5,
+            changePercent: 1.69,
+            volume: 1000000,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    });
     // Don't use fake timers globally - only where needed for specific timer tests
   });
 
@@ -604,11 +668,30 @@ describe("Real-time Data Components", () => {
     };
 
     beforeEach(() => {
-      api.get.mockResolvedValue({
-        data: {
-          success: true,
-          data: mockPortfolio,
-        },
+      // Mock portfolio endpoint specifically
+      api.get.mockImplementation((url) => {
+        if (url.includes('/api/portfolio/')) {
+          return Promise.resolve({
+            data: {
+              success: true,
+              data: mockPortfolio,
+            },
+          });
+        }
+        // Default mock for other endpoints
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              symbol: "AAPL",
+              price: 150.0,
+              change: 2.5,
+              changePercent: 1.69,
+              volume: 1000000,
+              timestamp: new Date().toISOString(),
+            },
+          },
+        });
       });
     });
 
@@ -658,15 +741,21 @@ describe("Real-time Data Components", () => {
       });
 
       // Pause updates
-      fireEvent.click(screen.getByText("Pause Real-time Updates"));
+      act(() => {
+        fireEvent.click(screen.getByText("Pause Real-time Updates"));
+      });
       expect(screen.getByText("Resume Real-time Updates")).toBeInTheDocument();
 
       // Wait to ensure no updates occur while paused (4000ms > 3000ms interval)
-      await new Promise(resolve => setTimeout(resolve, 4000));
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      });
       expect(screen.getByTestId("update-count")).toHaveTextContent("Updates: 0");
 
       // Resume updates
-      fireEvent.click(screen.getByText("Resume Real-time Updates"));
+      act(() => {
+        fireEvent.click(screen.getByText("Resume Real-time Updates"));
+      });
       expect(screen.getByText("Pause Real-time Updates")).toBeInTheDocument();
 
       // Wait for updates to resume (mock has 3000ms interval)

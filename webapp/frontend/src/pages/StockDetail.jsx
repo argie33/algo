@@ -545,21 +545,11 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
                           dataKey="date"
-                          tickFormatter={(value) =>
-                            new Date(value).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })
-                          }
                         />
                         <YAxis
                           domain={["dataMin - 5", "dataMax + 5"]}
-                          tickFormatter={(value) => `$${value.toFixed(2)}`}
                         />
                         <Tooltip
-                          labelFormatter={(value) =>
-                            new Date(value).toLocaleDateString()
-                          }
                           formatter={(value, name) => [
                             `$${value.toFixed(2)}`,
                             name === "close" ? "Close Price" : name,
@@ -570,7 +560,7 @@ function StockDetail() {
                           dataKey="close"
                           stroke="#2196f3"
                           strokeWidth={2}
-                          dot={false}
+                          dot={{r: 0}}
                           name="Close Price"
                         />
                       </LineChart>
@@ -1033,7 +1023,6 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis
-                          tickFormatter={(value) => formatCurrency(value, 0)}
                         />
                         <Tooltip
                           formatter={(value) => [
@@ -1075,7 +1064,6 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis
-                          tickFormatter={(value) => formatCurrency(value, 0)}
                         />
                         <Tooltip
                           formatter={(value) => [
@@ -1225,10 +1213,10 @@ function StockDetail() {
                       )
                     );
 
-                    // ⚠️ MOCK DATA - Replace with real API when available
-                    const momentumScore = Math.random() * 40 + 40; // Mock momentum
-                    const sentimentScore = Math.random() * 40 + 40; // Mock sentiment
-                    const positioningScore = Math.random() * 40 + 40; // Mock positioning
+                    // Default scores when real data unavailable
+                    const momentumScore = 50; // Neutral momentum score
+                    const sentimentScore = 50; // Neutral sentiment score  
+                    const positioningScore = 50; // Neutral positioning score
 
                     return [
                       {

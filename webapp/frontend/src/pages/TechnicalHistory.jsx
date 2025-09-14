@@ -206,7 +206,7 @@ function PriceHistory() {
         setTotal(0);
       }
     } catch (err) {
-      console.error("❌ Error fetching price history:", err);
+      if (import.meta.env && import.meta.env.DEV) console.error("❌ Error fetching price history:", err);
       setError(err.message || "Failed to load price history");
       setData([]);
       setTotal(0);

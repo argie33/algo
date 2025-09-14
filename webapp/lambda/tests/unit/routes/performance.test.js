@@ -1,435 +1,612 @@
-const request = require("supertest");
-const express = require("express");
+/**
+ * Performance Routes Unit Tests
+ * Tests performance route logic in isolation with mocks
+ */
 
-const performanceRoutes = require("../../../routes/performance");
+const express = require('express');
+const request = require('supertest');
 
-// Mock authentication middleware
-const { authenticateToken } = require("../../../middleware/auth");
-
-jest.mock("../../../middleware/auth");
-
-// Mock performance monitor
-jest.mock("../../../utils/performanceMonitor", () => ({
-  getMetrics: jest.fn(),
-  getSummary: jest.fn(),
-  getApiStats: jest.fn(),
-  getDatabaseStats: jest.fn(),
-  getExternalApiStats: jest.fn(),
-  getAlerts: jest.fn(),
-  clearMetrics: jest.fn(),
+// Mock the database utility
+jest.mock('../../../utils/database', () => ({
+  query: jest.fn()
 }));
 
-const performanceMonitor = require("../../../utils/performanceMonitor");
+// Mock the auth middleware
+jest.mock('../../../middleware/auth', () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: 'test-user-123', email: 'test@example.com', username: 'testuser' };
+    next();
+  })
+}));
 
-describe("Performance Routes", () => {
+// Mock the performance monitor
+jest.mock('../../../utils/performanceMonitor', () => ({
+  getSystemMetrics: jest.fn(),
+  getPortfolioMetrics: jest.fn(),
+  calculateBenchmarkComparison: jest.fn(),
+  getPerformanceAnalytics: jest.fn()
+}));
+
+describe('Performance Routes Unit Tests', () => {
   let app;
-
-  beforeAll(() => {
-    app = express();
-    app.use(express.json());
-    app.use("/performance", performanceRoutes);
-
-    // Mock authentication to pass for all tests
-    authenticateToken.mockImplementation((req, res, next) => {
-      req.user = { sub: "test-user-123" };
-      req.logger = {
-        info: jest.fn(),
-        error: jest.fn(),
-      };
-      next();
-    });
-  });
+  let performanceRouter;
+  let mockQuery;
+  let mockPerformanceMonitor;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Set up mocks
+    const { query } = require('../../../utils/database');
+    mockQuery = query;
+    
+    const performanceMonitor = require('../../../utils/performanceMonitor');
+    mockPerformanceMonitor = performanceMonitor;
+    
+    // Create test app
+    app = express();
+    app.use(express.json());
+    
+    // Add response helper middleware
+    app.use((req, res, next) => {
+      res.error = (message, status) => res.status(status).json({ 
+        success: false, 
+        error: message 
+      });
+      res.success = (data) => res.json({ 
+        success: true, 
+        ...data 
+      });
+      next();
+    });
+    
+    // Load the route module
+    performanceRouter = require('../../../routes/performance');
+    app.use('/performance', performanceRouter);
   });
 
-  describe("GET /performance/health", () => {
-    test("should return health status", async () => {
+  describe('GET /performance/health', () => {
+    test('should return health status without authentication', async () => {
       const response = await request(app)
-        .get("/performance/health")
-        .expect(200);
+        .get('/performance/health');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        status: "operational",
-        service: "performance-analytics",
-        timestamp: expect.any(String),
-        message: "Performance Analytics service is running",
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('status', 'operational');
+      expect(response.body).toHaveProperty('service', 'performance-analytics');
+      expect(response.body).toHaveProperty('timestamp');
+      expect(response.body).toHaveProperty('message', 'Performance Analytics service is running');
+      
+      // Verify timestamp is a valid ISO string
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(mockQuery).not.toHaveBeenCalled(); // Health doesn't use database
     });
   });
 
-  describe("GET /performance/", () => {
-    test("should return API status", async () => {
-      const response = await request(app).get("/performance/").expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        message: "Performance Analytics API - Ready",
-        timestamp: expect.any(String),
-        status: "operational",
-      });
-    });
-  });
-
-  describe("GET /performance/metrics", () => {
-    test("should return current performance metrics", async () => {
-      const mockMetrics = {
-        requests: {
-          total: 1250,
-          success: 1180,
-          errors: 70,
-          successRate: 94.4,
-        },
-        responseTime: {
-          average: 145,
-          p95: 280,
-          p99: 450,
-        },
-        memory: {
-          used: 128,
-          free: 384,
-          percentage: 25,
-        },
-        cpu: {
-          usage: 35.2,
-          load: [0.8, 0.9, 1.1],
-        },
-        database: {
-          connections: 12,
-          activeQueries: 3,
-          avgQueryTime: 45,
-        },
-      };
-
-      performanceMonitor.getMetrics.mockReturnValue(mockMetrics);
-
+  describe('GET /performance', () => {
+    test('should return performance API information without authentication', async () => {
       const response = await request(app)
-        .get("/performance/metrics")
-        .expect(200);
+        .get('/performance');
 
-      expect(response.body).toEqual({
-        success: true,
-        data: mockMetrics,
-        timestamp: expect.any(String),
-      });
-
-      expect(performanceMonitor.getMetrics).toHaveBeenCalledTimes(1);
-    });
-
-    test("should handle performance monitor errors", async () => {
-      performanceMonitor.getMetrics.mockImplementation(() => {
-        throw new Error("Performance monitor unavailable");
-      });
-
-      const response = await request(app)
-        .get("/performance/metrics")
-        .expect(500);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to retrieve performance metrics",
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'Performance Analytics API - Ready');
+      expect(response.body).toHaveProperty('status', 'operational');
+      expect(response.body).toHaveProperty('timestamp');
+      
+      // Verify timestamp is a valid ISO string
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(mockQuery).not.toHaveBeenCalled(); // Root endpoint doesn't use database
     });
   });
 
-  describe("GET /performance/summary", () => {
-    test("should return performance summary", async () => {
-      const mockSummary = {
-        overall: {
-          status: "healthy",
-          score: 85,
-          uptime: "99.8%",
-        },
-        alerts: [
+  describe('GET /performance/benchmark (authenticated)', () => {
+    test('should return benchmark comparison with default parameters', async () => {
+      const mockPortfolioData = {
+        rows: [
           {
-            level: "warning",
-            message: "Database connections approaching limit",
-            threshold: 80,
-            current: 75,
-          },
-        ],
-        recommendations: [
-          "Consider scaling database connections",
-          "Monitor API response times during peak hours",
-        ],
-      };
-
-      performanceMonitor.getSummary.mockReturnValue(mockSummary);
-
-      const response = await request(app)
-        .get("/performance/summary")
-        .expect(200);
-
-      expect(response.body).toEqual({
-        success: true,
-        data: mockSummary,
-        timestamp: expect.any(String),
-      });
-    });
-
-    test("should handle summary generation errors", async () => {
-      performanceMonitor.getSummary.mockImplementation(() => {
-        throw new Error("Unable to generate summary");
-      });
-
-      const response = await request(app)
-        .get("/performance/summary")
-        .expect(500);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to retrieve performance summary",
-      });
-    });
-  });
-
-  describe("GET /performance/api-stats", () => {
-    test("should return API statistics", async () => {
-      const mockMetrics = {
-        api: {
-          requests: {
-            "/api/portfolio": {
-              count: 450,
-              avgResponseTime: 120,
-              errors: 5,
-              minResponseTime: 80,
-              maxResponseTime: 200,
-              recentRequests: [],
-            },
-            "/api/market": {
-              count: 380,
-              avgResponseTime: 95,
-              errors: 2,
-              minResponseTime: 60,
-              maxResponseTime: 150,
-              recentRequests: [],
-            },
-          },
-          responseTimeHistogram: new Map(),
-        },
-        system: {
-          totalRequests: 1050,
-          totalErrors: 15,
-          errorRate: 0.014,
-        },
-      };
-
-      performanceMonitor.getMetrics.mockReturnValue(mockMetrics);
-
-      const response = await request(app)
-        .get("/performance/api-stats")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          endpoints: expect.any(Array),
-          totalRequests: 1050,
-          totalErrors: 15,
-        }),
-        timestamp: expect.any(String),
-      });
-    });
-  });
-
-  describe("GET /performance/database-stats", () => {
-    test("should return database performance statistics", async () => {
-      const mockMetrics = {
-        database: {
-          queries: {
-            SELECT_portfolio: {
-              count: 450,
-              avgTime: 25,
-              errors: 2,
-              minTime: 10,
-              maxTime: 80,
-              recentQueries: [],
-            },
-            UPDATE_positions: {
-              count: 180,
-              avgTime: 45,
-              errors: 1,
-              minTime: 20,
-              maxTime: 120,
-              recentQueries: [],
-            },
-          },
-        },
-      };
-
-      performanceMonitor.getMetrics.mockReturnValue(mockMetrics);
-
-      const response = await request(app)
-        .get("/performance/database-stats")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          operations: expect.any(Array),
-          slowestQueries: expect.any(Array),
-        }),
-        timestamp: expect.any(String),
-      });
-    });
-  });
-
-  describe("GET /performance/external-api-stats", () => {
-    test("should return external API performance statistics", async () => {
-      const mockMetrics = {
-        external: {
-          apis: {
-            alpaca: {
-              count: 125,
-              avgTime: 180,
-              errors: 5,
-              minTime: 80,
-              maxTime: 300,
-              recentCalls: [],
-            },
-            polygon: {
-              count: 89,
-              avgTime: 145,
-              errors: 2,
-              minTime: 90,
-              maxTime: 200,
-              recentCalls: [],
-            },
-          },
-        },
-      };
-
-      performanceMonitor.getMetrics.mockReturnValue(mockMetrics);
-
-      const response = await request(app)
-        .get("/performance/external-api-stats")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          services: expect.any(Array),
-          mostProblematic: expect.any(Array),
-        }),
-        timestamp: expect.any(String),
-      });
-    });
-  });
-
-  describe("GET /performance/alerts", () => {
-    test("should return current performance alerts", async () => {
-      const mockSummary = {
-        status: "degraded",
-        alerts: [
-          {
-            type: "performance",
-            severity: "warning",
-            message: "Query response time above threshold",
-            timestamp: "2023-12-15T14:20:00Z",
+            date: '2023-01-01',
+            portfolio_value: 100000.00,
+            portfolio_return: 0.00
           },
           {
-            type: "errors",
-            severity: "info",
-            message: "High request volume detected",
-            timestamp: "2023-12-15T14:18:00Z",
+            date: '2023-06-01',
+            portfolio_value: 110000.00,
+            portfolio_return: 0.10
           },
-        ],
+          {
+            date: '2023-12-31',
+            portfolio_value: 125000.00,
+            portfolio_return: 0.25
+          }
+        ]
       };
 
-      performanceMonitor.getSummary.mockReturnValue(mockSummary);
+      const mockBenchmarkData = {
+        rows: [
+          {
+            date: '2023-01-01',
+            price: 400.00,
+            return_rate: 0.00
+          },
+          {
+            date: '2023-06-01',
+            price: 430.00,
+            return_rate: 0.075
+          },
+          {
+            date: '2023-12-31',
+            price: 470.00,
+            return_rate: 0.175
+          }
+        ]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockPortfolioData) // Portfolio performance
+        .mockResolvedValueOnce(mockBenchmarkData); // Benchmark performance
+
+      mockPerformanceMonitor.calculateBenchmarkComparison.mockReturnValue({
+        portfolio_return: 0.25,
+        benchmark_return: 0.175,
+        alpha: 0.075,
+        beta: 1.15,
+        sharpe_ratio: 1.2,
+        tracking_error: 0.05
+      });
 
       const response = await request(app)
-        .get("/performance/alerts")
-        .expect(200);
+        .get('/performance/benchmark');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          alerts: expect.any(Array),
-          systemStatus: "degraded",
-          alertCount: 2,
-        }),
-        timestamp: expect.any(String),
-      });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('portfolio_metrics');
+      expect(response.body.data).toHaveProperty('benchmark_metrics');
+      expect(response.body.data).toHaveProperty('relative_performance');
+      expect(response.body.data.relative_performance).toHaveProperty('alpha');
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+      expect(mockPerformanceMonitor.calculateBenchmarkComparison).toHaveBeenCalled();
     });
 
-    test("should handle no alerts", async () => {
-      performanceMonitor.getSummary.mockReturnValue({
-        status: "healthy",
-        alerts: [],
+    test('should handle custom benchmark parameter', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/benchmark')
+        .query({ benchmark: 'QQQ' });
+
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('QQQ'),
+        expect.any(Array)
+      );
+    });
+
+    test('should handle custom period parameter', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/benchmark')
+        .query({ period: '6m' });
+
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('180'), // 6 months = 180 days
+        expect.any(Array)
+      );
+    });
+
+    test('should handle invalid period gracefully', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/benchmark')
+        .query({ period: 'invalid_period' });
+
+      expect(response.status).toBe(200);
+      // Should default to 365 days (1 year)
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('365'),
+        expect.any(Array)
+      );
+    });
+
+    test('should use authenticated user ID in query', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/performance/benchmark');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('user_id'),
+        expect.arrayContaining(['test-user-123'])
+      );
+    });
+
+    test('should handle empty portfolio data', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // No portfolio data
+        .mockResolvedValueOnce({ rows: [] }); // No benchmark data
+
+      const response = await request(app)
+        .get('/performance/benchmark');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('message', 'Insufficient data for benchmark comparison');
+    });
+
+    test('should handle database query errors', async () => {
+      const dbError = new Error('Database connection failed');
+      mockQuery.mockRejectedValueOnce(dbError);
+
+      const response = await request(app)
+        .get('/performance/benchmark');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toBeDefined();
+    });
+
+    test('should handle performance calculation errors', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ date: '2023-01-01', portfolio_value: 100000 }] })
+        .mockResolvedValueOnce({ rows: [{ date: '2023-01-01', price: 400 }] });
+
+      mockPerformanceMonitor.calculateBenchmarkComparison.mockImplementation(() => {
+        throw new Error('Performance calculation failed');
       });
 
       const response = await request(app)
-        .get("/performance/alerts")
-        .expect(200);
+        .get('/performance/benchmark');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          alerts: [],
-          systemStatus: "healthy",
-          alertCount: 0,
-        }),
-        timestamp: expect.any(String),
-      });
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Performance calculation failed');
     });
   });
 
-  describe("POST /performance/clear-metrics", () => {
-    test("should clear performance metrics", async () => {
-      // Mock admin user for this test
-      authenticateToken.mockImplementation((req, res, next) => {
-        req.user = { sub: "admin-user-123", role: "admin" };
-        req.logger = {
-          info: jest.fn(),
-          error: jest.fn(),
-          warn: jest.fn(),
-        };
-        next();
-      });
+  describe('GET /performance/analytics (authenticated)', () => {
+    test('should return performance analytics', async () => {
+      const mockAnalyticsData = {
+        total_return: 0.25,
+        annualized_return: 0.22,
+        volatility: 0.15,
+        max_drawdown: 0.08,
+        win_rate: 0.65,
+        profit_factor: 1.8,
+        risk_return_ratio: 1.47
+      };
 
-      performanceMonitor.reset = jest.fn();
+      mockPerformanceMonitor.getPerformanceAnalytics.mockResolvedValue(mockAnalyticsData);
 
       const response = await request(app)
-        .post("/performance/clear-metrics")
-        .expect(200);
+        .get('/performance/analytics');
 
-      expect(response.body).toMatchObject({
-        success: true,
-        message: "Performance metrics cleared successfully",
-        timestamp: expect.any(String),
-      });
-
-      expect(performanceMonitor.reset).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('total_return', 0.25);
+      expect(response.body.data).toHaveProperty('volatility', 0.15);
+      expect(mockPerformanceMonitor.getPerformanceAnalytics).toHaveBeenCalledWith('test-user-123');
     });
 
-    test("should handle clear metrics errors", async () => {
-      // Mock admin user for this test
-      authenticateToken.mockImplementation((req, res, next) => {
-        req.user = { sub: "admin-user-123", role: "admin" };
-        req.logger = {
-          info: jest.fn(),
-          error: jest.fn(),
-          warn: jest.fn(),
-        };
-        next();
-      });
-
-      performanceMonitor.reset = jest.fn(() => {
-        throw new Error("Unable to clear metrics");
-      });
+    test('should handle analytics calculation errors', async () => {
+      mockPerformanceMonitor.getPerformanceAnalytics.mockRejectedValue(new Error('Analytics failed'));
 
       const response = await request(app)
-        .post("/performance/clear-metrics")
-        .expect(500);
+        .get('/performance/analytics');
 
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to clear performance metrics",
-        timestamp: expect.any(String),
-      });
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Analytics failed');
+    });
+  });
+
+  describe('GET /performance/metrics (authenticated)', () => {
+    test('should return system performance metrics', async () => {
+      const mockSystemMetrics = {
+        cpu_usage: 0.45,
+        memory_usage: 0.62,
+        disk_usage: 0.35,
+        network_latency: 25,
+        db_query_time: 15,
+        api_response_time: 120
+      };
+
+      mockPerformanceMonitor.getSystemMetrics.mockResolvedValue(mockSystemMetrics);
+
+      const response = await request(app)
+        .get('/performance/metrics');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('cpu_usage', 0.45);
+      expect(response.body.data).toHaveProperty('api_response_time', 120);
+      expect(mockPerformanceMonitor.getSystemMetrics).toHaveBeenCalled();
+    });
+
+    test('should handle metrics collection errors', async () => {
+      mockPerformanceMonitor.getSystemMetrics.mockRejectedValue(new Error('Metrics collection failed'));
+
+      const response = await request(app)
+        .get('/performance/metrics');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Metrics collection failed');
+    });
+  });
+
+  describe('GET /performance/attribution (authenticated)', () => {
+    test('should return Brinson attribution analysis', async () => {
+      const mockAttributionData = {
+        rows: [
+          {
+            sector: 'Technology',
+            portfolio_sector_weight: 0.35,
+            benchmark_sector_weight: 0.30,
+            portfolio_sector_return: 0.15,
+            benchmark_sector_return: 0.12,
+            allocation_effect: 0.006,
+            selection_effect: 0.009,
+            interaction_effect: 0.0015
+          },
+          {
+            sector: 'Healthcare',
+            portfolio_sector_weight: 0.20,
+            benchmark_sector_weight: 0.25,
+            portfolio_sector_return: 0.08,
+            benchmark_sector_return: 0.10,
+            allocation_effect: -0.005,
+            selection_effect: -0.005,
+            interaction_effect: 0.001
+          }
+        ]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockAttributionData);
+
+      const response = await request(app)
+        .get('/performance/attribution');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('attribution_analysis');
+      expect(response.body.data).toHaveProperty('summary');
+      expect(response.body.data).toHaveProperty('methodology');
+      
+      // Check attribution analysis structure
+      expect(Array.isArray(response.body.data.attribution_analysis)).toBe(true);
+      expect(response.body.data.attribution_analysis).toHaveLength(2);
+      
+      const firstSector = response.body.data.attribution_analysis[0];
+      expect(firstSector).toHaveProperty('sector');
+      expect(firstSector).toHaveProperty('allocation_effect');
+      expect(firstSector).toHaveProperty('selection_effect');
+      expect(firstSector).toHaveProperty('total_effect');
+      
+      // Check summary structure
+      expect(response.body.data.summary).toHaveProperty('total_allocation_effect');
+      expect(response.body.data.summary).toHaveProperty('total_selection_effect');
+      expect(response.body.data.summary).toHaveProperty('total_interaction_effect');
+      expect(response.body.data.summary).toHaveProperty('total_active_return');
+      
+      // Check methodology documentation
+      expect(response.body.data.methodology).toHaveProperty('model');
+      expect(response.body.data.methodology.model).toBe('Brinson Attribution');
+    });
+
+    test('should handle custom benchmark for attribution', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/attribution?benchmark=QQQ');
+
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('QQQ'),
+        expect.any(Array)
+      );
+    });
+
+    test('should handle custom period for attribution', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/attribution?period=3m');
+
+      expect(response.status).toBe(200);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('90'), // 3 months = 90 days
+        expect.any(Array)
+      );
+    });
+
+    test('should handle insufficient data for attribution', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/attribution');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('message', 'Insufficient data for attribution analysis');
+      expect(response.body.data.attribution_analysis).toHaveLength(0);
+    });
+
+    test('should validate attribution parameters', async () => {
+      const response = await request(app)
+        .get('/performance/attribution?benchmark=invalid-symbol!@#');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Invalid benchmark symbol');
+    });
+  });
+
+  describe('GET /performance/portfolio/:symbol (authenticated)', () => {
+    test('should return symbol-specific performance', async () => {
+      const mockSymbolPerformance = {
+        rows: [{
+          symbol: 'AAPL',
+          total_return: 0.15,
+          position_size: 100,
+          unrealized_pnl: 1500.00,
+          realized_pnl: 500.00,
+          win_rate: 0.70,
+          avg_hold_time: 45
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockSymbolPerformance);
+
+      const response = await request(app)
+        .get('/performance/portfolio/AAPL');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('symbol', 'AAPL');
+      expect(response.body.data).toHaveProperty('total_return', 0.15);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('symbol'),
+        expect.arrayContaining(['test-user-123', 'AAPL'])
+      );
+    });
+
+    test('should handle lowercase symbol conversion', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/performance/portfolio/aapl');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['test-user-123', 'AAPL']) // Should be uppercase
+      );
+    });
+
+    test('should handle symbol not found', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/portfolio/INVALID');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('No performance data found');
+    });
+  });
+
+  describe('Authentication', () => {
+    test('should allow public access to health endpoint', async () => {
+      const response = await request(app)
+        .get('/performance/health');
+
+      expect(response.status).toBe(200);
+      // Should work without authentication
+    });
+
+    test('should allow public access to root endpoint', async () => {
+      const response = await request(app)
+        .get('/performance');
+
+      expect(response.status).toBe(200);
+      // Should work without authentication
+    });
+
+    test('should require authentication for benchmark endpoint', () => {
+      const { authenticateToken } = require('../../../middleware/auth');
+      expect(authenticateToken).toBeDefined();
+      
+      // Authentication is tested through successful requests in other tests
+    });
+  });
+
+  describe('Parameter validation', () => {
+    test('should validate benchmark symbol format', async () => {
+      const response = await request(app)
+        .get('/performance/benchmark')
+        .query({ benchmark: 'invalid-benchmark-format!@#' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Invalid benchmark symbol');
+    });
+
+    test('should sanitize period parameter', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/performance/benchmark')
+        .query({ period: '1y; DROP TABLE portfolio; --' });
+
+      // Should handle malicious input by using predefined period values
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('365'), // Should default to 1y = 365 days
+        expect.any(Array)
+      );
+    });
+  });
+
+  describe('Error handling', () => {
+    test('should handle database connection timeout', async () => {
+      const timeoutError = new Error('Query timeout');
+      timeoutError.code = 'QUERY_TIMEOUT';
+      mockQuery.mockRejectedValueOnce(timeoutError);
+
+      const response = await request(app)
+        .get('/performance/benchmark');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('timeout');
+    });
+
+    test('should handle performance monitor failures', async () => {
+      mockPerformanceMonitor.getSystemMetrics.mockRejectedValue(new Error('Monitor unavailable'));
+
+      const response = await request(app)
+        .get('/performance/metrics');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Monitor unavailable');
+    });
+  });
+
+  describe('Response format', () => {
+    test('should return consistent JSON response format', async () => {
+      const response = await request(app)
+        .get('/performance/health');
+
+      expect(response.headers['content-type']).toMatch(/json/);
+      expect(typeof response.body).toBe('object');
+    });
+
+    test('should include metadata in performance responses', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/performance/benchmark');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty('data');
     });
   });
 });

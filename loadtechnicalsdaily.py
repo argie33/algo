@@ -378,8 +378,8 @@ def marketwatch_indicator(close, open_):
 
 def prepare_db():
     """Set up the database tables"""
-    user, pwd, host, port, db = get_db_config()
-    conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db)
+    db_config = get_db_config()
+    conn = psycopg2.connect(**db_config)
     conn.autocommit = True
     cursor = conn.cursor()
     logging.info("Connected to PostgreSQL database.")
@@ -453,15 +453,11 @@ def prepare_db():
 
 def create_connection_pool():
     """Create a connection pool for better database performance"""
-    user, pwd, host, port, db = get_db_config()
+    db_config = get_db_config()
     return pool.ThreadedConnectionPool(
         DB_POOL_MIN,
         DB_POOL_MAX,
-        host=host,
-        port=port,
-        user=user,
-        password=pwd,
-        dbname=db,
+        **db_config
     )
 
 

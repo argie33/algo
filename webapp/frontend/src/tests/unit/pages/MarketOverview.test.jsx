@@ -21,6 +21,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Import the component under test
 import MarketOverview from '../../../pages/MarketOverview.jsx';
 
+// ResizeObserver is already mocked in setup.js - no need to duplicate here
+
+// Mock IntersectionObserver
+global.IntersectionObserver = vi.fn(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}));
+
 // Mock window.location.reload to avoid JSDOM navigation errors
 Object.defineProperty(window, 'location', {
   value: {
@@ -342,7 +351,12 @@ describe('MarketOverview Page', () => {
     
     return render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
           <MarketOverview />
         </MemoryRouter>
       </QueryClientProvider>
@@ -360,16 +374,22 @@ describe('MarketOverview Page', () => {
       
       await waitFor(() => {
         // Check for tab navigation elements that exist in the real component
-        expect(screen.getByText(/Market Overview/i)).toBeInTheDocument();
+        // Use getAllByText since "Market Overview" appears in both header and tab
+        const marketOverviewElements = screen.getAllByText(/Market Overview/i);
+        expect(marketOverviewElements.length).toBeGreaterThan(0);
         expect(screen.getByText(/Sentiment History/i)).toBeInTheDocument();
         expect(screen.getByText(/Sector Performance/i)).toBeInTheDocument();
-        expect(screen.getByText(/Economic Indicators/i)).toBeInTheDocument();
+        // Use getAllByText since "Economic Indicators" may appear multiple times
+        const economicIndicatorsElements = screen.getAllByText(/Economic Indicators/i);
+        expect(economicIndicatorsElements.length).toBeGreaterThan(0);
       }, { timeout: 10000 });
     });
 
     it('shows loading state initially', () => {
       renderMarketOverview();
-      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+      // Page may have multiple progress bars (linear and circular)
+      const progressBars = screen.getAllByRole('progressbar');
+      expect(progressBars.length).toBeGreaterThan(0);
     });
   });
 
@@ -874,7 +894,12 @@ describe('MarketOverview Page', () => {
       // Re-render with same data shouldn't trigger recalculation
       rerender(
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter>
+          <MemoryRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <MarketOverview />
           </MemoryRouter>
         </QueryClientProvider>

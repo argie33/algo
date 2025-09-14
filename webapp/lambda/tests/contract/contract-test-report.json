@@ -1,0 +1,152 @@
+{
+  "summary": {
+    "total": 35,
+    "passed": 35,
+    "failed": 0,
+    "successRate": "100.00%"
+  },
+  "contracts": {
+    "GET /api/health": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/positions": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/market/overview": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/calendar/earnings": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/diagnostics/database-connectivity": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/diagnostics": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/performance": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/alerts/active": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/backtest/strategies": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/holdings": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/value": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/analytics": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/transactions": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/summary": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/portfolio/metrics": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/market": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/stocks": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/technical": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/live-data": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/live-data/status": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/analytics": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/performance": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/risk": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/news": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/signals": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/trading": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/orders": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/watchlist": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/screener": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/scores": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/metrics": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/sectors": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/sentiment": {
+      "status": "PASS",
+      "response": 200
+    },
+    "GET /api/etf": {
+      "status": "PASS",
+      "response": 200
+    }
+  },
+  "errors": [],
+  "timestamp": "2025-09-14T12:21:48.270Z"
+}

@@ -203,7 +203,6 @@ test.describe('Financial Platform - All Routes Coverage', () => {
     { path: '/sentiment/social', name: 'Social Sentiment' },
     { path: '/sentiment/news', name: 'News Sentiment' },
     { path: '/sentiment/analysts', name: 'Analyst Sentiment' },
-    { path: '/research/commentary', name: 'Market Commentary' },
     { path: '/admin/live-data', name: 'Live Data Admin' }
   ];
 

@@ -16,7 +16,9 @@ const AuthTest = () => {
   const addDebugInfo = (message) => {
     const timestamp = new Date().toLocaleTimeString();
     const logMessage = `${timestamp}: ${message}`;
-    console.log("🔐 AUTH DEBUG:", logMessage);
+    if (import.meta.env && import.meta.env.DEV) {
+      console.log("🔐 AUTH DEBUG:", logMessage);
+    }
     setDebugInfo((prev) => [...prev, logMessage]);
   };
 

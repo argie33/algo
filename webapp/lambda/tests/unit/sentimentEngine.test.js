@@ -67,6 +67,24 @@ describe("Sentiment Engine", () => {
       // Restore original method
       sentimentEngine.calculateMarketSentiment = originalCalculate;
     });
+
+    test("should handle internal errors in calculateMarketSentiment", () => {
+      // Mock Date to throw an error, which will trigger the catch block
+      const originalDate = Date;
+      global.Date = jest.fn(() => {
+        throw new Error("Date error");
+      });
+
+      const result = sentimentEngine.calculateMarketSentiment();
+
+      expect(result.overallSentiment).toBe("neutral");
+      expect(result.score).toBe(0.5);
+      expect(result.confidence).toBe(0);
+      expect(result.error).toBe("Date error");
+
+      // Restore original Date
+      global.Date = originalDate;
+    });
   });
 
   describe("Score to Label Conversion", () => {
@@ -110,6 +128,31 @@ describe("Sentiment Engine", () => {
       expect(sentimentEngine.scoreToLabel(2.0)).toBe("positive");
       expect(sentimentEngine.scoreToLabel(Infinity)).toBe("positive");
       expect(sentimentEngine.scoreToLabel(-Infinity)).toBe("negative");
+    });
+
+    test("should handle internal errors in scoreToLabel", () => {
+      // Mock the logger to throw an error from within the method
+      const logger = require("../../utils/logger");
+      const originalError = logger.error;
+      
+      // Create a function that throws during the execution
+      const testFn = () => {
+        const originalIsNaN = global.isNaN;
+        global.isNaN = jest.fn(() => {
+          throw new Error("isNaN error");
+        });
+        
+        const result = sentimentEngine.scoreToLabel(0.5);
+        
+        // Restore
+        global.isNaN = originalIsNaN;
+        return result;
+      };
+      
+      const result = testFn();
+      expect(result).toBe("neutral");
+      
+      logger.error = originalError;
     });
   });
 

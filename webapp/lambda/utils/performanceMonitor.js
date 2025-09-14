@@ -24,6 +24,11 @@ class PerformanceMonitor {
    * Start timing an operation
    */
   startOperation(operationId, category, metadata = {}) {
+    // Check if operation already exists
+    if (this.activeOperations.has(operationId)) {
+      logger.warn("Operation ID already exists, overwriting", { operationId });
+    }
+
     const operation = {
       id: operationId,
       category,
@@ -57,8 +62,22 @@ class PerformanceMonitor {
 
     const endTime = Date.now();
     const endHrTime = process.hrtime(operation.startHrTime);
-    const duration = endTime - operation.startTime;
+    let duration = endTime - operation.startTime;
     const preciseDuration = endHrTime[0] * 1000 + endHrTime[1] / 1000000;
+
+    // Handle clock skew - ensure duration is never negative
+    if (duration < 0) {
+      logger.warn("Clock skew detected in performance monitoring", { 
+        operationId, 
+        duration, 
+        startTime: operation.startTime, 
+        endTime 
+      });
+      duration = Math.abs(duration);
+    }
+
+    // Handle null/undefined result safely
+    const safeResult = result || {};
 
     const metric = {
       id: operationId,
@@ -66,10 +85,10 @@ class PerformanceMonitor {
       duration,
       preciseDuration,
       timestamp: new Date().toISOString(),
-      success: result.success !== false,
-      error: result.error,
+      success: safeResult.success !== false,
+      error: safeResult.error,
       metadata: operation.metadata,
-      result: result.data,
+      result: safeResult.data !== undefined ? safeResult.data : safeResult,
       correlationId: operation.correlationId,
       userId: operation.userId,
     };
@@ -97,6 +116,11 @@ class PerformanceMonitor {
    * Record a metric in history
    */
   recordMetric(metric) {
+    // Handle null or invalid metrics
+    if (!metric || typeof metric !== 'object') {
+      logger.warn('Invalid metric provided to recordMetric', { metric });
+      return;
+    }
     // Add to history
     this.performanceHistory.push(metric);
 
@@ -216,6 +240,11 @@ class PerformanceMonitor {
           metrics.count > 0
             ? ((metrics.successCount / metrics.count) * 100).toFixed(2)
             : 0,
+        percentiles: {
+          p50: this.calculatePercentile(metrics.recentDurations, 50),
+          p95: this.calculatePercentile(metrics.recentDurations, 95),
+          p99: this.calculatePercentile(metrics.recentDurations, 99),
+        },
         p95: this.calculatePercentile(metrics.recentDurations, 95),
         p99: this.calculatePercentile(metrics.recentDurations, 99),
       };
@@ -231,8 +260,10 @@ class PerformanceMonitor {
     if (durations.length === 0) return 0;
 
     const sorted = durations.slice().sort((a, b) => a - b);
+    
+    // Use the "nearest rank" method which is more intuitive
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-    return sorted[index];
+    return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
   }
 
   /**
@@ -347,11 +378,11 @@ class PerformanceMonitor {
     if (path.includes("/api/technical/patterns")) return "pattern";
     if (path.includes("/api/live-data") || path.includes("/api/stocks"))
       return "dashboard";
-    if (path.includes("/api/database") || path.includes("/api/health"))
-      return "database";
-    if (path.includes("/api/")) return "api";
+    if (path.includes("/api/database")) return "database";
+    if (path.includes("/api/health") || path.includes("/health")) return "health_check";
+    if (path.includes("/api/")) return "api_request";
 
-    return "general";
+    return "other";
   }
 
   /**
@@ -360,6 +391,24 @@ class PerformanceMonitor {
   time(category, operation, metadata = {}) {
     const operationId = `${category}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
 
+    // If operation is a function, execute it immediately and return result
+    if (typeof operation === 'function') {
+      this.startOperation(operationId, category, metadata);
+      try {
+        const result = operation();
+        this.endOperation(operationId, { success: true, data: result });
+        return result;
+      } catch (error) {
+        this.endOperation(operationId, {
+          success: false,
+          error: error.message,
+        });
+        // Re-throw the error so tests can catch it
+        throw error;
+      }
+    }
+
+    // Return timer object for manual control
     return {
       operationId,
       start: () => this.startOperation(operationId, category, metadata),
@@ -404,6 +453,7 @@ class PerformanceMonitor {
     this.metrics.clear();
     this.activeOperations.clear();
     this.performanceHistory = [];
+    this.historySize = 1000; // Reset to default history size
   }
 
   /**
@@ -463,9 +513,15 @@ class PerformanceMonitor {
     const apiMetrics = {};
 
     this.performanceHistory
-      .filter((m) => m.category === "api" || m.category === "dashboard")
+      .filter((m) => m.category === "api" || m.category === "dashboard" || m.category === "api_request")
       .forEach((m) => {
-        const endpoint = m.metadata?.path || "unknown";
+        // For api_request category, use method + endpoint format from metadata
+        let endpoint;
+        if (m.category === "api_request" && m.metadata?.method && m.metadata?.endpoint) {
+          endpoint = `${m.metadata.method} ${m.metadata.endpoint}`;
+        } else {
+          endpoint = m.metadata?.path || "unknown";
+        }
         if (!apiMetrics[endpoint]) {
           apiMetrics[endpoint] = {
             count: 0,
@@ -548,7 +604,7 @@ class PerformanceMonitor {
     const externalMetrics = {};
 
     this.performanceHistory
-      .filter((m) => m.category === "external" || m.metadata?.external)
+      .filter((m) => m.category === "external" || m.category === "external_api" || m.metadata?.external)
       .forEach((m) => {
         const service = m.metadata?.service || m.metadata?.api || "unknown";
         if (!externalMetrics[service]) {
@@ -699,6 +755,182 @@ class PerformanceMonitor {
     }
 
     return alerts;
+  }
+
+  /**
+   * Export metrics for external systems
+   */
+  exportMetrics() {
+    return {
+      timestamp: new Date().toISOString(),
+      metrics: Object.fromEntries(this.metrics),
+      performanceHistory: this.performanceHistory,
+      exportedAt: new Date().toISOString(),
+      summary: this.getPerformanceSummary()
+    };
+  }
+
+  /**
+   * Import metrics from external systems
+   */
+  importMetrics(data) {
+    if (data.metrics) {
+      // Clear existing metrics first
+      this.metrics.clear();
+      Object.entries(data.metrics).forEach(([category, stats]) => {
+        this.metrics.set(category, stats);
+      });
+    }
+    if (data.performanceHistory && Array.isArray(data.performanceHistory)) {
+      this.performanceHistory = [...data.performanceHistory];
+    }
+  }
+
+  /**
+   * Clean up memory during pressure
+   */
+  cleanupMemory() {
+    // Keep only recent history
+    const maxSize = Math.floor(this.historySize * 0.7);
+    if (this.performanceHistory.length > maxSize) {
+      this.performanceHistory = this.performanceHistory.slice(-maxSize);
+    }
+  }
+
+  /**
+   * Clean up orphaned operations (older than 1 minute)
+   */
+  cleanupOrphanedOperations() {
+    const oneMinuteAgo = Date.now() - 60000;
+    const orphanedIds = [];
+    
+    for (const [id, operation] of this.activeOperations.entries()) {
+      if (operation.startTime < oneMinuteAgo) {
+        orphanedIds.push(id);
+      }
+    }
+    
+    orphanedIds.forEach(id => {
+      logger.warn("Cleaned up orphaned operation", { operationId: id });
+      this.activeOperations.delete(id);
+    });
+  }
+
+  /**
+   * Get performance trends for a category
+   */
+  getPerformanceTrends(category) {
+    const categoryMetrics = this.performanceHistory.filter(m => m.category === category);
+    
+    if (categoryMetrics.length < 2) {
+      return { direction: "stable", slope: 0 };
+    }
+    
+    // Simple linear regression to determine trend
+    const durations = categoryMetrics.map(m => m.duration);
+    const n = durations.length;
+    const x = durations.map((_, i) => i);
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = durations.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((sum, xi, i) => sum + xi * durations[i], 0);
+    const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0);
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    
+    return {
+      direction: slope > 10 ? "degrading" : slope < -10 ? "improving" : "stable",
+      slope
+    };
+  }
+
+  /**
+   * Detect performance anomalies
+   */
+  detectAnomalies(category) {
+    const categoryMetrics = this.performanceHistory.filter(m => m.category === category);
+    
+    if (categoryMetrics.length < 10) {
+      return [];
+    }
+    
+    // Calculate mean and standard deviation
+    const durations = categoryMetrics.map(m => m.duration);
+    const mean = durations.reduce((a, b) => a + b, 0) / durations.length;
+    const variance = durations.reduce((sum, duration) => sum + Math.pow(duration - mean, 2), 0) / durations.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Find anomalies (more than 3 standard deviations from mean)
+    const anomalies = [];
+    const threshold = mean + (3 * stdDev);
+    
+    categoryMetrics.forEach(metric => {
+      if (metric.duration > threshold) {
+        const deviation = (metric.duration - mean) / stdDev;
+        anomalies.push({
+          operationId: metric.id,
+          category: metric.category,
+          duration: metric.duration,
+          value: metric.duration, // Add value field for test compatibility
+          mean,
+          threshold,
+          deviation,
+          type: "outlier", // Add type field for test compatibility
+          severity: metric.duration > (mean + 4 * stdDev) ? "high" : "medium"
+        });
+      }
+    });
+    
+    return anomalies;
+  }
+
+  /**
+   * Get real-time dashboard data
+   */
+  getRealTimeDashboard() {
+    const totalOps = this.performanceHistory.length;
+    const errorOps = this.performanceHistory.filter(m => !m.success).length;
+    const categoryBreakdown = {};
+    
+    // Build category breakdown
+    for (const [category, stats] of this.metrics.entries()) {
+      categoryBreakdown[category] = {
+        count: stats.count,
+        averageDuration: stats.averageDuration,
+        errorRate: stats.errorCount / stats.count,
+        successRate: stats.successCount / stats.count
+      };
+    }
+    
+    return {
+      totalOperations: totalOps,
+      activeOperations: this.activeOperations.size,
+      errorRate: totalOps > 0 ? errorOps / totalOps : 0,
+      alerts: this.getActiveAlerts(),
+      categoryBreakdown,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Set custom thresholds
+   */
+  setThresholds(thresholds) {
+    Object.entries(thresholds).forEach(([category, threshold]) => {
+      if (threshold <= 0) {
+        throw new Error("Threshold values must be positive");
+      }
+      this.thresholds[category] = threshold;
+    });
+  }
+
+  /**
+   * Set history size
+   */
+  setHistorySize(size) {
+    if (size <= 0) {
+      throw new Error("History size must be positive");
+    }
+    this.historySize = size;
   }
 }
 

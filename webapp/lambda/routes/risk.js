@@ -16,9 +16,13 @@ router.get("/health", (req, res) => {
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
-  res.json({message: "Risk Analysis API - Ready",
-    timestamp: new Date().toISOString(),
-    status: "operational",
+  res.json({
+    success: true,
+    data: {
+      message: "Risk Analysis API - Ready",
+      timestamp: new Date().toISOString(),
+      status: "operational",
+    }
   });
 });
 
@@ -204,19 +208,29 @@ router.get("/assessment", async (req, res) => {
 
     console.log(`⚖️ Risk assessment requested for user: ${userId}, type: ${type}, timeframe: ${timeframe}`);
 
-    // Generate comprehensive risk assessment since we likely don't have complete risk data
+    // Query risk assessment data from database
+    const riskResult = await query(
+      `SELECT * FROM risk_assessments WHERE user_id = $1 AND assessment_type = $2 ORDER BY assessment_date DESC LIMIT 1`,
+      [userId, type]
+    );
+    
+    if (riskResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Risk assessment not available",
+        message: `No ${type} risk assessment found for user`,
+        suggestion: "Run risk assessment calculation job to populate risk data"
+      });
+    }
+    
     const riskAssessment = {
       user_id: userId,
-      assessment_date: new Date().toISOString(),
+      assessment_date: riskResult.rows[0].assessment_date,
       assessment_type: type,
       timeframe: timeframe,
       risk_tolerance: risk_tolerance,
-      
-      // Overall risk score (1-100, where 100 is highest risk)
-      overall_risk_score: Math.floor(25), // 25-75
-      
-      // Risk profile assessment
-      risk_profile: {
+      overall_risk_score: riskResult.rows[0].overall_risk_score,
+      risk_profile: riskResult.rows[0].risk_profile || {
         classification: "Conservative",
         volatility_tolerance: 15, // 15-40%
         maximum_drawdown_tolerance: 0, // 5-20%
@@ -489,7 +503,9 @@ router.get("/portfolio/:portfolioId", async (req, res) => {
       parseFloat(confidence_level)
     );
 
-    res.json({data: riskMetrics,
+    res.json({
+      success: true,
+      data: riskMetrics,
     });
   } catch (error) {
     console.error("Error calculating portfolio risk:", error);
@@ -537,7 +553,9 @@ router.get("/var/:portfolioId", async (req, res) => {
       parseInt(lookback_days)
     );
 
-    res.json({data: varAnalysis,
+    res.json({
+      success: true,
+      data: varAnalysis,
     });
   } catch (error) {
     console.error("Error calculating VaR:", error);
@@ -583,7 +601,9 @@ router.post("/stress-test/:portfolioId", async (req, res) => {
       correlation_adjustment
     );
 
-    res.json({data: stressTestResults,
+    res.json({
+      success: true,
+      data: stressTestResults,
     });
   } catch (error) {
     console.error("Error performing stress test:", error);
@@ -659,7 +679,9 @@ router.get("/alerts", async (req, res) => {
       params
     );
 
-    res.json({data: {
+    res.json({
+      success: true,
+      data: {
         alerts: result.rows,
         total: parseInt(countResult.rows[0].total),
         limit: parseInt(limit),
@@ -839,7 +861,9 @@ router.get("/limits/:portfolioId", async (req, res) => {
       [portfolioId]
     );
 
-    res.json({data: {
+    res.json({
+      success: true,
+      data: {
         limits: limitsResult.rows,
         portfolio_id: portfolioId,
       },
@@ -976,7 +1000,9 @@ router.get("/dashboard", async (req, res) => {
       { high: 0, medium: 0, low: 0 }
     );
 
-    res.json({data: {
+    res.json({
+      success: true,
+      data: {
         portfolios: portfolioRiskResult.rows,
         alert_counts: alertCounts,
         market_indicators: marketRiskResult.rows,
@@ -1516,6 +1542,144 @@ router.get("/volatility/:symbol", async (req, res) => {
       success: false,
       error: "Failed to fetch volatility analysis",
       message: error.message
+    });
+  }
+});
+
+// Risk analysis endpoint (POST)
+router.post("/analyze", async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    const { symbols, portfolio, risk_tolerance = "moderate" } = req.body;
+    
+    console.log(`🔍 Risk analyze requested - symbols: ${symbols?.length || 0}, portfolio: ${!!portfolio}`);
+
+    if (!symbols && !portfolio) {
+      return res.status(400).json({
+        success: false,
+        error: "Either symbols array or portfolio data is required"
+      });
+    }
+
+    // Use provided symbols or extract from portfolio
+    const analyzeSymbols = symbols || (portfolio?.holdings?.map(h => h.symbol)) || [];
+    
+    if (analyzeSymbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No symbols provided for analysis"
+      });
+    }
+
+    // Risk tolerance mapping
+    const riskMultipliers = {
+      "conservative": 0.5,
+      "moderate": 1.0, 
+      "aggressive": 1.5
+    };
+    
+    const riskMultiplier = riskMultipliers[risk_tolerance] || 1.0;
+
+    // Get price volatility data for the symbols
+    const volatilityQuery = `
+      SELECT 
+        symbol,
+        stddev(price) as price_volatility,
+        avg(price) as avg_price,
+        min(price) as min_price,
+        max(price) as max_price,
+        count(*) as data_points
+      FROM stocks 
+      WHERE symbol = ANY($1)
+      GROUP BY symbol
+    `;
+
+    const volatilityResult = await query(volatilityQuery, [analyzeSymbols]);
+    
+    // Calculate risk metrics for each symbol
+    const riskAnalysis = analyzeSymbols.map(symbol => {
+      const volatilityData = volatilityResult.rows?.find(row => row.symbol === symbol);
+      
+      if (!volatilityData) {
+        return {
+          symbol: symbol,
+          risk_score: "N/A",
+          risk_level: "UNKNOWN",
+          volatility: "N/A",
+          recommendation: "Insufficient data for analysis"
+        };
+      }
+
+      // Calculate risk score (0-100 scale)
+      const volatilityRatio = volatilityData.price_volatility / volatilityData.avg_price;
+      const priceRange = (volatilityData.max_price - volatilityData.min_price) / volatilityData.avg_price;
+      
+      // Risk score calculation
+      let riskScore = Math.min(100, Math.round((volatilityRatio * 50 + priceRange * 30) * riskMultiplier));
+      
+      // Determine risk level
+      let riskLevel = "LOW";
+      if (riskScore > 70) riskLevel = "HIGH";
+      else if (riskScore > 40) riskLevel = "MEDIUM";
+      
+      // Generate recommendation
+      let recommendation = "HOLD";
+      if (riskLevel === "HIGH" && risk_tolerance === "conservative") {
+        recommendation = "CONSIDER REDUCING POSITION";
+      } else if (riskLevel === "LOW" && risk_tolerance === "aggressive") {
+        recommendation = "CONSIDER INCREASING POSITION";
+      }
+
+      return {
+        symbol: symbol,
+        risk_score: riskScore,
+        risk_level: riskLevel,
+        volatility: `${(volatilityRatio * 100).toFixed(2)}%`,
+        price_range: `${(priceRange * 100).toFixed(2)}%`,
+        recommendation: recommendation,
+        data_points: volatilityData.data_points
+      };
+    });
+
+    // Calculate portfolio-level risk
+    const portfolioRiskScore = riskAnalysis.reduce((sum, analysis) => {
+      return sum + (typeof analysis.risk_score === 'number' ? analysis.risk_score : 0);
+    }, 0) / riskAnalysis.length;
+
+    let portfolioRiskLevel = "LOW";
+    if (portfolioRiskScore > 70) portfolioRiskLevel = "HIGH";
+    else if (portfolioRiskScore > 40) portfolioRiskLevel = "MEDIUM";
+
+    res.json({
+      success: true,
+      data: {
+        individual_analysis: riskAnalysis,
+        portfolio_summary: {
+          overall_risk_score: Math.round(portfolioRiskScore),
+          overall_risk_level: portfolioRiskLevel,
+          risk_tolerance: risk_tolerance,
+          analyzed_symbols: analyzeSymbols.length,
+          high_risk_symbols: riskAnalysis.filter(a => a.risk_level === "HIGH").length
+        },
+        recommendations: {
+          general: portfolioRiskLevel === "HIGH" ? 
+            "Consider diversifying or reducing position sizes" : 
+            "Risk levels appear manageable",
+          diversification: analyzeSymbols.length < 5 ? 
+            "Consider adding more symbols for better diversification" : 
+            "Good diversification level"
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Risk analyze error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to perform risk analysis",
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

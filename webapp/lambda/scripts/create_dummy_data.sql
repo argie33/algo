@@ -164,6 +164,23 @@ CREATE TABLE IF NOT EXISTS portfolio_risk (
     UNIQUE(portfolio_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS portfolio_holdings (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    average_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+    current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+    market_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    unrealized_pnl DOUBLE PRECISION DEFAULT 0,
+    cost_basis DOUBLE PRECISION DEFAULT 0,
+    broker VARCHAR(20) DEFAULT 'manual',
+    position_type VARCHAR(10) DEFAULT 'long',
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, symbol, broker)
+);
+
 -- Insert dummy data for testing
 
 -- Price data for major stocks
@@ -242,6 +259,18 @@ VALUES
     ('aggressive', CURRENT_DATE, 85.2, 1.45, -0.045, 1.8, -0.15, 0.28),
     ('conservative', CURRENT_DATE, 35.8, 0.75, -0.015, 0.9, -0.05, 0.12)
 ON CONFLICT (portfolio_id, date) DO NOTHING;
+
+-- Portfolio holdings data for testing
+INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, unrealized_pnl, cost_basis, broker)
+VALUES 
+    ('dev-user-bypass', 'AAPL', 100, 150.00, 186.75, 18675.00, 3675.00, 15000.00, 'manual'),
+    ('dev-user-bypass', 'MSFT', 50, 380.00, 411.25, 20562.50, 1562.50, 19000.00, 'manual'),
+    ('dev-user-bypass', 'GOOGL', 75, 120.00, 139.20, 10440.00, 1440.00, 9000.00, 'manual'),
+    ('dev-user-bypass', 'TSLA', 25, 220.00, 250.85, 6271.25, 771.25, 5500.00, 'manual'),
+    ('dev-user-bypass', 'NVDA', 10, 800.00, 878.90, 8789.00, 789.00, 8000.00, 'manual'),
+    ('demo_user', 'AAPL', 50, 160.00, 186.75, 9337.50, 1337.50, 8000.00, 'demo'),
+    ('demo_user', 'MSFT', 25, 400.00, 411.25, 10281.25, 281.25, 10000.00, 'demo')
+ON CONFLICT (user_id, symbol, broker) DO NOTHING;
 
 -- Sentiment data
 INSERT INTO sentiment (symbol, date, sentiment_score, positive_mentions, negative_mentions, neutral_mentions, total_mentions, source)

@@ -1,0 +1,51 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /health
+Endpoint does not require database connection
+Starting health check with database...
+Database not initialized, initializing now...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: price_daily
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Created/verified table: price_alerts
+✅ Created/verified table: risk_alerts
+✅ Created/verified table: stock_scores
+✅ Created/verified table: key_metrics
+✅ Created/verified table: dividend_calendar
+✅ Created/verified table: trading_strategies
+✅ Created/verified table: user_risk_limits
+✅ Created/verified table: trade_history
+✅ Created/verified table: portfolio_summary
+✅ Created/verified table: user_dashboard_settings
+✅ Database schema initialization completed
+::1 - - [12/Sep/2025:10:24:36 +0000] "GET /health HTTP/1.1" 200 330 "-" "curl/8.5.0"
+Killed

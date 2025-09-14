@@ -36,7 +36,6 @@ describe("Sectors Routes", () => {
       const response = await request(app).get("/sectors/health").expect(200);
 
       expect(response.body).toMatchObject({
-        success: true,
         status: "operational",
         service: "sectors",
         timestamp: expect.any(String),

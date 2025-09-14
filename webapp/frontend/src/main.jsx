@@ -99,7 +99,9 @@ if (window.__CONFIG__) {
     if (window.__CONFIG__) {
       // Config loaded after waiting
     } else {
-      console.warn("⚠️ Config not loaded yet, check index.html script tag");
+      if (import.meta.env && import.meta.env.DEV) {
+        console.warn("⚠️ Config not loaded yet, check index.html script tag");
+      }
     }
   }, 1000);
 }

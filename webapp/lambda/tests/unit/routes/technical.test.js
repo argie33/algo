@@ -28,8 +28,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       const response = await request(app).get("/technical/ping").expect(200);
 
       expect(response.body).toEqual({
-        status: "ok",
-        endpoint: "technical",
+        success: true,
+        data: {
+          status: "ok",
+          endpoint: "technical",
+          timestamp: expect.any(String),
+        },
         timestamp: expect.any(String),
       });
     });
@@ -107,34 +111,20 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       expect(query).toHaveBeenCalledWith(expect.stringContaining("INNER JOIN"));
     });
 
-    test("should return fallback data when technical_data_daily table doesn't exist", async () => {
+    test("should return 503 when technical_data_daily table doesn't exist", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
 
       query.mockResolvedValueOnce(mockTableExists);
 
-      const response = await request(app).get("/technical/").expect(200);
+      const response = await request(app).get("/technical/").expect(503);
 
       expect(response.body).toMatchObject({
-        success: true,
-        data: expect.any(Array),
-        count: expect.any(Number),
-        metadata: expect.objectContaining({
-          timeframe: "daily",
-          fallback: true,
-        }),
+        success: false,
+        error: "Technical data not available",
+        message: "Technical data table for daily timeframe does not exist",
+        service: "technical-overview",
+        timeframe: "daily"
       });
-
-      // Should have fallback data for major symbols
-      expect(response.body.data).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            symbol: expect.stringMatching(/^(AAPL|MSFT|GOOGL|TSLA|NVDA)$/),
-            rsi: expect.any(Number),
-            macd: expect.any(Number),
-            sma_20: expect.any(Number),
-          }),
-        ])
-      );
     });
   });
 
@@ -175,28 +165,30 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            rsi: 65.8,
-            macd: 0.25,
+        data: expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              symbol: "AAPL",
+              rsi: 65.8,
+              macd: 0.25,
+            }),
+            expect.objectContaining({
+              symbol: "MSFT",
+              rsi: 58.2,
+              macd: 0.18,
+            }),
+          ]),
+          pagination: expect.objectContaining({
+            page: 1,
+            limit: 50,
+            total: 150,
+            totalPages: 3,
+            hasNext: true,
+            hasPrev: false,
           }),
-          expect.objectContaining({
-            symbol: "MSFT",
-            rsi: 58.2,
-            macd: 0.18,
+          metadata: expect.objectContaining({
+            timeframe: "daily",
           }),
-        ]),
-        pagination: expect.objectContaining({
-          page: 1,
-          limit: 50,
-          total: 150,
-          totalPages: 3,
-          hasNext: true,
-          hasPrev: false,
-        }),
-        metadata: expect.objectContaining({
-          timeframe: "daily",
         }),
       });
 
@@ -805,6 +797,173 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
       // Verify the endpoint responds successfully
       expect(response.status).toBe(200);
+      expect(query).toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /technical/chart/:symbol - Chart data for symbol", () => {
+    beforeEach(() => {
+      // Mock the table check to return true
+      query.mockResolvedValue({
+        rows: [{ exists: true }]
+      });
+    });
+
+    test("should return chart data with default parameters", async () => {
+      const response = await request(app)
+        .get("/technical/chart/AAPL")
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty('chart_data');
+      expect(response.body.data).toHaveProperty('summary');
+      expect(response.body.data).toHaveProperty('metadata');
+      expect(Array.isArray(response.body.data.chart_data)).toBe(true);
+      expect(response.body.data.metadata.symbol).toBe('AAPL');
+      expect(response.body.data.metadata.period).toBe('1M');
+      expect(response.body.data.metadata.interval).toBe('1d');
+    });
+
+    test("should return chart data with custom parameters", async () => {
+      const response = await request(app)
+        .get("/technical/chart/MSFT?period=1Y&interval=1d&include_volume=true&limit=50")
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.chart_data.length).toBeLessThanOrEqual(50);
+      expect(response.body.data.metadata.symbol).toBe('MSFT');
+      expect(response.body.data.metadata.period).toBe('1Y');
+      expect(response.body.data.metadata.interval).toBe('1d');
+      expect(response.body.data.metadata.include_volume).toBe(true);
+      
+      // Check if volume is included when requested
+      if (response.body.data.chart_data.length > 0) {
+        expect(response.body.data.chart_data[0]).toHaveProperty('volume');
+      }
+    });
+
+    test("should include proper OHLCV structure", async () => {
+      const response = await request(app)
+        .get("/technical/chart/AAPL?limit=5")
+        .expect(200);
+
+      if (response.body.data.chart_data.length > 0) {
+        const candle = response.body.data.chart_data[0];
+        expect(candle).toHaveProperty('datetime');
+        expect(candle).toHaveProperty('timestamp');
+        expect(candle).toHaveProperty('open');
+        expect(candle).toHaveProperty('high');
+        expect(candle).toHaveProperty('low');
+        expect(candle).toHaveProperty('close');
+        expect(candle).toHaveProperty('adjusted_close');
+        expect(candle).toHaveProperty('technical_indicators');
+        expect(typeof candle.open).toBe('number');
+        expect(typeof candle.high).toBe('number');
+        expect(typeof candle.low).toBe('number');
+        expect(typeof candle.close).toBe('number');
+      }
+    });
+
+    test("should include technical indicators", async () => {
+      const response = await request(app)
+        .get("/technical/chart/AAPL?limit=5")
+        .expect(200);
+
+      if (response.body.data.chart_data.length > 0) {
+        const indicators = response.body.data.chart_data[0].technical_indicators;
+        expect(indicators).toHaveProperty('sma_20');
+        expect(indicators).toHaveProperty('sma_50');
+        expect(indicators).toHaveProperty('ema_12');
+        expect(indicators).toHaveProperty('ema_26');
+        expect(indicators).toHaveProperty('rsi');
+        expect(indicators).toHaveProperty('macd');
+        expect(indicators).toHaveProperty('macd_signal');
+        expect(indicators).toHaveProperty('macd_histogram');
+        expect(indicators).toHaveProperty('bollinger_upper');
+        expect(indicators).toHaveProperty('bollinger_middle');
+        expect(indicators).toHaveProperty('bollinger_lower');
+      }
+    });
+
+    test("should include summary with price range and technical analysis", async () => {
+      const response = await request(app)
+        .get("/technical/chart/AAPL?limit=10")
+        .expect(200);
+
+      expect(response.body.data.summary).toHaveProperty('symbol', 'AAPL');
+      expect(response.body.data.summary).toHaveProperty('price_range');
+      expect(response.body.data.summary).toHaveProperty('technical_summary');
+      expect(response.body.data.summary.price_range).toHaveProperty('current');
+      expect(response.body.data.summary.price_range).toHaveProperty('high');
+      expect(response.body.data.summary.price_range).toHaveProperty('low');
+      expect(response.body.data.summary.price_range).toHaveProperty('change');
+      expect(response.body.data.summary.technical_summary).toHaveProperty('current_rsi');
+      expect(response.body.data.summary.technical_summary).toHaveProperty('trend_direction');
+    });
+
+    test("should handle volume inclusion correctly", async () => {
+      const responseWithVolume = await request(app)
+        .get("/technical/chart/AAPL?include_volume=true&limit=5")
+        .expect(200);
+
+      const responseWithoutVolume = await request(app)
+        .get("/technical/chart/AAPL?include_volume=false&limit=5")
+        .expect(200);
+
+      if (responseWithVolume.body.data.chart_data.length > 0) {
+        expect(responseWithVolume.body.data.chart_data[0]).toHaveProperty('volume');
+        expect(responseWithVolume.body.data.summary).toHaveProperty('volume_stats');
+      }
+
+      if (responseWithoutVolume.body.data.chart_data.length > 0) {
+        expect(responseWithoutVolume.body.data.chart_data[0]).not.toHaveProperty('volume');
+        expect(responseWithoutVolume.body.data.summary.volume_stats).toBeUndefined();
+      }
+    });
+
+    test("should handle table not exists gracefully", async () => {
+      query.mockResolvedValue({
+        rows: [{ exists: false }]
+      });
+
+      const response = await request(app)
+        .get("/technical/chart/AAPL")
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Chart data not available");
+    });
+  });
+
+  describe("GET /technical/chart - Query-based chart endpoint", () => {
+    test("should validate timeframe parameter", async () => {
+      const response = await request(app)
+        .get("/technical/chart?symbol=AAPL&timeframe=invalid")
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("Invalid timeframe");
+    });
+
+    test("should validate period parameter", async () => {
+      const response = await request(app)
+        .get("/technical/chart?symbol=AAPL&period=invalid")
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("Invalid period");
+    });
+
+    test("should filter indicators correctly", async () => {
+      query.mockResolvedValue({
+        rows: []
+      });
+
+      const response = await request(app)
+        .get("/technical/chart?symbol=AAPL&indicators=sma,rsi&timeframe=daily&period=1m")
+        .expect(404); // Will return 404 because no data in mock
+
+      // The request should be processed and query should be called
       expect(query).toHaveBeenCalled();
     });
   });

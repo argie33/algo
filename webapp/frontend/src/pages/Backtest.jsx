@@ -81,7 +81,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import MuiTooltip from "@mui/material/Tooltip";
 // Charts now use Recharts - no Chart.js registration needed
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
 
 // Helper function to calculate advanced metrics
 const getAdvancedMetrics = (result) => {
@@ -307,11 +307,20 @@ export default function Backtest() {
 
   // Enhanced: Fetch user-specific strategies (moved before useEffect to fix hoisting)
   const fetchUserStrategies = useCallback(async () => {
+    if (!user?.token) {
+      // Load from localStorage for non-authenticated users
+      const localStrategies = JSON.parse(
+        localStorage.getItem("backtester_strategies") || "[]"
+      );
+      setSavedStrategies(localStrategies);
+      return;
+    }
+    
     try {
-      const headers = { "Content-Type": "application/json" };
-      if (user?.token) {
-        headers["Authorization"] = `Bearer ${user.token}`;
-      }
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${user.token}`
+      };
 
       const response = await fetch(`${API_BASE}/api/backtest/strategies`, {
         headers,
@@ -321,7 +330,7 @@ export default function Backtest() {
         setSavedStrategies(data.strategies || []);
       }
     } catch (error) {
-      console.error("Error fetching user strategies:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error fetching user strategies:", error);
       // Fallback to localStorage
       const localStrategies = JSON.parse(
         localStorage.getItem("backtester_strategies") || "[]"
@@ -361,12 +370,12 @@ export default function Backtest() {
     };
 
     try {
-      if (isAuthenticated && user) {
+      if (isAuthenticated && user?.token) {
         // Save to backend
-        const headers = { "Content-Type": "application/json" };
-        if (user?.token) {
-          headers["Authorization"] = `Bearer ${user.token}`;
-        }
+        const headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
+        };
 
         const response = await fetch(`${API_BASE}/api/backtest/strategies`, {
           method: "POST",
@@ -396,7 +405,7 @@ export default function Backtest() {
       setStrategyDialogOpen(false);
       setNewStrategy({ name: "", description: "", code: "", isPublic: false });
     } catch (error) {
-      console.error("Error saving strategy:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error saving strategy:", error);
       setError("Failed to save strategy. Please try again.");
     }
   };
@@ -424,11 +433,11 @@ export default function Backtest() {
     }
 
     try {
-      if (isAuthenticated && user) {
-        const headers = { "Content-Type": "application/json" };
-        if (user?.token) {
-          headers["Authorization"] = `Bearer ${user.token}`;
-        }
+      if (isAuthenticated && user?.token) {
+        const headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
+        };
 
         const response = await fetch(
           `${API_BASE}/backtest/strategies/${strategyId}`,
@@ -451,7 +460,7 @@ export default function Backtest() {
         setSavedStrategies(filtered);
       }
     } catch (error) {
-      console.error("Error deleting strategy:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error deleting strategy:", error);
     }
   };
 
@@ -1402,7 +1411,7 @@ export default function Backtest() {
                   dataKey="value"
                   stroke="#1976d2"
                   strokeWidth={2}
-                  dot={false}
+                  dot={{r: 0}}
                   name="Equity Curve"
                 />
               </LineChart>
@@ -1649,7 +1658,7 @@ export default function Backtest() {
                       dataKey="value"
                       stroke="#8e24aa"
                       strokeWidth={2}
-                      dot={false}
+                      dot={{r: 0}}
                       name={metricKey}
                     />
                   </LineChart>

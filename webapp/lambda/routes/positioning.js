@@ -4,6 +4,18 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Root endpoint - API info
+router.get("/", async (req, res) => {
+  res.json({
+    message: "Position Tracking API - Ready",
+    status: "operational",
+    endpoints: [
+      "GET /stocks - Get stock positioning data",
+      "GET /summary - Get positioning summary"
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Get stock positioning data
 router.get("/stocks", async (req, res) => {
@@ -77,7 +89,7 @@ router.get("/stocks", async (req, res) => {
       return res.notFound("No positioning data found");
     }
 
-    res.success({
+    res.json({
       institutional_positioning: institutionalResult.rows,
       retail_sentiment: sentimentResult.rows,
       metadata: {
@@ -93,7 +105,7 @@ router.get("/stocks", async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching stock positioning data:", error);
-    res.error("Failed to fetch stock positioning data", 500);
+    res.status(500).json({success: false, error: "Failed to fetch stock positioning data"});
   }
 });
 
@@ -137,7 +149,7 @@ router.get("/summary", async (req, res) => {
       overall_positioning = "MODERATELY_BEARISH";
     }
 
-    res.success({
+    res.json({
       market_overview: {
         institutional_flow: institutional.avg_change > 0 ? "BULLISH" : "BEARISH",
         retail_sentiment: retail.avg_net_sentiment > 20 ? "BULLISH" : retail.avg_net_sentiment < -20 ? "BEARISH" : "MIXED",
@@ -156,7 +168,7 @@ router.get("/summary", async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching positioning summary:", error);
-    res.error("Failed to fetch positioning summary", 500);
+    res.status(500).json({success: false, error: "Failed to fetch positioning summary"});
   }
 });
 

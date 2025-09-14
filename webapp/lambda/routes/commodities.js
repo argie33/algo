@@ -1,10 +1,11 @@
 const express = require("express");
 
+const { query } = require("../utils/database");
 const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.success({status: "operational",
+  res.json({status: "operational",
     service: "commodities",
     timestamp: new Date().toISOString(),
     message: "Commodities service is running",
@@ -13,7 +14,9 @@ router.get("/health", (req, res) => {
 
 // Root commodities endpoint for health checks
 router.get("/", (req, res) => {
-  res.success({data: {
+  res.json({
+    success: true,
+    data: {
       system: "Commodities API",
       version: "1.0.0",
       status: "operational",
@@ -105,7 +108,9 @@ router.get("/categories", (req, res) => {
       },
     ];
 
-    res.success({data: categories,
+    res.json({
+      success: true,
+      data: categories,
       metadata: {
         totalCategories: categories.length,
         lastUpdated: new Date().toISOString(),
@@ -214,7 +219,9 @@ router.get("/prices", (req, res) => {
       commodities = commodities.filter((c) => c.symbol === symbol);
     }
 
-    res.success({data: commodities,
+    res.json({
+      success: true,
+      data: commodities,
       filters: {
         category: category || null,
         symbol: symbol || null,
@@ -270,7 +277,9 @@ router.get("/market-summary", (req, res) => {
       ],
     };
 
-    res.success({data: summary,
+    res.json({
+      success: true,
+      data: summary,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -286,11 +295,46 @@ router.get("/market-summary", (req, res) => {
 // Get correlations
 router.get("/correlations", (req, res) => {
   try {
-    const correlations = {
+    const correlationPairs = [
+      {
+        pair: ["energy", "precious-metals"],
+        coefficient: -0.23,
+        strength: "weak_negative",
+        description: "Energy and precious metals show weak negative correlation"
+      },
+      {
+        pair: ["energy", "base-metals"],
+        coefficient: 0.47,
+        strength: "moderate_positive",
+        description: "Energy and base metals show moderate positive correlation"
+      },
+      {
+        pair: ["energy", "agriculture"],
+        coefficient: 0.12,
+        strength: "weak_positive",
+        description: "Energy and agriculture show weak positive correlation"
+      },
+      {
+        pair: ["precious-metals", "base-metals"],
+        coefficient: 0.18,
+        strength: "weak_positive",
+        description: "Precious metals and base metals show weak positive correlation"
+      },
+      {
+        pair: ["precious-metals", "agriculture"],
+        coefficient: -0.05,
+        strength: "very_weak_negative",
+        description: "Precious metals and agriculture show very weak negative correlation"
+      }
+    ];
+
+    const correlationData = {
+      correlations: correlationPairs,
       overview: {
         description: "Correlation matrix for major commodity sectors",
         period: "90d",
         lastUpdated: new Date().toISOString(),
+        total_pairs: correlationPairs.length
       },
       matrix: {
         energy: {
@@ -310,7 +354,8 @@ router.get("/correlations", (req, res) => {
       },
     };
 
-    res.success({data: correlations,
+    res.json({
+      data: correlationData,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -631,6 +676,76 @@ router.get("/trends", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch commodities trends",
+      message: error.message
+    });
+  }
+});
+
+// Get commodity news
+router.get("/news", async (req, res) => {
+  try {
+    const { category, limit = 50 } = req.query;
+    const limitNum = Math.min(parseInt(limit) || 50, 100);
+
+    // Query news from database for commodity-related content
+    let newsQuery = `
+      SELECT 
+        id,
+        title,
+        content,
+        summary,
+        category,
+        source,
+        author,
+        published_at as "publishedAt",
+        url,
+        sentiment,
+        symbol
+      FROM news 
+      WHERE 1=1
+    `;
+    
+    const queryParams = [];
+    
+    // Filter by commodity-related categories
+    if (category) {
+      newsQuery += ` AND category ILIKE $${queryParams.length + 1}`;
+      queryParams.push(`%${category}%`);
+    } else {
+      // Default to commodity-related categories
+      newsQuery += ` AND (category ILIKE ANY($${queryParams.length + 1}))`;
+      queryParams.push(['%energy%', '%metals%', '%commodities%', '%gold%', '%oil%', '%agricultural%']);
+    }
+    
+    newsQuery += ` ORDER BY published_at DESC LIMIT $${queryParams.length + 1}`;
+    queryParams.push(limitNum);
+
+    const result = await query(newsQuery, queryParams);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No commodity news found",
+        message: "No news articles found for the specified criteria"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        total: result.rows.length,
+        limit: limitNum,
+        page: 1
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error("Commodities news error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch commodities news",
       message: error.message
     });
   }

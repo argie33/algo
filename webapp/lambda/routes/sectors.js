@@ -7,23 +7,33 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.success({status: "operational",
+  res.json({status: "operational",
     service: "sectors",
     timestamp: new Date().toISOString(),
     message: "Sectors service is running",
   });
 });
 
-// Basic root endpoint (public)
+// Basic root endpoint (public) 
 router.get("/", (req, res) => {
-  res.success({message: "Sectors API - Ready",
-    timestamp: new Date().toISOString(),
+  res.json({
+    success: true,
+    message: "Sectors API - Ready", 
     status: "operational",
+    data: [],
+    timestamp: new Date().toISOString()
   });
 });
 
-// Apply authentication to all sector analysis routes
-router.use(authenticateToken);
+// Apply authentication to all routes except health and root
+router.use((req, res, next) => {
+  // Skip auth for health and root endpoints
+  if (req.path === '/health' || req.path === '/') {
+    return next();
+  }
+  // Apply auth to all other routes
+  return authenticateToken(req, res, next);
+});
 
 /**
  * GET /sectors/analysis
@@ -347,7 +357,9 @@ router.get("/list", async (req, res) => {
       `✅ Found ${sectors.length} sectors with ${result.rows.length} industries`
     );
 
-    res.success({data: {
+    res.json({
+      success: true,
+      data: {
         sectors,
         summary: {
           total_sectors: sectors.length,
@@ -409,25 +421,25 @@ router.get("/performance", async (req, res) => {
           COUNT(DISTINCT cp.ticker) as stock_count,
           AVG(
             CASE 
-              WHEN pd_current.close IS NOT NULL AND pd_past.close IS NOT NULL 
-              THEN ((pd_current.close - pd_past.close) / pd_past.close * 100)
+              WHEN pd_current.close_price IS NOT NULL AND pd_past.close_price IS NOT NULL 
+              THEN ((pd_current.close_price - pd_past.close_price) / pd_past.close_price * 100)
             END
           ) as avg_return,
           SUM(pd_current.volume) as total_volume,
-          AVG(pd_current.close) as avg_price,
-          COUNT(CASE WHEN pd_current.close > pd_past.close THEN 1 END) as gaining_stocks,
-          COUNT(CASE WHEN pd_current.close < pd_past.close THEN 1 END) as losing_stocks
+          AVG(pd_current.close_price) as avg_price,
+          COUNT(CASE WHEN pd_current.close_price > pd_past.close_price THEN 1 END) as gaining_stocks,
+          COUNT(CASE WHEN pd_current.close_price < pd_past.close_price THEN 1 END) as losing_stocks
         FROM company_profile cp
         JOIN (
           SELECT DISTINCT ON (symbol) 
-            symbol, close_price as close, volume, date
+            symbol, close as close_price, volume, date
           FROM price_daily 
           WHERE date >= CURRENT_DATE - INTERVAL '7 days'
           ORDER BY symbol, date DESC
         ) pd_current ON cp.ticker = pd_current.symbol
         JOIN (
           SELECT DISTINCT ON (symbol)
-            symbol, close_price as close, date
+            symbol, close as close_price, date
           FROM price_daily 
           WHERE date <= CURRENT_DATE - INTERVAL '1 month'
             AND date >= CURRENT_DATE - INTERVAL '1 month' - INTERVAL '7 days'
@@ -510,21 +522,21 @@ router.get("/:sector/details", async (req, res) => {
 
     const sectorDetailQuery = `
             WITH latest_data AS (
-                SELECT DISTINCT ON (s.ticker)
-                    s.ticker,
-                    s.short_name,
-                    s.long_name,
+                SELECT DISTINCT ON (s.symbol)
+                    s.symbol,
+                    s.name as short_name,
+                    s.name as long_name,
                     s.industry,
-                    s.market,
+                    s.exchange as market,
                     s.country,
                     pd.close as current_price,
                     pd.volume,
                     pd.date as price_date,
                     
                     -- Performance metrics
-                    (pd.close - LAG(pd.close, 1) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close, 1) OVER (PARTITION BY s.ticker ORDER BY pd.date) * 100 as daily_change,
-                    (pd.close - LAG(pd.close, 5) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close, 5) OVER (PARTITION BY s.ticker ORDER BY pd.date) * 100 as weekly_change,
-                    (pd.close - LAG(pd.close, 22) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close, 22) OVER (PARTITION BY s.ticker ORDER BY pd.date) * 100 as monthly_change,
+                    (pd.close - LAG(pd.close, 1) OVER (PARTITION BY s.symbol ORDER BY pd.date)) / LAG(pd.close, 1) OVER (PARTITION BY s.symbol ORDER BY pd.date) * 100 as daily_change,
+                    (pd.close - LAG(pd.close, 5) OVER (PARTITION BY s.symbol ORDER BY pd.date)) / LAG(pd.close, 5) OVER (PARTITION BY s.symbol ORDER BY pd.date) * 100 as weekly_change,
+                    (pd.close - LAG(pd.close, 22) OVER (PARTITION BY s.symbol ORDER BY pd.date)) / LAG(pd.close, 22) OVER (PARTITION BY s.symbol ORDER BY pd.date) * 100 as monthly_change,
                     
                     -- Technical indicators
                     td.rsi,
@@ -545,12 +557,12 @@ router.get("/:sector/details", async (req, res) => {
                     pd.close * pd.volume as dollar_volume
                     
                 FROM stock_symbols s
-                LEFT JOIN price_daily pd ON s.ticker = pd.symbol
-                LEFT JOIN technical_data_daily td ON s.ticker = td.symbol AND td.date = pd.date
-                LEFT JOIN momentum_metrics mm ON s.ticker = mm.symbol
+                LEFT JOIN price_daily pd ON s.symbol = pd.symbol
+                LEFT JOIN technical_data_daily td ON s.symbol = td.symbol AND td.date = pd.date
+                LEFT JOIN momentum_metrics mm ON s.symbol = mm.symbol
                 WHERE s.sector = $1
                     AND pd.date >= CURRENT_DATE - INTERVAL '7 days'
-                ORDER BY s.ticker, pd.date DESC
+                ORDER BY s.symbol, pd.date DESC
             )
             
             SELECT *,
@@ -639,7 +651,9 @@ router.get("/:sector/details", async (req, res) => {
 
     console.log(`✅ Found ${stocks.length} stocks in ${sector} sector`);
 
-    res.success({data: {
+    res.json({
+      success: true,
+      data: {
         sector,
         summary: {
           stock_count: stocks.length,
@@ -710,15 +724,15 @@ router.get("/allocation", async (req, res) => {
         COALESCE(cp.sector, 'Unknown') as sector,
         COUNT(DISTINCT ph.symbol) as stock_count,
         SUM(ph.quantity * ph.average_cost) as total_cost,
-        SUM(ph.quantity * COALESCE(pd.close_price, ph.average_cost)) as current_value,
+        SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) as current_value,
         SUM(ph.quantity) as total_shares,
         AVG(ph.average_cost) as avg_cost_basis,
-        SUM(ph.quantity * COALESCE(pd.close_price, ph.average_cost)) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
+        SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
-          symbol, close_price, date
+          symbol, close, date
         FROM price_daily 
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC

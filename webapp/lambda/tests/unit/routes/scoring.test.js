@@ -17,10 +17,17 @@ jest.mock(
   { virtual: true }
 );
 
+// Mock scoring helpers
+jest.mock("../../../utils/scoringHelpers", () => ({
+  calculateComprehensiveScores: jest.fn(),
+  storeComprehensiveScores: jest.fn(),
+}));
+
 // Now import the routes after mocking
 
 const scoringRoutes = require("../../../routes/scoring");
 const { query } = require("../../../utils/database");
+const { calculateComprehensiveScores, storeComprehensiveScores } = require("../../../utils/scoringHelpers");
 
 describe("Scoring Routes - Testing Your Actual Site", () => {
   let app;
@@ -49,67 +56,55 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
   describe("GET /scoring/calculate/:symbol - Calculate comprehensive scores", () => {
     test("should return cached scores when available", async () => {
-      const mockScores = [
-        {
+      const mockCachedScore = [{
+        symbol: "AAPL",
+        quality_score: 0.85,
+        growth_score: 0.78,
+        value_score: 0.65,
+        momentum_score: 0.72,
+        sentiment_score: 0.68,
+        positioning_score: 0.75,
+        composite_score: 0.74,
+        updated_at: new Date().toISOString(),
+      }];
+
+      // Mock the database query to return cached score directly as array
+      query.mockResolvedValue(mockCachedScore);
+
+      const response = await request(app)
+        .get("/scoring/calculate/AAPL")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        scores: expect.objectContaining({
           symbol: "AAPL",
-          quality_score: 0.85,
-          growth_score: 0.78,
-          value_score: 0.65,
-          momentum_score: 0.72,
-          sentiment_score: 0.68,
-          positioning_score: 0.75,
           composite_score: 0.74,
-          updated_at: new Date().toISOString(),
-        },
-      ];
+        }),
+        cached: true,
+      });
 
-      query.mockResolvedValue(mockScores);
-
-      const response = await request(app)
-        .get("/scoring/calculate/AAPL")
-        .expect([200, 404, 500]);
-
-      // Handle the case where the route might not be fully implemented
-      if (response.status === 200) {
-        expect(response.body).toMatchObject({
-          success: true,
-          scores: expect.objectContaining({
-            symbol: "AAPL",
-          }),
-          cached: expect.any(Boolean),
-        });
-      }
-    });
-
-    test("should handle symbol case conversion", async () => {
-      query.mockResolvedValue([]);
-
-      const response = await request(app)
-        .get("/scoring/calculate/aapl")
-        .expect([200, 404, 500]);
-
-      expect(response.body).toHaveProperty("success");
-    });
-
-    test("should handle force recalculate parameter", async () => {
-      query.mockResolvedValue([]);
-
-      const response = await request(app)
-        .get("/scoring/calculate/AAPL")
-        .query({ recalculate: "true" })
-        .expect([200, 404, 500]);
-
-      expect(response.body).toHaveProperty("success");
+      // Verify the correct database query was made
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT * FROM comprehensive_scores"),
+        ["AAPL"]
+      );
     });
 
     test("should return 404 for insufficient data", async () => {
+      // Mock no cached scores
       query.mockResolvedValue([]);
+      
+      // Mock calculateComprehensiveScores function to return null (insufficient data)
+      calculateComprehensiveScores.mockResolvedValue(null);
 
       const response = await request(app)
         .get("/scoring/calculate/INVALID")
-        .expect([404, 500]);
+        .expect(404);
 
-      expect(response.body).toHaveProperty("success");
+      expect(response.body).toMatchObject({
+        success: false,
+        error: "Unable to calculate scores - insufficient data",
+      });
     });
 
     test("should handle database errors gracefully", async () => {
@@ -121,8 +116,54 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       expect(response.body).toMatchObject({
         success: false,
-        error: expect.any(String),
+        error: "Failed to calculate comprehensive scores",
+        details: "Database connection failed",
       });
+    });
+
+    test("should handle force recalculate parameter", async () => {
+      // Mock calculateComprehensiveScores function to return scores
+      const mockCalculatedScores = {
+        symbol: "AAPL",
+        quality_score: 0.80,
+        composite_score: 0.75
+      };
+      
+      calculateComprehensiveScores.mockResolvedValue(mockCalculatedScores);
+      storeComprehensiveScores.mockResolvedValue(true);
+
+      const response = await request(app)
+        .get("/scoring/calculate/AAPL")
+        .query({ recalculate: "true" })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        scores: expect.objectContaining({
+          symbol: "AAPL",
+        }),
+        cached: false,
+      });
+    });
+
+    test("should convert symbol to uppercase", async () => {
+      const mockCachedScore = [{
+        symbol: "AAPL",
+        composite_score: 0.74,
+      }];
+
+      query.mockResolvedValue(mockCachedScore);
+
+      const response = await request(app)
+        .get("/scoring/calculate/aapl")
+        .expect(200);
+
+      expect(response.body.scores.symbol).toBe("AAPL");
+      
+      // Verify query was called with uppercase symbol
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining("WHERE symbol = $1"),
+        ["AAPL"]
+      );
     });
   });
 

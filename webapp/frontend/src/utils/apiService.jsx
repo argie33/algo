@@ -36,7 +36,9 @@ export const createLogger = (componentName) => ({
     } catch (error) {
       safeData = data ? String(data) : 'Unable to stringify data (circular reference)';
     }
-    console.log(`[${componentName}] ${message}`, safeData);
+    if (import.meta.env && import.meta.env.DEV) {
+      console.log(`[${componentName}] ${message}`, safeData);
+    }
   },
   error: (message, error, context) => {
     // Safe error object to avoid circular references
@@ -65,7 +67,9 @@ export const createLogger = (componentName) => ({
     } catch (error) {
       safeData = data ? String(data) : 'Unable to stringify data (circular reference)';
     }
-    console.warn(`[${componentName}] ${message}`, safeData);
+    if (import.meta.env && import.meta.env.DEV) {
+      console.warn(`[${componentName}] ${message}`, safeData);
+    }
   },
   debug: (message, data) => {
     if (process.env.NODE_ENV === "development") {

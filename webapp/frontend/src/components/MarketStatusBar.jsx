@@ -88,7 +88,7 @@ const MarketStatusBar = () => {
       setMarketStatus(data);
       setLoading(false);
     } catch (error) {
-      console.error("Failed to fetch market status:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Failed to fetch market status:", error);
       setLoading(false);
     }
   };
@@ -200,7 +200,7 @@ const MarketStatusBar = () => {
               variant="caption"
               color="text.secondary"
               sx={{ cursor: "pointer" }}
-              onClick={() => console.log("Cache Stats:", dataCache.getStats())}
+              onClick={() => import.meta.env && import.meta.env.DEV && console.log("Cache Stats:", dataCache.getStats())}
             >
               Cache: {dataCache.cache.size} items
             </Typography>

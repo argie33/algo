@@ -1,24 +1,32 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderWithTheme } from "../test-helpers/component-test-utils";
-import LoginForm from "../../../../components/auth/LoginForm.jsx";
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
+import LoginForm from '../../../../components/auth/LoginForm';
 
-// Mock the auth context
-vi.mock("../../../../contexts/AuthContext.jsx", () => ({
+// Mock localStorage
+const mockLocalStorage = {
+  setItem: vi.fn(),
+  getItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+Object.defineProperty(window, 'localStorage', {
+  value: mockLocalStorage
+});
+
+// Mock AuthContext
+const mockLogin = vi.fn();
+const mockClearError = vi.fn();
+
+vi.mock('../../../../contexts/AuthContext', () => ({
   useAuth: vi.fn(() => ({
-    login: vi.fn(),
+    login: mockLogin,
     isLoading: false,
-    error: null,
-    clearError: vi.fn(),
-    user: null,
-  })),
+    error: '',
+    clearError: mockClearError
+  }))
 }));
 
-// Import after mocking
-import { useAuth } from "../../../../contexts/AuthContext.jsx";
-
-describe("LoginForm Component", () => {
+describe('LoginForm', () => {
   const defaultProps = {
     onSwitchToRegister: vi.fn(),
     onSwitchToForgotPassword: vi.fn(),
@@ -26,208 +34,363 @@ describe("LoginForm Component", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset mock implementation
-    useAuth.mockReturnValue({
-      login: vi.fn(),
-      isLoading: false,
-      error: null,
-      clearError: vi.fn(),
-      user: null,
+    mockLocalStorage.setItem.mockClear();
+    mockLogin.mockResolvedValue({ success: true });
+  });
+
+  describe('Basic Rendering', () => {
+    test('renders login form with all elements', () => {
+      render(<LoginForm {...defaultProps} />);
+
+      expect(screen.getByRole('heading', { name: 'Sign In' })).toBeInTheDocument();
+      expect(screen.getByText('Access your Financial Dashboard')).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /username/i })).toBeInTheDocument();
+      expect(screen.getByText('Username or Email')).toBeInTheDocument(); // Label text
+      expect(screen.getByText('Password')).toBeInTheDocument(); // Password label
+      expect(screen.getByText('Remember me for 30 days')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+      expect(screen.getByText('Forgot password?')).toBeInTheDocument();
+      expect(screen.getByText('Sign up here')).toBeInTheDocument();
+    });
+
+    test('renders password field with visibility toggle', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const passwordField = document.querySelector('input[type="password"]');
+      const toggleButton = document.querySelector('[aria-label*="toggle"]') || screen.queryByRole('button', { name: /toggle/i });
+      
+      expect(passwordField).toHaveAttribute('type', 'password');
+      expect(toggleButton).toBeInTheDocument();
+    });
+
+    test('renders remember me checkbox', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).toBeInTheDocument();
+      expect(checkbox).not.toBeChecked();
     });
   });
 
-  describe("Form Rendering", () => {
-    it("should render login form with required fields", () => {
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      expect(screen.getByLabelText(/username or email/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+  describe('Form Interactions', () => {
+    test('updates username field', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      fireEvent.change(usernameField, { target: { value: 'testuser' } });
+      
+      expect(usernameField.value).toBe('testuser');
     });
 
-    it("should render form title", () => {
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      expect(screen.getByRole("heading", { name: /sign in/i })).toBeInTheDocument();
+    test('updates password field', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const passwordField = document.querySelector('input[type="password"]');
+      fireEvent.change(passwordField, { target: { value: 'password123' } });
+      
+      expect(passwordField.value).toBe('password123');
     });
 
-    it("should render switch to register link", () => {
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      expect(screen.getByText(/don't have an account/i)).toBeInTheDocument();
+    test('toggles password visibility', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const passwordField = document.querySelector('input[type="password"]');
+      const toggleButton = document.querySelector('[aria-label*="toggle"]') || screen.queryByRole('button', { name: /toggle/i });
+      
+      expect(passwordField).toHaveAttribute('type', 'password');
+      
+      fireEvent.click(toggleButton);
+      expect(passwordField).toHaveAttribute('type', 'text');
+      
+      fireEvent.click(toggleButton);
+      expect(passwordField).toHaveAttribute('type', 'password');
     });
 
-    it("should render forgot password link", () => {
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      expect(screen.getByText(/forgot password/i)).toBeInTheDocument();
+    test('toggles remember me checkbox', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const checkbox = screen.getByRole('checkbox');
+      
+      fireEvent.click(checkbox);
+      expect(checkbox).toBeChecked();
+      
+      fireEvent.click(checkbox);
+      expect(checkbox).not.toBeChecked();
     });
   });
 
-  describe("Form Interaction", () => {
-    it("should handle username input", async () => {
-      const user = userEvent.setup();
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      const usernameInput = screen.getByLabelText(/username or email/i);
-      await user.type(usernameInput, "testuser");
-
-      expect(usernameInput).toHaveValue("testuser");
+  describe('Form Submission', () => {
+    test('submits form with valid data', async () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      const passwordField = document.querySelector('input[type="password"]');
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      
+      fireEvent.change(usernameField, { target: { value: 'testuser' } });
+      fireEvent.change(passwordField, { target: { value: 'password123' } });
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockLogin).toHaveBeenCalledWith('testuser', 'password123');
+      });
     });
 
-    it("should handle password input", async () => {
-      const user = userEvent.setup();
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      const passwordInput = screen.getByLabelText(/^password/i);
-      await user.type(passwordInput, "password123");
-
-      expect(passwordInput).toHaveValue("password123");
+    test('shows validation error for empty fields', async () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please enter both username and password')).toBeInTheDocument();
+      });
+      
+      expect(mockLogin).not.toHaveBeenCalled();
     });
 
-    it("should toggle password visibility", async () => {
-      const user = userEvent.setup();
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      const passwordInput = screen.getByLabelText(/^password/i);
-      const toggleButton = screen.getByRole("button", { name: /toggle password visibility/i });
-
-      expect(passwordInput).toHaveAttribute("type", "password");
-
-      await user.click(toggleButton);
-      expect(passwordInput).toHaveAttribute("type", "text");
-
-      await user.click(toggleButton);
-      expect(passwordInput).toHaveAttribute("type", "password");
+    test('shows validation error for missing username', async () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const passwordField = document.querySelector('input[type="password"]');
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      
+      fireEvent.change(passwordField, { target: { value: 'password123' } });
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please enter both username and password')).toBeInTheDocument();
+      });
     });
 
-    it("should call login on form submission", async () => {
-      const mockLogin = vi.fn().mockResolvedValue({ success: true });
-      useAuth.mockReturnValue({
+    test('shows validation error for missing password', async () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      
+      fireEvent.change(usernameField, { target: { value: 'testuser' } });
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please enter both username and password')).toBeInTheDocument();
+      });
+    });
+
+    test('stores remember me preference in localStorage', async () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      const passwordField = document.querySelector('input[type="password"]');
+      const checkbox = screen.getByRole('checkbox');
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      
+      fireEvent.change(usernameField, { target: { value: 'testuser' } });
+      fireEvent.change(passwordField, { target: { value: 'password123' } });
+      fireEvent.click(checkbox);
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockLocalStorage.setItem).toHaveBeenCalledWith('rememberMe', 'true');
+      });
+    });
+
+    test('handles login failure with error message', async () => {
+      mockLogin.mockResolvedValue({ 
+        success: false, 
+        error: 'Invalid credentials' 
+      });
+      
+      render(<LoginForm {...defaultProps} />);
+      
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      const passwordField = document.querySelector('input[type="password"]');
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      
+      fireEvent.change(usernameField, { target: { value: 'testuser' } });
+      fireEvent.change(passwordField, { target: { value: 'wrongpass' } });
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Error Handling', () => {
+    test('displays auth context error', async () => {
+      // Override the AuthContext mock for this test
+      const { useAuth } = await import('../../../../contexts/AuthContext');
+      useAuth.mockReturnValueOnce({
         login: mockLogin,
         isLoading: false,
-        error: null,
-        clearError: vi.fn(),
-        user: null,
+        error: 'Authentication failed',
+        clearError: mockClearError
       });
 
-      const user = userEvent.setup();
-      renderWithTheme(<LoginForm {...defaultProps} />);
+      render(<LoginForm {...defaultProps} />);
 
-      const usernameInput = screen.getByLabelText(/username or email/i);
-      const passwordInput = screen.getByLabelText(/^password/i);
-      const submitButton = screen.getByRole("button", { name: /sign in/i });
-
-      await user.type(usernameInput, "testuser");
-      await user.type(passwordInput, "password123");
-      await user.click(submitButton);
-
-      expect(mockLogin).toHaveBeenCalledWith("testuser", "password123");
+      expect(screen.getByText('Authentication failed')).toBeInTheDocument();
     });
 
-    it("should show loading state during login", () => {
-      useAuth.mockReturnValue({
-        login: vi.fn(),
+    test('clears auth context error when typing', async () => {
+      // Override the AuthContext mock for this test
+      const { useAuth } = await import('../../../../contexts/AuthContext');
+      useAuth.mockReturnValueOnce({
+        login: mockLogin,
+        isLoading: false,
+        error: 'Authentication failed',
+        clearError: mockClearError
+      });
+
+      render(<LoginForm {...defaultProps} />);
+
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      fireEvent.change(usernameField, { target: { value: 'test' } });
+
+      expect(mockClearError).toHaveBeenCalled();
+    });
+
+    test('clears local error when typing', async () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      // Trigger local error
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      fireEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please enter both username and password')).toBeInTheDocument();
+      });
+      
+      // Type in field to clear error
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      fireEvent.change(usernameField, { target: { value: 'test' } });
+      
+      await waitFor(() => {
+        expect(screen.queryByText('Please enter both username and password')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Loading State', () => {
+    test('disables form elements when loading', async () => {
+      // Override the AuthContext mock for this test
+      const { useAuth } = await import('../../../../contexts/AuthContext');
+      useAuth.mockReturnValueOnce({
+        login: mockLogin,
         isLoading: true,
-        error: null,
-        clearError: vi.fn(),
-        user: null,
+        error: '',
+        clearError: mockClearError
       });
 
-      renderWithTheme(<LoginForm {...defaultProps} />);
+      render(<LoginForm {...defaultProps} />);
 
-      expect(screen.getByRole("progressbar")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /signing in/i })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: /username/i })).toBeDisabled();
+      expect(document.querySelector('input[type="password"]')).toBeDisabled();
+      expect(screen.getByRole('checkbox')).toBeDisabled();
+      expect(screen.getByRole('button', { name: /signing in.../i })).toBeDisabled();
+      expect(screen.getByText('Forgot password?')).toHaveAttribute('disabled');
+      expect(screen.getByText('Sign up here')).toHaveAttribute('disabled');
     });
 
-    it("should display error message", () => {
-      const errorMessage = "Invalid credentials";
-      useAuth.mockReturnValue({
-        login: vi.fn(),
-        isLoading: false,
-        error: errorMessage,
-        clearError: vi.fn(),
-        user: null,
-      });
-
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      expect(screen.getByText(errorMessage)).toBeInTheDocument();
-    });
-  });
-
-  describe("Navigation", () => {
-    it("should call onSwitchToRegister when register link is clicked", async () => {
-      const user = userEvent.setup();
-      const mockSwitchToRegister = vi.fn();
-      
-      renderWithTheme(
-        <LoginForm 
-          {...defaultProps} 
-          onSwitchToRegister={mockSwitchToRegister} 
-        />
-      );
-
-      const registerLink = screen.getByText(/sign up/i);
-      await user.click(registerLink);
-
-      expect(mockSwitchToRegister).toHaveBeenCalled();
-    });
-
-    it("should call onSwitchToForgotPassword when forgot password link is clicked", async () => {
-      const user = userEvent.setup();
-      const mockSwitchToForgotPassword = vi.fn();
-      
-      renderWithTheme(
-        <LoginForm 
-          {...defaultProps} 
-          onSwitchToForgotPassword={mockSwitchToForgotPassword} 
-        />
-      );
-
-      const forgotLink = screen.getByText(/forgot password/i);
-      await user.click(forgotLink);
-
-      expect(mockSwitchToForgotPassword).toHaveBeenCalled();
-    });
-  });
-
-  describe("Remember Me", () => {
-    it("should handle remember me checkbox", async () => {
-      const user = userEvent.setup();
-      renderWithTheme(<LoginForm {...defaultProps} />);
-
-      const rememberCheckbox = screen.getByRole("checkbox", { name: /remember me/i });
-      expect(rememberCheckbox).not.toBeChecked();
-
-      await user.click(rememberCheckbox);
-      expect(rememberCheckbox).toBeChecked();
-    });
-
-    it("should pass remember me state to login function", async () => {
-      const mockLogin = vi.fn().mockResolvedValue({ success: true });
-      useAuth.mockReturnValue({
+    test('shows loading text and spinner when loading', async () => {
+      // Override the AuthContext mock for this test
+      const { useAuth } = await import('../../../../contexts/AuthContext');
+      useAuth.mockReturnValueOnce({
         login: mockLogin,
-        isLoading: false,
-        error: null,
-        clearError: vi.fn(),
-        user: null,
+        isLoading: true,
+        error: '',
+        clearError: mockClearError
       });
 
-      const user = userEvent.setup();
-      renderWithTheme(<LoginForm {...defaultProps} />);
+      render(<LoginForm {...defaultProps} />);
 
-      const usernameInput = screen.getByLabelText(/username or email/i);
-      const passwordInput = screen.getByLabelText(/^password/i);
-      const rememberCheckbox = screen.getByRole("checkbox", { name: /remember me/i });
-      const submitButton = screen.getByRole("button", { name: /sign in/i });
+      expect(screen.getByText('Signing In...')).toBeInTheDocument();
+      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    });
+  });
 
-      await user.type(usernameInput, "testuser");
-      await user.type(passwordInput, "password123");
-      await user.click(rememberCheckbox);
-      await user.click(submitButton);
+  describe('Navigation', () => {
+    test('switches to register form', () => {
+      const onSwitchToRegister = vi.fn();
+      render(<LoginForm {...defaultProps} onSwitchToRegister={onSwitchToRegister} />);
+      
+      const signUpLink = screen.getByText('Sign up here');
+      fireEvent.click(signUpLink);
+      
+      expect(onSwitchToRegister).toHaveBeenCalledTimes(1);
+    });
 
-      expect(mockLogin).toHaveBeenCalledWith("testuser", "password123");
+    test('switches to forgot password form', () => {
+      const onSwitchToForgotPassword = vi.fn();
+      render(<LoginForm {...defaultProps} onSwitchToForgotPassword={onSwitchToForgotPassword} />);
+      
+      const forgotLink = screen.getByText('Forgot password?');
+      fireEvent.click(forgotLink);
+      
+      expect(onSwitchToForgotPassword).toHaveBeenCalledTimes(1);
+    });
+
+    test('does not navigate when loading', async () => {
+      // Override the AuthContext mock for this test
+      const { useAuth } = await import('../../../../contexts/AuthContext');
+      useAuth.mockReturnValueOnce({
+        login: mockLogin,
+        isLoading: true,
+        error: '',
+        clearError: mockClearError
+      });
+
+      const onSwitchToRegister = vi.fn();
+      const onSwitchToForgotPassword = vi.fn();
+
+      render(<LoginForm
+        {...defaultProps}
+        onSwitchToRegister={onSwitchToRegister}
+        onSwitchToForgotPassword={onSwitchToForgotPassword}
+      />);
+
+      const signUpLink = screen.getByText('Sign up here');
+      const forgotLink = screen.getByText('Forgot password?');
+
+      fireEvent.click(signUpLink);
+      fireEvent.click(forgotLink);
+
+      expect(onSwitchToRegister).not.toHaveBeenCalled();
+      expect(onSwitchToForgotPassword).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Accessibility', () => {
+    test('has proper form labeling', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const form = screen.getByRole('form');
+      expect(form).toBeInTheDocument();
+      
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      const passwordField = document.querySelector('input[type="password"]');
+      
+      expect(usernameField).toHaveAttribute('required');
+      expect(passwordField).toHaveAttribute('required');
+      expect(usernameField).toHaveAttribute('autoComplete', 'username');
+      expect(passwordField).toHaveAttribute('autoComplete', 'current-password');
+    });
+
+    test('has proper button types', () => {
+      render(<LoginForm {...defaultProps} />);
+      
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      expect(submitButton).toHaveAttribute('type', 'submit');
+    });
+
+    test('has focus management', () => {
+      render(<LoginForm {...defaultProps} />);
+
+      const usernameField = screen.getByRole('textbox', { name: /username/i });
+      // MUI TextField may not always pass autoFocus to the underlying input
+      // Check if the field is focused or has the autoFocus attribute
+      expect(usernameField === document.activeElement || usernameField.hasAttribute('autoFocus')).toBeTruthy();
     });
   });
 });

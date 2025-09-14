@@ -1,0 +1,23 @@
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+/home/stocks/algo/webapp/lambda/routes/signals.js:2036
+router.post("/execute/:signalId", authenticate, async (req, res) => {
+                                  ^
+
+ReferenceError: authenticate is not defined
+    at Object.<anonymous> (/home/stocks/algo/webapp/lambda/routes/signals.js:2036:35)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/home/stocks/algo/webapp/lambda/server.js:47:23)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+
+Node.js v20.19.4

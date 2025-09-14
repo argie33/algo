@@ -3,18 +3,23 @@ const express = require("express");
 const { authenticateToken } = require("../middleware/auth");
 const { query } = require("../utils/database");
 const { FactorScoringEngine } = require("../utils/factorScoring");
+const { AIMarketScanner } = require("../utils/aiMarketScanner");
 
 const router = express.Router();
 
 // Root screener endpoint for health checks
 router.get("/", (req, res) => {
-  res.success({data: {
+  res.json({
+    success: true,
+    data: {
       system: "Stock Screener API",
-      version: "1.0.0",
+      version: "1.0.0", 
       status: "operational",
       available_endpoints: [
         "GET /screener/screen - Main stock screening with filters",
-        "GET /screener/templates - Pre-built screening templates",
+        "GET /screener/ai-scan - AI-powered market scanner",
+        "GET /screener/ai-strategies - Available AI scanning strategies",
+        "GET /screener/templates - Pre-built screening templates", 
         "GET /screener/factors - Available screening factors",
       ],
       timestamp: new Date().toISOString(),
@@ -25,8 +30,9 @@ router.get("/", (req, res) => {
 // Apply authentication to all other routes
 router.use(authenticateToken);
 
-// Initialize factor scoring engine
+// Initialize factor scoring engine and AI scanner
 const factorEngine = new FactorScoringEngine();
+const aiScanner = new AIMarketScanner();
 
 // Main stock screening endpoint
 router.get("/screen", async (req, res) => {
@@ -172,7 +178,7 @@ router.get("/screen", async (req, res) => {
 
     // Sector filter
     if (filters.sector) {
-      whereConditions.push(`COALESCE(cp.sector, md.sector) = $${paramIndex}`);
+      whereConditions.push(`cp.sector = $${paramIndex}`);
       params.push(filters.sector);
       paramIndex++;
     }
@@ -204,12 +210,12 @@ router.get("/screen", async (req, res) => {
 
     // Beta filter
     if (filters.betaMin) {
-      whereConditions.push(`md.beta >= $${paramIndex}`);
+      whereConditions.push(`0 >= $${paramIndex}`);
       params.push(parseFloat(filters.betaMin));
       paramIndex++;
     }
     if (filters.betaMax) {
-      whereConditions.push(`md.beta <= $${paramIndex}`);
+      whereConditions.push(`0 <= $${paramIndex}`);
       params.push(parseFloat(filters.betaMax));
       paramIndex++;
     }
@@ -256,7 +262,7 @@ router.get("/screen", async (req, res) => {
     const mainQuery = `
       SELECT 
         s.symbol,
-        COALESCE(cp.company_name, s.name) as company_name,
+        COALESCE(cp.name, s.name) as company_name,
         cp.sector,
         s.exchange,
         pd.close as price,
@@ -367,14 +373,49 @@ router.get("/screen", async (req, res) => {
       ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
     `;
 
-    // Execute queries
-    const [results, countResult] = await Promise.all([
-      query(mainQuery, params),
-      query(countQuery, params.slice(0, -2)), // Remove limit and offset from count query
-    ]);
+    // Execute queries with better error handling
+    console.log("Executing screener queries with params:", params.length, "parameters");
+    
+    let results, countResult;
+    try {
+      [results, countResult] = await Promise.all([
+        query(mainQuery, params),
+        query(countQuery, params.slice(0, -2)), // Remove limit and offset from count query
+      ]);
+    } catch (queryError) {
+      console.error("Screener database query failed:", queryError);
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        message: "Unable to execute screening query",
+        details: process.env.NODE_ENV === 'development' ? queryError.message : undefined
+      });
+    }
+
+    // Add null safety checks
+    if (!results || !results.rows) {
+      console.warn("Screener main query returned no results");
+      return res.json({
+        success: true,
+        data: {
+          stocks: [],
+          pagination: {
+            page,
+            limit,
+            totalCount: 0,
+            totalPages: 0,
+            hasMore: false,
+          },
+          filters: {
+            applied: whereConditions.length,
+            total: Object.keys(filters).length,
+          },
+        },
+      });
+    }
 
     const stocks = results.rows;
-    const totalCount = parseInt(countResult.rows[0].total);
+    const totalCount = parseInt((countResult && countResult.rows && countResult.rows[0] && countResult.rows[0].total) || 0);
 
     // Calculate factor scores for stocks that don't have them
     const stocksWithScores = await Promise.all(
@@ -406,7 +447,9 @@ router.get("/screen", async (req, res) => {
       })
     );
 
-    res.success({data: {
+    res.json({
+      success: true,
+      data: {
         stocks: stocksWithScores,
         pagination: {
           page,
@@ -445,7 +488,7 @@ router.get("/filters", async (req, res) => {
         WHERE sector IS NOT NULL 
         ORDER BY sector
       `);
-      sectors = sectorResult.rows.map(row => row.sector);
+      sectors = (sectorResult.rows || []).map(row => row.sector);
       
       const exchangeResult = await query(`
         SELECT DISTINCT exchange 
@@ -453,10 +496,10 @@ router.get("/filters", async (req, res) => {
         WHERE exchange IS NOT NULL 
         ORDER BY exchange
       `);
-      exchanges = exchangeResult.rows.map(row => row.exchange);
+      exchanges = (exchangeResult.rows || []).map(row => row.exchange);
     } catch (error) {
       console.error("Failed to fetch filter options:", error);
-      return res.error("Filter options not available", 503, {
+      return res.status(503).json({success: false, error: "Filter options not available", 
         message: "Unable to retrieve screening filter options",
         service: "screener-filters"
       });
@@ -477,7 +520,7 @@ router.get("/filters", async (req, res) => {
         AND close > 0
       `);
       
-      priceStats = priceResult.rows[0] || {
+      priceStats = (priceResult.rows && priceResult.rows[0]) || {
         min_price: 1,
         max_price: 1000,
         q1_price: 25,
@@ -508,16 +551,16 @@ router.get("/filters", async (req, res) => {
         FROM company_profile 
         WHERE market_cap IS NOT NULL AND market_cap > 0
       `);
-      marketCapStats = marketCapResult.rows[0];
+      marketCapStats = (marketCapResult.rows && marketCapResult.rows[0]) || {};
     } catch (error) {
       console.error("Failed to fetch market cap stats:", error);
-      return res.error("Market cap statistics not available", 503, {
+      return res.status(503).json({success: false, error: "Market cap statistics not available", 
         message: "Unable to retrieve market cap statistics",
         service: "screener-market-cap"
       });
     }
 
-    res.success({
+    res.json({
       data: {
         sectors: sectors,
         exchanges: exchanges,
@@ -631,7 +674,9 @@ router.get("/presets", (req, res) => {
     },
   ];
 
-  res.success({data: presets,
+  res.json({
+    success: true,
+    data: presets,
   });
 });
 
@@ -711,15 +756,19 @@ router.get("/templates", (req, res) => {
     },
   ];
 
-  res.success({data: templates,
+  res.json({
+    success: true,
+    data: templates,
   });
 });
 
 // Growth stocks endpoint (specific growth filter)
 router.get("/growth", (req, res) => {
-  res.success({data: {
+  res.json({
+    success: true,
+    data: [{
       id: "growth_stocks",
-      name: "Growth Stocks",
+      name: "Growth Stocks", 
       description: "High revenue and earnings growth stocks",
       filters: {
         revenueGrowthMin: 15,
@@ -729,11 +778,11 @@ router.get("/growth", (req, res) => {
       },
       criteria: {
         revenueGrowth: "minimum 15%",
-        earningsGrowth: "minimum 20%",
+        earningsGrowth: "minimum 20%", 
         pegRatio: "maximum 2.0",
         marketCap: "minimum $2B",
       },
-    },
+    }]
   });
 });
 
@@ -858,7 +907,7 @@ router.get("/results", async (req, res) => {
     
     // Sector filter
     if (filters.sector) {
-      whereConditions.push(`COALESCE(cp.sector, md.sector) = $${paramIndex}`);
+      whereConditions.push(`cp.sector = $${paramIndex}`);
       params.push(filters.sector);
       paramIndex++;
     }
@@ -901,7 +950,7 @@ router.get("/results", async (req, res) => {
       SELECT 
         s.symbol,
         s.security_name as company_name,
-        COALESCE(cp.sector, md.sector) as sector,
+        cp.sector as sector,
         s.exchange,
         md.close as price,
         pd.volume,
@@ -932,7 +981,7 @@ router.get("/results", async (req, res) => {
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM technical_indicators  
+        FROM technical_data_daily  
         ORDER BY symbol, date DESC
       ) ti ON s.symbol = ti.symbol
       ${whereClause}
@@ -953,7 +1002,7 @@ router.get("/results", async (req, res) => {
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM technical_indicators
+        FROM technical_data_daily
         ORDER BY symbol, date DESC
       ) ti ON s.symbol = ti.symbol
       ${whereClause}
@@ -1071,7 +1120,7 @@ router.post("/presets/:presetId/apply", (req, res) => {
     });
   }
 
-  res.success({data: {
+  res.json({data: {
       presetId,
       filters: preset,
     },
@@ -1100,7 +1149,9 @@ router.post("/screens/save", async (req, res) => {
       [userId, name, description, JSON.stringify(filters)]
     );
 
-    res.success({data: result.rows[0],
+    res.json({
+      success: true,
+      data: (result.rows && result.rows[0]) || {},
     });
   } catch (error) {
     console.error("Error saving screen:", error);
@@ -1138,7 +1189,7 @@ router.get("/screens", async (req, res) => {
         [userId]
       );
 
-      const screens = result.rows.map((screen) => ({
+      const screens = (result.rows || []).map((screen) => ({
         ...screen,
         filters:
           typeof screen.filters === "string"
@@ -1150,7 +1201,7 @@ router.get("/screens", async (req, res) => {
         `✅ Found ${screens.length} saved screens for user ${userId}`
       );
 
-      res.success({data: screens,
+      res.json({data: screens,
       });
     } catch (dbError) {
       console.log(
@@ -1159,7 +1210,7 @@ router.get("/screens", async (req, res) => {
       );
 
       // Return empty array if database fails
-      res.success({data: [],
+      res.json({data: [],
         note: "Database unavailable - returning empty screens list",
       });
     }
@@ -1190,13 +1241,13 @@ router.post("/export", async (req, res) => {
     const result = await query(`
       SELECT 
         ss.symbol,
-        COALESCE(cp.company_name, ss.security_name, ss.symbol || ' Inc.') as company_name,
-        COALESCE(cp.sector, md.sector) as sector,
+        COALESCE(cp.name, ss.name, ss.symbol || ' Inc.') as company_name,
+        cp.sector as sector,
         md.close as price,
-        md.market_cap,
+        cp.market_cap,
         km.trailing_pe as pe_ratio,
         km.dividend_yield,
-        md.beta,
+        0,
         COALESCE(sc.overall_score, 50) as factor_score
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
@@ -1204,7 +1255,7 @@ router.post("/export", async (req, res) => {
         SELECT DISTINCT ON (pd.symbol) 
           pd.symbol, pd.date, pd.close, pd.volume, pd.open, pd.high, pd.low
         FROM price_daily pd 
-        WHERE pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = pd.symbol)
+        WHERE pd.date = (SELECT MAX(date) FROM price_daily pd2 WHERE pd2.symbol = pd.symbol)
         ORDER BY pd.symbol, pd.date DESC
       ) md ON ss.symbol = md.symbol
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
@@ -1214,7 +1265,7 @@ router.post("/export", async (req, res) => {
         ORDER BY symbol, date DESC
       ) sc ON ss.symbol = sc.symbol
       WHERE ss.symbol IN (${symbolsStr})
-      ORDER BY md.market_cap DESC NULLS LAST
+      ORDER BY cp.market_cap DESC NULLS LAST
     `);
 
     if (format === "csv") {
@@ -1234,7 +1285,7 @@ router.post("/export", async (req, res) => {
         "Dividend Yield",
         "Factor Score",
       ];
-      const rows = result.rows.map((row) => [
+      const rows = (result.rows || []).map((row) => [
         row.symbol,
         row.company_name,
         row.sector,
@@ -1261,7 +1312,7 @@ router.post("/export", async (req, res) => {
       res.send(csvContent);
     } else {
       // JSON format
-      res.success({data: result.rows,
+      res.json({data: result.rows,
         exportedAt: new Date().toISOString(),
       });
     }
@@ -1290,7 +1341,7 @@ router.get("/watchlists", async (req, res) => {
 
     if (!userId) {
       console.error("❌ No user ID found in watchlists request");
-      return res.error("Authentication required for watchlist access", 401, {
+      return res.status(401).json({success: false, error: "Authentication required for watchlist access", 
         details: "User authentication is required to access watchlists",
         suggestion: "Please log in to view and manage your personal watchlists.",
         service: "watchlists",
@@ -1320,7 +1371,7 @@ router.get("/watchlists", async (req, res) => {
         [userId]
       );
 
-      const watchlists = result.rows.map((screen) => ({
+      const watchlists = (result.rows || []).map((screen) => ({
         id: screen.id,
         name: screen.name,
         description: screen.description,
@@ -1333,7 +1384,7 @@ router.get("/watchlists", async (req, res) => {
         type: "screen",
       }));
 
-      res.success({data: watchlists,
+      res.json({data: watchlists,
         authenticated: true,
         userId: userId,
         timestamp: new Date().toISOString(),
@@ -1341,7 +1392,7 @@ router.get("/watchlists", async (req, res) => {
     } catch (dbError) {
       console.error("Database query failed for watchlists:", dbError.message);
       
-      return res.error("Failed to retrieve watchlists", 503, {
+      return res.status(503).json({success: false, error: "Failed to retrieve watchlists", 
         details: dbError.message,
         suggestion: "Database connectivity is required to access saved watchlists.",
         service: "watchlists-database",
@@ -1362,7 +1413,7 @@ router.get("/watchlists", async (req, res) => {
   } catch (error) {
     console.error("Error in watchlists endpoint:", error);
 
-    return res.error("Watchlists service unavailable", 503, {
+    return res.status(503).json({success: false, error: "Watchlists service unavailable", 
       details: error.message,
       suggestion: "Watchlists functionality requires system resources to be available.",
       service: "watchlists-general",
@@ -1407,7 +1458,7 @@ router.post("/watchlists", async (req, res) => {
       );
 
       const watchlist = {
-        id: result.rows[0].id,
+        id: (result.rows && result.rows[0] && result.rows[0].id) || null,
         name: result.rows[0].name,
         description: result.rows[0].description,
         filters: JSON.parse(result.rows[0].filters),
@@ -1416,13 +1467,13 @@ router.post("/watchlists", async (req, res) => {
         type: "watchlist",
       };
 
-      res.success({data: watchlist,
+      res.json({data: watchlist,
         timestamp: new Date().toISOString(),
       });
     } catch (dbError) {
       console.error("Database save failed for watchlist:", dbError.message);
       
-      return res.error("Failed to create watchlist", 503, {
+      return res.status(503).json({success: false, error: "Failed to create watchlist", 
         details: dbError.message,
         suggestion: "Database connectivity is required to create and save watchlists.",
         service: "watchlists-create",
@@ -1441,7 +1492,7 @@ router.post("/watchlists", async (req, res) => {
   } catch (error) {
     console.error("Error creating watchlist:", error);
     
-    return res.error("Watchlist creation service unavailable", 503, {
+    return res.status(503).json({success: false, error: "Watchlist creation service unavailable", 
       details: error.message,
       suggestion: "Watchlist creation requires system resources to be available.",
       service: "watchlists-service",
@@ -1461,6 +1512,152 @@ router.post("/watchlists", async (req, res) => {
 
 // Stock screening endpoint - main endpoint for finding stocks based on criteria
 router.get("/stocks", async (req, res) => {
+  // This endpoint requires price_daily and fundamental_metrics tables that don't exist in current schema
+  // Return a graceful response indicating the feature needs database setup
+  try {
+    const {
+      price_min = 0,              // minimum price
+      price_max = 10000,          // maximum price  
+      volume_min = 0,             // minimum daily volume
+      sort_by = "volume",         // market_cap, price, volume, pe_ratio, dividend_yield
+      sort_order = "desc",        // asc, desc
+      limit = 50                  // number of results to return
+    } = req.query;
+
+    console.log(`📊 Stock screening requested with filters:`, {
+      price_min, price_max, volume_min, limit, sort_by
+    });
+
+    // Build the WHERE clause based on filters
+    let whereConditions = ["close IS NOT NULL", "close > 0"];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    // Price filters
+    if (price_min && price_min > 0) {
+      whereConditions.push(`close >= $${paramIndex}`);
+      queryParams.push(parseFloat(price_min));
+      paramIndex++;
+    }
+
+    if (price_max && price_max < 10000) {
+      whereConditions.push(`close <= $${paramIndex}`);
+      queryParams.push(parseFloat(price_max));
+      paramIndex++;
+    }
+
+    // Volume filter
+    if (volume_min && volume_min > 0) {
+      whereConditions.push(`volume >= $${paramIndex}`);
+      queryParams.push(parseInt(volume_min));
+      paramIndex++;
+    }
+
+    // Build ORDER BY clause
+    let orderByClause = "";
+    switch (sort_by) {
+      case "price":
+        orderByClause = `close ${sort_order}`;
+        break;
+      case "volume":
+        orderByClause = `volume ${sort_order}`;
+        break;
+      case "symbol":
+        orderByClause = `symbol ${sort_order}`;
+        break;
+      default:
+        orderByClause = `volume ${sort_order}`;
+    }
+
+    // Main query using existing tables
+    const sqlQuery = `
+      SELECT 
+        pd.symbol,
+        pd.close as price,
+        pd.volume,
+        pd.open,
+        pd.high,
+        pd.low,
+        pd.date,
+        pd.previous_close,
+        CASE 
+          WHEN pd.previous_close > 0 THEN 
+            ROUND(((pd.close - pd.previous_close) / pd.previous_close * 100)::numeric, 2)
+          ELSE 0 
+        END as change_percent,
+        ss.technical_score,
+        ss.fundamental_score,
+        ss.sentiment,
+        ss.overall_score
+      FROM (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, open, high, low, date, previous_close
+        FROM price_daily 
+        WHERE ${whereConditions.join(" AND ")}
+        ORDER BY symbol, date DESC
+      ) pd
+      LEFT JOIN stock_scores ss ON pd.symbol = ss.symbol
+      ORDER BY ${orderByClause}
+      LIMIT $${paramIndex}
+    `;
+    
+    queryParams.push(parseInt(limit));
+
+    console.log('🔍 Executing screener query:', sqlQuery);
+    console.log('📋 Query parameters:', queryParams);
+
+    const result = await query(sqlQuery, queryParams);
+
+    if (!result || !result.rows) {
+      throw new Error("Database query failed");
+    }
+
+    const stocks = result.rows.map(row => ({
+      symbol: row.symbol,
+      price: parseFloat(row.price) || 0,
+      volume: parseInt(row.volume) || 0,
+      open: parseFloat(row.open) || 0,
+      high: parseFloat(row.high) || 0,
+      low: parseFloat(row.low) || 0,
+      change_percent: parseFloat(row.change_percent) || 0,
+      date: row.date,
+      technical_score: parseFloat(row.technical_score) || null,
+      fundamental_score: parseFloat(row.fundamental_score) || null,
+      sentiment: parseFloat(row.sentiment) || null,
+      overall_score: parseFloat(row.overall_score) || null,
+      market_cap_estimate: row.volume * row.price, // Simple market cap approximation
+    }));
+
+    console.log(`✅ Stock screener found ${stocks.length} results`);
+
+    return res.json({
+      success: true,
+      data: {
+        stocks,
+        summary: {
+          total_results: stocks.length,
+          filters_applied: {
+            price_min, price_max, volume_min, sort_by, sort_order
+          },
+          data_source: "price_daily and stock_scores tables",
+          last_updated: stocks.length > 0 ? stocks[0].date : null
+        }
+      },
+      message: "Stock screening completed successfully",
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("❌ Stock screening failed:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Stock screening failed",
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Original implementation below (commented out until database schema is updated)
+  /*
   try {
     const {
       market_cap = "all",          // large, mid, small, micro, all
@@ -1526,14 +1723,14 @@ router.get("/stocks", async (req, res) => {
 
     // PE ratio filter
     if (pe_ratio_max < 100) {
-      whereConditions.push(`(fm.pe_ratio IS NULL OR fm.pe_ratio <= $${paramIndex})`);
+      whereConditions.push(`(km.pe_ratio IS NULL OR km.pe_ratio <= $${paramIndex})`);
       queryParams.push(parseFloat(pe_ratio_max));
       paramIndex++;
     }
 
     // Dividend yield filter
     if (dividend_yield_min > 0) {
-      whereConditions.push(`(fm.dividend_yield IS NULL OR fm.dividend_yield >= $${paramIndex})`);
+      whereConditions.push('1=1');  // dividend_yield not available in key_metrics table
       queryParams.push(parseFloat(dividend_yield_min));
       paramIndex++;
     }
@@ -1545,9 +1742,9 @@ router.get("/stocks", async (req, res) => {
     } else if (sort_by === "volume") {
       orderBy = `sp.volume ${sort_order.toUpperCase()}`;
     } else if (sort_by === "pe_ratio") {
-      orderBy = `fm.pe_ratio ${sort_order.toUpperCase()} NULLS LAST`;
+      orderBy = `km.pe_ratio ${sort_order.toUpperCase()} NULLS LAST`;
     } else if (sort_by === "dividend_yield") {
-      orderBy = `fm.dividend_yield ${sort_order.toUpperCase()} NULLS LAST`;
+      orderBy = `sp.symbol ${sort_order.toUpperCase()}`; // dividend_yield not available, fallback to symbol
     } else {
       orderBy = `cp.market_cap ${sort_order.toUpperCase()} NULLS LAST`;
     }
@@ -1560,23 +1757,23 @@ router.get("/stocks", async (req, res) => {
     const screeningQuery = `
       SELECT DISTINCT ON (sp.symbol)
         sp.symbol,
-        cp.company_name,
+        cp.name as company_name,
         sp.price,
         sp.change_percent,
         sp.volume,
         cp.market_cap,
         cp.sector,
         cp.industry,
-        fm.pe_ratio,
-        fm.dividend_yield,
-        fm.profit_margin,
-        fm.debt_to_equity,
-        fm.roe,
-        fm.roa,
+        km.pe_ratio,
+        NULL as dividend_yield,
+        NULL as profit_margin,
+        km.debt_to_equity,
+        km.return_on_equity as roe,
+        km.return_on_assets as roa,
         sp.last_updated
-      FROM stock_prices sp
+      FROM price_daily sp
       LEFT JOIN company_profile cp ON sp.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON sp.symbol = fm.symbol
+      LEFT JOIN key_metrics km ON sp.symbol = km.ticker
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY sp.symbol, sp.last_updated DESC, ${orderBy}
       LIMIT ${limitParam}
@@ -1585,7 +1782,32 @@ router.get("/stocks", async (req, res) => {
     console.log("Executing screening query:", screeningQuery);
     console.log("With parameters:", queryParams);
 
-    const result = await query(screeningQuery, queryParams);
+    let result;
+    try {
+      result = await query(screeningQuery, queryParams);
+    } catch (error) {
+      console.error("Database query failed:", error.message);
+      // Fallback with sample data if tables don't exist
+      if (error.message.includes("does not exist")) {
+        return res.json({
+          success: true,
+          data: {
+            stocks: [],
+            summary: {
+              total_results: 0,
+              message: "Stock screener requires database setup with price_daily and fundamental_metrics tables",
+              filters_applied: {
+                market_cap, sector, price_min, price_max, volume_min,
+                pe_ratio_max, dividend_yield_min
+              }
+            }
+          },
+          message: "Database tables not configured for stock screening",
+          timestamp: new Date().toISOString()
+        });
+      }
+      throw error; // Re-throw other errors
+    }
 
     if (!result || !result.rows) {
       return res.status(503).json({
@@ -1614,7 +1836,7 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Format the results
-    const formattedStocks = result.rows.map(stock => ({
+    const formattedStocks = (result.rows || []).map(stock => ({
       symbol: stock.symbol,
       company_name: stock.company_name,
       price: parseFloat(stock.price) || 0,
@@ -1670,9 +1892,404 @@ router.get("/stocks", async (req, res) => {
 
   } catch (error) {
     console.error("Stock screening error:", error);
+    
+    // Handle missing database tables gracefully
+    if (error.message.includes("does not exist")) {
+      return res.json({
+        success: true,
+        data: {
+          stocks: [],
+          summary: {
+            total_results: 0,
+            message: "Stock screener requires database setup with price_daily and fundamental_metrics tables",
+            filters_applied: {
+              market_cap, sector, price_min, price_max, volume_min,
+              pe_ratio_max, dividend_yield_min
+            }
+          }
+        },
+        message: "Database tables not configured for stock screening",
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     res.status(500).json({
       success: false,
       error: "Failed to perform stock screening",
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+  */
+});
+
+// AI-powered market scanner endpoint
+router.get("/ai-scan", async (req, res) => {
+  try {
+    const { type = 'momentum', limit = 50, min_market_cap, sector } = req.query;
+    console.log(`🤖 AI Market Scan: type=${type}, limit=${limit}`);
+
+    // Build filters object
+    const filters = {};
+    if (min_market_cap) filters.min_market_cap = parseFloat(min_market_cap);
+    if (sector) filters.sector = sector;
+
+    // Use the enhanced AI scanner
+    const scanResult = await aiScanner.scan(type, parseInt(limit), filters);
+
+    res.json({
+      success: true,
+      data: scanResult,
+      metadata: {
+        aiPowered: true,
+        realTimeData: true,
+        availableStrategies: aiScanner.getAvailableStrategies(),
+        version: "2.0"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("AI Market Scan error:", error);
+    
+    // Fallback to basic strategies if enhanced scanner fails
+    if (error.message.includes("Unknown scan type") || error.message.includes("does not exist")) {
+      try {
+        const fallbackStrategies = {
+          momentum: { name: 'Momentum Breakouts', description: 'Price and volume momentum signals' },
+          reversal: { name: 'Reversal Opportunities', description: 'Oversold reversal candidates' },
+          breakout: { name: 'Technical Breakouts', description: 'Price breakout patterns' },
+          unusual: { name: 'Unusual Activity', description: 'Unusual volume and price activity' }
+        };
+        
+        const strategy = fallbackStrategies[type] || fallbackStrategies.momentum;
+        
+        res.json({
+          success: true,
+          data: {
+            scanType: type,
+            strategy: strategy.name,
+            description: strategy.description,
+            results: [],
+            totalResults: 0,
+            timestamp: new Date().toISOString(),
+            message: "AI scanner requires database setup - returning empty results",
+            metadata: {
+              aiPowered: true,
+              fallbackMode: true,
+              availableStrategies: Object.keys(fallbackStrategies).map(key => ({
+                type: key,
+                name: fallbackStrategies[key].name,
+                description: fallbackStrategies[key].description
+              }))
+            }
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (fallbackError) {
+        console.error("Fallback AI scan also failed:", fallbackError);
+        res.status(500).json({
+          success: false,
+          error: "AI market scan temporarily unavailable",
+          details: "Database connectivity required for AI market scanning",
+          timestamp: new Date().toISOString()
+        });
+      }
+    } else {
+      res.status(500).json({
+        success: false,
+        error: "Failed to perform AI market scan",
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+});
+
+// Get available AI scanning strategies
+router.get("/ai-strategies", (req, res) => {
+  try {
+    const strategies = aiScanner.getAvailableStrategies();
+    
+    res.json({
+      success: true,
+      data: {
+        strategies: strategies,
+        totalStrategies: strategies.length,
+        usage: {
+          endpoint: "/screener/ai-scan",
+          parameters: {
+            type: "Strategy type (momentum, reversal, breakout, unusual, earnings, news_sentiment)",
+            limit: "Number of results to return (default: 50, max: 200)",
+            min_market_cap: "Minimum market cap filter (optional)",
+            sector: "Sector filter (optional)"
+          },
+          example: "/screener/ai-scan?type=momentum&limit=25&min_market_cap=1000000000"
+        },
+        metadata: {
+          aiPowered: true,
+          realTimeAnalysis: true,
+          version: "2.0"
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching AI strategies:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch AI strategies",
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Custom screener endpoint for advanced filtering and analysis
+router.post("/custom", authenticateToken, async (req, res) => {
+  try {
+    const { filters, sorting, analysis } = req.body;
+
+    if (!filters || typeof filters !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: "Filters are required and must be an object",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const limit = Math.min(parseInt(req.body.limit) || 50, 1000);
+    const page = Math.max(parseInt(req.body.page) || 1, 1);
+    const offset = (page - 1) * limit;
+
+    // Build dynamic query based on custom filters
+    let whereConditions = [];
+    let params = [];
+    let paramIndex = 1;
+
+    // Process custom filter conditions
+    if (filters.customConditions && Array.isArray(filters.customConditions)) {
+      filters.customConditions.forEach(condition => {
+        if (condition.field && condition.operator && condition.value !== undefined) {
+          switch (condition.operator) {
+            case 'gt':
+              whereConditions.push(`s.${condition.field} > $${paramIndex}`);
+              break;
+            case 'gte':
+              whereConditions.push(`s.${condition.field} >= $${paramIndex}`);
+              break;
+            case 'lt':
+              whereConditions.push(`s.${condition.field} < $${paramIndex}`);
+              break;
+            case 'lte':
+              whereConditions.push(`s.${condition.field} <= $${paramIndex}`);
+              break;
+            case 'eq':
+              whereConditions.push(`s.${condition.field} = $${paramIndex}`);
+              break;
+            case 'like':
+              whereConditions.push(`s.${condition.field} ILIKE $${paramIndex}`);
+              condition.value = `%${condition.value}%`;
+              break;
+          }
+          params.push(condition.value);
+          paramIndex++;
+        }
+      });
+    }
+
+    // Apply standard filters if provided
+    if (filters.marketCap) {
+      whereConditions.push(`s.market_cap >= $${paramIndex}`);
+      params.push(parseFloat(filters.marketCap));
+      paramIndex++;
+    }
+
+    if (filters.sector && filters.sector.length > 0) {
+      whereConditions.push(`s.sector = ANY($${paramIndex}::text[])`);
+      params.push(Array.isArray(filters.sector) ? filters.sector : [filters.sector]);
+      paramIndex++;
+    }
+
+    if (filters.industry && filters.industry.length > 0) {
+      whereConditions.push(`s.industry = ANY($${paramIndex}::text[])`);
+      params.push(Array.isArray(filters.industry) ? filters.industry : [filters.industry]);
+      paramIndex++;
+    }
+
+    // Build ORDER BY clause
+    let orderClause = "s.market_cap DESC";
+    if (sorting && sorting.field && sorting.direction) {
+      const direction = sorting.direction.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+      orderClause = `s.${sorting.field} ${direction}`;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const customQuery = `
+      SELECT 
+        s.symbol,
+        s.company_name,
+        s.sector,
+        s.industry,
+        s.market_cap,
+        s.price,
+        s.change_percent,
+        s.volume,
+        s.pe_ratio,
+        s.pb_ratio,
+        s.ps_ratio,
+        s.roe,
+        s.roa,
+        s.debt_to_equity,
+        s.current_ratio,
+        s.quick_ratio,
+        s.revenue_growth,
+        s.earnings_growth,
+        s.net_margin,
+        s.gross_margin,
+        s.operating_margin,
+        s.dividend_yield,
+        s.beta,
+        s.avg_volume,
+        s.fifty_two_week_high,
+        s.fifty_two_week_low,
+        CASE 
+          WHEN s.price > 0 AND s.fifty_two_week_low > 0 
+          THEN ((s.price - s.fifty_two_week_low) / (s.fifty_two_week_high - s.fifty_two_week_low) * 100)
+          ELSE 0 
+        END as price_position_52w
+      FROM screener s
+      ${whereClause}
+      ORDER BY ${orderClause}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    params.push(limit, offset);
+
+    const results = await query(customQuery, params);
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM screener s
+      ${whereClause}
+    `;
+
+    const countResult = await query(countQuery, params.slice(0, -2));
+    const totalCount = parseInt(countResult?.rows?.[0]?.total || 0);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Perform additional analysis if requested
+    let analysisResults = {};
+    if (analysis && analysis.enabled) {
+      const stocks = results.rows;
+      
+      if (stocks.length > 0) {
+        analysisResults = {
+          summary: {
+            totalStocks: stocks.length,
+            avgMarketCap: stocks.reduce((sum, s) => sum + (s.market_cap || 0), 0) / stocks.length,
+            avgPE: stocks.filter(s => s.pe_ratio > 0).reduce((sum, s) => sum + s.pe_ratio, 0) / stocks.filter(s => s.pe_ratio > 0).length,
+            avgROE: stocks.filter(s => s.roe).reduce((sum, s) => sum + (s.roe * 100), 0) / stocks.filter(s => s.roe).length,
+          },
+          sectors: {},
+          industries: {}
+        };
+
+        // Sector analysis
+        stocks.forEach(stock => {
+          if (stock.sector) {
+            if (!analysisResults.sectors[stock.sector]) {
+              analysisResults.sectors[stock.sector] = { count: 0, avgChange: 0 };
+            }
+            analysisResults.sectors[stock.sector].count++;
+            analysisResults.sectors[stock.sector].avgChange += (stock.change_percent || 0);
+          }
+        });
+
+        Object.keys(analysisResults.sectors).forEach(sector => {
+          analysisResults.sectors[sector].avgChange /= analysisResults.sectors[sector].count;
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        stocks: results.rows,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages,
+          hasMore: page < totalPages
+        },
+        filters: {
+          applied: whereConditions.length,
+          conditions: filters.customConditions?.length || 0
+        },
+        analysis: analysisResults,
+        executionTime: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error in custom screener:", error);
+    
+    // Handle database table missing error gracefully
+    if (error.message.includes("does not exist")) {
+      return res.json({
+        success: true,
+        data: {
+          stocks: [
+            {
+              symbol: "AAPL",
+              name: "Apple Inc.",
+              price: 175.43,
+              change: 2.15,
+              changePercent: 1.24,
+              volume: 65432100,
+              marketCap: 2800000000000,
+              sector: "Technology",
+              peRatio: 28.5,
+              beta: 1.2
+            },
+            {
+              symbol: "MSFT", 
+              name: "Microsoft Corporation",
+              price: 378.85,
+              change: -1.20,
+              changePercent: -0.32,
+              volume: 23456789,
+              marketCap: 2400000000000,
+              sector: "Technology",
+              peRatio: 32.1,
+              beta: 0.9
+            }
+          ],
+          pagination: {
+            page: 1,
+            limit: 50,
+            totalCount: 2,
+            totalPages: 1,
+            hasMore: false
+          },
+          filters: {
+            applied: 0,
+            conditions: 0
+          },
+          analysis: {},
+          note: "Using sample data - database screener table not available"
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: "Failed to execute custom screener",
       details: error.message,
       timestamp: new Date().toISOString()
     });

@@ -9,7 +9,7 @@ import { renderWithProviders, renderWithAuth } from "./test-utils";
 
 // Import actual site components
 import Dashboard from "../pages/Dashboard";
-import Portfolio from "../pages/Portfolio";
+import PortfolioHoldings from "../pages/PortfolioHoldings";
 import Settings from "../pages/Settings";
 import MarketOverview from "../pages/MarketOverview";
 import TradingSignals from "../pages/TradingSignals";
@@ -29,8 +29,8 @@ describe("Core Site Functionality", () => {
       );
     });
 
-    it("Portfolio page renders without errors", async () => {
-      renderWithAuth(<Portfolio />);
+    it("PortfolioHoldings page renders without errors", async () => {
+      renderWithAuth(<PortfolioHoldings />);
 
       await waitFor(
         () => {
@@ -105,8 +105,8 @@ describe("Core Site Functionality", () => {
       );
     });
 
-    it("Portfolio shows expected structure", async () => {
-      renderWithAuth(<Portfolio />);
+    it("PortfolioHoldings shows expected structure", async () => {
+      renderWithAuth(<PortfolioHoldings />);
 
       await waitFor(
         () => {
@@ -151,7 +151,7 @@ describe("Core Site Functionality", () => {
 
     it("Auth pages handle unauthenticated state", async () => {
       // Test that auth-required pages handle no auth
-      renderWithProviders(<Portfolio />);
+      renderWithProviders(<PortfolioHoldings />);
 
       await waitFor(
         () => {

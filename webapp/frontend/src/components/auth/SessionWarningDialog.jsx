@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -22,6 +22,7 @@ const SessionWarningDialog = ({
 }) => {
   const [countdown, setCountdown] = useState(timeRemaining);
   const [extending, setExtending] = useState(false);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     setCountdown(timeRemaining);
@@ -31,19 +32,36 @@ const SessionWarningDialog = ({
     if (!open || countdown <= 0) return;
 
     const timer = setInterval(() => {
+      if (!isMountedRef.current) {
+        clearInterval(timer);
+        return;
+      }
+      
       setCountdown((prev) => {
         const newTime = prev - 1000;
         if (newTime <= 0) {
+          // Clear timer before calling onLogout to prevent further updates
+          clearInterval(timer);
           // Auto logout when time expires
-          onLogout();
+          if (isMountedRef.current) {
+            onLogout();
+          }
           return 0;
         }
         return newTime;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+    };
   }, [open, countdown, onLogout]);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleExtend = async () => {
     setExtending(true);

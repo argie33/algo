@@ -65,6 +65,7 @@
     "test:all": "vitest run",
     "test:fast": "vitest run src/tests/unit/components/Portfolio.test.jsx src/tests/unit/components/Settings.test.jsx src/tests/unit/components/StockDetail.test.jsx --testTimeout=10000",
     "test:unit": "vitest run src/tests/unit/ --testTimeout=10000",
+    "test:contracts": "vitest run src/tests/integration/contracts/ --testTimeout=15000",
     "test:component": "vitest run src/tests/component/ --testTimeout=15000",
     "test:integration": "vitest run src/tests/integration/ --testTimeout=30000",
     "test:quality": "npm run test:dep && npm run lint && npm run test:fast && npm run test:integration && node ../test-react-build-validation.cjs",

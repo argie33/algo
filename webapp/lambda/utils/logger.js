@@ -3,7 +3,7 @@
  * Provides structured logging with correlation IDs and contextual information
  */
 
-const crypto = require("crypto");
+const encrypt = require("crypto");
 
 /**
  * Log levels
@@ -39,7 +39,7 @@ class Logger {
    * Generate correlation ID for request tracking
    */
   generateCorrelationId() {
-    return crypto.randomUUID().split("-")[0];
+    return encrypt.randomUUID().split("-")[0];
   }
 
   /**
@@ -71,7 +71,7 @@ class Logger {
   output(logEntry) {
     if (this.environment === "development") {
       // Pretty print for development
-      const { timestamp, level, message, correlationId, ...rest } = logEntry;
+      const { timestamp, level, message, correlationId, service, environment, version, severity, ...rest } = logEntry;
       console.log(`[${timestamp}] [${level}] [${correlationId}] ${message}`);
       if (Object.keys(rest).length > 0) {
         console.log("Context:", JSON.stringify(rest, null, 2));
@@ -385,4 +385,15 @@ class Logger {
 // Export singleton instance
 const logger = new Logger();
 
+/**
+ * Factory function to create logger instances
+ */
+function createLogger(serviceName, component) {
+  if (serviceName) {
+    return logger.child({ serviceName, component });
+  }
+  return logger;
+}
+
 module.exports = logger;
+module.exports.createLogger = createLogger;

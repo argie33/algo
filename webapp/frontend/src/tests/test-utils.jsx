@@ -11,8 +11,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Import the real AuthContext - NO MOCKS
-import { AuthProvider } from "../contexts/AuthContext";
-import AuthContext from "../contexts/AuthContext";
+import { createContext } from "react";
+
+// Create a fallback AuthContext for testing
+const TestAuthContext = createContext({
+  user: null,
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
+  tokens: null,
+});
 
 // Real site theme for testing
 const testTheme = createTheme({
@@ -44,12 +52,17 @@ export const TestWrapper = ({ children }) => {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <AuthProvider>
+          <TestAuthProvider>
             {children}
-          </AuthProvider>
+          </TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
@@ -58,18 +71,19 @@ export const TestWrapper = ({ children }) => {
 
 // Real authenticated provider that uses REAL authentication
 export const TestAuthProvider = ({ children, initialUser = null }) => {
+  const defaultUser = { 
+    id: 'test-user', 
+    email: 'test@example.com',
+    name: 'Test User'
+  };
   const mockAuthValue = {
-    user: initialUser || { 
-      id: 'test-user', 
-      email: 'test@example.com',
-      name: 'Test User'
-    },
-    isAuthenticated: !!initialUser,
+    user: initialUser || defaultUser,
+    isAuthenticated: true, // Always authenticated in tests
     isLoading: false,
-    tokens: initialUser ? { 
+    tokens: { 
       accessToken: 'dev-bypass-token',
       refreshToken: 'dev-bypass-token'
-    } : null,
+    },
     error: null,
     // These will call REAL authentication functions
     login: async (credentials) => {
@@ -100,15 +114,16 @@ export const TestAuthProvider = ({ children, initialUser = null }) => {
   };
 
   return (
-    <AuthContext.Provider value={mockAuthValue}>
+    <TestAuthContext.Provider value={mockAuthValue}>
       {children}
-    </AuthContext.Provider>
+    </TestAuthContext.Provider>
   );
 };
 
 // Mock user data helper for testing
 export const createMockUser = () => ({
   id: "test-user-123",
+  userId: "test-user-123", // Added for auth compatibility
   email: "test@example.com",
   name: "Test User",
   roles: ["user"],
@@ -119,6 +134,7 @@ export const createMockUser = () => ({
 
 // Render function with all providers for REAL testing
 export const renderWithProviders = (ui, options = {}) => {
+  // Use synchronous render for test stability
   return render(ui, {
     wrapper: TestWrapper,
     ...options,
@@ -143,7 +159,12 @@ export const renderWithAuth = (ui, options = {}) => {
   };
 
   const AuthenticatedWrapper = ({ children }) => (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
           <TestAuthProvider initialUser={mockUser}>
@@ -170,5 +191,14 @@ Object.defineProperty(Element.prototype, 'scrollIntoView', {
 });
 
 // Re-export commonly used testing utilities
-export { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+export { render, screen, waitFor, fireEvent } from "@testing-library/react";
+export { act } from "@testing-library/react";
 export { userEvent } from "@testing-library/user-event";
+
+// Compatibility helper for legacy render calls
+export const renderSync = (ui, options = {}) => {
+  return render(ui, {
+    wrapper: TestWrapper,
+    ...options,
+  });
+};

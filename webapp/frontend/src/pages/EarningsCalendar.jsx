@@ -55,7 +55,7 @@ function EarningsCalendar() {
   const [epsSymbol, setEpsSymbol] = useState("AAPL");
   const [epsInput, setEpsInput] = useState("AAPL");
 
-  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
 
   // Fetch calendar events
   const {
@@ -70,7 +70,7 @@ function EarningsCalendar() {
         page: page + 1,
         limit: rowsPerPage,
       });
-      const response = await fetch(`${API_BASE}/calendar/events?${params}`);
+      const response = await fetch(`${API_BASE}/api/calendar/events?${params}`);
       if (!response.ok) {
         const text = await response.text();
         logger.error("Calendar events fetch failed", {
@@ -96,7 +96,7 @@ function EarningsCalendar() {
         limit: rowsPerPage,
       });
       const response = await fetch(
-        `${API_BASE}/calendar/earnings-estimates?${params}`
+        `${API_BASE}/api/calendar/earnings-estimates?${params}`
       );
       if (!response.ok) throw new Error("Failed to fetch estimates data");
       return response.json();
@@ -114,7 +114,7 @@ function EarningsCalendar() {
         limit: rowsPerPage,
       });
       const response = await fetch(
-        `${API_BASE}/calendar/earnings-history?${params}`
+        `${API_BASE}/api/calendar/earnings-history?${params}`
       );
       if (!response.ok) throw new Error("Failed to fetch history data");
       return response.json();
@@ -132,7 +132,7 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["epsRevisions", epsSymbol],
     queryFn: async () => {
-      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
+      const url = `${API_BASE}/api/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch EPS revisions");
       return response.json();
@@ -150,7 +150,7 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["epsTrend", epsSymbol],
     queryFn: async () => {
-      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-trend`;
+      const url = `${API_BASE}/api/analysts/${encodeURIComponent(epsSymbol)}/eps-trend`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch EPS trend");
       return response.json();
@@ -172,7 +172,7 @@ function EarningsCalendar() {
         page: page + 1,
         limit: rowsPerPage,
       });
-      const url = `${API_BASE}/calendar/earnings-metrics?${params}`;
+      const url = `${API_BASE}/api/calendar/earnings-metrics?${params}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch earnings metrics");
       return response.json();
@@ -236,7 +236,7 @@ function EarningsCalendar() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {calendarData?.data?.map((event, index) => (
+          {calendarData?.data?.data?.map((event, index) => (
             <TableRow key={`${event.symbol}-${index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">

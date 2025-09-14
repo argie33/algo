@@ -30,10 +30,31 @@ function deleteStrategy(id) {
   saveStrategies(strategies);
 }
 
+// Backtest-specific methods (alias for strategies)
+function getBacktest(id) {
+  return getStrategy(id);
+}
+
+function addBacktest(backtest) {
+  return addStrategy(backtest);
+}
+
+function listBacktests() {
+  return loadStrategies();
+}
+
+function getUserStrategies(userId) {
+  return loadStrategies().filter(s => s.userId === userId);
+}
+
 module.exports = {
   loadStrategies,
   saveStrategies,
   addStrategy,
   getStrategy,
   deleteStrategy,
+  getUserStrategies,
+  getBacktest,
+  addBacktest,
+  listBacktests,
 };

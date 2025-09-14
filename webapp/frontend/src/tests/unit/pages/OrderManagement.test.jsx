@@ -4,21 +4,71 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderWithProviders } from "../../test-utils.jsx";
+import { render } from "@testing-library/react";
 import { screen, waitFor, act, fireEvent } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 import OrderManagement from "../../../pages/OrderManagement.jsx";
 import * as apiService from "../../../services/api.js";
+
+// Create simple test theme
+const testTheme = createTheme();
 
 // Mock the AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
   useAuth: vi.fn(() => ({
-    user: { id: 'test-user', email: 'test@example.com', name: 'Test User' },
+    user: { 
+      id: 'test-user', 
+      email: 'test@example.com', 
+      name: 'Test User',
+      token: 'dev-bypass-token'
+    },
     isAuthenticated: true,
     isLoading: false,
     error: null,
   })),
   AuthProvider: ({ children }) => children,
 }));
+
+// Mock react-router-dom
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+  };
+});
+
+// Simple test wrapper - just add necessary providers without conflicting auth
+const renderWithWrapper = (component) => {
+  const testQueryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  });
+
+  return render(
+    <BrowserRouter>
+      <ThemeProvider theme={testTheme}>
+        <QueryClientProvider client={testQueryClient}>
+          {component}
+        </QueryClientProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+  );
+};
+
+// Mock global fetch to prevent network calls
+global.fetch = vi.fn(() => 
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ orders: [], positions: [], account: {} })
+  })
+);
 
 // Mock the API service
 vi.mock("../../../services/api.js", () => ({
@@ -124,10 +174,8 @@ describe("OrderManagement Component - Trading Orders", () => {
   });
 
   describe("Component Rendering", () => {
-    it("should render order management interface", async () => {
-      await act(async () => {
-        renderWithProviders(<OrderManagement />);
-      });
+    it("should render order management interface", () => {
+      renderWithWrapper(<OrderManagement />);
 
       expect(
         screen.getByText(/order/i) ||
@@ -138,7 +186,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
     it("should display orders table/list", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -169,7 +217,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -183,7 +231,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
     it("should display order status information", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -196,7 +244,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
     it("should show order details", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -217,7 +265,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -242,7 +290,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -264,7 +312,7 @@ describe("OrderManagement Component - Trading Orders", () => {
   describe("New Order Placement", () => {
     it("should provide order creation interface", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -283,7 +331,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -303,7 +351,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
     it("should validate order parameters", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -332,7 +380,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -346,7 +394,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
     it("should filter orders by date range", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -363,7 +411,7 @@ describe("OrderManagement Component - Trading Orders", () => {
   describe("Order Status Tracking", () => {
     it("should show real-time order updates", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -394,7 +442,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       });
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -413,7 +461,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       );
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -430,7 +478,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       );
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       // Simulate order placement error
@@ -457,7 +505,7 @@ describe("OrderManagement Component - Trading Orders", () => {
       );
 
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {
@@ -473,7 +521,7 @@ describe("OrderManagement Component - Trading Orders", () => {
   describe("Integration and Authentication", () => {
     it("should handle authenticated user sessions", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       expect(screen.getByText(/order/i)).toBeTruthy();
@@ -481,7 +529,7 @@ describe("OrderManagement Component - Trading Orders", () => {
 
     it("should integrate with trading API", async () => {
       await act(async () => {
-        renderWithProviders(<OrderManagement />);
+        renderWithWrapper(<OrderManagement />);
       });
 
       await waitFor(() => {

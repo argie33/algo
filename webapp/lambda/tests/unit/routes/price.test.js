@@ -1,332 +1,329 @@
-const request = require("supertest");
-const express = require("express");
+/**
+ * Unit Tests for Price Route
+ * Tests the /api/price endpoint functionality with mocked dependencies
+ */
 
-const priceRoutes = require("../../../routes/price");
+const request = require('supertest');
+const express = require('express');
 
-// Mock database
-const { query } = require("../../../utils/database");
+// Mock database queries
+const mockQuery = jest.fn();
+jest.mock('../../../utils/database', () => ({
+  query: mockQuery
+}));
 
-jest.mock("../../../utils/database");
+// Create test app
+const app = express();
+app.use(express.json());
 
-describe("Price Routes", () => {
-  let app;
+// Add response formatter middleware for proper res.error, res.success methods
+const responseFormatter = require("../../../middleware/responseFormatter");
+app.use(responseFormatter);
 
-  beforeAll(() => {
-    app = express();
-    app.use(express.json());
-    app.use("/price", priceRoutes);
-  });
+app.use('/api/price', require('../../../routes/price'));
 
+describe('Price Route - Unit Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  describe("GET /price/ping", () => {
-    test("should return ping status", async () => {
-      const response = await request(app).get("/price/ping").expect(200);
+  describe('GET /api/price/', () => {
+    test('should return API overview', async () => {
+      const response = await request(app)
+        .get('/api/price/')
+        .expect(200);
 
-      expect(response.body).toMatchObject({
-        status: "ok",
-        endpoint: "price",
-        timestamp: expect.any(String),
-      });
+      expect(response.body.message).toBe('Price API - Ready');
+      expect(response.body.status).toBe('operational');
+      expect(response.body.endpoints).toBeDefined();
+      expect(Array.isArray(response.body.endpoints)).toBe(true);
+      expect(response.body.timestamp).toBeDefined();
     });
   });
 
-  describe("GET /price/history/:timeframe", () => {
-    test("should return price history for valid timeframe and symbol", async () => {
-      const mockPriceData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-15",
-            open: 175.25,
-            high: 178.4,
-            low: 174.8,
-            close: 177.5,
-            volume: 45000000,
-            adj_close: 177.5,
-          },
-          {
-            symbol: "AAPL",
-            date: "2023-12-14",
-            open: 172.1,
-            high: 175.6,
-            low: 171.9,
-            close: 175.25,
-            volume: 52000000,
-            adj_close: 175.25,
-          },
-        ],
-      };
-
-      const mockCount = { rows: [{ total: "2" }] };
-
-      query
-        .mockResolvedValueOnce(mockCount)
-        .mockResolvedValueOnce(mockPriceData);
-
+  describe('GET /api/price/ping', () => {
+    test('should return health status', async () => {
       const response = await request(app)
-        .get("/price/history/daily")
-        .query({ symbol: "AAPL", limit: 10, page: 1 })
+        .get('/api/price/ping')
         .expect(200);
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            date: "2023-12-15",
-            open: 175.25,
-            high: 178.4,
-            low: 174.8,
-            close: 177.5,
-            volume: 45000000,
-          }),
-        ]),
-        pagination: expect.objectContaining({
-          total: 2,
-          page: 1,
-          limit: 10,
-        }),
-        timeframe: "daily",
-      });
+      expect(response.body.status).toBe('ok');
+      expect(response.body.endpoint).toBe('price');
+      expect(response.body.timestamp).toBeDefined();
+    });
+  });
 
-      expect(query).toHaveBeenCalledTimes(2);
+  describe('GET /api/price/:symbol', () => {
+    test('should get current price for valid symbol', async () => {
+      const mockPriceData = [
+        {
+          symbol: 'AAPL',
+          date: '2024-01-15',
+          open: 150.00,
+          high: 155.00,
+          low: 148.00,
+          close: 153.50,
+          adj_close: 153.50,
+          volume: 1000000
+        }
+      ];
+
+      mockQuery.mockResolvedValue({ rows: mockPriceData });
+
+      const response = await request(app)
+        .get('/api/price/AAPL')
+        .expect(200);
+
+      expect(response.body.symbol).toBe('AAPL');
+      expect(response.body.data.current_price).toBe(153.50);
+      expect(response.body.data.open).toBe(150.00);
+      expect(response.body.data.close).toBe(153.50);
+      expect(response.body.timestamp).toBeDefined();
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('FROM price_daily'),
+        ['AAPL']
+      );
     });
 
-    test("should validate timeframe parameter", async () => {
+    test('should handle symbol not found', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+
       const response = await request(app)
-        .get("/price/history/invalid")
-        .query({ symbol: "AAPL" })
+        .get('/api/price/INVALID')
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('not found');
+    });
+
+    test('should handle database errors', async () => {
+      mockQuery.mockRejectedValue(new Error('Database connection failed'));
+
+      const response = await request(app)
+        .get('/api/price/AAPL')
+        .expect(500);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBeDefined();
+    });
+  });
+
+  describe('GET /api/price/:symbol/intraday', () => {
+    test('should return intraday data with default 5min interval', async () => {
+      const mockIntradayData = [
+        {
+          timestamp: '2024-01-15T09:30:00.000Z',
+          price: 150.25,
+          volume: 50000
+        },
+        {
+          timestamp: '2024-01-15T09:35:00.000Z',
+          price: 150.75,
+          volume: 45000
+        }
+      ];
+
+      mockQuery.mockResolvedValue({ rows: mockIntradayData });
+
+      const response = await request(app)
+        .get('/api/price/AAPL/intraday')
+        .expect(200);
+
+      expect(response.body.symbol).toBe('AAPL');
+      expect(response.body.data.interval).toBe('5min');
+      expect(Array.isArray(response.body.data.intraday_data)).toBe(true);
+      expect(response.body.data.intraday_data).toHaveLength(2);
+      expect(response.body.data.intraday_data[0]).toHaveProperty('timestamp');
+      expect(response.body.data.intraday_data[0]).toHaveProperty('price');
+      expect(response.body.data.intraday_data[0]).toHaveProperty('volume');
+    });
+
+    test('should handle different intervals', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/price/AAPL/intraday?interval=1min')
+        .expect(200);
+
+      expect(response.body.data.interval).toBe('1min');
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('1 minutes'),
+        expect.anything()
+      );
+    });
+
+    test('should validate interval parameter', async () => {
+      const response = await request(app)
+        .get('/api/price/AAPL/intraday?interval=invalid')
         .expect(400);
 
-      expect(response.body).toEqual({
-        error: "Invalid timeframe. Use daily, weekly, or monthly.",
-      });
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Invalid interval');
+    });
+  });
 
-      expect(query).not.toHaveBeenCalled();
+  describe('GET /api/price/futures/:symbol', () => {
+    test('should return futures pricing data', async () => {
+      const mockFuturesData = [
+        {
+          symbol: 'CLZ24',
+          underlying_symbol: 'CL',
+          contract_month: 'December 2024',
+          expiry_date: '2024-12-19',
+          current_price: 85.50,
+          theoretical_price: 85.75,
+          carry_cost: 0.25,
+          convenience_yield: 0.05,
+          days_to_expiry: 45
+        }
+      ];
+
+      mockQuery.mockResolvedValue({ rows: mockFuturesData });
+
+      const response = await request(app)
+        .get('/api/price/futures/CLZ24')
+        .expect(200);
+
+      expect(response.body.symbol).toBe('CLZ24');
+      expect(response.body.data).toHaveProperty('contract_details');
+      expect(response.body.data).toHaveProperty('pricing_analysis');
+      expect(response.body.data.contract_details).toHaveProperty('underlying_symbol');
+      expect(response.body.data.pricing_analysis).toHaveProperty('theoretical_price');
+      expect(response.body.data.pricing_analysis).toHaveProperty('carry_cost');
     });
 
-    test("should require symbol parameter", async () => {
+    test('should handle non-existent futures contract', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+
       const response = await request(app)
-        .get("/price/history/daily")
+        .get('/api/price/futures/INVALID')
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Futures contract not found');
+    });
+  });
+
+  describe('GET /api/price/:symbol/prediction', () => {
+    test('should return price prediction analysis', async () => {
+      const mockPredictionData = [
+        {
+          symbol: 'AAPL',
+          current_price: 150.00,
+          avg_volume: 45000000,
+          volatility: 0.25,
+          trend_score: 75,
+          support_level: 145.00,
+          resistance_level: 155.00
+        }
+      ];
+
+      mockQuery.mockResolvedValue({ rows: mockPredictionData });
+
+      const response = await request(app)
+        .get('/api/price/AAPL/prediction')
+        .expect(200);
+
+      expect(response.body.symbol).toBe('AAPL');
+      expect(response.body.data).toHaveProperty('current_analysis');
+      expect(response.body.data).toHaveProperty('price_targets');
+      expect(response.body.data).toHaveProperty('risk_metrics');
+      expect(response.body.data).toHaveProperty('technical_indicators');
+      expect(response.body.data.current_analysis).toHaveProperty('current_price');
+      expect(response.body.data.price_targets).toHaveProperty('target_1d');
+      expect(response.body.data.risk_metrics).toHaveProperty('volatility');
+    });
+
+    test('should handle different timeframes', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/price/AAPL/prediction?timeframe=1w')
+        .expect(200);
+
+      expect(response.body.data.timeframe).toBe('1w');
+    });
+
+    test('should validate timeframe parameter', async () => {
+      const response = await request(app)
+        .get('/api/price/AAPL/prediction?timeframe=invalid')
         .expect(400);
 
-      expect(response.body).toEqual({
-        error: "Symbol parameter is required",
-      });
-
-      expect(query).not.toHaveBeenCalled();
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Invalid timeframe');
     });
+  });
 
-    test("should handle date range filtering", async () => {
-      const mockData = { rows: [] };
-      const mockCount = { rows: [{ total: "0" }] };
+  describe('GET /api/price/:symbol/alerts', () => {
+    test('should return price alert recommendations', async () => {
+      const mockAlertData = [
+        {
+          symbol: 'AAPL',
+          current_price: 150.00,
+          support_level: 145.00,
+          resistance_level: 155.00,
+          volatility: 0.25
+        }
+      ];
 
-      query.mockResolvedValueOnce(mockCount).mockResolvedValueOnce(mockData);
+      mockQuery.mockResolvedValue({ rows: mockAlertData });
 
       const response = await request(app)
-        .get("/price/history/daily")
-        .query({
-          symbol: "AAPL",
-          start_date: "2023-12-01",
-          end_date: "2023-12-15",
-        })
+        .get('/api/price/AAPL/alerts')
+        .expect(200);
+
+      expect(response.body.symbol).toBe('AAPL');
+      expect(response.body.data).toHaveProperty('current_price');
+      expect(response.body.data).toHaveProperty('recommended_alerts');
+      expect(response.body.data).toHaveProperty('alert_zones');
+      expect(Array.isArray(response.body.data.recommended_alerts)).toBe(true);
+    });
+  });
+
+  describe('POST /api/price/batch', () => {
+    test('should handle batch price requests', async () => {
+      const mockBatchData = [
+        { symbol: 'AAPL', close_price: 150.00 },
+        { symbol: 'MSFT', close_price: 375.00 },
+        { symbol: 'GOOGL', close_price: 140.00 }
+      ];
+
+      mockQuery.mockResolvedValue({ rows: mockBatchData });
+
+      const response = await request(app)
+        .post('/api/price/batch')
+        .send({ symbols: ['AAPL', 'MSFT', 'GOOGL'] })
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(query).toHaveBeenCalledTimes(2);
-
-      // Verify date parameters were included in query
-      expect(query.mock.calls[0][1]).toContain("AAPL");
-      expect(query.mock.calls[0][1]).toContain("2023-12-01");
-      expect(query.mock.calls[0][1]).toContain("2023-12-15");
+      expect(response.body.data).toHaveProperty('prices');
+      expect(response.body.data).toHaveProperty('summary');
+      expect(Object.keys(response.body.data.prices)).toHaveLength(3);
+      expect(response.body.data.prices).toHaveProperty('AAPL');
+      expect(response.body.data.prices).toHaveProperty('MSFT');
+      expect(response.body.data.prices).toHaveProperty('GOOGL');
     });
 
-    test("should limit page size to maximum", async () => {
-      const mockData = { rows: [] };
-      const mockCount = { rows: [{ total: "0" }] };
-
-      query.mockResolvedValueOnce(mockCount).mockResolvedValueOnce(mockData);
-
+    test('should validate batch request body', async () => {
       const response = await request(app)
-        .get("/price/history/weekly")
-        .query({ symbol: "MSFT", limit: 1000 }) // Exceeds max of 200
-        .expect(200);
-
-      expect(response.body.pagination.limit).toBe(200);
-      expect(query).toHaveBeenCalledTimes(2);
-    });
-
-    test("should handle database errors", async () => {
-      query.mockRejectedValueOnce(new Error("Database connection failed"));
-
-      const response = await request(app)
-        .get("/price/history/daily")
-        .query({ symbol: "AAPL" })
-        .expect(500);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch price history",
-        message: "Database connection failed",
-      });
-    });
-  });
-
-  describe("GET /price/symbols/:timeframe", () => {
-    test("should return all symbols with price data for timeframe", async () => {
-      const mockSymbols = {
-        rows: [
-          { symbol: "AAPL", latest_date: "2023-12-15", price_count: 250 },
-          { symbol: "MSFT", latest_date: "2023-12-15", price_count: 248 },
-          { symbol: "GOOGL", latest_date: "2023-12-14", price_count: 245 },
-        ],
-      };
-
-      query.mockResolvedValueOnce(mockSymbols);
-
-      const response = await request(app)
-        .get("/price/symbols/daily")
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            symbol: "AAPL",
-            latestDate: "2023-12-15",
-            priceCount: 250,
-          }),
-          expect.objectContaining({
-            symbol: "MSFT",
-            latestDate: "2023-12-15",
-            priceCount: 248,
-          }),
-        ]),
-        timeframe: "daily",
-        total: 3,
-      });
-
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    test("should validate timeframe for symbols endpoint", async () => {
-      const response = await request(app)
-        .get("/price/symbols/invalid")
+        .post('/api/price/batch')
+        .send({}) // Missing symbols array
         .expect(400);
 
-      expect(response.body).toEqual({
-        error: "Invalid timeframe. Use daily, weekly, or monthly.",
-      });
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('symbols array is required');
     });
 
-    test("should handle database errors for symbols", async () => {
-      query.mockRejectedValueOnce(new Error("Database query failed"));
-
+    test('should limit batch size', async () => {
+      const tooManySymbols = Array.from({ length: 101 }, (_, i) => `STOCK${i}`);
+      
       const response = await request(app)
-        .get("/price/symbols/daily")
-        .expect(500);
+        .post('/api/price/batch')
+        .send({ symbols: tooManySymbols })
+        .expect(400);
 
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch symbols",
-        message: "Database query failed",
-      });
-    });
-  });
-
-  describe("GET /price/latest/:symbol", () => {
-    test("should return latest price for symbol", async () => {
-      const mockLatestPrice = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2023-12-15",
-            open: 175.25,
-            high: 178.4,
-            low: 174.8,
-            close: 177.5,
-            volume: 45000000,
-            adj_close: 177.5,
-            change: 2.25,
-            change_percent: 1.28,
-          },
-        ],
-      };
-
-      query.mockResolvedValueOnce(mockLatestPrice);
-
-      const response = await request(app).get("/price/latest/AAPL").expect(200);
-
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          symbol: "AAPL",
-          date: "2023-12-15",
-          open: 175.25,
-          high: 178.4,
-          low: 174.8,
-          close: 177.5,
-          volume: 45000000,
-          change: 2.25,
-          changePercent: 1.28,
-        }),
-      });
-
-      expect(query).toHaveBeenCalledTimes(1);
-      expect(query.mock.calls[0][1]).toContain("AAPL");
-    });
-
-    test("should handle symbol not found", async () => {
-      query.mockResolvedValueOnce({ rows: [] });
-
-      const response = await request(app)
-        .get("/price/latest/INVALID")
-        .expect(404);
-
-      expect(response.body).toEqual({
-        success: false,
-        error: "Symbol not found",
-        symbol: "INVALID",
-        message: "No price data available for symbol",
-      });
-    });
-
-    test("should handle database errors for latest price", async () => {
-      query.mockRejectedValueOnce(new Error("Database connection failed"));
-
-      const response = await request(app).get("/price/latest/AAPL").expect(500);
-
-      expect(response.body).toMatchObject({
-        success: false,
-        error: "Failed to fetch latest price",
-        message: "Database connection failed",
-      });
-    });
-
-    test("should handle symbols with special characters", async () => {
-      const mockData = {
-        rows: [
-          {
-            symbol: "BRK.A",
-            date: "2023-12-15",
-            close: 520000.0,
-            change: 1500.0,
-            change_percent: 0.29,
-          },
-        ],
-      };
-
-      query.mockResolvedValueOnce(mockData);
-
-      const response = await request(app)
-        .get("/price/latest/BRK.A")
-        .expect(200);
-
-      expect(response.body.data.symbol).toBe("BRK.A");
-      expect(query.mock.calls[0][1]).toContain("BRK.A");
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Maximum 100 symbols allowed');
     });
   });
 });

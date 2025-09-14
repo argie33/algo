@@ -8,6 +8,8 @@ const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const { createServer } = require("http");
+const WebSocket = require("ws");
 const serverless = require("serverless-http");
 
 const errorHandler = require("./middleware/errorHandler");
@@ -21,6 +23,7 @@ const backtestRoutes = require("./routes/backtest");
 const calendarRoutes = require("./routes/calendar");
 const commoditiesRoutes = require("./routes/commodities");
 const dashboardRoutes = require("./routes/dashboard");
+const dataRoutes = require("./routes/data");
 const diagnosticsRoutes = require("./routes/diagnostics");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
@@ -54,6 +57,7 @@ const etfRoutes = require("./routes/etf");
 const insiderRoutes = require("./routes/insider");
 const dividendRoutes = require("./routes/dividend");
 const positioningRoutes = require("./routes/positioning");
+const strategyBuilderRoutes = require("./routes/strategyBuilder");
 
 const app = express();
 
@@ -384,6 +388,7 @@ app.use("/market", marketRoutes);
 app.use("/analysts", analystRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/commodities", commoditiesRoutes);
+app.use("/data", dataRoutes);
 app.use("/financials", financialRoutes);
 app.use("/trading", tradingRoutes);
 app.use("/technical", technicalRoutes);
@@ -423,6 +428,7 @@ app.use("/api/analyst", analystRoutes);
 app.use("/api/analysts", analystRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/commodities", commoditiesRoutes);
+app.use("/api/data", dataRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/trading", tradingRoutes);
 app.use("/api/technical", technicalRoutes);
@@ -453,6 +459,32 @@ app.use("/api/etf", etfRoutes);
 app.use("/api/insider", insiderRoutes);
 app.use("/api/dividend", dividendRoutes);
 app.use("/api/positioning", positioningRoutes);
+app.use("/api/strategyBuilder", strategyBuilderRoutes);
+app.use("/api/strategies", strategyBuilderRoutes); // Alias for strategies
+app.use("/api/liveData", liveDataRoutes);
+app.use("/api/livedata", liveDataRoutes);
+
+// API info endpoint
+app.get("/api", (req, res) => {
+  res.json({
+    name: "LoadFundamentals API",
+    version: "1.0.0",
+    endpoints: {
+      stocks: "/api/stocks",
+      metrics: "/api/metrics",
+      health: "/api/health",
+      market: "/api/market",
+      analysts: "/api/analysts",
+      financials: "/api/financials",
+      trading: "/api/trading",
+      technical: "/api/technical",
+      calendar: "/api/calendar",
+      signals: "/api/signals",
+      data: "/api/data",
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Default route
 app.get("/", (req, res) => {
@@ -484,6 +516,80 @@ app.get("/", (req, res) => {
   });
 });
 
+// Create HTTP server and WebSocket server
+const server = createServer(app);
+const wss = new WebSocket.Server({
+  server,
+  path: '/ws'
+});
+
+// WebSocket connection handling
+wss.on('connection', (ws, req) => {
+  console.log('✅ New WebSocket connection established');
+
+  // Send welcome message
+  ws.send(JSON.stringify({
+    type: 'welcome',
+    message: 'Connected to Financial Dashboard WebSocket',
+    timestamp: new Date().toISOString()
+  }));
+
+  // Handle incoming messages
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log('📨 Received WebSocket message:', data);
+
+      // Echo back for now (can be extended for real-time data)
+      ws.send(JSON.stringify({
+        type: 'echo',
+        data: data,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('❌ WebSocket message error:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Invalid JSON message',
+        timestamp: new Date().toISOString()
+      }));
+    }
+  });
+
+  // Handle connection close
+  ws.on('close', () => {
+    console.log('🔌 WebSocket connection closed');
+  });
+
+  // Handle errors
+  ws.on('error', (error) => {
+    console.error('❌ WebSocket error:', error);
+  });
+});
+
+// Broadcast function for real-time updates
+function broadcast(data) {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
+}
+
+// Make broadcast available globally
+global.broadcast = broadcast;
+
+// WebSocket endpoint handler for HTTP requests
+app.get('/ws', (req, res) => {
+  res.status(426).json({
+    error: 'Upgrade Required',
+    message: 'This endpoint requires WebSocket connection',
+    protocol: 'WebSocket',
+    endpoint: 'ws://localhost:3001/ws',
+    instructions: 'Use WebSocket client to connect'
+  });
+});
+
 // 404 handler
 app.use("*", (req, res) => {
   res.notFound(`Endpoint ${req.originalUrl}`);
@@ -508,12 +614,13 @@ module.exports.app = app;
 // For local testing
 if (require.main === module) {
   const PORT = process.env.PORT || 3001;
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(
       `Financial Dashboard API server running on port ${PORT} (local mode)`
     );
     console.log(`Health check: http://localhost:${PORT}/health`);
     console.log(`Stocks: http://localhost:${PORT}/stocks`);
     console.log(`Technical: http://localhost:${PORT}/technical/daily`);
+    console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws`);
   });
 }

@@ -1,7 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { vi, describe, it, expect } from 'vitest';
-import { Alert, AlertDescription } from '../../../components/ui/alert';
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { Alert, AlertDescription } from '../../../../components/ui/alert';
 
 describe('Alert Component', () => {
   it('renders with default variant', () => {
@@ -23,15 +23,15 @@ describe('Alert Component', () => {
     );
     
     const alertElement = screen.getByRole('alert');
-    expect(alertElement).toHaveClass('border-red-200');
+    expect(alertElement).toHaveClass('MuiAlert-colorError');
     
     rerender(
-      <Alert variant="default">
+      <Alert variant="info">
         <AlertDescription>Info message</AlertDescription>
       </Alert>
     );
     
-    expect(alertElement).toHaveClass('border-gray-200');
+    expect(screen.getByRole('alert')).toHaveClass('MuiAlert-colorInfo');
   });
 
   it('supports success variant styling', () => {
@@ -42,7 +42,7 @@ describe('Alert Component', () => {
     );
     
     const alertElement = screen.getByRole('alert');
-    expect(alertElement).toHaveClass('border-green-200');
+    expect(alertElement).toHaveClass('MuiAlert-colorSuccess');
   });
 
   it('supports warning variant styling', () => {
@@ -53,7 +53,7 @@ describe('Alert Component', () => {
     );
     
     const alertElement = screen.getByRole('alert');
-    expect(alertElement).toHaveClass('border-yellow-200');
+    expect(alertElement).toHaveClass('MuiAlert-colorWarning');
   });
 
   it('renders with custom className', () => {
@@ -67,20 +67,16 @@ describe('Alert Component', () => {
     expect(alertElement).toHaveClass('custom-alert');
   });
 
-  it('supports dismissible alerts', () => {
-    const mockOnDismiss = vi.fn();
-    
+  it('renders without dismissible functionality', () => {
     render(
-      <Alert dismissible onDismiss={mockOnDismiss}>
-        <AlertDescription>Dismissible alert</AlertDescription>
+      <Alert>
+        <AlertDescription>Non-dismissible alert</AlertDescription>
       </Alert>
     );
     
-    const dismissButton = screen.getByRole('button', { name: /dismiss/i });
-    expect(dismissButton).toBeInTheDocument();
-    
-    fireEvent.click(dismissButton);
-    expect(mockOnDismiss).toHaveBeenCalled();
+    // MUI Alert wrapper doesn't support dismissible by default
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByText('Non-dismissible alert')).toBeInTheDocument();
   });
 
   it('renders with icon when provided', () => {
@@ -141,11 +137,11 @@ describe('Alert Component', () => {
       expect(screen.getByText('Description text')).toBeInTheDocument();
     });
 
-    it('applies correct styling classes', () => {
-      render(<AlertDescription>Styled description</AlertDescription>);
+    it('renders as a simple div element', () => {
+      render(<AlertDescription>Simple description</AlertDescription>);
       
-      const description = screen.getByText('Styled description');
-      expect(description).toHaveClass('text-sm');
+      const description = screen.getByText('Simple description');
+      expect(description.tagName).toBe('DIV');
     });
 
     it('supports custom className', () => {
@@ -160,7 +156,7 @@ describe('Alert Component', () => {
       
       render(<AlertDescription ref={ref}>Ref description</AlertDescription>);
       
-      expect(ref.current).toBeInstanceOf(HTMLParagraphElement);
+      expect(ref.current).toBeInstanceOf(HTMLDivElement);
     });
   });
 
@@ -187,44 +183,40 @@ describe('Alert Component', () => {
       expect(alertElement).toBeInTheDocument();
     });
 
-    it('maintains focus management for dismissible alerts', () => {
-      const mockOnDismiss = vi.fn();
-      
+    it('maintains proper focus behavior', () => {
       render(
-        <Alert dismissible onDismiss={mockOnDismiss}>
+        <Alert>
           <AlertDescription>Focus test</AlertDescription>
         </Alert>
       );
       
-      const dismissButton = screen.getByRole('button', { name: /dismiss/i });
-      dismissButton.focus();
-      
-      fireEvent.keyDown(dismissButton, { key: 'Enter' });
-      expect(mockOnDismiss).toHaveBeenCalled();
+      const alertElement = screen.getByRole('alert');
+      expect(alertElement).toBeInTheDocument();
+      expect(alertElement).toHaveAttribute('role', 'alert');
     });
   });
 
-  describe('Animation and Transitions', () => {
-    it('supports fade-in animation', () => {
+  describe('MUI Integration', () => {
+    it('uses MUI Alert component classes', () => {
       render(
-        <Alert animate>
-          <AlertDescription>Animated alert</AlertDescription>
+        <Alert>
+          <AlertDescription>MUI Alert</AlertDescription>
         </Alert>
       );
       
       const alertElement = screen.getByRole('alert');
-      expect(alertElement).toHaveClass('animate-fade-in');
+      expect(alertElement).toHaveClass('MuiAlert-root');
     });
 
-    it('supports slide-in animation', () => {
+    it('supports MUI severity mapping', () => {
       render(
-        <Alert animate="slide">
-          <AlertDescription>Slide animated alert</AlertDescription>
+        <Alert variant="destructive">
+          <AlertDescription>Error alert</AlertDescription>
         </Alert>
       );
       
       const alertElement = screen.getByRole('alert');
-      expect(alertElement).toHaveClass('animate-slide-in');
+      expect(alertElement).toHaveClass('MuiAlert-colorError');
     });
   });
 

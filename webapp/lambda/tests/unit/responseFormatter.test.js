@@ -1,6 +1,6 @@
 const responseFormatter = require("../../utils/responseFormatter");
 
-describe("responseFormatter", () => {
+describe("API Response Formatter - Standardizes all API responses", () => {
   beforeEach(() => {
     // Mock Date to ensure consistent timestamps in tests
     jest
@@ -12,8 +12,8 @@ describe("responseFormatter", () => {
     jest.restoreAllMocks();
   });
 
-  describe("success", () => {
-    test("should format successful response with default status code", () => {
+  describe("Success Response Formatting - Handles successful API calls", () => {
+    test("formats successful stock data response with default 200 status", () => {
       const data = { message: "Success" };
       const result = responseFormatter.success(data);
 
@@ -27,7 +27,7 @@ describe("responseFormatter", () => {
       });
     });
 
-    test("should format successful response with custom status code", () => {
+    test("formats new watchlist creation with 201 status code", () => {
       const data = { id: 123 };
       const result = responseFormatter.success(data, 201);
 
@@ -41,7 +41,7 @@ describe("responseFormatter", () => {
       });
     });
 
-    test("should include metadata in response", () => {
+    test("formats stock list with pagination metadata", () => {
       const data = { items: [] };
       const meta = { total: 0, page: 1 };
       const result = responseFormatter.success(data, 200, meta);
@@ -76,8 +76,8 @@ describe("responseFormatter", () => {
     });
   });
 
-  describe("error", () => {
-    test("should format error response with default status code", () => {
+  describe("Error Response Formatting - Handles API failures with troubleshooting", () => {
+    test("formats database connection error with default 400 status and troubleshooting", () => {
       const result = responseFormatter.error("Something went wrong");
 
       expect(result).toEqual({
@@ -85,6 +85,7 @@ describe("responseFormatter", () => {
           success: false,
           error: "Something went wrong",
           timestamp: "2022-01-01T00:00:00.000Z",
+          service: "financial-platform",
         },
         statusCode: 400,
       });
@@ -98,6 +99,7 @@ describe("responseFormatter", () => {
           success: false,
           error: "Not found",
           timestamp: "2022-01-01T00:00:00.000Z",
+          service: "financial-platform",
         },
         statusCode: 404,
       });
@@ -115,6 +117,7 @@ describe("responseFormatter", () => {
         success: false,
         error: "Validation failed",
         timestamp: "2022-01-01T00:00:00.000Z",
+        service: "financial-platform",
         code: "VALIDATION_ERROR",
         field: "email",
         stack: "Error stack trace",
@@ -227,14 +230,25 @@ describe("responseFormatter", () => {
           error: "Validation failed",
           errors: errors,
           type: "validation_error",
+          service: "financial-platform-validation",
           timestamp: "2022-01-01T00:00:00.000Z",
+          troubleshooting: {
+            suggestion: "Check the provided data against the required format and constraints",
+            requirements: "All required fields must be provided with valid values",
+            steps: [
+              "1. Review the specific validation errors listed above",
+              "2. Ensure all required fields are included in your request",
+              "3. Check data types and formats match the expected schema",
+              "4. Verify numeric values are within acceptable ranges"
+            ]
+          }
         },
         statusCode: 422,
       });
     });
 
-    test("should handle single validation error", () => {
-      const error = { field: "username", message: "Username already exists" };
+    test("formats invalid stock symbol validation error with troubleshooting steps", () => {
+      const error = { field: "symbol", message: "Stock symbol must be 1-5 uppercase letters" };
       const result = responseFormatter.validationError([error]);
 
       expect(result.response.errors).toEqual([error]);
@@ -257,7 +271,18 @@ describe("responseFormatter", () => {
           success: false,
           error: "Unauthorized access",
           type: "unauthorized_error",
+          service: "financial-platform-auth",
           timestamp: "2022-01-01T00:00:00.000Z",
+          troubleshooting: {
+            suggestion: "Verify that you are logged in and have a valid authentication token",
+            requirements: "Valid JWT token in Authorization header (Bearer <token>)",
+            steps: [
+              "1. Check if you are logged in to the application",
+              "2. Verify your session hasn't expired",
+              "3. Try refreshing the page or logging out and back in",
+              "4. Contact support if the issue persists"
+            ]
+          }
         },
         statusCode: 401,
       });
@@ -276,7 +301,18 @@ describe("responseFormatter", () => {
         success: false,
         error: "Token expired",
         type: "unauthorized_error",
+        service: "financial-platform-auth",
         timestamp: "2022-01-01T00:00:00.000Z",
+        troubleshooting: {
+          suggestion: "Verify that you are logged in and have a valid authentication token",
+          requirements: "Valid JWT token in Authorization header (Bearer <token>)",
+          steps: [
+            "1. Check if you are logged in to the application",
+            "2. Verify your session hasn't expired",
+            "3. Try refreshing the page or logging out and back in",
+            "4. Contact support if the issue persists"
+          ]
+        }
       });
     });
   });
@@ -290,7 +326,18 @@ describe("responseFormatter", () => {
           success: false,
           error: "Resource not found",
           type: "not_found_error",
+          service: "financial-platform",
           timestamp: "2022-01-01T00:00:00.000Z",
+          troubleshooting: {
+            suggestion: "The requested resource could not be located",
+            requirements: "Resource must exist in the system and be accessible to your account",
+            steps: [
+              "1. Verify the resource identifier (ID, symbol, etc.) is correct",
+              "2. Check that you have permission to access this resource",
+              "3. Ensure the resource hasn't been moved or deleted",
+              "4. Try refreshing the page or searching for the resource again"
+            ]
+          }
         },
         statusCode: 404,
       });
@@ -312,7 +359,18 @@ describe("responseFormatter", () => {
           success: false,
           error: "Internal server error",
           type: "server_error",
+          service: "financial-platform",
           timestamp: "2022-01-01T00:00:00.000Z",
+          troubleshooting: {
+            suggestion: "This is a temporary server issue. Please try again in a few moments",
+            requirements: "Server should be operational - this may be a temporary outage",
+            steps: [
+              "1. Wait 30 seconds and try the request again",
+              "2. Check if other features are working normally",
+              "3. Clear your browser cache and cookies if the issue persists",
+              "4. Contact technical support if the error continues"
+            ]
+          }
         },
         statusCode: 500,
       });
@@ -335,7 +393,18 @@ describe("responseFormatter", () => {
         success: false,
         error: "Database connection failed",
         type: "server_error",
+        service: "financial-platform",
         timestamp: "2022-01-01T00:00:00.000Z",
+        troubleshooting: {
+          suggestion: "This is a temporary server issue. Please try again in a few moments",
+          requirements: "Server should be operational - this may be a temporary outage",
+          steps: [
+            "1. Wait 30 seconds and try the request again",
+            "2. Check if other features are working normally",
+            "3. Clear your browser cache and cookies if the issue persists",
+            "4. Contact technical support if the error continues"
+          ]
+        },
         stack: "Error stack trace",
         code: "DB_CONNECTION_ERROR",
       });
@@ -357,12 +426,57 @@ describe("responseFormatter", () => {
         success: false,
         error: "Something went wrong",
         type: "server_error",
+        service: "financial-platform",
         timestamp: "2022-01-01T00:00:00.000Z",
+        troubleshooting: {
+          suggestion: "This is a temporary server issue. Please try again in a few moments",
+          requirements: "Server should be operational - this may be a temporary outage",
+          steps: [
+            "1. Wait 30 seconds and try the request again",
+            "2. Check if other features are working normally",
+            "3. Clear your browser cache and cookies if the issue persists",
+            "4. Contact technical support if the error continues"
+          ]
+        },
         stack: "Error stack trace",
         internalCode: "SECRET",
       });
 
       process.env.NODE_ENV = originalEnv;
+    });
+  });
+
+  describe("forbidden", () => {
+    test("should format forbidden response with default message", () => {
+      const result = responseFormatter.forbidden();
+
+      expect(result).toEqual({
+        response: {
+          success: false,
+          error: "Access forbidden",
+          type: "forbidden_error",
+          service: "financial-platform-auth",
+          timestamp: "2022-01-01T00:00:00.000Z",
+          troubleshooting: {
+            suggestion: "Check that your account has the required permissions for this resource",
+            requirements: "Sufficient user permissions or elevated access level",
+            steps: [
+              "1. Verify your account type and permissions",
+              "2. Check if this feature requires premium access",
+              "3. Contact administrator to request additional permissions",
+              "4. Try accessing a different resource that matches your permission level"
+            ]
+          }
+        },
+        statusCode: 403,
+      });
+    });
+
+    test("should format forbidden response with custom message", () => {
+      const result = responseFormatter.forbidden("Insufficient permissions for this operation");
+
+      expect(result.response.error).toBe("Insufficient permissions for this operation");
+      expect(result.statusCode).toBe(403);
     });
   });
 });

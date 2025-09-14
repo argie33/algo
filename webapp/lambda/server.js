@@ -18,10 +18,14 @@ const calendarRoutes = require("./routes/calendar");
 const commoditiesRoutes = require("./routes/commodities");
 const dashboardRoutes = require("./routes/dashboard");
 const dataRoutes = require("./routes/data");
+const dividendRoutes = require("./routes/dividend");
+const earningsRoutes = require("./routes/earnings");
 const economicRoutes = require("./routes/economic");
+const etfRoutes = require("./routes/etf");
 const diagnosticsRoutes = require("./routes/diagnostics");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
+const insiderRoutes = require("./routes/insider");
 const liveDataRoutes = require("./routes/liveData");
 const marketRoutes = require("./routes/market");
 const metricsRoutes = require("./routes/metrics");
@@ -32,6 +36,7 @@ const portfolioRoutes = require("./routes/portfolio");
 const positioningRoutes = require("./routes/positioning");
 const priceRoutes = require("./routes/price");
 const recommendationsRoutes = require("./routes/recommendations");
+const researchRoutes = require("./routes/research");
 const riskRoutes = require("./routes/risk");
 const scoringRoutes = require("./routes/scoring");
 const scoresRoutes = require("./routes/scores");
@@ -40,11 +45,13 @@ const sectorsRoutes = require("./routes/sectors");
 const sentimentRoutes = require("./routes/sentiment");
 const settingsRoutes = require("./routes/settings");
 const signalsRoutes = require("./routes/signals");
+// const socialRoutes = require("./routes/social"); // Social trading removed - not implemented
 const stockRoutes = require("./routes/stocks");
 const strategyBuilderRoutes = require("./routes/strategyBuilder");
 const technicalRoutes = require("./routes/technical");
 const tradingRoutes = require("./routes/trading");
 const tradesRoutes = require("./routes/trades");
+const userRoutes = require("./routes/user");
 const watchlistRoutes = require("./routes/watchlist");
 const websocketRoutes = require("./routes/websocket");
 
@@ -96,8 +103,16 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("combined"));
 }
 
-// Body parsing
-app.use(express.json({ limit: "10mb" }));
+// Body parsing with error handling
+app.use(express.json({ 
+  limit: "10mb",
+  // Add error handling for invalid JSON
+  verify: (req, res, buf, encoding) => {
+    if (buf && buf.length) {
+      req.rawBody = buf.toString(encoding || 'utf8');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Response formatter middleware (adds res.success and res.error)
@@ -112,6 +127,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/stocks", stockRoutes);
 app.use("/api/strategies", strategyBuilderRoutes);
+app.use("/api/strategy-builder", strategyBuilderRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/health", healthRoutes);
@@ -122,10 +138,14 @@ app.use("/api/calendar", calendarRoutes);
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/data", dataRoutes);
+app.use("/api/dividend", dividendRoutes);
+app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
+app.use("/api/etf", etfRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/financials", financialRoutes);
-app.use("/api/live-data", liveDataRoutes);
+app.use("/api/insider", insiderRoutes);
+app.use("/api/livedata", liveDataRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/orders", ordersRoutes);
 app.use("/api/performance", performanceRoutes);
@@ -133,6 +153,7 @@ app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/positioning", positioningRoutes);
 app.use("/api/price", priceRoutes);
 app.use("/api/recommendations", recommendationsRoutes);
+app.use("/api/research", researchRoutes);
 app.use("/api/risk", riskRoutes);
 app.use("/api/scoring", scoringRoutes);
 app.use("/api/scores", scoresRoutes);
@@ -141,9 +162,11 @@ app.use("/api/sectors", sectorsRoutes);
 app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/signals", signalsRoutes);
+// app.use("/api/social", socialRoutes); // Social trading removed - not implemented
 app.use("/api/technical", technicalRoutes);
 app.use("/api/trading", tradingRoutes);
 app.use("/api/trades", tradesRoutes);
+app.use("/api/user", userRoutes);
 app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/websocket", websocketRoutes);
 
@@ -157,6 +180,8 @@ app.get("/health", (req, res) => {
     version: "1.0.0",
   });
 });
+
+// All endpoints now use real database data - no mock endpoints needed
 
 // API info endpoint
 app.get("/api", (req, res) => {
@@ -179,50 +204,6 @@ app.get("/api", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-// Mock endpoints for development
-if (process.env.NODE_ENV !== "production") {
-  app.get("/api/stocks", (req, res) => {
-    res.json({
-      success: true,
-      data: [
-        { symbol: "AAPL", name: "Apple Inc.", price: 150.0 },
-        { symbol: "GOOGL", name: "Alphabet Inc.", price: 2800.0 },
-        { symbol: "MSFT", name: "Microsoft Corporation", price: 300.0 },
-      ],
-      message: "Mock stock data for development",
-    });
-  });
-
-  app.get("/api/market", (req, res) => {
-    res.json({
-      success: true,
-      data: {
-        sp500: { value: 4500, change: 25.5, changePercent: 0.57 },
-        nasdaq: { value: 14000, change: -50.2, changePercent: -0.36 },
-        dow: { value: 35000, change: 100.0, changePercent: 0.29 },
-      },
-      message: "Mock market data for development",
-    });
-  });
-
-  app.get("/api/health/full", (req, res) => {
-    res.json({
-      status: "healthy",
-      healthy: true,
-      service: "Financial Dashboard API",
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-      memory: process.memoryUsage(),
-      uptime: process.uptime(),
-      database: { status: "mock_mode" },
-      api: {
-        version: "1.0.0",
-        environment: process.env.NODE_ENV || "development",
-      },
-    });
-  });
-}
 
 // Default route
 app.get("/", (req, res) => {
@@ -256,8 +237,38 @@ app.get("/", (req, res) => {
 
 // Error handling
 app.use((err, req, res, _next) => {
-  console.error("Error:", err);
+  try {
+    console.error("Error:", err);
+  } catch (e) {
+    // Ignore console logging errors
+  }
+  
+  // Handle JSON parsing errors specifically
+  if (err.type === 'entity.parse.failed' || err.name === 'SyntaxError') {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid JSON format",
+      message: "Request body contains malformed JSON",
+      details: process.env.NODE_ENV === 'development' ? {
+        body: err.body || (req.rawBody ? req.rawBody.substring(0, 200) : 'No body'),
+        parseError: err.message
+      } : undefined,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Handle other client errors
+  if (err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({
+      success: false,
+      error: err.message || "Bad Request",
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Handle server errors
   res.status(500).json({
+    success: false,
     error: "Internal Server Error",
     message:
       process.env.NODE_ENV === "development"
@@ -270,6 +281,7 @@ app.use((err, req, res, _next) => {
 // 404 handler
 app.use("*", (req, res) => {
   res.status(404).json({
+    success: false,
     error: "Not Found",
     message: `Route ${req.originalUrl} not found`,
     timestamp: new Date().toISOString(),

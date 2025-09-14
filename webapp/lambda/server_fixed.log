@@ -1,0 +1,135 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/technical/overview
+Initializing database connection...
+Initializing database connection pool...
+Getting DB credentials from Secrets Manager...
+Failed to get secrets from Secrets Manager, falling back to environment variables: Invalid name. Must be a valid name containing alphanumeric characters, or any of the following: -/_+=.@!
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Database schema initialization completed
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+::1 - - [09/Sep/2025:15:33:22 +0000] "GET /api/technical/overview HTTP/1.1" 200 4475 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+Available earnings_reports columns: [
+  'symbol',
+  'report_date',
+  'quarter',
+  'year',
+  'revenue',
+  'net_income',
+  'eps_reported',
+  'eps_estimate',
+  'surprise_percent'
+]
+Using select columns: [ 'symbol', 'report_date', 'quarter', 'year', 'surprise_percent' ]
+::1 - - [09/Sep/2025:15:33:34 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "curl/8.5.0"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::1 - - [09/Sep/2025:15:33:40 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "curl/8.5.0"
+Processing request: GET /api/sectors/performance
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+📈 Sector performance requested, period: 1m, limit: 10
+Database query error: {
+  error: 'column "close_price" does not exist',
+  query: '\n' +
+    '      WITH sector_performance AS (\n' +
+    '        SELECT \n' +
+    '          cp.sector,\n' +
+    '          COUNT(DISTINCT cp...',
+  params: [ 10 ]
+}
+Sector performance error: error: column "close_price" does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:744:20)
+    at async /home/stocks/algo/webapp/lambda/routes/sectors.js:414:20 {
+  length: 112,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '739',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [09/Sep/2025:15:33:46 +0000] "GET /api/sectors/performance HTTP/1.1" 500 112 "-" "curl/8.5.0"
+Processing request: GET /api/sectors/performance
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+📈 Sector performance requested, period: 1m, limit: 10
+Database query error: {
+  error: 'column "close_price" does not exist',
+  query: '\n' +
+    '      WITH sector_performance AS (\n' +
+    '        SELECT \n' +
+    '          cp.sector,\n' +
+    '          COUNT(DISTINCT cp...',
+  params: [ 10 ]
+}
+Sector performance error: error: column "close_price" does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:744:20)
+    at async /home/stocks/algo/webapp/lambda/routes/sectors.js:414:20 {
+  length: 112,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '739',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [09/Sep/2025:15:34:31 +0000] "GET /api/sectors/performance HTTP/1.1" 500 112 "-" "curl/8.5.0"
+Terminated

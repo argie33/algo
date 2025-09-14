@@ -10,7 +10,7 @@
  * - Conversation export and management
  */
 
-import { Send, Copy, RotateCcw, ThumbsUp, ThumbsDown, Download, Play } from 'lucide-react';
+import { Send, ContentCopy as Copy, Refresh as RotateCcw, ThumbUp as ThumbsUp, ThumbDown as ThumbsDown, Download, PlayArrow as Play } from '@mui/icons-material';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';

@@ -251,12 +251,10 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 12 }}
-                tickFormatter={formatDate}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
                 domain={["auto", "auto"]}
-                tickFormatter={(value) => `$${value?.toFixed(2)}`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line
@@ -264,8 +262,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
                 dataKey="close"
                 stroke="#1976d2"
                 strokeWidth={2}
-                dot={false}
-                connectNulls={false}
+                dot={{r: 0}}
               />
             </LineChart>
           </ResponsiveContainer>

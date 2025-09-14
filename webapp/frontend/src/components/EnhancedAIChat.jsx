@@ -18,7 +18,9 @@ import {
   Share as ShareIcon,
   ThumbUp as ThumbUpIcon,
   ThumbDown as ThumbDownIcon,
-  ContentCopy as CopyIcon
+  ContentCopy as CopyIcon,
+  Edit as EditIcon,
+  Reply as ReplyIcon
 } from '@mui/icons-material';
 import {
   Box,
@@ -101,6 +103,8 @@ const EnhancedAIChat = () => {
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [bookmarkedMessages, setBookmarkedMessages] = useState(new Set());
+  const [feedback, setFeedback] = useState({}); // { messageId: 'thumbup' | 'thumbdown' }
   
   // Enhanced features state
   const [streamingEnabled, setStreamingEnabled] = useState(true);
@@ -326,27 +330,50 @@ const EnhancedAIChat = () => {
         navigator.clipboard.writeText(message.content);
         break;
       case 'bookmark':
-        // Implement bookmark functionality
-        console.log('Bookmark message:', message.id);
+        setBookmarkedMessages(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(message.id)) {
+            newSet.delete(message.id);
+          } else {
+            newSet.add(message.id);
+          }
+          return newSet;
+        });
         break;
       case 'share':
-        // Implement share functionality
-        console.log('Share message:', message.id);
+        if (navigator.share) {
+          navigator.share({
+            title: 'AI Chat Message',
+            text: message.content,
+            url: window.location.href
+          }).catch(err => console.error('Error sharing:', err));
+        } else {
+          // Fallback to clipboard
+          navigator.clipboard.writeText(`AI Chat Message: ${message.content}`);
+          alert('Message copied to clipboard!');
+        }
         break;
       case 'thumbup':
-        // Implement feedback functionality
-        console.log('Thumbs up:', message.id);
+        setFeedback(prev => ({
+          ...prev,
+          [message.id]: prev[message.id] === 'thumbup' ? null : 'thumbup'
+        }));
         break;
       case 'thumbdown':
-        // Implement feedback functionality
-        console.log('Thumbs down:', message.id);
+        setFeedback(prev => ({
+          ...prev,
+          [message.id]: prev[message.id] === 'thumbdown' ? null : 'thumbdown'
+        }));
         break;
       case 'edit':
-        // Implement edit functionality
-        console.log('Edit message:', message.id);
+        if (message.type === 'user') {
+          setInputMessage(message.content);
+          inputRef.current?.focus();
+          // Remove the message being edited
+          setMessages(prev => prev.filter(m => m.id !== message.id));
+        }
         break;
       case 'reply':
-        // Implement reply functionality
         setInputMessage(`Regarding "${message.content.substring(0, 50)}...": `);
         inputRef.current?.focus();
         break;
@@ -360,7 +387,40 @@ const EnhancedAIChat = () => {
   // Search functionality
   const handleSearch = (query) => {
     setSearchQuery(query);
-    // Implement search logic
+    
+    if (!query.trim()) {
+      return; // No search if empty query
+    }
+
+    // Filter messages based on search query
+    const filteredMessages = messages.filter(message => {
+      const searchTerm = query.toLowerCase();
+      return (
+        message.content.toLowerCase().includes(searchTerm) ||
+        (message.type === 'user' && message.content.toLowerCase().includes(searchTerm)) ||
+        (message.suggestions && message.suggestions.some(suggestion => 
+          suggestion.toLowerCase().includes(searchTerm)
+        ))
+      );
+    });
+
+    // Scroll to first matching message if found
+    if (filteredMessages.length > 0) {
+      const firstMatch = filteredMessages[0];
+      const messageElement = messageRefs.current[firstMatch.id];
+      if (messageElement) {
+        messageElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Highlight the message temporarily
+        messageElement.style.backgroundColor = '#fff3cd';
+        setTimeout(() => {
+          messageElement.style.backgroundColor = '';
+        }, 2000);
+      }
+    }
   };
 
   // Clear chat with confirmation
@@ -474,6 +534,8 @@ const EnhancedAIChat = () => {
   // Render enhanced message with actions
   const renderMessage = (message) => {
     const isUser = message.type === 'user';
+    const isBookmarked = bookmarkedMessages.has(message.id);
+    const messageFeedback = feedback[message.id];
     
     return (
       <ListItem 
@@ -506,12 +568,32 @@ const EnhancedAIChat = () => {
               color: isUser ? 'primary.contrastText' : 'text.primary',
               borderRadius: 2,
               position: 'relative',
-              ...(message.isError && { bgcolor: 'error.light' })
+              ...(message.isError && { bgcolor: 'error.light' }),
+              ...(isBookmarked && { 
+                border: '2px solid',
+                borderColor: 'primary.main',
+                bgcolor: isUser ? 'primary.light' : 'primary.50'
+              })
             }}
           >
-            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-              {message.content}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', flex: 1 }}>
+                {message.content}
+              </Typography>
+              
+              {/* Status indicators */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+                {isBookmarked && (
+                  <BookmarkIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                )}
+                {messageFeedback === 'thumbup' && (
+                  <ThumbUpIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                )}
+                {messageFeedback === 'thumbdown' && (
+                  <ThumbDownIcon sx={{ fontSize: 16, color: 'error.main' }} />
+                )}
+              </Box>
+            </Box>
             
             {/* Enhanced metadata display */}
             {message.enhanced && message.metadata && (
@@ -650,7 +732,7 @@ const EnhancedAIChat = () => {
         {/* Enhanced Quick Actions */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {(quickActions || []).map((action) => (
-            <Grid item xs={12} sm={6} md={3} key={`quickaction-${action.category}-${action.title.replace(/\s+/g, '')}`}>
+            <Grid item xs={12} sm={6} md={3} key={`quickaction-${action.color || 'unknown'}-${(action.text || 'untitled').replace(/\s+/g, '')}`}>
               <Card 
                 sx={{ 
                   cursor: 'pointer',
@@ -735,19 +817,22 @@ const EnhancedAIChat = () => {
               />
               
               <Tooltip title={isStreaming ? "Stop streaming" : "Send message"}>
-                <IconButton 
-                  color="primary" 
-                  onClick={isStreaming ? handleStopStreaming : () => handleSendMessage()}
-                  disabled={(!inputMessage.trim() && !isStreaming) || isLoading}
-                  sx={{ 
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'primary.dark' },
-                    '&:disabled': { bgcolor: 'grey.300' }
-                  }}
-                >
-                  {isStreaming ? <StopIcon /> : <SendIcon />}
-                </IconButton>
+                <span>
+                  <IconButton 
+                    color="primary" 
+                    onClick={isStreaming ? handleStopStreaming : () => handleSendMessage()}
+                    disabled={(!inputMessage.trim() && !isStreaming) || isLoading}
+                    aria-label={isStreaming ? "Stop streaming" : "Send message"}
+                    sx={{ 
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      '&:hover': { bgcolor: 'primary.dark' },
+                      '&:disabled': { bgcolor: 'grey.300' }
+                    }}
+                  >
+                    {isStreaming ? <StopIcon /> : <SendIcon />}
+                  </IconButton>
+                </span>
               </Tooltip>
             </Box>
             
@@ -776,27 +861,40 @@ const EnhancedAIChat = () => {
           open={Boolean(optionsMenuAnchor)}
           onClose={() => setOptionsMenuAnchor(null)}
         >
-          {selectedMessageId ? (
-            // Message-specific actions
-            [
-              <MenuItem key="bookmark" onClick={() => handleMessageAction('bookmark', messages.find(m => m.id === selectedMessageId))}>
-                <BookmarkIcon sx={{ mr: 1 }} />
-                Bookmark
+          {selectedMessageId ? (() => {
+            const message = messages.find(m => m.id === selectedMessageId);
+            const isBookmarked = bookmarkedMessages.has(selectedMessageId);
+            const currentFeedback = feedback[selectedMessageId];
+            
+            return [
+              <MenuItem key="bookmark" onClick={() => handleMessageAction('bookmark', message)}>
+                <BookmarkIcon sx={{ mr: 1, color: isBookmarked ? 'primary.main' : 'inherit' }} />
+                {isBookmarked ? 'Remove Bookmark' : 'Bookmark'}
               </MenuItem>,
-              <MenuItem key="share" onClick={() => handleMessageAction('share', messages.find(m => m.id === selectedMessageId))}>
+              <MenuItem key="share" onClick={() => handleMessageAction('share', message)}>
                 <ShareIcon sx={{ mr: 1 }} />
                 Share
               </MenuItem>,
-              <MenuItem key="thumbup" onClick={() => handleMessageAction('thumbup', messages.find(m => m.id === selectedMessageId))}>
-                <ThumbUpIcon sx={{ mr: 1 }} />
+              <MenuItem key="thumbup" onClick={() => handleMessageAction('thumbup', message)}>
+                <ThumbUpIcon sx={{ mr: 1, color: currentFeedback === 'thumbup' ? 'success.main' : 'inherit' }} />
                 Helpful
               </MenuItem>,
-              <MenuItem key="thumbdown" onClick={() => handleMessageAction('thumbdown', messages.find(m => m.id === selectedMessageId))}>
-                <ThumbDownIcon sx={{ mr: 1 }} />
+              <MenuItem key="thumbdown" onClick={() => handleMessageAction('thumbdown', message)}>
+                <ThumbDownIcon sx={{ mr: 1, color: currentFeedback === 'thumbdown' ? 'error.main' : 'inherit' }} />
                 Not Helpful
+              </MenuItem>,
+              ...(message?.type === 'user' ? [
+                <MenuItem key="edit" onClick={() => handleMessageAction('edit', message)}>
+                  <EditIcon sx={{ mr: 1 }} />
+                  Edit Message
+                </MenuItem>
+              ] : []),
+              <MenuItem key="reply" onClick={() => handleMessageAction('reply', message)}>
+                <ReplyIcon sx={{ mr: 1 }} />
+                Reply
               </MenuItem>
-            ]
-          ) : (
+            ];
+          })() : (
             // General actions
             [
               <MenuItem key="export" onClick={handleExportConversation}>

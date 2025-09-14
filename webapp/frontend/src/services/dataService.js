@@ -87,7 +87,25 @@ class DataService {
         fetchOptions.body = JSON.stringify(options.body);
       }
 
-      const response = await fetch(fullUrl, fetchOptions);
+      // Add timeout and performance monitoring based on testing insights
+      const startTime = Date.now();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+      );
+      
+      const response = await Promise.race([
+        fetch(fullUrl, fetchOptions),
+        timeoutPromise
+      ]);
+
+      const duration = Date.now() - startTime;
+
+      // Log slow requests based on testing insights
+      if (duration > 10000) {
+        console.warn(`⚠️ Very slow API request (${duration}ms):`, fullUrl);
+      } else if (duration > 5000) {
+        console.warn(`⏱️ Slow API request (${duration}ms):`, fullUrl);
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -151,7 +169,7 @@ class DataService {
     }
 
     // Fallback to environment variable
-    return import.meta.env.VITE_API_URL || "http://localhost:3001";
+    return (import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001";
   }
 
   // Get authentication token

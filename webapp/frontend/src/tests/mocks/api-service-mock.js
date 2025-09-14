@@ -136,15 +136,6 @@ export const createApiServiceMock = () => ({
   getPortfolioHoldings: vi.fn(() => 
     Promise.resolve({ data: createMockPortfolioData().holdings })
   ),
-  getPortfolioPerformance: vi.fn(() => 
-    Promise.resolve({ 
-      data: {
-        totalReturn: 12.5,
-        monthlyReturns: [1.2, 2.1, -0.5, 3.2, 1.8],
-        benchmarkComparison: { portfolio: 12.5, benchmark: 10.2 }
-      }
-    })
-  ),
   getPortfolioAnalytics: vi.fn((_timeframe = "1Y") => 
     Promise.resolve({
       success: true,
@@ -191,6 +182,15 @@ export const createApiServiceMock = () => ({
         { name: 'Technology', performance: 2.5 },
         { name: 'Healthcare', performance: 1.2 },
         { name: 'Finance', performance: -0.8 }
+      ]
+    })
+  ),
+  getTopStocks: vi.fn(() => 
+    Promise.resolve({
+      data: [
+        { symbol: 'AAPL', price: 150.25, change: 2.50, changePercent: 1.69 },
+        { symbol: 'MSFT', price: 280.50, change: -1.25, changePercent: -0.44 },
+        { symbol: 'GOOGL', price: 2750.80, change: 15.30, changePercent: 0.56 }
       ]
     })
   ),
@@ -454,7 +454,6 @@ export const api = mockInstance;
 // Export individual functions that some tests expect
 export const getPortfolioData = mockInstance.getPortfolioData;
 export const getPortfolioHoldings = mockInstance.getPortfolioHoldings; 
-export const getPortfolioPerformance = mockInstance.getPortfolioPerformance;
 export const getPortfolioAnalytics = mockInstance.getPortfolioAnalytics;
 export const getStockPrices = mockInstance.getStockPrices;
 export const getStockQuote = mockInstance.getStockQuote;

@@ -441,7 +441,7 @@ function StockScreener() {
       id: "qualityScore",
       label: "Quality",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 80,
       isFactorScore: true,
     },
@@ -449,7 +449,7 @@ function StockScreener() {
       id: "growthScore",
       label: "Growth",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 80,
       isFactorScore: true,
     },
@@ -457,7 +457,7 @@ function StockScreener() {
       id: "valueScore",
       label: "Value",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 80,
       isFactorScore: true,
     },
@@ -465,7 +465,7 @@ function StockScreener() {
       id: "momentumScore",
       label: "Momentum",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 90,
       isFactorScore: true,
     },
@@ -473,7 +473,7 @@ function StockScreener() {
       id: "sentimentScore",
       label: "Sentiment",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 90,
       isFactorScore: true,
     },
@@ -481,7 +481,7 @@ function StockScreener() {
       id: "positioningScore",
       label: "Positioning",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 100,
       isFactorScore: true,
     },
@@ -489,7 +489,7 @@ function StockScreener() {
       id: "compositeScore",
       label: "Composite",
       sortable: true,
-      format: (_val) => `${Math.round(Math.random() * 40 + 40)}/100`,
+      format: (_val) => `50/100`, // Default neutral score
       width: 90,
       isFactorScore: true,
     },

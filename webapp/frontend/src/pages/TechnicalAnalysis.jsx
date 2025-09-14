@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery } from "../hooks/useData";
+import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
   Box,
@@ -46,11 +46,13 @@ function TechnicalAnalysis() {
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [orderBy, setOrderBy] = useState("symbol");
-  const [order, setOrder] = useState("asc");
+  const [orderBy] = useState("symbol");
+  const [order] = useState("asc");
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
   const navigate = useNavigate();
+  
+  
   // --- FIX: Move these above useQuery ---
   const [indicatorFilter, setIndicatorFilter] = useState("");
   const [indicatorMin, setIndicatorMin] = useState("");
@@ -128,6 +130,7 @@ function TechnicalAnalysis() {
     refetchOnMount: false,
   });
 
+
   // Update activeFilters count (consolidated from duplicate useEffects)
   useEffect(() => {
     let count = 0;
@@ -151,11 +154,6 @@ function TechnicalAnalysis() {
     setPage(0);
   };
 
-  const _handleSort = (column) => {
-    const isAsc = orderBy === column && order === "asc";
-    setOrder(isAsc ? "desc" : "asc");
-    setOrderBy(column);
-  };
   const handlePageChange = (event, newPage) => {
     setPage(newPage);
   };
@@ -243,100 +241,140 @@ function TechnicalAnalysis() {
               sx={{
                 backgroundColor: expandedRow === idx ? "grey.100" : "grey.50",
                 "&:hover": { backgroundColor: "grey.200" },
+                minHeight: 100,
+                '& .MuiAccordionSummary-content': {
+                  margin: '16px 0',
+                  flexDirection: 'column',
+                },
               }}
             >
-              <Grid container alignItems="center" spacing={2}>
-                <Grid item xs={2}>
-                  <Typography variant="h6" fontWeight="bold">
-                    {row.symbol}
-                  </Typography>
-                  {row.company_name && (
-                    <Typography variant="body2" color="text.secondary">
-                      {row.company_name}
-                    </Typography>
-                  )}
-                  <Typography variant="caption" color="text.secondary">
-                    {formatDate(row.date)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={2}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {getIconComponent(getTechStatus("rsi", row.rsi).icon)}
-                    <Typography
-                      variant="body2"
-                      color={getTechStatus("rsi", row.rsi).color}
-                      fontWeight="bold"
-                    >
-                      RSI: {formatNumber(row.rsi)}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={2}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {getIconComponent(getTechStatus("macd", row.macd).icon)}
-                    <Typography
-                      variant="body2"
-                      color={getTechStatus("macd", row.macd).color}
-                      fontWeight="bold"
-                    >
-                      MACD: {formatNumber(row.macd)}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={2}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {getIconComponent(getTechStatus("adx", row.adx).icon)}
-                    <Typography
-                      variant="body2"
-                      color={getTechStatus("adx", row.adx).color}
-                      fontWeight="bold"
-                    >
-                      ADX: {formatNumber(row.adx)}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={2}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {getIconComponent(getTechStatus("atr", row.atr).icon)}
-                    <Typography
-                      variant="body2"
-                      color={getTechStatus("atr", row.atr).color}
-                      fontWeight="bold"
-                    >
-                      ATR: {formatNumber(row.atr)}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={2}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {getIconComponent(getTechStatus("mfi", row.mfi).icon)}
-                    <Typography
-                      variant="body2"
-                      color={getTechStatus("mfi", row.mfi).color}
-                      fontWeight="bold"
-                    >
-                      MFI: {formatNumber(row.mfi)}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12}>
-                  <Divider sx={{ my: 1 }} />
-                  <Grid container spacing={2}>
-                    <Grid item xs={2}>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Price:
+              <Box sx={{ width: '100%' }}>
+                {/* Top row - Symbol and key metrics */}
+                <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={12} sm={3}>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        {row.symbol}
+                      </Typography>
+                      {row.company_name && (
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {row.company_name}
                         </Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          $
-                          {row.current_price
-                            ? formatNumber(row.current_price, 2)
-                            : "N/A"}
+                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {formatDate(row.date)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        RSI
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        {getIconComponent(getTechStatus("rsi", row.rsi).icon)}
+                        <Typography
+                          variant="body2"
+                          color={getTechStatus("rsi", row.rsi).color}
+                          fontWeight="bold"
+                        >
+                          {formatNumber(row.rsi)}
                         </Typography>
                       </Box>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Box display="flex" alignItems="center" gap={1}>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        MACD
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        {getIconComponent(getTechStatus("macd", row.macd).icon)}
+                        <Typography
+                          variant="body2"
+                          color={getTechStatus("macd", row.macd).color}
+                          fontWeight="bold"
+                        >
+                          {formatNumber(row.macd)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        ADX
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        {getIconComponent(getTechStatus("adx", row.adx).icon)}
+                        <Typography
+                          variant="body2"
+                          color={getTechStatus("adx", row.adx).color}
+                          fontWeight="bold"
+                        >
+                          {formatNumber(row.adx)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={1.5}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        ATR
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        {getIconComponent(getTechStatus("atr", row.atr).icon)}
+                        <Typography
+                          variant="body2"
+                          color={getTechStatus("atr", row.atr).color}
+                          fontWeight="bold"
+                        >
+                          {formatNumber(row.atr)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={1.5}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        MFI
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        {getIconComponent(getTechStatus("mfi", row.mfi).icon)}
+                        <Typography
+                          variant="body2"
+                          color={getTechStatus("mfi", row.mfi).color}
+                          fontWeight="bold"
+                        >
+                          {formatNumber(row.mfi)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+                
+                {/* Bottom row - Price info */}
+                <Divider sx={{ mb: 1 }} />
+                <Grid container spacing={1} alignItems="center">
+                  <Grid item xs={6} sm={2}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        Price
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        $
+                        {row.current_price
+                          ? formatNumber(row.current_price, 2)
+                          : "N/A"}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        Change
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
                         {row.price_direction &&
                           getIconComponent(row.price_direction)}
                         <Typography
@@ -355,57 +393,71 @@ function TechnicalAnalysis() {
                             : "N/A"}
                         </Typography>
                       </Box>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Range:
-                        </Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {row.high_price && row.low_price
-                            ? `${formatNumber(row.low_price, 2)} - ${formatNumber(row.high_price, 2)}`
-                            : "N/A"}
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Volume:
-                        </Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {row.volume ? formatNumber(row.volume) : "N/A"}
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Open:
-                        </Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          $
-                          {row.open_price
-                            ? formatNumber(row.open_price, 2)
-                            : "N/A"}
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/technical-history/${row.symbol}`);
-                        }}
-                      >
-                        View History
-                      </Button>
-                    </Grid>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={2.5}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        Range
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold" sx={{ 
+                        fontSize: '0.8rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100%'
+                      }}>
+                        {row.high_price && row.low_price
+                          ? `${formatNumber(row.low_price, 2)} - ${formatNumber(row.high_price, 2)}`
+                          : "N/A"}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={1.5}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        Volume
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold" sx={{ 
+                        fontSize: '0.8rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100%'
+                      }}>
+                        {row.volume ? formatNumber(row.volume) : "N/A"}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={1.5}>
+                    <Box display="flex" flexDirection="column" alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary">
+                        Open
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        $
+                        {row.open_price
+                          ? formatNumber(row.open_price, 2)
+                          : "N/A"}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={1.5}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      fullWidth
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/technical-history/${row.symbol}`);
+                      }}
+                      sx={{ mt: { xs: 1, sm: 0 } }}
+                    >
+                      History
+                    </Button>
                   </Grid>
                 </Grid>
-              </Grid>
+              </Box>
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={2}>
@@ -447,11 +499,24 @@ function TechnicalAnalysis() {
     </Box>
   );
 
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box display="flex" alignItems="flex-start" gap={4}>
-        {/* Left filter/search panel */}
-        <Box minWidth={260} maxWidth={320}>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+          Technical Analysis
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Technical indicators and market screening
+        </Typography>
+      </Box>
+
+
+      {/* Technical Screener */}
+      <Box display="flex" alignItems="flex-start" gap={4} sx={{ mt: 3 }}>
+          {/* Left filter/search panel */}
+          <Box minWidth={260} maxWidth={320}>
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -627,6 +692,7 @@ function TechnicalAnalysis() {
           )}
         </Box>
       </Box>
+
     </Container>
   );
 }

@@ -1,0 +1,54 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/signals/daily
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Created/verified table: price_alerts
+✅ Created/verified table: risk_alerts
+✅ Created/verified table: stock_scores
+✅ Created/verified table: key_metrics
+✅ Created/verified table: dividend_calendar
+✅ Created/verified table: trading_strategies
+✅ Created/verified table: user_risk_limits
+✅ Created/verified table: trade_history
+✅ Created/verified table: portfolio_summary
+✅ Created/verified table: user_dashboard_settings
+✅ Database schema initialization completed
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+📊 Daily signals requested - limit: 50, page: 1
+::1 - - [12/Sep/2025:10:06:25 +0000] "GET /api/signals/daily HTTP/1.1" 200 6500 "-" "curl/8.5.0"
+Processing request: POST /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:06:27 +0000] "POST /api/portfolio/holdings HTTP/1.1" 404 632 "-" "curl/8.5.0"

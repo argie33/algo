@@ -30,6 +30,23 @@ export const formatPercentage = (value, decimals = 2) => {
   return numeral(num / 100).format(`0.${"0".repeat(decimals)}%`);
 };
 
+// Format percentage change values with proper sign display
+export const formatPercentageChange = (value, decimals = 2) => {
+  if (value === null || value === undefined) return "N/A";
+
+  const num = parseFloat(value);
+  if (isNaN(num)) return "N/A";
+
+  const formatted = numeral(Math.abs(num)).format(`0.${"0".repeat(decimals)}`);
+  if (num > 0) {
+    return `+${formatted}%`;
+  } else if (num < 0) {
+    return `-${formatted}%`;
+  } else {
+    return `${formatted}%`;
+  }
+};
+
 // Alias for formatPercentage
 export const formatPercent = formatPercentage;
 

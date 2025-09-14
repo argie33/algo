@@ -43,7 +43,7 @@ class SessionManager {
     this.startSessionTracking();
     this.scheduleTokenRefresh();
 
-    // Session manager initialized
+    console.log("🔐 Session manager initialized");
   }
 
   /**
@@ -73,7 +73,7 @@ class SessionManager {
     this.startSessionTracking();
     this.scheduleTokenRefresh();
 
-    // Session started
+    console.log(`🔐 Session started (remember me: ${rememberMe})`);
   }
 
   /**
@@ -83,7 +83,7 @@ class SessionManager {
     this.clearAllTimers();
     this.clearSessionStorage();
 
-    // Session ended
+    console.log("🔐 Session ended");
   }
 
   /**
@@ -111,7 +111,7 @@ class SessionManager {
       await this.refreshTokens();
     }, this.config.tokenRefreshInterval);
 
-    // Token refresh scheduled
+    console.log("🔄 Token refresh scheduled");
   }
 
   /**
@@ -131,7 +131,7 @@ class SessionManager {
 
       if (result.success) {
         this.sessionData.refreshAttempts = 0;
-        // Tokens refreshed successfully
+        console.log("✅ Tokens refreshed successfully");
 
         if (this.callbacks.onTokenRefresh) {
           this.callbacks.onTokenRefresh(result);
@@ -205,7 +205,7 @@ class SessionManager {
    * Handle session warning
    */
   handleSessionWarning() {
-    // Session expiring soon
+    console.log("⚠️ Session expiring soon");
 
     if (this.callbacks.onSessionWarning) {
       this.callbacks.onSessionWarning({
@@ -219,7 +219,7 @@ class SessionManager {
    * Handle session expired
    */
   async handleSessionExpired() {
-    // Session expired
+    console.log("❌ Session expired");
 
     if (this.callbacks.onSessionExpired) {
       this.callbacks.onSessionExpired();
@@ -237,7 +237,7 @@ class SessionManager {
    * Extend session when user is active
    */
   extendSession() {
-    // Extending session
+    console.log("🔄 Extending session");
     this.updateActivity();
 
     // Restart timers

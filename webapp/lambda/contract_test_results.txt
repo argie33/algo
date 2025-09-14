@@ -1,0 +1,151 @@
+🚀 Starting Contract Test Runner
+==================================================
+
+🌍 Testing environment: test (http://localhost:3001)
+
+🌐 Running site functionality tests...
+
+
+📋 Testing workflow: Portfolio Dashboard Load
+🔍 Testing GET /api/health...
+✅ GET /api/health - Contract valid
+🔍 Testing GET /api/portfolio...
+✅ GET /api/portfolio - Contract valid
+🔍 Testing GET /api/portfolio/positions...
+✅ GET /api/portfolio/positions - Contract valid
+✅ Workflow 'Portfolio Dashboard Load' completed successfully
+
+📋 Testing workflow: Market Data Access
+🔍 Testing GET /api/market/overview...
+✅ GET /api/market/overview - Contract valid
+🔍 Testing GET /api/calendar/earnings...
+✅ GET /api/calendar/earnings - Contract valid
+✅ Workflow 'Market Data Access' completed successfully
+
+📋 Testing workflow: System Diagnostics
+🔍 Testing GET /api/diagnostics/database-connectivity...
+✅ GET /api/diagnostics/database-connectivity - Contract valid
+🔍 Testing GET /api/diagnostics...
+✅ GET /api/diagnostics - Contract valid
+✅ Workflow 'System Diagnostics' completed successfully
+
+📋 Running remaining contract tests...
+
+🔍 Testing GET /api/portfolio/performance...
+✅ GET /api/portfolio/performance - Contract valid
+🔍 Testing GET /api/alerts/active...
+✅ GET /api/alerts/active - Contract valid
+🔍 Testing GET /api/backtest/strategies...
+✅ GET /api/backtest/strategies - Contract valid
+🔍 Testing GET /api/portfolio/holdings...
+✅ GET /api/portfolio/holdings - Contract valid
+🔍 Testing GET /api/portfolio/value...
+✅ GET /api/portfolio/value - Contract valid
+🔍 Testing GET /api/portfolio/analytics...
+✅ GET /api/portfolio/analytics - Contract valid
+🔍 Testing GET /api/portfolio/transactions...
+✅ GET /api/portfolio/transactions - Contract valid
+🔍 Testing GET /api/portfolio/summary...
+✅ GET /api/portfolio/summary - Contract valid
+🔍 Testing GET /api/portfolio/metrics...
+✅ GET /api/portfolio/metrics - Contract valid
+🔍 Testing GET /api/market...
+✅ GET /api/market - Contract valid
+🔍 Testing GET /api/stocks...
+✅ GET /api/stocks - Contract valid
+🔍 Testing GET /api/technical...
+✅ GET /api/technical - Contract valid
+🔍 Testing GET /api/live-data...
+✅ GET /api/live-data - Contract valid
+🔍 Testing GET /api/live-data/status...
+❌ GET /api/live-data/status - Contract violations:
+   • Field 'status' expected object, got string
+🔍 Testing GET /api/analytics...
+✅ GET /api/analytics - Contract valid
+🔍 Testing GET /api/performance...
+❌ GET /api/performance - Contract violations:
+   • Missing required field for status 200: data
+🔍 Testing GET /api/risk...
+❌ GET /api/risk - Contract violations:
+   • Missing required field for status 200: data
+🔍 Testing GET /api/news...
+❌ GET /api/news - Contract violations:
+   • Missing required field: data
+   • Missing required field: data
+🔍 Testing GET /api/signals...
+❌ GET /api/signals - Contract violations:
+   • Missing required field: signals
+   • Missing required field: signals
+🔍 Testing GET /api/trading...
+❌ GET /api/trading - Contract violations:
+   • Missing required field for status 200: data
+🔍 Testing GET /api/orders...
+❌ GET /api/orders - Contract violations:
+   • Missing required field for status 200: orders
+🔍 Testing GET /api/watchlist...
+✅ GET /api/watchlist - Contract valid
+🔍 Testing GET /api/screener...
+✅ GET /api/screener - Contract valid
+🔍 Testing GET /api/scores...
+❌ GET /api/scores - Contract violations:
+   • Field 'data' expected object, got array
+🔍 Testing GET /api/metrics...
+❌ GET /api/metrics - Contract violations:
+   • Missing required field: success
+   • Missing required field: metrics
+   • Missing required field: success
+   • Missing required field: metrics
+🔍 Testing GET /api/sectors...
+✅ GET /api/sectors - Contract valid
+🔍 Testing GET /api/sentiment...
+❌ GET /api/sentiment - Contract violations:
+   • Missing required field: data
+   • Missing required field: data
+🔍 Testing GET /api/etf...
+❌ GET /api/etf - Contract violations:
+   • Missing required field: success
+   • Missing required field: data
+   • Missing required field: success
+   • Missing required field: data
+
+📊 CONTRACT TEST REPORT
+==================================================
+Total Tests: 35
+Passed: 24
+Failed: 11
+Success Rate: 68.57%
+
+❌ FAILURES:
+1. GET /api/live-data/status
+   • Field 'status' expected object, got string
+2. GET /api/performance
+   • Missing required field for status 200: data
+3. GET /api/risk
+   • Missing required field for status 200: data
+4. GET /api/news
+   • Missing required field: data
+   • Missing required field: data
+5. GET /api/signals
+   • Missing required field: signals
+   • Missing required field: signals
+6. GET /api/trading
+   • Missing required field for status 200: data
+7. GET /api/orders
+   • Missing required field for status 200: orders
+8. GET /api/scores
+   • Field 'data' expected object, got array
+9. GET /api/metrics
+   • Missing required field: success
+   • Missing required field: metrics
+   • Missing required field: success
+   • Missing required field: metrics
+10. GET /api/sentiment
+   • Missing required field: data
+   • Missing required field: data
+11. GET /api/etf
+   • Missing required field: success
+   • Missing required field: data
+   • Missing required field: success
+   • Missing required field: data
+
+📄 Detailed report saved to: /home/stocks/algo/webapp/lambda/tests/contract/contract-test-report.json

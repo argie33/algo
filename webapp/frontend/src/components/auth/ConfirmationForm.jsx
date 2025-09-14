@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -20,8 +20,10 @@ function ConfirmationForm({
 }) {
   const [confirmationCode, setConfirmationCode] = useState("");
   const [localError, setLocalError] = useState("");
+  const [resendSuccess, setResendSuccess] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { confirmRegistration, isLoading, error, clearError } = useAuth();
+  const { confirmRegistration, resendConfirmationCode, isLoading, error, clearError } = useAuth();
 
   const handleChange = (e) => {
     setConfirmationCode(e.target.value);
@@ -44,6 +46,30 @@ function ConfirmationForm({
     if (result.success) {
       onConfirmationSuccess?.();
     } else if (result.error) {
+      setLocalError(result.error);
+    }
+  };
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => {
+        setResendCooldown(resendCooldown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  const handleResendCode = async () => {
+    setLocalError("");
+    setResendSuccess("");
+    
+    const result = await resendConfirmationCode(username);
+    
+    if (result.success) {
+      setResendSuccess(result.message);
+      setResendCooldown(60); // 60 second cooldown
+    } else {
       setLocalError(result.error);
     }
   };
@@ -72,6 +98,12 @@ function ConfirmationForm({
         {displayError && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {displayError}
+          </Alert>
+        )}
+
+        {resendSuccess && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            {resendSuccess}
           </Alert>
         )}
 
@@ -112,14 +144,11 @@ function ConfirmationForm({
                 component="button"
                 type="button"
                 variant="body2"
-                onClick={() => {
-                  // TODO: Implement resend code functionality
-                  console.log("Resend code for:", username);
-                }}
-                disabled={isLoading}
+                onClick={handleResendCode}
+                disabled={isLoading || resendCooldown > 0}
                 sx={{ fontWeight: "medium" }}
               >
-                Resend
+                {resendCooldown > 0 ? `Resend (${resendCooldown}s)` : "Resend"}
               </Link>
             </Typography>
 

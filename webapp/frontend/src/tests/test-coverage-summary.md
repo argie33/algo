@@ -65,7 +65,6 @@ Comprehensive test suite created for critical React components in the finance ap
 - **Watchlist** - Portfolio tracking
 - **SectorAnalysis** - Sector performance
 - **AdvancedScreener** - Stock screening tools
-- **AnalystInsights** - Analyst recommendations
 - **Backtest** - Strategy backtesting
 - **EarningsCalendar** - Earnings events
 - **EconomicModeling** - Economic indicators
@@ -76,7 +75,6 @@ Comprehensive test suite created for critical React components in the finance ap
 - **PatternRecognition** - Chart patterns
 - **PortfolioHoldings** - Holdings management
 - **PortfolioOptimization** - Portfolio optimization
-- **PortfolioPerformance** - Performance analytics
 - **RealTimeDashboard** - Live data display
 - **RiskManagement** - Risk analysis
 - **ScoresDashboard** - Stock scoring

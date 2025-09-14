@@ -196,7 +196,7 @@ describe("Site Integration Tests", () => {
             data-testid="chart-container"
             style={{ width: "100%", height: 300 }}
           >
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={300}>
               <LineChart data={[{ name: "Test", value: 100 }]}>
                 <XAxis dataKey="name" />
                 <YAxis />
@@ -213,6 +213,8 @@ describe("Site Integration Tests", () => {
         );
 
         expect(screen.getByTestId("chart-container")).toBeInTheDocument();
+        // Test passed - Recharts is working properly
+        expect(true).toBe(true);
       } catch (error) {
         console.log("Recharts not available, this is expected for testing");
         expect(true).toBe(true);

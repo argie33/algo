@@ -482,7 +482,7 @@ const ScoresDashboard = () => {
           { symbol: "BRK.B", company_name: "Berkshire Hathaway Inc." },
         ]);
       } catch (error) {
-        console.error("Error loading stock options:", error);
+        if (import.meta.env && import.meta.env.DEV) console.error("Error loading stock options:", error);
       }
     };
     loadStockOptions();
@@ -507,7 +507,7 @@ const ScoresDashboard = () => {
         setLoading(false);
       }, 1000);
     } catch (error) {
-      console.error("Error loading scores:", error);
+      if (import.meta.env && import.meta.env.DEV) console.error("Error loading scores:", error);
       setLoading(false);
     }
   };
@@ -519,13 +519,13 @@ const ScoresDashboard = () => {
       date.setDate(date.getDate() - (90 - i));
       return {
         date: date.toISOString().split("T")[0],
-        composite: 75 + Math.random() * 15 + (i / 90) * 5,
-        quality: 80 + Math.random() * 10 + (i / 90) * 3,
-        growth: 70 + Math.random() * 15 + (i / 90) * 4,
-        value: 60 + Math.random() * 20 + (i / 90) * 2,
-        momentum: 75 + Math.random() * 20 + (i / 90) * 6,
-        sentiment: 65 + Math.random() * 25 + (i / 90) * 5,
-        positioning: 70 + Math.random() * 20 + (i / 90) * 3,
+        composite: 75 + (i / 90) * 5,
+        quality: 80 + (i / 90) * 3,
+        growth: 70 + (i / 90) * 4,
+        value: 60 + (i / 90) * 2,
+        momentum: 75 + (i / 90) * 6,
+        sentiment: 65 + (i / 90) * 5,
+        positioning: 70 + (i / 90) * 3,
       };
     });
     setHistoricalScores(mockHistorical);

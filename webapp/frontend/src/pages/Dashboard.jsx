@@ -82,19 +82,11 @@ import dataCache from "../services/dataCache";
 import MarketStatusBar from "../components/MarketStatusBar";
 import useDevelopmentMode from "../hooks/useDevelopmentMode";
 
-// Logo import with fallback
-let _logoSrc = null;
-try {
-  // Use dynamic import for assets in Vite
-  _logoSrc = /* @vite-ignore */ new URL("../assets/logo.png", import.meta.url)
-    .href;
-} catch (e) {
-  console.warn("Logo not found, using fallback avatar");
-  _logoSrc = null;
-}
+// Logo import removed as it was unused
 
 // Get API configuration
-const { apiUrl: API_BASE } = getApiConfig();
+const config = getApiConfig();
+const API_BASE = config?.apiUrl || 'http://localhost:3001';
 console.log("Dashboard API Base:", API_BASE);
 
 const WIDGET_COLORS = ["#1976d2", "#43a047", "#ffb300", "#8e24aa", "#e53935"];
@@ -305,7 +297,7 @@ function useMarketOverview(enabled = true) {
               if (isExpectedError) {
                 console.warn("⚠️ Market overview API unavailable:", err.message);
               } else {
-                console.error("❌ Market overview API failed:", err);
+                if (import.meta.env && import.meta.env.DEV) console.error("❌ Market overview API failed:", err);
               }
               throw new Error("Market data unavailable - check API connection");
             }
@@ -342,7 +334,7 @@ function useTopStocks(enabled = true) {
               if (isExpectedError) {
                 console.warn("⚠️ Top stocks API unavailable:", err.message);
               } else {
-                console.error("❌ Top stocks API failed:", err);
+                if (import.meta.env && import.meta.env.DEV) console.error("❌ Top stocks API failed:", err);
               }
               throw new Error(
                 "Stock scoring data unavailable - check API connection"
@@ -368,8 +360,8 @@ function usePortfolioData(enabled = true) {
         const result = await getPortfolioAnalytics();
         return result?.data;
       } catch (err) {
-        console.warn("Portfolio API failed, using mock data:", err);
-        return { data: mockPortfolio };
+        console.error("Portfolio API failed:", err);
+        throw new Error(`Unable to load portfolio data: ${err.message}`);
       }
     },
     staleTime: 2 * 60 * 1000,
@@ -409,32 +401,28 @@ function TechnicalSignalsWidget({ enabled = true }) {
         const result = await getTradingSignalsDaily({ limit: 10 });
         return result?.data;
       } catch (err) {
-        console.warn("Trading signals API failed, using mock data:", err);
-        return {
-            data: [
-              {
-                symbol: "AAPL",
-                signal: "Buy",
-                date: "2025-07-03",
-                current_price: 195.12,
-                performance_percent: 2.1,
-              },
-              {
-                symbol: "TSLA",
-                signal: "Sell",
-                date: "2025-07-02",
-                current_price: 710.22,
-                performance_percent: -1.8,
-              },
-              {
-                symbol: "NVDA",
-                signal: "Buy",
-                date: "2025-07-01",
-                current_price: 1200,
-                performance_percent: 3.5,
-              },
-            ],
-          };
+        console.error("Trading signals API failed:", err);
+        // Try to get market data from dashboard instead
+        try {
+          const dashboardResponse = await fetch('/api/dashboard/summary', {
+            headers: { 'Authorization': 'Bearer dev-bypass-token' }
+          });
+          if (dashboardResponse.ok) {
+            const dashboard = await dashboardResponse.json();
+            const topGainers = dashboard.data?.top_gainers || [];
+            const signals = topGainers.slice(0, 5).map(stock => ({
+              symbol: stock.symbol,
+              signal: stock.change_percent > 0 ? "Buy" : "Sell",
+              date: new Date().toISOString().split('T')[0],
+              current_price: stock.current_price,
+              performance_percent: stock.change_percent,
+            }));
+            return { data: signals };
+          }
+        } catch (dashboardError) {
+          console.error("Dashboard fallback also failed:", dashboardError);
+        }
+        throw new Error(`Unable to load trading signals: ${err.message}`);
       }
     },
     refetchInterval: 300000,
@@ -768,15 +756,8 @@ const Dashboard = () => {
       try {
         return await getStockPrices(selectedSymbol, "daily", 30);
       } catch (err) {
-        console.warn("Stock prices API failed, using mock data:", err);
-        return {
-          data: [
-            { date: "2025-06-30", close: 190.5 },
-            { date: "2025-07-01", close: 192.3 },
-            { date: "2025-07-02", close: 195.1 },
-            { date: "2025-07-03", close: 197.8 },
-          ],
-        };
+        console.error("Stock prices API failed:", err);
+        throw new Error(`Unable to load price data for ${selectedSymbol}: ${err.message}`);
       }
     },
     staleTime: 5 * 60 * 1000,
@@ -789,15 +770,8 @@ const Dashboard = () => {
       try {
         return await getStockMetrics(selectedSymbol);
       } catch (err) {
-        console.warn("Stock metrics API failed, using mock data:", err);
-        return {
-          data: {
-            beta: 1.2,
-            volatility: 0.28,
-            sharpe_ratio: 1.45,
-            max_drawdown: -0.15,
-          },
-        };
+        console.error("Stock metrics API failed:", err);
+        throw new Error(`Unable to load metrics for ${selectedSymbol}: ${err.message}`);
       }
     },
     staleTime: 5 * 60 * 1000,

@@ -286,6 +286,8 @@ const tableSchemas = {
       environment: { type: "VARCHAR", maxLength: 20, default: "live" },
       imported_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
       last_sync: { type: "TIMESTAMP" },
+      last_rebalance_date: { type: "DATE" },
+      rebalance_count: { type: "INTEGER", default: 0 },
       created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
       updated_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
@@ -458,22 +460,6 @@ const tableSchemas = {
     indexes: ["symbol", "date"],
   },
 
-  price_daily: {
-    required: ["symbol", "date"],
-    columns: {
-      symbol: { type: "VARCHAR", maxLength: 10 },
-      date: { type: "DATE" },
-      open: { type: "DECIMAL", precision: 10, scale: 2 },
-      high: { type: "DECIMAL", precision: 10, scale: 2 },
-      low: { type: "DECIMAL", precision: 10, scale: 2 },
-      close: { type: "DECIMAL", precision: 10, scale: 2 },
-      volume: { type: "BIGINT" },
-      adj_close: { type: "DECIMAL", precision: 10, scale: 2 },
-      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-    },
-    indexes: ["symbol", "date"],
-    primaryKey: ["symbol", "date"],
-  },
 
   company_profile: {
     required: ["ticker"],
@@ -498,22 +484,6 @@ const tableSchemas = {
     indexes: ["ticker", "sector", "exchange"],
   },
 
-  earnings_reports: {
-    required: ["symbol", "report_date"],
-    columns: {
-      id: { type: "SERIAL", primaryKey: true },
-      symbol: { type: "VARCHAR", maxLength: 10 },
-      report_date: { type: "DATE" },
-      period: { type: "VARCHAR", maxLength: 10 },
-      eps_estimate: { type: "DECIMAL", precision: 8, scale: 2 },
-      eps_reported: { type: "DECIMAL", precision: 8, scale: 2 },
-      surprise_percent: { type: "DECIMAL", precision: 8, scale: 2 },
-      revenue_estimate: { type: "BIGINT" },
-      revenue_reported: { type: "BIGINT" },
-      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-    },
-    indexes: ["symbol", "report_date"],
-  },
 
   fear_greed_index: {
     required: ["value"],
@@ -551,20 +521,6 @@ const tableSchemas = {
     indexes: ["date", "created_at"],
   },
 
-  economic_data: {
-    required: ["indicator", "value"],
-    columns: {
-      id: { type: "SERIAL", primaryKey: true },
-      indicator: { type: "VARCHAR", maxLength: 50 },
-      value: { type: "DECIMAL", precision: 15, scale: 6 },
-      date: { type: "DATE" },
-      frequency: { type: "VARCHAR", maxLength: 20 },
-      unit: { type: "VARCHAR", maxLength: 50 },
-      source: { type: "VARCHAR", maxLength: 50 },
-      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
-    },
-    indexes: ["indicator", "date"],
-  },
 
   comprehensive_scores: {
     required: ["symbol"],
@@ -583,6 +539,80 @@ const tableSchemas = {
       created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
     indexes: ["symbol", "calculation_date"],
+  },
+
+  // Economic data with correct column names from loader
+  economic_data: {
+    required: ["series_id", "value"],
+    columns: {
+      id: { type: "SERIAL", primaryKey: true },
+      series_id: { type: "VARCHAR", maxLength: 50 },
+      value: { type: "DECIMAL", precision: 15, scale: 6 },
+      date: { type: "DATE" },
+      frequency: { type: "VARCHAR", maxLength: 20 },
+      unit: { type: "VARCHAR", maxLength: 50 },
+      source: { type: "VARCHAR", maxLength: 50 },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+    },
+    indexes: ["series_id", "date"],
+  },
+
+  // Earnings history table (used by calendar endpoints)
+  earnings_history: {
+    required: ["symbol", "date"],
+    columns: {
+      id: { type: "SERIAL" },
+      symbol: { type: "VARCHAR", maxLength: 10 },
+      date: { type: "DATE" },
+      quarter: { type: "INTEGER", min: 1, max: 4 },
+      year: { type: "INTEGER", min: 1900 },
+      revenue: { type: "BIGINT" },
+      net_income: { type: "BIGINT" },
+      eps_reported: { type: "DECIMAL", precision: 8, scale: 2 },
+      eps_estimate: { type: "DECIMAL", precision: 8, scale: 2 },
+      surprise_percent: { type: "DECIMAL", precision: 6, scale: 2 },
+      revenue_estimate: { type: "BIGINT" },
+      revenue_surprise_percent: { type: "DECIMAL", precision: 6, scale: 2 },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+    },
+    indexes: ["symbol", "date", "quarter", "year"],
+    primaryKey: ["symbol", "date"],
+  },
+
+  // News data table from loadnews.py
+  news_data: {
+    required: ["title", "url"],
+    columns: {
+      id: { type: "SERIAL", primaryKey: true },
+      title: { type: "VARCHAR", maxLength: 500 },
+      url: { type: "VARCHAR", maxLength: 1000 },
+      published_date: { type: "TIMESTAMP" },
+      source: { type: "VARCHAR", maxLength: 100 },
+      summary: { type: "TEXT" },
+      category: { type: "VARCHAR", maxLength: 50 },
+      symbols: { type: "TEXT" },
+      sentiment_score: { type: "DECIMAL", precision: 5, scale: 4 },
+      sentiment_label: { type: "VARCHAR", maxLength: 20 },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+    },
+    indexes: ["published_date", "source", "category", "sentiment_label"],
+  },
+
+  // Sentiment data table from loadsentiment.py
+  sentiment_data: {
+    required: ["date", "indicator_type"],
+    columns: {
+      id: { type: "SERIAL" },
+      date: { type: "DATE" },
+      indicator_type: { type: "VARCHAR", maxLength: 50 },
+      value: { type: "DECIMAL", precision: 10, scale: 4 },
+      classification: { type: "VARCHAR", maxLength: 50 },
+      source: { type: "VARCHAR", maxLength: 100 },
+      metadata: { type: "JSONB" },
+      created_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
+    },
+    indexes: ["date", "indicator_type", "source"],
+    primaryKey: ["date", "indicator_type"],
   },
 };
 
