@@ -1,8 +1,8 @@
-#!/usr/bin/env node
 
 const fs = require('fs');
-const { Pool } = require('pg');
 const path = require('path');
+
+const { Pool } = require('pg');
 
 async function runDatabaseFixes() {
   console.log('Running database schema fixes...');

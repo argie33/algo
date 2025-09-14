@@ -1,4 +1,5 @@
 const express = require("express");
+const { query } = require("../utils/database");
 const router = express.Router();
 
 // Root endpoint - API info
@@ -66,7 +67,7 @@ router.get("/history/:symbol", async (req, res) => {
       success: true,
       data: {
         symbol: symbol.toUpperCase(),
-        company_name: dividendHistory[0]?.company_name || getSymbolInfo(symbol).companyName,
+        company_name: dividendHistory[0]?.company_name || symbol.toUpperCase(),
         dividend_history: dividendHistory,
         summary: {
           total_dividends_paid: Math.round(totalDividends * 100) / 100,

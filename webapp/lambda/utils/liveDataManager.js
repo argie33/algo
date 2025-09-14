@@ -293,12 +293,14 @@ class LiveDataManager extends EventEmitter {
         throw new Error("Connection ID is required");
       }
 
+      let providerData;
+
       // Check provider-specific connection limits
       if (this.providers.has(provider)) {
-        const providerData = this.providers.get(provider);
+        providerData = this.providers.get(provider);
         const currentConnections = providerData.connections?.size || 0;
         const limit = providerData.rateLimits?.maxConcurrentConnections || 1;
-        
+
         if (currentConnections >= limit) {
           return {
             success: false,
@@ -337,8 +339,7 @@ class LiveDataManager extends EventEmitter {
       this.connections.set(connectionId, connection);
 
       // Add connection to provider's connections
-      if (this.providers.has(provider)) {
-        const providerData = this.providers.get(provider);
+      if (this.providers.has(provider) && providerData) {
         if (!providerData.connections) {
           providerData.connections = new Map();
         }
@@ -1903,69 +1904,6 @@ class LiveDataManager extends EventEmitter {
     return { popularity, mostPopular };
   }
 
-  /**
-   * Analyze cost optimization opportunities
-   * @returns {Object} Cost optimization recommendations
-   */
-  analyzeCostOptimization() {
-    const analysis = {};
-    
-    this.providers.forEach((provider, name) => {
-      const usage = provider.usage || {};
-      const totalCost = usage.totalCost || 0;
-      const requests = usage.requestsThisMonth || 0;
-      
-      const averageCostPerRequest = requests > 0 ? totalCost / requests : 0;
-      const recommendations = [];
-      
-      if (averageCostPerRequest > 0.05) {
-        recommendations.push("Consider reducing data frequency");
-      }
-      if (totalCost > 500) {
-        recommendations.push("Review subscription tiers");
-      }
-      
-      analysis[name] = {
-        totalCost,
-        requests,
-        averageCostPerRequest,
-        recommendations
-      };
-    });
-    
-    return analysis;
-  }
-
-  /**
-   * Calculate provider performance metrics  
-   * @param {string} providerId Provider ID
-   * @returns {Object} Performance metrics
-   */
-  calculateProviderMetrics(providerId) {
-    const provider = this.providers.get(providerId);
-    if (!provider || !provider.metrics) {
-      return {};
-    }
-    
-    const latencyData = provider.metrics.latency || [];
-    if (latencyData.length === 0) {
-      return {};
-    }
-    
-    const sum = latencyData.reduce((a, b) => a + b, 0);
-    const averageLatency = sum / latencyData.length;
-    
-    // Calculate 95th percentile
-    const sorted = [...latencyData].sort((a, b) => a - b);
-    const p95Index = Math.ceil(sorted.length * 0.95) - 1;
-    const p95Latency = sorted[p95Index];
-    
-    return {
-      averageLatency,
-      p95Latency,
-      uptime: 0.995 // Mock uptime value
-    };
-  }
 
   /**
    * Clean up user connections

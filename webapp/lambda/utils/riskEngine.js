@@ -355,8 +355,8 @@ class RiskEngine {
       logger.error("VaR calculation failed:", error);
       return {
         error: error.message,
-        portfolioId,
-        method,
+        portfolioId: portfolioIdOrData,
+        method: methodOrConfidenceLevel,
         confidence_level: confidenceLevel,
         time_horizon: timeHorizon,
         lookback_days: lookbackDays
@@ -1622,63 +1622,6 @@ class RiskEngine {
     }
   }
 
-  /**
-   * Generate compliance report
-   * @param {Array} portfolio - Portfolio positions
-   * @param {Object} riskLimits - Risk limits to check
-   * @returns {Promise<Object>} Compliance report
-   */
-  async generateComplianceReport(portfolio, riskLimits) {
-    try {
-      const violations = [];
-      let overallStatus = 'COMPLIANT';
-
-      // Check position limits
-      for (const position of portfolio) {
-        const positionCheck = this.checkPositionLimits(position, riskLimits);
-        if (positionCheck.exceeded) {
-          violations.push({
-            type: 'POSITION_SIZE',
-            limit: positionCheck.limit,
-            symbol: position.symbol,
-            currentValue: positionCheck.currentValue,
-            limitValue: positionCheck.limitValue
-          });
-          overallStatus = 'NON_COMPLIANT';
-        }
-      }
-
-      // Check sector limits
-      const sectorCheck = this.checkSectorLimits(portfolio, riskLimits);
-      for (const [sector, check] of Object.entries(sectorCheck)) {
-        if (check.exceeded) {
-          violations.push({
-            type: 'SECTOR_ALLOCATION',
-            limit: 'maxSectorAllocation',
-            sector,
-            currentValue: check.allocation,
-            limitValue: riskLimits.maxSectorAllocation
-          });
-          overallStatus = 'NON_COMPLIANT';
-        }
-      }
-
-      return {
-        overallStatus,
-        violations,
-        totalViolations: violations.length,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      logger.error('Compliance report generation failed:', error);
-      return {
-        overallStatus: 'ERROR',
-        violations: [],
-        totalViolations: 0,
-        error: error.message
-      };
-    }
-  }
 
   /**
    * Optimize position sizes based on risk-return profile

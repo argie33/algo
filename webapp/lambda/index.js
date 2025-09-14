@@ -4,11 +4,12 @@ require("dotenv").config();
 // Financial Dashboard API - Lambda Function
 // Updated: 2025-06-25 - Fixed CORS configuration for API Gateway
 
+const { createServer } = require("http");
+
 const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const { createServer } = require("http");
 const WebSocket = require("ws");
 const serverless = require("serverless-http");
 
