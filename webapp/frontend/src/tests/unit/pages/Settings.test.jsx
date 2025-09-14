@@ -122,12 +122,7 @@ describe("Settings Page", () => {
         },
       };
 
-      useApiKeys.mockReturnValue({
-        apiKeys: mockApiKeys,
-        isLoading: false,
-        error: null,
-        refreshApiKeys: vi.fn(),
-      });
+      // useApiKeys no longer exists - API functionality handled directly by Settings page
 
       renderWithProviders(<Settings />);
 
@@ -220,12 +215,7 @@ describe("Settings Page", () => {
         alpaca: { keyId: "PK***ABC", isValid: true },
       };
 
-      useApiKeys.mockReturnValue({
-        apiKeys: mockApiKeys,
-        isLoading: false,
-        error: null,
-        refreshApiKeys: vi.fn(),
-      });
+      // useApiKeys no longer exists - API functionality handled directly by Settings page
 
       vi.mocked(api).deleteApiKey.mockResolvedValue({ success: true });
 

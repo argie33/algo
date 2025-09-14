@@ -272,7 +272,7 @@ global.cancelAnimationFrame = vi.fn((id) => clearTimeout(id));
 
 // Mock URL API
 global.URL = class URL {
-  constructor(url, base) {
+  constructor(url, _base) {
     this.href = url;
     this.origin = 'http://localhost:3000';
     this.protocol = 'http:';
