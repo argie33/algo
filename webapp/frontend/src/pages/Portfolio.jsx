@@ -308,7 +308,7 @@ const Portfolio = () => {
       const connections = response?.apiKeys || [];
       setAvailableConnections(
         connections.filter((conn) =>
-          ["alpaca", "robinhood"].includes(conn.provider.toLowerCase())
+          ["alpaca", "robinhood"].includes(conn.brokerName.toLowerCase())
         )
       );
     } catch (error) {
@@ -3350,7 +3350,7 @@ const Portfolio = () => {
           ) : (
             <Grid container spacing={2} key="available-connections">
               {(availableConnections || []).map((connection) => (
-                <Grid item xs={12} sm={6} key={connection.id}>
+                <Grid item xs={12} sm={6} key={connection.brokerName}>
                   <Card>
                     <CardContent>
                       <Box
