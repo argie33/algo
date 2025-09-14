@@ -356,7 +356,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.name ILIKE $${paramCount})`;
+      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
@@ -378,7 +378,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     const validSortColumns = {
       ticker: "ss.symbol",
       symbol: "ss.symbol",
-      name: "ss.name",
+      name: "ss.security_name",
       exchange: "ss.exchange",
       type: "ss.type", // Use actual type column
     };
@@ -398,7 +398,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       SELECT 
         -- Primary stock symbols data
         ss.symbol,
-        ss.name as company_name,
+        ss.security_name as company_name,
         ss.exchange,
         ss.type as market_category,
         ss.sector,
@@ -1071,7 +1071,7 @@ router.get("/search", stocksListValidation, async (req, res) => {
       `
       SELECT COUNT(*) as total
       FROM stocks 
-      WHERE symbol ILIKE $1 OR name ILIKE $1
+      WHERE symbol ILIKE $1 OR security_name ILIKE $1
       `,
       [`%${search}%`]
     );
@@ -1080,9 +1080,9 @@ router.get("/search", stocksListValidation, async (req, res) => {
 
     const result = await query(
       `
-      SELECT symbol, name as company_name, sector, exchange, market_cap
+      SELECT symbol, security_name as company_name, sector, exchange, market_cap
       FROM stocks 
-      WHERE symbol ILIKE $1 OR name ILIKE $1
+      WHERE symbol ILIKE $1 OR security_name ILIKE $1
       ORDER BY 
         CASE WHEN symbol ILIKE $1 THEN 1 ELSE 2 END,
         symbol
@@ -1135,7 +1135,7 @@ router.get("/analysis", async (req, res) => {
     // Get basic stock information using your database schema
     const stockQuery = `
       SELECT 
-        s.symbol, s.name, s.sector, s.market_cap, s.exchange,
+        s.symbol, s.security_name as name, s.sector, s.market_cap, s.exchange,
         sp.close as current_price,
         sp.volume,
         (sp.close - sp.open_price) / sp.open_price * 100 as daily_change_percent
@@ -1344,7 +1344,7 @@ router.get("/recommendations", async (req, res) => {
 
     const recommendationsQuery = `
       SELECT 
-        s.symbol, s.name, s.sector, s.market_cap, s.exchange,
+        s.symbol, s.security_name as name, s.sector, s.market_cap, s.exchange,
         sp.close as current_price,
         sp.volume,
         'BUY' as recommendation,
@@ -1457,7 +1457,7 @@ router.get("/:ticker", async (req, res) => {
     const stockQuery = `
       SELECT 
         ss.symbol,
-        ss.name as company_name,
+        ss.security_name as company_name,
         ss.sector,
         ss.exchange,
         ss.type as market_category,

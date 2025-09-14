@@ -343,10 +343,10 @@ router.get("/overview-fixed", async (req, res) => {
     try {
       const naaimQuery = `
         SELECT 
-          COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
-          COALESCE(bullish_8100, bullish_80_100, bullish) as bullish_8100,
-          COALESCE(bearish, bearish_exposure) as bearish,
-          COALESCE(week_ending, date, timestamp) as week_ending
+          naaim_number_mean as average,
+          bullish as bullish_8100,
+          bearish,
+          date as week_ending
         FROM naaim 
         ORDER BY COALESCE(week_ending, date, timestamp) DESC 
         LIMIT 1
@@ -551,10 +551,10 @@ router.get("/overview", async (req, res) => {
       console.log("Fetching NAAIM data...");
       const naaimQuery = `
         SELECT 
-          COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
-          COALESCE(bullish_8100, bullish_80_100, bullish) as bullish_8100,
-          COALESCE(bearish, bearish_exposure) as bearish,
-          COALESCE(week_ending, date, timestamp) as week_ending
+          naaim_number_mean as average,
+          bullish as bullish_8100,
+          bearish,
+          date as week_ending
         FROM naaim 
         ORDER BY COALESCE(week_ending, date, timestamp) DESC 
         LIMIT 1
@@ -565,7 +565,7 @@ router.get("/overview", async (req, res) => {
       if (naaimResult.rows.length > 0) {
         const naaim = naaimResult.rows[0];
         sentimentIndicators.naaim = {
-          average: naaim.average || naaim.mean_exposure || naaim.exposure_index,
+          average: naaim.average,
           bullish_8100: naaim.bullish_8100,
           bearish: naaim.bearish,
           week_ending: naaim.week_ending || naaim.date,
@@ -837,9 +837,9 @@ router.get("/sentiment/history", async (req, res) => {
     const naaimQuery = `
       SELECT 
         date,
-        exposure_index,
-        mean_exposure,
-        bearish_exposure
+        naaim_number_mean as exposure_index,
+        naaim_number_mean as mean_exposure,
+        bearish as bearish_exposure
       FROM naaim
       WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
@@ -1460,9 +1460,9 @@ router.get("/naaim", async (req, res) => {
     const naaimQuery = `
       SELECT 
         date,
-        exposure_index,
-        mean_exposure,
-        bearish_exposure
+        naaim_number_mean as exposure_index,
+        naaim_number_mean as mean_exposure,
+        bearish as bearish_exposure
       FROM naaim
       ORDER BY date DESC
       LIMIT $1
@@ -1844,9 +1844,9 @@ router.get("/sentiment", async (req, res) => {
     // Get latest NAAIM data
     const naaimQuery = `
       SELECT 
-        exposure_index,
-        mean_exposure,
-        bearish_exposure,
+        naaim_number_mean as exposure_index,
+        naaim_number_mean as mean_exposure,
+        bearish as bearish_exposure,
         date
       FROM naaim
       ORDER BY date DESC

@@ -1231,7 +1231,7 @@ router.get("/benchmark", async (req, res) => {
         date,
         price,
         volume
-      FROM market_data
+      FROM price_daily
       WHERE symbol = $1
       ORDER BY date ASC
       LIMIT 100
@@ -1329,8 +1329,8 @@ router.get("/holdings", async (req, res) => {
         END as asset_class,
         ph.broker, ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN market_data md ON ph.symbol = md.symbol 
-        AND md.date = (SELECT MAX(date) FROM market_data WHERE market_data.symbol = ph.symbol)
+      LEFT JOIN price_daily md ON ph.symbol = md.symbol 
+        AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
       WHERE ph.user_id = $1 AND ph.quantity > 0 
       ORDER BY ph.symbol
     `;
@@ -1460,8 +1460,8 @@ router.get("/rebalance", async (req, res) => {
           ELSE 'small_cap'
         END as market_cap_tier
       FROM portfolio_holdings ph
-      LEFT JOIN market_data md ON ph.symbol = md.symbol 
-        AND md.date = (SELECT MAX(date) FROM market_data WHERE market_data.symbol = ph.symbol)
+      LEFT JOIN price_daily md ON ph.symbol = md.symbol 
+        AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
       WHERE ph.user_id = $1 AND ph.quantity > 0 
       ORDER BY ph.market_value DESC
     `;
@@ -4059,7 +4059,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
           ELSE 'small_cap'
         END as market_cap_tier
       FROM portfolio_holdings ph
-      LEFT JOIN market_data md ON ph.symbol = md.symbol
+      LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
       ORDER BY ph.market_value DESC
     `;
@@ -4263,7 +4263,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
         END as market_cap_tier,
         'US' as country
       FROM portfolio_holdings ph
-      LEFT JOIN market_data md ON ph.symbol = md.symbol
+      LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
       ORDER BY ph.market_value DESC
     `;
