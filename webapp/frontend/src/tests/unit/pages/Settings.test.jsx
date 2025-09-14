@@ -109,7 +109,7 @@ describe("Settings Page", () => {
     it("should display existing API keys", async () => {
       // ApiKeyProvider no longer exists - test functionality moved to direct API integration
 
-      const mockApiKeys = {
+      const _mockApiKeys = {
         alpaca: {
           keyId: "PK***ABC",
           isValid: true,
@@ -211,7 +211,7 @@ describe("Settings Page", () => {
       // ApiKeyProvider no longer exists - test functionality moved to direct API integration
       const user = userEvent.setup();
 
-      const mockApiKeys = {
+      const _mockApiKeys = {
         alpaca: { keyId: "PK***ABC", isValid: true },
       };
 
