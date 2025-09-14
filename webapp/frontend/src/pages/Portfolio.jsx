@@ -3363,8 +3363,8 @@ const Portfolio = () => {
                           <BusinessCenter sx={{ mr: 1 }} />
                           <Box>
                             <Typography variant="h6">
-                              {connection.provider.charAt(0).toUpperCase() +
-                                connection.provider.slice(1)}
+                              {connection.brokerName.charAt(0).toUpperCase() +
+                                connection.brokerName.slice(1)}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               {connection.description || "Brokerage account"}
@@ -3372,8 +3372,8 @@ const Portfolio = () => {
                           </Box>
                         </Box>
                         <Chip
-                          label={connection.isSandbox ? "Paper" : "Live"}
-                          color={connection.isSandbox ? "warning" : "success"}
+                          label={connection.sandbox ? "Paper" : "Live"}
+                          color={connection.sandbox ? "warning" : "success"}
                           size="small"
                         />
                       </Box>
@@ -3383,7 +3383,7 @@ const Portfolio = () => {
                           size="small"
                           variant="outlined"
                           startIcon={
-                            testingConnection[connection.id] ? (
+                            testingConnection[connection.brokerName] ? (
                               <CircularProgress size={16} />
                             ) : (
                               <Security />
@@ -3391,12 +3391,12 @@ const Portfolio = () => {
                           }
                           onClick={() =>
                             handleTestConnection(
-                              connection.id,
-                              connection.provider
+                              connection.brokerName,
+                              connection.brokerName
                             )
                           }
-                          disabled={testingConnection[connection.id]}
-                          aria-label={`Test ${connection.provider} connection`}
+                          disabled={testingConnection[connection.brokerName]}
+                          aria-label={`Test ${connection.brokerName} connection`}
                         >
                           Test
                         </Button>
@@ -3411,10 +3411,10 @@ const Portfolio = () => {
                             )
                           }
                           onClick={() =>
-                            handleImportPortfolio(connection.provider)
+                            handleImportPortfolio(connection.brokerName)
                           }
                           disabled={importing}
-                          aria-label={`Import portfolio data from ${connection.provider}`}
+                          aria-label={`Import portfolio data from ${connection.brokerName}`}
                         >
                           Import
                         </Button>
