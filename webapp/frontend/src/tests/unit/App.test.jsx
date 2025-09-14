@@ -44,16 +44,18 @@ vi.mock('../../pages/ComingSoon', () => ({
 }));
 
 // Mock AuthContext
+const mockUseAuth = vi.fn(() => ({
+  user: { username: 'testuser', email: 'test@example.com' },
+  isAuthenticated: true,
+  login: vi.fn(),
+  logout: vi.fn(),
+  isLoading: false,
+  error: null
+}));
+
 vi.mock('../../contexts/AuthContext', () => ({
   AuthProvider: ({ children }) => children,
-  useAuth: () => ({
-    user: { username: 'testuser', email: 'test@example.com' },
-    isAuthenticated: true,
-    login: vi.fn(),
-    logout: vi.fn(),
-    isLoading: false,
-    error: null
-  })
+  useAuth: mockUseAuth
 }));
 
 // Mock ApiKeyProvider
@@ -86,6 +88,15 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock to default values
+    mockUseAuth.mockReturnValue({
+      user: { username: 'testuser', email: 'test@example.com' },
+      isAuthenticated: true,
+      login: vi.fn(),
+      logout: vi.fn(),
+      isLoading: false,
+      error: null
+    });
   });
 
   describe('Basic Rendering', () => {
@@ -178,7 +189,7 @@ describe('App', () => {
     });
 
     test('handles unauthenticated state', () => {
-      vi.mocked(vi.importActual('../../contexts/AuthContext').useAuth).mockReturnValue({
+      mockUseAuth.mockReturnValue({
         user: null,
         isAuthenticated: false,
         login: vi.fn(),
@@ -202,7 +213,7 @@ describe('App', () => {
     });
 
     test('renders with missing auth context', () => {
-      vi.mocked(vi.importActual('../../contexts/AuthContext').useAuth).mockReturnValue({
+      mockUseAuth.mockReturnValue({
         user: null,
         isAuthenticated: false,
         login: vi.fn(),

@@ -25,7 +25,7 @@ vi.mock("../../contexts/AuthContext", () => ({
 
 // Mock API service functions
 const mockApiService = {
-  get: vi.fn().mockImplementation((url) => {
+  get: vi.fn().mockImplementation((_url) => {
     // Ensure we always return a promise
     return Promise.resolve({
       data: {

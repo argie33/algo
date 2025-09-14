@@ -2,6 +2,19 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import EnhancedChatInterface from '../../../../components/enhanced-ai/EnhancedChatInterface';
 
+// Mock external dependencies
+vi.mock('react-markdown', () => ({
+  default: ({ children }) => <div data-testid="markdown">{children}</div>
+}));
+
+vi.mock('react-syntax-highlighter', () => ({
+  Prism: ({ children }) => <div data-testid="syntax-highlighter">{children}</div>
+}));
+
+vi.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
+  vscDarkPlus: {}
+}));
+
 // Mock context and hooks - dependencies are mocked globally in setup.js
 vi.mock('../../../../contexts/AuthContext.jsx', () => ({
   useAuth: () => ({
