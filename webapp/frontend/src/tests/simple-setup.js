@@ -271,9 +271,25 @@ global.requestAnimationFrame = vi.fn((cb) => setTimeout(cb, 16));
 global.cancelAnimationFrame = vi.fn((id) => clearTimeout(id));
 
 // Mock URL API
-global.URL = {
-  createObjectURL: vi.fn(() => 'mock-object-url'),
-  revokeObjectURL: vi.fn(),
+global.URL = class URL {
+  constructor(url, base) {
+    this.href = url;
+    this.origin = 'http://localhost:3000';
+    this.protocol = 'http:';
+    this.host = 'localhost:3000';
+    this.hostname = 'localhost';
+    this.port = '3000';
+    this.pathname = '/';
+    this.search = '';
+    this.hash = '';
+  }
+  
+  toString() {
+    return this.href;
+  }
+  
+  static createObjectURL = vi.fn(() => 'mock-object-url');
+  static revokeObjectURL = vi.fn();
 };
 
 // Mock Blob API

@@ -12,6 +12,7 @@ import {
   createMockUser,
 } from "../../test-utils.jsx";
 import Settings from "../../../pages/Settings.jsx";
+import api from "../../../services/api.js";
 
 // Mock AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
@@ -23,43 +24,42 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: ({ children }) => children, // Mock AuthProvider as a pass-through
 }));
 
-// Mock API service
-const mockApi = {
-  getSettings: vi.fn(),
-  updateSettings: vi.fn(),
-  getApiKeys: vi.fn(),
-  saveApiKey: vi.fn(),
-  deleteApiKey: vi.fn(),
-  testApiKey: vi.fn(),
-};
+// Mock API service - using vi.mocked(api) pattern
 
 vi.mock("../../../services/api.js", () => ({
-  default: mockApi,
-  api: mockApi,
+  default: {
+    getSettings: vi.fn(),
+    updateSettings: vi.fn(),
+    getApiKeys: vi.fn(),
+    saveApiKey: vi.fn(),
+    deleteApiKey: vi.fn(),
+    testApiKey: vi.fn(),
+  },
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
   })),
 }));
 
-// Mock ApiKeyProvider
-vi.mock("../../../components/ApiKeyProvider.jsx", () => ({
-  useApiKeys: vi.fn(() => ({
-    apiKeys: {},
-    isLoading: false,
-    error: null,
-    refreshApiKeys: vi.fn(),
-  })),
-}));
+// Note: ApiKeyProvider removed - API key functionality now handled directly by Settings page
 
 describe("Settings Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Reset mocked api functions
+    const mockedApi = vi.mocked(api);
+    mockedApi.getSettings.mockReset();
+    mockedApi.updateSettings.mockReset();
+    mockedApi.getApiKeys.mockReset();
+    mockedApi.saveApiKey.mockReset();
+    mockedApi.deleteApiKey.mockReset();
+    mockedApi.testApiKey.mockReset();
   });
 
   describe("Settings Page Layout", () => {
     it("should display settings navigation tabs", async () => {
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: true, push: false },
         privacy: { shareData: false },
         trading: { confirmOrders: true },
@@ -95,21 +95,19 @@ describe("Settings Page", () => {
         },
       };
 
-      mockApi.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
       await waitFor(() => {
-        expect(mockApi.getSettings).toHaveBeenCalled();
+        expect(vi.mocked(api).getSettings).toHaveBeenCalled();
       });
     });
   });
 
   describe("API Keys Management", () => {
     it("should display existing API keys", async () => {
-      const { useApiKeys } = vi.mocked(await import(
-        "../../../components/ApiKeyProvider.jsx"
-      ));
+      // ApiKeyProvider no longer exists - test functionality moved to direct API integration
 
       const mockApiKeys = {
         alpaca: {
@@ -147,8 +145,8 @@ describe("Settings Page", () => {
     it("should allow adding new API keys", async () => {
       const user = userEvent.setup();
 
-      mockApi.saveApiKey.mockResolvedValue({ success: true });
-      mockApi.testApiKey.mockResolvedValue({ isValid: true });
+      vi.mocked(api).saveApiKey.mockResolvedValue({ success: true });
+      vi.mocked(api).testApiKey.mockResolvedValue({ isValid: true });
 
       renderWithProviders(<Settings />);
 
@@ -178,7 +176,7 @@ describe("Settings Page", () => {
     it("should validate API keys before saving", async () => {
       const user = userEvent.setup();
 
-      mockApi.testApiKey.mockResolvedValue({
+      vi.mocked(api).testApiKey.mockResolvedValue({
         isValid: false,
         error: "Invalid credentials",
       });
@@ -199,7 +197,7 @@ describe("Settings Page", () => {
         await user.click(testButton);
 
         await waitFor(() => {
-          expect(mockApi.testApiKey).toHaveBeenCalledWith(
+          expect(vi.mocked(api).testApiKey).toHaveBeenCalledWith(
             expect.objectContaining({
               keyId: "invalid-key",
             })
@@ -215,9 +213,7 @@ describe("Settings Page", () => {
     });
 
     it("should allow deleting API keys", async () => {
-      const { useApiKeys } = vi.mocked(await import(
-        "../../../components/ApiKeyProvider.jsx"
-      ));
+      // ApiKeyProvider no longer exists - test functionality moved to direct API integration
       const user = userEvent.setup();
 
       const mockApiKeys = {
@@ -231,7 +227,7 @@ describe("Settings Page", () => {
         refreshApiKeys: vi.fn(),
       });
 
-      mockApi.deleteApiKey.mockResolvedValue({ success: true });
+      vi.mocked(api).deleteApiKey.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -269,7 +265,7 @@ describe("Settings Page", () => {
         },
       };
 
-      mockApi.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -286,10 +282,10 @@ describe("Settings Page", () => {
     it("should allow updating notification preferences", async () => {
       const user = userEvent.setup();
 
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: false, push: false },
       });
-      mockApi.updateSettings.mockResolvedValue({ success: true });
+      vi.mocked(api).updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -305,7 +301,7 @@ describe("Settings Page", () => {
       await user.click(emailToggle);
 
       await waitFor(() => {
-        expect(mockApi.updateSettings).toHaveBeenCalledWith(
+        expect(vi.mocked(api).updateSettings).toHaveBeenCalledWith(
           expect.objectContaining({
             notifications: expect.objectContaining({
               email: true,
@@ -325,7 +321,7 @@ describe("Settings Page", () => {
         },
       };
 
-      mockApi.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -348,7 +344,7 @@ describe("Settings Page", () => {
         },
       };
 
-      mockApi.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -367,10 +363,10 @@ describe("Settings Page", () => {
     it("should save settings changes automatically", async () => {
       const user = userEvent.setup();
 
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: false },
       });
-      mockApi.updateSettings.mockResolvedValue({ success: true });
+      vi.mocked(api).updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -386,7 +382,7 @@ describe("Settings Page", () => {
       // Should automatically save after a short delay
       await waitFor(
         () => {
-          expect(mockApi.updateSettings).toHaveBeenCalled();
+          expect(vi.mocked(api).updateSettings).toHaveBeenCalled();
         },
         { timeout: 2000 }
       );
@@ -395,7 +391,7 @@ describe("Settings Page", () => {
     it("should show save status indicators", async () => {
       const user = userEvent.setup();
 
-      mockApi.updateSettings.mockImplementation(
+      vi.mocked(api).updateSettings.mockImplementation(
         () =>
           new Promise((resolve) =>
             setTimeout(() => resolve({ success: true }), 1000)
@@ -432,7 +428,7 @@ describe("Settings Page", () => {
         },
       };
 
-      mockApi.getSettings.mockResolvedValue(mockSettings);
+      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
 
       renderWithProviders(<Settings />);
 
@@ -447,7 +443,7 @@ describe("Settings Page", () => {
     it("should allow password change", async () => {
       const user = userEvent.setup();
 
-      mockApi.updateSettings.mockResolvedValue({ success: true });
+      vi.mocked(api).updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
 
@@ -494,7 +490,7 @@ describe("Settings Page", () => {
 
   describe("Error Handling", () => {
     it("should handle settings load errors", async () => {
-      mockApi.getSettings.mockRejectedValue(new Error("Settings unavailable"));
+      vi.mocked(api).getSettings.mockRejectedValue(new Error("Settings unavailable"));
 
       renderWithProviders(<Settings />);
 
@@ -510,10 +506,10 @@ describe("Settings Page", () => {
     it("should handle save errors gracefully", async () => {
       const user = userEvent.setup();
 
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: false },
       });
-      mockApi.updateSettings.mockRejectedValue(new Error("Save failed"));
+      vi.mocked(api).updateSettings.mockRejectedValue(new Error("Save failed"));
 
       renderWithProviders(<Settings />);
 
@@ -530,7 +526,7 @@ describe("Settings Page", () => {
     });
 
     it("should handle API key validation errors", async () => {
-      mockApi.testApiKey.mockRejectedValue(new Error("Connection timeout"));
+      vi.mocked(api).testApiKey.mockRejectedValue(new Error("Connection timeout"));
 
       renderWithProviders(<Settings />);
 
@@ -541,7 +537,7 @@ describe("Settings Page", () => {
 
   describe("Accessibility", () => {
     it("should have proper form labels", async () => {
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: true },
       });
 
@@ -561,7 +557,7 @@ describe("Settings Page", () => {
     it("should be keyboard navigable", async () => {
       const user = userEvent.setup();
 
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: true },
       });
 
@@ -578,7 +574,7 @@ describe("Settings Page", () => {
 
   describe("Responsive Design", () => {
     it("should adapt to mobile layout", async () => {
-      mockApi.getSettings.mockResolvedValue({
+      vi.mocked(api).getSettings.mockResolvedValue({
         notifications: { email: true },
       });
 

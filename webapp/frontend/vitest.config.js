@@ -16,16 +16,16 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/tests/simple-setup.js"],
     globals: true,
-    testTimeout: 60000, // Increased for React component rendering
-    hookTimeout: 30000, // Increased for complex components
-    teardownTimeout: 10000, // Increased cleanup time
-    // Use threads for better performance with React
+    testTimeout: 15000, // Reduced to catch hanging tests faster
+    hookTimeout: 10000, // Reduced hook timeout
+    teardownTimeout: 5000, // Reduced cleanup time
+    // Use single thread to avoid race conditions
     pool: "threads",
     poolOptions: {
       threads: {
-        singleThread: false,
+        singleThread: true,
         minThreads: 1,
-        maxThreads: 2,
+        maxThreads: 1,
       },
     },
     // Test file patterns - allow targeting specific files
@@ -39,8 +39,8 @@ export default defineConfig({
     },
     // Standard reporters
     reporters: ["default"],
-    // Allow some parallel execution for efficiency
-    fileParallelism: true,
+    // Disable parallel execution to reduce resource contention
+    fileParallelism: false,
     // Allow retries for flaky React component tests
     retry: 1,
     // Cleanup options
