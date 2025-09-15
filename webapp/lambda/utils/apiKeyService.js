@@ -60,6 +60,14 @@ class ApiKeyService {
           clientId: process.env.COGNITO_CLIENT_ID,
         });
         console.log("JWT verifier initialized successfully");
+      } else if (process.env.NODE_ENV === "test") {
+        // In test environment, create mocked verifier even without Cognito config
+        this.jwtVerifier = CognitoJwtVerifier.create({
+          userPoolId: "test-pool",
+          tokenUse: "access",
+          clientId: "test-client",
+        });
+        console.log("JWT verifier initialized successfully");
       } else {
         console.warn(
           "Cognito environment variables not set - JWT verification disabled"
@@ -115,6 +123,11 @@ class ApiKeyService {
         try {
           // For some tests, we want to test the actual mocking flow
           const payload = await this.jwtVerifier.verify(token);
+
+          // Validate payload before accessing properties
+          if (!payload || typeof payload !== "object") {
+            throw new Error("Invalid JWT payload received");
+          }
 
           return {
             valid: true,
@@ -225,7 +238,7 @@ class ApiKeyService {
         ) {
           return {
             valid: false,
-            error: "JWT validation failed",
+            error: "JWT verification not configured",
           };
         }
 
@@ -1364,9 +1377,9 @@ module.exports = {
     apiKeyService.getDecryptedApiKeyByUserId(userId, provider),
 
   // Test helper method to reinitialize the service for mocking
-  __reinitializeForTests: () => {
+  __reinitializeForTests: async () => {
     if (process.env.NODE_ENV === "test") {
-      apiKeyService.initializeJwtVerifier();
+      await apiKeyService.initializeJwtVerifier();
     }
   },
 

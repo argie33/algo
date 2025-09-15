@@ -52,7 +52,7 @@ describe("ApiKeyService", () => {
   let mockJwtVerifier;
   let originalEnv;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
 
     // Store original environment
@@ -97,7 +97,7 @@ describe("ApiKeyService", () => {
     clearCaches();
 
     // Reinitialize the service with mocked dependencies
-    __reinitializeForTests();
+    await __reinitializeForTests();
   });
 
   afterEach(() => {
@@ -220,9 +220,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(
-        storeApiKey("valid.jwt.token", "alpaca", invalidApiKeyData)
-      ).rejects.toThrow("Missing required API key fields");
+      const result = await storeApiKey("valid.jwt.token", "alpaca", invalidApiKeyData);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("API key data must include keyId and secret");
     });
 
     test("should validate provider name", async () => {
