@@ -329,8 +329,8 @@ router.get("/overview-fixed", async (req, res) => {
     try {
       const fearGreedQuery = `
         SELECT
-          value,
-          value_text,
+          index_value as value,
+          rating as value_text,
           date as timestamp
         FROM fear_greed_index
         ORDER BY date DESC
@@ -546,8 +546,8 @@ router.get("/overview", async (req, res) => {
       console.log("Fetching Fear & Greed data...");
       const fearGreedQuery = `
         SELECT
-          value,
-          value_text,
+          index_value as value,
+          rating as value_text,
           date as timestamp
         FROM fear_greed_index
         ORDER BY date DESC
@@ -878,10 +878,10 @@ router.get("/sentiment/history", async (req, res) => {
   try {
     // Get fear & greed data
     const fearGreedQuery = `
-      SELECT 
+      SELECT
         date,
-        value,
-        classification
+        index_value as value,
+        rating as classification
       FROM fear_greed_index
       WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
@@ -1701,10 +1701,10 @@ router.get("/fear-greed", async (req, res) => {
 
   try {
     const fearGreedQuery = `
-      SELECT 
+      SELECT
         date,
-        value,
-        classification
+        index_value as value,
+        rating as classification
       FROM fear_greed_index
       ORDER BY date DESC
       LIMIT $1
@@ -1993,7 +1993,7 @@ router.get("/indicators", async (req, res) => {
     const sentimentQuery = `
       SELECT 
         value,
-        classification,
+        rating as classification,
         date
       FROM fear_greed_index
       ORDER BY date DESC
@@ -2050,7 +2050,7 @@ router.get("/sentiment", async (req, res) => {
     const fearGreedQuery = `
       SELECT 
         value,
-        classification,
+        rating as classification,
         date
       FROM fear_greed_index
       ORDER BY date DESC
