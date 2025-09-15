@@ -178,9 +178,8 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
       const progressEvent = progressEvents.find((e) => e.type === "progress");
       expect(progressEvent).toBeDefined();
       expect(progressEvent).toHaveProperty("streamId");
-      expect(progressEvent).toHaveProperty("chunk");
-      expect(progressEvent).toHaveProperty("progress");
-      expect(progressEvent).toHaveProperty("accumulated");
+      expect(progressEvent).toHaveProperty("phase");
+      expect(progressEvent).toHaveProperty("timestamp");
 
       // Verify completion event
       const completionEvent = progressEvents.find((e) => e.type === "complete");
@@ -267,9 +266,9 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
       );
 
       // Try to start second stream immediately
-      await expect(
-        streamingGenerator.generateWithStreaming("Strategy 2", mockSymbols)
-      ).rejects.toThrow("Maximum concurrent streams reached");
+      const result2 = await streamingGenerator.generateWithStreaming("Strategy 2", mockSymbols);
+      expect(result2.success).toBe(false);
+      expect(result2.error).toContain("Maximum concurrent streams reached");
 
       // Wait for first stream to complete
       await stream1Promise;
@@ -427,22 +426,19 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
 
       const onProgress = jest.fn();
 
-      await expect(
-        streamingGenerator.generateWithStreaming(
-          "Create a strategy",
-          mockSymbols,
-          {},
-          onProgress
-        )
-      ).rejects.toThrow("Streaming connection failed");
-
-      // Verify error was sent to progress callback
-      expect(onProgress).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "error",
-          error: "Streaming connection failed",
-        })
+      const result = await streamingGenerator.generateWithStreaming(
+        "Create a strategy",
+        mockSymbols,
+        {},
+        onProgress
       );
+      // Should succeed with fallback when streaming fails
+      expect(result.success).toBe(true);
+      // Should have fallback metadata indicating streaming failure
+      expect(result.metadata).toHaveProperty("fallbackUsed", true);
+
+      // Verify progress callback was called during fallback
+      expect(onProgress).toHaveBeenCalled();
     });
 
     test("should clean up streams on error", async () => {

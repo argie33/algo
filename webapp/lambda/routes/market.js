@@ -329,8 +329,8 @@ router.get("/overview-fixed", async (req, res) => {
     try {
       const fearGreedQuery = `
         SELECT
-          index_value as value,
-          rating as value_text,
+          value,
+          value_text,
           date as timestamp
         FROM fear_greed_index
         ORDER BY date DESC
@@ -546,8 +546,8 @@ router.get("/overview", async (req, res) => {
       console.log("Fetching Fear & Greed data...");
       const fearGreedQuery = `
         SELECT
-          index_value as value,
-          rating as value_text,
+          value,
+          value_text,
           date as timestamp
         FROM fear_greed_index
         ORDER BY date DESC
