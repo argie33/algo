@@ -557,7 +557,7 @@ const Portfolio = () => {
   }, [portfolioData]);
 
   // Factor analysis calculations (simplified - removed)
-  const factorAnalysis = [];
+  const factorAnalysis = useMemo(() => [], []);
 
   // Sector and geographic diversification
   const diversificationMetrics = useMemo(() => {

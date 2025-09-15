@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.78% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/238</span>
+                <span class='fraction'>0/238</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.81% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/236</span>
+                <span class='fraction'>0/236</span>
             </div>
         
             
@@ -1058,20 +1058,20 @@
 <a name='L993'></a><a href='#L993'>993</a>
 <a name='L994'></a><a href='#L994'>994</a>
 <a name='L995'></a><a href='#L995'>995</a>
-<a name='L996'></a><a href='#L996'>996</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">12x</span>
+<a name='L996'></a><a href='#L996'>996</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1577,7 +1577,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1707,9 +1707,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1729,7 +1729,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1817,8 +1817,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2052,20 +2052,20 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = <span class="cstat-no" title="statement not covered" >require("express");</span>
 &nbsp;
 const {
   query,
   initializeDatabase,
   getPool,
   healthCheck,
-} = require("../utils/database");
+} = <span class="cstat-no" title="statement not covered" >require("../utils/database");</span>
 &nbsp;
-const router = express.Router();
+const router = <span class="cstat-no" title="statement not covered" >express.Router();</span>
 &nbsp;
 // Health check endpoint
-router.get("/", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
     // Basic health check without database (for quick status)
 <span class="cstat-no" title="statement not covered" >    if (req.query.quick === "true") {</span>
@@ -2572,7 +2572,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
 });
 &nbsp;
 // Comprehensive database health check endpoint (RESTORED health_status logic)
-router.get("/database", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/database", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  console.log("Received request for /health/database");</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
     // Ensure database pool is initialized before running any queries
@@ -2702,7 +2702,7 @@ router.get("/database", <span class="fstat-no" title="function not covered" >as<
 });
 &nbsp;
 // Test database connection
-router.get("/test-connection", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/test-connection", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const result = <span class="cstat-no" title="statement not covered" >await query(</span>
       "SELECT NOW() as current_time, version() as postgres_version"
@@ -2724,7 +2724,7 @@ router.get("/test-connection", <span class="fstat-no" title="function not covere
 });
 &nbsp;
 // Debug AWS Secrets Manager secret format
-router.get("/debug-secret", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/debug-secret", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const secretArn = <span class="cstat-no" title="statement not covered" >process.env.DB_SECRET_ARN;</span>
 <span class="cstat-no" title="statement not covered" >    if (!secretArn) {</span>
@@ -2812,7 +2812,7 @@ router.get("/debug-secret", <span class="fstat-no" title="function not covered" 
 });
 &nbsp;
 // Enhanced comprehensive database diagnostics endpoint
-router.get("/database/diagnostics", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/database/diagnostics", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  console.log("Received request for /health/database/diagnostics");</span>
   // Ensure DB pool is initialized (like in /stocks and main health check)
 <span class="cstat-no" title="statement not covered" >  try {</span>
@@ -3047,7 +3047,7 @@ router.get("/database/diagnostics", <span class="fstat-no" title="function not c
   }
 });
 &nbsp;
-module.exports = router;
+<span class="cstat-no" title="statement not covered" >module.exports = router;</span>
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -3055,7 +3055,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T06:31:16.064Z
+                at 2025-09-15T07:36:11.431Z
             </div>
         <script src="../prettify.js"></script>
         <script>

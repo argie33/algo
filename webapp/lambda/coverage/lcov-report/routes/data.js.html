@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.87% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/131</span>
+                <span class='fraction'>0/131</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.92% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/130</span>
+                <span class='fraction'>0/130</span>
             </div>
         
             
@@ -509,17 +509,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -560,8 +560,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -623,7 +623,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -721,10 +721,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -804,10 +804,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -944,23 +944,23 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Data Routes - General data access endpoints
  * Provides unified access to various data types (price, technical, fundamental)
  */
 &nbsp;
-const express = require("express");
+const express = <span class="cstat-no" title="statement not covered" >require("express");</span>
 &nbsp;
-const router = express.Router();
-const { query } = require("../utils/database");
+const router = <span class="cstat-no" title="statement not covered" >express.Router();</span>
+const { query } = <span class="cstat-no" title="statement not covered" >require("../utils/database");</span>
 &nbsp;
 /**
  * @route GET /api/data
  * @description Get general data API information
  * @access Public
  */
-router.get("/", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      console.log("📊 Data API info requested");</span>
@@ -1001,7 +1001,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
  * @description Get data for multiple symbols
  * @access Public
  */
-router.get("/bulk", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/bulk", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
   const { symbols } = <span class="cstat-no" title="statement not covered" >req.query;</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  if (!symbols) {</span>
@@ -1064,7 +1064,7 @@ router.get("/bulk", <span class="fstat-no" title="function not covered" >as</spa
  * @description Get comprehensive data for a symbol (price + technical)
  * @access Public
  */
-router.get("/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
   const { symbol } = <span class="cstat-no" title="statement not covered" >req.params;</span>
   const symbolUpper = <span class="cstat-no" title="statement not covered" >symbol.toUpperCase();</span>
 &nbsp;
@@ -1162,7 +1162,7 @@ router.get("/:symbol", <span class="fstat-no" title="function not covered" >as</
  * @description Get historical data for a symbol
  * @access Public
  */
-router.get("/historical/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/historical/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
   const { symbol } = <span class="cstat-no" title="statement not covered" >req.params;</span>
   const { start, end, limit = <span class="branch-0 cbranch-no" title="branch not covered" >50 </span>} = <span class="cstat-no" title="statement not covered" >req.query;</span>
   const symbolUpper = <span class="cstat-no" title="statement not covered" >symbol.toUpperCase();</span>
@@ -1245,7 +1245,7 @@ router.get("/historical/:symbol", <span class="fstat-no" title="function not cov
  * @description Get real-time data for a symbol
  * @access Public
  */
-router.get("/realtime/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get("/realtime/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
   const { symbol } = <span class="cstat-no" title="statement not covered" >req.params;</span>
   const { mock_live = <span class="branch-0 cbranch-no" title="branch not covered" >"false" </span>} = <span class="cstat-no" title="statement not covered" >req.query;</span>
   const symbolUpper = <span class="cstat-no" title="statement not covered" >symbol.toUpperCase();</span>
@@ -1385,7 +1385,7 @@ router.get("/realtime/:symbol", <span class="fstat-no" title="function not cover
   }
 });
 &nbsp;
-module.exports = router;
+<span class="cstat-no" title="statement not covered" >module.exports = router;</span>
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -1393,7 +1393,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T06:31:16.064Z
+                at 2025-09-15T07:36:11.431Z
             </div>
         <script src="../prettify.js"></script>
         <script>

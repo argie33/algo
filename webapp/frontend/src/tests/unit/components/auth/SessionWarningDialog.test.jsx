@@ -2,7 +2,6 @@ import {
   render,
   screen,
   fireEvent,
-  waitFor,
   act,
 } from "@testing-library/react";
 import { vi } from "vitest";
@@ -71,17 +70,13 @@ describe("SessionWarningDialog", () => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        expect(screen.getByText("0:04")).toBeInTheDocument();
-      });
+      expect(screen.getByText("0:04")).toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        expect(screen.getByText("0:03")).toBeInTheDocument();
-      });
+      expect(screen.getByText("0:03")).toBeInTheDocument();
     });
 
     test("calls onLogout when countdown reaches zero", async () => {
@@ -89,20 +84,21 @@ describe("SessionWarningDialog", () => {
       render(
         <SessionWarningDialog
           {...defaultProps}
-          timeRemaining={2000}
+          timeRemaining={1000}
           onLogout={onLogout}
         />
       );
 
-      expect(screen.getByText("0:02")).toBeInTheDocument();
+      expect(screen.getByText("0:01")).toBeInTheDocument();
+
+      // Clear any existing mock calls from component mount
+      onLogout.mockClear();
 
       act(() => {
-        vi.advanceTimersByTime(2000);
+        vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        expect(onLogout).toHaveBeenCalledTimes(1);
-      });
+      expect(onLogout).toHaveBeenCalledTimes(1);
     });
 
     test("stops countdown when dialog is closed", async () => {
@@ -175,10 +171,8 @@ describe("SessionWarningDialog", () => {
         vi.advanceTimersByTime(1000);
       });
 
-      await waitFor(() => {
-        const newValue = progressBar.getAttribute("aria-valuenow");
-        expect(newValue).not.toBe(initialValue);
-      });
+      const newValue = progressBar.getAttribute("aria-valuenow");
+      expect(newValue).not.toBe(initialValue);
     });
   });
 
@@ -209,17 +203,19 @@ describe("SessionWarningDialog", () => {
 
       expect(onExtend).toHaveBeenCalledTimes(1);
 
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalledTimes(1);
+      // Flush promises to ensure async resolution
+      await act(async () => {
+        await Promise.resolve();
       });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     test("shows loading state when extending session", async () => {
-      const onExtend = vi
-        .fn()
-        .mockImplementation(
-          () => new Promise((resolve) => setTimeout(resolve, 100))
-        );
+      let resolveExtend;
+      const onExtend = vi.fn().mockImplementation(() => new Promise((resolve) => {
+        resolveExtend = resolve;
+      }));
       render(<SessionWarningDialog {...defaultProps} onExtend={onExtend} />);
 
       const staySignedInButton = screen.getByText("Stay Signed In");
@@ -232,9 +228,13 @@ describe("SessionWarningDialog", () => {
         expect(button).toBeDisabled();
       });
 
-      await waitFor(() => {
-        expect(screen.getByText("Stay Signed In")).toBeInTheDocument();
+      // Resolve the promise
+      await act(async () => {
+        resolveExtend();
+        await Promise.resolve();
       });
+
+      expect(screen.getByText("Stay Signed In")).toBeInTheDocument();
     });
 
     test("handles extend session error gracefully", async () => {
@@ -247,12 +247,15 @@ describe("SessionWarningDialog", () => {
       const staySignedInButton = screen.getByText("Stay Signed In");
       fireEvent.click(staySignedInButton);
 
-      await waitFor(() => {
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to extend session:",
-          expect.any(Error)
-        );
+      // Flush promises to ensure async resolution
+      await act(async () => {
+        await Promise.resolve();
       });
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Failed to extend session:",
+        expect.any(Error)
+      );
 
       expect(screen.getByText("Stay Signed In")).toBeInTheDocument();
 

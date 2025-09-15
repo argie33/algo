@@ -134,7 +134,7 @@ const RealTimePriceWidget = ({
 
   if (loading) {
     return (
-      <Box>
+      <Box data-testid="loading-skeleton">
         <Skeleton variant="text" width={100} height={30} />
         <Skeleton variant="text" width={150} height={24} />
       </Box>

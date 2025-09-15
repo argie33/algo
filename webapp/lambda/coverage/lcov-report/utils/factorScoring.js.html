@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.44% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>6/245</span>
+                <span class='fraction'>0/245</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">1.98% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>3/151</span>
+                <span class='fraction'>0/151</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">1.49% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/67</span>
+                <span class='fraction'>0/67</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.66% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>6/225</span>
+                <span class='fraction'>0/225</span>
             </div>
         
             
@@ -854,12 +854,12 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -941,8 +941,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">24x</span>
-<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1618,9 +1618,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1640,12 +1640,12 @@
  * Provides comprehensive scoring and ranking algorithms for stock selection
  */
 &nbsp;
-const logger = require("./logger");
+const logger = <span class="cstat-no" title="statement not covered" >require("./logger");</span>
 &nbsp;
 /**
  * Factor definitions and weights
  */
-const FACTOR_DEFINITIONS = {
+const FACTOR_DEFINITIONS = <span class="cstat-no" title="statement not covered" >{</span>
   value: {
     name: "Value",
     description: "Price relative to fundamental metrics",
@@ -1726,9 +1726,9 @@ const FACTOR_DEFINITIONS = {
 };
 &nbsp;
 class FactorScoringEngine {
-  constructor(customFactors = null) {
-    this.factors = customFactors || FACTOR_DEFINITIONS;
-    this.universeStats = new Map(); // Cache for universe statistics
+<span class="fstat-no" title="function not covered" >  co</span>nstructor(customFactors = <span class="branch-0 cbranch-no" title="branch not covered" >null)</span> {
+<span class="cstat-no" title="statement not covered" >    this.factors = customFactors || FACTOR_DEFINITIONS;</span>
+<span class="cstat-no" title="statement not covered" >    this.universeStats = new Map(); </span>// Cache for universe statistics
   }
 &nbsp;
   /**
@@ -2404,9 +2404,9 @@ class FactorScoringEngine {
 }
 &nbsp;
 // Export singleton instance and class
-const factorScoringEngine = new FactorScoringEngine();
+const factorScoringEngine = <span class="cstat-no" title="statement not covered" >new FactorScoringEngine();</span>
 &nbsp;
-module.exports = {
+<span class="cstat-no" title="statement not covered" >module.exports = {</span>
   FactorScoringEngine,
   calculateCompositeScore: <span class="fstat-no" title="function not covered" >(s</span>tockData, universeData) =&gt;
 <span class="cstat-no" title="statement not covered" >    factorScoringEngine.calculateCompositeScore(stockData, universeData),</span>
@@ -2428,7 +2428,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T06:31:16.064Z
+                at 2025-09-15T07:36:11.431Z
             </div>
         <script src="../prettify.js"></script>
         <script>

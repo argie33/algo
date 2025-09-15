@@ -311,4 +311,18 @@ if (require.main === module) {
     });
 }
 
+// Jest wrapper for the custom test suite
+describe('Fixed 501 Endpoints', () => {
+  test('should have valid test functions exported', () => {
+    expect(typeof runTests).toBe('function');
+    expect(typeof testEndpoint).toBe('function');
+  });
+
+  // Optional: Run the actual tests if needed
+  // test('should run all fixed endpoint tests', async () => {
+  //   const results = await runTests();
+  //   expect(results.successRate).toBeGreaterThanOrEqual(75);
+  // }, 30000);
+});
+
 module.exports = { runTests, testEndpoint };

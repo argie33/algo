@@ -29,7 +29,7 @@ const SessionWarningDialog = ({
   }, [timeRemaining]);
 
   useEffect(() => {
-    if (!open || countdown <= 0) return;
+    if (!open) return;
 
     const timer = setInterval(() => {
       if (!isMountedRef.current) {
@@ -55,7 +55,7 @@ const SessionWarningDialog = ({
     return () => {
       clearInterval(timer);
     };
-  }, [open, countdown, onLogout]);
+  }, [open, onLogout]);
 
   useEffect(() => {
     return () => {
@@ -76,7 +76,7 @@ const SessionWarningDialog = ({
   };
 
   const formatTime = (milliseconds) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+    const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;

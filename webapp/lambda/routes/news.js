@@ -1293,9 +1293,20 @@ router.get("/sentiment-dashboard", async (req, res) => {
       query(symbolSentimentQuery),
     ]);
 
+    // Check if queries returned valid results
+    if (!marketResult || !marketResult.rows) {
+      throw new Error('Market sentiment query failed - news tables may not exist');
+    }
+    if (!sectorResult || !sectorResult.rows) {
+      throw new Error('Sector sentiment query failed - news tables may not exist');
+    }
+    if (!symbolResult || !symbolResult.rows) {
+      throw new Error('Symbol sentiment query failed - news tables may not exist');
+    }
+
     // Process market sentiment
     const marketData = marketResult.rows[0];
-    const totalArticles = parseInt(marketData.total_articles) || 0;
+    const totalArticles = parseInt(marketData?.total_articles) || 0;
 
     if (totalArticles === 0) {
       return res.status(404).json({
@@ -1361,13 +1372,14 @@ router.get("/sentiment-dashboard", async (req, res) => {
     console.error("Sentiment dashboard error:", error);
 
     // Check if tables don't exist
-    if (error.message.includes('relation "news_articles" does not exist')) {
+    if (error.message.includes('relation "news_articles" does not exist') ||
+        error.message.includes('news tables may not exist')) {
       return res.status(503).json({
         success: false,
         error: "Sentiment dashboard service not initialized",
         message:
           "News articles database table needs to be created. Please run the database setup script.",
-        details: "Missing required table: news_articles",
+        details: "Missing required table: news_articles or news",
         timestamp: new Date().toISOString(),
       });
     }

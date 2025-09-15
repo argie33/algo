@@ -699,13 +699,6 @@ function TechnicalAnalysis() {
         </Box>
         {/* Main content: overview + table */}
         <Box flex={1}>
-          <Typography
-            variant="h4"
-            gutterBottom
-            sx={{ mb: 2, mt: 1, textAlign: "left" }}
-          >
-            Technical Analysis
-          </Typography>
           <Divider sx={{ mb: 2 }} />
           {/* Error/Loading/Empty states */}
           {error && (

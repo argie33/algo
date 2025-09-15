@@ -42,23 +42,29 @@ describe("Concurrent Database Transaction Integration", () => {
     });
 
     test("should maintain read consistency across concurrent transactions", async () => {
-      // Create test data first
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_concurrent_reads (
+      // Create test table that can be accessed by multiple transactions
+      const pool = getPool();
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS test_concurrent_reads (
             id SERIAL PRIMARY KEY,
             value INTEGER
           )
         `);
 
+        // Clear any existing data
+        await pool.query("TRUNCATE test_concurrent_reads RESTART IDENTITY");
+
         // Insert test data
         for (let i = 1; i <= 100; i++) {
-          await client.query(
+          await pool.query(
             "INSERT INTO test_concurrent_reads (value) VALUES ($1)",
             [i]
           );
         }
-      });
+      } catch (error) {
+        console.log('Table creation/data insertion error:', error.message);
+      }
 
       // Multiple concurrent reads of the same data
       const concurrentReads = Array.from({ length: 5 }, () =>
@@ -85,22 +91,31 @@ describe("Concurrent Database Transaction Integration", () => {
 
       expect(firstResult.count).toBe(100);
       expect(firstResult.total).toBe(5050); // Sum of 1 to 100
+
+      // Cleanup
+      try {
+        await pool.query("DROP TABLE IF EXISTS test_concurrent_reads");
+      } catch (error) {
+        console.log('Cleanup error:', error.message);
+      }
     });
   });
 
   describe("Concurrent Write Operations", () => {
     test("should handle concurrent inserts without conflicts", async () => {
       // Create test table
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_concurrent_inserts (
-            id SERIAL PRIMARY KEY,
-            transaction_id INTEGER,
-            value TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-          )
-        `);
-      });
+      const pool = getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_concurrent_inserts (
+          id SERIAL PRIMARY KEY,
+          transaction_id INTEGER,
+          value TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+
+      // Clear any existing data
+      await pool.query("TRUNCATE test_concurrent_inserts RESTART IDENTITY");
 
       const concurrentInserts = Array.from({ length: 10 }, (_, i) =>
         transaction(async (client) => {
@@ -132,23 +147,27 @@ describe("Concurrent Database Transaction Integration", () => {
         );
         expect(parseInt(countResult.rows[0].count)).toBe(10);
       });
+
+      // Cleanup
+      await pool.query("DROP TABLE IF EXISTS test_concurrent_inserts");
     });
 
     test("should handle concurrent updates with proper isolation", async () => {
       // Create test data
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_concurrent_updates (
-            id SERIAL PRIMARY KEY,
-            counter INTEGER DEFAULT 0,
-            last_updated_by INTEGER
-          )
-        `);
+      const pool = getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_concurrent_updates (
+          id SERIAL PRIMARY KEY,
+          counter INTEGER DEFAULT 0,
+          last_updated_by INTEGER
+        )
+      `);
 
-        await client.query(
-          "INSERT INTO test_concurrent_updates (counter) VALUES (0)"
-        );
-      });
+      // Clear and insert test data
+      await pool.query("TRUNCATE test_concurrent_updates RESTART IDENTITY");
+      await pool.query(
+        "INSERT INTO test_concurrent_updates (counter) VALUES (0)"
+      );
 
       // Multiple transactions trying to increment the same counter
       const concurrentUpdates = Array.from({ length: 20 }, (_, i) =>
@@ -194,24 +213,28 @@ describe("Concurrent Database Transaction Integration", () => {
         );
         expect(finalResult.rows[0].counter).toBe(20);
       });
+
+      // Cleanup
+      await pool.query("DROP TABLE IF EXISTS test_concurrent_updates");
     });
   });
 
   describe("Transaction Isolation Levels", () => {
     test("should maintain READ COMMITTED isolation", async () => {
       // Create test table
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_isolation (
-            id INTEGER PRIMARY KEY,
-            value INTEGER
-          )
-        `);
+      const pool = getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_isolation (
+          id INTEGER PRIMARY KEY,
+          value INTEGER
+        )
+      `);
 
-        await client.query(
-          "INSERT INTO test_isolation (id, value) VALUES (1, 100)"
-        );
-      });
+      // Clear and insert test data
+      await pool.query("TRUNCATE test_isolation");
+      await pool.query(
+        "INSERT INTO test_isolation (id, value) VALUES (1, 100)"
+      );
 
       let transaction1Complete = false;
       let transaction2ReadValue = null;
@@ -250,22 +273,26 @@ describe("Concurrent Database Transaction Integration", () => {
       // Transaction 2 should read either the old value (100) or new value (200)
       // depending on timing, but should be consistent
       expect([100, 200]).toContain(transaction2ReadValue);
+
+      // Cleanup
+      await pool.query("DROP TABLE IF EXISTS test_isolation");
     });
 
     test("should prevent dirty reads", async () => {
       // Create test data
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_dirty_read (
-            id INTEGER PRIMARY KEY,
-            value INTEGER
-          )
-        `);
+      const pool = getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_dirty_read (
+          id INTEGER PRIMARY KEY,
+          value INTEGER
+        )
+      `);
 
-        await client.query(
-          "INSERT INTO test_dirty_read (id, value) VALUES (1, 500)"
-        );
-      });
+      // Clear and insert test data
+      await pool.query("TRUNCATE test_dirty_read");
+      await pool.query(
+        "INSERT INTO test_dirty_read (id, value) VALUES (1, 500)"
+      );
 
       let dirtyReadValue = null;
       let transactionRolledBack = false;
@@ -311,34 +338,39 @@ describe("Concurrent Database Transaction Integration", () => {
       expect(transactionRolledBack).toBe(true);
       // Should not see the dirty value (999), should see original value (500)
       expect(dirtyReadValue).toBe(500);
+
+      // Cleanup
+      await pool.query("DROP TABLE IF EXISTS test_dirty_read");
     });
   });
 
   describe("Deadlock Prevention and Recovery", () => {
     test("should handle potential deadlock scenarios gracefully", async () => {
       // Create test data
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_deadlock_a (
-            id INTEGER PRIMARY KEY,
-            value INTEGER
-          )
-        `);
+      const pool = getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_deadlock_a (
+          id INTEGER PRIMARY KEY,
+          value INTEGER
+        )
+      `);
 
-        await client.query(`
-          CREATE TEMPORARY TABLE test_deadlock_b (
-            id INTEGER PRIMARY KEY,
-            value INTEGER
-          )
-        `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_deadlock_b (
+          id INTEGER PRIMARY KEY,
+          value INTEGER
+        )
+      `);
 
-        await client.query(
-          "INSERT INTO test_deadlock_a (id, value) VALUES (1, 100), (2, 200)"
-        );
-        await client.query(
-          "INSERT INTO test_deadlock_b (id, value) VALUES (1, 300), (2, 400)"
-        );
-      });
+      // Clear and insert test data
+      await pool.query("TRUNCATE test_deadlock_a");
+      await pool.query("TRUNCATE test_deadlock_b");
+      await pool.query(
+        "INSERT INTO test_deadlock_a (id, value) VALUES (1, 100), (2, 200)"
+      );
+      await pool.query(
+        "INSERT INTO test_deadlock_b (id, value) VALUES (1, 300), (2, 400)"
+      );
 
       // Transaction 1: Lock A then B
       const transaction1Promise = transaction(async (client) => {
@@ -389,6 +421,10 @@ describe("Concurrent Database Transaction Integration", () => {
       errorResults.forEach((result) => {
         expect(result.error).toMatch(/deadlock|timeout/i);
       });
+
+      // Cleanup
+      await pool.query("DROP TABLE IF EXISTS test_deadlock_a");
+      await pool.query("DROP TABLE IF EXISTS test_deadlock_b");
     });
   });
 

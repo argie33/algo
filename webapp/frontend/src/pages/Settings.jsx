@@ -180,7 +180,7 @@ const Settings = () => {
       _setApiKeys([]); // Set empty array and let user see there's no data
       throw error; // Re-throw so parent catch can handle it
     }
-  }, [apiUrl, logger, user?.id, user?.sub, user?.tokens?.accessToken]); // Dependencies required by ESLint
+  }, [apiUrl, logger, user?.id, user?.sub]); // Dependencies required by ESLint
 
   // Define loadUserSettings after loadApiKeys with useCallback to prevent infinite loops
   const loadUserSettings = useCallback(async () => {
@@ -436,7 +436,7 @@ const Settings = () => {
 
   const _deleteApiKey = async (brokerName) => {
     try {
-      const response = await api.deleteApiKey(brokerName);
+      await api.deleteApiKey(brokerName);
       showSnackbar("API key deleted successfully");
       await loadApiKeys();
     } catch (error) {

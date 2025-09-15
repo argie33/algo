@@ -80,13 +80,17 @@ class ApiKeyService {
         });
         console.log("JWT verifier initialized successfully");
       } else if (process.env.NODE_ENV === "test") {
-        // In test environment, create mocked verifier even without Cognito config
-        this.jwtVerifier = CognitoJwtVerifier.create({
-          userPoolId: "test-pool",
-          tokenUse: "access",
-          clientId: "test-client",
-        });
-        console.log("JWT verifier initialized successfully");
+        // In test environment, use a mock verifier to prevent real Cognito calls
+        this.jwtVerifier = {
+          verify: async (token) => {
+            // Mock verification for tests - always pass dev tokens, fail others
+            if (token && token.includes('dev-bypass-token')) {
+              return { sub: 'test-user', email: 'test@example.com' };
+            }
+            throw new Error('Invalid token for test environment');
+          }
+        };
+        console.log("JWT verifier initialized successfully (test mode)");
       } else {
         console.warn(
           "Cognito environment variables not set - JWT verification disabled"

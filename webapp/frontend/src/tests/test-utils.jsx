@@ -179,12 +179,14 @@ export const renderWithAuth = (ui, options = {}) => {
 
 // Mock DOM methods that don't exist in jsdom
 // Mock scrollIntoView for components that use it
-Object.defineProperty(Element.prototype, "scrollIntoView", {
-  value: function () {
-    // Mock implementation - do nothing in tests
-  },
-  writable: true,
-});
+if (typeof Element !== 'undefined' && Element.prototype) {
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    value: function () {
+      // Mock implementation - do nothing in tests
+    },
+    writable: true,
+  });
+}
 
 // Re-export commonly used testing utilities
 export { render, screen, waitFor, fireEvent } from "@testing-library/react";

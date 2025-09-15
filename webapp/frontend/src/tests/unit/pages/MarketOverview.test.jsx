@@ -1,5 +1,4 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
-import React from "react";
 
 // Mock import.meta.env BEFORE any imports
 Object.defineProperty(import.meta, "env", {

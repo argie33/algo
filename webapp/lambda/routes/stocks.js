@@ -428,7 +428,7 @@ router.get("/", stocksListValidation, async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
       ${whereClause}
     `;
 
@@ -1412,13 +1412,13 @@ router.get("/list", async (req, res) => {
     
     // Get stock list from company_profile table
     const listQuery = `
-      SELECT 
-        ticker as symbol,
-        company_name as name,
+      SELECT
+        symbol,
+        name,
         sector,
         market_cap
       FROM company_profile
-      WHERE ticker IS NOT NULL
+      WHERE symbol IS NOT NULL
       ORDER BY market_cap DESC NULLS LAST
       LIMIT $1
     `;
@@ -3062,7 +3062,7 @@ router.get("/:symbol/fundamentals", async (req, res) => {
     
     // Get company profile data
     const result = await query(
-      `SELECT * FROM company_profile WHERE ticker = $1`,
+      `SELECT * FROM company_profile WHERE symbol = $1`,
       [symbol.toUpperCase()]
     );
     
