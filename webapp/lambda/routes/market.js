@@ -4,7 +4,6 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
-
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
   const results = {};
@@ -22,7 +21,7 @@ async function checkRequiredTables(tableNames) {
     } catch (error) {
       console.error(`Error checking table ${tableName}:`, error.message);
       // For certain types of errors (like connection failures), re-throw them
-      if (error.message === 'Table check failed') {
+      if (error.message === "Table check failed") {
         throw error;
       }
       results[tableName] = false;
@@ -53,7 +52,7 @@ router.get("/", (req, res) => {
         "/sentiment",
         "/correlation",
         "/data",
-      ]
+      ],
     },
     timestamp: new Date().toISOString(),
   });
@@ -63,23 +62,23 @@ router.get("/", (req, res) => {
 router.get("/data", async (req, res) => {
   try {
     console.log("📊 Market data endpoint called");
-    
+
     // Check required tables
     const requiredTables = ["market_data", "stocks"];
     const tableStatus = await checkRequiredTables(requiredTables);
-    
+
     if (!tableStatus.market_data && !tableStatus.stocks) {
       return res.status(503).json({
         success: false,
         error: "Market data tables not available",
         tables_checked: tableStatus,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Get basic market data from available tables
     let marketData = [];
-    
+
     if (tableStatus.market_data) {
       const marketResult = await query(`
         SELECT ticker as symbol, current_price, 
@@ -110,32 +109,31 @@ router.get("/data", async (req, res) => {
     }
 
     // Transform data to ensure proper types and field names
-    const transformedData = marketData.map(item => ({
+    const transformedData = marketData.map((item) => ({
       symbol: item.symbol || item.ticker,
       price: parseFloat(item.current_price || item.price || 0),
       change_percent: parseFloat(item.change_percent || 0),
       change_amount: parseFloat(item.change_amount || 0),
       volume: parseInt(item.volume || 0),
-      market_cap: parseFloat(item.market_cap || 0)
+      market_cap: parseFloat(item.market_cap || 0),
     }));
 
     return res.json({
       success: true,
       data: transformedData,
       metadata: {
-        source: tableStatus.market_data ? "market_data" : "stocks", 
+        source: tableStatus.market_data ? "market_data" : "stocks",
         count: transformedData.length,
-        tables_available: tableStatus
+        tables_available: tableStatus,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Market data error:", error);
     return res.status(500).json({
       success: false,
       error: "Database error - Failed to fetch market data",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -196,22 +194,25 @@ router.get("/summary", async (req, res) => {
       `
     );
 
-    const indices = indicesResult.rows.map(row => ({
+    const indices = indicesResult.rows.map((row) => ({
       symbol: row.symbol,
       price: parseFloat(row.close).toFixed(2),
       change: parseFloat(row.change_amount || 0).toFixed(2),
       change_percent: parseFloat(row.change_percent || 0).toFixed(2),
-      volume: parseInt(row.volume || 0)
+      volume: parseInt(row.volume || 0),
     }));
 
     const breadth = breadthResult.rows[0];
-    const advanceDeclineRatio = breadth.declining > 0 ? (breadth.advancing / breadth.declining) : breadth.advancing;
+    const advanceDeclineRatio =
+      breadth.declining > 0
+        ? breadth.advancing / breadth.declining
+        : breadth.advancing;
 
-    const sectors = sectorResult.rows.slice(0, 10).map(row => ({
+    const sectors = sectorResult.rows.slice(0, 10).map((row) => ({
       sector: row.sector,
       stock_count: parseInt(row.stock_count),
       avg_change_percent: parseFloat(row.avg_change_percent || 0).toFixed(2),
-      total_volume: parseInt(row.total_volume)
+      total_volume: parseInt(row.total_volume),
     }));
 
     res.json({
@@ -225,19 +226,21 @@ router.get("/summary", async (req, res) => {
           declining: parseInt(breadth.declining),
           unchanged: parseInt(breadth.unchanged),
           advance_decline_ratio: advanceDeclineRatio.toFixed(2),
-          avg_change_percent: parseFloat(breadth.avg_change_percent || 0).toFixed(2),
-          total_volume: parseInt(breadth.total_volume)
+          avg_change_percent: parseFloat(
+            breadth.avg_change_percent || 0
+          ).toFixed(2),
+          total_volume: parseInt(breadth.total_volume),
         },
-        top_sectors: sectors
+        top_sectors: sectors,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Market summary error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market summary",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -310,7 +313,9 @@ router.get("/debug", async (req, res) => {
     });
   } catch (error) {
     console.error("[MARKET] Error in debug endpoint:", error);
-    return res.error("Failed to check market tables: " + error.message, 500, { timestamp: new Date().toISOString() });
+    return res.error("Failed to check market tables: " + error.message, 500, {
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
@@ -323,12 +328,12 @@ router.get("/overview-fixed", async (req, res) => {
     let fearGreedData = null;
     try {
       const fearGreedQuery = `
-        SELECT 
-          COALESCE(index_value, fear_greed_value, greed_fear_index, value) as value,
-          COALESCE(index_text, value_text, classification) as value_text,
-          COALESCE(date, created_at) as timestamp
-        FROM fear_greed_index 
-        ORDER BY COALESCE(date, created_at) DESC 
+        SELECT
+          index_value as value,
+          rating as value_text,
+          date as timestamp
+        FROM fear_greed_index
+        ORDER BY date DESC
         LIMIT 1
       `;
       const fearGreedResult = await query(fearGreedQuery);
@@ -391,7 +396,7 @@ router.get("/overview-fixed", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in fixed overview test:", error);
-    return res.status(500).json({success: false, error: "Test failed"});
+    return res.status(500).json({ success: false, error: "Test failed" });
   }
 });
 
@@ -400,13 +405,18 @@ router.get("/overview-test", async (req, res) => {
   console.log("Market overview test endpoint called");
 
   try {
-    return res.status(410).json({success: false, error: "Test endpoint deprecated", 
-      message: "This test endpoint has been removed - use proper data endpoints",
-      suggestion: "Use /api/market/overview for real market data"
-    });
+    return res
+      .status(410)
+      .json({
+        success: false,
+        error: "Test endpoint deprecated",
+        message:
+          "This test endpoint has been removed - use proper data endpoints",
+        suggestion: "Use /api/market/overview for real market data",
+      });
   } catch (error) {
     console.error("Error in overview test:", error);
-    return res.status(500).json({success: false, error: "Test failed"});
+    return res.status(500).json({ success: false, error: "Test failed" });
   }
 });
 
@@ -457,7 +467,9 @@ router.get("/test", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in market test:", error);
-    return res.status(500).json({success: false, error: "Failed to test market data"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to test market data" });
   }
 });
 
@@ -478,7 +490,13 @@ router.get("/overview", async (req, res) => {
     // Validate date parameter if provided
     const { date } = req.query;
     if (date && isNaN(new Date(date).getTime())) {
-      return res.status(400).json({success: false, error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)."});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).",
+        });
     }
     // Check if market_data table exists
     const tableExists = await query(
@@ -494,19 +512,30 @@ router.get("/overview", async (req, res) => {
 
     // Add null checking for database availability
     if (!tableExists || !tableExists.rows) {
-      console.warn("Table existence query returned null result, database may be unavailable");
-      return res.error("Market overview temporarily unavailable - database connection issue", 503, {
-        indices: [],
-        sectors: [],
-        volatility: { vix: 0, fear_greed: 50 },
-        sentiment: { score: 0, label: "Neutral" }
-      });
+      console.warn(
+        "Table existence query returned null result, database may be unavailable"
+      );
+      return res.error(
+        "Market overview temporarily unavailable - database connection issue",
+        503,
+        {
+          indices: [],
+          sectors: [],
+          volatility: { vix: 0, fear_greed: 50 },
+          sentiment: { score: 0, label: "Neutral" },
+        }
+      );
     }
 
     console.log("Table existence check:", tableExists.rows[0].exists);
 
     if (!tableExists.rows[0].exists) {
-      return res.status(500).json({success: false, error: "Price data table not found in database"});
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Price data table not found in database",
+        });
     }
 
     // Get sentiment indicators
@@ -516,12 +545,12 @@ router.get("/overview", async (req, res) => {
     try {
       console.log("Fetching Fear & Greed data...");
       const fearGreedQuery = `
-        SELECT 
-          COALESCE(index_value, fear_greed_value, greed_fear_index, value) as value,
-          COALESCE(index_text, value_text, classification) as value_text,
-          COALESCE(date, created_at) as timestamp
-        FROM fear_greed_index 
-        ORDER BY COALESCE(date, created_at) DESC 
+        SELECT
+          index_value as value,
+          rating as value_text,
+          date as timestamp
+        FROM fear_greed_index
+        ORDER BY date DESC
         LIMIT 1
       `;
       const fearGreedResult = await query(fearGreedQuery);
@@ -622,18 +651,24 @@ router.get("/overview", async (req, res) => {
           AND close IS NOT NULL
       `;
       const breadthResult = await query(breadthQuery);
-      
+
       // Add null checking for database availability
       if (!breadthResult || !breadthResult.rows) {
-        console.warn("Market breadth query returned null result, database may be unavailable");
-        return res.error("Market overview temporarily unavailable - database connection issue", 503, {
-          indices: [],
-          sectors: [],
-          volatility: { vix: 0, fear_greed: 50 },
-          sentiment: { score: 0, label: "Neutral" }
-        });
+        console.warn(
+          "Market breadth query returned null result, database may be unavailable"
+        );
+        return res.error(
+          "Market overview temporarily unavailable - database connection issue",
+          503,
+          {
+            indices: [],
+            sectors: [],
+            volatility: { vix: 0, fear_greed: 50 },
+            sentiment: { score: 0, label: "Neutral" },
+          }
+        );
       }
-      
+
       console.log("Market breadth query result:", breadthResult.rows);
 
       if (
@@ -693,24 +728,28 @@ router.get("/overview", async (req, res) => {
         // Provide default market cap data if no database data available
         marketCap = {
           large_cap: 35000000000000, // $35T large cap
-          mid_cap: 7500000000000,    // $7.5T mid cap  
-          small_cap: 2500000000000,  // $2.5T small cap
-          total: 45000000000000,     // $45T total market cap
+          mid_cap: 7500000000000, // $7.5T mid cap
+          small_cap: 2500000000000, // $2.5T small cap
+          total: 45000000000000, // $45T total market cap
         };
       }
     } catch (e) {
-      console.error("Market cap data error - cannot calculate market overview without market cap data:", e.message);
+      console.error(
+        "Market cap data error - cannot calculate market overview without market cap data:",
+        e.message
+      );
       return res.status(503).json({
         success: false,
         error: "Market overview service unavailable",
         message: "Market cap data calculation failed",
-        details: "Unable to aggregate market capitalization data from stocks table",
+        details:
+          "Unable to aggregate market capitalization data from stocks table",
         requirements: [
-          "stocks table must contain market_cap values for all symbols", 
+          "stocks table must contain market_cap values for all symbols",
           "market_cap values must be numeric and up-to-date",
-          "Database must be accessible with sufficient performance"
+          "Database must be accessible with sufficient performance",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -755,12 +794,12 @@ router.get("/overview", async (req, res) => {
         ORDER BY symbol
       `;
       const indicesResult = await query(indicesQuery);
-      
-      indices = indicesResult.rows.map(row => ({
+
+      indices = indicesResult.rows.map((row) => ({
         symbol: row.symbol,
         price: parseFloat(row.price) || 0,
         change: parseFloat(row.change) || 0,
-        changePercent: parseFloat(row.changepercent) || 0
+        changePercent: parseFloat(row.changepercent) || 0,
       }));
     } catch (e) {
       console.error("Indices data query failed:", e.message);
@@ -793,7 +832,9 @@ router.get("/overview", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market overview:", error);
-    return res.error("Database error: " + error.message, 500, { timestamp: new Date().toISOString() });
+    return res.error("Database error: " + error.message, 500, {
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
@@ -822,15 +863,20 @@ router.get("/sentiment/history", async (req, res) => {
       fearGreedData = fearGreedResult.rows;
     } catch (e) {
       console.error("Fear & greed table not available:", e.message);
-      return res.status(503).json({success: false, error: "Failed to fetch fear and greed sentiment data", 
-        details: e.message,
-        suggestion: "Fear and greed sentiment data requires market sentiment tables.",
-        service: "sentiment-fear-greed",
-        requirements: [
-          "fear_greed_index table must exist with historical data",
-          "Database connectivity must be available"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to fetch fear and greed sentiment data",
+          details: e.message,
+          suggestion:
+            "Fear and greed sentiment data requires market sentiment tables.",
+          service: "sentiment-fear-greed",
+          requirements: [
+            "fear_greed_index table must exist with historical data",
+            "Database connectivity must be available",
+          ],
+        });
     }
 
     // Get NAAIM data
@@ -852,15 +898,19 @@ router.get("/sentiment/history", async (req, res) => {
       naaimData = naaimResult.rows;
     } catch (e) {
       console.error("NAAIM table not available:", e.message);
-      return res.status(503).json({success: false, error: "Failed to fetch NAAIM sentiment data", 
-        details: e.message,
-        suggestion: "NAAIM sentiment data requires market sentiment tables.",
-        service: "sentiment-naaim",
-        requirements: [
-          "naaim table must exist with historical data",
-          "Database connectivity must be available"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to fetch NAAIM sentiment data",
+          details: e.message,
+          suggestion: "NAAIM sentiment data requires market sentiment tables.",
+          service: "sentiment-naaim",
+          requirements: [
+            "naaim table must exist with historical data",
+            "Database connectivity must be available",
+          ],
+        });
     }
 
     // Get AAII historical data
@@ -873,18 +923,17 @@ router.get("/sentiment/history", async (req, res) => {
         ORDER BY date DESC
         LIMIT 100
       `;
-      
+
       const aaiiResult = await query(aaiiQuery);
       console.log(`AAII query returned ${aaiiResult.rows.length} rows`);
-      
-      aaiiData = aaiiResult.rows.map(row => ({
+
+      aaiiData = aaiiResult.rows.map((row) => ({
         bullish: parseFloat(row.bullish),
-        neutral: parseFloat(row.neutral), 
+        neutral: parseFloat(row.neutral),
         bearish: parseFloat(row.bearish),
-        date: row.date.toISOString().split('T')[0],
-        sentiment_score: parseFloat(row.bullish) - parseFloat(row.bearish) // Bullish - Bearish
+        date: row.date.toISOString().split("T")[0],
+        sentiment_score: parseFloat(row.bullish) - parseFloat(row.bearish), // Bullish - Bearish
       }));
-      
     } catch (aaiiError) {
       console.log("AAII data fetch error:", aaiiError.message);
     }
@@ -901,15 +950,20 @@ router.get("/sentiment/history", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sentiment history:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch sentiment history", 
-      details: error.message,
-      suggestion: "Sentiment history data requires database connectivity and market sentiment tables.",
-      service: "sentiment-history",
-      requirements: [
-        "Database connectivity must be available",
-        "fear_greed_index and naaim tables must exist with historical data"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch sentiment history",
+        details: error.message,
+        suggestion:
+          "Sentiment history data requires database connectivity and market sentiment tables.",
+        service: "sentiment-history",
+        requirements: [
+          "Database connectivity must be available",
+          "fear_greed_index and naaim tables must exist with historical data",
+        ],
+      });
   }
 });
 
@@ -932,15 +986,20 @@ router.get("/sectors/performance", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.error("Market data table not found for sector performance");
-      return res.status(503).json({success: false, error: "Failed to fetch sector performance data", 
-        details: "market_data table does not exist",
-        suggestion: "Sector performance data requires populated market data in the database.",
-        service: "sector-performance",
-        requirements: [
-          "market_data table must exist with current stock data",
-          "Database initialization must be completed"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to fetch sector performance data",
+          details: "market_data table does not exist",
+          suggestion:
+            "Sector performance data requires populated market data in the database.",
+          service: "sector-performance",
+          requirements: [
+            "market_data table must exist with current stock data",
+            "Database initialization must be completed",
+          ],
+        });
     }
 
     // Get sector performance data
@@ -965,15 +1024,20 @@ router.get("/sectors/performance", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.error("No sector data found in database query");
-      return res.status(503).json({success: false, error: "No sector performance data available", 
-        details: "No sector data found in market_data table",
-        suggestion: "Sector performance requires recent market data to be loaded.",
-        service: "sector-performance", 
-        requirements: [
-          "Recent market data must exist in market_data table",
-          "Stock data must include sector classifications"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "No sector performance data available",
+          details: "No sector data found in market_data table",
+          suggestion:
+            "Sector performance requires recent market data to be loaded.",
+          service: "sector-performance",
+          requirements: [
+            "Recent market data must exist in market_data table",
+            "Stock data must include sector classifications",
+          ],
+        });
     }
 
     return res.json({
@@ -982,25 +1046,36 @@ router.get("/sectors/performance", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sector performance:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch sector performance data", 
-      details: error.message,
-      suggestion: "Sector performance data requires database connectivity and market data.",
-      service: "sector-performance",
-      requirements: [
-        "Database connectivity must be available",
-        "market_data table must exist with sector data"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch sector performance data",
+        details: error.message,
+        suggestion:
+          "Sector performance data requires database connectivity and market data.",
+        service: "sector-performance",
+        requirements: [
+          "Database connectivity must be available",
+          "market_data table must exist with sector data",
+        ],
+      });
   }
 });
 
 // Economic indicators endpoint - detailed indicators with historical data
 router.get("/economic/indicators", async (req, res) => {
   try {
-    const { category = "all", period = "current", historical = false } = req.query;
-    
-    console.log(`📈 Economic indicators - generating simulated data for category: ${category}`);
-    
+    const {
+      category = "all",
+      period = "current",
+      historical = false,
+    } = req.query;
+
+    console.log(
+      `📈 Economic indicators - generating simulated data for category: ${category}`
+    );
+
     // Generate realistic economic indicators data
     const currentDate = new Date();
     const baseIndicators = {
@@ -1010,11 +1085,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 26854.6, // Billion USD, annualized
         unit: "Billion USD",
         frequency: "quarterly",
-        last_updated: new Date(currentDate.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 45 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: 2.1,
         change_percent: 0.08,
         trend: "positive",
-        next_release: new Date(currentDate.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 15 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       unemployment: {
         name: "Unemployment Rate",
@@ -1022,11 +1101,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 3.7 + (Math.random() - 0.5) * 0.4, // 3.5-3.9%
         unit: "percent",
         frequency: "monthly",
-        last_updated: new Date(currentDate.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 5 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: -0.1,
         change_percent: -2.6,
         trend: "improving",
-        next_release: new Date(currentDate.getTime() + 25 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 25 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       inflation: {
         name: "Consumer Price Index (CPI)",
@@ -1034,11 +1117,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 3.2 + (Math.random() - 0.5) * 0.6, // 2.9-3.5%
         unit: "percent_yoy",
         frequency: "monthly",
-        last_updated: new Date(currentDate.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 10 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: -0.2,
         change_percent: -5.9,
         trend: "declining",
-        next_release: new Date(currentDate.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 20 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       fed_funds_rate: {
         name: "Federal Funds Rate",
@@ -1046,11 +1133,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 5.25 + (Math.random() - 0.5) * 0.25, // 5.125-5.375%
         unit: "percent",
         frequency: "as_needed",
-        last_updated: new Date(currentDate.getTime() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 35 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: 0.25,
         change_percent: 5.0,
         trend: "stable",
-        next_release: new Date(currentDate.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 45 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       ppi: {
         name: "Producer Price Index (PPI)",
@@ -1058,11 +1149,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 2.7 + (Math.random() - 0.5) * 0.4, // 2.5-2.9%
         unit: "percent_yoy",
         frequency: "monthly",
-        last_updated: new Date(currentDate.getTime() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 12 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: -0.3,
         change_percent: -10.0,
         trend: "declining",
-        next_release: new Date(currentDate.getTime() + 18 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 18 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       retail_sales: {
         name: "Retail Sales",
@@ -1070,11 +1165,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 0.4 + (Math.random() - 0.5) * 0.6, // -0.1% to 0.9% month-over-month
         unit: "percent_mom",
         frequency: "monthly",
-        last_updated: new Date(currentDate.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 8 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: 0.2,
         change_percent: 100.0,
         trend: "positive",
-        next_release: new Date(currentDate.getTime() + 22 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 22 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       housing_starts: {
         name: "Housing Starts",
@@ -1082,11 +1181,15 @@ router.get("/economic/indicators", async (req, res) => {
         value: 1350000 + Math.round((Math.random() - 0.5) * 100000), // 1.3-1.4M annualized
         unit: "units_annualized",
         frequency: "monthly",
-        last_updated: new Date(currentDate.getTime() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 15 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: 50000,
         change_percent: 3.8,
         trend: "positive",
-        next_release: new Date(currentDate.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
+        next_release: new Date(
+          currentDate.getTime() + 15 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       },
       ism_manufacturing: {
         name: "ISM Manufacturing PMI",
@@ -1094,12 +1197,16 @@ router.get("/economic/indicators", async (req, res) => {
         value: 48.5 + (Math.random() - 0.5) * 4, // 46.5-50.5
         unit: "index",
         frequency: "monthly",
-        last_updated: new Date(currentDate.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        last_updated: new Date(
+          currentDate.getTime() - 2 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         change_previous: -1.2,
         change_percent: -2.4,
         trend: "contracting",
-        next_release: new Date(currentDate.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString()
-      }
+        next_release: new Date(
+          currentDate.getTime() + 28 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      },
     };
 
     // Filter indicators by category
@@ -1107,7 +1214,7 @@ router.get("/economic/indicators", async (req, res) => {
     if (category === "all") {
       indicators = baseIndicators;
     } else {
-      Object.keys(baseIndicators).forEach(key => {
+      Object.keys(baseIndicators).forEach((key) => {
         if (baseIndicators[key].category === category) {
           indicators[key] = baseIndicators[key];
         }
@@ -1116,24 +1223,29 @@ router.get("/economic/indicators", async (req, res) => {
 
     // Add historical data if requested
     if (historical === "true") {
-      Object.keys(indicators).forEach(key => {
+      Object.keys(indicators).forEach((key) => {
         const indicator = indicators[key];
         const historicalData = [];
-        
+
         // Generate 12 months of historical data
         for (let i = 11; i >= 0; i--) {
           const date = new Date(currentDate);
           date.setMonth(date.getMonth() - i);
-          
+
           // Generate realistic historical values with trends
           const baseValue = indicator.value;
-          const trendFactor = indicator.trend === "positive" ? 0.02 : 
-                             indicator.trend === "declining" ? -0.02 : 0;
+          const trendFactor =
+            indicator.trend === "positive"
+              ? 0.02
+              : indicator.trend === "declining"
+                ? -0.02
+                : 0;
           const seasonalVariation = (Math.random() - 0.5) * 0.1;
           const timeVariation = (i / 11) * trendFactor;
-          
-          let historicalValue = baseValue * (1 + timeVariation + seasonalVariation);
-          
+
+          let historicalValue =
+            baseValue * (1 + timeVariation + seasonalVariation);
+
           // Apply unit-specific formatting
           if (indicator.unit === "Billion USD") {
             historicalValue = Math.round(historicalValue);
@@ -1142,15 +1254,17 @@ router.get("/economic/indicators", async (req, res) => {
           } else {
             historicalValue = Math.round(historicalValue * 100) / 100;
           }
-          
+
           historicalData.push({
-            date: date.toISOString().split('T')[0],
+            date: date.toISOString().split("T")[0],
             value: historicalValue,
-            period: indicator.frequency === "quarterly" ? `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}` : 
-                   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+            period:
+              indicator.frequency === "quarterly"
+                ? `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`
+                : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
           });
         }
-        
+
         indicators[key].historical_data = historicalData;
       });
     }
@@ -1159,26 +1273,42 @@ router.get("/economic/indicators", async (req, res) => {
     const summaryMetrics = {
       economic_health_score: Math.round(
         (indicators.gdp?.change_percent > 0 ? 25 : 0) +
-        (indicators.unemployment?.value < 4.0 ? 25 : indicators.unemployment?.value < 5.0 ? 15 : 0) +
-        (indicators.inflation?.value < 3.5 ? 25 : indicators.inflation?.value < 4.0 ? 15 : 0) +
-        (indicators.ism_manufacturing?.value > 50 ? 25 : indicators.ism_manufacturing?.value > 48 ? 15 : 0)
+          (indicators.unemployment?.value < 4.0
+            ? 25
+            : indicators.unemployment?.value < 5.0
+              ? 15
+              : 0) +
+          (indicators.inflation?.value < 3.5
+            ? 25
+            : indicators.inflation?.value < 4.0
+              ? 15
+              : 0) +
+          (indicators.ism_manufacturing?.value > 50
+            ? 25
+            : indicators.ism_manufacturing?.value > 48
+              ? 15
+              : 0)
       ),
       growth_indicators: {
         gdp_growth: indicators.gdp?.change_percent || null,
         employment_trend: indicators.unemployment?.trend || null,
-        consumer_spending: indicators.retail_sales?.trend || null
+        consumer_spending: indicators.retail_sales?.trend || null,
       },
       inflation_pressure: {
         consumer_prices: indicators.inflation?.value || null,
         producer_prices: indicators.ppi?.value || null,
-        trend_direction: indicators.inflation?.trend || null
+        trend_direction: indicators.inflation?.trend || null,
       },
       fed_policy: {
         current_rate: indicators.fed_funds_rate?.value || null,
         next_meeting: indicators.fed_funds_rate?.next_release || null,
-        policy_stance: indicators.fed_funds_rate?.trend === "positive" ? "hawkish" : 
-                      indicators.fed_funds_rate?.trend === "declining" ? "dovish" : "neutral"
-      }
+        policy_stance:
+          indicators.fed_funds_rate?.trend === "positive"
+            ? "hawkish"
+            : indicators.fed_funds_rate?.trend === "declining"
+              ? "dovish"
+              : "neutral",
+      },
     };
 
     res.json({
@@ -1190,33 +1320,40 @@ router.get("/economic/indicators", async (req, res) => {
           category: category,
           period: period,
           has_historical: historical === "true",
-          data_source: "Simulated economic data based on current market conditions",
+          data_source:
+            "Simulated economic data based on current market conditions",
           last_updated: new Date().toISOString(),
           coverage: {
             total_indicators: Object.keys(indicators).length,
-            categories: [...new Set(Object.values(indicators).map(i => i.category))],
-            frequencies: [...new Set(Object.values(indicators).map(i => i.frequency))]
-          }
-        }
+            categories: [
+              ...new Set(Object.values(indicators).map((i) => i.category)),
+            ],
+            frequencies: [
+              ...new Set(Object.values(indicators).map((i) => i.frequency)),
+            ],
+          },
+        },
       },
       methodology: {
-        data_generation: "Real-time simulation based on current economic conditions",
-        indicator_selection: "Key indicators tracked by Federal Reserve and major financial institutions",
-        update_frequency: "Varies by indicator - monthly, quarterly, or as released",
-        trend_analysis: "Based on recent directional changes and economic context"
-      }
+        data_generation:
+          "Real-time simulation based on current economic conditions",
+        indicator_selection:
+          "Key indicators tracked by Federal Reserve and major financial institutions",
+        update_frequency:
+          "Varies by indicator - monthly, quarterly, or as released",
+        trend_analysis:
+          "Based on recent directional changes and economic context",
+      },
     });
-
   } catch (error) {
     console.error("Economic indicators error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch economic indicators",
-      details: error.message
+      details: error.message,
     });
   }
 });
-
 
 // Get market breadth indicators
 router.get("/breadth", async (req, res) => {
@@ -1237,15 +1374,20 @@ router.get("/breadth", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.error("Market data table not found for breadth data");
-      return res.status(503).json({success: false, error: "Failed to fetch market breadth data", 
-        details: "market_data table does not exist",
-        suggestion: "Market breadth data requires populated market data in the database.",
-        service: "market-breadth",
-        requirements: [
-          "market_data table must exist with stock price data",
-          "Database initialization must be completed"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to fetch market breadth data",
+          details: "market_data table does not exist",
+          suggestion:
+            "Market breadth data requires populated market data in the database.",
+          service: "market-breadth",
+          requirements: [
+            "market_data table must exist with stock price data",
+            "Database initialization must be completed",
+          ],
+        });
     }
 
     // Get market breadth data
@@ -1274,15 +1416,20 @@ router.get("/breadth", async (req, res) => {
       result.rows[0].total_stocks == 0
     ) {
       console.error("No market breadth data found in database");
-      return res.status(503).json({success: false, error: "No market breadth data available", 
-        details: "No stock data found for breadth calculations",
-        suggestion: "Market breadth requires recent stock price data to be loaded.",
-        service: "market-breadth",
-        requirements: [
-          "Recent stock price data must exist in market_data table",
-          "Stock data must include price change information"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "No market breadth data available",
+          details: "No stock data found for breadth calculations",
+          suggestion:
+            "Market breadth requires recent stock price data to be loaded.",
+          service: "market-breadth",
+          requirements: [
+            "Recent stock price data must exist in market_data table",
+            "Stock data must include price change information",
+          ],
+        });
     }
 
     const breadth = result.rows[0];
@@ -1303,22 +1450,29 @@ router.get("/breadth", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market breadth:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch market breadth data", 
-      details: error.message,
-      suggestion: "Market breadth data requires database connectivity and stock price data.",
-      service: "market-breadth",
-      requirements: [
-        "Database connectivity must be available",
-        "market_data table must exist with current stock prices"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch market breadth data",
+        details: error.message,
+        suggestion:
+          "Market breadth data requires database connectivity and stock price data.",
+        service: "market-breadth",
+        requirements: [
+          "Database connectivity must be available",
+          "market_data table must exist with current stock prices",
+        ],
+      });
   }
 });
 
 // Economics endpoint alias - redirects to main economic data
 router.get("/economics", (req, res) => {
   // Redirect to the main economic indicators endpoint
-  return res.redirect(`/api/market/economic${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`);
+  return res.redirect(
+    `/api/market/economic${req.url.includes("?") ? "?" + req.url.split("?")[1] : ""}`
+  );
 });
 
 // Get economic indicators
@@ -1343,15 +1497,20 @@ router.get("/economic", async (req, res) => {
     // Add null safety check
     if (!tableExists || !tableExists.rows) {
       console.error("Database unavailable for economic data table check");
-      return res.status(503).json({success: false, error: "Failed to fetch economic indicators", 
-        details: "Cannot read properties of null (reading 'rows')",
-        suggestion: "Economic indicators require database connectivity and economic data tables.",
-        service: "economic-indicators",
-        requirements: [
-          "Database connectivity must be available",
-          "economic_data table must exist with current indicators"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to fetch economic indicators",
+          details: "Cannot read properties of null (reading 'rows')",
+          suggestion:
+            "Economic indicators require database connectivity and economic data tables.",
+          service: "economic-indicators",
+          requirements: [
+            "Database connectivity must be available",
+            "economic_data table must exist with current indicators",
+          ],
+        });
     }
 
     if (!tableExists.rows[0].exists) {
@@ -1359,14 +1518,15 @@ router.get("/economic", async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "Economic indicators service not available",
-        message: "Economic indicators require economic_data table with historical and current data",
+        message:
+          "Economic indicators require economic_data table with historical and current data",
         details: "economic_data table does not exist in database schema",
         requirements: [
           "economic_data table must be created with schema: date, series_id, value",
           "Economic data must be loaded from reliable sources (FRED, BLS, etc.)",
-          "Data loading processes must run regularly to maintain current indicators"
+          "Data loading processes must run regularly to maintain current indicators",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1408,14 +1568,14 @@ router.get("/economic", async (req, res) => {
         success: false,
         error: "No economic indicators data available",
         message: "Economic indicators data not found for specified time period",
-        details: `Query returned no results for last ${days} days${indicator ? ` for indicator ${indicator}` : ''}`,
+        details: `Query returned no results for last ${days} days${indicator ? ` for indicator ${indicator}` : ""}`,
         filters: { days, indicator },
         requirements: [
           "economic_data table must contain recent data within the specified time period",
           "Data loading processes must populate economic indicators regularly",
-          "Economic data sources (FRED, BLS, etc.) must be accessible and functional"
+          "Economic data sources (FRED, BLS, etc.) must be accessible and functional",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1438,15 +1598,20 @@ router.get("/economic", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic indicators:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch economic indicators", 
-      details: error.message,
-      suggestion: "Economic indicators require database connectivity and economic data tables.",
-      service: "economic-indicators",
-      requirements: [
-        "Database connectivity must be available",
-        "economic_data table must exist with current indicators"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch economic indicators",
+        details: error.message,
+        suggestion:
+          "Economic indicators require database connectivity and economic data tables.",
+        service: "economic-indicators",
+        requirements: [
+          "Database connectivity must be available",
+          "economic_data table must exist with current indicators",
+        ],
+      });
   }
 });
 
@@ -1471,7 +1636,7 @@ router.get("/naaim", async (req, res) => {
     const result = await query(naaimQuery, [parseInt(limit)]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     return res.json({
@@ -1480,15 +1645,20 @@ router.get("/naaim", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch NAAIM data", 
-      details: error.message,
-      suggestion: "NAAIM data requires database connectivity and sentiment tables.",
-      service: "naaim-sentiment",
-      requirements: [
-        "Database connectivity must be available",
-        "naaim table must exist with historical sentiment data"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch NAAIM data",
+        details: error.message,
+        suggestion:
+          "NAAIM data requires database connectivity and sentiment tables.",
+        service: "naaim-sentiment",
+        requirements: [
+          "Database connectivity must be available",
+          "naaim table must exist with historical sentiment data",
+        ],
+      });
   }
 });
 
@@ -1513,15 +1683,20 @@ router.get("/fear-greed", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.error("No fear & greed data found in database");
-      return res.status(503).json({success: false, error: "No fear and greed data available", 
-        details: "No fear and greed data found in fear_greed_index table",
-        suggestion: "Fear and greed data requires sentiment data to be loaded.",
-        service: "fear-greed-sentiment",
-        requirements: [
-          "fear_greed_index table must exist with historical data",
-          "Sentiment data loading scripts must be executed"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "No fear and greed data available",
+          details: "No fear and greed data found in fear_greed_index table",
+          suggestion:
+            "Fear and greed data requires sentiment data to be loaded.",
+          service: "fear-greed-sentiment",
+          requirements: [
+            "fear_greed_index table must exist with historical data",
+            "Sentiment data loading scripts must be executed",
+          ],
+        });
     }
 
     res.json({
@@ -1530,18 +1705,22 @@ router.get("/fear-greed", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching fear & greed data:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch fear and greed data", 
-      details: error.message,
-      suggestion: "Fear and greed data requires database connectivity and sentiment tables.",
-      service: "fear-greed-sentiment",
-      requirements: [
-        "Database connectivity must be available",
-        "fear_greed_index table must exist with sentiment data"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch fear and greed data",
+        details: error.message,
+        suggestion:
+          "Fear and greed data requires database connectivity and sentiment tables.",
+        service: "fear-greed-sentiment",
+        requirements: [
+          "Database connectivity must be available",
+          "fear_greed_index table must exist with sentiment data",
+        ],
+      });
   }
 });
-
 
 // Get sector performance (alias for sectors/performance)
 router.get("/sectors", async (req, res) => {
@@ -1594,15 +1773,17 @@ router.get("/sectors", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No sector performance data available",
-        message: "Sector performance requires populated stock and price data in the database",
-        details: "Query returned no results - check if stocks table has sector data and price tables exist",
+        message:
+          "Sector performance requires populated stock and price data in the database",
+        details:
+          "Query returned no results - check if stocks table has sector data and price tables exist",
         query: { sort_by },
         requirements: [
           "stocks table must contain symbols with sector classifications",
           "price data tables (price_daily/technical_data_daily) must exist with recent data",
-          "Data loading processes must be completed successfully"
+          "Data loading processes must be completed successfully",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1614,15 +1795,20 @@ router.get("/sectors", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sectors endpoint:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch sectors data", 
-      details: error.message,
-      suggestion: "Sectors endpoint requires database connectivity and market data tables.",
-      service: "sectors",
-      requirements: [
-        "Database connectivity must be available",
-        "market_data table must exist with sector data"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch sectors data",
+        details: error.message,
+        suggestion:
+          "Sectors endpoint requires database connectivity and market data tables.",
+        service: "sectors",
+        requirements: [
+          "Database connectivity must be available",
+          "market_data table must exist with sector data",
+        ],
+      });
   }
 });
 
@@ -1658,15 +1844,20 @@ router.get("/volatility", async (req, res) => {
 
     if (!result || !result.rows || result.rows.length === 0) {
       console.error("No volatility data found in database");
-      return res.status(503).json({success: false, error: "No market volatility data available", 
-        details: "No volatility data found in volatility_data table",
-        suggestion: "Market volatility data requires volatility tables to be loaded.",
-        service: "market-volatility",
-        requirements: [
-          "volatility_data table must exist with VIX and volatility metrics",
-          "Market volatility data loading scripts must be executed"
-        ]
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "No market volatility data available",
+          details: "No volatility data found in volatility_data table",
+          suggestion:
+            "Market volatility data requires volatility tables to be loaded.",
+          service: "market-volatility",
+          requirements: [
+            "volatility_data table must exist with VIX and volatility metrics",
+            "Market volatility data loading scripts must be executed",
+          ],
+        });
     }
 
     const responseData = result.rows[0];
@@ -1678,7 +1869,7 @@ router.get("/volatility", async (req, res) => {
         responseData.updated_at ||
         responseData.date ||
         new Date().toISOString(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching market volatility:", error);
@@ -1709,21 +1900,23 @@ router.get("/calendar", async (req, res) => {
     `;
 
     const result = await query(calendarQuery);
-    
+
     if (!result || !result.rows || result.rows.length === 0) {
       return res.notFound("No economic calendar events found", {
         details: "No upcoming economic events in database",
-        suggestion: "Economic calendar data needs to be populated"
+        suggestion: "Economic calendar data needs to be populated",
       });
     }
 
     res.json({
       data: result.rows,
-      count: result.rows.length
+      count: result.rows.length,
     });
   } catch (error) {
     console.error("Error fetching economic calendar:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch economic calendar"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch economic calendar" });
   }
 });
 
@@ -1785,7 +1978,7 @@ router.get("/indicators", async (req, res) => {
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     res.json({
@@ -1862,7 +2055,7 @@ router.get("/sentiment", async (req, res) => {
     }
 
     if (!fearGreed || !naaim) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     res.json({
@@ -1922,9 +2115,7 @@ router.get("/seasonality", async (req, res) => {
 
         if (yearStartResult.rows.length > 0) {
           const currentPrice = parseFloat(spyResult.rows[0].close);
-          const yearStartPrice = parseFloat(
-            yearStartResult.rows[0].close
-          );
+          const yearStartPrice = parseFloat(yearStartResult.rows[0].close);
           currentYearReturn =
             ((currentPrice - yearStartPrice) / yearStartPrice) * 100;
         }
@@ -2518,7 +2709,7 @@ router.get("/research-indicators", async (req, res) => {
     // Market momentum indicators - query database for real data
     let newHighs = 0;
     let newLows = 0;
-    
+
     try {
       const highsResult = await query(`
         SELECT COUNT(*) as count 
@@ -2531,7 +2722,7 @@ router.get("/research-indicators", async (req, res) => {
           AND date >= CURRENT_DATE - INTERVAL '52 weeks'
         )
       `);
-      
+
       const lowsResult = await query(`
         SELECT COUNT(*) as count 
         FROM price_daily 
@@ -2543,13 +2734,16 @@ router.get("/research-indicators", async (req, res) => {
           AND date >= CURRENT_DATE - INTERVAL '52 weeks'
         )
       `);
-      
+
       newHighs = highsResult.rows[0]?.count || 0;
       newLows = lowsResult.rows[0]?.count || 0;
     } catch (error) {
-      console.warn("Could not fetch new highs/lows from database:", error.message);
+      console.warn(
+        "Could not fetch new highs/lows from database:",
+        error.message
+      );
     }
-    
+
     const momentumIndicators = {
       advanceDeclineRatio: 1.2 + null,
       newHighsNewLows: {
@@ -2692,7 +2886,8 @@ router.get("/research-indicators", async (req, res) => {
       },
     };
 
-    res.json({data: {
+    res.json({
+      data: {
         volatility: {
           vix: vixData.current,
           vixAverage: vixData.thirtyDayAvg,
@@ -2743,7 +2938,7 @@ router.get("/research-indicators", async (req, res) => {
 // Recession probability forecasting with multiple models
 router.get("/recession-forecast", async (req, res) => {
   console.log("📊 Recession forecast endpoint called");
-  
+
   try {
     // Get key recession indicators from FRED data
     const recessionQuery = `
@@ -2763,52 +2958,54 @@ router.get("/recession-forecast", async (req, res) => {
       WHERE rn = 1
       ORDER BY series_id
     `;
-    
+
     const result = await query(recessionQuery);
     const indicators = {};
-    
-    result.rows.forEach(row => {
+
+    result.rows.forEach((row) => {
       indicators[row.series_id] = {
         value: parseFloat(row.value),
-        date: row.date
+        date: row.date,
       };
     });
-    
+
     // Calculate recession probability based on indicators
-    const yieldSpread = indicators['T10Y2Y'] ? indicators['T10Y2Y'].value : 0;
-    const unemployment = indicators['UNRATE'] ? indicators['UNRATE'].value : 4.0;
-    const vix = indicators['VIXCLS'] ? indicators['VIXCLS'].value : 20;
-    const sp500 = indicators['SP500'] ? indicators['SP500'].value : 6000;
-    const fedRate = indicators['FEDFUNDS'] ? indicators['FEDFUNDS'].value : 4.0;
-    
+    const yieldSpread = indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : 0;
+    const unemployment = indicators["UNRATE"]
+      ? indicators["UNRATE"].value
+      : 4.0;
+    const vix = indicators["VIXCLS"] ? indicators["VIXCLS"].value : 20;
+    const sp500 = indicators["SP500"] ? indicators["SP500"].value : 6000;
+    const fedRate = indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value : 4.0;
+
     // Simple recession probability model based on key indicators
     let recessionProbability = 0;
-    
+
     // Yield curve inversion (strongest predictor)
     if (yieldSpread < 0) recessionProbability += 40;
     else if (yieldSpread < 0.5) recessionProbability += 15;
-    
+
     // High unemployment
     if (unemployment > 5.5) recessionProbability += 25;
     else if (unemployment > 4.5) recessionProbability += 10;
-    
+
     // Market stress (VIX)
     if (vix > 30) recessionProbability += 20;
     else if (vix > 25) recessionProbability += 10;
-    
+
     // High interest rates
     if (fedRate > 5.5) recessionProbability += 15;
     else if (fedRate > 4.5) recessionProbability += 5;
-    
+
     // Cap at 100%
     recessionProbability = Math.min(recessionProbability, 100);
-    
+
     // Risk level based on probability
     let riskLevel;
     if (recessionProbability > 70) riskLevel = "High";
     else if (recessionProbability > 40) riskLevel = "Medium";
     else riskLevel = "Low";
-    
+
     const response = {
       success: true,
       data: {
@@ -2819,61 +3016,67 @@ router.get("/recession-forecast", async (req, res) => {
             name: "NY Fed Model",
             probability: Math.max(0, recessionProbability - 5),
             confidence: 85,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
           },
           {
             name: "Goldman Sachs",
             probability: Math.max(0, recessionProbability + 3),
             confidence: 80,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
           },
           {
             name: "JP Morgan",
             probability: Math.max(0, recessionProbability - 2),
             confidence: 75,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
           },
           {
             name: "AI Ensemble",
             probability: recessionProbability,
             confidence: 70,
-            lastUpdated: new Date().toISOString()
-          }
+            lastUpdated: new Date().toISOString(),
+          },
         ],
         keyIndicators: {
           yieldCurveSpread: yieldSpread,
           unemployment: unemployment,
           vix: vix,
           sp500: sp500,
-          fedRate: fedRate
+          fedRate: fedRate,
         },
         analysis: {
-          summary: yieldSpread < 0 ? 
-            "Inverted yield curve signals elevated recession risk" : 
-            recessionProbability > 40 ? 
-              "Mixed signals with moderate recession risk" :
-              "Economic indicators suggest low recession risk",
+          summary:
+            yieldSpread < 0
+              ? "Inverted yield curve signals elevated recession risk"
+              : recessionProbability > 40
+                ? "Mixed signals with moderate recession risk"
+                : "Economic indicators suggest low recession risk",
           factors: [
-            yieldSpread < 0 ? "⚠️ Yield curve inversion detected" : "✅ Normal yield curve",
-            unemployment > 4.5 ? "⚠️ Elevated unemployment" : "✅ Low unemployment",
+            yieldSpread < 0
+              ? "⚠️ Yield curve inversion detected"
+              : "✅ Normal yield curve",
+            unemployment > 4.5
+              ? "⚠️ Elevated unemployment"
+              : "✅ Low unemployment",
             vix > 25 ? "⚠️ High market volatility" : "✅ Low market stress",
-            fedRate > 5.0 ? "⚠️ High interest rates" : "✅ Moderate interest rates"
-          ]
-        }
+            fedRate > 5.0
+              ? "⚠️ High interest rates"
+              : "✅ Moderate interest rates",
+          ],
+        },
       },
       timestamp: new Date().toISOString(),
-      data_source: "Federal Reserve Economic Data (FRED)"
+      data_source: "Federal Reserve Economic Data (FRED)",
     };
-    
+
     res.json(response);
-    
   } catch (error) {
     console.error("Recession forecast error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch recession forecast",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2881,7 +3084,7 @@ router.get("/recession-forecast", async (req, res) => {
 // Leading economic indicators analysis
 router.get("/leading-indicators", async (req, res) => {
   console.log("📈 Leading indicators endpoint called");
-  
+
   try {
     // Get latest values for key economic indicators from FRED data
     const economicQuery = `
@@ -2902,121 +3105,130 @@ router.get("/leading-indicators", async (req, res) => {
       WHERE rn = 1
       ORDER BY series_id
     `;
-    
+
     const result = await query(economicQuery);
     const indicators = {};
-    
+
     // Parse the results into a structured format
-    result.rows.forEach(row => {
+    result.rows.forEach((row) => {
       indicators[row.series_id] = {
         value: parseFloat(row.value),
-        date: row.date
+        date: row.date,
       };
     });
-    
+
     // Calculate yield curve data
-    const spread2y10y = indicators['T10Y2Y'] ? indicators['T10Y2Y'].value : 0;
+    const spread2y10y = indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : 0;
     const isInverted = spread2y10y < 0;
-    
+
     const response = {
       success: true,
       data: {
         // Main indicators
-        gdpGrowth: indicators['GDPC1'] ? indicators['GDPC1'].value : null,
-        unemployment: indicators['UNRATE'] ? indicators['UNRATE'].value : null,
-        inflation: indicators['CPIAUCSL'] ? indicators['CPIAUCSL'].value : null,
-        
+        gdpGrowth: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
+        unemployment: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
+        inflation: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value : null,
+
         // Employment data
         employment: {
-          payroll_change: indicators['PAYEMS'] ? indicators['PAYEMS'].value : null,
-          unemployment_rate: indicators['UNRATE'] ? indicators['UNRATE'].value : null
+          payroll_change: indicators["PAYEMS"]
+            ? indicators["PAYEMS"].value
+            : null,
+          unemployment_rate: indicators["UNRATE"]
+            ? indicators["UNRATE"].value
+            : null,
         },
-        
+
         // Yield curve analysis
         yieldCurve: {
           spread2y10y: spread2y10y,
           spread3m10y: spread2y10y, // Using 2y10y as proxy for 3m10y
           isInverted: isInverted,
-          interpretation: isInverted ? 
-            "Inverted yield curve suggests potential recession risk" : 
-            "Normal yield curve indicates healthy economic conditions",
+          interpretation: isInverted
+            ? "Inverted yield curve suggests potential recession risk"
+            : "Normal yield curve indicates healthy economic conditions",
           historicalAccuracy: isInverted ? 85 : 65, // Historical accuracy based on inversion
-          averageLeadTime: isInverted ? 12 : 0 // Average lead time in months
+          averageLeadTime: isInverted ? 12 : 0, // Average lead time in months
         },
-        
+
         // Individual indicators array
         indicators: [
           {
             name: "Unemployment Rate",
-            value: indicators['UNRATE'] ? indicators['UNRATE'].value : null,
+            value: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
             unit: "%",
             change: 0, // Would need historical data to calculate
             trend: "stable",
             importance: "high",
-            date: indicators['UNRATE'] ? indicators['UNRATE'].date : null
+            date: indicators["UNRATE"] ? indicators["UNRATE"].date : null,
           },
           {
             name: "Industrial Production",
-            value: indicators['INDPRO'] ? indicators['INDPRO'].value : null,
+            value: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
             unit: "Index",
             change: 0,
-            trend: "stable", 
+            trend: "stable",
             importance: "medium",
-            date: indicators['INDPRO'] ? indicators['INDPRO'].date : null
+            date: indicators["INDPRO"] ? indicators["INDPRO"].date : null,
           },
           {
             name: "Housing Starts",
-            value: indicators['HOUST'] ? indicators['HOUST'].value : null,
+            value: indicators["HOUST"] ? indicators["HOUST"].value : null,
             unit: "Thousands",
             change: 0,
             trend: "stable",
-            importance: "medium", 
-            date: indicators['HOUST'] ? indicators['HOUST'].date : null
+            importance: "medium",
+            date: indicators["HOUST"] ? indicators["HOUST"].date : null,
           },
           {
             name: "Consumer Sentiment",
-            value: indicators['UMCSENT'] ? indicators['UMCSENT'].value : null,
+            value: indicators["UMCSENT"] ? indicators["UMCSENT"].value : null,
             unit: "Index",
             change: 0,
             trend: "stable",
             importance: "high",
-            date: indicators['UMCSENT'] ? indicators['UMCSENT'].date : null
-          }
+            date: indicators["UMCSENT"] ? indicators["UMCSENT"].date : null,
+          },
         ],
-        
+
         // Market data
         yieldCurveData: [
-          { maturity: "2Y", rate: indicators['DGS2'] ? indicators['DGS2'].value : null },
-          { maturity: "10Y", rate: indicators['DGS10'] ? indicators['DGS10'].value : null }
+          {
+            maturity: "2Y",
+            rate: indicators["DGS2"] ? indicators["DGS2"].value : null,
+          },
+          {
+            maturity: "10Y",
+            rate: indicators["DGS10"] ? indicators["DGS10"].value : null,
+          },
         ],
-        
+
         // Upcoming events (static for now)
         upcomingEvents: [
           {
             date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             event: "Employment Report",
-            importance: "high"
+            importance: "high",
           },
           {
             date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
             event: "CPI Release",
-            importance: "high"
-          }
-        ]
+            importance: "high",
+          },
+        ],
       },
       timestamp: new Date().toISOString(),
-      data_source: "Federal Reserve Economic Data (FRED)"
+      data_source: "Federal Reserve Economic Data (FRED)",
     };
-    
+
     res.json(response);
-    
   } catch (error) {
     console.error("Leading indicators error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch leading indicators",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -3024,7 +3236,7 @@ router.get("/leading-indicators", async (req, res) => {
 // Sectoral economic analysis
 router.get("/sectoral-analysis", async (req, res) => {
   console.log("🏭 Sectoral analysis endpoint called");
-  
+
   try {
     // Get relevant economic indicators for sector analysis
     const sectorQuery = `
@@ -3044,50 +3256,62 @@ router.get("/sectoral-analysis", async (req, res) => {
       WHERE rn = 1
       ORDER BY series_id
     `;
-    
+
     const result = await query(sectorQuery);
     const indicators = {};
-    
-    result.rows.forEach(row => {
+
+    result.rows.forEach((row) => {
       indicators[row.series_id] = {
         value: parseFloat(row.value),
-        date: row.date
+        date: row.date,
       };
     });
-    
+
     // Create synthetic sector analysis based on available economic data
     const sectors = [
       {
         name: "Manufacturing",
-        performance: indicators['INDPRO'] ? "positive" : "stable",
-        growth_rate: indicators['INDPRO'] ? ((indicators['INDPRO'].value - 100) / 100 * 100).toFixed(1) : 2.1,
-        indicator_value: indicators['INDPRO'] ? indicators['INDPRO'].value : 105.2,
+        performance: indicators["INDPRO"] ? "positive" : "stable",
+        growth_rate: indicators["INDPRO"]
+          ? (((indicators["INDPRO"].value - 100) / 100) * 100).toFixed(1)
+          : 2.1,
+        indicator_value: indicators["INDPRO"]
+          ? indicators["INDPRO"].value
+          : 105.2,
         description: "Based on Industrial Production Index",
-        outlook: indicators['INDPRO'] && indicators['INDPRO'].value > 105 ? "Expanding" : "Stable"
+        outlook:
+          indicators["INDPRO"] && indicators["INDPRO"].value > 105
+            ? "Expanding"
+            : "Stable",
       },
       {
-        name: "Construction & Real Estate", 
-        performance: indicators['HOUST'] ? "positive" : "stable",
-        growth_rate: indicators['HOUST'] ? 3.8 : 2.5,
-        indicator_value: indicators['HOUST'] ? indicators['HOUST'].value : 1400,
+        name: "Construction & Real Estate",
+        performance: indicators["HOUST"] ? "positive" : "stable",
+        growth_rate: indicators["HOUST"] ? 3.8 : 2.5,
+        indicator_value: indicators["HOUST"] ? indicators["HOUST"].value : 1400,
         description: "Based on Housing Starts data",
-        outlook: indicators['HOUST'] && indicators['HOUST'].value > 1350 ? "Strong" : "Moderate"
+        outlook:
+          indicators["HOUST"] && indicators["HOUST"].value > 1350
+            ? "Strong"
+            : "Moderate",
       },
       {
         name: "Retail & Consumer",
-        performance: indicators['RETAILMNSA'] ? "positive" : "stable", 
-        growth_rate: indicators['RETAILMNSA'] ? 4.2 : 3.1,
-        indicator_value: indicators['RETAILMNSA'] ? indicators['RETAILMNSA'].value : 695000,
+        performance: indicators["RETAILMNSA"] ? "positive" : "stable",
+        growth_rate: indicators["RETAILMNSA"] ? 4.2 : 3.1,
+        indicator_value: indicators["RETAILMNSA"]
+          ? indicators["RETAILMNSA"].value
+          : 695000,
         description: "Based on Retail Sales data",
-        outlook: "Resilient"
+        outlook: "Resilient",
       },
       {
         name: "Technology",
         performance: "positive",
         growth_rate: 6.8,
         indicator_value: 112.5,
-        description: "Estimated from overall economic conditions", 
-        outlook: "Strong Growth"
+        description: "Estimated from overall economic conditions",
+        outlook: "Strong Growth",
       },
       {
         name: "Financial Services",
@@ -3095,10 +3319,10 @@ router.get("/sectoral-analysis", async (req, res) => {
         growth_rate: 2.9,
         indicator_value: 108.3,
         description: "Interest rate sensitive sector",
-        outlook: "Cautious Optimism"
-      }
+        outlook: "Cautious Optimism",
+      },
     ];
-    
+
     const response = {
       success: true,
       data: {
@@ -3107,28 +3331,39 @@ router.get("/sectoral-analysis", async (req, res) => {
           overall_health: "Moderate Growth",
           strongest_sector: "Technology",
           weakest_sector: "Financial Services",
-          key_risks: ["Interest rate sensitivity", "Consumer spending patterns", "Supply chain disruptions"],
-          opportunities: ["Infrastructure investment", "Technology adoption", "Green energy transition"]
+          key_risks: [
+            "Interest rate sensitivity",
+            "Consumer spending patterns",
+            "Supply chain disruptions",
+          ],
+          opportunities: [
+            "Infrastructure investment",
+            "Technology adoption",
+            "Green energy transition",
+          ],
         },
         economic_context: {
-          gdp_growth: indicators['GDPC1'] ? indicators['GDPC1'].value : null,
-          unemployment_rate: indicators['UNRATE'] ? indicators['UNRATE'].value : null,
-          industrial_production: indicators['INDPRO'] ? indicators['INDPRO'].value : null
-        }
+          gdp_growth: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
+          unemployment_rate: indicators["UNRATE"]
+            ? indicators["UNRATE"].value
+            : null,
+          industrial_production: indicators["INDPRO"]
+            ? indicators["INDPRO"].value
+            : null,
+        },
       },
       timestamp: new Date().toISOString(),
-      data_source: "Federal Reserve Economic Data (FRED) - Sector estimates"
+      data_source: "Federal Reserve Economic Data (FRED) - Sector estimates",
     };
-    
+
     res.json(response);
-    
   } catch (error) {
     console.error("Sectoral analysis error:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch sectoral analysis", 
+      error: "Failed to fetch sectoral analysis",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -3136,7 +3371,7 @@ router.get("/sectoral-analysis", async (req, res) => {
 // Economic scenario modeling
 router.get("/economic-scenarios", async (req, res) => {
   console.log("🎯 Economic scenarios endpoint called");
-  
+
   try {
     const scenarios = [
       {
@@ -3145,15 +3380,16 @@ router.get("/economic-scenarios", async (req, res) => {
         gdpGrowth: 3.2,
         unemployment: 3.4,
         fedRate: 4.5,
-        description: "Soft landing with continued growth and declining inflation"
+        description:
+          "Soft landing with continued growth and declining inflation",
       },
       {
-        name: "Base Case", 
+        name: "Base Case",
         probability: 50,
         gdpGrowth: 1.8,
         unemployment: 4.2,
         fedRate: 3.8,
-        description: "Mild slowdown with modest recession risk"
+        description: "Mild slowdown with modest recession risk",
       },
       {
         name: "Bear Case",
@@ -3161,84 +3397,116 @@ router.get("/economic-scenarios", async (req, res) => {
         gdpGrowth: -0.5,
         unemployment: 5.8,
         fedRate: 2.5,
-        description: "Economic contraction with elevated unemployment"
-      }
+        description: "Economic contraction with elevated unemployment",
+      },
     ];
 
     res.json({
       data: {
         scenarios,
         summary: {
-          most_likely: scenarios.find(s => s.probability === Math.max(...scenarios.map(s => s.probability))).name,
-          weighted_gdp_growth: Number(scenarios.reduce((sum, s) => sum + (s.gdpGrowth * s.probability / 100), 0).toFixed(2)),
-          weighted_unemployment: Number(scenarios.reduce((sum, s) => sum + (s.unemployment * s.probability / 100), 0).toFixed(2))
+          most_likely: scenarios.find(
+            (s) =>
+              s.probability === Math.max(...scenarios.map((s) => s.probability))
+          ).name,
+          weighted_gdp_growth: Number(
+            scenarios
+              .reduce((sum, s) => sum + (s.gdpGrowth * s.probability) / 100, 0)
+              .toFixed(2)
+          ),
+          weighted_unemployment: Number(
+            scenarios
+              .reduce(
+                (sum, s) => sum + (s.unemployment * s.probability) / 100,
+                0
+              )
+              .toFixed(2)
+          ),
         },
-        lastUpdated: new Date().toISOString()
-      }
+        lastUpdated: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Error fetching economic scenarios:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch economic scenarios", 
-      details: error.message,
-      service: "economic-scenarios"
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch economic scenarios",
+        details: error.message,
+        service: "economic-scenarios",
+      });
   }
 });
 
 // AI Economic Insights
 router.get("/ai-insights", async (req, res) => {
   console.log("🤖 AI insights endpoint called");
-  
+
   try {
     const aiInsights = [
       {
         title: "Labor Market Resilience",
-        description: "Despite economic headwinds, the labor market shows remarkable strength with unemployment near historic lows. This suggests consumers may continue spending, providing economic support.",
+        description:
+          "Despite economic headwinds, the labor market shows remarkable strength with unemployment near historic lows. This suggests consumers may continue spending, providing economic support.",
         confidence: 85 + Math.floor(0),
         impact: "Medium",
-        timeframe: "6-12 months"
+        timeframe: "6-12 months",
       },
       {
         title: "Credit Market Stress",
-        description: "Widening credit spreads and tightening lending standards indicate financial institutions are becoming more cautious. This could lead to reduced business investment and consumer spending.",
+        description:
+          "Widening credit spreads and tightening lending standards indicate financial institutions are becoming more cautious. This could lead to reduced business investment and consumer spending.",
         confidence: 78 + Math.floor(0),
         impact: "High",
-        timeframe: "3-6 months"
+        timeframe: "3-6 months",
       },
       {
         title: "Yield Curve Normalization",
-        description: "The inverted yield curve is showing signs of potential normalization as the Fed approaches the end of its tightening cycle. This could reduce recession probability if sustained.",
+        description:
+          "The inverted yield curve is showing signs of potential normalization as the Fed approaches the end of its tightening cycle. This could reduce recession probability if sustained.",
         confidence: 72 + Math.floor(0),
-        impact: "High", 
-        timeframe: "6-9 months"
+        impact: "High",
+        timeframe: "6-9 months",
       },
       {
         title: "Consumer Spending Patterns",
-        description: "AI analysis of spending data reveals consumers are shifting from goods to services, indicating economic adaptation rather than contraction. This supports a soft landing scenario.",
+        description:
+          "AI analysis of spending data reveals consumers are shifting from goods to services, indicating economic adaptation rather than contraction. This supports a soft landing scenario.",
         confidence: 88 + Math.floor(0),
         impact: "Medium",
-        timeframe: "3-6 months"
-      }
+        timeframe: "3-6 months",
+      },
     ];
 
     res.json({
       data: {
         insights: aiInsights,
         summary: {
-          average_confidence: Math.round(aiInsights.reduce((sum, insight) => sum + insight.confidence, 0) / aiInsights.length),
-          high_impact_insights: aiInsights.filter(i => i.impact === "High").length,
-          near_term_insights: aiInsights.filter(i => i.timeframe.includes("3")).length
+          average_confidence: Math.round(
+            aiInsights.reduce((sum, insight) => sum + insight.confidence, 0) /
+              aiInsights.length
+          ),
+          high_impact_insights: aiInsights.filter((i) => i.impact === "High")
+            .length,
+          near_term_insights: aiInsights.filter((i) =>
+            i.timeframe.includes("3")
+          ).length,
         },
         lastUpdated: new Date().toISOString(),
-        model_version: "Economic AI v2.1"
-      }
+        model_version: "Economic AI v2.1",
+      },
     });
   } catch (error) {
     console.error("Error fetching AI insights:", error);
-    return res.status(503).json({success: false, error: "Failed to fetch AI insights", 
-      details: error.message,
-      service: "ai-insights"
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Failed to fetch AI insights",
+        details: error.message,
+        service: "ai-insights",
+      });
   }
 });
 
@@ -3246,22 +3514,22 @@ router.get("/ai-insights", async (req, res) => {
 router.get("/movers", async (req, res) => {
   try {
     const { type = "gainers", limit = 10 } = req.query;
-    
+
     console.log(`📊 Market movers requested - type: ${type}, limit: ${limit}`);
-    
+
     // Validate type parameter
     const validTypes = ["gainers", "losers", "active", "all"];
     if (!validTypes.includes(type)) {
       return res.status(400).json({
         success: false,
         error: "Invalid type parameter",
-        message: `Type must be one of: ${validTypes.join(", ")}`
+        message: `Type must be one of: ${validTypes.join(", ")}`,
       });
     }
-    
+
     let querySQL;
     let params = [parseInt(limit)];
-    
+
     if (type === "gainers") {
       querySQL = `
         SELECT 
@@ -3312,7 +3580,8 @@ router.get("/movers", async (req, res) => {
     } else if (type === "all") {
       // Return all three types
       const [gainersResult, losersResult, activeResult] = await Promise.all([
-        query(`
+        query(
+          `
           SELECT 
             symbol, 
             close as price, 
@@ -3326,9 +3595,12 @@ router.get("/movers", async (req, res) => {
             AND change_percent > 0
           ORDER BY change_percent DESC 
           LIMIT $1
-        `, [parseInt(limit)]),
-        
-        query(`
+        `,
+          [parseInt(limit)]
+        ),
+
+        query(
+          `
           SELECT 
             symbol, 
             close as price, 
@@ -3342,9 +3614,12 @@ router.get("/movers", async (req, res) => {
             AND change_percent < 0
           ORDER BY change_percent ASC 
           LIMIT $1
-        `, [parseInt(limit)]),
-        
-        query(`
+        `,
+          [parseInt(limit)]
+        ),
+
+        query(
+          `
           SELECT 
             symbol, 
             close as price, 
@@ -3357,9 +3632,11 @@ router.get("/movers", async (req, res) => {
             AND volume IS NOT NULL
           ORDER BY volume DESC 
           LIMIT $1
-        `, [parseInt(limit)])
+        `,
+          [parseInt(limit)]
+        ),
       ]);
-      
+
       return res.json({
         success: true,
         data: {
@@ -3367,19 +3644,19 @@ router.get("/movers", async (req, res) => {
           losers: losersResult.rows,
           most_active: activeResult.rows,
           summary: {
-            gainers_count: (gainersResult.rows).length,
-            losers_count: (losersResult.rows).length,
-            active_count: (activeResult.rows).length,
+            gainers_count: gainersResult.rows.length,
+            losers_count: losersResult.rows.length,
+            active_count: activeResult.rows.length,
             limit: parseInt(limit),
-            market_date: gainersResult.rows?.[0]?.date || null
-          }
+            market_date: gainersResult.rows?.[0]?.date || null,
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     const result = await query(querySQL, params);
-    
+
     if (!result.rows || result.rows.length === 0) {
       return res.json({
         success: true,
@@ -3390,23 +3667,23 @@ router.get("/movers", async (req, res) => {
           summary: {
             count: 0,
             limit: parseInt(limit),
-            market_date: null
-          }
+            market_date: null,
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Format the data
-    const movers = result.rows.map(row => ({
+    const movers = result.rows.map((row) => ({
       symbol: row.symbol,
       price: parseFloat(row.price) || 0,
       change_percent: parseFloat(row.change_percent) || 0,
       price_change: parseFloat(row.price_change) || 0,
       volume: parseInt(row.volume) || 0,
-      date: row.date
+      date: row.date,
     }));
-    
+
     res.json({
       success: true,
       data: {
@@ -3416,17 +3693,17 @@ router.get("/movers", async (req, res) => {
           count: movers.length,
           limit: parseInt(limit),
           market_date: movers[0]?.date || null,
-          top_performer: movers[0] || null
-        }
+          top_performer: movers[0] || null,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Market movers error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market movers",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -3435,46 +3712,77 @@ router.get("/movers", async (req, res) => {
 router.get("/correlation", async (req, res) => {
   try {
     const { symbols, period = "1M", limit = 50 } = req.query;
-    
-    console.log(`📊 Market correlation requested - symbols: ${symbols || 'all'}, period: ${period}`);
-    
+
+    console.log(
+      `📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
+    );
+
     // Generate realistic correlation matrix data
     const generateCorrelationMatrix = (targetSymbols, period) => {
-      const baseSymbols = ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META'];
-      const analysisSymbols = targetSymbols ? targetSymbols.split(',').map(s => s.trim().toUpperCase()) : baseSymbols;
-      
+      const baseSymbols = [
+        "SPY",
+        "QQQ",
+        "IWM",
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "TSLA",
+        "NVDA",
+        "META",
+      ];
+      const analysisSymbols = targetSymbols
+        ? targetSymbols.split(",").map((s) => s.trim().toUpperCase())
+        : baseSymbols;
+
       const matrix = [];
       const statistics = {
         avg_correlation: 0,
         max_correlation: { value: 0, pair: [] },
         min_correlation: { value: 1, pair: [] },
         highly_correlated: [],
-        negatively_correlated: []
+        negatively_correlated: [],
       };
-      
+
       let totalCorrelations = 0;
       let sumCorrelations = 0;
-      
+
       for (let i = 0; i < analysisSymbols.length; i++) {
         const row = [];
         for (let j = 0; j < analysisSymbols.length; j++) {
           let correlation;
-          
+
           if (i === j) {
             correlation = 1.0; // Perfect correlation with itself
           } else {
             // Generate realistic correlations based on asset types
             const symbol1 = analysisSymbols[i];
             const symbol2 = analysisSymbols[j];
-            
+
             // Tech stocks have higher correlation
-            const isTech1 = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META'].includes(symbol1);
-            const isTech2 = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META'].includes(symbol2);
-            
+            const isTech1 = [
+              "AAPL",
+              "MSFT",
+              "GOOGL",
+              "AMZN",
+              "TSLA",
+              "NVDA",
+              "META",
+            ].includes(symbol1);
+            const isTech2 = [
+              "AAPL",
+              "MSFT",
+              "GOOGL",
+              "AMZN",
+              "TSLA",
+              "NVDA",
+              "META",
+            ].includes(symbol2);
+
             // ETFs have moderate correlation with individual stocks
-            const isETF1 = ['SPY', 'QQQ', 'IWM'].includes(symbol1);
-            const isETF2 = ['SPY', 'QQQ', 'IWM'].includes(symbol2);
-            
+            const isETF1 = ["SPY", "QQQ", "IWM"].includes(symbol1);
+            const isETF2 = ["SPY", "QQQ", "IWM"].includes(symbol2);
+
             if (isTech1 && isTech2) {
               correlation = 0.6 + Math.random() * 0.3; // 0.6-0.9
             } else if (isETF1 && isETF2) {
@@ -3484,68 +3792,111 @@ router.get("/correlation", async (req, res) => {
             } else {
               correlation = 0.1 + Math.random() * 0.6; // 0.1-0.7
             }
-            
+
             // Add some period-based variation
-            const periodMultiplier = period === '1W' ? 0.9 : period === '1M' ? 1.0 : period === '3M' ? 1.1 : 1.2;
+            const periodMultiplier =
+              period === "1W"
+                ? 0.9
+                : period === "1M"
+                  ? 1.0
+                  : period === "3M"
+                    ? 1.1
+                    : 1.2;
             correlation = Math.min(0.95, correlation * periodMultiplier);
             correlation = Math.round(correlation * 1000) / 1000;
-            
+
             // Track statistics
-            if (i < j) { // Only count each pair once
+            if (i < j) {
+              // Only count each pair once
               totalCorrelations++;
               sumCorrelations += correlation;
-              
+
               if (correlation > statistics.max_correlation.value) {
-                statistics.max_correlation = { value: correlation, pair: [symbol1, symbol2] };
+                statistics.max_correlation = {
+                  value: correlation,
+                  pair: [symbol1, symbol2],
+                };
               }
               if (correlation < statistics.min_correlation.value) {
-                statistics.min_correlation = { value: correlation, pair: [symbol1, symbol2] };
+                statistics.min_correlation = {
+                  value: correlation,
+                  pair: [symbol1, symbol2],
+                };
               }
-              
+
               if (correlation > 0.7) {
-                statistics.highly_correlated.push({ symbols: [symbol1, symbol2], correlation });
+                statistics.highly_correlated.push({
+                  symbols: [symbol1, symbol2],
+                  correlation,
+                });
               }
               if (correlation < 0.3) {
-                statistics.negatively_correlated.push({ symbols: [symbol1, symbol2], correlation });
+                statistics.negatively_correlated.push({
+                  symbols: [symbol1, symbol2],
+                  correlation,
+                });
               }
             }
           }
-          
+
           row.push(correlation);
         }
         matrix.push({
           symbol: analysisSymbols[i],
-          correlations: row
+          correlations: row,
         });
       }
-      
-      statistics.avg_correlation = Math.round((sumCorrelations / totalCorrelations) * 1000) / 1000;
-      
+
+      statistics.avg_correlation =
+        Math.round((sumCorrelations / totalCorrelations) * 1000) / 1000;
+
       return {
         symbols: analysisSymbols,
         matrix,
         statistics,
         period_analysis: {
           period: period,
-          observation_days: period === '1W' ? 7 : period === '1M' ? 30 : period === '3M' ? 90 : 365,
-          correlation_strength: statistics.avg_correlation > 0.6 ? 'Strong' : statistics.avg_correlation > 0.3 ? 'Moderate' : 'Weak'
-        }
+          observation_days:
+            period === "1W"
+              ? 7
+              : period === "1M"
+                ? 30
+                : period === "3M"
+                  ? 90
+                  : 365,
+          correlation_strength:
+            statistics.avg_correlation > 0.6
+              ? "Strong"
+              : statistics.avg_correlation > 0.3
+                ? "Moderate"
+                : "Weak",
+        },
       };
     };
-    
+
     const correlationData = generateCorrelationMatrix(symbols, period);
-    
+
     // Generate additional analysis
     const analysis = {
-      market_regime: correlationData.statistics.avg_correlation > 0.6 ? 'Risk-On' : 'Risk-Off',
-      diversification_score: Math.round((1 - correlationData.statistics.avg_correlation) * 100),
+      market_regime:
+        correlationData.statistics.avg_correlation > 0.6
+          ? "Risk-On"
+          : "Risk-Off",
+      diversification_score: Math.round(
+        (1 - correlationData.statistics.avg_correlation) * 100
+      ),
       risk_assessment: {
-        concentration_risk: correlationData.statistics.highly_correlated.length > 3 ? 'High' : 'Moderate',
-        diversification_benefit: correlationData.statistics.avg_correlation < 0.5 ? 'Good' : 'Limited',
-        portfolio_stability: correlationData.statistics.avg_correlation > 0.8 ? 'Low' : 'Moderate'
-      }
+        concentration_risk:
+          correlationData.statistics.highly_correlated.length > 3
+            ? "High"
+            : "Moderate",
+        diversification_benefit:
+          correlationData.statistics.avg_correlation < 0.5 ? "Good" : "Limited",
+        portfolio_stability:
+          correlationData.statistics.avg_correlation > 0.8 ? "Low" : "Moderate",
+      },
     };
-    
+
     res.status(200).json({
       success: true,
       message: "Market correlation analysis retrieved successfully",
@@ -3553,27 +3904,31 @@ router.get("/correlation", async (req, res) => {
         correlation_matrix: correlationData,
         analysis,
         recommendations: [
-          correlationData.statistics.avg_correlation > 0.7 ? "Consider diversifying into uncorrelated assets" : "Portfolio shows good diversification",
-          analysis.concentration_risk === 'High' ? "Reduce exposure to highly correlated positions" : "Correlation levels are manageable",
-          "Monitor correlation changes during market stress periods"
+          correlationData.statistics.avg_correlation > 0.7
+            ? "Consider diversifying into uncorrelated assets"
+            : "Portfolio shows good diversification",
+          analysis.concentration_risk === "High"
+            ? "Reduce exposure to highly correlated positions"
+            : "Correlation levels are manageable",
+          "Monitor correlation changes during market stress periods",
         ],
         metadata: {
           period: period,
           symbols_analyzed: correlationData.symbols.length,
           generated_at: new Date().toISOString(),
-          calculation_method: "Statistical correlation matrix with realistic market relationships"
-        }
+          calculation_method:
+            "Statistical correlation matrix with realistic market relationships",
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("Market correlation analysis error:", error);
-    
+
     res.status(500).json({
       success: false,
       error: "Failed to calculate market correlations",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -3581,25 +3936,37 @@ router.get("/correlation", async (req, res) => {
 // Get market news and sentiment
 router.get("/news", async (req, res) => {
   try {
-    const { 
-      category = "all", 
-      limit = 25, 
-      symbol, 
-      startDate, 
+    const {
+      category = "all",
+      limit = 25,
+      symbol,
+      startDate,
       endDate,
       sentiment = "all",
-      sources = "all" 
+      sources = "all",
     } = req.query;
 
-    console.log(`📰 Market news requested - category: ${category}, symbol: ${symbol || 'all'}, limit: ${limit}`);
+    console.log(
+      `📰 Market news requested - category: ${category}, symbol: ${symbol || "all"}, limit: ${limit}`
+    );
 
     // Validate category
-    const validCategories = ["all", "earnings", "mergers", "economic", "fed", "geopolitical", "sector", "analyst"];
+    const validCategories = [
+      "all",
+      "earnings",
+      "mergers",
+      "economic",
+      "fed",
+      "geopolitical",
+      "sector",
+      "analyst",
+    ];
     if (!validCategories.includes(category)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid category. Must be one of: " + validCategories.join(", "),
-        requested_category: category
+        error:
+          "Invalid category. Must be one of: " + validCategories.join(", "),
+        requested_category: category,
       });
     }
 
@@ -3608,14 +3975,17 @@ router.get("/news", async (req, res) => {
     if (!validSentiments.includes(sentiment)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid sentiment. Must be one of: " + validSentiments.join(", "),
-        requested_sentiment: sentiment
+        error:
+          "Invalid sentiment. Must be one of: " + validSentiments.join(", "),
+        requested_sentiment: sentiment,
       });
     }
 
     // Set default date range if not provided (last 7 days)
-    const defaultEndDate = new Date().toISOString().split('T')[0];
-    const defaultStartDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const defaultEndDate = new Date().toISOString().split("T")[0];
+    const defaultStartDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
     const finalStartDate = startDate || defaultStartDate;
     const finalEndDate = endDate || defaultEndDate;
 
@@ -3666,67 +4036,125 @@ router.get("/news", async (req, res) => {
       // Generate realistic market news data
       let generatedNews = [];
       const newsCategories = {
-        earnings: ["Q3 Earnings Beat Expectations", "Revenue Growth Accelerates", "Guidance Raised for Q4", "Margin Expansion Continues"],
-        economic: ["Fed Signals Rate Stability", "GDP Growth Exceeds Forecast", "Inflation Data Shows Cooling", "Employment Numbers Strong"],
-        mergers: ["Acquisition Deal Announced", "Merger Talks Progress", "Regulatory Approval Expected", "Strategic Partnership Formed"],
-        analyst: ["Price Target Raised", "Upgrade to Buy Rating", "Coverage Initiated", "Outlook Remains Positive"],
-        geopolitical: ["Trade Agreement Progress", "Global Supply Chain Updates", "International Market Stability", "Currency Fluctuations Impact"],
-        sector: ["Technology Sector Outlook", "Healthcare Innovation Surge", "Energy Transition Continues", "Financial Services Evolution"],
-        fed: ["FOMC Meeting Minutes", "Federal Reserve Policy Update", "Interest Rate Environment", "Monetary Policy Guidance"],
+        earnings: [
+          "Q3 Earnings Beat Expectations",
+          "Revenue Growth Accelerates",
+          "Guidance Raised for Q4",
+          "Margin Expansion Continues",
+        ],
+        economic: [
+          "Fed Signals Rate Stability",
+          "GDP Growth Exceeds Forecast",
+          "Inflation Data Shows Cooling",
+          "Employment Numbers Strong",
+        ],
+        mergers: [
+          "Acquisition Deal Announced",
+          "Merger Talks Progress",
+          "Regulatory Approval Expected",
+          "Strategic Partnership Formed",
+        ],
+        analyst: [
+          "Price Target Raised",
+          "Upgrade to Buy Rating",
+          "Coverage Initiated",
+          "Outlook Remains Positive",
+        ],
+        geopolitical: [
+          "Trade Agreement Progress",
+          "Global Supply Chain Updates",
+          "International Market Stability",
+          "Currency Fluctuations Impact",
+        ],
+        sector: [
+          "Technology Sector Outlook",
+          "Healthcare Innovation Surge",
+          "Energy Transition Continues",
+          "Financial Services Evolution",
+        ],
+        fed: [
+          "FOMC Meeting Minutes",
+          "Federal Reserve Policy Update",
+          "Interest Rate Environment",
+          "Monetary Policy Guidance",
+        ],
       };
 
-      const newsSources = ["Reuters", "Bloomberg", "MarketWatch", "CNBC", "Financial Times", "Wall Street Journal", "Yahoo Finance", "Seeking Alpha"];
-      const targetCategories = category === "all" ? Object.keys(newsCategories) : [category];
+      const newsSources = [
+        "Reuters",
+        "Bloomberg",
+        "MarketWatch",
+        "CNBC",
+        "Financial Times",
+        "Wall Street Journal",
+        "Yahoo Finance",
+        "Seeking Alpha",
+      ];
+      const targetCategories =
+        category === "all" ? Object.keys(newsCategories) : [category];
 
       for (let i = 0; i < parseInt(limit); i++) {
         const selectedCategory = targetCategories[Math.floor(0)];
         const headlines = newsCategories[selectedCategory];
         const headline = headlines[Math.floor(0)];
-        
+
         const publishDate = new Date();
         publishDate.setHours(publishDate.getHours() - 24); // Last 24 hours
-        
-        const sentimentScore = sentiment === "positive" ? 0.5 :
-                             sentiment === "negative" ? -0.3 :
-                             sentiment === "neutral" ? 0.0 :
-                             0.0; // All sentiments
+
+        const sentimentScore =
+          sentiment === "positive"
+            ? 0.5
+            : sentiment === "negative"
+              ? -0.3
+              : sentiment === "neutral"
+                ? 0.0
+                : 0.0; // All sentiments
 
         const impactScore = Math.random() * 0.8 + 0.1; // Generate random impact score between 0.1 and 0.9
         const source = newsSources[Math.floor(0)];
-        const mentionedSymbols = symbol ? [symbol.toUpperCase()] : 
-                                [];  // Default empty array when no symbol
+        const mentionedSymbols = symbol ? [symbol.toUpperCase()] : []; // Default empty array when no symbol
 
         generatedNews.push({
-          headline: `${headline} - ${mentionedSymbols.length > 0 ? mentionedSymbols[0] : 'Market'} Focus`,
-          summary: `Market analysis shows continued ${selectedCategory} developments with ${sentimentScore > 0 ? 'positive' : sentimentScore < 0 ? 'negative' : 'neutral'} implications for investors. ${headline.toLowerCase()} as sector dynamics evolve.`,
+          headline: `${headline} - ${mentionedSymbols.length > 0 ? mentionedSymbols[0] : "Market"} Focus`,
+          summary: `Market analysis shows continued ${selectedCategory} developments with ${sentimentScore > 0 ? "positive" : sentimentScore < 0 ? "negative" : "neutral"} implications for investors. ${headline.toLowerCase()} as sector dynamics evolve.`,
           url: `https://example-news.com/article-${i + 1}`,
           source: source,
           published_at: publishDate.toISOString(),
           sentiment_score: parseFloat(sentimentScore.toFixed(3)),
           category: selectedCategory,
           symbols_mentioned: mentionedSymbols.join(", "),
-          impact_score: parseFloat(impactScore.toFixed(2))
+          impact_score: parseFloat(impactScore.toFixed(2)),
         });
       }
 
       // Sort by publication date and impact score
       generatedNews.sort((a, b) => {
         const dateCompare = new Date(b.published_at) - new Date(a.published_at);
-        return dateCompare !== 0 ? dateCompare : b.impact_score - a.impact_score;
+        return dateCompare !== 0
+          ? dateCompare
+          : b.impact_score - a.impact_score;
       });
 
       // Calculate summary statistics
       const totalNews = generatedNews.length;
-      const positiveNews = generatedNews.filter(n => n.sentiment_score > 0.1).length;
-      const negativeNews = generatedNews.filter(n => n.sentiment_score < -0.1).length;
+      const positiveNews = generatedNews.filter(
+        (n) => n.sentiment_score > 0.1
+      ).length;
+      const negativeNews = generatedNews.filter(
+        (n) => n.sentiment_score < -0.1
+      ).length;
       const neutralNews = totalNews - positiveNews - negativeNews;
-      const avgSentiment = generatedNews.reduce((sum, n) => sum + n.sentiment_score, 0) / totalNews;
-      const avgImpact = generatedNews.reduce((sum, n) => sum + n.impact_score, 0) / totalNews;
+      const avgSentiment =
+        generatedNews.reduce((sum, n) => sum + n.sentiment_score, 0) /
+        totalNews;
+      const avgImpact =
+        generatedNews.reduce((sum, n) => sum + n.impact_score, 0) / totalNews;
 
       // Get category distribution
       const categoryDistribution = {};
-      generatedNews.forEach(news => {
-        categoryDistribution[news.category] = (categoryDistribution[news.category] || 0) + 1;
+      generatedNews.forEach((news) => {
+        categoryDistribution[news.category] =
+          (categoryDistribution[news.category] || 0) + 1;
       });
 
       return res.json({
@@ -3738,51 +4166,58 @@ router.get("/news", async (req, res) => {
             sentiment_distribution: {
               positive: positiveNews,
               negative: negativeNews,
-              neutral: neutralNews
+              neutral: neutralNews,
             },
             sentiment_percentages: {
-              positive: ((positiveNews / totalNews) * 100).toFixed(1) + '%',
-              negative: ((negativeNews / totalNews) * 100).toFixed(1) + '%',  
-              neutral: ((neutralNews / totalNews) * 100).toFixed(1) + '%'
+              positive: ((positiveNews / totalNews) * 100).toFixed(1) + "%",
+              negative: ((negativeNews / totalNews) * 100).toFixed(1) + "%",
+              neutral: ((neutralNews / totalNews) * 100).toFixed(1) + "%",
             },
             average_sentiment: avgSentiment.toFixed(3),
             average_impact: avgImpact.toFixed(2),
             category_distribution: categoryDistribution,
             date_range: {
               start: finalStartDate,
-              end: finalEndDate
-            }
+              end: finalEndDate,
+            },
           },
           filters: {
             category: category,
             sentiment: sentiment,
             symbol: symbol || null,
             sources: sources,
-            limit: parseInt(limit)
+            limit: parseInt(limit),
           },
           metadata: {
             data_source: "generated_realistic_news",
             note: "Market news generated with realistic headlines and sentiment analysis",
-            generated_at: new Date().toISOString()
-          }
+            generated_at: new Date().toISOString(),
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Process database results
     const newsData = result.rows;
     const totalNews = newsData.length;
-    const positiveNews = newsData.filter(n => n.sentiment_score > 0.1).length;
-    const negativeNews = newsData.filter(n => n.sentiment_score < -0.1).length;  
+    const positiveNews = newsData.filter((n) => n.sentiment_score > 0.1).length;
+    const negativeNews = newsData.filter(
+      (n) => n.sentiment_score < -0.1
+    ).length;
     const neutralNews = totalNews - positiveNews - negativeNews;
-    const avgSentiment = newsData.reduce((sum, n) => sum + parseFloat(n.sentiment_score || 0), 0) / totalNews;
-    const avgImpact = newsData.reduce((sum, n) => sum + parseFloat(n.impact_score || 0), 0) / totalNews;
+    const avgSentiment =
+      newsData.reduce((sum, n) => sum + parseFloat(n.sentiment_score || 0), 0) /
+      totalNews;
+    const avgImpact =
+      newsData.reduce((sum, n) => sum + parseFloat(n.impact_score || 0), 0) /
+      totalNews;
 
     // Get category distribution
     const categoryDistribution = {};
-    newsData.forEach(news => {
-      categoryDistribution[news.category] = (categoryDistribution[news.category] || 0) + 1;
+    newsData.forEach((news) => {
+      categoryDistribution[news.category] =
+        (categoryDistribution[news.category] || 0) + 1;
     });
 
     res.json({
@@ -3794,39 +4229,47 @@ router.get("/news", async (req, res) => {
           sentiment_distribution: {
             positive: positiveNews,
             negative: negativeNews,
-            neutral: neutralNews
+            neutral: neutralNews,
           },
           sentiment_percentages: {
-            positive: totalNews > 0 ? ((positiveNews / totalNews) * 100).toFixed(1) + '%' : '0%',
-            negative: totalNews > 0 ? ((negativeNews / totalNews) * 100).toFixed(1) + '%' : '0%',
-            neutral: totalNews > 0 ? ((neutralNews / totalNews) * 100).toFixed(1) + '%' : '0%'
+            positive:
+              totalNews > 0
+                ? ((positiveNews / totalNews) * 100).toFixed(1) + "%"
+                : "0%",
+            negative:
+              totalNews > 0
+                ? ((negativeNews / totalNews) * 100).toFixed(1) + "%"
+                : "0%",
+            neutral:
+              totalNews > 0
+                ? ((neutralNews / totalNews) * 100).toFixed(1) + "%"
+                : "0%",
           },
-          average_sentiment: totalNews > 0 ? avgSentiment.toFixed(3) : '0.000',
-          average_impact: totalNews > 0 ? avgImpact.toFixed(2) : '0.00',
+          average_sentiment: totalNews > 0 ? avgSentiment.toFixed(3) : "0.000",
+          average_impact: totalNews > 0 ? avgImpact.toFixed(2) : "0.00",
           category_distribution: categoryDistribution,
           date_range: {
             start: finalStartDate,
-            end: finalEndDate
-          }
+            end: finalEndDate,
+          },
         },
         filters: {
           category: category,
           sentiment: sentiment,
           symbol: symbol || null,
           sources: sources,
-          limit: parseInt(limit)
-        }
+          limit: parseInt(limit),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Market news error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market news",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -3843,29 +4286,39 @@ router.get("/options", async (req, res) => {
       min_open_interest = 0,
       limit = 100,
       sortBy = "volume",
-      sortOrder = "desc"
+      sortOrder = "desc",
     } = req.query;
 
-    console.log(`📈 Options data requested - symbol: ${symbol || 'all'}, type: ${option_type}, expiration: ${expiration || 'all'}`);
+    console.log(
+      `📈 Options data requested - symbol: ${symbol || "all"}, type: ${option_type}, expiration: ${expiration || "all"}`
+    );
 
     // Validate parameters
     const validOptionTypes = ["all", "call", "put"];
     const validStrikeRanges = ["all", "itm", "otm", "atm"];
-    const validSortColumns = ["volume", "open_interest", "strike_price", "bid", "ask", "last_price", "implied_volatility"];
+    const validSortColumns = [
+      "volume",
+      "open_interest",
+      "strike_price",
+      "bid",
+      "ask",
+      "last_price",
+      "implied_volatility",
+    ];
 
     if (!validOptionTypes.includes(option_type)) {
       return res.status(400).json({
         success: false,
-        error: `Invalid option_type. Must be one of: ${validOptionTypes.join(', ')}`,
-        validOptionTypes
+        error: `Invalid option_type. Must be one of: ${validOptionTypes.join(", ")}`,
+        validOptionTypes,
       });
     }
 
     if (!validStrikeRanges.includes(strike_range)) {
       return res.status(400).json({
         success: false,
-        error: `Invalid strike_range. Must be one of: ${validStrikeRanges.join(', ')}`,
-        validStrikeRanges
+        error: `Invalid strike_range. Must be one of: ${validStrikeRanges.join(", ")}`,
+        validStrikeRanges,
       });
     }
 
@@ -3873,109 +4326,160 @@ router.get("/options", async (req, res) => {
     const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
 
     // Generate realistic options data since we likely don't have options tables
-    const symbols = symbol ? [symbol.toUpperCase()] : [
-      'SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA', 'META', 'AMZN',
-      'JPM', 'BAC', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV', 'TLT', 'EEM', 'VIX'
-    ];
+    const symbols = symbol
+      ? [symbol.toUpperCase()]
+      : [
+          "SPY",
+          "QQQ",
+          "IWM",
+          "AAPL",
+          "MSFT",
+          "GOOGL",
+          "NVDA",
+          "TSLA",
+          "META",
+          "AMZN",
+          "JPM",
+          "BAC",
+          "XLF",
+          "XLE",
+          "XLK",
+          "GLD",
+          "SLV",
+          "TLT",
+          "EEM",
+          "VIX",
+        ];
 
     const optionsData = [];
     const targetCount = parseInt(limit);
 
-    symbols.forEach(sym => {
+    symbols.forEach((sym) => {
       const currentPrice = 50; // $50-$500 underlying price
       const volatility = 0.15; // 15%-100% IV
-      
+
       // Generate expiration dates (next 8 weekly/monthly expirations)
       const expirations = [];
       for (let i = 1; i <= 8; i++) {
         const expDate = new Date();
-        expDate.setDate(expDate.getDate() + (i * 7)); // Weekly expirations
-        
+        expDate.setDate(expDate.getDate() + i * 7); // Weekly expirations
+
         // Ensure Friday expiration
         const dayOfWeek = expDate.getDay();
         const daysToFriday = (5 - dayOfWeek + 7) % 7;
         expDate.setDate(expDate.getDate() + daysToFriday);
-        
-        expirations.push(expDate.toISOString().split('T')[0]);
+
+        expirations.push(expDate.toISOString().split("T")[0]);
       }
 
       // Filter by expiration if specified
-      const targetExpirations = expiration ? [expiration] : expirations.slice(0, 4); // First 4 if not specified
+      const targetExpirations = expiration
+        ? [expiration]
+        : expirations.slice(0, 4); // First 4 if not specified
 
-      targetExpirations.forEach(expDate => {
-        const daysToExpiry = Math.ceil((new Date(expDate) - new Date()) / (1000 * 60 * 60 * 24));
+      targetExpirations.forEach((expDate) => {
+        const daysToExpiry = Math.ceil(
+          (new Date(expDate) - new Date()) / (1000 * 60 * 60 * 24)
+        );
         const timeToExpiry = Math.max(daysToExpiry / 365, 0.01); // At least 1% of a year
-        
+
         // Generate strike prices around current price
-        const strikeSpacing = currentPrice > 100 ? 5 : (currentPrice > 50 ? 2.5 : 1);
-        const numStrikes = Math.min(20, Math.floor(targetCount / targetExpirations.length / 2)); // Limit strikes per expiration
-        
-        for (let i = -numStrikes/2; i < numStrikes/2; i++) {
-          const strikePrice = parseFloat((currentPrice + (i * strikeSpacing)).toFixed(2));
-          
+        const strikeSpacing =
+          currentPrice > 100 ? 5 : currentPrice > 50 ? 2.5 : 1;
+        const numStrikes = Math.min(
+          20,
+          Math.floor(targetCount / targetExpirations.length / 2)
+        ); // Limit strikes per expiration
+
+        for (let i = -numStrikes / 2; i < numStrikes / 2; i++) {
+          const strikePrice = parseFloat(
+            (currentPrice + i * strikeSpacing).toFixed(2)
+          );
+
           if (strikePrice <= 0) continue;
-          
+
           // Determine if option is ITM, OTM, or ATM
           let moneyness = "atm";
           const priceDiff = Math.abs(currentPrice - strikePrice);
           if (priceDiff > strikeSpacing / 2) {
             moneyness = currentPrice > strikePrice ? "itm" : "otm";
           }
-          
+
           // Apply strike range filter
           if (strike_range !== "all" && moneyness !== strike_range) continue;
 
           // Generate both call and put for this strike
-          const optionTypes = option_type === "all" ? ["call", "put"] : [option_type];
-          
-          optionTypes.forEach(type => {
+          const optionTypes =
+            option_type === "all" ? ["call", "put"] : [option_type];
+
+          optionTypes.forEach((type) => {
             // Calculate theoretical option prices using simplified Black-Scholes approximation
             const isCall = type === "call";
-            const moneynessFactor = isCall ? 
-              Math.max(0, (currentPrice - strikePrice) / currentPrice) : 
-              Math.max(0, (strikePrice - currentPrice) / currentPrice);
-            
-            const intrinsicValue = isCall ?
-              Math.max(0, currentPrice - strikePrice) :
-              Math.max(0, strikePrice - currentPrice);
-            
-            const timeValue = Math.max(0.01, volatility * currentPrice * Math.sqrt(timeToExpiry) * 0.1);
+            const moneynessFactor = isCall
+              ? Math.max(0, (currentPrice - strikePrice) / currentPrice)
+              : Math.max(0, (strikePrice - currentPrice) / currentPrice);
+
+            const intrinsicValue = isCall
+              ? Math.max(0, currentPrice - strikePrice)
+              : Math.max(0, strikePrice - currentPrice);
+
+            const timeValue = Math.max(
+              0.01,
+              volatility * currentPrice * Math.sqrt(timeToExpiry) * 0.1
+            );
             const theoreticalPrice = intrinsicValue + timeValue;
-            
+
             // Add some randomness to prices
             const lastPrice = Math.max(0.01, theoreticalPrice * 0.1);
             const bidAskSpread = Math.max(0.01, lastPrice * 0.1);
             const bid = Math.max(0.01, lastPrice - bidAskSpread / 2);
             const ask = lastPrice + bidAskSpread / 2;
-            
+
             // Generate volume and open interest
             const baseVolume = Math.floor(10);
-            const volumeMultiplier = moneyness === "atm" ? 2.25 : 
-                                   moneyness === "itm" ? 1.35 : 
-                                   1.0;
+            const volumeMultiplier =
+              moneyness === "atm" ? 2.25 : moneyness === "itm" ? 1.35 : 1.0;
             const volume = Math.floor(baseVolume * volumeMultiplier);
-            
+
             const baseOpenInterest = Math.floor(50);
-            const openInterest = Math.floor(baseOpenInterest * volumeMultiplier);
-            
+            const openInterest = Math.floor(
+              baseOpenInterest * volumeMultiplier
+            );
+
             // Apply volume and open interest filters
-            if (volume < parseInt(min_volume) || openInterest < parseInt(min_open_interest)) return;
-            
+            if (
+              volume < parseInt(min_volume) ||
+              openInterest < parseInt(min_open_interest)
+            )
+              return;
+
             // Calculate Greeks (simplified)
-            const delta = isCall ? 
-              Math.min(0.99, Math.max(0.01, 0.5 + moneynessFactor * 2)) :
-              Math.max(-0.99, Math.min(-0.01, -0.5 - moneynessFactor * 2));
-            
-            const gamma = Math.max(0.001, 0.1 * Math.exp(-Math.pow((currentPrice - strikePrice) / currentPrice, 2)));
+            const delta = isCall
+              ? Math.min(0.99, Math.max(0.01, 0.5 + moneynessFactor * 2))
+              : Math.max(-0.99, Math.min(-0.01, -0.5 - moneynessFactor * 2));
+
+            const gamma = Math.max(
+              0.001,
+              0.1 *
+                Math.exp(
+                  -Math.pow((currentPrice - strikePrice) / currentPrice, 2)
+                )
+            );
             const theta = -Math.max(0.01, timeValue / (daysToExpiry + 1));
-            const vega = Math.max(0.01, currentPrice * Math.sqrt(timeToExpiry) * 0.1);
-            const rho = isCall ? 
-              Math.max(0.001, strikePrice * timeToExpiry * delta * 0.01) :
-              Math.min(-0.001, -strikePrice * timeToExpiry * Math.abs(delta) * 0.01);
-            
+            const vega = Math.max(
+              0.01,
+              currentPrice * Math.sqrt(timeToExpiry) * 0.1
+            );
+            const rho = isCall
+              ? Math.max(0.001, strikePrice * timeToExpiry * delta * 0.01)
+              : Math.min(
+                  -0.001,
+                  -strikePrice * timeToExpiry * Math.abs(delta) * 0.01
+                );
+
             // Calculate implied volatility (with some randomness around base volatility)
             const impliedVolatility = Math.max(0.05, volatility * 0.1);
-            
+
             optionsData.push({
               option_id: `${sym}_${expDate}_${type.toUpperCase()}_${strikePrice}`,
               symbol: sym,
@@ -3990,7 +4494,9 @@ router.get("/options", async (req, res) => {
               bid_ask_spread: parseFloat((ask - bid).toFixed(2)),
               volume: volume,
               open_interest: openInterest,
-              implied_volatility: parseFloat((impliedVolatility * 100).toFixed(1)), // Convert to percentage
+              implied_volatility: parseFloat(
+                (impliedVolatility * 100).toFixed(1)
+              ), // Convert to percentage
               moneyness: moneyness,
               intrinsic_value: parseFloat(intrinsicValue.toFixed(2)),
               time_value: parseFloat((lastPrice - intrinsicValue).toFixed(2)),
@@ -4000,19 +4506,28 @@ router.get("/options", async (req, res) => {
                 gamma: parseFloat(gamma.toFixed(3)),
                 theta: parseFloat(theta.toFixed(3)),
                 vega: parseFloat(vega.toFixed(3)),
-                rho: parseFloat(rho.toFixed(3))
+                rho: parseFloat(rho.toFixed(3)),
               },
               metrics: {
-                volume_oi_ratio: openInterest > 0 ? parseFloat((volume / openInterest).toFixed(2)) : 0,
-                bid_ask_spread_pct: parseFloat(((ask - bid) / lastPrice * 100).toFixed(2)),
-                break_even: isCall ? 
-                  parseFloat((strikePrice + lastPrice).toFixed(2)) :
-                  parseFloat((strikePrice - lastPrice).toFixed(2)),
-                max_profit: isCall ? null : parseFloat((strikePrice - lastPrice).toFixed(2)),
-                max_loss: isCall ? parseFloat(lastPrice.toFixed(2)) : parseFloat(lastPrice.toFixed(2)),
-                probability_profit: parseFloat((50.0).toFixed(1)) // 50%
+                volume_oi_ratio:
+                  openInterest > 0
+                    ? parseFloat((volume / openInterest).toFixed(2))
+                    : 0,
+                bid_ask_spread_pct: parseFloat(
+                  (((ask - bid) / lastPrice) * 100).toFixed(2)
+                ),
+                break_even: isCall
+                  ? parseFloat((strikePrice + lastPrice).toFixed(2))
+                  : parseFloat((strikePrice - lastPrice).toFixed(2)),
+                max_profit: isCall
+                  ? null
+                  : parseFloat((strikePrice - lastPrice).toFixed(2)),
+                max_loss: isCall
+                  ? parseFloat(lastPrice.toFixed(2))
+                  : parseFloat(lastPrice.toFixed(2)),
+                probability_profit: parseFloat((50.0).toFixed(1)), // 50%
               },
-              last_updated: new Date().toISOString()
+              last_updated: new Date().toISOString(),
             });
           });
         }
@@ -4023,7 +4538,7 @@ router.get("/options", async (req, res) => {
     optionsData.sort((a, b) => {
       let aVal = a[safeSort];
       let bVal = b[safeSort];
-      
+
       if (safeOrder === "ASC") {
         return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
@@ -4036,19 +4551,30 @@ router.get("/options", async (req, res) => {
 
     // Calculate summary statistics
     const totalOptions = finalData.length;
-    const calls = finalData.filter(opt => opt.option_type === "call").length;
-    const puts = finalData.filter(opt => opt.option_type === "put").length;
+    const calls = finalData.filter((opt) => opt.option_type === "call").length;
+    const puts = finalData.filter((opt) => opt.option_type === "put").length;
     const totalVolume = finalData.reduce((sum, opt) => sum + opt.volume, 0);
-    const totalOpenInterest = finalData.reduce((sum, opt) => sum + opt.open_interest, 0);
-    const avgImpliedVol = finalData.reduce((sum, opt) => sum + opt.implied_volatility, 0) / totalOptions;
-    
+    const totalOpenInterest = finalData.reduce(
+      (sum, opt) => sum + opt.open_interest,
+      0
+    );
+    const avgImpliedVol =
+      finalData.reduce((sum, opt) => sum + opt.implied_volatility, 0) /
+      totalOptions;
+
     // Most active options
-    const mostActiveByVolume = [...finalData].sort((a, b) => b.volume - a.volume).slice(0, 10);
-    const highestIV = [...finalData].sort((a, b) => b.implied_volatility - a.implied_volatility).slice(0, 5);
-    
+    const mostActiveByVolume = [...finalData]
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 10);
+    const highestIV = [...finalData]
+      .sort((a, b) => b.implied_volatility - a.implied_volatility)
+      .slice(0, 5);
+
     // Unique symbols and expirations
-    const uniqueSymbols = [...new Set(finalData.map(opt => opt.symbol))];
-    const uniqueExpirations = [...new Set(finalData.map(opt => opt.expiration_date))].sort();
+    const uniqueSymbols = [...new Set(finalData.map((opt) => opt.symbol))];
+    const uniqueExpirations = [
+      ...new Set(finalData.map((opt) => opt.expiration_date)),
+    ].sort();
 
     res.json({
       success: true,
@@ -4058,37 +4584,38 @@ router.get("/options", async (req, res) => {
           total_options: totalOptions,
           calls_count: calls,
           puts_count: puts,
-          call_put_ratio: puts > 0 ? parseFloat((calls / puts).toFixed(2)) : null,
+          call_put_ratio:
+            puts > 0 ? parseFloat((calls / puts).toFixed(2)) : null,
           total_volume: totalVolume,
           total_open_interest: totalOpenInterest,
           avg_implied_volatility: parseFloat(avgImpliedVol.toFixed(1)),
           unique_symbols: uniqueSymbols.length,
           symbols_covered: uniqueSymbols,
           expiration_dates: uniqueExpirations,
-          volume_leaders: mostActiveByVolume.map(opt => ({
+          volume_leaders: mostActiveByVolume.map((opt) => ({
             option_id: opt.option_id,
             symbol: opt.symbol,
             volume: opt.volume,
-            last_price: opt.last_price
+            last_price: opt.last_price,
           })),
-          highest_iv: highestIV.map(opt => ({
+          highest_iv: highestIV.map((opt) => ({
             option_id: opt.option_id,
             symbol: opt.symbol,
             implied_volatility: opt.implied_volatility,
-            last_price: opt.last_price
-          }))
+            last_price: opt.last_price,
+          })),
         },
         filters: {
           symbol: symbol || "all",
-          expiration: expiration || "all", 
+          expiration: expiration || "all",
           option_type: option_type,
           strike_range: strike_range,
           min_volume: parseInt(min_volume),
           min_open_interest: parseInt(min_open_interest),
           limit: parseInt(limit),
           sortBy: safeSort,
-          sortOrder: safeOrder
-        }
+          sortOrder: safeOrder,
+        },
       },
       metadata: {
         note: "Realistic options data generated with Black-Scholes approximation and Greeks calculations",
@@ -4097,25 +4624,24 @@ router.get("/options", async (req, res) => {
         supported_filters: {
           option_type: validOptionTypes,
           strike_range: validStrikeRanges,
-          sort_columns: validSortColumns
+          sort_columns: validSortColumns,
         },
         market_assumptions: {
           risk_free_rate: "5.0%",
           dividend_yield: "varies_by_underlying",
-          volatility_model: "historical_with_randomness"
+          volatility_model: "historical_with_randomness",
         },
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Options market data error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch options market data",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -4124,42 +4650,47 @@ router.get("/options", async (req, res) => {
 router.get("/earnings", async (req, res) => {
   try {
     const { period = "week", symbol } = req.query;
-    console.log(`📊 Earnings data requested - period: ${period}, symbol: ${symbol || 'all'}`);
+    console.log(
+      `📊 Earnings data requested - period: ${period}, symbol: ${symbol || "all"}`
+    );
 
-    const symbols = symbol ? [symbol.toUpperCase()] : ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA', 'META'];
+    const symbols = symbol
+      ? [symbol.toUpperCase()]
+      : ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "META"];
     const earningsData = [];
 
-    symbols.forEach(sym => {
+    symbols.forEach((sym) => {
       const earningsDate = new Date();
       earningsDate.setDate(earningsDate.getDate() + 15); // Next 15 days
-      
+
       const eps = 2.25;
       const estimate = parseFloat((eps * 1.0).toFixed(2));
-      
+
       earningsData.push({
         symbol: sym,
-        earnings_date: earningsDate.toISOString().split('T')[0],
+        earnings_date: earningsDate.toISOString().split("T")[0],
         time: null,
         eps_estimate: estimate,
         eps_actual: null, // 70% have actual data
         revenue_estimate: 0,
-        surprise_percent: parseFloat(((eps - estimate) / estimate * 100).toFixed(2)),
-        confirmed: null
+        surprise_percent: parseFloat(
+          (((eps - estimate) / estimate) * 100).toFixed(2)
+        ),
+        confirmed: null,
       });
     });
 
     res.json({
       success: true,
       data: { earnings: earningsData },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Earnings data error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch earnings data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4171,24 +4702,68 @@ router.get("/futures", async (req, res) => {
     console.log(`📈 Futures data requested - type: ${contract_type}`);
 
     const futuresData = [
-      { symbol: "ES", name: "S&P 500 E-mini", price: 4200.50, change: 15.25, change_percent: 0.36, volume: 2500000, open_interest: 3200000, expiry: "2025-03-21" },
-      { symbol: "NQ", name: "Nasdaq E-mini", price: 14500.75, change: -25.50, change_percent: -0.18, volume: 1800000, open_interest: 2100000, expiry: "2025-03-21" },
-      { symbol: "YM", name: "Dow E-mini", price: 34200.00, change: 125.00, change_percent: 0.37, volume: 850000, open_interest: 1200000, expiry: "2025-03-21" },
-      { symbol: "CL", name: "Crude Oil", price: 78.50, change: 1.25, change_percent: 1.62, volume: 450000, open_interest: 680000, expiry: "2025-02-20" },
-      { symbol: "GC", name: "Gold", price: 1950.80, change: -8.20, change_percent: -0.42, volume: 280000, open_interest: 420000, expiry: "2025-02-27" }
+      {
+        symbol: "ES",
+        name: "S&P 500 E-mini",
+        price: 4200.5,
+        change: 15.25,
+        change_percent: 0.36,
+        volume: 2500000,
+        open_interest: 3200000,
+        expiry: "2025-03-21",
+      },
+      {
+        symbol: "NQ",
+        name: "Nasdaq E-mini",
+        price: 14500.75,
+        change: -25.5,
+        change_percent: -0.18,
+        volume: 1800000,
+        open_interest: 2100000,
+        expiry: "2025-03-21",
+      },
+      {
+        symbol: "YM",
+        name: "Dow E-mini",
+        price: 34200.0,
+        change: 125.0,
+        change_percent: 0.37,
+        volume: 850000,
+        open_interest: 1200000,
+        expiry: "2025-03-21",
+      },
+      {
+        symbol: "CL",
+        name: "Crude Oil",
+        price: 78.5,
+        change: 1.25,
+        change_percent: 1.62,
+        volume: 450000,
+        open_interest: 680000,
+        expiry: "2025-02-20",
+      },
+      {
+        symbol: "GC",
+        name: "Gold",
+        price: 1950.8,
+        change: -8.2,
+        change_percent: -0.42,
+        volume: 280000,
+        open_interest: 420000,
+        expiry: "2025-02-27",
+      },
     ];
 
     res.json({
       success: true,
       data: { futures: futuresData },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch futures data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4199,59 +4774,60 @@ router.get("/futures", async (req, res) => {
 router.get("/volume", async (req, res) => {
   try {
     const { period = "1d", sector = "all" } = req.query;
-    console.log(`📊 Market volume analysis requested, period: ${period}, sector: ${sector}`);
+    console.log(
+      `📊 Market volume analysis requested, period: ${period}, sector: ${sector}`
+    );
 
     const volumeData = {
       period: period,
       sector: sector.toUpperCase(),
       analysis_date: new Date().toISOString(),
-      
+
       market_volume_overview: {
         total_volume: Math.round(15),
         average_daily_volume: Math.round(12),
         volume_vs_avg: parseFloat((1.0).toFixed(2)),
-        volume_trend: "STABLE"
+        volume_trend: "STABLE",
       },
-      
+
       exchange_breakdown: {
         NYSE: {
           volume: Math.round(8),
-          percentage: 0
+          percentage: 0,
         },
         NASDAQ: {
           volume: Math.round(6),
-          percentage: 0
-        }
+          percentage: 0,
+        },
       },
-      
+
       volume_leaders: [
         {
           symbol: "AAPL",
           volume: Math.round(150),
-          volume_ratio: 0
+          volume_ratio: 0,
         },
         {
-          symbol: "TSLA", 
+          symbol: "TSLA",
           volume: Math.round(120),
-          volume_ratio: 0
-        }
+          volume_ratio: 0,
+        },
       ],
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: volumeData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Market volume error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market volume data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4266,15 +4842,17 @@ router.get("/aaii", async (req, res) => {
       LIMIT 1
     `;
     const result = await query(aaiiQuery);
-    
+
     if (!result || result.rows.length === 0) {
       return res.notFound("No AAII sentiment data found");
     }
-    
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error("Error fetching AAII data:", error);
-    res.status(500).json({success: false, error: "Failed to fetch AAII sentiment data"});
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch AAII sentiment data" });
   }
 });
 
@@ -4289,7 +4867,7 @@ router.get("/quote/:symbol", async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Invalid symbol format",
-        message: "Symbol must contain only letters"
+        message: "Symbol must contain only letters",
       });
     }
 
@@ -4298,7 +4876,7 @@ router.get("/quote/:symbol", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "Symbol not found",
-        message: `Stock symbol '${symbolUpper}' not found in market data`
+        message: `Stock symbol '${symbolUpper}' not found in market data`,
       });
     }
 
@@ -4315,7 +4893,10 @@ router.get("/quote/:symbol", async (req, res) => {
         [symbolUpper]
       );
     } catch (dbError) {
-      console.error(`Database query failed for ${symbolUpper}:`, dbError.message);
+      console.error(
+        `Database query failed for ${symbolUpper}:`,
+        dbError.message
+      );
       result = null;
     }
 
@@ -4327,9 +4908,11 @@ router.get("/quote/:symbol", async (req, res) => {
         details: {
           symbol: symbolUpper,
           tables_checked: ["price_daily", "market_data"],
-          suggestion: "Please ensure the symbol exists in our database or check the symbol spelling",
-          available_data_sources: "price_daily (individual stocks), market_data (indices/ETFs)"
-        }
+          suggestion:
+            "Please ensure the symbol exists in our database or check the symbol spelling",
+          available_data_sources:
+            "price_daily (individual stocks), market_data (indices/ETFs)",
+        },
       });
     }
 
@@ -4344,17 +4927,16 @@ router.get("/quote/:symbol", async (req, res) => {
         low: parseFloat(quote.low || quote.price),
         volume: parseInt(quote.volume || 0),
         change_percent: parseFloat(quote.change_percent || 0),
-        last_updated: quote.date
+        last_updated: quote.date,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error(`Quote error for ${req.params.symbol}:`, error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch quote",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4368,23 +4950,23 @@ router.get("/quotes", async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Missing symbols parameter",
-        message: "Please provide symbols parameter (comma-separated)"
+        message: "Please provide symbols parameter (comma-separated)",
       });
     }
 
-    const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
+    const symbolList = symbols.split(",").map((s) => s.trim().toUpperCase());
 
     if (symbolList.length > 50) {
       return res.status(422).json({
         success: false,
         error: "Symbol limit exceeded",
-        message: "Maximum 50 symbols allowed per request"
+        message: "Maximum 50 symbols allowed per request",
       });
     }
 
     // Create placeholders for the IN clause
-    const placeholders = symbolList.map((_, i) => `$${i + 1}`).join(',');
-    
+    const placeholders = symbolList.map((_, i) => `$${i + 1}`).join(",");
+
     let result = null;
     try {
       result = await query(
@@ -4396,7 +4978,10 @@ router.get("/quotes", async (req, res) => {
         symbolList
       );
     } catch (dbError) {
-      console.log(`Database query failed for quotes, database error:`, dbError.message);
+      console.log(
+        `Database query failed for quotes, database error:`,
+        dbError.message
+      );
       result = null;
     }
 
@@ -4409,12 +4994,14 @@ router.get("/quotes", async (req, res) => {
         details: {
           requested_symbols: symbolList,
           tables_checked: ["price_daily", "market_data"],
-          suggestion: "Please verify symbol spellings or check if data exists for these symbols",
-          database_connection: "Database connection successful but no matching records found"
-        }
+          suggestion:
+            "Please verify symbol spellings or check if data exists for these symbols",
+          database_connection:
+            "Database connection successful but no matching records found",
+        },
       });
     } else {
-      quotes = result.rows.map(row => ({
+      quotes = result.rows.map((row) => ({
         symbol: row.symbol,
         price: parseFloat(row.price),
         open: parseFloat(row.open || row.price),
@@ -4422,7 +5009,7 @@ router.get("/quotes", async (req, res) => {
         low: parseFloat(row.low || row.price),
         volume: parseInt(row.volume || 0),
         change_percent: parseFloat(row.change_percent || 0),
-        last_updated: row.date
+        last_updated: row.date,
       }));
     }
 
@@ -4430,15 +5017,14 @@ router.get("/quotes", async (req, res) => {
       success: true,
       data: quotes,
       count: quotes.length,
-      requested: symbolList.length
+      requested: symbolList.length,
     });
-
   } catch (error) {
     console.error("Multiple quotes error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch quotes",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4456,7 +5042,7 @@ router.get("/historical/:symbol", async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Invalid period",
-        message: `Period must be one of: ${validPeriods.join(', ')}`
+        message: `Period must be one of: ${validPeriods.join(", ")}`,
       });
     }
 
@@ -4466,7 +5052,7 @@ router.get("/historical/:symbol", async (req, res) => {
       "1w": 7,
       "1mo": 30,
       "3mo": 90,
-      "1y": 365
+      "1y": 365,
     };
 
     let result = null;
@@ -4481,7 +5067,10 @@ router.get("/historical/:symbol", async (req, res) => {
         [symbolUpper]
       );
     } catch (dbError) {
-      console.log(`Database query failed for historical ${symbolUpper}, database error:`, dbError.message);
+      console.log(
+        `Database query failed for historical ${symbolUpper}, database error:`,
+        dbError.message
+      );
       result = null;
     }
 
@@ -4496,18 +5085,19 @@ router.get("/historical/:symbol", async (req, res) => {
           period: period,
           requested_days: periodDays[period],
           tables_checked: ["price_daily", "market_data"],
-          suggestion: "Historical data may not be available for this symbol or time period. Check if the symbol exists and has sufficient historical data.",
-          available_periods: Object.keys(periodDays)
-        }
+          suggestion:
+            "Historical data may not be available for this symbol or time period. Check if the symbol exists and has sufficient historical data.",
+          available_periods: Object.keys(periodDays),
+        },
       });
     } else {
-      historical = result.rows.map(row => ({
+      historical = result.rows.map((row) => ({
         date: row.date,
         open: parseFloat(row.open),
-        high: parseFloat(row.high), 
+        high: parseFloat(row.high),
         low: parseFloat(row.low),
         close: parseFloat(row.close),
-        volume: parseInt(row.volume || 0)
+        volume: parseInt(row.volume || 0),
       }));
     }
 
@@ -4517,16 +5107,15 @@ router.get("/historical/:symbol", async (req, res) => {
         symbol: symbolUpper,
         period: period,
         historical: historical,
-        count: historical.length
-      }
+        count: historical.length,
+      },
     });
-
   } catch (error) {
     console.error(`Historical data error for ${req.params.symbol}:`, error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch historical data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4541,7 +5130,7 @@ router.get("/trending", async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Invalid limit",
-        message: "Limit must be a positive number"
+        message: "Limit must be a positive number",
       });
     }
 
@@ -4569,44 +5158,46 @@ router.get("/trending", async (req, res) => {
         return res.status(404).json({
           success: false,
           error: "No trending stocks data found",
-          message: "Unable to find trending stocks data. Stock price and volume data may need to be loaded.",
-          timestamp: new Date().toISOString()
+          message:
+            "Unable to find trending stocks data. Stock price and volume data may need to be loaded.",
+          timestamp: new Date().toISOString(),
         });
       }
 
-      const trending = result.rows.map(row => ({
+      const trending = result.rows.map((row) => ({
         symbol: row.symbol,
         name: row.name,
         price: parseFloat(row.price || 0),
         change_percent: parseFloat(row.change_percent || 0),
         volume: parseInt(row.volume || 0),
-        trending_score: Math.round(row.volume * Math.abs(row.change_percent))
+        trending_score: Math.round(row.volume * Math.abs(row.change_percent)),
       }));
 
       res.json({
         success: true,
         data: trending,
         count: trending.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (dbError) {
-      console.log(`Database query failed for trending stocks:`, dbError.message);
+      console.log(
+        `Database query failed for trending stocks:`,
+        dbError.message
+      );
       return res.status(503).json({
         success: false,
         error: "Trending stocks service unavailable",
         message: "Unable to query trending stocks data from database",
         details: dbError.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-
   } catch (error) {
     console.error("Trending stocks error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trending stocks",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4630,7 +5221,10 @@ router.get("/gainers", async (req, res) => {
         [maxLimit]
       );
     } catch (dbError) {
-      console.log(`Database query failed for gainers, database error:`, dbError.message);
+      console.log(
+        `Database query failed for gainers, database error:`,
+        dbError.message
+      );
       result = null;
     }
 
@@ -4643,36 +5237,37 @@ router.get("/gainers", async (req, res) => {
         details: {
           requested_limit: maxLimit,
           table_checked: "price_daily",
-          query_conditions: "change_percent > 0, ordered by change_percent DESC",
-          suggestion: "Market gainers data requires recent price data with change_percent calculations. Ensure price_daily table has current data.",
+          query_conditions:
+            "change_percent > 0, ordered by change_percent DESC",
+          suggestion:
+            "Market gainers data requires recent price data with change_percent calculations. Ensure price_daily table has current data.",
           possible_causes: [
             "No recent price data available",
             "No stocks with positive performance today",
-            "change_percent column may need to be calculated"
-          ]
-        }
+            "change_percent column may need to be calculated",
+          ],
+        },
       });
     } else {
-      gainers = result.rows.map(row => ({
+      gainers = result.rows.map((row) => ({
         symbol: row.symbol,
         price: parseFloat(row.price),
         changePercent: parseFloat(row.change_percent),
-        volume: parseInt(row.volume || 0)
+        volume: parseInt(row.volume || 0),
       }));
     }
 
     res.json({
       success: true,
       data: gainers,
-      count: gainers.length
+      count: gainers.length,
     });
-
   } catch (error) {
     console.error("Market gainers error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market gainers",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4696,7 +5291,10 @@ router.get("/losers", async (req, res) => {
         [maxLimit]
       );
     } catch (dbError) {
-      console.log(`Database query failed for losers, database error:`, dbError.message);
+      console.log(
+        `Database query failed for losers, database error:`,
+        dbError.message
+      );
       result = null;
     }
 
@@ -4710,35 +5308,35 @@ router.get("/losers", async (req, res) => {
           requested_limit: maxLimit,
           table_checked: "price_daily",
           query_conditions: "change_percent < 0, ordered by change_percent ASC",
-          suggestion: "Market losers data requires recent price data with change_percent calculations. Ensure price_daily table has current data.",
+          suggestion:
+            "Market losers data requires recent price data with change_percent calculations. Ensure price_daily table has current data.",
           possible_causes: [
             "No recent price data available",
             "No stocks with negative performance today",
-            "change_percent column may need to be calculated"
-          ]
-        }
+            "change_percent column may need to be calculated",
+          ],
+        },
       });
     } else {
-      losers = result.rows.map(row => ({
+      losers = result.rows.map((row) => ({
         symbol: row.symbol,
         price: parseFloat(row.price),
         changePercent: parseFloat(row.change_percent),
-        volume: parseInt(row.volume || 0)
+        volume: parseInt(row.volume || 0),
       }));
     }
 
     res.json({
       success: true,
       data: losers,
-      count: losers.length
+      count: losers.length,
     });
-
   } catch (error) {
     console.error("Market losers error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market losers",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4752,12 +5350,12 @@ router.get("/search", async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Missing query parameter",
-        message: "Please provide a search query (q parameter)"
+        message: "Please provide a search query (q parameter)",
       });
     }
 
     // Sanitize query to prevent XSS
-    const sanitizedQuery = q.replace(/<[^>]*>/g, '').replace(/[<>"'&]/g, '');
+    const sanitizedQuery = q.replace(/<[^>]*>/g, "").replace(/[<>"'&]/g, "");
     const searchTerm = `%${sanitizedQuery.toUpperCase()}%`;
     const maxLimit = Math.min(parseInt(limit) || 10, 50);
     const searchOffset = Math.max(parseInt(offset) || 0, 0);
@@ -4773,14 +5371,20 @@ router.get("/search", async (req, res) => {
               ELSE 3 END,
          ticker
        LIMIT $4 OFFSET $5`,
-      [searchTerm, sanitizedQuery.toUpperCase(), `${sanitizedQuery.toUpperCase()}%`, maxLimit, searchOffset]
+      [
+        searchTerm,
+        sanitizedQuery.toUpperCase(),
+        `${sanitizedQuery.toUpperCase()}%`,
+        maxLimit,
+        searchOffset,
+      ]
     );
 
-    const results = result.rows.map(row => ({
+    const results = result.rows.map((row) => ({
       symbol: row.symbol,
       name: row.name,
       sector: row.sector,
-      industry: row.industry
+      industry: row.industry,
     }));
 
     res.json({
@@ -4789,15 +5393,14 @@ router.get("/search", async (req, res) => {
       count: results.length,
       query: sanitizedQuery,
       limit: maxLimit,
-      offset: searchOffset
+      offset: searchOffset,
     });
-
   } catch (error) {
     console.error("Stock search error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to search stocks",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4809,7 +5412,7 @@ router.get("/status", async (req, res) => {
     const now = new Date();
     const hour = now.getHours();
     const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-    
+
     const isOpen = !isWeekend && hour >= 9 && hour < 16; // Simplified market hours
 
     res.json({
@@ -4820,16 +5423,15 @@ router.get("/status", async (req, res) => {
         timezone: "EST",
         last_updated: now.toISOString(),
         next_open: isOpen ? null : "Next trading day 9:30 AM EST",
-        session: isOpen ? "regular" : "closed"
-      }
+        session: isOpen ? "regular" : "closed",
+      },
     });
-
   } catch (error) {
     console.error("Market status error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to get market status",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4838,20 +5440,27 @@ router.get("/status", async (req, res) => {
 router.get("/indices", async (req, res) => {
   try {
     const { symbol } = req.query;
-    console.log(`📊 Market indices requested, symbol filter: ${symbol || 'all'}`);
+    console.log(
+      `📊 Market indices requested, symbol filter: ${symbol || "all"}`
+    );
 
     let result;
     if (symbol) {
-      result = await query("SELECT * FROM market_data WHERE UPPER(symbol) = UPPER($1)", [symbol]);
+      result = await query(
+        "SELECT * FROM market_data WHERE UPPER(symbol) = UPPER($1)",
+        [symbol]
+      );
     } else {
-      result = await query("SELECT * FROM market_data ORDER BY symbol LIMIT 50");
+      result = await query(
+        "SELECT * FROM market_data ORDER BY symbol LIMIT 50"
+      );
     }
 
     if (!result || !result.rows) {
       return res.status(500).json({
         success: false,
         error: "Database query failed",
-        message: "Unable to fetch market indices data"
+        message: "Unable to fetch market indices data",
       });
     }
 
@@ -4859,25 +5468,24 @@ router.get("/indices", async (req, res) => {
       success: true,
       data: result.rows,
       count: result.rows.length,
-      symbol: symbol || 'all',
-      timestamp: new Date().toISOString()
+      symbol: symbol || "all",
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Market indices error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market indices",
-      message: error.message
+      message: error.message,
     });
   }
 });
 
-// Market sectors endpoint  
+// Market sectors endpoint
 router.get("/sectors", async (req, res) => {
   try {
     const { sort_by } = req.query;
-    console.log(`📊 Market sectors requested, sort: ${sort_by || 'default'}`);
+    console.log(`📊 Market sectors requested, sort: ${sort_by || "default"}`);
 
     // Query sector performance data
     const result = await query(`
@@ -4891,7 +5499,7 @@ router.get("/sectors", async (req, res) => {
       JOIN company_profile cp ON md.ticker = cp.ticker
       WHERE sector IS NOT NULL
       GROUP BY sector
-      ORDER BY ${sort_by === 'performance' ? 'avg_change_percent DESC' : 'sector ASC'}
+      ORDER BY ${sort_by === "performance" ? "avg_change_percent DESC" : "sector ASC"}
       LIMIT 20
     `);
 
@@ -4899,7 +5507,7 @@ router.get("/sectors", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No sector data found",
-        message: "Sector performance data is not available"
+        message: "Sector performance data is not available",
       });
     }
 
@@ -4907,16 +5515,15 @@ router.get("/sectors", async (req, res) => {
       success: true,
       data: result.rows,
       count: result.rows.length,
-      sort_by: sort_by || 'sector',
-      timestamp: new Date().toISOString()
+      sort_by: sort_by || "sector",
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Market sectors error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sector data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -4925,18 +5532,21 @@ router.get("/sectors", async (req, res) => {
 router.get("/economic", async (req, res) => {
   try {
     const { indicator } = req.query;
-    console.log(`📊 Economic indicators requested, indicator: ${indicator || 'all'}`);
+    console.log(
+      `📊 Economic indicators requested, indicator: ${indicator || "all"}`
+    );
 
-    let whereClause = '';
+    let whereClause = "";
     const queryParams = [];
-    
+
     if (indicator) {
-      whereClause = 'WHERE UPPER(series_id) = UPPER($1)';
+      whereClause = "WHERE UPPER(series_id) = UPPER($1)";
       queryParams.push(indicator);
     }
-    
+
     // Query economic data
-    const result = await query(`
+    const result = await query(
+      `
       SELECT 
         series_id as indicator,
         date,
@@ -4947,14 +5557,16 @@ router.get("/economic", async (req, res) => {
       ${whereClause}
       ORDER BY series_id, date DESC
       LIMIT 100
-    `, queryParams);
+    `,
+      queryParams
+    );
 
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No economic data found",
         message: "Economic indicator data is not available",
-        indicator: indicator || 'all'
+        indicator: indicator || "all",
       });
     }
 
@@ -4962,16 +5574,15 @@ router.get("/economic", async (req, res) => {
       success: true,
       data: result.rows,
       count: result.rows.length,
-      indicator: indicator || 'all',
-      timestamp: new Date().toISOString()
+      indicator: indicator || "all",
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Economic indicators error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch economic indicators",
-      message: error.message
+      message: error.message,
     });
   }
 });
