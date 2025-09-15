@@ -544,10 +544,23 @@ router.get("/", stocksListValidation, async (req, res) => {
 
     console.log("Executing FAST queries with schema validation...");
 
-    // Execute queries with schema validation and caching
+    // Execute queries with timeout protection
+    console.log("Executing comprehensive stocks query with timeout protection...");
+    const queryTimeout = 10000; // 10 second timeout
+
     const [stocksResult, countResult] = await Promise.all([
-      query(stocksQuery, params), // Use regular query
-      query(countQuery, params.slice(0, -2)), // Use regular query for count
+      Promise.race([
+        query(stocksQuery, params),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Stocks query timeout")), queryTimeout)
+        )
+      ]),
+      Promise.race([
+        query(countQuery, params.slice(0, -2)),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Count query timeout")), queryTimeout)
+        )
+      ])
     ]);
 
     // Check for valid results
@@ -578,31 +591,33 @@ router.get("/", stocksListValidation, async (req, res) => {
       `FAST query results: ${stocksResult.rows.length} stocks, ${total} total`
     );
 
-    // Professional formatting with ALL comprehensive data from loadinfo
+    // Comprehensive data formatting - safely handle all available fields
     const formattedStocks = stocksResult.rows.map((stock) => ({
-      // Core identification
+      // Core identification (always available)
       ticker: stock.symbol,
       symbol: stock.symbol,
-      name: stock.security_name,
-      fullName: stock.long_name || stock.security_name,
-      shortName: stock.short_name,
-      displayName: stock.display_name,
+      name: stock.company_name || stock.security_name,
+      fullName: stock.long_name || stock.company_name || stock.security_name,
+      shortName: stock.short_name || stock.company_name,
+      displayName: stock.display_name || stock.company_name,
 
       // Exchange & categorization
       exchange: stock.exchange,
-      fullExchangeName: stock.full_exchange_name,
-      marketCategory: "Standard", // Default since column doesn't exist
-      market: stock.market,
+      fullExchangeName: stock.full_exchange_name || stock.exchange,
+      marketCategory: stock.market_category || "Standard",
+      market: stock.market || stock.exchange,
+      financialStatus: stock.financial_status,
+      isEtf: stock.etf === "Y",
 
-      // Business information
+      // Business information (from company_profile when available)
       sector: stock.sector,
-      sectorDisplay: stock.sector_disp,
+      sectorDisplay: stock.sector_disp || stock.sector,
       industry: stock.industry,
-      industryDisplay: stock.industry_disp,
+      industryDisplay: stock.industry_disp || stock.industry,
       businessSummary: stock.business_summary,
       employeeCount: stock.employee_count,
 
-      // Contact information
+      // Contact information (when available)
       website: stock.website_url,
       investorRelationsWebsite: stock.ir_website_url,
       address: {
