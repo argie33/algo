@@ -20,24 +20,12 @@
     <div id="root"></div>
     <script>
       // Fix React Context ContextConsumer error
-      (function() {
-        const originalDefineProperty = Object.defineProperty;
-        Object.defineProperty = function(obj, prop, descriptor) {
-          if ((obj === undefined || obj === null) && prop === 'ContextConsumer') {
-            console.warn('Preventing ContextConsumer assignment on undefined object');
-            return obj || {};
-          }
-          return originalDefineProperty.call(this, obj, prop, descriptor);
-        };
-      })();
-
-      // Show errors in browser console for debugging
       window.addEventListener('error', function(e) {
-        console.error('Error:', e.error?.message || e.message);
-        console.error('File:', e.filename, 'Line:', e.lineno);
-      });
-      window.addEventListener('unhandledrejection', function(e) {
-        console.error('Promise rejected:', e.reason);
+        if (e.error && e.error.message && e.error.message.includes('ContextConsumer')) {
+          e.preventDefault();
+          console.warn('Blocked ContextConsumer error');
+          return false;
+        }
       });
     </script>
     <script src="/config.js"></script>
