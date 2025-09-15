@@ -394,138 +394,26 @@ router.get("/", stocksListValidation, async (req, res) => {
       offset,
     });
 
-    // COMPREHENSIVE QUERY: Join all relevant tables to show all data
+    // SIMPLIFIED QUERY: Use stock_symbols as primary source with essential data only
     const stocksQuery = `
       SELECT
-        -- Primary stock symbols data
+        -- Primary stock symbols data (only columns that exist)
         ss.symbol,
         ss.security_name as company_name,
         ss.exchange,
-        ss.market_category,
-        ss.financial_status,
-        ss.etf,
-        ss.round_lot_size,
-        ss.cqs_symbol,
-        ss.secondary_symbol,
-
-        -- Company profile data (sector, industry, business info)
-        cp.short_name,
-        cp.long_name,
-        cp.display_name,
-        cp.quote_type,
-        cp.sector,
-        cp.sector_key,
-        cp.sector_disp,
-        cp.industry,
-        cp.industry_key,
-        cp.industry_disp,
-        cp.business_summary,
-        cp.employee_count,
-        cp.address1,
-        cp.city,
-        cp.state,
-        cp.postal_code,
-        cp.country,
-        cp.phone_number,
-        cp.website_url,
-        cp.ir_website_url,
-        cp.currency,
-        cp.market,
-        cp.full_exchange_name,
-
-        -- Market data (current prices, volumes, etc)
-        md.previous_close,
-        md.open_price,
-        md.day_low,
-        md.day_high,
-        md.regular_market_price as current_price,
-        md.bid_price,
-        md.ask_price,
-        md.volume,
-        md.average_volume,
-        md.market_cap,
-        md.fifty_two_week_low,
-        md.fifty_two_week_high,
-        md.fifty_day_avg,
-        md.two_hundred_day_avg,
-        md.market_state,
-
-        -- Key financial metrics
-        km.trailing_pe,
-        km.forward_pe,
-        km.price_to_sales_ttm,
-        km.price_to_book,
-        km.book_value,
-        km.peg_ratio,
-        km.enterprise_value,
-        km.ev_to_revenue,
-        km.ev_to_ebitda,
-        km.total_revenue,
-        km.net_income,
-        km.ebitda,
-        km.gross_profit,
-        km.eps_trailing,
-        km.eps_forward,
-        km.eps_current_year,
-        km.price_eps_current_year,
-        km.earnings_q_growth_pct,
-        km.revenue_growth_pct,
-        km.earnings_growth_pct,
-        km.total_cash,
-        km.cash_per_share,
-        km.operating_cashflow,
-        km.free_cashflow,
-        km.total_debt,
-        km.debt_to_equity,
-        km.quick_ratio,
-        km.current_ratio,
-        km.profit_margin_pct,
-        km.gross_margin_pct,
-        km.ebitda_margin_pct,
-        km.operating_margin_pct,
-        km.return_on_assets_pct,
-        km.return_on_equity_pct,
-        km.dividend_rate,
-        km.dividend_yield,
-        km.five_year_avg_dividend_yield,
-        km.payout_ratio,
-
-        -- Analyst estimates
-        ae.target_high_price,
-        ae.target_low_price,
-        ae.target_mean_price,
-        ae.target_median_price,
-        ae.recommendation_key,
-        ae.recommendation_mean,
-        ae.analyst_opinion_count,
-        ae.average_analyst_rating,
-
-        -- Governance scores
-        gs.audit_risk,
-        gs.board_risk,
-        gs.compensation_risk,
-        gs.shareholder_rights_risk,
-        gs.overall_risk,
-
-        -- Leadership count
-        (SELECT COUNT(*) FROM leadership_team lt WHERE lt.ticker = ss.symbol) as leadership_count,
-
-        -- Latest price data
-        pd.close as price_daily_close,
-        pd.change_amount,
-        pd.change_percent,
-        pd.volume as price_daily_volume,
+        ss.type as market_category,
+        ss.country,
+        ss.currency,
+        ss.is_active,
+        -- Latest price data when available (optional)
+        pd.close as current_price,
+        pd.volume,
         pd.date as price_date
 
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
-      LEFT JOIN governance_scores gs ON ss.symbol = gs.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
-          symbol, close_price as close, change_amount, change_percent, volume, date
+          symbol, close, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON ss.symbol = pd.symbol
