@@ -1931,7 +1931,7 @@ router.get("/:ticker", async (req, res) => {
           pd.date as price_date,
           1 as priority
         FROM stock_symbols ss
-        LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
             symbol, close, open, high, low, volume, date

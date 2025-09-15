@@ -137,7 +137,7 @@ router.get("/summary", async (req, res) => {
             FROM price_daily pd
             LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-            JOIN company_profile cp ON pd.symbol = cp.symbol
+            JOIN company_profile cp ON pd.symbol = cp.ticker
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
                 AND cp.sector IS NOT NULL 
                 AND cp.sector != ''
@@ -695,7 +695,7 @@ router.get("/market-data", async (req, res) => {
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
             FROM price_daily pd
-            JOIN company_profile cp ON pd.symbol = cp.symbol
+            JOIN company_profile cp ON pd.symbol = cp.ticker
             WHERE cp.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
@@ -890,7 +890,7 @@ router.get("/overview", async (req, res) => {
       FROM price_daily pd
       LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
           AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-      JOIN company_profile cp ON pd.symbol = cp.symbol
+      JOIN company_profile cp ON pd.symbol = cp.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
         AND cp.sector IS NOT NULL 
         AND pd.close IS NOT NULL
