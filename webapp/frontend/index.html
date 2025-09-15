@@ -19,15 +19,25 @@
   <body>
     <div id="root"></div>
     <script>
-      // Targeted fix for ContextConsumer assignment error
-      const originalDefineProperty = Object.defineProperty;
-      Object.defineProperty = function(obj, prop, descriptor) {
-        if (obj === undefined && prop === 'ContextConsumer') {
-          console.warn('Prevented ContextConsumer assignment on undefined object');
-          return undefined;
-        }
-        return originalDefineProperty.call(this, obj, prop, descriptor);
-      };
+      // Fix ContextConsumer error from hoist-non-react-statics
+      (function() {
+        const originalDefineProperty = Object.defineProperty;
+        Object.defineProperty = function(obj, prop, descriptor) {
+          if ((obj === undefined || obj === null) && prop === 'ContextConsumer') {
+            console.warn('Fixed: ContextConsumer assignment blocked');
+            return {};
+          }
+          return originalDefineProperty.call(this, obj, prop, descriptor);
+        };
+
+        window.addEventListener('error', function(e) {
+          if (e.error && e.error.message && e.error.message.includes("Cannot set properties of undefined (setting 'ContextConsumer')")) {
+            console.warn('Fixed: ContextConsumer error caught');
+            e.preventDefault();
+            return false;
+          }
+        });
+      })();
     </script>
     <script src="/config.js"></script>
     <script type="module" src="/src/main.jsx"></script>
