@@ -104,8 +104,7 @@
   },
   "overrides": {
     "use-sync-external-store": false,
-    "react-is": "^18.3.1",
-    "hoist-non-react-statics": "^3.3.2"
+    "react-is": "^18.3.1"
   },
   "engines": {
     "node": ">=20.19.0",
