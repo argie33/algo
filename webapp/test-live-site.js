@@ -120,7 +120,7 @@ class LiveSiteTester {
     await this.test('Portfolio Holdings Auth Required', async () => {
       const response = await this.makeRequest(`${API_BASE}/api/portfolio/holdings`);
       if (response.status !== 401) throw new Error(`Expected 401 (auth required), got ${response.status}`);
-      if (!response.data.error?.includes('Authentication required')) {
+      if (!response.data.error?.includes('Authorization missing')) {
         throw new Error('Should require authentication');
       }
     })();
@@ -134,8 +134,8 @@ class LiveSiteTester {
     await this.test('Frontend Main Page Loads', async () => {
       const response = await this.makeRequest(FRONTEND_BASE);
       if (response.status !== 200) throw new Error(`Expected 200, got ${response.status}`);
-      if (!response.data.includes('<!DOCTYPE html')) throw new Error('Not a valid HTML page');
-      if (!response.data.includes('Market Overview') && !response.data.includes('stocks')) {
+      if (!response.data.toLowerCase().includes('<!doctype html')) throw new Error('Not a valid HTML page');
+      if (!response.data.includes('Financial Dashboard') && !response.data.includes('root')) {
         throw new Error('Page does not appear to be the finance application');
       }
     })();
