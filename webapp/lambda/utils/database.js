@@ -140,11 +140,16 @@ async function getDbConfig() {
           user: secret.username,
           password: secret.password,
           database: secret.dbname,
-          max: parseInt(process.env.DB_POOL_MAX) || 5,
+          max: parseInt(process.env.DB_POOL_MAX) || 3, // Lambda-optimized
+          min: parseInt(process.env.DB_POOL_MIN) || 1,
           idleTimeoutMillis:
-            parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+            parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000,
           connectionTimeoutMillis:
-            parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+            parseInt(process.env.DB_CONNECT_TIMEOUT) || 3000,
+          acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 3000,
+          createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 3000,
+          statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT) || 30000,
+          query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 25000,
           ssl:
             process.env.DB_SSL === "false"
               ? false
@@ -184,17 +189,19 @@ async function getDbConfig() {
         user,
         password: process.env.DB_PASSWORD,
         database,
-        // Optimized connection pool settings based on testing insights
-        max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased from 5 for better concurrency
-        min: parseInt(process.env.DB_POOL_MIN) || 2, // Maintain minimum connections
-        idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+        // AWS Lambda optimized connection pool settings
+        max: parseInt(process.env.DB_POOL_MAX) || 3, // Reduced for Lambda - avoid connection exhaustion
+        min: parseInt(process.env.DB_POOL_MIN) || 1, // Keep minimal connections
+        idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000, // Shorter idle timeout
         connectionTimeoutMillis:
-          parseInt(process.env.DB_CONNECT_TIMEOUT) || 5000, // Reduced from 10s for faster failures
-        acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 5000, // Prevent hanging requests
-        createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 5000, // Connection creation timeout
-        reapIntervalMillis: parseInt(process.env.DB_REAP_INTERVAL) || 1000, // Pool maintenance interval
+          parseInt(process.env.DB_CONNECT_TIMEOUT) || 3000, // Fast timeout for Lambda
+        acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 3000, // Quick acquire
+        createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 3000, // Fast creation
+        reapIntervalMillis: parseInt(process.env.DB_REAP_INTERVAL) || 1000, // Pool maintenance
         createRetryIntervalMillis:
-          parseInt(process.env.DB_RETRY_INTERVAL) || 200, // Retry interval on failure
+          parseInt(process.env.DB_RETRY_INTERVAL) || 100, // Fast retries
+        statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT) || 30000, // 30s max query time
+        query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 25000, // 25s max per query
         ssl:
           process.env.DB_SSL === "false"
             ? false
@@ -1097,7 +1104,20 @@ async function query(text, params = []) {
     }
 
     const start = Date.now();
-    const result = await pool.query(text, params);
+
+    // Add query timeout protection for AWS Lambda
+    const queryTimeout = parseInt(process.env.DB_QUERY_TIMEOUT) || 25000; // 25 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Query timeout after ${queryTimeout}ms: ${text.slice(0, 100)}...`));
+      }, queryTimeout);
+    });
+
+    const result = await Promise.race([
+      pool.query(text, params),
+      timeoutPromise
+    ]);
+
     const duration = Date.now() - start;
 
     // Enhanced performance monitoring based on testing insights

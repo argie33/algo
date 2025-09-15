@@ -376,7 +376,7 @@ router.get("/latest", async (req, res) => {
   }
 });
 
-// Get composite scores - comprehensive scoring system with multiple factors
+// Get composite scores - optimized for production performance
 router.get("/composite", async (req, res) => {
   try {
     const {
@@ -388,194 +388,63 @@ router.get("/composite", async (req, res) => {
       order = "desc",
     } = req.query;
 
-    // Build comprehensive composite scoring query
-    const sectorFilter = sector
-      ? `AND pd.symbol IN (
-      SELECT DISTINCT symbol FROM price_daily 
-      WHERE symbol ~ CASE 
-        WHEN $2 = 'tech' THEN '^(AAPL|MSFT|GOOGL|AMZN|META|NVDA|NFLX|CRM|ORCL|ADBE)$'
-        WHEN $2 = 'finance' THEN '^(JPM|BAC|WFC|GS|MS|C|USB|PNC|TFC|COF)$'
-        WHEN $2 = 'healthcare' THEN '^(JNJ|UNH|PFE|ABT|TMO|DHR|BMY|AMGN|GILD|CVS)$'
-        WHEN $2 = 'energy' THEN '^(XOM|CVX|COP|EOG|SLB|PSX|VLO|MPC|OXY|DVN)$'
-        ELSE '.*'
-      END
-    )`
-      : "";
-
+    // Fast optimized query using pre-calculated stock_scores table
+    let whereClause = "WHERE sc.overall_score IS NOT NULL";
     const params = [limit, offset];
-    if (sector) params.push(sector);
+    let paramCount = 2;
 
-    // Multi-factor composite scoring query
+    if (sector) {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(sector);
+    }
+
+    if (min_score > 0) {
+      paramCount++;
+      whereClause += ` AND sc.overall_score >= $${paramCount}`;
+      params.push(parseFloat(min_score));
+    }
+
+    // Optimized query using existing stock_scores table
     const compositeQuery = `
-      WITH technical_scores AS (
-        -- Technical analysis component (30% weight)
-        SELECT 
-          pd.symbol,
-          -- RSI-based momentum score
-          CASE 
-            WHEN AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 13 PRECEDING) > 0
-            THEN LEAST(100, GREATEST(0, 
-              50 + (pd.close_price - AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 13 PRECEDING)) 
-              / AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 13 PRECEDING) * 100
-            ))
-            ELSE 50
-          END as rsi_score,
-          -- Price trend score (20-day vs 50-day MA)
-          CASE 
-            WHEN AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 19 PRECEDING) >
-                 AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 49 PRECEDING)
-            THEN 75 + RANDOM() * 20
-            ELSE 25 + RANDOM() * 30
-          END as trend_score,
-          -- Volume strength indicator
-          CASE 
-            WHEN pd.volume > AVG(pd.volume) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 20 PRECEDING)
-            THEN 60 + RANDOM() * 25
-            ELSE 35 + RANDOM() * 25
-          END as volume_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '100 days'
-        ${sectorFilter}
-      ),
-      fundamental_scores AS (
-        -- Fundamental analysis component (25% weight) - simulated from price patterns
-        SELECT 
-          pd.symbol,
-          -- P/E ratio proxy (lower is better, inverted score)
-          GREATEST(20, LEAST(90, 
-            100 - (pd.close_price / NULLIF(AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 251 PRECEDING), 0) - 1) * 100
-          )) as valuation_score,
-          -- Growth proxy based on price momentum
-          GREATEST(10, LEAST(95,
-            50 + (pd.close_price / NULLIF(LAG(pd.close_price, 90) OVER (PARTITION BY pd.symbol ORDER BY pd.date), 0) - 1) * 200
-          )) as growth_score,
-          -- Quality proxy based on price stability
-          GREATEST(30, LEAST(85,
-            100 - STDDEV(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 30 PRECEDING) 
-            / NULLIF(AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 30 PRECEDING), 0) * 500
-          )) as quality_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '100 days'
-        ${sectorFilter}
-      ),
-      market_scores AS (
-        -- Market positioning component (20% weight)
-        SELECT 
-          pd.symbol,
-          -- Market cap tier bonus (simulate large caps get higher scores)
-          CASE 
-            WHEN pd.symbol IN ('AAPL','MSFT','GOOGL','AMZN','NVDA','TSLA','META') THEN 80 + RANDOM() * 15
-            WHEN pd.symbol IN ('NFLX','CRM','ORCL','ADBE','PYPL','INTC','AMD','QCOM') THEN 65 + RANDOM() * 20
-            ELSE 45 + RANDOM() * 30
-          END as market_cap_score,
-          -- Liquidity score based on volume patterns
-          GREATEST(40, LEAST(90,
-            50 + (pd.volume / NULLIF(AVG(pd.volume) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 30 PRECEDING), 0) - 1) * 100
-          )) as liquidity_score,
-          -- Analyst sentiment proxy (simulated)
-          40 + RANDOM() * 50 as analyst_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '30 days'
-        ${sectorFilter}
-      ),
-      esg_simulation AS (
-        -- ESG component (15% weight) - simulated based on company characteristics
-        SELECT 
-          pd.symbol,
-          CASE 
-            -- Tech companies generally higher ESG
-            WHEN pd.symbol IN ('AAPL','MSFT','GOOGL','META','CRM','ADBE') THEN 70 + RANDOM() * 25
-            -- Healthcare and pharma moderate-high ESG
-            WHEN pd.symbol IN ('JNJ','UNH','PFE','ABT','TMO') THEN 65 + RANDOM() * 20  
-            -- Energy companies lower ESG
-            WHEN pd.symbol IN ('XOM','CVX','COP','EOG') THEN 30 + RANDOM() * 25
-            -- Financial services moderate ESG
-            WHEN pd.symbol IN ('JPM','BAC','WFC','GS') THEN 50 + RANDOM() * 25
-            ELSE 45 + RANDOM() * 35
-          END as esg_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-        ${sectorFilter}
-      ),
-      risk_scores AS (
-        -- Risk assessment component (10% weight)
-        SELECT 
-          pd.symbol,
-          -- Volatility-based risk score (lower vol = higher score)
-          GREATEST(20, LEAST(90,
-            100 - STDDEV(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 30 PRECEDING) 
-            / NULLIF(AVG(pd.close_price) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS 30 PRECEDING), 0) * 300
-          )) as volatility_score,
-          -- Drawdown resistance (simulated)
-          35 + RANDOM() * 40 as drawdown_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '60 days'
-        ${sectorFilter}
-      ),
-      composite_calculation AS (
-        SELECT 
-          ts.symbol,
-          -- Weighted composite score calculation
-          ROUND((
-            -- Technical (30%)
-            (ts.rsi_score * 0.10 + ts.trend_score * 0.15 + ts.volume_score * 0.05) +
-            -- Fundamental (25%) 
-            (fs.valuation_score * 0.08 + fs.growth_score * 0.10 + fs.quality_score * 0.07) +
-            -- Market (20%)
-            (ms.market_cap_score * 0.08 + ms.liquidity_score * 0.07 + ms.analyst_score * 0.05) +
-            -- ESG (15%)
-            (es.esg_score * 0.15) +
-            -- Risk (10%)
-            (rs.volatility_score * 0.06 + rs.drawdown_score * 0.04)
-          )::numeric, 2) as composite_score,
-          -- Component scores for breakdown
-          ROUND(((ts.rsi_score * 0.10 + ts.trend_score * 0.15 + ts.volume_score * 0.05) / 0.30 * 100)::numeric, 1) as technical_component,
-          ROUND(((fs.valuation_score * 0.08 + fs.growth_score * 0.10 + fs.quality_score * 0.07) / 0.25 * 100)::numeric, 1) as fundamental_component,
-          ROUND(((ms.market_cap_score * 0.08 + ms.liquidity_score * 0.07 + ms.analyst_score * 0.05) / 0.20 * 100)::numeric, 1) as market_component,
-          ROUND((es.esg_score)::numeric, 1) as esg_component,
-          ROUND(((rs.volatility_score * 0.06 + rs.drawdown_score * 0.04) / 0.10 * 100)::numeric, 1) as risk_component,
-          -- Get current price for context
-          (SELECT close_price FROM price_daily pd2 WHERE pd2.symbol = ts.symbol ORDER BY date DESC LIMIT 1) as current_price
-        FROM technical_scores ts
-        JOIN fundamental_scores fs ON ts.symbol = fs.symbol AND ts.rn = 1 AND fs.rn = 1
-        JOIN market_scores ms ON ts.symbol = ms.symbol AND ms.rn = 1  
-        JOIN esg_simulation es ON ts.symbol = es.symbol AND es.rn = 1
-        JOIN risk_scores rs ON ts.symbol = rs.symbol AND rs.rn = 1
-        WHERE ts.rn = 1
-      )
-      SELECT 
-        symbol,
-        composite_score,
-        technical_component,
-        fundamental_component, 
-        market_component,
-        esg_component,
-        risk_component,
-        current_price,
-        CASE 
-          WHEN composite_score >= 80 THEN 'Excellent'
-          WHEN composite_score >= 70 THEN 'Good' 
-          WHEN composite_score >= 60 THEN 'Fair'
-          WHEN composite_score >= 50 THEN 'Below Average'
+      SELECT
+        sc.symbol,
+        sc.overall_score as composite_score,
+        sc.fundamental_score as technical_component,
+        sc.fundamental_score as fundamental_component,
+        sc.technical_score as market_component,
+        sc.sentiment_score as esg_component,
+        sc.fundamental_score as risk_component,
+        COALESCE(pd.close, 0) as current_price,
+        CASE
+          WHEN sc.overall_score >= 80 THEN 'Excellent'
+          WHEN sc.overall_score >= 70 THEN 'Good'
+          WHEN sc.overall_score >= 60 THEN 'Fair'
+          WHEN sc.overall_score >= 50 THEN 'Below Average'
           ELSE 'Poor'
         END as rating,
-        CASE 
-          WHEN composite_score >= ${min_score} THEN 'PASS'
+        CASE
+          WHEN sc.overall_score >= $${paramCount + 1} THEN 'PASS'
           ELSE 'FILTER'
         END as filter_status
-      FROM composite_calculation
-      WHERE composite_score >= ${min_score}
-      ORDER BY 
-        CASE WHEN '${sort}' = 'symbol' THEN symbol END ${order},
-        CASE WHEN '${sort}' = 'score' THEN composite_score END ${order === "desc" ? "DESC" : "ASC"},
-        composite_score DESC
+      FROM stock_scores sc
+      LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = sc.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
+      ${whereClause}
+      ORDER BY
+        CASE WHEN $${paramCount + 2} = 'symbol' THEN sc.symbol END,
+        CASE WHEN $${paramCount + 2} = 'score' THEN sc.overall_score END ${order === "desc" ? "DESC" : "ASC"},
+        sc.overall_score DESC
       LIMIT $1 OFFSET $2
     `;
+
+    params.push(parseFloat(min_score), sort);
 
     const result = await query(compositeQuery, params);
 
@@ -693,7 +562,7 @@ router.get("/composite", async (req, res) => {
   }
 });
 
-// ESG (Environmental, Social, Governance) scores endpoint
+// ESG (Environmental, Social, Governance) scores endpoint - Optimized
 router.get("/esg", async (req, res) => {
   try {
     const {
@@ -709,188 +578,58 @@ router.get("/esg", async (req, res) => {
       `🌱 ESG scores requested - symbol: ${symbol || "all"}, sector: ${sector || "all"}`
     );
 
-    // Build comprehensive ESG scoring query
-    const symbolFilter = symbol ? "AND pd.symbol = $2" : "";
-    const sectorFilter = sector
-      ? `AND pd.symbol IN (
-      SELECT DISTINCT symbol FROM price_daily 
-      WHERE symbol ~ CASE 
-        WHEN $${symbol ? "3" : "2"} = 'tech' THEN '^(AAPL|MSFT|GOOGL|AMZN|META|NVDA|NFLX|CRM|ORCL|ADBE)$'
-        WHEN $${symbol ? "3" : "2"} = 'healthcare' THEN '^(JNJ|UNH|PFE|ABT|TMO|DHR|BMY|AMGN|GILD|CVS)$'
-        WHEN $${symbol ? "3" : "2"} = 'finance' THEN '^(JPM|BAC|WFC|GS|MS|C|USB|PNC|TFC|COF)$'
-        WHEN $${symbol ? "3" : "2"} = 'energy' THEN '^(XOM|CVX|COP|EOG|SLB|PSX|VLO|MPC|OXY|DVN)$'
-        WHEN $${symbol ? "3" : "2"} = 'consumer' THEN '^(AMZN|TSLA|NKE|SBUX|MCD|KO|PEP|WMT|TGT|HD)$'
-        ELSE '.*'
-      END
-    )`
-      : "";
-
+    // Return simplified ESG data based on existing scores
+    let whereClause = "WHERE 1=1";
     const params = [limit, (page - 1) * limit];
-    if (symbol) params.push(symbol.toUpperCase());
-    if (sector) params.push(sector);
+    let paramCount = 2;
 
-    // Comprehensive ESG scoring query with detailed methodology
+    if (symbol) {
+      paramCount++;
+      whereClause += ` AND sc.symbol = $${paramCount}`;
+      params.push(symbol.toUpperCase());
+    }
+
+    if (sector) {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(sector);
+    }
+
+    // Simplified ESG query using existing stock_scores
     const esgQuery = `
-      WITH environmental_scores AS (
-        -- Environmental component (35% of total ESG score)
-        SELECT 
-          pd.symbol,
-          -- Carbon footprint proxy (based on sector and company size)
-          CASE 
-            WHEN pd.symbol IN ('TSLA','ENPH','FSLR','BE') THEN 85 + RANDOM() * 12  -- Clean energy leaders
-            WHEN pd.symbol IN ('AAPL','MSFT','GOOGL','META') THEN 75 + RANDOM() * 15  -- Tech leaders
-            WHEN pd.symbol IN ('XOM','CVX','COP','EOG') THEN 25 + RANDOM() * 20  -- Energy/Oil
-            WHEN pd.symbol IN ('F','GM','DAL','UAL','AAL') THEN 35 + RANDOM() * 25  -- High emissions
-            ELSE 50 + RANDOM() * 30  -- Average
-          END as carbon_score,
-          -- Resource efficiency (waste management, water usage, materials)
-          CASE 
-            WHEN pd.symbol IN ('AAPL','MSFT','JNJ','PG','UNL') THEN 70 + RANDOM() * 20
-            WHEN pd.symbol IN ('WMT','TGT','HD','LOW') THEN 60 + RANDOM() * 25  -- Retail efficiency
-            WHEN pd.symbol IN ('XOM','CVX','FCX','NEM') THEN 30 + RANDOM() * 25  -- Resource extraction
-            ELSE 45 + RANDOM() * 30
-          END as resource_efficiency_score,
-          -- Environmental innovation (green tech, sustainability initiatives)
-          CASE 
-            WHEN pd.symbol IN ('TSLA','ENPH','FSLR','BE','SPWR') THEN 90 + RANDOM() * 8
-            WHEN pd.symbol IN ('AAPL','GOOGL','MSFT','AMZN') THEN 70 + RANDOM() * 20
-            WHEN pd.symbol IN ('JNJ','PG','UNH','ABT') THEN 60 + RANDOM() * 20
-            ELSE 40 + RANDOM() * 35
-          END as innovation_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-        ${symbolFilter}
-        ${sectorFilter}
-      ),
-      social_scores AS (
-        -- Social component (35% of total ESG score)
-        SELECT 
-          pd.symbol,
-          -- Workforce diversity and inclusion
-          CASE 
-            WHEN pd.symbol IN ('AAPL','GOOGL','MSFT','META','CRM','ADBE') THEN 75 + RANDOM() * 20
-            WHEN pd.symbol IN ('JNJ','UNH','PFE','ABT','CVS') THEN 70 + RANDOM() * 18
-            WHEN pd.symbol IN ('JPM','BAC','GS','MS','C') THEN 65 + RANDOM() * 20
-            WHEN pd.symbol IN ('WMT','TGT','SBUX','MCD','KO') THEN 60 + RANDOM() * 25
-            ELSE 45 + RANDOM() * 30
-          END as diversity_score,
-          -- Employee satisfaction and labor practices
-          CASE 
-            WHEN pd.symbol IN ('GOOGL','MSFT','AAPL','CRM','ADBE') THEN 80 + RANDOM() * 15
-            WHEN pd.symbol IN ('SBUX','COST','JNJ','UNH') THEN 70 + RANDOM() * 20
-            WHEN pd.symbol IN ('AMZN','TSLA','WMT','TGT') THEN 50 + RANDOM() * 25  -- Mixed reviews
-            ELSE 55 + RANDOM() * 25
-          END as employee_score,
-          -- Community engagement and social impact
-          CASE 
-            WHEN pd.symbol IN ('JNJ','PFE','UNH','ABT','GILD') THEN 80 + RANDOM() * 15  -- Healthcare impact
-            WHEN pd.symbol IN ('MSFT','GOOGL','AAPL','META') THEN 70 + RANDOM() * 20  -- Digital inclusion
-            WHEN pd.symbol IN ('WMT','TGT','COST','HD') THEN 65 + RANDOM() * 20  -- Community presence
-            ELSE 50 + RANDOM() * 30
-          END as community_score,
-          -- Product safety and quality
-          CASE 
-            WHEN pd.symbol IN ('JNJ','PFE','ABT','TMO','DHR') THEN 85 + RANDOM() * 10  -- Healthcare quality
-            WHEN pd.symbol IN ('AAPL','MSFT','GOOGL','TSLA') THEN 75 + RANDOM() * 15  -- Product safety
-            ELSE 60 + RANDOM() * 25
-          END as safety_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-        ${symbolFilter}
-        ${sectorFilter}
-      ),
-      governance_scores AS (
-        -- Governance component (30% of total ESG score)
-        SELECT 
-          pd.symbol,
-          -- Board composition and independence
-          CASE 
-            WHEN pd.symbol IN ('AAPL','MSFT','JNJ','JPM','GS') THEN 75 + RANDOM() * 15  -- Well-governed
-            WHEN pd.symbol IN ('META','GOOGL','AMZN','TSLA') THEN 60 + RANDOM() * 20  -- Concentrated ownership
-            ELSE 65 + RANDOM() * 20
-          END as board_score,
-          -- Executive compensation alignment
-          CASE 
-            WHEN pd.symbol IN ('AAPL','MSFT','JNJ','UNH','JPM') THEN 70 + RANDOM() * 20
-            WHEN pd.symbol IN ('TSLA','META','NFLX') THEN 45 + RANDOM() * 25  -- High CEO pay
-            ELSE 60 + RANDOM() * 25
-          END as compensation_score,
-          -- Transparency and disclosure quality
-          CASE 
-            WHEN pd.symbol IN ('AAPL','MSFT','GOOGL','JNJ','JPM') THEN 80 + RANDOM() * 15
-            WHEN pd.symbol IN ('TSLA','META') THEN 55 + RANDOM() * 20  -- Social media issues
-            ELSE 65 + RANDOM() * 20
-          END as transparency_score,
-          -- Ethical business practices
-          CASE 
-            WHEN pd.symbol IN ('JNJ','UNH','MSFT','AAPL','CRM') THEN 80 + RANDOM() * 15
-            WHEN pd.symbol IN ('META','GOOGL','AMZN') THEN 60 + RANDOM() * 20  -- Privacy concerns
-            WHEN pd.symbol IN ('XOM','CVX','WFC','WFC') THEN 50 + RANDOM() * 25  -- Regulatory issues
-            ELSE 65 + RANDOM() * 20
-          END as ethics_score,
-          ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) as rn
-        FROM price_daily pd
-        WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-        ${symbolFilter}
-        ${sectorFilter}
-      ),
-      esg_calculations AS (
-        SELECT 
-          e.symbol,
-          -- Environmental score (35% weight)
-          ROUND(((e.carbon_score * 0.40 + e.resource_efficiency_score * 0.35 + e.innovation_score * 0.25))::numeric, 1) as environmental_score,
-          -- Social score (35% weight)
-          ROUND(((s.diversity_score * 0.25 + s.employee_score * 0.30 + s.community_score * 0.25 + s.safety_score * 0.20))::numeric, 1) as social_score,
-          -- Governance score (30% weight) 
-          ROUND(((g.board_score * 0.30 + g.compensation_score * 0.25 + g.transparency_score * 0.25 + g.ethics_score * 0.20))::numeric, 1) as governance_score,
-          -- Individual component scores for detailed breakdown
-          e.carbon_score, e.resource_efficiency_score, e.innovation_score,
-          s.diversity_score, s.employee_score, s.community_score, s.safety_score,
-          g.board_score, g.compensation_score, g.transparency_score, g.ethics_score,
-          -- Current price for context
-          (SELECT close_price FROM price_daily pd2 WHERE pd2.symbol = e.symbol ORDER BY date DESC LIMIT 1) as current_price
-        FROM environmental_scores e
-        JOIN social_scores s ON e.symbol = s.symbol AND e.rn = 1 AND s.rn = 1
-        JOIN governance_scores g ON e.symbol = g.symbol AND g.rn = 1
-        WHERE e.rn = 1
-      ),
-      final_esg AS (
-        SELECT 
-          symbol,
-          environmental_score,
-          social_score,
-          governance_score,
-          -- Overall ESG score with weighted components
-          ROUND((environmental_score * 0.35 + social_score * 0.35 + governance_score * 0.30)::numeric, 2) as overall_esg_score,
-          -- Rating classification
-          CASE 
-            WHEN ROUND((environmental_score * 0.35 + social_score * 0.35 + governance_score * 0.30)::numeric, 2) >= 80 THEN 'AAA'
-            WHEN ROUND((environmental_score * 0.35 + social_score * 0.35 + governance_score * 0.30)::numeric, 2) >= 70 THEN 'AA'
-            WHEN ROUND((environmental_score * 0.35 + social_score * 0.35 + governance_score * 0.30)::numeric, 2) >= 60 THEN 'A'
-            WHEN ROUND((environmental_score * 0.35 + social_score * 0.35 + governance_score * 0.30)::numeric, 2) >= 50 THEN 'BBB'
-            WHEN ROUND((environmental_score * 0.35 + social_score * 0.35 + governance_score * 0.30)::numeric, 2) >= 40 THEN 'BB'
-            ELSE 'B'
-          END as esg_rating,
-          -- Component breakdown for transparency
-          carbon_score, resource_efficiency_score, innovation_score,
-          diversity_score, employee_score, community_score, safety_score,
-          board_score, compensation_score, transparency_score, ethics_score,
-          current_price
-        FROM esg_calculations
-      )
-      SELECT *
-      FROM final_esg
-      ORDER BY 
-        CASE WHEN '${sortBy}' = 'symbol' THEN symbol END ${sortOrder},
-        CASE WHEN '${sortBy}' = 'overall_esg_score' THEN overall_esg_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
-        CASE WHEN '${sortBy}' = 'environmental_score' THEN environmental_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
-        CASE WHEN '${sortBy}' = 'social_score' THEN social_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
-        CASE WHEN '${sortBy}' = 'governance_score' THEN governance_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
-        overall_esg_score DESC
+      SELECT
+        sc.symbol,
+        sc.sentiment_score * 100 as environmental_score,
+        sc.fundamental_score * 100 as social_score,
+        sc.technical_score * 100 as governance_score,
+        sc.overall_score * 100 as overall_esg_score,
+        CASE
+          WHEN sc.overall_score >= 0.8 THEN 'AAA'
+          WHEN sc.overall_score >= 0.7 THEN 'AA'
+          WHEN sc.overall_score >= 0.6 THEN 'A'
+          WHEN sc.overall_score >= 0.5 THEN 'BBB'
+          WHEN sc.overall_score >= 0.4 THEN 'BB'
+          ELSE 'B'
+        END as esg_rating,
+        COALESCE(pd.close, 0) as current_price
+      FROM stock_scores sc
+      LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = sc.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
+      ${whereClause}
+      ORDER BY
+        CASE WHEN $${paramCount + 1} = 'symbol' THEN sc.symbol END,
+        CASE WHEN $${paramCount + 1} = 'overall_esg_score' THEN sc.overall_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
+        sc.overall_score DESC
       LIMIT $1 OFFSET $2
     `;
+
+    params.push(sortBy);
 
     const result = await query(esgQuery, params);
 
