@@ -123,6 +123,7 @@ const MarketStatusBar = () => {
   return (
     <Paper
       elevation={0}
+      data-testid="market-status-bar"
       sx={{
         p: 1.5,
         backgroundColor: "background.default",
@@ -141,7 +142,7 @@ const MarketStatusBar = () => {
         <Box display="flex" alignItems="center" gap={2}>
           <Chip
             icon={<Circle sx={{ fontSize: 12 }} />}
-            label={`Market ${marketStatus.session}`}
+            label={`Market Status: ${marketStatus.session}`}
             color={getSessionColor()}
             size="small"
             sx={{ fontWeight: "bold" }}

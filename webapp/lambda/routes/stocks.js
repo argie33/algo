@@ -1676,7 +1676,7 @@ router.post("/watchlist/add", authenticateToken, async (req, res) => {
  * @route DELETE /api/stocks/watchlist
  * @desc Remove stock from watchlist
  */
-router.delete("/watchlist", authenticateToken, async (req, res) => {
+router.delete("/watchlist/remove", authenticateToken, async (req, res) => {
   try {
     const { symbol } = req.body;
 

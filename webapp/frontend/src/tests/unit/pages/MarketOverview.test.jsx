@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
+import React from "react";
 
 // Mock import.meta.env BEFORE any imports
 Object.defineProperty(import.meta, "env", {
@@ -31,13 +32,15 @@ global.IntersectionObserver = vi.fn(() => ({
 }));
 
 // Mock window.location.reload to avoid JSDOM navigation errors
-Object.defineProperty(window, "location", {
-  value: {
-    reload: vi.fn(),
-    href: "http://localhost:3001",
-  },
-  writable: true,
-});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, "location", {
+    value: {
+      reload: vi.fn(),
+      href: "http://localhost:3001",
+    },
+    writable: true,
+  });
+}
 
 // Mock API service with proper ES module support
 vi.mock("../../../services/api", () => {
@@ -1023,11 +1026,13 @@ describe("MarketOverview Page", () => {
 
   describe("Responsive Design", () => {
     it("adapts layout for mobile screens", () => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      if (typeof window !== 'undefined') {
+        Object.defineProperty(window, "innerWidth", {
+          writable: true,
+          configurable: true,
+          value: 375,
+        });
+      }
 
       renderMarketOverview();
 
@@ -1036,11 +1041,13 @@ describe("MarketOverview Page", () => {
     });
 
     it("shows abbreviated data on mobile", async () => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      if (typeof window !== 'undefined') {
+        Object.defineProperty(window, "innerWidth", {
+          writable: true,
+          configurable: true,
+          value: 375,
+        });
+      }
 
       renderMarketOverview();
 

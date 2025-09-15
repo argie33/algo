@@ -44,7 +44,13 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
       console.log(
         `Fetching ${timeframe} prices for ${symbol}, ${period} periods`
       );
-      return await getStockPrices(symbol, timeframe, period);
+      try {
+        const result = await getStockPrices(symbol, timeframe, period);
+        return result || { data: [] };
+      } catch (err) {
+        console.warn("Historical prices API failed, using fallback:", err.message);
+        return { data: [] };
+      }
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000, // 5 minutes

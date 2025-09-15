@@ -5,13 +5,14 @@ import RealTimePriceWidget from "../../../components/RealTimePriceWidget";
 vi.mock("../../../services/dataCache", () => ({
   default: {
     get: vi.fn(),
+    isMarketHours: vi.fn(() => true),
   },
   __esModule: true,
 }));
 
 vi.mock("../../../utils/formatters", () => ({
-  formatCurrency: vi.fn((value) => `$${value.toFixed(2)}`),
-  formatPercentage: vi.fn((value) => `${value.toFixed(2)}%`),
+  formatCurrency: vi.fn((value) => value != null ? `$${value.toFixed(2)}` : 'N/A'),
+  formatPercentage: vi.fn((value) => value != null ? `${value.toFixed(2)}%` : 'N/A'),
 }));
 
 const mockPriceData = {
@@ -22,6 +23,8 @@ const mockPriceData = {
   dayChangePercent: 1.18,
   volume: 45000000,
   marketCap: 2400000000000,
+  dayHigh: 152.10,
+  dayLow: 147.80,
   lastUpdated: new Date().toISOString(),
 };
 

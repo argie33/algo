@@ -20,11 +20,9 @@ router.get("/health", (req, res) => {
 router.get("/", (req, res) => {
   res.json({
     success: true,
-    data: {
-      message: "Trading API - Ready",
-      timestamp: new Date().toISOString(),
-      status: "operational",
-    },
+    message: "Trading API - Ready",
+    timestamp: new Date().toISOString(),
+    status: "operational",
   });
 });
 

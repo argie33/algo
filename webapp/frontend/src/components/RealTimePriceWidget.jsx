@@ -219,7 +219,7 @@ const RealTimePriceWidget = ({
                 Volume
               </Typography>
               <Typography variant="body2" fontWeight="medium">
-                {(priceData.volume / 1000000).toFixed(2)}M
+                {priceData.volume ? (priceData.volume / 1000000).toFixed(2) + 'M' : 'N/A'}
               </Typography>
             </Box>
             <Box>

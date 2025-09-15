@@ -71,14 +71,19 @@ export const useWebSocket = (url, options = {}) => {
   }, []);
 
   useEffect(() => {
-    if (options.autoConnect !== false) {
+    // Support both 'autoConnect' and 'enabled' options for backward compatibility
+    const shouldConnect = options.enabled !== false && options.autoConnect !== false;
+    
+    if (shouldConnect) {
       connect();
+    } else {
+      disconnect();
     }
 
     return () => {
       disconnect();
     };
-  }, [connect, disconnect, options.autoConnect]);
+  }, [connect, disconnect, options.autoConnect, options.enabled]);
 
   return {
     isConnected,

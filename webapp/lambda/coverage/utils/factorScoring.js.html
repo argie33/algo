@@ -840,17 +840,26 @@
 <a name='L775'></a><a href='#L775'>775</a>
 <a name='L776'></a><a href='#L776'>776</a>
 <a name='L777'></a><a href='#L777'>777</a>
-<a name='L778'></a><a href='#L778'>778</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L778'></a><a href='#L778'>778</a>
+<a name='L779'></a><a href='#L779'>779</a>
+<a name='L780'></a><a href='#L780'>780</a>
+<a name='L781'></a><a href='#L781'>781</a>
+<a name='L782'></a><a href='#L782'>782</a>
+<a name='L783'></a><a href='#L783'>783</a>
+<a name='L784'></a><a href='#L784'>784</a>
+<a name='L785'></a><a href='#L785'>785</a>
+<a name='L786'></a><a href='#L786'>786</a>
+<a name='L787'></a><a href='#L787'>787</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">27x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">27x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -932,8 +941,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">52x</span>
-<span class="cline-any cline-yes">52x</span>
+<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-yes">24x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1405,6 +1414,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1415,10 +1426,15 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1466,6 +1482,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1600,9 +1618,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">27x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">27x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1749,7 +1767,7 @@ class FactorScoringEngine {
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      logger.error("Composite score calculation error", {</span>
         error,
-        symbol: stockData &amp;&amp; stockData.symbol ? stockData.symbol : 'unknown',
+        symbol: stockData &amp;&amp; stockData.symbol ? stockData.symbol : "unknown",
       });
 <span class="cstat-no" title="statement not covered" >      return null;</span>
     }
@@ -1928,7 +1946,7 @@ class FactorScoringEngine {
 <span class="cstat-no" title="statement not covered" >      if (!stockData || stockData.length === 0) {</span>
 <span class="cstat-no" title="statement not covered" >        return [];</span>
       }
-      
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      logger.info("Starting universe scoring", {</span>
         stockCount: stockData.length,
       });
@@ -2079,7 +2097,7 @@ class FactorScoringEngine {
 <span class="cstat-no" title="statement not covered" >    if (!stockData || stockData.length === 0) {</span>
 <span class="cstat-no" title="statement not covered" >      return [];</span>
     }
-    
+&nbsp;
     const scoredStocks = <span class="cstat-no" title="statement not covered" >this.scoreUniverse(stockData);</span>
 <span class="cstat-no" title="statement not covered" >    return scoredStocks.map(<span class="fstat-no" title="function not covered" >(s</span>tock, index) =&gt; {</span>
       // Ensure the factorScore properties are available at the top level for tests
@@ -2087,13 +2105,13 @@ class FactorScoringEngine {
         ...stock,
         rank: index + 1,
       };
-      
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      if (stock.factorScore) {</span>
 <span class="cstat-no" title="statement not covered" >        result.compositeScore = stock.factorScore.compositeScore;</span>
 <span class="cstat-no" title="statement not covered" >        result.percentile = stock.factorScore.percentile;</span>
 <span class="cstat-no" title="statement not covered" >        result.categoryScores = stock.factorScore.categoryScores;</span>
       }
-      
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      return result;</span>
     });
   }
@@ -2103,34 +2121,34 @@ class FactorScoringEngine {
    */
 <span class="fstat-no" title="function not covered" >  ca</span>lculateUniverseStats(universeData) {
     const stats = <span class="cstat-no" title="statement not covered" >new Map();</span>
-    
+&nbsp;
     // Calculate statistics for each factor
-    const allFactors = <span class="cstat-no" title="statement not covered" >Object.values(this.factors).flatMap(<span class="fstat-no" title="function not covered" >ca</span>t =&gt; </span>
+    const allFactors = <span class="cstat-no" title="statement not covered" >Object.values(this.factors).flatMap(<span class="fstat-no" title="function not covered" >(c</span>at) =&gt;</span>
 <span class="cstat-no" title="statement not covered" >      Object.keys(cat.factors)</span>
     );
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    for (const factorName of allFactors) {</span>
       const values = <span class="cstat-no" title="statement not covered" >universeData</span>
-        .map(<span class="fstat-no" title="function not covered" >st</span>ock =&gt; <span class="cstat-no" title="statement not covered" >stock[factorName])</span>
-        .filter(<span class="fstat-no" title="function not covered" >va</span>l =&gt; <span class="cstat-no" title="statement not covered" >val !== null &amp;&amp; val !== undefined &amp;&amp; !isNaN(val))</span>;
-      
+        .map(<span class="fstat-no" title="function not covered" >(s</span>tock) =&gt; <span class="cstat-no" title="statement not covered" >stock[factorName])</span>
+        .filter(<span class="fstat-no" title="function not covered" >(v</span>al) =&gt; <span class="cstat-no" title="statement not covered" >val !== null &amp;&amp; val !== undefined &amp;&amp; !isNaN(val))</span>;
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      if (values.length &gt; 0) {</span>
 <span class="cstat-no" title="statement not covered" >        values.sort(<span class="fstat-no" title="function not covered" >(a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a - b)</span>;</span>
         const mean = <span class="cstat-no" title="statement not covered" >values.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, val) =&gt; <span class="cstat-no" title="statement not covered" >sum + val,</span> 0) / values.length;</span>
         const variance = <span class="cstat-no" title="statement not covered" >this.calculateVariance(values);</span>
         const std = <span class="cstat-no" title="statement not covered" >Math.sqrt(variance);</span>
-        
+&nbsp;
 <span class="cstat-no" title="statement not covered" >        stats.set(factorName, {</span>
           min: values[0],
           max: values[values.length - 1],
           median: values[Math.floor(values.length / 2)],
           mean: mean,
           std: std,
-          count: values.length
+          count: values.length,
         });
       }
     }
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    this.universeStats = stats;</span>
 <span class="cstat-no" title="statement not covered" >    return stats;</span>
   }
@@ -2141,7 +2159,7 @@ class FactorScoringEngine {
 <span class="fstat-no" title="function not covered" >  an</span>alyzeFactors(universeData) {
     const stats = <span class="cstat-no" title="statement not covered" >this.calculateUniverseStats(universeData);</span>
     const correlations = <span class="cstat-no" title="statement not covered" >this.calculateFactorCorrelations(universeData);</span>
-    
+&nbsp;
     // Calculate distributions for each factor
     const distributions = <span class="cstat-no" title="statement not covered" >{};</span>
 <span class="cstat-no" title="statement not covered" >    for (const [factorName, factorStats] of stats.entries()) {</span>
@@ -2150,15 +2168,15 @@ class FactorScoringEngine {
         max: factorStats.max,
         mean: factorStats.mean,
         median: factorStats.median,
-        quartiles: this.calculateQuartiles(universeData, factorName)
+        quartiles: this.calculateQuartiles(universeData, factorName),
       };
     }
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return {</span>
       factorStats: Object.fromEntries(stats),
       correlations: correlations,
       distributions: distributions,
-      sampleSize: universeData.length
+      sampleSize: universeData.length,
     };
   }
 &nbsp;
@@ -2167,21 +2185,23 @@ class FactorScoringEngine {
    */
 <span class="fstat-no" title="function not covered" >  ca</span>lculateFactorCorrelations(universeData) {
     const correlations = <span class="cstat-no" title="statement not covered" >{};</span>
-    const allFactors = <span class="cstat-no" title="statement not covered" >Object.values(this.factors).flatMap(<span class="fstat-no" title="function not covered" >ca</span>t =&gt; </span>
+    const allFactors = <span class="cstat-no" title="statement not covered" >Object.values(this.factors).flatMap(<span class="fstat-no" title="function not covered" >(c</span>at) =&gt;</span>
 <span class="cstat-no" title="statement not covered" >      Object.keys(cat.factors)</span>
     );
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    for (const factor1 of allFactors) {</span>
 <span class="cstat-no" title="statement not covered" >      correlations[factor1] = {};</span>
 <span class="cstat-no" title="statement not covered" >      for (const factor2 of allFactors) {</span>
 <span class="cstat-no" title="statement not covered" >        if (factor1 !== factor2) {</span>
 <span class="cstat-no" title="statement not covered" >          correlations[factor1][factor2] = this.calculateCorrelation(</span>
-            universeData, factor1, factor2
+            universeData,
+            factor1,
+            factor2
           );
         }
       }
     }
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return correlations;</span>
   }
 &nbsp;
@@ -2190,26 +2210,31 @@ class FactorScoringEngine {
    */
 <span class="fstat-no" title="function not covered" >  ca</span>lculateCorrelation(universeData, factor1, factor2) {
     const pairs = <span class="cstat-no" title="statement not covered" >universeData</span>
-      .map(<span class="fstat-no" title="function not covered" >st</span>ock =&gt; <span class="cstat-no" title="statement not covered" >[stock[factor1], stock[factor2]])</span>
-      .filter(<span class="fstat-no" title="function not covered" >([</span>val1, val2]) =&gt; 
-<span class="cstat-no" title="statement not covered" >        val1 !== null &amp;&amp; val1 !== undefined &amp;&amp; !isNaN(val1) &amp;&amp;</span>
-        val2 !== null &amp;&amp; val2 !== undefined &amp;&amp; !isNaN(val2)
+      .map(<span class="fstat-no" title="function not covered" >(s</span>tock) =&gt; <span class="cstat-no" title="statement not covered" >[stock[factor1], stock[factor2]])</span>
+      .filter(
+<span class="fstat-no" title="function not covered" >        ([</span>val1, val2]) =&gt;
+<span class="cstat-no" title="statement not covered" >          val1 !== null &amp;&amp;</span>
+          val1 !== undefined &amp;&amp;
+          !isNaN(val1) &amp;&amp;
+          val2 !== null &amp;&amp;
+          val2 !== undefined &amp;&amp;
+          !isNaN(val2)
       );
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (pairs.length &lt; 2) <span class="cstat-no" title="statement not covered" >return 0;</span></span>
-    
+&nbsp;
     const n = <span class="cstat-no" title="statement not covered" >pairs.length;</span>
     const sum1 = <span class="cstat-no" title="statement not covered" >pairs.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, [val1]) =&gt; <span class="cstat-no" title="statement not covered" >sum + val1,</span> 0);</span>
     const sum2 = <span class="cstat-no" title="statement not covered" >pairs.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, [, val2]) =&gt; <span class="cstat-no" title="statement not covered" >sum + val2,</span> 0);</span>
     const sum1Sq = <span class="cstat-no" title="statement not covered" >pairs.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, [val1]) =&gt; <span class="cstat-no" title="statement not covered" >sum + val1 * val1,</span> 0);</span>
     const sum2Sq = <span class="cstat-no" title="statement not covered" >pairs.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, [, val2]) =&gt; <span class="cstat-no" title="statement not covered" >sum + val2 * val2,</span> 0);</span>
     const sumProd = <span class="cstat-no" title="statement not covered" >pairs.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, [val1, val2]) =&gt; <span class="cstat-no" title="statement not covered" >sum + val1 * val2,</span> 0);</span>
-    
+&nbsp;
     const numerator = <span class="cstat-no" title="statement not covered" >n * sumProd - sum1 * sum2;</span>
     const denominator = <span class="cstat-no" title="statement not covered" >Math.sqrt(</span>
       (n * sum1Sq - sum1 * sum1) * (n * sum2Sq - sum2 * sum2)
     );
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return denominator === 0 ? 0 : numerator / denominator;</span>
   }
 &nbsp;
@@ -2218,21 +2243,21 @@ class FactorScoringEngine {
    */
 <span class="fstat-no" title="function not covered" >  id</span>entifyTopFactors(universeData, topN = <span class="branch-0 cbranch-no" title="branch not covered" >5)</span> {
     const factorPerformance = <span class="cstat-no" title="statement not covered" >[];</span>
-    const allFactors = <span class="cstat-no" title="statement not covered" >Object.values(this.factors).flatMap(<span class="fstat-no" title="function not covered" >ca</span>t =&gt; </span>
+    const allFactors = <span class="cstat-no" title="statement not covered" >Object.values(this.factors).flatMap(<span class="fstat-no" title="function not covered" >(c</span>at) =&gt;</span>
 <span class="cstat-no" title="statement not covered" >      Object.keys(cat.factors)</span>
     );
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    for (const factorName of allFactors) {</span>
       const values = <span class="cstat-no" title="statement not covered" >universeData</span>
-        .map(<span class="fstat-no" title="function not covered" >st</span>ock =&gt; <span class="cstat-no" title="statement not covered" >stock[factorName])</span>
-        .filter(<span class="fstat-no" title="function not covered" >va</span>l =&gt; <span class="cstat-no" title="statement not covered" >val !== null &amp;&amp; val !== undefined &amp;&amp; !isNaN(val))</span>;
-      
+        .map(<span class="fstat-no" title="function not covered" >(s</span>tock) =&gt; <span class="cstat-no" title="statement not covered" >stock[factorName])</span>
+        .filter(<span class="fstat-no" title="function not covered" >(v</span>al) =&gt; <span class="cstat-no" title="statement not covered" >val !== null &amp;&amp; val !== undefined &amp;&amp; !isNaN(val))</span>;
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      if (values.length &gt; 1) {</span>
         const variance = <span class="cstat-no" title="statement not covered" >this.calculateVariance(values);</span>
         const range = <span class="cstat-no" title="statement not covered" >Math.max(...values) - Math.min(...values);</span>
-        
+&nbsp;
         // Find the category and weight for this factor
-        let category = <span class="cstat-no" title="statement not covered" >'unknown';</span>
+        let category = <span class="cstat-no" title="statement not covered" >"unknown";</span>
         let weight = <span class="cstat-no" title="statement not covered" >0;</span>
 <span class="cstat-no" title="statement not covered" >        for (const [catName, catDef] of Object.entries(this.factors)) {</span>
 <span class="cstat-no" title="statement not covered" >          if (catDef.factors[factorName]) {</span>
@@ -2241,10 +2266,12 @@ class FactorScoringEngine {
 <span class="cstat-no" title="statement not covered" >            break;</span>
           }
         }
-        
+&nbsp;
 <span class="cstat-no" title="statement not covered" >        factorPerformance.push({</span>
           factor: factorName,
-          name: factorName.replace(/_/g, ' ').replace(/\b\w/g, <span class="fstat-no" title="function not covered" >l </span>=&gt; <span class="cstat-no" title="statement not covered" >l.toUpperCase())</span>,
+          name: factorName
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, <span class="fstat-no" title="function not covered" >(l</span>) =&gt; <span class="cstat-no" title="statement not covered" >l.toUpperCase())</span>,
           category: category,
           impact: variance,
           significance: range,
@@ -2252,11 +2279,11 @@ class FactorScoringEngine {
           range: range,
           discriminationPower: variance * range, // Combined metric
           dataPoints: values.length,
-          weight: weight
+          weight: weight,
         });
       }
     }
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return factorPerformance</span>
       .sort(<span class="fstat-no" title="function not covered" >(a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >b.discriminationPower - a.discriminationPower)</span>
       .slice(0, topN);
@@ -2267,9 +2294,9 @@ class FactorScoringEngine {
    */
 <span class="fstat-no" title="function not covered" >  ca</span>lculateVariance(values) {
 <span class="cstat-no" title="statement not covered" >    if (values.length &lt; 2) <span class="cstat-no" title="statement not covered" >return 0;</span></span>
-    
+&nbsp;
     const mean = <span class="cstat-no" title="statement not covered" >values.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, val) =&gt; <span class="cstat-no" title="statement not covered" >sum + val,</span> 0) / values.length;</span>
-    const squaredDiffs = <span class="cstat-no" title="statement not covered" >values.map(<span class="fstat-no" title="function not covered" >va</span>l =&gt; <span class="cstat-no" title="statement not covered" >Math.pow(val - mean, 2))</span>;</span>
+    const squaredDiffs = <span class="cstat-no" title="statement not covered" >values.map(<span class="fstat-no" title="function not covered" >(v</span>al) =&gt; <span class="cstat-no" title="statement not covered" >Math.pow(val - mean, 2))</span>;</span>
 <span class="cstat-no" title="statement not covered" >    return squaredDiffs.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, diff) =&gt; <span class="cstat-no" title="statement not covered" >sum + diff,</span> 0) / values.length;</span>
   }
 &nbsp;
@@ -2280,21 +2307,21 @@ class FactorScoringEngine {
 <span class="cstat-no" title="statement not covered" >    if (!values || values.length === 0) {</span>
 <span class="cstat-no" title="statement not covered" >      return [];</span>
     }
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (values.length === 1) {</span>
 <span class="cstat-no" title="statement not covered" >      return [0.5]; </span>// Single value normalizes to middle
     }
-    
+&nbsp;
     const min = <span class="cstat-no" title="statement not covered" >Math.min(...values);</span>
     const max = <span class="cstat-no" title="statement not covered" >Math.max(...values);</span>
-    
+&nbsp;
     // Handle identical values
 <span class="cstat-no" title="statement not covered" >    if (min === max) {</span>
 <span class="cstat-no" title="statement not covered" >      return values.map(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >0.5)</span>;</span>
     }
-    
+&nbsp;
     const range = <span class="cstat-no" title="statement not covered" >max - min;</span>
-<span class="cstat-no" title="statement not covered" >    return values.map(<span class="fstat-no" title="function not covered" >va</span>lue =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    return values.map(<span class="fstat-no" title="function not covered" >(v</span>alue) =&gt; {</span>
       const normalized = <span class="cstat-no" title="statement not covered" >(value - min) / range;</span>
 <span class="cstat-no" title="statement not covered" >      return inverse ? 1 - normalized : normalized;</span>
     });
@@ -2305,26 +2332,26 @@ class FactorScoringEngine {
    */
 <span class="fstat-no" title="function not covered" >  ca</span>lculateQuartiles(universeData, factorName) {
     const values = <span class="cstat-no" title="statement not covered" >universeData</span>
-      .map(<span class="fstat-no" title="function not covered" >st</span>ock =&gt; <span class="cstat-no" title="statement not covered" >stock[factorName])</span>
-      .filter(<span class="fstat-no" title="function not covered" >va</span>l =&gt; <span class="cstat-no" title="statement not covered" >val !== null &amp;&amp; val !== undefined &amp;&amp; !isNaN(val))</span>
+      .map(<span class="fstat-no" title="function not covered" >(s</span>tock) =&gt; <span class="cstat-no" title="statement not covered" >stock[factorName])</span>
+      .filter(<span class="fstat-no" title="function not covered" >(v</span>al) =&gt; <span class="cstat-no" title="statement not covered" >val !== null &amp;&amp; val !== undefined &amp;&amp; !isNaN(val))</span>
       .sort(<span class="fstat-no" title="function not covered" >(a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a - b)</span>;
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (values.length &lt; 4) {</span>
 <span class="cstat-no" title="statement not covered" >      return {</span>
         q1: values[0] || 0,
         q2: values[Math.floor(values.length / 2)] || 0,
-        q3: values[values.length - 1] || 0
+        q3: values[values.length - 1] || 0,
       };
     }
-    
+&nbsp;
     const q1Index = <span class="cstat-no" title="statement not covered" >Math.floor(values.length * 0.25);</span>
     const q2Index = <span class="cstat-no" title="statement not covered" >Math.floor(values.length * 0.5);</span>
     const q3Index = <span class="cstat-no" title="statement not covered" >Math.floor(values.length * 0.75);</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return {</span>
       q1: values[q1Index],
       q2: values[q2Index],
-      q3: values[q3Index]
+      q3: values[q3Index],
     };
   }
 &nbsp;
@@ -2401,7 +2428,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-14T17:03:02.686Z
+                at 2025-09-15T06:31:15.936Z
             </div>
         <script src="../prettify.js"></script>
         <script>

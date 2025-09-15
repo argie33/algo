@@ -149,14 +149,15 @@
 <a name='L84'></a><a href='#L84'>84</a>
 <a name='L85'></a><a href='#L85'>85</a>
 <a name='L86'></a><a href='#L86'>86</a>
-<a name='L87'></a><a href='#L87'>87</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">24x</span>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -181,7 +182,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -193,26 +193,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -226,6 +214,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -235,7 +225,19 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">24x</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
 &nbsp;
 const calendarRouter = require("./calendar");
 &nbsp;
@@ -245,15 +247,15 @@ const router = express.Router();
 router.get("/", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  try {</span>
 <span class="cstat-no" title="statement not covered" >    console.log(`📈 Earnings data requested - delegating to calendar/earnings`);</span>
-    
+&nbsp;
     // Create a mock request/response to call calendar earnings internally
     const mockReq = <span class="cstat-no" title="statement not covered" >{</span>
       ...req,
-      url: '/earnings',
-      path: '/earnings',
-      route: { path: '/earnings' }
+      url: "/earnings",
+      path: "/earnings",
+      route: { path: "/earnings" },
     };
-    
+&nbsp;
     // Call calendar earnings handler
 <span class="cstat-no" title="statement not covered" >    return calendarRouter.handle(mockReq, res, <span class="fstat-no" title="function not covered" >(e</span>rr) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      if (err) {</span>
@@ -262,18 +264,17 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
           success: false,
           error: "Failed to fetch earnings data",
           details: err.message,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
-&nbsp;
   } catch (error) {
 <span class="cstat-no" title="statement not covered" >    console.error("Earnings delegation error:", error);</span>
 <span class="cstat-no" title="statement not covered" >    res.status(500).json({</span>
       success: false,
       error: "Failed to fetch earnings data",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -282,20 +283,22 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
 router.get("/:symbol", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const { symbol } = <span class="cstat-no" title="statement not covered" >req.params;</span>
-<span class="cstat-no" title="statement not covered" >    console.log(`📊 Earnings details for ${symbol} - delegating to calendar/earnings`);</span>
-    
+<span class="cstat-no" title="statement not covered" >    console.log(</span>
+      `📊 Earnings details for ${symbol} - delegating to calendar/earnings`
+    );
+&nbsp;
     // Modify query to include symbol filter and delegate to calendar
     const mockReq = <span class="cstat-no" title="statement not covered" >{</span>
       ...req,
-      url: '/earnings',
-      path: '/earnings',
-      route: { path: '/earnings' },
+      url: "/earnings",
+      path: "/earnings",
+      route: { path: "/earnings" },
       query: {
         ...req.query,
-        symbol: symbol.toUpperCase()
-      }
+        symbol: symbol.toUpperCase(),
+      },
     };
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return calendarRouter.handle(mockReq, res, <span class="fstat-no" title="function not covered" >(e</span>rr) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      if (err) {</span>
 <span class="cstat-no" title="statement not covered" >        console.error("Calendar earnings delegation error:", err);</span>
@@ -304,11 +307,10 @@ router.get("/:symbol", <span class="fstat-no" title="function not covered" >as</
           error: "Failed to fetch earnings details",
           details: err.message,
           symbol: symbol.toUpperCase(),
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
-&nbsp;
   } catch (error) {
 <span class="cstat-no" title="statement not covered" >    console.error(`Earnings delegation error for ${req.params.symbol}:`, error);</span>
 <span class="cstat-no" title="statement not covered" >    res.status(500).json({</span>
@@ -316,19 +318,20 @@ router.get("/:symbol", <span class="fstat-no" title="function not covered" >as</
       error: "Failed to fetch earnings details",
       details: error.message,
       symbol: req.params.symbol?.toUpperCase() || null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 &nbsp;
-module.exports = router;</pre></td></tr></table></pre>
+module.exports = router;
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-14T17:03:02.686Z
+                at 2025-09-15T06:31:15.936Z
             </div>
         <script src="../prettify.js"></script>
         <script>

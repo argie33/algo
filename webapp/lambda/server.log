@@ -8,7 +8,8 @@ Financial Dashboard API server running on port 3001 (local mode)
 Health check: http://localhost:3001/health
 Stocks: http://localhost:3001/stocks
 Technical: http://localhost:3001/technical/daily
-Processing request: GET /api/trades/recent
+🔌 WebSocket endpoint: ws://localhost:3001/ws
+Processing request: GET /api/stocks/AAPL
 Initializing database connection...
 Initializing database connection pool...
 Using database config from environment variables
@@ -42,150 +43,49 @@ Initializing database schema...
 ✅ Created/verified table: user_dashboard_settings
 ✅ Created/verified table: portfolio_metadata
 ✅ Created/verified table: swing_trading_signals
+✅ Created/verified table: economic_data
 ✅ Database schema initialization completed
 Database connection established successfully
 Database connection verified for database-dependent endpoint
-🕒 Getting recent trades for user: fake-token, last 7 days
-Database query error: {
-  error: 'column th.fees does not exist',
-  query: '\n' +
-    '      WITH recent_trades AS (\n' +
-    '        SELECT \n' +
-    '          th.id,\n' +
-    '          th.symbol,\n' +
-    '          th.si...',
-  params: '2 parameters',
-  code: '42703'
+🔧 Development mode: Bypassing authentication
+FIXED stock endpoint called for: AAPL
+FIXED stock endpoint - executing query for AAPL
+FIXED stock endpoint - query result: 1 rows
+FIXED stock endpoint - first row data: {
+  symbol: 'AAPL',
+  company_name: 'AAPL',
+  sector: 'Technology',
+  exchange: 'Unknown',
+  market_category: 'Stock',
+  market_cap: '3000000000000',
+  current_price: null,
+  open: null,
+  high: null,
+  low: null,
+  volume: null,
+  price_date: null
 }
-Database query failed, generating sample data: column th.fees does not exist
-::1 - - [13/Sep/2025:19:02:25 +0000] "GET /api/trades/recent HTTP/1.1" 200 5644 "-" "curl/8.5.0"
-Processing request: GET /api/sentiment/social/reddit
+✅ FIXED: Successfully returned data for AAPL with price: null
+::1 - - [15/Sep/2025:02:03:53 +0000] "GET /api/stocks/AAPL HTTP/1.1" 200 388 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/JPM
 Database connection verified for database-dependent endpoint
-🔗 Reddit sentiment requested - symbol: AAPL, limit: 50, sort: relevance
-::1 - - [13/Sep/2025:19:02:29 +0000] "GET /api/sentiment/social/reddit?symbol=AAPL HTTP/1.1" 200 4309 "-" "curl/8.5.0"
-Processing request: GET /api/portfolio/transactions
-Database connection verified for database-dependent endpoint
-📈 Portfolio transactions requested for user: fake-token, type: all, limit: 50
-Database query error: {
-  error: 'column "transaction_date" does not exist',
-  query: '\n' +
-    '      SELECT \n' +
-    '        transaction_id,\n' +
-    '        symbol,\n' +
-    '        transaction_type,\n' +
-    '        quantity,\n' +
-    ' ...',
-  params: '5 parameters',
-  code: '42703'
+🔧 Development mode: Bypassing authentication
+FIXED stock endpoint called for: JPM
+FIXED stock endpoint - executing query for JPM
+FIXED stock endpoint - query result: 1 rows
+FIXED stock endpoint - first row data: {
+  symbol: 'JPM',
+  company_name: 'JPMorgan Chase & Co.',
+  sector: null,
+  exchange: 'NYSE',
+  market_category: null,
+  market_cap: null,
+  current_price: null,
+  open: null,
+  high: null,
+  low: null,
+  volume: null,
+  price_date: null
 }
-Database query failed: column "transaction_date" does not exist
-::1 - - [13/Sep/2025:19:02:33 +0000] "GET /api/portfolio/transactions HTTP/1.1" 200 525 "-" "curl/8.5.0"
-Processing request: GET /api/sentiment/social/twitter
-Database connection verified for database-dependent endpoint
-🐦 Twitter sentiment requested - symbol: AAPL, limit: 50, sort: relevance
-::1 - - [13/Sep/2025:19:02:34 +0000] "GET /api/sentiment/social/twitter?symbol=AAPL HTTP/1.1" 200 7210 "-" "curl/8.5.0"
-Processing request: GET /api/calendar/upcoming
-Database connection verified for database-dependent endpoint
-📅 Upcoming calendar events requested - days: 30, country: US, importance: all
-::1 - - [13/Sep/2025:19:03:09 +0000] "GET /api/calendar/upcoming HTTP/1.1" 200 9226 "-" "curl/8.5.0"
-Processing request: GET /api/insider/trades
-Database connection verified for database-dependent endpoint
-👥 General insider trades requested - limit: 50, days: 30, type: all
-::1 - - [13/Sep/2025:19:03:09 +0000] "GET /api/insider/trades HTTP/1.1" 200 18405 "-" "curl/8.5.0"
-Processing request: GET /api/sentiment/social/reddit
-Database connection verified for database-dependent endpoint
-🔗 Reddit sentiment requested - symbol: all, limit: 50, sort: relevance
-::1 - - [13/Sep/2025:19:03:09 +0000] "GET /api/sentiment/social/reddit HTTP/1.1" 200 19100 "-" "curl/8.5.0"
-Processing request: GET /api/sentiment/social/twitter
-Database connection verified for database-dependent endpoint
-🐦 Twitter sentiment requested - symbol: all, limit: 50, sort: relevance
-::1 - - [13/Sep/2025:19:03:09 +0000] "GET /api/sentiment/social/twitter HTTP/1.1" 200 22710 "-" "curl/8.5.0"
-Processing request: GET /api/trades/recent
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-🕒 Getting recent trades for user: dev-user-bypass, last 7 days
-Database query error: {
-  error: 'column th.fees does not exist',
-  query: '\n' +
-    '      WITH recent_trades AS (\n' +
-    '        SELECT \n' +
-    '          th.id,\n' +
-    '          th.symbol,\n' +
-    '          th.si...',
-  params: '2 parameters',
-  code: '42703'
-}
-Database query failed, generating sample data: column th.fees does not exist
-::1 - - [13/Sep/2025:19:03:09 +0000] "GET /api/trades/recent HTTP/1.1" 200 5652 "-" "curl/8.5.0"
-Processing request: GET /api/recommendations/ai
-Database connection verified for database-dependent endpoint
-🤖 AI recommendations requested - symbol: all, risk: moderate, strategy: balanced
-::1 - - [13/Sep/2025:19:03:09 +0000] "GET /api/recommendations/ai HTTP/1.1" 200 7899 "-" "curl/8.5.0"
-Processing request: GET /api/backtest/results/test
-Database connection verified for database-dependent endpoint
-📊 Retrieving backtest results for ID: test
-::1 - - [13/Sep/2025:19:03:20 +0000] "GET /api/backtest/results/test HTTP/1.1" 200 913 "-" "curl/8.5.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /api/analytics/performance
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-📈 Performance analytics requested for user: dev-user-bypass, period: 1m
-Processing request: GET /api/analytics/risk
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-⚠️ Risk analytics requested for user: dev-user-bypass, timeframe: 1m
-Processing request: GET /api/analytics/allocation
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-📊 Asset allocation analytics requested for user: dev-user-bypass, period: current
-Processing request: GET /api/analytics/correlation
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-🔗 Correlation analytics requested for user: dev-user-bypass, period: 1m
-Processing request: GET /api/analytics/returns
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-📈 Returns analytics requested for user: dev-user-bypass, period: 1m
-Processing request: GET /api/analytics/volatility
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-📊 Volatility analytics requested for user: dev-user-bypass, period: 1m
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/allocation?period=current HTTP/1.1" 200 3970 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /api/analytics/sectors
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-🏭 Sectors analytics requested for user: dev-user-bypass
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/risk?timeframe=1m HTTP/1.1" 200 1489 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/returns?period=1m HTTP/1.1" 200 2110 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/sectors HTTP/1.1" 200 1492 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /api/analytics/trends
-Database connection verified for database-dependent endpoint
-🔧 Development mode: Bypassing authentication
-📈 Trends analytics requested for user: dev-user-bypass, period: 1m
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/trends?period=1m HTTP/1.1" 200 600 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/performance?period=1m&benchmark=SPY HTTP/1.1" 200 2159 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/volatility?period=1m HTTP/1.1" 200 503 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [13/Sep/2025:19:04:02 +0000] "GET /api/analytics/correlation?period=1m&assets=all HTTP/1.1" 200 1016 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:03 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:04 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:06 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:11 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /ws
-Database connection verified for database-dependent endpoint
-::1 - - [13/Sep/2025:19:04:20 +0000] "GET /ws HTTP/1.1" 426 118 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+✅ FIXED: Successfully returned data for JPM with price: null
+::1 - - [15/Sep/2025:02:04:01 +0000] "GET /api/stocks/JPM HTTP/1.1" 200 392 "-" "curl/8.5.0"

@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">5.06% </span>
+                <span class="strong">4.87% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>4/79</span>
+                <span class='fraction'>4/82</span>
             </div>
         
             
@@ -724,7 +724,11 @@
 <a name='L659'></a><a href='#L659'>659</a>
 <a name='L660'></a><a href='#L660'>660</a>
 <a name='L661'></a><a href='#L661'>661</a>
-<a name='L662'></a><a href='#L662'>662</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">25x</span>
+<a name='L662'></a><a href='#L662'>662</a>
+<a name='L663'></a><a href='#L663'>663</a>
+<a name='L664'></a><a href='#L664'>664</a>
+<a name='L665'></a><a href='#L665'>665</a>
+<a name='L666'></a><a href='#L666'>666</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -733,11 +737,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1328,6 +1332,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1337,9 +1342,11 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1385,7 +1392,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">25x</span></td><td class="text"><pre class="prettyprint lang-js">const { query } = require("./database");
+<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const { query } = require("./database");
 &nbsp;
 /**
  * AI Market Scanner Utility
@@ -1400,55 +1408,55 @@ class AIMarketScanner {
   initializeStrategies() {
     return {
       momentum: {
-        name: 'Momentum Breakouts',
-        description: 'Stocks with strong price and volume momentum',
+        name: "Momentum Breakouts",
+        description: "Stocks with strong price and volume momentum",
         algorithm: this.momentumAlgorithm.bind(this),
-        weight: 0.8
+        weight: 0.8,
       },
       reversal: {
-        name: 'Reversal Opportunities', 
-        description: 'Oversold stocks showing signs of reversal',
+        name: "Reversal Opportunities",
+        description: "Oversold stocks showing signs of reversal",
         algorithm: this.reversalAlgorithm.bind(this),
-        weight: 0.7
+        weight: 0.7,
       },
       breakout: {
-        name: 'Technical Breakouts',
-        description: 'Stocks breaking through resistance levels',
+        name: "Technical Breakouts",
+        description: "Stocks breaking through resistance levels",
         algorithm: this.breakoutAlgorithm.bind(this),
-        weight: 0.85
+        weight: 0.85,
       },
       unusual: {
-        name: 'Unusual Activity',
-        description: 'Stocks with unusual volume or price activity',
+        name: "Unusual Activity",
+        description: "Stocks with unusual volume or price activity",
         algorithm: this.unusualActivityAlgorithm.bind(this),
-        weight: 0.9
+        weight: 0.9,
       },
       earnings: {
-        name: 'Earnings Momentum',
-        description: 'Stocks with strong earnings-related momentum',
+        name: "Earnings Momentum",
+        description: "Stocks with strong earnings-related momentum",
         algorithm: this.earningsAlgorithm.bind(this),
-        weight: 0.75
+        weight: 0.75,
       },
       news_sentiment: {
-        name: 'News Sentiment',
-        description: 'Stocks with positive news sentiment',
+        name: "News Sentiment",
+        description: "Stocks with positive news sentiment",
         algorithm: this.newsSentimentAlgorithm.bind(this),
-        weight: 0.6
-      }
+        weight: 0.6,
+      },
     };
   }
 &nbsp;
-<span class="fstat-no" title="function not covered" >  as</span>ync scan(type = <span class="branch-0 cbranch-no" title="branch not covered" >'momentum',</span> limit = <span class="branch-0 cbranch-no" title="branch not covered" >50,</span> filters = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> {
+<span class="fstat-no" title="function not covered" >  as</span>ync scan(type = <span class="branch-0 cbranch-no" title="branch not covered" >"momentum",</span> limit = <span class="branch-0 cbranch-no" title="branch not covered" >50,</span> filters = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> {
     const strategy = <span class="cstat-no" title="statement not covered" >this.strategies[type];</span>
 <span class="cstat-no" title="statement not covered" >    if (!strategy) {</span>
 <span class="cstat-no" title="statement not covered" >      throw new Error(`Unknown scan type: ${type}`);</span>
     }
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    console.log(`🔍 Running AI scan: ${strategy.name}`);</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const results = <span class="cstat-no" title="statement not covered" >await strategy.algorithm(limit, filters);</span>
-      
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      return {</span>
         scanType: type,
         strategy: strategy.name,
@@ -1460,8 +1468,8 @@ class AIMarketScanner {
         metadata: {
           aiPowered: true,
           realTimeData: true,
-          algorithm: type
-        }
+          algorithm: type,
+        },
       };
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      console.error(`AI scan failed for ${type}:`, error);</span>
@@ -1530,8 +1538,8 @@ class AIMarketScanner {
     `;
 &nbsp;
     const results = <span class="cstat-no" title="statement not covered" >await query(baseQuery, [limit]);</span>
-    
-<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -1546,9 +1554,9 @@ class AIMarketScanner {
       technical_indicators: {
         rsi: row.rsi ? parseFloat(row.rsi).toFixed(2) : null,
         above_sma20: row.sma_20 &amp;&amp; row.price ? row.price &gt; row.sma_20 : null,
-        above_sma50: row.sma_50 &amp;&amp; row.price ? row.price &gt; row.sma_50 : null
+        above_sma50: row.sma_50 &amp;&amp; row.price ? row.price &gt; row.sma_50 : null,
       },
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 &nbsp;
@@ -1613,8 +1621,8 @@ class AIMarketScanner {
     `;
 &nbsp;
     const results = <span class="cstat-no" title="statement not covered" >await query(baseQuery, [limit]);</span>
-    
-<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -1630,9 +1638,9 @@ class AIMarketScanner {
         rsi: row.rsi ? parseFloat(row.rsi).toFixed(2) : null,
         oversold: row.rsi ? row.rsi &lt; 30 : null,
         below_sma20: row.sma_20 &amp;&amp; row.price ? row.price &lt; row.sma_20 : null,
-        below_sma50: row.sma_50 &amp;&amp; row.price ? row.price &lt; row.sma_50 : null
+        below_sma50: row.sma_50 &amp;&amp; row.price ? row.price &lt; row.sma_50 : null,
       },
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 &nbsp;
@@ -1698,8 +1706,8 @@ class AIMarketScanner {
     `;
 &nbsp;
     const results = <span class="cstat-no" title="statement not covered" >await query(baseQuery, [limit]);</span>
-    
-<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -1714,11 +1722,11 @@ class AIMarketScanner {
       confidence: this.getConfidenceLevel(row.ai_score),
       signals: this.getBreakoutSignals(row),
       technical_indicators: {
-        near_high: row.high &amp;&amp; row.price ? (row.price / row.high &gt;= 0.98) : null,
+        near_high: row.high &amp;&amp; row.price ? row.price / row.high &gt;= 0.98 : null,
         above_sma20: row.sma_20 &amp;&amp; row.price ? row.price &gt; row.sma_20 : null,
-        above_sma50: row.sma_50 &amp;&amp; row.price ? row.price &gt; row.sma_50 : null
+        above_sma50: row.sma_50 &amp;&amp; row.price ? row.price &gt; row.sma_50 : null,
       },
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 &nbsp;
@@ -1789,8 +1797,8 @@ class AIMarketScanner {
     `;
 &nbsp;
     const results = <span class="cstat-no" title="statement not covered" >await query(baseQuery, [limit]);</span>
-    
-<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return results.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -1805,7 +1813,7 @@ class AIMarketScanner {
       ai_score: parseInt(row.ai_score),
       confidence: this.getConfidenceLevel(row.ai_score),
       signals: this.getUnusualActivitySignals(row),
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 &nbsp;
@@ -1868,8 +1876,8 @@ class AIMarketScanner {
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const results = <span class="cstat-no" title="statement not covered" >await query(baseQuery, [limit]);</span>
-      
-<span class="cstat-no" title="statement not covered" >      return results.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      return results.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
         symbol: row.symbol,
         company_name: row.company_name,
         price: parseFloat(row.price).toFixed(2),
@@ -1880,12 +1888,12 @@ class AIMarketScanner {
           report_date: row.report_date,
           estimated_eps: row.estimated_eps,
           actual_eps: row.actual_eps,
-          surprise_percent: row.surprise_percent
+          surprise_percent: row.surprise_percent,
         },
         ai_score: parseInt(row.ai_score),
         confidence: this.getConfidenceLevel(row.ai_score),
         signals: this.getEarningsSignals(row),
-        scan_timestamp: new Date().toISOString()
+        scan_timestamp: new Date().toISOString(),
       }));
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      console.log("Earnings table not available, returning empty results");</span>
@@ -1949,8 +1957,8 @@ class AIMarketScanner {
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const results = <span class="cstat-no" title="statement not covered" >await query(baseQuery, [limit]);</span>
-      
-<span class="cstat-no" title="statement not covered" >      return results.rows.map(<span class="fstat-no" title="function not covered" >ro</span>w =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      return results.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
         symbol: row.symbol,
         company_name: row.company_name,
         price: parseFloat(row.price).toFixed(2),
@@ -1961,12 +1969,12 @@ class AIMarketScanner {
           sentiment: parseFloat(row.sentiment).toFixed(3),
           confidence: parseFloat(row.sentiment_confidence).toFixed(3),
           headline: row.headline,
-          published_at: row.published_at
+          published_at: row.published_at,
         },
         ai_score: parseInt(row.ai_score),
         confidence: this.getConfidenceLevel(row.ai_score),
         signals: this.getNewsSentimentSignals(row),
-        scan_timestamp: new Date().toISOString()
+        scan_timestamp: new Date().toISOString(),
       }));
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      console.log("News table not available, returning empty results");</span>
@@ -1975,85 +1983,89 @@ class AIMarketScanner {
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tConfidenceLevel(score) {
-<span class="cstat-no" title="statement not covered" >    if (score &gt;= 85) <span class="cstat-no" title="statement not covered" >return 'very high';</span></span>
-<span class="cstat-no" title="statement not covered" >    if (score &gt;= 75) <span class="cstat-no" title="statement not covered" >return 'high';</span></span>
-<span class="cstat-no" title="statement not covered" >    if (score &gt;= 65) <span class="cstat-no" title="statement not covered" >return 'medium';</span></span>
-<span class="cstat-no" title="statement not covered" >    if (score &gt;= 55) <span class="cstat-no" title="statement not covered" >return 'low';</span></span>
-<span class="cstat-no" title="statement not covered" >    return 'very low';</span>
+<span class="cstat-no" title="statement not covered" >    if (score &gt;= 85) <span class="cstat-no" title="statement not covered" >return "very high";</span></span>
+<span class="cstat-no" title="statement not covered" >    if (score &gt;= 75) <span class="cstat-no" title="statement not covered" >return "high";</span></span>
+<span class="cstat-no" title="statement not covered" >    if (score &gt;= 65) <span class="cstat-no" title="statement not covered" >return "medium";</span></span>
+<span class="cstat-no" title="statement not covered" >    if (score &gt;= 55) <span class="cstat-no" title="statement not covered" >return "low";</span></span>
+<span class="cstat-no" title="statement not covered" >    return "very low";</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tMomentumSignals(row) {
     const signals = <span class="cstat-no" title="statement not covered" >[];</span>
-<span class="cstat-no" title="statement not covered" >    if (row.price_change &gt; 5) <span class="cstat-no" title="statement not covered" >signals.push('Strong Price Gain');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push('High Volume');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.price_change &gt; 2 &amp;&amp; row.volume_ratio &gt; 1.5) <span class="cstat-no" title="statement not covered" >signals.push('Price-Volume Momentum');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.rsi &gt; 70) <span class="cstat-no" title="statement not covered" >signals.push('Overbought RSI');</span></span>
-<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ['Momentum Signal'];</span>
+<span class="cstat-no" title="statement not covered" >    if (row.price_change &gt; 5) <span class="cstat-no" title="statement not covered" >signals.push("Strong Price Gain");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push("High Volume");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.price_change &gt; 2 &amp;&amp; row.volume_ratio &gt; 1.5)</span>
+<span class="cstat-no" title="statement not covered" >      signals.push("Price-Volume Momentum");</span>
+<span class="cstat-no" title="statement not covered" >    if (row.rsi &gt; 70) <span class="cstat-no" title="statement not covered" >signals.push("Overbought RSI");</span></span>
+<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ["Momentum Signal"];</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tReversalSignals(row) {
     const signals = <span class="cstat-no" title="statement not covered" >[];</span>
-<span class="cstat-no" title="statement not covered" >    if (row.price_change &lt; -5) <span class="cstat-no" title="statement not covered" >signals.push('Oversold Condition');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push('Volume Spike');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.rsi &lt; 30) <span class="cstat-no" title="statement not covered" >signals.push('RSI Oversold');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (Math.abs(row.price_change) &gt; 3 &amp;&amp; row.volume_ratio &gt; 1.5) <span class="cstat-no" title="statement not covered" >signals.push('Reversal Setup');</span></span>
-<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ['Reversal Signal'];</span>
+<span class="cstat-no" title="statement not covered" >    if (row.price_change &lt; -5) <span class="cstat-no" title="statement not covered" >signals.push("Oversold Condition");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push("Volume Spike");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.rsi &lt; 30) <span class="cstat-no" title="statement not covered" >signals.push("RSI Oversold");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (Math.abs(row.price_change) &gt; 3 &amp;&amp; row.volume_ratio &gt; 1.5)</span>
+<span class="cstat-no" title="statement not covered" >      signals.push("Reversal Setup");</span>
+<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ["Reversal Signal"];</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tBreakoutSignals(row) {
     const signals = <span class="cstat-no" title="statement not covered" >[];</span>
-<span class="cstat-no" title="statement not covered" >    if (row.price &gt;= row.high * 0.99) <span class="cstat-no" title="statement not covered" >signals.push('New High');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 1.5) <span class="cstat-no" title="statement not covered" >signals.push('Volume Breakout');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.price_change &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push('Price Breakout');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.above_sma20 &amp;&amp; row.above_sma50) <span class="cstat-no" title="statement not covered" >signals.push('Above Moving Averages');</span></span>
-<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ['Breakout Signal'];</span>
+<span class="cstat-no" title="statement not covered" >    if (row.price &gt;= row.high * 0.99) <span class="cstat-no" title="statement not covered" >signals.push("New High");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 1.5) <span class="cstat-no" title="statement not covered" >signals.push("Volume Breakout");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.price_change &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push("Price Breakout");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.above_sma20 &amp;&amp; row.above_sma50)</span>
+<span class="cstat-no" title="statement not covered" >      signals.push("Above Moving Averages");</span>
+<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ["Breakout Signal"];</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tUnusualActivitySignals(row) {
     const signals = <span class="cstat-no" title="statement not covered" >[];</span>
-<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 5) <span class="cstat-no" title="statement not covered" >signals.push('Extreme Volume');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.volume_vs_avg &gt; 3) <span class="cstat-no" title="statement not covered" >signals.push('Above Average Volume');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push('Unusual Volume');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (Math.abs(row.price_change) &gt; 5) <span class="cstat-no" title="statement not covered" >signals.push('Price Movement');</span></span>
-<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ['Unusual Activity'];</span>
+<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 5) <span class="cstat-no" title="statement not covered" >signals.push("Extreme Volume");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.volume_vs_avg &gt; 3) <span class="cstat-no" title="statement not covered" >signals.push("Above Average Volume");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.volume_ratio &gt; 2) <span class="cstat-no" title="statement not covered" >signals.push("Unusual Volume");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (Math.abs(row.price_change) &gt; 5) <span class="cstat-no" title="statement not covered" >signals.push("Price Movement");</span></span>
+<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ["Unusual Activity"];</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tEarningsSignals(row) {
     const signals = <span class="cstat-no" title="statement not covered" >[];</span>
-<span class="cstat-no" title="statement not covered" >    if (row.surprise_percent &gt; 20) <span class="cstat-no" title="statement not covered" >signals.push('Big Earnings Beat');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.surprise_percent &gt; 10) <span class="cstat-no" title="statement not covered" >signals.push('Earnings Beat');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.surprise_percent &gt; 0) <span class="cstat-no" title="statement not covered" >signals.push('Positive Surprise');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.report_date) <span class="cstat-no" title="statement not covered" >signals.push('Recent Earnings');</span></span>
-<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ['Earnings Signal'];</span>
+<span class="cstat-no" title="statement not covered" >    if (row.surprise_percent &gt; 20) <span class="cstat-no" title="statement not covered" >signals.push("Big Earnings Beat");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.surprise_percent &gt; 10) <span class="cstat-no" title="statement not covered" >signals.push("Earnings Beat");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.surprise_percent &gt; 0) <span class="cstat-no" title="statement not covered" >signals.push("Positive Surprise");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.report_date) <span class="cstat-no" title="statement not covered" >signals.push("Recent Earnings");</span></span>
+<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ["Earnings Signal"];</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tNewsSentimentSignals(row) {
     const signals = <span class="cstat-no" title="statement not covered" >[];</span>
-<span class="cstat-no" title="statement not covered" >    if (row.sentiment &gt; 0.8) <span class="cstat-no" title="statement not covered" >signals.push('Very Positive News');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.sentiment &gt; 0.6) <span class="cstat-no" title="statement not covered" >signals.push('Positive News');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.sentiment_confidence &gt; 0.7) <span class="cstat-no" title="statement not covered" >signals.push('High Confidence');</span></span>
-<span class="cstat-no" title="statement not covered" >    if (row.headline) <span class="cstat-no" title="statement not covered" >signals.push('Recent News');</span></span>
-<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ['News Sentiment'];</span>
+<span class="cstat-no" title="statement not covered" >    if (row.sentiment &gt; 0.8) <span class="cstat-no" title="statement not covered" >signals.push("Very Positive News");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.sentiment &gt; 0.6) <span class="cstat-no" title="statement not covered" >signals.push("Positive News");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.sentiment_confidence &gt; 0.7) <span class="cstat-no" title="statement not covered" >signals.push("High Confidence");</span></span>
+<span class="cstat-no" title="statement not covered" >    if (row.headline) <span class="cstat-no" title="statement not covered" >signals.push("Recent News");</span></span>
+<span class="cstat-no" title="statement not covered" >    return signals.length &gt; 0 ? signals : ["News Sentiment"];</span>
   }
 &nbsp;
 <span class="fstat-no" title="function not covered" >  ge</span>tAvailableStrategies() {
-<span class="cstat-no" title="statement not covered" >    return Object.keys(this.strategies).map(<span class="fstat-no" title="function not covered" >ke</span>y =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+<span class="cstat-no" title="statement not covered" >    return Object.keys(this.strategies).map(<span class="fstat-no" title="function not covered" >(k</span>ey) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       type: key,
       name: this.strategies[key].name,
       description: this.strategies[key].description,
-      weight: this.strategies[key].weight
+      weight: this.strategies[key].weight,
     }));
   }
 }
 &nbsp;
-module.exports = { AIMarketScanner };</pre></td></tr></table></pre>
+module.exports = { AIMarketScanner };
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-14T17:03:02.810Z
+                at 2025-09-15T06:31:16.064Z
             </div>
         <script src="../prettify.js"></script>
         <script>
