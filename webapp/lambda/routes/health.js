@@ -358,23 +358,30 @@ router.get("/", async (req, res) => {
         (row) => row.table_name
       );
       if (existingTables.length > 0) {
+        // Use fast table statistics instead of slow COUNT(*) queries
         const countQueries = existingTables.map((tableName) =>
           Promise.race([
-            query(`SELECT COUNT(*) as count FROM ${tableName}`),
+            // Use pg_stat_user_tables for much faster table statistics
+            query(`
+              SELECT
+                COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
+              FROM pg_stat_user_tables
+              WHERE relname = $1
+            `, [tableName]),
             new Promise((_, reject) =>
               setTimeout(
-                () => reject(new Error(`Count timeout for ${tableName}`)),
-                3000
+                () => reject(new Error(`Stats timeout for ${tableName}`)),
+                500  // Reduced timeout since stats are much faster
               )
             ),
           ])
             .then((result) => ({
               table: tableName,
-              count: parseInt(result.rows[0].count),
+              count: result.rows.length > 0 ? parseInt(result.rows[0].estimated_count) || 0 : 0,
             }))
             .catch((err) => ({
               table: tableName,
-              count: null,
+              count: 0,  // Default to 0 instead of null for cleaner response
               error: err.message,
             }))
         );
@@ -583,10 +590,13 @@ router.get("/database", async (req, res) => {
       for (const tableRow of tablesResult.rows) {
         const tableName = tableRow.table_name;
         try {
-          const countResult = await query(
-            `SELECT COUNT(*) as count FROM ${tableName}`
-          );
-          const recordCount = parseInt(countResult.rows[0].count);
+          // Use fast table statistics instead of slow COUNT(*)
+          const statsResult = await query(`
+            SELECT COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
+            FROM pg_stat_user_tables
+            WHERE relname = $1
+          `, [tableName]);
+          const recordCount = statsResult.rows.length > 0 ? parseInt(statsResult.rows[0].estimated_count) || 0 : 0;
 
           let status = "healthy";
           if (recordCount === 0) {
@@ -915,10 +925,13 @@ router.get("/database/diagnostics", async (req, res) => {
       let tablesWithData = 0;
       for (const table of tables) {
         try {
-          const count = await query(
-            `SELECT COUNT(*) as count FROM ${table.table_name}`
-          );
-          const recordCount = parseInt(count.rows[0].count);
+          // Use table statistics for faster performance instead of COUNT(*)
+          const stats = await query(`
+            SELECT COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
+            FROM pg_stat_user_tables
+            WHERE relname = $1
+          `, [table.table_name]);
+          const recordCount = stats.rows.length > 0 ? parseInt(stats.rows[0].estimated_count) || 0 : 0;
           table.record_count = recordCount;
           // Try to get last updated timestamp
           let lastUpdate = null;

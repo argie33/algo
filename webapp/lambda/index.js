@@ -524,7 +524,7 @@ const wss = new WebSocket.Server({
 });
 
 // WebSocket connection handling
-wss.on("connection", (ws, req) => {
+wss.on("connection", (ws, _req) => {
   console.log("✅ New WebSocket connection established");
 
   // Send welcome message

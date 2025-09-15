@@ -13,7 +13,14 @@ vi.mock("../../../services/api", () => ({
           {
             symbol: "AAPL",
             companyName: "Apple Inc.",
-            price: 150.25,
+            price: {
+              current: 150.25,
+              previousClose: 147.90,
+              dayLow: 149.80,
+              dayHigh: 151.20,
+              fiftyTwoWeekLow: 140.50,
+              fiftyTwoWeekHigh: 195.40,
+            },
             marketCap: 2500000000000,
             peRatio: 28.5,
             dividendYield: 0.52,
@@ -47,7 +54,14 @@ vi.mock("../../../services/api", () => ({
       data: {
         symbol: "AAPL",
         companyName: "Apple Inc.",
-        price: 150.25,
+        price: {
+          current: 150.25,
+          previousClose: 147.90,
+          dayLow: 149.80,
+          dayHigh: 151.20,
+          fiftyTwoWeekLow: 140.50,
+          fiftyTwoWeekHigh: 195.40,
+        },
         change: 2.35,
         changePercent: 1.58,
         marketCap: 2500000000000,
@@ -66,7 +80,14 @@ vi.mock("../../../services/api", () => ({
         {
           symbol: "AAPL",
           companyName: "Apple Inc.",
-          price: 150.25,
+          price: {
+            current: 150.25,
+            previousClose: 147.90,
+            dayLow: 149.80,
+            dayHigh: 151.20,
+            fiftyTwoWeekLow: 140.50,
+            fiftyTwoWeekHigh: 195.40,
+          },
           change: 2.35,
           changePercent: 1.58,
         },
@@ -300,9 +321,19 @@ describe("StockExplorer", () => {
     it("displays 52-week range information", async () => {
       renderWithProviders(<StockExplorer />);
 
+      // Wait for stocks to load
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Click on the stock accordion to expand and show 52-week range
+      const stockAccordion = screen.getByText("AAPL");
+      fireEvent.click(stockAccordion);
+
       await waitFor(() => {
         expect(
-          screen.getByText(/52-?week/i) ||
+          screen.getByText(/52w range/i) ||
+            screen.getByText(/52-?week/i) ||
             screen.getByText(/range/i) ||
             screen.getByText(/high/i) ||
             screen.getByText(/low/i)

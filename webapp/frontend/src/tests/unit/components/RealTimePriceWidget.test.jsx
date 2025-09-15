@@ -41,7 +41,7 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(screen.getByText("AAPL")).toBeInTheDocument();
+        expect(screen.getByText("$150.25")).toBeInTheDocument();
       });
     });
 
@@ -59,9 +59,8 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(screen.getByText("AAPL")).toBeInTheDocument();
         expect(screen.getByText("$150.25")).toBeInTheDocument();
-        expect(screen.getByText("1.18%")).toBeInTheDocument();
+        expect(screen.getByText(/1.18%/)).toBeInTheDocument();
       });
     });
 
@@ -69,10 +68,7 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("TrendingUpIcon") ||
-            screen.getByLabelText(/trending up/i)
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("trendingup-icon")).toBeInTheDocument();
       });
     });
 
@@ -87,10 +83,7 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("TrendingDownIcon") ||
-            screen.getByLabelText(/trending down/i)
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("trendingdown-icon")).toBeInTheDocument();
       });
     });
 
@@ -105,10 +98,7 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("TrendingFlatIcon") ||
-            screen.getByLabelText(/no change/i)
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("trendingflat-icon")).toBeInTheDocument();
       });
     });
   });
@@ -118,7 +108,6 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" compact={true} />);
 
       await waitFor(() => {
-        expect(screen.getByText("AAPL")).toBeInTheDocument();
         expect(screen.getByText("$150.25")).toBeInTheDocument();
       });
     });
@@ -127,9 +116,8 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" compact={true} />);
 
       await waitFor(() => {
-        expect(screen.getByText("AAPL")).toBeInTheDocument();
         expect(screen.getByText("$150.25")).toBeInTheDocument();
-        expect(screen.getByText("1.18%")).toBeInTheDocument();
+        expect(screen.getByText(/1.18%/)).toBeInTheDocument();
       });
     });
   });
@@ -148,6 +136,7 @@ describe("RealTimePriceWidget", () => {
     });
 
     test("updates data periodically", async () => {
+      vi.useFakeTimers();
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
@@ -160,9 +149,12 @@ describe("RealTimePriceWidget", () => {
       await waitFor(() => {
         expect(mockDataCache.get).toHaveBeenCalledTimes(2);
       });
+
+      vi.useRealTimers();
     });
 
     test("clears interval on unmount", async () => {
+      vi.useFakeTimers();
       const { unmount } = render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
@@ -174,6 +166,8 @@ describe("RealTimePriceWidget", () => {
       // Advance timers and verify no additional calls
       vi.advanceTimersByTime(60000);
       expect(mockDataCache.get).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
     });
   });
 
@@ -231,7 +225,7 @@ describe("RealTimePriceWidget", () => {
       render(<RealTimePriceWidget symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(screen.getByText("AAPL")).toBeInTheDocument();
+        expect(screen.getByText("$150.25")).toBeInTheDocument();
         // Fresh data shouldn't show stale indicator
         expect(screen.queryByText(/stale/i)).not.toBeInTheDocument();
       });

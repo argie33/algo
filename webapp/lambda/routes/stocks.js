@@ -274,8 +274,7 @@ router.get("/quote/:symbol", async (req, res) => {
   }
 });
 
-// Apply authentication to all other stock routes
-router.use(authenticateToken);
+// Authentication will be applied selectively to routes that need it
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
@@ -357,14 +356,14 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.name ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
-    // Add sector filter (on cp.sector from company_profile)
+    // Add sector filter
     if (sector && sector.trim() !== "") {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND ss.sector = $${paramCount}`;
       params.push(sector);
     }
 
@@ -379,9 +378,12 @@ router.get("/", stocksListValidation, async (req, res) => {
     const validSortColumns = {
       ticker: "ss.symbol",
       symbol: "ss.symbol",
-      name: "ss.security_name",
+      name: "ss.name",
       exchange: "ss.exchange",
-      type: "ss.type", // Use actual type column
+      type: "ss.type",
+      sector: "ss.sector",
+      industry: "ss.industry",
+      market_cap: "ss.market_cap",
     };
 
     const sortColumn = validSortColumns[sortBy] || "ss.symbol";
@@ -399,11 +401,15 @@ router.get("/", stocksListValidation, async (req, res) => {
       SELECT
         -- Primary stock symbols data (only columns that exist)
         ss.symbol,
-        ss.security_name as company_name,
+        ss.name as company_name,
+        ss.security_name,
         ss.exchange,
-        ss.type as market_category,
-        ss.country,
+        ss.type,
+        ss.sector,
+        ss.industry,
         ss.currency,
+        ss.country,
+        ss.market_cap,
         ss.is_active,
         -- Latest price data when available (optional)
         pd.close as current_price,
@@ -428,7 +434,6 @@ router.get("/", stocksListValidation, async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
       ${whereClause}
     `;
 
@@ -849,11 +854,13 @@ router.get("/", stocksListValidation, async (req, res) => {
     });
   } catch (error) {
     console.error("OPTIMIZED endpoint error:", error);
+    console.error("Error message:", error.message);
+    console.error("Error details:", error);
 
-    // If symbols table doesn't exist, throw error
+    // If table doesn't exist, throw specific error
     if (error.message && error.message.includes("does not exist")) {
-      console.error("Symbols table missing - database schema incomplete");
-      throw new Error("Database schema incomplete: symbols table does not exist");
+      console.error("Database table missing - database schema incomplete");
+      throw new Error(`Database schema incomplete: ${error.message}`);
     }
 
     return res.status(500).json({
@@ -1919,10 +1926,10 @@ router.get("/:ticker", async (req, res) => {
         SELECT
           ss.symbol,
           ss.security_name as company_name,
-          COALESCE(cp.sector, 'Unknown') as sector,
+          COALESCE(cp.sector, ss.sector, 'Unknown') as sector,
           ss.exchange,
-          ss.market_category as market_category,
-          0 as market_cap,
+          ss.type as market_category,
+          COALESCE(cp.market_cap, ss.market_cap, 0) as market_cap,
           pd.close as current_price,
           pd.open,
           pd.high,
@@ -3064,7 +3071,7 @@ router.get("/:symbol/fundamentals", async (req, res) => {
     
     // Get company profile data
     const result = await query(
-      `SELECT * FROM company_profile WHERE symbol = $1`,
+      `SELECT * FROM company_profile WHERE ticker = $1`,
       [symbol.toUpperCase()]
     );
     

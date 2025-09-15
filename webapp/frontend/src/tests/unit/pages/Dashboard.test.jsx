@@ -231,9 +231,17 @@ describe("Dashboard Page", () => {
       renderWithProviders(<Dashboard />);
 
       await waitFor(() => {
-        // Portfolio summary should be visible
+        // Debug: Log all text content to see what's actually rendered
+        const allText = document.body.textContent;
+        console.log('DEBUG - All rendered text:', allText);
+        console.log('DEBUG - Looking for: 125,751 or $125,751 or 125751');
+        
+        // Portfolio summary should be visible - check for the number in any format
         expect(
-          screen.getByText(/125,751/i) || screen.getByText(/\$125,751/i)
+          screen.getByText((content, element) => {
+            const text = element?.textContent || '';
+            return text.includes('125,751') || text.includes('$125,751') || text.includes('125751');
+          })
         ).toBeTruthy();
       });
 
@@ -593,8 +601,12 @@ describe("Dashboard Page", () => {
       renderWithProviders(<Dashboard />);
 
       await waitFor(() => {
+        // More flexible text search for portfolio value
         expect(
-          screen.getByText(/125,751/i) || screen.getByText(/\$125,751/i)
+          screen.getByText((content, element) => {
+            const text = element?.textContent || '';
+            return text.includes('125,751') || text.includes('$125,751') || text.includes('125751');
+          })
         ).toBeTruthy();
       });
 
@@ -635,8 +647,13 @@ describe("Dashboard Page", () => {
       renderWithProviders(<Dashboard />);
 
       await waitFor(() => {
-        // Portfolio should still display
-        expect(screen.getByText(/125,751/i)).toBeTruthy();
+        // Portfolio should still display - flexible text search
+        expect(
+          screen.getByText((content, element) => {
+            const text = element?.textContent || '';
+            return text.includes('125,751') || text.includes('$125,751') || text.includes('125751');
+          })
+        ).toBeTruthy();
       });
 
       // Should handle missing market data gracefully

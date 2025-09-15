@@ -107,5 +107,17 @@
     "created": "2025-09-15T20:18:00.012Z",
     "status": "completed",
     "id": "1757967480012"
+  },
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1757969676719"
+  },
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1757969773430"
   }
 ]
