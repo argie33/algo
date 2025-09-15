@@ -47,14 +47,15 @@ ON CONFLICT (ticker) DO UPDATE SET
     day_low = EXCLUDED.day_low;
 
 -- Populate fear_greed_index table
-INSERT INTO fear_greed_index (value, classification, date, created_at)
-VALUES 
+INSERT INTO fear_greed_index (index_value, rating, date, fetched_at)
+VALUES
     (72, 'Greed', CURRENT_DATE, CURRENT_TIMESTAMP),
     (68, 'Greed', CURRENT_DATE - INTERVAL '1 day', CURRENT_TIMESTAMP),
     (65, 'Greed', CURRENT_DATE - INTERVAL '2 days', CURRENT_TIMESTAMP)
 ON CONFLICT (date) DO UPDATE SET
-    value = EXCLUDED.value,
-    classification = EXCLUDED.classification;
+    index_value = EXCLUDED.index_value,
+    rating = EXCLUDED.rating,
+    fetched_at = EXCLUDED.fetched_at;
 
 -- Populate naaim table  
 INSERT INTO naaim (date, mean_exposure, naaim_number_mean, bullish, bearish, created_at)
