@@ -21,14 +21,13 @@ describe("Research Routes", () => {
 
   describe("GET /api/research/", () => {
     it("should return 501 status for not implemented endpoint", async () => {
-      const response = await request(app)
-        .get("/api/research/")
-        .expect(501);
+      const response = await request(app).get("/api/research/").expect(501);
 
       expect(response.body).toEqual({
         success: false,
         error: "Research reports not implemented",
-        details: "This endpoint requires research data integration with financial data providers for analyst reports, market research, and investment analysis.",
+        details:
+          "This endpoint requires research data integration with financial data providers for analyst reports, market research, and investment analysis.",
         troubleshooting: {
           suggestion: "Research reports require research data feed integration",
           required_setup: [
@@ -36,18 +35,18 @@ describe("Research Routes", () => {
             "Research reports database with full-text search",
             "Report categorization and tagging system",
             "Analyst and firm attribution tracking",
-            "Research content aggregation and delivery"
+            "Research content aggregation and delivery",
           ],
-          status: "Not implemented - requires research data integration"
+          status: "Not implemented - requires research data integration",
         },
         symbol: null,
         filters: {
           category: "all",
           source: "all",
           limit: 15,
-          days: 30
+          days: 30,
         },
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -57,7 +56,9 @@ describe("Research Routes", () => {
         .expect(501);
 
       expect(response.body.symbol).toBe("AAPL");
-      expect(consoleSpy).toHaveBeenCalledWith("📋 Research reports requested - symbol: AAPL, category: all");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "📋 Research reports requested - symbol: AAPL, category: all"
+      );
     });
 
     it("should handle category parameter", async () => {
@@ -66,7 +67,9 @@ describe("Research Routes", () => {
         .expect(501);
 
       expect(response.body.filters.category).toBe("earnings");
-      expect(consoleSpy).toHaveBeenCalledWith("📋 Research reports requested - symbol: all, category: earnings");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "📋 Research reports requested - symbol: all, category: earnings"
+      );
     });
 
     it("should handle source parameter", async () => {
@@ -95,7 +98,9 @@ describe("Research Routes", () => {
 
     it("should handle multiple parameters", async () => {
       const response = await request(app)
-        .get("/api/research/?symbol=TSLA&category=market&source=refinitiv&limit=50&days=7")
+        .get(
+          "/api/research/?symbol=TSLA&category=market&source=refinitiv&limit=50&days=7"
+        )
         .expect(501);
 
       expect(response.body.symbol).toBe("TSLA");
@@ -103,52 +108,53 @@ describe("Research Routes", () => {
         category: "market",
         source: "refinitiv",
         limit: 50,
-        days: 7
+        days: 7,
       });
     });
 
     it("should use default values when parameters are not provided", async () => {
-      const response = await request(app)
-        .get("/api/research/")
-        .expect(501);
+      const response = await request(app).get("/api/research/").expect(501);
 
       expect(response.body.filters).toEqual({
         category: "all",
         source: "all",
         limit: 15,
-        days: 30
+        days: 30,
       });
       expect(response.body.symbol).toBe(null);
     });
 
     it("should log correct request information", async () => {
-      await request(app)
-        .get("/api/research/?symbol=GOOGL&category=sector");
+      await request(app).get("/api/research/?symbol=GOOGL&category=sector");
 
-      expect(consoleSpy).toHaveBeenCalledWith("📋 Research reports requested - symbol: GOOGL, category: sector");
-      expect(consoleSpy).toHaveBeenCalledWith("📋 Research reports - not implemented");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "📋 Research reports requested - symbol: GOOGL, category: sector"
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "📋 Research reports - not implemented"
+      );
     });
 
     it("should include valid ISO timestamp", async () => {
-      const response = await request(app)
-        .get("/api/research/")
-        .expect(501);
+      const response = await request(app).get("/api/research/").expect(501);
 
       const timestamp = response.body.timestamp;
-      expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+      );
       expect(new Date(timestamp)).toBeInstanceOf(Date);
       expect(new Date(timestamp).getTime()).not.toBeNaN();
     });
 
     it("should have consistent troubleshooting structure", async () => {
-      const response = await request(app)
-        .get("/api/research/")
-        .expect(501);
+      const response = await request(app).get("/api/research/").expect(501);
 
       expect(response.body.troubleshooting).toHaveProperty("suggestion");
       expect(response.body.troubleshooting).toHaveProperty("required_setup");
       expect(response.body.troubleshooting).toHaveProperty("status");
-      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(true);
+      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(
+        true
+      );
       expect(response.body.troubleshooting.required_setup).toHaveLength(5);
     });
 
@@ -158,17 +164,18 @@ describe("Research Routes", () => {
         throw new Error("Logging failed");
       });
 
-      const response = await request(app)
-        .get("/api/research/")
-        .expect(500);
+      const response = await request(app).get("/api/research/").expect(500);
 
       expect(response.body).toEqual({
         success: false,
         error: "Failed to fetch research reports",
-        details: "Logging failed"
+        details: "Logging failed",
       });
 
-      expect(console.error).toHaveBeenCalledWith("Research reports error:", expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith(
+        "Research reports error:",
+        expect.any(Error)
+      );
     });
 
     it("should handle edge case parameter values", async () => {
@@ -200,9 +207,11 @@ describe("Research Routes", () => {
       expect(response.body).toEqual({
         success: false,
         error: "Research report not found",
-        message: "Research report 123 requires integration with research data providers",
+        message:
+          "Research report 123 requires integration with research data providers",
         data_source: "database_query_required",
-        recommendation: "Configure research data feeds and populate research_reports table"
+        recommendation:
+          "Configure research data feeds and populate research_reports table",
       });
     });
 
@@ -214,7 +223,9 @@ describe("Research Routes", () => {
           .get(`/api/research/report/${id}`)
           .expect(404);
 
-        expect(response.body.message).toBe(`Research report ${id} requires integration with research data providers`);
+        expect(response.body.message).toBe(
+          `Research report ${id} requires integration with research data providers`
+        );
         expect(response.body.success).toBe(false);
       }
     });
@@ -225,7 +236,9 @@ describe("Research Routes", () => {
         .expect(404);
 
       // URL parsing stops at # (fragment), so only test@report is included in the ID
-      expect(response.body.message).toBe("Research report test@report requires integration with research data providers");
+      expect(response.body.message).toBe(
+        "Research report test@report requires integration with research data providers"
+      );
     });
 
     it("should maintain consistent response structure", async () => {
@@ -250,8 +263,9 @@ describe("Research Routes", () => {
       expect(response.body).toEqual({
         success: false,
         error: "Research reports not available",
-        message: "Research reports require integration with research data providers",
-        data_source: "database_query_required"
+        message:
+          "Research reports require integration with research data providers",
+        data_source: "database_query_required",
       });
     });
 
@@ -278,7 +292,13 @@ describe("Research Routes", () => {
 
   describe("Route consistency", () => {
     it("should handle all valid category values", async () => {
-      const validCategories = ["all", "earnings", "market", "sector", "company"];
+      const validCategories = [
+        "all",
+        "earnings",
+        "market",
+        "sector",
+        "company",
+      ];
 
       for (const category of validCategories) {
         const response = await request(app)
@@ -300,15 +320,12 @@ describe("Research Routes", () => {
     });
 
     it("should maintain error structure across all endpoints", async () => {
-      const endpoints = [
-        "/api/research/",
-        "/api/research/reports"
-      ];
+      const endpoints = ["/api/research/", "/api/research/reports"];
 
       for (const endpoint of endpoints) {
         const response = await request(app)
           .get(endpoint)
-          .expect(res => res.status === 501);
+          .expect((res) => res.status === 501);
 
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");

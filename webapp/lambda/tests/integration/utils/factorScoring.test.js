@@ -3,7 +3,10 @@
  * Tests factor scoring algorithms with mock financial data
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 const factorScoring = require("../../../utils/factorScoring");
 const { FactorScoringEngine } = factorScoring;
 
@@ -12,7 +15,7 @@ describe("Factor Scoring Integration Tests", () => {
 
   beforeAll(async () => {
     await initializeDatabase();
-    
+
     // Create mock stock data for testing
     mockStockData = [
       {
@@ -30,7 +33,7 @@ describe("Factor Scoring Integration Tests", () => {
         price_momentum_6m: 0.15,
         gross_margin: 0.42,
         operating_margin: 0.28,
-        net_margin: 0.21
+        net_margin: 0.21,
       },
       {
         symbol: "GOOGL",
@@ -38,7 +41,7 @@ describe("Factor Scoring Integration Tests", () => {
         pb_ratio: 2.9,
         ps_ratio: 3.2,
         revenue_growth_1y: 0.18,
-        earnings_growth_1y: 0.20,
+        earnings_growth_1y: 0.2,
         roe: 0.22,
         roa: 0.12,
         debt_to_equity: 0.25,
@@ -47,7 +50,7 @@ describe("Factor Scoring Integration Tests", () => {
         price_momentum_6m: 0.12,
         gross_margin: 0.58,
         operating_margin: 0.25,
-        net_margin: 0.19
+        net_margin: 0.19,
       },
       {
         symbol: "MSFT",
@@ -64,7 +67,7 @@ describe("Factor Scoring Integration Tests", () => {
         price_momentum_6m: 0.18,
         gross_margin: 0.68,
         operating_margin: 0.42,
-        net_margin: 0.31
+        net_margin: 0.31,
       },
       {
         symbol: "TSLA",
@@ -81,8 +84,8 @@ describe("Factor Scoring Integration Tests", () => {
         price_momentum_6m: 0.38,
         gross_margin: 0.18,
         operating_margin: 0.08,
-        net_margin: 0.06
-      }
+        net_margin: 0.06,
+      },
     ];
   });
 
@@ -93,12 +96,15 @@ describe("Factor Scoring Integration Tests", () => {
   describe("Composite Score Calculation", () => {
     test("should calculate composite score for individual stock", () => {
       const stockData = mockStockData[0]; // AAPL
-      const score = factorScoring.calculateCompositeScore(stockData, mockStockData);
+      const score = factorScoring.calculateCompositeScore(
+        stockData,
+        mockStockData
+      );
 
       expect(score).toBeDefined();
       expect(score.compositeScore).toBeDefined();
       expect(score.categoryScores).toBeDefined();
-      expect(typeof score.compositeScore).toBe('number');
+      expect(typeof score.compositeScore).toBe("number");
       expect(score.compositeScore).toBeGreaterThanOrEqual(0);
       expect(score.compositeScore).toBeLessThanOrEqual(1);
 
@@ -115,7 +121,7 @@ describe("Factor Scoring Integration Tests", () => {
 
       expect(score).toBeDefined();
       expect(score.compositeScore).toBeDefined();
-      expect(typeof score.compositeScore).toBe('number');
+      expect(typeof score.compositeScore).toBe("number");
     });
 
     test("should handle missing factor data gracefully", () => {
@@ -144,11 +150,12 @@ describe("Factor Scoring Integration Tests", () => {
         expect(stock.factorScore.compositeScore).toBeDefined();
         expect(stock.factorScore.rank).toBe(index + 1);
         expect(stock.factorScore.percentile).toBeDefined();
-        
+
         if (index > 0) {
           // Verify sorting (higher scores first)
-          expect(stock.factorScore.compositeScore)
-            .toBeLessThanOrEqual(scoredUniverse[index - 1].factorScore.compositeScore);
+          expect(stock.factorScore.compositeScore).toBeLessThanOrEqual(
+            scoredUniverse[index - 1].factorScore.compositeScore
+          );
         }
       });
     });
@@ -158,15 +165,18 @@ describe("Factor Scoring Integration Tests", () => {
         value: 0.4,
         growth: 0.3,
         profitability: 0.2,
-        financial_health: 0.1
+        financial_health: 0.1,
       };
 
-      const scoredUniverse = factorScoring.scoreUniverse(mockStockData, customWeights);
+      const scoredUniverse = factorScoring.scoreUniverse(
+        mockStockData,
+        customWeights
+      );
 
       expect(Array.isArray(scoredUniverse)).toBe(true);
       expect(scoredUniverse.length).toBe(mockStockData.length);
-      
-      scoredUniverse.forEach(stock => {
+
+      scoredUniverse.forEach((stock) => {
         expect(stock.factorScore.compositeScore).toBeDefined();
       });
     });
@@ -196,7 +206,7 @@ describe("Factor Scoring Integration Tests", () => {
       expect(Array.isArray(valueExplanation.factors)).toBe(true);
 
       // Check individual factor explanations
-      valueExplanation.factors.forEach(factor => {
+      valueExplanation.factors.forEach((factor) => {
         expect(factor.factor).toBeDefined();
         expect(factor.value).toBeDefined();
         expect(factor.score).toBeDefined();
@@ -209,7 +219,7 @@ describe("Factor Scoring Integration Tests", () => {
       const limitedStock = {
         symbol: "LIMITED",
         pe_ratio: 20.5,
-        roe: 0.15
+        roe: 0.15,
       };
 
       const explanations = factorScoring.getFactorExplanations(limitedStock);
@@ -249,7 +259,7 @@ describe("Factor Scoring Integration Tests", () => {
         value: 0.3,
         growth: 0.25,
         profitability: 0.25,
-        financial_health: 0.2
+        financial_health: 0.2,
       };
 
       const profile = factorScoring.createCustomProfile(
@@ -270,46 +280,60 @@ describe("Factor Scoring Integration Tests", () => {
   describe("Stock Screening", () => {
     test("should screen stocks by factor criteria", () => {
       const scoredStocks = factorScoring.scoreUniverse(mockStockData);
-      
+
       const criteria = {
         minCompositeScore: 0.3,
         minPercentile: 25,
         categoryFilters: {
           value: 0.2,
-          profitability: 0.3
-        }
+          profitability: 0.3,
+        },
       };
 
-      const screenedStocks = factorScoring.screenByFactors(scoredStocks, criteria);
+      const screenedStocks = factorScoring.screenByFactors(
+        scoredStocks,
+        criteria
+      );
 
       expect(Array.isArray(screenedStocks)).toBe(true);
-      
-      screenedStocks.forEach(stock => {
-        expect(stock.factorScore.compositeScore).toBeGreaterThanOrEqual(criteria.minCompositeScore);
-        expect(stock.factorScore.percentile).toBeGreaterThanOrEqual(criteria.minPercentile);
-        
+
+      screenedStocks.forEach((stock) => {
+        expect(stock.factorScore.compositeScore).toBeGreaterThanOrEqual(
+          criteria.minCompositeScore
+        );
+        expect(stock.factorScore.percentile).toBeGreaterThanOrEqual(
+          criteria.minPercentile
+        );
+
         if (stock.factorScore.categoryScores.value) {
-          expect(stock.factorScore.categoryScores.value).toBeGreaterThanOrEqual(0.2);
+          expect(stock.factorScore.categoryScores.value).toBeGreaterThanOrEqual(
+            0.2
+          );
         }
         if (stock.factorScore.categoryScores.profitability) {
-          expect(stock.factorScore.categoryScores.profitability).toBeGreaterThanOrEqual(0.3);
+          expect(
+            stock.factorScore.categoryScores.profitability
+          ).toBeGreaterThanOrEqual(0.3);
         }
       });
     });
 
     test("should handle restrictive screening criteria", () => {
       const scoredStocks = factorScoring.scoreUniverse(mockStockData);
-      
+
       const restrictiveCriteria = {
         minCompositeScore: 0.9, // Very high threshold
-        minPercentile: 95
+        minPercentile: 95,
       };
 
-      const screenedStocks = factorScoring.screenByFactors(scoredStocks, restrictiveCriteria);
-      
+      const screenedStocks = factorScoring.screenByFactors(
+        scoredStocks,
+        restrictiveCriteria
+      );
+
       expect(Array.isArray(screenedStocks)).toBe(true);
       // May result in empty array due to restrictive criteria
-      screenedStocks.forEach(stock => {
+      screenedStocks.forEach((stock) => {
         expect(stock.factorScore.compositeScore).toBeGreaterThanOrEqual(0.9);
       });
     });
@@ -323,14 +347,14 @@ describe("Factor Scoring Integration Tests", () => {
           description: "Custom test factor",
           weight: 1.0,
           factors: {
-            test_metric: { weight: 1.0 }
-          }
-        }
+            test_metric: { weight: 1.0 },
+          },
+        },
       };
 
       const engine = new FactorScoringEngine(customFactors);
       expect(engine).toBeDefined();
-      
+
       const definitions = engine.getFactorDefinitions();
       expect(definitions.test_factor).toBeDefined();
       expect(definitions.test_factor.name).toBe("Test Factor");
@@ -361,7 +385,7 @@ describe("Factor Scoring Integration Tests", () => {
       expect(Array.isArray(topFactors)).toBe(true);
       expect(topFactors.length).toBeLessThanOrEqual(3);
 
-      topFactors.forEach(factor => {
+      topFactors.forEach((factor) => {
         expect(factor.factor).toBeDefined();
         expect(factor.name).toBeDefined();
         expect(factor.category).toBeDefined();
@@ -372,8 +396,9 @@ describe("Factor Scoring Integration Tests", () => {
 
       // Should be sorted by discrimination power
       for (let i = 1; i < topFactors.length; i++) {
-        expect(topFactors[i].discriminationPower)
-          .toBeLessThanOrEqual(topFactors[i - 1].discriminationPower);
+        expect(topFactors[i].discriminationPower).toBeLessThanOrEqual(
+          topFactors[i - 1].discriminationPower
+        );
       }
     });
 
@@ -391,23 +416,24 @@ describe("Factor Scoring Integration Tests", () => {
         expect(stock.categoryScores).toBeDefined();
 
         if (index > 0) {
-          expect(stock.compositeScore)
-            .toBeLessThanOrEqual(rankings[index - 1].compositeScore);
+          expect(stock.compositeScore).toBeLessThanOrEqual(
+            rankings[index - 1].compositeScore
+          );
         }
       });
     });
 
     test("should normalize factors correctly", () => {
       const engine = new FactorScoringEngine();
-      
+
       const values = [10, 20, 30, 40, 50];
       const normalized = engine.normalizeFactors(values);
-      
+
       expect(Array.isArray(normalized)).toBe(true);
       expect(normalized.length).toBe(values.length);
       expect(normalized[0]).toBe(0); // Min value
       expect(normalized[normalized.length - 1]).toBe(1); // Max value
-      
+
       // Test inverse normalization
       const inverseNormalized = engine.normalizeFactors(values, true);
       expect(inverseNormalized[0]).toBe(1); // Min value becomes max
@@ -416,15 +442,15 @@ describe("Factor Scoring Integration Tests", () => {
 
     test("should handle edge cases in normalization", () => {
       const engine = new FactorScoringEngine();
-      
+
       // Single value
       const singleValue = engine.normalizeFactors([42]);
       expect(singleValue).toEqual([0.5]);
-      
+
       // Identical values
       const identicalValues = engine.normalizeFactors([10, 10, 10]);
       expect(identicalValues).toEqual([0.5, 0.5, 0.5]);
-      
+
       // Empty array
       const emptyArray = engine.normalizeFactors([]);
       expect(emptyArray).toEqual([]);
@@ -460,7 +486,7 @@ describe("Factor Scoring Integration Tests", () => {
         pe_ratio: null,
         pb_ratio: undefined,
         revenue_growth_1y: 0.15,
-        roe: 0.20
+        roe: 0.2,
       };
 
       const score = factorScoring.calculateCompositeScore(stockWithNulls);

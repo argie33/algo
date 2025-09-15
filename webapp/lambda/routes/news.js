@@ -8,14 +8,14 @@ const sentimentEngine = require("../utils/sentimentEngine");
 
 // Helper function to convert sentiment text to numeric score
 function convertSentimentToScore(sentiment) {
-  if (typeof sentiment === 'number') return sentiment;
+  if (typeof sentiment === "number") return sentiment;
   if (!sentiment) return 0;
-  
+
   const sentimentLower = sentiment.toLowerCase();
-  if (sentimentLower === 'positive') return 0.7;
-  if (sentimentLower === 'negative') return -0.7;
-  if (sentimentLower === 'neutral') return 0;
-  
+  if (sentimentLower === "positive") return 0.7;
+  if (sentimentLower === "negative") return -0.7;
+  if (sentimentLower === "neutral") return 0;
+
   // Try parsing as number in case it's already numeric
   const parsed = parseFloat(sentiment);
   return isNaN(parsed) ? 0 : parsed;
@@ -23,10 +23,10 @@ function convertSentimentToScore(sentiment) {
 
 // Helper function to convert numeric score to text label
 function convertScoreToLabel(score) {
-  if (typeof score === 'string') return score;
-  if (score > 0.3) return 'positive';
-  if (score < -0.3) return 'negative';
-  return 'neutral';
+  if (typeof score === "string") return score;
+  if (score > 0.3) return "positive";
+  if (score < -0.3) return "negative";
+  return "neutral";
 }
 
 // News functionality requires news_articles table or external news API integration
@@ -45,17 +45,16 @@ router.get("/health", (req, res) => {
 // Basic root endpoint (public)
 router.get("/", (req, res) => {
   res.json({
-    success: true, 
-    data: []
+    success: true,
+    data: [],
   });
 });
 
 // Recent news endpoint (public access)
 router.get("/recent", async (req, res) => {
   const { limit = 20, hours = 24, category = null, symbol = null } = req.query;
-  
-  try {
 
+  try {
     console.log(`📰 Recent news requested, limit: ${limit}, hours: ${hours}`);
 
     // Check if news_articles table exists
@@ -65,7 +64,7 @@ router.get("/recent", async (req, res) => {
       WHERE table_schema = 'public' 
       AND table_name = 'news_articles'
     `);
-    
+
     if (tableCheck.rows.length === 0) {
       return res.json({
         success: true,
@@ -73,60 +72,67 @@ router.get("/recent", async (req, res) => {
           news: [],
           summary: {
             total_count: 0,
-            message: "News service requires database setup with news_articles table",
-            filters_applied: { 
-              category: category || null, 
+            message:
+              "News service requires database setup with news_articles table",
+            filters_applied: {
+              category: category || null,
               symbol: symbol || null,
-              limit: parseInt(limit), 
-              hours: parseInt(hours) 
-            }
-          }
+              limit: parseInt(limit),
+              hours: parseInt(hours),
+            },
+          },
         },
-        message: "News database not configured - feature requires news_articles table",
-        timestamp: new Date().toISOString()
+        message:
+          "News database not configured - feature requires news_articles table",
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Build WHERE conditions for news query
-    let whereConditions = ['1=1'];
+    let whereConditions = ["1=1"];
     let params = [];
     let paramCounter = 1;
-    
+
     if (category) {
       whereConditions.push(`category = $${paramCounter}`);
       params.push(category);
       paramCounter++;
     }
-    
+
     if (symbol) {
       whereConditions.push(`symbols @> $${paramCounter}::jsonb`);
       params.push(JSON.stringify([symbol.toUpperCase()]));
       paramCounter++;
     }
-    
+
     whereConditions.push(`published_at >= $${paramCounter}`);
-    params.push(new Date(Date.now() - parseInt(hours) * 60 * 60 * 1000).toISOString());
+    params.push(
+      new Date(Date.now() - parseInt(hours) * 60 * 60 * 1000).toISOString()
+    );
     paramCounter++;
-    
-    const result = await query(`
+
+    const result = await query(
+      `
       SELECT title, summary, url, source, category, published_at, sentiment, symbols
       FROM news_articles 
-      WHERE ${whereConditions.join(' AND ')}
+      WHERE ${whereConditions.join(" AND ")}
       ORDER BY published_at DESC 
       LIMIT $${paramCounter}
-    `, [...params, parseInt(limit)]);
+    `,
+      [...params, parseInt(limit)]
+    );
 
     // Transform and enrich the data
-    const articles = result.rows.map(article => ({
+    const articles = result.rows.map((article) => ({
       title: article.title,
       summary: article.summary,
       url: article.url,
       source: article.source,
       category: article.category,
       published_at: article.published_at,
-      sentiment: article.sentiment || 'neutral',
+      sentiment: article.sentiment || "neutral",
       symbols: article.symbols,
-      time_ago: getTimeAgo(article.published_at)
+      time_ago: getTimeAgo(article.published_at),
     }));
 
     // Calculate summary statistics
@@ -145,17 +151,21 @@ router.get("/recent", async (req, res) => {
           total_articles: totalArticles,
           time_window_hours: parseInt(hours),
           sentiment_distribution: sentimentDistribution,
-          categories: [...new Set(articles.map(a => a.category))],
-          sources: [...new Set(articles.map(a => a.source))]
-        }
+          categories: [...new Set(articles.map((a) => a.category))],
+          sources: [...new Set(articles.map((a) => a.source))],
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Recent news error:", error);
-    
+
     // Handle missing database tables gracefully
-    if (error.message.includes("does not exist") || error.message.includes("column") || error.message.includes("relation")) {
+    if (
+      error.message.includes("does not exist") ||
+      error.message.includes("column") ||
+      error.message.includes("relation")
+    ) {
       return res.json({
         success: true,
         data: {
@@ -163,18 +173,22 @@ router.get("/recent", async (req, res) => {
           summary: {
             total_count: 0,
             message: "News service requires database setup with news table",
-            filters_applied: { category: category || null, limit: parseInt(limit), hours: parseInt(hours) }
-          }
+            filters_applied: {
+              category: category || null,
+              limit: parseInt(limit),
+              hours: parseInt(hours),
+            },
+          },
         },
         message: "News database not configured - feature coming soon",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: "Failed to fetch recent news",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -186,7 +200,7 @@ function getTimeAgo(publishedAt) {
   const diffMs = now - published;
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   if (diffHours > 0) {
     return `${diffHours}h ago`;
   } else {
@@ -350,18 +364,21 @@ router.get("/sentiment/:symbol", async (req, res) => {
     const intervalClause = timeframeMap[timeframe] || "24 hours";
 
     // Check if we have news data for this symbol
-    const newsCheck = await query(`
+    const newsCheck = await query(
+      `
       SELECT COUNT(*) as count FROM news 
       WHERE (headline ILIKE $1 OR summary ILIKE $1)
       AND published_at >= NOW() - INTERVAL '${intervalClause}'
-    `, [`%${symbol}%`]);
+    `,
+      [`%${symbol}%`]
+    );
 
     if (!newsCheck.rows[0] || parseInt(newsCheck.rows[0].count) === 0) {
       return res.status(404).json({
         success: false,
         error: "No sentiment data found",
         message: `No news data found for symbol ${symbol.toUpperCase()} in the specified timeframe`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -398,17 +415,22 @@ router.get("/sentiment/:symbol", async (req, res) => {
     const positiveCount = parseInt(sentiment.positive_count) || 0;
     const negativeCount = parseInt(sentiment.negative_count) || 0;
     const neutralCount = parseInt(sentiment.neutral_count) || 0;
-    
+
     // Calculate basic sentiment score based on article distribution
-    const sentimentScore = totalArticles > 0 ? 
-      (positiveCount - negativeCount) / totalArticles : 0;
+    const sentimentScore =
+      totalArticles > 0 ? (positiveCount - negativeCount) / totalArticles : 0;
 
     const sentimentAnalysis = {
       symbol,
       timeframe,
       overall_sentiment: {
         score: sentimentScore,
-        label: sentimentScore > 0.1 ? 'positive' : sentimentScore < -0.1 ? 'negative' : 'neutral',
+        label:
+          sentimentScore > 0.1
+            ? "positive"
+            : sentimentScore < -0.1
+              ? "negative"
+              : "neutral",
         distribution: {
           positive: positiveCount,
           negative: negativeCount,
@@ -419,12 +441,11 @@ router.get("/sentiment/:symbol", async (req, res) => {
       recent_articles: recentArticles.rows.map((row) => ({
         title: row.headline,
         published_at: row.published_at,
-        source: row.source || 'Unknown',
+        source: row.source || "Unknown",
       })),
     };
 
-    res.json({success: true, data: sentimentAnalysis,
-    });
+    res.json({ success: true, data: sentimentAnalysis });
   } catch (error) {
     console.error("Error fetching sentiment analysis:", error);
     res.status(500).json({
@@ -443,7 +464,7 @@ router.get("/sentiment", async (req, res) => {
 
     const timeframeMap = {
       "1h": "1 hour",
-      "6h": "6 hours", 
+      "6h": "6 hours",
       "24h": "24 hours",
       "3d": "3 days",
       "1w": "1 week",
@@ -465,8 +486,9 @@ router.get("/sentiment", async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "News sentiment data not available",
-        message: "News tables not configured - run loadnews.py to populate data",
-        timestamp: new Date().toISOString()
+        message:
+          "News tables not configured - run loadnews.py to populate data",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -476,28 +498,28 @@ router.get("/sentiment", async (req, res) => {
       FROM information_schema.columns 
       WHERE table_name = 'news' AND table_schema = 'public'
     `);
-    
-    const columns = columnsCheck.rows.map(row => row.column_name);
-    console.log('News table columns:', columns);
-    
+
+    const columns = columnsCheck.rows.map((row) => row.column_name);
+    console.log("News table columns:", columns);
+
     // If no proper columns exist, return minimal data
     if (columns.length === 0) {
       return res.status(503).json({
         success: false,
         error: "News table not properly configured",
         message: "News table has no columns - run loadnews.py to populate data",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Use the first text column we can find for basic sentiment
     let textColumn = null;
-    if (columns.includes('headline')) textColumn = 'headline';
-    else if (columns.includes('summary')) textColumn = 'summary';
-    else if (columns.includes('title')) textColumn = 'title';
-    else if (columns.includes('content')) textColumn = 'content';
-    else if (columns.includes('description')) textColumn = 'description';
-    
+    if (columns.includes("headline")) textColumn = "headline";
+    else if (columns.includes("summary")) textColumn = "summary";
+    else if (columns.includes("title")) textColumn = "title";
+    else if (columns.includes("content")) textColumn = "content";
+    else if (columns.includes("description")) textColumn = "description";
+
     let sentimentResult;
     if (textColumn) {
       // Get sentiment analysis using available text column
@@ -525,19 +547,22 @@ router.get("/sentiment", async (req, res) => {
 
     // Add null checking for database availability
     if (!sentimentResult || !sentimentResult.rows) {
-      console.warn("Sentiment query returned null result, database may be unavailable");
+      console.warn(
+        "Sentiment query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Sentiment data temporarily unavailable - database connection issue",
+        message:
+          "Sentiment data temporarily unavailable - database connection issue",
         data: {
           overall_sentiment: {
             score: 0,
             label: "neutral",
             distribution: { positive: 0, negative: 0, neutral: 0 },
-            total_articles: 0
-          }
-        }
+            total_articles: 0,
+          },
+        },
       });
     }
 
@@ -546,15 +571,20 @@ router.get("/sentiment", async (req, res) => {
     const positiveCount = parseInt(sentiment.positive_count) || 0;
     const negativeCount = parseInt(sentiment.negative_count) || 0;
     const neutralCount = parseInt(sentiment.neutral_count) || 0;
-    
+
     // Calculate basic sentiment score based on article distribution
-    const sentimentScore = totalArticles > 0 ? 
-      (positiveCount - negativeCount) / totalArticles : 0;
-    
+    const sentimentScore =
+      totalArticles > 0 ? (positiveCount - negativeCount) / totalArticles : 0;
+
     const sentimentData = {
       overall_sentiment: {
         score: sentimentScore,
-        label: sentimentScore > 0.1 ? 'positive' : sentimentScore < -0.1 ? 'negative' : 'neutral',
+        label:
+          sentimentScore > 0.1
+            ? "positive"
+            : sentimentScore < -0.1
+              ? "negative"
+              : "neutral",
         distribution: {
           positive: positiveCount,
           negative: negativeCount,
@@ -566,8 +596,7 @@ router.get("/sentiment", async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    res.json({success: true, data: sentimentData,
-    });
+    res.json({ success: true, data: sentimentData });
   } catch (error) {
     console.error("Error fetching sentiment data:", error);
     return res.status(500).json({
@@ -697,8 +726,7 @@ router.get("/market-sentiment", async (req, res) => {
       })),
     };
 
-    res.json({success: true, data: marketSentiment,
-    });
+    res.json({ success: true, data: marketSentiment });
   } catch (error) {
     console.error("Error fetching market sentiment:", error);
     res.status(500).json({
@@ -723,8 +751,7 @@ router.post("/analyze-sentiment", async (req, res) => {
 
     const analysis = await sentimentEngine.analyzeSentiment(text, symbol);
 
-    res.json({success: true, data: analysis,
-    });
+    res.json({ success: true, data: analysis });
   } catch (error) {
     console.error("Error analyzing sentiment:", error);
     res.status(500).json({
@@ -916,8 +943,7 @@ router.get("/trending", async (req, res) => {
       })),
     };
 
-    res.json({success: true, data: trending,
-    });
+    res.json({ success: true, data: trending });
   } catch (error) {
     console.error("Error fetching trending topics:", error);
     res.status(500).json({
@@ -940,14 +966,16 @@ router.get("/feed", async (req, res) => {
       time_range = "24h",
     } = req.query;
 
-    console.log(`📰 News feed requested - category: ${category}, limit: ${limit}`);
-    
+    console.log(
+      `📰 News feed requested - category: ${category}, limit: ${limit}`
+    );
+
     // Build category filter
-    let categoryFilter = '';
+    let categoryFilter = "";
     let queryParams = [parseInt(limit)];
     let paramIndex = 2;
 
-    if (category && category !== 'all') {
+    if (category && category !== "all") {
       categoryFilter = `AND category = $${paramIndex}`;
       queryParams.push(category);
       paramIndex++;
@@ -974,25 +1002,26 @@ router.get("/feed", async (req, res) => {
     `;
 
     const result = await query(newsQuery, queryParams);
-    
+
     // If no news found, return proper error indicating missing data
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No news articles found",
-        message: "News data needs to be loaded. Please run the news data loader script.",
+        message:
+          "News data needs to be loaded. Please run the news data loader script.",
         filters: {
           category,
           symbol: symbol || null,
           sentiment_filter: sentiment_filter || null,
           source_filter: source_filter || null,
-          time_range
+          time_range,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const articles = result.rows.map(row => ({
+    const articles = result.rows.map((row) => ({
       id: row.id,
       headline: row.headline,
       summary: row.summary,
@@ -1002,7 +1031,7 @@ router.get("/feed", async (req, res) => {
       url: row.url,
       published_at: row.published_at,
       sentiment_score: convertSentimentToScore(row.sentiment || 0),
-      relevance_score: parseFloat(row.relevance_score || 0.5)
+      relevance_score: parseFloat(row.relevance_score || 0.5),
     }));
 
     res.json({
@@ -1014,22 +1043,22 @@ router.get("/feed", async (req, res) => {
         symbol: symbol || null,
         sentiment_filter: sentiment_filter || null,
         source_filter: source_filter || null,
-        time_range
+        time_range,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("News feed error:", error);
-    
+
     // Check if it's a table/schema error (table doesn't exist)
     if (error.message.includes('relation "news_articles" does not exist')) {
       return res.status(503).json({
         success: false,
         error: "News service not initialized",
-        message: "News database tables need to be created. Please run the database setup script.",
+        message:
+          "News database tables need to be created. Please run the database setup script.",
         details: "Missing required table: news_articles",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1037,7 +1066,7 @@ router.get("/feed", async (req, res) => {
       success: false,
       error: "Failed to fetch news feed",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1052,31 +1081,40 @@ router.get("/economic-calendar", async (req, res) => {
       limit = 30,
     } = req.query;
 
-    console.log(`📅 Economic calendar requested - importance: ${importance}, country: ${country}`);
+    console.log(
+      `📅 Economic calendar requested - importance: ${importance}, country: ${country}`
+    );
 
     // Build filters
-    let importanceFilter = '';
-    let countryFilter = '';
+    let importanceFilter = "";
+    let countryFilter = "";
     let queryParams = [parseInt(limit)];
     let paramIndex = 2;
 
-    if (importance && importance !== 'all') {
+    if (importance && importance !== "all") {
       importanceFilter = `AND importance = $${paramIndex}`;
       queryParams.push(importance);
       paramIndex++;
     }
 
-    if (country && country !== 'all') {
+    if (country && country !== "all") {
       countryFilter = `AND country = $${paramIndex}`;
       queryParams.push(country);
       paramIndex++;
     }
 
     // Parse date range
-    const days = date_range === '1d' ? 1 : date_range === '3d' ? 3 : date_range === '7d' ? 7 : 30;
+    const days =
+      date_range === "1d"
+        ? 1
+        : date_range === "3d"
+          ? 3
+          : date_range === "7d"
+            ? 7
+            : 30;
 
     // Query economic events
-      const eventsQuery = `
+    const eventsQuery = `
         SELECT 
           id,
           event_name,
@@ -1099,62 +1137,63 @@ router.get("/economic-calendar", async (req, res) => {
         LIMIT $1
       `;
 
-      const result = await query(eventsQuery, queryParams);
+    const result = await query(eventsQuery, queryParams);
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "No economic events found",
-          message: "No economic calendar events found for the specified criteria. Economic data may need to be loaded.",
-          filters: {
-            importance,
-            country,
-            date_range,
-            limit: parseInt(limit)
-          },
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      const events = result.rows.map(row => ({
-        id: row.id,
-        event_name: row.event_name,
-        country: row.country,
-        currency: row.currency,
-        importance: row.importance,
-        actual: row.actual_value,
-        forecast: row.forecast_value,
-        previous: row.previous_value,
-        time: row.event_time,
-        impact: row.impact,
-        description: row.description,
-        source: row.source
-      }));
-
-      res.json({
-        success: true,
-        events,
-        total: events.length,
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No economic events found",
+        message:
+          "No economic calendar events found for the specified criteria. Economic data may need to be loaded.",
         filters: {
           importance,
           country,
           date_range,
-          limit: parseInt(limit)
+          limit: parseInt(limit),
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
+    }
 
+    const events = result.rows.map((row) => ({
+      id: row.id,
+      event_name: row.event_name,
+      country: row.country,
+      currency: row.currency,
+      importance: row.importance,
+      actual: row.actual_value,
+      forecast: row.forecast_value,
+      previous: row.previous_value,
+      time: row.event_time,
+      impact: row.impact,
+      description: row.description,
+      source: row.source,
+    }));
+
+    res.json({
+      success: true,
+      events,
+      total: events.length,
+      filters: {
+        importance,
+        country,
+        date_range,
+        limit: parseInt(limit),
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Economic calendar error:", error);
-    
+
     // Check if table doesn't exist
     if (error.message.includes('relation "economic_events" does not exist')) {
       return res.status(503).json({
         success: false,
         error: "Economic calendar service not initialized",
-        message: "Economic events database table needs to be created. Please run the database setup script.",
+        message:
+          "Economic events database table needs to be created. Please run the database setup script.",
         details: "Missing required table: economic_events",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1162,7 +1201,7 @@ router.get("/economic-calendar", async (req, res) => {
       success: false,
       error: "Failed to fetch economic calendar",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1177,16 +1216,27 @@ router.get("/sentiment-dashboard", async (req, res) => {
     // Parse timeframe to SQL interval
     let interval;
     switch (timeframe) {
-      case '1h': interval = '1 hour'; break;
-      case '4h': interval = '4 hours'; break;
-      case '24h': interval = '24 hours'; break;
-      case '7d': interval = '7 days'; break;
-      case '30d': interval = '30 days'; break;
-      default: interval = '24 hours';
+      case "1h":
+        interval = "1 hour";
+        break;
+      case "4h":
+        interval = "4 hours";
+        break;
+      case "24h":
+        interval = "24 hours";
+        break;
+      case "7d":
+        interval = "7 days";
+        break;
+      case "30d":
+        interval = "30 days";
+        break;
+      default:
+        interval = "24 hours";
     }
 
     // Get overall market sentiment
-      const marketSentimentQuery = `
+    const marketSentimentQuery = `
         SELECT 
           AVG(CASE 
             WHEN sentiment = 'positive' THEN 0.7
@@ -1201,8 +1251,8 @@ router.get("/sentiment-dashboard", async (req, res) => {
         WHERE published_at >= NOW() - INTERVAL '${interval}'
       `;
 
-      // Get sector sentiment breakdown
-      const sectorSentimentQuery = `
+    // Get sector sentiment breakdown
+    const sectorSentimentQuery = `
         SELECT 
           category,
           AVG(CASE 
@@ -1218,8 +1268,8 @@ router.get("/sentiment-dashboard", async (req, res) => {
         ORDER BY avg_sentiment DESC
       `;
 
-      // Get trending symbols by sentiment
-      const symbolSentimentQuery = `
+    // Get trending symbols by sentiment
+    const symbolSentimentQuery = `
         SELECT 
           symbol,
           AVG(CASE 
@@ -1237,78 +1287,88 @@ router.get("/sentiment-dashboard", async (req, res) => {
         LIMIT 10
       `;
 
-      const [marketResult, sectorResult, symbolResult] = await Promise.all([
-        query(marketSentimentQuery),
-        query(sectorSentimentQuery),
-        query(symbolSentimentQuery)
-      ]);
+    const [marketResult, sectorResult, symbolResult] = await Promise.all([
+      query(marketSentimentQuery),
+      query(sectorSentimentQuery),
+      query(symbolSentimentQuery),
+    ]);
 
-      // Process market sentiment
-      const marketData = marketResult.rows[0];
-      const totalArticles = parseInt(marketData.total_articles) || 0;
+    // Process market sentiment
+    const marketData = marketResult.rows[0];
+    const totalArticles = parseInt(marketData.total_articles) || 0;
 
-      if (totalArticles === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "No sentiment data found",
-          message: "No news articles with sentiment data found for the specified timeframe.",
-          timeframe,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      const marketSentiment = {
-        overall_score: parseFloat(marketData.average_sentiment || 0).toFixed(3),
-        sentiment_distribution: {
-          positive: parseInt(marketData.positive_count) || 0,
-          negative: parseInt(marketData.negative_count) || 0,
-          neutral: parseInt(marketData.neutral_count) || 0,
-          total: totalArticles
-        },
-        sentiment_percentages: {
-          positive: ((parseInt(marketData.positive_count) || 0) / totalArticles * 100).toFixed(1),
-          negative: ((parseInt(marketData.negative_count) || 0) / totalArticles * 100).toFixed(1),
-          neutral: ((parseInt(marketData.neutral_count) || 0) / totalArticles * 100).toFixed(1)
-        }
-      };
-
-      // Process sector sentiment
-      const sectorSentiment = sectorResult.rows.map(row => ({
-        category: row.category,
-        sentiment_score: parseFloat(row.avg_sentiment || 0).toFixed(3),
-        article_count: parseInt(row.article_count) || 0
-      }));
-
-      // Process symbol sentiment
-      const symbolSentiment = symbolResult.rows.map(row => ({
-        symbol: row.symbol,
-        sentiment_score: parseFloat(row.avg_sentiment || 0).toFixed(3),
-        mention_count: parseInt(row.mention_count) || 0
-      }));
-
-      res.json({
-        success: true,
-        data: {
-          market_sentiment: marketSentiment,
-          sector_sentiment: sectorSentiment,
-          symbol_sentiment: symbolSentiment,
-          timeframe,
-          updated_at: new Date().toISOString()
-        },
-        timestamp: new Date().toISOString()
+    if (totalArticles === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sentiment data found",
+        message:
+          "No news articles with sentiment data found for the specified timeframe.",
+        timeframe,
+        timestamp: new Date().toISOString(),
       });
+    }
 
+    const marketSentiment = {
+      overall_score: parseFloat(marketData.average_sentiment || 0).toFixed(3),
+      sentiment_distribution: {
+        positive: parseInt(marketData.positive_count) || 0,
+        negative: parseInt(marketData.negative_count) || 0,
+        neutral: parseInt(marketData.neutral_count) || 0,
+        total: totalArticles,
+      },
+      sentiment_percentages: {
+        positive: (
+          ((parseInt(marketData.positive_count) || 0) / totalArticles) *
+          100
+        ).toFixed(1),
+        negative: (
+          ((parseInt(marketData.negative_count) || 0) / totalArticles) *
+          100
+        ).toFixed(1),
+        neutral: (
+          ((parseInt(marketData.neutral_count) || 0) / totalArticles) *
+          100
+        ).toFixed(1),
+      },
+    };
+
+    // Process sector sentiment
+    const sectorSentiment = sectorResult.rows.map((row) => ({
+      category: row.category,
+      sentiment_score: parseFloat(row.avg_sentiment || 0).toFixed(3),
+      article_count: parseInt(row.article_count) || 0,
+    }));
+
+    // Process symbol sentiment
+    const symbolSentiment = symbolResult.rows.map((row) => ({
+      symbol: row.symbol,
+      sentiment_score: parseFloat(row.avg_sentiment || 0).toFixed(3),
+      mention_count: parseInt(row.mention_count) || 0,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        market_sentiment: marketSentiment,
+        sector_sentiment: sectorSentiment,
+        symbol_sentiment: symbolSentiment,
+        timeframe,
+        updated_at: new Date().toISOString(),
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Sentiment dashboard error:", error);
-    
+
     // Check if tables don't exist
     if (error.message.includes('relation "news_articles" does not exist')) {
       return res.status(503).json({
         success: false,
         error: "Sentiment dashboard service not initialized",
-        message: "News articles database table needs to be created. Please run the database setup script.",
+        message:
+          "News articles database table needs to be created. Please run the database setup script.",
         details: "Missing required table: news_articles",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1316,38 +1376,27 @@ router.get("/sentiment-dashboard", async (req, res) => {
       success: false,
       error: "Failed to generate sentiment dashboard",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // News headlines endpoint - top headlines and breaking news
 router.get("/headlines", async (req, res) => {
   try {
-    const { symbol, category = "all", limit = 20, timeframe = "24h" } = req.query;
-    
-    console.log(`📰 News headlines requested - symbol: ${symbol || 'all'}, category: ${category}`);
+    const {
+      symbol,
+      category = "all",
+      limit = 20,
+      timeframe = "24h",
+    } = req.query;
+
+    console.log(
+      `📰 News headlines requested - symbol: ${symbol || "all"}, category: ${category}`
+    );
     // Build filters
-    let symbolFilter = '';
-    let categoryFilter = '';
+    let symbolFilter = "";
+    let categoryFilter = "";
     let queryParams = [parseInt(limit)];
     let paramIndex = 2;
 
@@ -1357,17 +1406,26 @@ router.get("/headlines", async (req, res) => {
       paramIndex++;
     }
 
-    if (category && category !== 'all') {
+    if (category && category !== "all") {
       categoryFilter = `AND category = $${paramIndex}`;
       queryParams.push(category);
       paramIndex++;
     }
 
     // Parse timeframe to hours
-    const hours = timeframe === '1h' ? 1 : timeframe === '4h' ? 4 : timeframe === '24h' ? 24 : timeframe === '7d' ? 168 : 24;
+    const hours =
+      timeframe === "1h"
+        ? 1
+        : timeframe === "4h"
+          ? 4
+          : timeframe === "24h"
+            ? 24
+            : timeframe === "7d"
+              ? 168
+              : 24;
 
     // Query recent news headlines
-      const headlinesQuery = `
+    const headlinesQuery = `
         SELECT 
           id,
           headline,
@@ -1387,60 +1445,61 @@ router.get("/headlines", async (req, res) => {
         LIMIT $1
       `;
 
-      const result = await query(headlinesQuery, queryParams);
+    const result = await query(headlinesQuery, queryParams);
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "No headlines found",
-          message: "No news headlines found for the specified criteria. News data may need to be loaded.",
-          filters: {
-            symbol: symbol || null,
-            category,
-            limit: parseInt(limit),
-            timeframe
-          },
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      const headlines = result.rows.map(row => ({
-        id: row.id,
-        headline: row.headline,
-        summary: row.summary,
-        source: row.source,
-        category: row.category,
-        symbol: row.symbol,
-        url: row.url,
-        published_at: row.published_at,
-        sentiment_score: convertSentimentToScore(row.sentiment || 0),
-        relevance_score: parseFloat(row.relevance_score || 0.5)
-      }));
-
-      res.json({
-        success: true,
-        headlines,
-        total: headlines.length,
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No headlines found",
+        message:
+          "No news headlines found for the specified criteria. News data may need to be loaded.",
         filters: {
           symbol: symbol || null,
           category,
           limit: parseInt(limit),
-          timeframe
+          timeframe,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
+    }
 
+    const headlines = result.rows.map((row) => ({
+      id: row.id,
+      headline: row.headline,
+      summary: row.summary,
+      source: row.source,
+      category: row.category,
+      symbol: row.symbol,
+      url: row.url,
+      published_at: row.published_at,
+      sentiment_score: convertSentimentToScore(row.sentiment || 0),
+      relevance_score: parseFloat(row.relevance_score || 0.5),
+    }));
+
+    res.json({
+      success: true,
+      headlines,
+      total: headlines.length,
+      filters: {
+        symbol: symbol || null,
+        category,
+        limit: parseInt(limit),
+        timeframe,
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("News headlines error:", error);
-    
+
     // Check if table doesn't exist
     if (error.message.includes('relation "news_articles" does not exist')) {
       return res.status(503).json({
         success: false,
         error: "News headlines service not initialized",
-        message: "News articles database table needs to be created. Please run the database setup script.",
+        message:
+          "News articles database table needs to be created. Please run the database setup script.",
         details: "Missing required table: news_articles",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1448,19 +1507,25 @@ router.get("/headlines", async (req, res) => {
       success: false,
       error: "Failed to fetch news headlines",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-
-
 // Latest news endpoint - breaking and most recent news
 router.get("/latest", async (req, res) => {
   try {
-    const { limit = 25, category = "all", hours = 12, source = "all", min_relevance = 0 } = req.query;
-    
-    console.log(`📰 Latest news requested - limit: ${limit}, category: ${category}`);
+    const {
+      limit = 25,
+      category = "all",
+      hours = 12,
+      source = "all",
+      min_relevance = 0,
+    } = req.query;
+
+    console.log(
+      `📰 Latest news requested - limit: ${limit}, category: ${category}`
+    );
 
     // Build query based on filters
     let whereClause = `WHERE published_at >= NOW() - INTERVAL '${isNaN(parseInt(hours)) ? 24 : parseInt(hours)} hours'`;
@@ -1515,16 +1580,21 @@ router.get("/latest", async (req, res) => {
         summary: {
           total_articles: 0,
           time_range: `${hours} hours`,
-          sentiment_distribution: { positive: 0, negative: 0, neutral: 0 }
+          sentiment_distribution: { positive: 0, negative: 0, neutral: 0 },
         },
         message: `No news articles found in the last ${hours} hours`,
-        filters: { category, limit: parseInt(limit), hours: parseInt(hours), source },
-        timestamp: new Date().toISOString()
+        filters: {
+          category,
+          limit: parseInt(limit),
+          hours: parseInt(hours),
+          source,
+        },
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Process articles
-    const articles = result.rows.map(row => ({
+    const articles = result.rows.map((row) => ({
       id: row.id,
       symbol: row.symbol,
       headline: row.headline,
@@ -1535,14 +1605,18 @@ router.get("/latest", async (req, res) => {
       sentiment_label: convertScoreToLabel(row.sentiment),
       relevance_score: parseFloat(row.relevance_score) || 0,
       source: row.source,
-      hours_ago: parseFloat(row.hours_ago).toFixed(1)
+      hours_ago: parseFloat(row.hours_ago).toFixed(1),
     }));
 
     // Calculate summary statistics
-    const sentimentDistribution = articles.reduce((dist, article) => {
-      dist[article.sentiment_label] = (dist[article.sentiment_label] || 0) + 1;
-      return dist;
-    }, { positive: 0, negative: 0, neutral: 0 });
+    const sentimentDistribution = articles.reduce(
+      (dist, article) => {
+        dist[article.sentiment_label] =
+          (dist[article.sentiment_label] || 0) + 1;
+        return dist;
+      },
+      { positive: 0, negative: 0, neutral: 0 }
+    );
 
     const topSources = articles.reduce((sources, article) => {
       sources[article.source] = (sources[article.source] || 0) + 1;
@@ -1557,25 +1631,33 @@ router.get("/latest", async (req, res) => {
         time_range: `${hours} hours`,
         sentiment_distribution: sentimentDistribution,
         top_sources: Object.entries(topSources)
-          .sort(([,a], [,b]) => b - a)
+          .sort(([, a], [, b]) => b - a)
           .slice(0, 5)
           .map(([source, count]) => ({ source, count })),
-        avg_relevance: articles.length > 0 ? articles.reduce((sum, a) => sum + a.relevance_score, 0) / articles.length : 0
+        avg_relevance:
+          articles.length > 0
+            ? articles.reduce((sum, a) => sum + a.relevance_score, 0) /
+              articles.length
+            : 0,
       },
-      filters: { category, limit: parseInt(limit), hours: parseInt(hours), source, min_relevance: parseFloat(min_relevance) },
-      timestamp: new Date().toISOString()
+      filters: {
+        category,
+        limit: parseInt(limit),
+        hours: parseInt(hours),
+        source,
+        min_relevance: parseFloat(min_relevance),
+      },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Latest news error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch latest news",
-      details: error.message
+      details: error.message,
     });
   }
 });
-
-
 
 // News for specific symbol
 router.get("/:symbol", async (req, res) => {
@@ -1610,20 +1692,24 @@ router.get("/:symbol", async (req, res) => {
           articles: [],
           symbol: symbol.toUpperCase(),
           count: 0,
-          message: `No recent news found for ${symbol.toUpperCase()}`
+          message: `No recent news found for ${symbol.toUpperCase()}`,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const articles = result.rows.map(row => ({
+    const articles = result.rows.map((row) => ({
       title: row.title,
       url: row.url,
       publisher: row.publisher,
       publishTime: row.publish_time,
       newsType: row.news_type,
       thumbnail: row.thumbnail,
-      relatedTickers: row.related_tickers ? (Array.isArray(row.related_tickers) ? row.related_tickers : [symbol.toUpperCase()]) : [symbol.toUpperCase()]
+      relatedTickers: row.related_tickers
+        ? Array.isArray(row.related_tickers)
+          ? row.related_tickers
+          : [symbol.toUpperCase()]
+        : [symbol.toUpperCase()],
     }));
 
     return res.json({
@@ -1631,17 +1717,16 @@ router.get("/:symbol", async (req, res) => {
         articles: articles,
         symbol: symbol.toUpperCase(),
         count: articles.length,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Symbol news error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch symbol news",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1651,7 +1736,7 @@ router.get("/sentiment/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const { limit = 20, days = 7 } = req.query;
-    
+
     console.log(`📊 News sentiment requested for ${symbol}`);
 
     // Generate synthetic news articles for sentiment analysis (in production, this would come from news feeds)
@@ -1659,94 +1744,125 @@ router.get("/sentiment/:symbol", async (req, res) => {
       {
         title: `${symbol} Reports Strong Q4 Earnings, Beats Expectations`,
         description: `${symbol} delivered strong quarterly results with revenue growth and profit margins exceeding analyst expectations. The company showed resilience in challenging market conditions.`,
-        publishedAt: new Date(Date.now() - Math.random() * 86400000 * parseInt(days)).toISOString(),
-        source: 'MarketWatch',
+        publishedAt: new Date(
+          Date.now() - Math.random() * 86400000 * parseInt(days)
+        ).toISOString(),
+        source: "MarketWatch",
         url: `https://marketwatch.com/${symbol.toLowerCase()}-earnings-beat`,
-        impact: 'high'
+        impact: "high",
       },
       {
         title: `Analyst Upgrades ${symbol} to Buy Rating`,
         description: `Wall Street analysts upgraded ${symbol} citing strong fundamentals and positive outlook for growth in the coming quarters.`,
-        publishedAt: new Date(Date.now() - Math.random() * 86400000 * parseInt(days)).toISOString(),
-        source: 'Reuters',
+        publishedAt: new Date(
+          Date.now() - Math.random() * 86400000 * parseInt(days)
+        ).toISOString(),
+        source: "Reuters",
         url: `https://reuters.com/${symbol.toLowerCase()}-upgrade`,
-        impact: 'medium'
+        impact: "medium",
       },
       {
         title: `${symbol} Stock Shows Bullish Technical Signals`,
         description: `Technical analysis indicates ${symbol} is breaking above key resistance levels with strong volume, suggesting potential upward momentum.`,
-        publishedAt: new Date(Date.now() - Math.random() * 86400000 * parseInt(days)).toISOString(),
-        source: 'Bloomberg',
+        publishedAt: new Date(
+          Date.now() - Math.random() * 86400000 * parseInt(days)
+        ).toISOString(),
+        source: "Bloomberg",
         url: `https://bloomberg.com/${symbol.toLowerCase()}-technical`,
-        impact: 'medium'
+        impact: "medium",
       },
       {
         title: `Market Volatility May Impact ${symbol} Performance`,
         description: `Current market uncertainty and economic headwinds could pose challenges for ${symbol}'s near-term performance despite strong fundamentals.`,
-        publishedAt: new Date(Date.now() - Math.random() * 86400000 * parseInt(days)).toISOString(),
-        source: 'CNBC',
+        publishedAt: new Date(
+          Date.now() - Math.random() * 86400000 * parseInt(days)
+        ).toISOString(),
+        source: "CNBC",
         url: `https://cnbc.com/${symbol.toLowerCase()}-volatility`,
-        impact: 'medium'
+        impact: "medium",
       },
       {
         title: `${symbol} Maintains Stable Growth Trajectory`,
         description: `The company continues to show steady performance with consistent revenue streams and maintains its position in the competitive landscape.`,
-        publishedAt: new Date(Date.now() - Math.random() * 86400000 * parseInt(days)).toISOString(),
-        source: 'Financial Times',
+        publishedAt: new Date(
+          Date.now() - Math.random() * 86400000 * parseInt(days)
+        ).toISOString(),
+        source: "Financial Times",
         url: `https://ft.com/${symbol.toLowerCase()}-growth`,
-        impact: 'low'
-      }
+        impact: "low",
+      },
     ];
 
     // Analyze sentiment for each article using our NewsAnalyzer
-    const analyzedArticles = syntheticNewsArticles.slice(0, parseInt(limit)).map(article => {
-      const sentimentAnalysis = newsAnalyzer.analyzeSentiment(article);
-      
-      return {
-        id: `${symbol}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        symbol: symbol.toUpperCase(),
-        title: article.title,
-        description: article.description,
-        publishedAt: article.publishedAt,
-        source: article.source,
-        url: article.url,
-        impact: article.impact,
-        sentiment: {
-          classification: sentimentAnalysis.sentiment,
-          score: sentimentAnalysis.score,
-          confidence: sentimentAnalysis.confidence,
-          keywords: sentimentAnalysis.keywords,
-          word_count: sentimentAnalysis.wordCount,
-          sentiment_word_count: sentimentAnalysis.sentimentWordCount
-        }
-      };
-    });
+    const analyzedArticles = syntheticNewsArticles
+      .slice(0, parseInt(limit))
+      .map((article) => {
+        const sentimentAnalysis = newsAnalyzer.analyzeSentiment(article);
+
+        return {
+          id: `${symbol}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          symbol: symbol.toUpperCase(),
+          title: article.title,
+          description: article.description,
+          publishedAt: article.publishedAt,
+          source: article.source,
+          url: article.url,
+          impact: article.impact,
+          sentiment: {
+            classification: sentimentAnalysis.sentiment,
+            score: sentimentAnalysis.score,
+            confidence: sentimentAnalysis.confidence,
+            keywords: sentimentAnalysis.keywords,
+            word_count: sentimentAnalysis.wordCount,
+            sentiment_word_count: sentimentAnalysis.sentimentWordCount,
+          },
+        };
+      });
 
     // Calculate aggregate sentiment metrics
     const totalArticles = analyzedArticles.length;
-    const positiveArticles = analyzedArticles.filter(a => a.sentiment.classification === 'positive').length;
-    const negativeArticles = analyzedArticles.filter(a => a.sentiment.classification === 'negative').length;
-    const neutralArticles = analyzedArticles.filter(a => a.sentiment.classification === 'neutral').length;
+    const positiveArticles = analyzedArticles.filter(
+      (a) => a.sentiment.classification === "positive"
+    ).length;
+    const negativeArticles = analyzedArticles.filter(
+      (a) => a.sentiment.classification === "negative"
+    ).length;
+    const neutralArticles = analyzedArticles.filter(
+      (a) => a.sentiment.classification === "neutral"
+    ).length;
 
-    const avgSentimentScore = analyzedArticles.reduce((sum, a) => sum + a.sentiment.score, 0) / totalArticles;
-    const avgConfidence = analyzedArticles.reduce((sum, a) => sum + a.sentiment.confidence, 0) / totalArticles;
+    const avgSentimentScore =
+      analyzedArticles.reduce((sum, a) => sum + a.sentiment.score, 0) /
+      totalArticles;
+    const avgConfidence =
+      analyzedArticles.reduce((sum, a) => sum + a.sentiment.confidence, 0) /
+      totalArticles;
 
     // Calculate weighted sentiment (considering impact levels)
     const impactWeights = { high: 1.0, medium: 0.6, low: 0.3 };
     let weightedSentimentSum = 0;
     let totalWeight = 0;
 
-    analyzedArticles.forEach(article => {
+    analyzedArticles.forEach((article) => {
       const weight = impactWeights[article.impact] || 0.5;
-      const sentimentValue = article.sentiment.classification === 'positive' ? 1 : 
-                           article.sentiment.classification === 'negative' ? -1 : 0;
+      const sentimentValue =
+        article.sentiment.classification === "positive"
+          ? 1
+          : article.sentiment.classification === "negative"
+            ? -1
+            : 0;
       weightedSentimentSum += sentimentValue * article.sentiment.score * weight;
       totalWeight += weight;
     });
 
-    const overallSentiment = totalWeight > 0 ? weightedSentimentSum / totalWeight : 0;
-    const sentimentClassification = overallSentiment > 0.1 ? 'positive' : 
-                                   overallSentiment < -0.1 ? 'negative' : 'neutral';
+    const overallSentiment =
+      totalWeight > 0 ? weightedSentimentSum / totalWeight : 0;
+    const sentimentClassification =
+      overallSentiment > 0.1
+        ? "positive"
+        : overallSentiment < -0.1
+          ? "negative"
+          : "neutral";
 
     // Get additional market data for context
     let priceData = null;
@@ -1784,37 +1900,47 @@ router.get("/sentiment/:symbol", async (req, res) => {
           sentiment_distribution: {
             positive: Math.round((positiveArticles / totalArticles) * 100),
             negative: Math.round((negativeArticles / totalArticles) * 100),
-            neutral: Math.round((neutralArticles / totalArticles) * 100)
-          }
+            neutral: Math.round((neutralArticles / totalArticles) * 100),
+          },
         },
-        market_context: priceData ? {
-          current_price: parseFloat(priceData.close_price),
-          daily_change: parseFloat(priceData.change_percent),
-          volume: parseInt(priceData.volume),
-          last_updated: priceData.date,
-          price_sentiment_alignment: priceData.change_percent > 0 && sentimentClassification === 'positive' ? 'aligned' :
-                                   priceData.change_percent < 0 && sentimentClassification === 'negative' ? 'aligned' : 'divergent'
-        } : null,
+        market_context: priceData
+          ? {
+              current_price: parseFloat(priceData.close_price),
+              daily_change: parseFloat(priceData.change_percent),
+              volume: parseInt(priceData.volume),
+              last_updated: priceData.date,
+              price_sentiment_alignment:
+                priceData.change_percent > 0 &&
+                sentimentClassification === "positive"
+                  ? "aligned"
+                  : priceData.change_percent < 0 &&
+                      sentimentClassification === "negative"
+                    ? "aligned"
+                    : "divergent",
+            }
+          : null,
         methodology: {
-          sentiment_analysis: "Keyword-based sentiment analysis with confidence scoring",
-          impact_weighting: "High impact articles weighted 1.0, medium 0.6, low 0.3",
-          data_source: "Synthetic news articles for demonstration (real implementation would use news feeds)"
-        }
+          sentiment_analysis:
+            "Keyword-based sentiment analysis with confidence scoring",
+          impact_weighting:
+            "High impact articles weighted 1.0, medium 0.6, low 0.3",
+          data_source:
+            "Synthetic news articles for demonstration (real implementation would use news feeds)",
+        },
       },
       filters: {
         symbol: symbol.toUpperCase(),
         limit: parseInt(limit),
-        days: parseInt(days)
+        days: parseInt(days),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("News sentiment error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch news sentiment",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1823,61 +1949,143 @@ router.get("/sentiment/:symbol", async (req, res) => {
 router.get("/trending", async (req, res) => {
   try {
     console.log(`📈 Trending news requested`);
-    const { timeframe = '24h', limit = 20, category } = req.query;
-    
-    console.log(`📈 Generating trending news for timeframe: ${timeframe}, limit: ${limit}`);
+    const { timeframe = "24h", limit = 20, category } = req.query;
+
+    console.log(
+      `📈 Generating trending news for timeframe: ${timeframe}, limit: ${limit}`
+    );
 
     // Generate trending news based on engagement metrics and virality
-    const generateTrendingNews = (timeframePeriod, maxItems, categoryFilter) => {
-      const categories = ['market', 'earnings', 'economy', 'crypto', 'technology', 'politics', 'global'];
-      const sourceTypes = ['financial', 'social', 'mainstream', 'analyst'];
-      
+    const generateTrendingNews = (
+      timeframePeriod,
+      maxItems,
+      categoryFilter
+    ) => {
+      const categories = [
+        "market",
+        "earnings",
+        "economy",
+        "crypto",
+        "technology",
+        "politics",
+        "global",
+      ];
+      const sourceTypes = ["financial", "social", "mainstream", "analyst"];
+
       const trendingNews = [];
       const now = new Date();
-      
+
       // Determine time range
       let timeRangeHours;
       switch (timeframePeriod) {
-        case '1h': timeRangeHours = 1; break;
-        case '6h': timeRangeHours = 6; break;
-        case '24h': timeRangeHours = 24; break;
-        case '3d': timeRangeHours = 72; break;
-        case '7d': timeRangeHours = 168; break;
-        default: timeRangeHours = 24;
+        case "1h":
+          timeRangeHours = 1;
+          break;
+        case "6h":
+          timeRangeHours = 6;
+          break;
+        case "24h":
+          timeRangeHours = 24;
+          break;
+        case "3d":
+          timeRangeHours = 72;
+          break;
+        case "7d":
+          timeRangeHours = 168;
+          break;
+        default:
+          timeRangeHours = 24;
       }
-      
+
       for (let i = 0; i < maxItems; i++) {
-        const newsCategory = categoryFilter || categories[Math.floor(Math.random() * categories.length)];
-        const sourceType = sourceTypes[Math.floor(Math.random() * sourceTypes.length)];
-        
+        const newsCategory =
+          categoryFilter ||
+          categories[Math.floor(Math.random() * categories.length)];
+        const sourceType =
+          sourceTypes[Math.floor(Math.random() * sourceTypes.length)];
+
         // Generate trending metrics
         const baseEngagement = 1000 + Math.random() * 50000;
         const viralityScore = 0.3 + Math.random() * 0.7; // 0.3-1.0
         const trendingScore = baseEngagement * viralityScore;
-        
+
         // Generate realistic timestamps within timeframe
-        const publishTime = new Date(now.getTime() - Math.random() * timeRangeHours * 60 * 60 * 1000);
-        
+        const publishTime = new Date(
+          now.getTime() - Math.random() * timeRangeHours * 60 * 60 * 1000
+        );
+
         // Generate trending news content
         const trendingTopics = {
-          market: ['Fed Rate Decision', 'Market Volatility', 'Sector Rotation', 'IPO Launch', 'Merger Announcement'],
-          earnings: ['Earnings Beat', 'Revenue Miss', 'Guidance Update', 'Analyst Upgrade', 'CEO Interview'],
-          economy: ['Inflation Data', 'Employment Report', 'GDP Growth', 'Trade Relations', 'Economic Policy'],
-          crypto: ['Bitcoin Rally', 'Regulatory Update', 'DeFi Innovation', 'Exchange News', 'Institutional Adoption'],
-          technology: ['AI Breakthrough', 'Product Launch', 'Partnership Deal', 'Security Breach', 'Patent Filing'],
-          politics: ['Policy Change', 'Election Update', 'Regulatory Filing', 'Congressional Hearing', 'International Relations'],
-          global: ['Central Bank Action', 'Geopolitical Event', 'Natural Disaster', 'Trade Agreement', 'Currency Movement']
+          market: [
+            "Fed Rate Decision",
+            "Market Volatility",
+            "Sector Rotation",
+            "IPO Launch",
+            "Merger Announcement",
+          ],
+          earnings: [
+            "Earnings Beat",
+            "Revenue Miss",
+            "Guidance Update",
+            "Analyst Upgrade",
+            "CEO Interview",
+          ],
+          economy: [
+            "Inflation Data",
+            "Employment Report",
+            "GDP Growth",
+            "Trade Relations",
+            "Economic Policy",
+          ],
+          crypto: [
+            "Bitcoin Rally",
+            "Regulatory Update",
+            "DeFi Innovation",
+            "Exchange News",
+            "Institutional Adoption",
+          ],
+          technology: [
+            "AI Breakthrough",
+            "Product Launch",
+            "Partnership Deal",
+            "Security Breach",
+            "Patent Filing",
+          ],
+          politics: [
+            "Policy Change",
+            "Election Update",
+            "Regulatory Filing",
+            "Congressional Hearing",
+            "International Relations",
+          ],
+          global: [
+            "Central Bank Action",
+            "Geopolitical Event",
+            "Natural Disaster",
+            "Trade Agreement",
+            "Currency Movement",
+          ],
         };
-        
+
         const topics = trendingTopics[newsCategory] || trendingTopics.market;
         const topic = topics[Math.floor(Math.random() * topics.length)];
-        
-        const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX'];
-        const relatedSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-        
+
+        const symbols = [
+          "AAPL",
+          "MSFT",
+          "GOOGL",
+          "AMZN",
+          "TSLA",
+          "NVDA",
+          "META",
+          "NFLX",
+        ];
+        const relatedSymbol =
+          symbols[Math.floor(Math.random() * symbols.length)];
+
         trendingNews.push({
           id: `trending_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 8)}`,
-          title: `${topic}: ${relatedSymbol} ${newsCategory === 'market' ? 'Moves' : 'Update'} Creates Market Buzz`,
+          title: `${topic}: ${relatedSymbol} ${newsCategory === "market" ? "Moves" : "Update"} Creates Market Buzz`,
           summary: `Breaking news about ${relatedSymbol} related to ${topic.toLowerCase()} has generated significant market attention and social media engagement.`,
           category: newsCategory,
           source_type: sourceType,
@@ -1888,36 +2096,57 @@ router.get("/trending", async (req, res) => {
             likes: Math.round(trendingScore * 0.5),
             comments: Math.round(trendingScore * 0.2),
             retweets: Math.round(trendingScore * 0.15),
-            virality_score: Math.round(viralityScore * 100) / 100
+            virality_score: Math.round(viralityScore * 100) / 100,
           },
           trending_metrics: {
-            trend_velocity: Math.round((trendingScore / timeRangeHours) * 100) / 100, // Engagement per hour
-            peak_time: new Date(publishTime.getTime() + Math.random() * 2 * 60 * 60 * 1000).toISOString(),
-            trending_duration_hours: Math.round(Math.random() * timeRangeHours * 100) / 100,
-            social_sentiment: ['positive', 'negative', 'neutral'][Math.floor(Math.random() * 3)],
-            mention_count: Math.round(50 + Math.random() * 1000)
+            trend_velocity:
+              Math.round((trendingScore / timeRangeHours) * 100) / 100, // Engagement per hour
+            peak_time: new Date(
+              publishTime.getTime() + Math.random() * 2 * 60 * 60 * 1000
+            ).toISOString(),
+            trending_duration_hours:
+              Math.round(Math.random() * timeRangeHours * 100) / 100,
+            social_sentiment: ["positive", "negative", "neutral"][
+              Math.floor(Math.random() * 3)
+            ],
+            mention_count: Math.round(50 + Math.random() * 1000),
           },
           related_symbols: [relatedSymbol],
           source: {
-            name: sourceType === 'financial' ? 'Financial News Network' :
-                  sourceType === 'social' ? 'Social Media Aggregator' :
-                  sourceType === 'mainstream' ? 'Major News Outlet' : 'Analyst Report',
+            name:
+              sourceType === "financial"
+                ? "Financial News Network"
+                : sourceType === "social"
+                  ? "Social Media Aggregator"
+                  : sourceType === "mainstream"
+                    ? "Major News Outlet"
+                    : "Analyst Report",
             credibility_score: 0.7 + Math.random() * 0.3,
-            follower_count: Math.round(10000 + Math.random() * 1000000)
+            follower_count: Math.round(10000 + Math.random() * 1000000),
           },
           trending_rank: i + 1,
           is_breaking: i < 3 && Math.random() > 0.7,
           time_to_trend: Math.round(Math.random() * 60), // minutes to trend
-          geographic_trending: ['US', 'Global', 'Europe', 'Asia'][Math.floor(Math.random() * 4)]
+          geographic_trending: ["US", "Global", "Europe", "Asia"][
+            Math.floor(Math.random() * 4)
+          ],
         });
       }
-      
+
       // Sort by trending score descending
-      return trendingNews.sort((a, b) => b.engagement_metrics.total_engagement - a.engagement_metrics.total_engagement);
+      return trendingNews.sort(
+        (a, b) =>
+          b.engagement_metrics.total_engagement -
+          a.engagement_metrics.total_engagement
+      );
     };
 
-    const trendingData = generateTrendingNews(timeframe, parseInt(limit), category);
-    
+    const trendingData = generateTrendingNews(
+      timeframe,
+      parseInt(limit),
+      category
+    );
+
     // Calculate trending analytics
     const analytics = {
       total_trending_stories: trendingData.length,
@@ -1927,17 +2156,28 @@ router.get("/trending", async (req, res) => {
           acc[news.category] = (acc[news.category] || 0) + 1;
           return acc;
         }, {})
-      ).sort(([,a], [,b]) => b - a).slice(0, 5),
+      )
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5),
       average_engagement: Math.round(
-        trendingData.reduce((sum, news) => sum + news.engagement_metrics.total_engagement, 0) / trendingData.length
+        trendingData.reduce(
+          (sum, news) => sum + news.engagement_metrics.total_engagement,
+          0
+        ) / trendingData.length
       ),
-      breaking_news_count: trendingData.filter(news => news.is_breaking).length,
+      breaking_news_count: trendingData.filter((news) => news.is_breaking)
+        .length,
       sentiment_distribution: trendingData.reduce((acc, news) => {
-        acc[news.trending_metrics.social_sentiment] = (acc[news.trending_metrics.social_sentiment] || 0) + 1;
+        acc[news.trending_metrics.social_sentiment] =
+          (acc[news.trending_metrics.social_sentiment] || 0) + 1;
         return acc;
       }, {}),
-      top_symbols: [...new Set(trendingData.flatMap(news => news.related_symbols))].slice(0, 10),
-      geographic_spread: [...new Set(trendingData.map(news => news.geographic_trending))]
+      top_symbols: [
+        ...new Set(trendingData.flatMap((news) => news.related_symbols)),
+      ].slice(0, 10),
+      geographic_spread: [
+        ...new Set(trendingData.map((news) => news.geographic_trending)),
+      ],
     };
 
     res.json({
@@ -1947,23 +2187,22 @@ router.get("/trending", async (req, res) => {
       filters: {
         timeframe: timeframe,
         limit: parseInt(limit),
-        category: category || 'all'
+        category: category || "all",
       },
       methodology: {
         ranking_algorithm: "Engagement velocity and virality scoring",
         data_sources: "Social media, financial news, analyst reports",
         update_frequency: "Real-time with 15-minute trending windows",
-        virality_calculation: "Engagement rate × reach × time-decay factor"
+        virality_calculation: "Engagement rate × reach × time-decay factor",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trending news error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trending news",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1971,16 +2210,16 @@ router.get("/trending", async (req, res) => {
 // News search endpoint
 router.get("/search", async (req, res) => {
   try {
-    const { 
-      query: searchQuery, 
-      limit = 20, 
+    const {
+      query: searchQuery,
+      limit = 20,
       category = "all",
       sentiment = "all",
       timeframe = "30d",
       source = "all",
-      symbol = null 
+      symbol = null,
     } = req.query;
-    
+
     console.log(`🔍 News search requested: "${searchQuery}"`);
 
     if (!searchQuery || searchQuery.trim().length === 0) {
@@ -1988,7 +2227,7 @@ router.get("/search", async (req, res) => {
         success: false,
         error: "Search query is required",
         message: "Please provide a search query using the 'query' parameter",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -2000,20 +2239,23 @@ router.get("/search", async (req, res) => {
     // Parse timeframe to SQL interval
     const timeframeMap = {
       "1d": "1 day",
-      "3d": "3 days", 
+      "3d": "3 days",
       "7d": "7 days",
       "14d": "14 days",
       "30d": "30 days",
       "3m": "3 months",
       "6m": "6 months",
-      "1y": "1 year"
+      "1y": "1 year",
     };
 
     const intervalClause = timeframeMap[timeframe] || "30 days";
     whereClause += ` AND published_at >= NOW() - INTERVAL '${intervalClause}'`;
 
     // Full-text search across title, summary, and content
-    const searchTerms = searchQuery.trim().split(/\s+/).map(term => term.toLowerCase());
+    const searchTerms = searchQuery
+      .trim()
+      .split(/\s+/)
+      .map((term) => term.toLowerCase());
     const searchConditions = searchTerms.map((term) => {
       const condition = `(
         LOWER(headline) LIKE $${paramIndex} OR 
@@ -2025,7 +2267,7 @@ router.get("/search", async (req, res) => {
       return condition;
     });
 
-    whereClause += ` AND (${searchConditions.join(' OR ')})`;
+    whereClause += ` AND (${searchConditions.join(" OR ")})`;
 
     // Add category filter
     if (category !== "all") {
@@ -2090,9 +2332,9 @@ router.get("/search", async (req, res) => {
 
     // Add final parameters for relevance calculation and limit
     params.push(
-      `%${searchQuery.toLowerCase()}%`,  // headline match
-      `%${searchQuery.toLowerCase()}%`,  // summary match
-      symbol ? symbol.toUpperCase() : '', // symbol match
+      `%${searchQuery.toLowerCase()}%`, // headline match
+      `%${searchQuery.toLowerCase()}%`, // summary match
+      symbol ? symbol.toUpperCase() : "", // symbol match
       parseInt(limit)
     );
 
@@ -2124,27 +2366,27 @@ router.get("/search", async (req, res) => {
             query: searchQuery,
             suggestions: [
               "Try broader search terms",
-              "Check spelling and try synonyms", 
+              "Check spelling and try synonyms",
               "Remove filters to expand results",
-              "Try searching company names or ticker symbols"
-            ]
-          }
+              "Try searching company names or ticker symbols",
+            ],
+          },
         },
         filters: {
           query: searchQuery,
           category,
-          sentiment, 
+          sentiment,
           timeframe,
           source,
           symbol,
-          limit: parseInt(limit)
+          limit: parseInt(limit),
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Process search results
-    const articles = result.rows.map(row => ({
+    const articles = result.rows.map((row) => ({
       id: row.id,
       headline: row.headline,
       summary: row.summary,
@@ -2158,27 +2400,42 @@ router.get("/search", async (req, res) => {
       relevance_score: parseFloat(row.relevance_score || 0),
       search_relevance_score: parseFloat(row.search_relevance_score || 0),
       matching_snippet: row.matching_snippet,
-      time_ago: getTimeAgo(row.published_at)
+      time_ago: getTimeAgo(row.published_at),
     }));
 
     const stats = statsResult.rows[0];
-    
+
     // Generate search suggestions based on results
     const generateSuggestions = (query, results) => {
       const suggestions = [];
-      const topCategories = [...new Set(results.slice(0, 10).map(r => r.category))];
-      const topSymbols = [...new Set(results.slice(0, 10).map(r => r.symbol).filter(Boolean))];
-      
+      const topCategories = [
+        ...new Set(results.slice(0, 10).map((r) => r.category)),
+      ];
+      const topSymbols = [
+        ...new Set(
+          results
+            .slice(0, 10)
+            .map((r) => r.symbol)
+            .filter(Boolean)
+        ),
+      ];
+
       if (topCategories.length > 0) {
-        suggestions.push(`Try filtering by category: ${topCategories.slice(0, 3).join(', ')}`);
+        suggestions.push(
+          `Try filtering by category: ${topCategories.slice(0, 3).join(", ")}`
+        );
       }
       if (topSymbols.length > 0) {
-        suggestions.push(`Related symbols: ${topSymbols.slice(0, 3).join(', ')}`);
+        suggestions.push(
+          `Related symbols: ${topSymbols.slice(0, 3).join(", ")}`
+        );
       }
       if (results.length >= parseInt(limit)) {
-        suggestions.push("More results available - increase limit or add filters");
+        suggestions.push(
+          "More results available - increase limit or add filters"
+        );
       }
-      
+
       return suggestions;
     };
 
@@ -2191,23 +2448,25 @@ router.get("/search", async (req, res) => {
         search_metadata: {
           query: searchQuery,
           relevance_scores: {
-            min: Math.min(...articles.map(a => a.search_relevance_score)),
-            max: Math.max(...articles.map(a => a.search_relevance_score)),
-            avg: articles.reduce((sum, a) => sum + a.search_relevance_score, 0) / articles.length
+            min: Math.min(...articles.map((a) => a.search_relevance_score)),
+            max: Math.max(...articles.map((a) => a.search_relevance_score)),
+            avg:
+              articles.reduce((sum, a) => sum + a.search_relevance_score, 0) /
+              articles.length,
           },
-          suggestions: generateSuggestions(searchQuery, articles)
+          suggestions: generateSuggestions(searchQuery, articles),
         },
         search_statistics: {
           total_matches: parseInt(stats.total_matches || 0),
           sentiment_distribution: {
             positive: parseInt(stats.positive_count || 0),
             negative: parseInt(stats.negative_count || 0),
-            neutral: parseInt(stats.neutral_count || 0)
+            neutral: parseInt(stats.neutral_count || 0),
           },
           unique_categories: parseInt(stats.unique_categories || 0),
           unique_sources: parseInt(stats.unique_sources || 0),
-          average_relevance: parseFloat(stats.avg_relevance || 0)
-        }
+          average_relevance: parseFloat(stats.avg_relevance || 0),
+        },
       },
       filters: {
         query: searchQuery,
@@ -2216,34 +2475,36 @@ router.get("/search", async (req, res) => {
         timeframe,
         source,
         symbol,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
       methodology: {
         search_algorithm: "Multi-field text matching with relevance scoring",
-        relevance_factors: "Headline match (10pts), summary match (5pts), symbol match (8pts), content relevance (3x)",
+        relevance_factors:
+          "Headline match (10pts), summary match (5pts), symbol match (8pts), content relevance (3x)",
         ranking: "Search relevance score + recency + content relevance",
-        text_matching: "Case-insensitive partial matching across headline, summary, and URL"
+        text_matching:
+          "Case-insensitive partial matching across headline, summary, and URL",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("News search error:", error);
-    
+
     if (error.message.includes('relation "news" does not exist')) {
       return res.status(503).json({
         success: false,
         error: "News search service not available",
-        message: "News database not configured. Please run the news data loader script.",
-        timestamp: new Date().toISOString()
+        message:
+          "News database not configured. Please run the news data loader script.",
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: "Failed to search news",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

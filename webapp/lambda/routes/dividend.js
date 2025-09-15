@@ -6,13 +6,13 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   res.json({
     message: "Dividend API - Ready",
-    status: "operational", 
+    status: "operational",
     endpoints: [
       "GET /history/:symbol - Get dividend history for a symbol",
       "GET /upcoming - Get upcoming dividend payments",
-      "GET /yield/:symbol - Get dividend yield information"
+      "GET /yield/:symbol - Get dividend yield information",
     ],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -41,27 +41,38 @@ router.get("/history/:symbol", async (req, res) => {
       LIMIT $2
     `;
 
-    const result = await query(dividendQuery, [symbol.toUpperCase(), parseInt(_limit)]);
-    
+    const result = await query(dividendQuery, [
+      symbol.toUpperCase(),
+      parseInt(_limit),
+    ]);
+
     if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Dividend history not found",
         message: `No dividend history found for ${symbol}. Please ensure the dividend_history table is populated.`,
         symbol: symbol.toUpperCase(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     const dividendHistory = result.rows;
 
     // Calculate summary statistics
-    const totalDividends = dividendHistory.reduce((sum, div) => sum + div.dividend_amount, 0);
-    const avgDividend = dividendHistory.length > 0 ? totalDividends / dividendHistory.length : 0;
-    const currentYearDividends = dividendHistory.filter(
-      div => new Date(div.payment_date).getFullYear() === new Date().getFullYear()
+    const totalDividends = dividendHistory.reduce(
+      (sum, div) => sum + div.dividend_amount,
+      0
     );
-    const annualizedDividend = currentYearDividends.reduce((sum, div) => sum + div.dividend_amount, 0);
+    const avgDividend =
+      dividendHistory.length > 0 ? totalDividends / dividendHistory.length : 0;
+    const currentYearDividends = dividendHistory.filter(
+      (div) =>
+        new Date(div.payment_date).getFullYear() === new Date().getFullYear()
+    );
+    const annualizedDividend = currentYearDividends.reduce(
+      (sum, div) => sum + div.dividend_amount,
+      0
+    );
 
     res.json({
       success: true,
@@ -75,19 +86,29 @@ router.get("/history/:symbol", async (req, res) => {
           total_payments: dividendHistory.length,
           years_of_data: parseInt(_years),
           current_year_total: Math.round(annualizedDividend * 100) / 100,
-          payment_frequency: dividendHistory.length > 0 ? dividendHistory[0].frequency : 'Quarterly',
-          dividend_growth_rate: dividendHistory.length > 8 ? 
-            Math.round(((dividendHistory[0].dividend_amount - dividendHistory[7].dividend_amount) / dividendHistory[7].dividend_amount) * 100 * 100) / 100 : 0
+          payment_frequency:
+            dividendHistory.length > 0
+              ? dividendHistory[0].frequency
+              : "Quarterly",
+          dividend_growth_rate:
+            dividendHistory.length > 8
+              ? Math.round(
+                  ((dividendHistory[0].dividend_amount -
+                    dividendHistory[7].dividend_amount) /
+                    dividendHistory[7].dividend_amount) *
+                    100 *
+                    100
+                ) / 100
+              : 0,
         },
         filters: {
           symbol: symbol.toUpperCase(),
           years: parseInt(_years),
-          limit: parseInt(_limit)
-        }
+          limit: parseInt(_limit),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Dividend history error:", error);
     res.status(500).json({
@@ -95,7 +116,7 @@ router.get("/history/:symbol", async (req, res) => {
       error: "Failed to fetch dividend history",
       details: error.message,
       symbol: req.params.symbol?.toUpperCase() || null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -103,26 +124,28 @@ router.get("/history/:symbol", async (req, res) => {
 // Dividend calendar endpoint - upcoming dividend dates and events
 router.get("/calendar", async (req, res) => {
   try {
-    const { 
+    const {
       days = 30,
       event_type = "all", // all, ex_dividend, payment, announcement
       symbol,
       min_yield,
       max_yield,
       limit = 50,
-      sort_by = "date" // date, yield, amount, symbol
+      sort_by = "date", // date, yield, amount, symbol
     } = req.query;
 
-    console.log(`📅 Dividend calendar requested for next ${days} days, type: ${event_type}, symbol: ${symbol || 'all'}`);
+    console.log(
+      `📅 Dividend calendar requested for next ${days} days, type: ${event_type}, symbol: ${symbol || "all"}`
+    );
 
     // Try to get dividend calendar from database, but fall back to generated data on any error
     let dividendEvents = [];
-    let dataSource = 'generated';
-    
+    let dataSource = "generated";
+
     try {
-      console.log('🔍 Attempting to query dividend_calendar database...');
-      const { query } = require('../utils/database');
-      
+      console.log("🔍 Attempting to query dividend_calendar database...");
+      const { query } = require("../utils/database");
+
       // Try to query with database - use generated query if database fails
       let calendarQuery = `
         SELECT 
@@ -160,26 +183,28 @@ router.get("/calendar", async (req, res) => {
 
       // Add ordering
       const sortOptions = {
-        "date": "ex_dividend_date ASC",
-        "yield": "dividend_yield DESC",
-        "amount": "dividend_amount DESC", 
-        "symbol": "symbol ASC"
+        date: "ex_dividend_date ASC",
+        yield: "dividend_yield DESC",
+        amount: "dividend_amount DESC",
+        symbol: "symbol ASC",
       };
       calendarQuery += ` ORDER BY ${sortOptions[sort_by] || sortOptions["date"]}`;
 
       queryParams.push(parseInt(limit));
       calendarQuery += ` LIMIT $${++paramCount}`;
 
-      console.log('📊 Executing dividend calendar query...');
+      console.log("📊 Executing dividend calendar query...");
       const result = await query(calendarQuery, queryParams);
-      
+
       if (result.rows && result.rows.length > 0) {
-        console.log(`✅ Found ${result.rows.length} dividend events from database`);
-        dividendEvents = result.rows.map(row => ({
+        console.log(
+          `✅ Found ${result.rows.length} dividend events from database`
+        );
+        dividendEvents = result.rows.map((row) => ({
           id: `div_db_${row.symbol}_${row.ex_dividend_date}`,
           symbol: row.symbol,
           company_name: row.company_name,
-          event_type: 'ex_dividend',
+          event_type: "ex_dividend",
           event_title: `${row.company_name} Ex-Dividend Date`,
           event_date: row.ex_dividend_date,
           ex_dividend_date: row.ex_dividend_date,
@@ -187,31 +212,40 @@ router.get("/calendar", async (req, res) => {
           payment_date: row.payment_date,
           dividend_amount: parseFloat(row.dividend_amount) || 0,
           dividend_yield: parseFloat(row.dividend_yield) || 0,
-          frequency: row.frequency || 'Quarterly',
-          dividend_type: row.dividend_type || 'Regular Cash',
-          currency: 'USD',
-          market_impact: 'Medium',
-          days_until_event: Math.ceil((new Date(row.ex_dividend_date) - new Date()) / (1000 * 60 * 60 * 24))
+          frequency: row.frequency || "Quarterly",
+          dividend_type: row.dividend_type || "Regular Cash",
+          currency: "USD",
+          market_impact: "Medium",
+          days_until_event: Math.ceil(
+            (new Date(row.ex_dividend_date) - new Date()) /
+              (1000 * 60 * 60 * 24)
+          ),
         }));
-        dataSource = 'database';
+        dataSource = "database";
       } else {
-        console.log('ℹ️ No dividend events found in database, generating sample data...');
-        throw new Error('No data in database, using generated data');
+        console.log(
+          "ℹ️ No dividend events found in database, generating sample data..."
+        );
+        throw new Error("No data in database, using generated data");
       }
-
     } catch (dbError) {
-      console.log('⚠️ Database query failed, using generated data:', dbError.message);
-      dataSource = 'generated';
+      console.log(
+        "⚠️ Database query failed, using generated data:",
+        dbError.message
+      );
+      dataSource = "generated";
     }
 
     // If database failed, return error instead of generating data
-    if (dataSource === 'generated') {
+    if (dataSource === "generated") {
       return res.status(503).json({
         success: false,
         error: "Dividend calendar data unavailable",
-        message: "Database query failed and no sample data will be provided. Please ensure the dividend_calendar table is populated.",
-        details: "The dividend calendar requires real dividend data to function properly.",
-        timestamp: new Date().toISOString()
+        message:
+          "Database query failed and no sample data will be provided. Please ensure the dividend_calendar table is populated.",
+        details:
+          "The dividend calendar requires real dividend data to function properly.",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -220,13 +254,16 @@ router.get("/calendar", async (req, res) => {
       acc[event.event_type] = (acc[event.event_type] || 0) + 1;
       return acc;
     }, {});
-    
+
     const totalDividendAmount = dividendEvents
-      .filter(event => event.event_type === 'payment')
+      .filter((event) => event.event_type === "payment")
       .reduce((sum, event) => sum + event.dividend_amount, 0);
-    
-    const avgYield = dividendEvents.length > 0 ?
-      dividendEvents.reduce((sum, event) => sum + event.dividend_yield, 0) / dividendEvents.length : 0;
+
+    const avgYield =
+      dividendEvents.length > 0
+        ? dividendEvents.reduce((sum, event) => sum + event.dividend_yield, 0) /
+          dividendEvents.length
+        : 0;
 
     // Calculate summary statistics
     const summary = {
@@ -235,41 +272,83 @@ router.get("/calendar", async (req, res) => {
       by_frequency: {},
       by_sector: {},
       date_range: {
-        from: new Date().toISOString().split('T')[0],
-        to: new Date(Date.now() + parseInt(days) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        days_covered: parseInt(days)
+        from: new Date().toISOString().split("T")[0],
+        to: new Date(Date.now() + parseInt(days) * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
+        days_covered: parseInt(days),
       },
       dividend_stats: {
-        avg_yield: dividendEvents.length > 0 ? parseFloat((dividendEvents.reduce((sum, e) => sum + e.dividend_yield, 0) / dividendEvents.length).toFixed(2)) : 0,
-        avg_amount: dividendEvents.length > 0 ? parseFloat((dividendEvents.reduce((sum, e) => sum + e.dividend_amount, 0) / dividendEvents.length).toFixed(3)) : 0,
-        highest_yield: dividendEvents.length > 0 ? Math.max(...dividendEvents.map(e => e.dividend_yield)) : 0,
-        lowest_yield: dividendEvents.length > 0 ? Math.min(...dividendEvents.map(e => e.dividend_yield)) : 0,
-        total_dividend_value: dividendEvents.reduce((sum, e) => sum + e.dividend_amount, 0).toFixed(2)
+        avg_yield:
+          dividendEvents.length > 0
+            ? parseFloat(
+                (
+                  dividendEvents.reduce((sum, e) => sum + e.dividend_yield, 0) /
+                  dividendEvents.length
+                ).toFixed(2)
+              )
+            : 0,
+        avg_amount:
+          dividendEvents.length > 0
+            ? parseFloat(
+                (
+                  dividendEvents.reduce(
+                    (sum, e) => sum + e.dividend_amount,
+                    0
+                  ) / dividendEvents.length
+                ).toFixed(3)
+              )
+            : 0,
+        highest_yield:
+          dividendEvents.length > 0
+            ? Math.max(...dividendEvents.map((e) => e.dividend_yield))
+            : 0,
+        lowest_yield:
+          dividendEvents.length > 0
+            ? Math.min(...dividendEvents.map((e) => e.dividend_yield))
+            : 0,
+        total_dividend_value: dividendEvents
+          .reduce((sum, e) => sum + e.dividend_amount, 0)
+          .toFixed(2),
       },
-      this_week: dividendEvents.filter(e => new Date(e.ex_dividend_date) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).length,
-      next_week: dividendEvents.filter(e => {
+      this_week: dividendEvents.filter(
+        (e) =>
+          new Date(e.ex_dividend_date) <=
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      ).length,
+      next_week: dividendEvents.filter((e) => {
         const eventDate = new Date(e.ex_dividend_date);
         const nextWeekStart = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         const nextWeekEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
         return eventDate > nextWeekStart && eventDate <= nextWeekEnd;
-      }).length
+      }).length,
     };
 
     // Calculate breakdowns
-    const eventTypesUnique = [...new Set(dividendEvents.map(e => e.dividend_type || 'Regular'))];
-    const frequenciesUnique = [...new Set(dividendEvents.map(e => e.frequency))];
-    const sectorsUnique = [...new Set(dividendEvents.map(e => e.sector))];
+    const eventTypesUnique = [
+      ...new Set(dividendEvents.map((e) => e.dividend_type || "Regular")),
+    ];
+    const frequenciesUnique = [
+      ...new Set(dividendEvents.map((e) => e.frequency)),
+    ];
+    const sectorsUnique = [...new Set(dividendEvents.map((e) => e.sector))];
 
-    eventTypesUnique.forEach(type => {
-      summary.by_event_type[type] = dividendEvents.filter(e => (e.dividend_type || 'Regular') === type).length;
+    eventTypesUnique.forEach((type) => {
+      summary.by_event_type[type] = dividendEvents.filter(
+        (e) => (e.dividend_type || "Regular") === type
+      ).length;
     });
 
-    frequenciesUnique.forEach(freq => {
-      summary.by_frequency[freq] = dividendEvents.filter(e => e.frequency === freq).length;
+    frequenciesUnique.forEach((freq) => {
+      summary.by_frequency[freq] = dividendEvents.filter(
+        (e) => e.frequency === freq
+      ).length;
     });
 
-    sectorsUnique.forEach(sector => {
-      summary.by_sector[sector] = dividendEvents.filter(e => e.sector === sector).length;
+    sectorsUnique.forEach((sector) => {
+      summary.by_sector[sector] = dividendEvents.filter(
+        (e) => e.sector === sector
+      ).length;
     });
 
     res.json({
@@ -281,34 +360,36 @@ router.get("/calendar", async (req, res) => {
           days: parseInt(days),
           event_type: event_type,
           symbol: symbol || null,
-          yield_range: min_yield || max_yield ? {
-            min: min_yield ? parseFloat(min_yield) : null,
-            max: max_yield ? parseFloat(max_yield) : null
-          } : null,
+          yield_range:
+            min_yield || max_yield
+              ? {
+                  min: min_yield ? parseFloat(min_yield) : null,
+                  max: max_yield ? parseFloat(max_yield) : null,
+                }
+              : null,
           limit: parseInt(limit),
-          sort_by: sort_by
+          sort_by: sort_by,
         },
         available_filters: {
           event_types: ["all", "ex_dividend", "payment", "announcement"],
           frequencies: frequenciesUnique,
-          sort_options: ["date", "yield", "amount", "symbol"]
-        }
+          sort_options: ["date", "yield", "amount", "symbol"],
+        },
       },
       metadata: {
         total_returned: dividendEvents.length,
         data_source: dataSource,
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Dividend calendar error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dividend calendar",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

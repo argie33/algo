@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -15,26 +18,25 @@ describe("Stocks Routes Integration Tests", () => {
 
   describe("GET /api/stocks/sectors", () => {
     test("should return sectors data", async () => {
-      const response = await request(app)
-        .get("/api/stocks/sectors");
+      const response = await request(app).get("/api/stocks/sectors");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toBeDefined();
       }
     });
 
     test("should handle concurrent requests to sectors endpoint", async () => {
-      const requests = Array(5).fill().map(() => 
-        request(app).get("/api/stocks/sectors")
-      );
-      
+      const requests = Array(5)
+        .fill()
+        .map(() => request(app).get("/api/stocks/sectors"));
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
-        expect(response.headers['content-type']).toMatch(/json/);
+        expect(response.headers["content-type"]).toMatch(/json/);
       });
     });
   });
@@ -46,7 +48,7 @@ describe("Stocks Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toBeDefined();
       }
@@ -77,8 +79,7 @@ describe("Stocks Routes Integration Tests", () => {
     });
 
     test("should require authentication for search", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=AAPL");
+      const response = await request(app).get("/api/stocks/search?q=AAPL");
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -136,8 +137,7 @@ describe("Stocks Routes Integration Tests", () => {
     });
 
     test("should require authentication for trending", async () => {
-      const response = await request(app)
-        .get("/api/stocks/trending");
+      const response = await request(app).get("/api/stocks/trending");
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -274,8 +274,7 @@ describe("Stocks Routes Integration Tests", () => {
 
   describe("Authentication Tests", () => {
     test("should handle requests without authentication", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=AAPL");
+      const response = await request(app).get("/api/stocks/search?q=AAPL");
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -309,25 +308,37 @@ describe("Stocks Routes Integration Tests", () => {
     test("should handle concurrent requests", async () => {
       const requests = [
         request(app).get("/api/stocks/sectors"),
-        request(app).get("/api/stocks/search?q=A").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/stocks/AAPL").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/stocks/trending").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/stocks/search?q=A")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/stocks/AAPL")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/stocks/trending")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
-      
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 400, 401].includes(response.status)).toBe(true);
       });
     });
 
     test("should handle invalid parameters gracefully", async () => {
       const invalidRequests = [
-        request(app).get("/api/stocks/search?q=A&limit=abc").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/stocks/trending?timeframe=INVALID").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/stocks/search?q=A&limit=1000").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/stocks/search?q=A&limit=abc")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/stocks/trending?timeframe=INVALID")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/stocks/search?q=A&limit=1000")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
-      
+
       for (const req of invalidRequests) {
         const response = await req;
         expect([200, 400, 401].includes(response.status)).toBe(true);
@@ -335,18 +346,15 @@ describe("Stocks Routes Integration Tests", () => {
     });
 
     test("should validate response content types", async () => {
-      const endpoints = [
-        "/api/stocks/sectors",
-        "/api/stocks/search?q=AAPL"
-      ];
-      
+      const endpoints = ["/api/stocks/sectors", "/api/stocks/search?q=AAPL"];
+
       for (const endpoint of endpoints) {
         const response = await request(app)
           .get(endpoint)
           .set("Authorization", "Bearer dev-bypass-token");
-        
+
         if ([200, 400, 401].includes(response.status)) {
-          expect(response.headers['content-type']).toMatch(/application\/json/);
+          expect(response.headers["content-type"]).toMatch(/application\/json/);
         }
       }
     });
@@ -355,14 +363,14 @@ describe("Stocks Routes Integration Tests", () => {
       const maliciousInputs = [
         "'; DROP TABLE stocks; --",
         "1' OR '1'='1",
-        "UNION SELECT * FROM users"
+        "UNION SELECT * FROM users",
       ];
-      
+
       for (const input of maliciousInputs) {
         const response = await request(app)
           .get(`/api/stocks/${encodeURIComponent(input)}`)
           .set("Authorization", "Bearer dev-bypass-token");
-        
+
         expect([200, 400, 401].includes(response.status)).toBe(true);
       }
     });
@@ -373,7 +381,7 @@ describe("Stocks Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
       }

@@ -11,24 +11,21 @@ router.get("/", async (req, res) => {
     status: "operational",
     endpoints: [
       "GET /stocks - Get stock positioning data",
-      "GET /summary - Get positioning summary"
+      "GET /summary - Get positioning summary",
     ],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Get stock positioning data
 router.get("/stocks", async (req, res) => {
   try {
-    const { 
-      symbol, 
-      timeframe = "daily", 
-      limit = 50, 
-      page = 1 
-    } = req.query;
-    
+    const { symbol, timeframe = "daily", limit = 50, page = 1 } = req.query;
+
     const offset = (page - 1) * limit;
-    console.log(`📊 Stock positioning data requested - symbol: ${symbol || 'all'}, timeframe: ${timeframe}`);
+    console.log(
+      `📊 Stock positioning data requested - symbol: ${symbol || "all"}, timeframe: ${timeframe}`
+    );
 
     // Get institutional positioning
     let institutionalQuery = `
@@ -43,13 +40,13 @@ router.get("/stocks", async (req, res) => {
         quarter
       FROM institutional_positioning
     `;
-    
+
     let params = [];
     if (symbol) {
       institutionalQuery += ` WHERE symbol = $1`;
       params.push(symbol);
     }
-    
+
     institutionalQuery += ` ORDER BY filing_date DESC, position_size DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
@@ -66,7 +63,7 @@ router.get("/stocks", async (req, res) => {
         date
       FROM retail_sentiment
     `;
-    
+
     let sentimentParams = [];
     if (symbol) {
       sentimentQuery += ` WHERE symbol = $1`;
@@ -75,14 +72,14 @@ router.get("/stocks", async (req, res) => {
     sentimentQuery += ` ORDER BY date DESC LIMIT 10`;
 
     const [institutionalResult, sentimentResult] = await Promise.all([
-      query(institutionalQuery, params).catch(err => {
+      query(institutionalQuery, params).catch((err) => {
         console.warn("Institutional positioning query failed:", err.message);
         return { rows: [] };
       }),
-      query(sentimentQuery, sentimentParams).catch(err => {
-        console.warn("Retail sentiment query failed:", err.message);  
+      query(sentimentQuery, sentimentParams).catch((err) => {
+        console.warn("Retail sentiment query failed:", err.message);
         return { rows: [] };
-      })
+      }),
     ]);
 
     if (!institutionalResult.rows.length && !sentimentResult.rows.length) {
@@ -93,22 +90,25 @@ router.get("/stocks", async (req, res) => {
       institutional_positioning: institutionalResult.rows,
       retail_sentiment: sentimentResult.rows,
       metadata: {
-        symbol: symbol || 'all',
+        symbol: symbol || "all",
         timeframe: timeframe,
         total_records: {
           institutional: institutionalResult.rows.length,
-          sentiment: sentimentResult.rows.length
+          sentiment: sentimentResult.rows.length,
         },
-        last_updated: new Date().toISOString()
-      }
+        last_updated: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     console.error("Error fetching stock positioning data:", error);
-    res.status(500).json({success: false, error: "Failed to fetch stock positioning data"});
+    res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch stock positioning data",
+      });
   }
 });
-
 
 // Get positioning summary
 router.get("/summary", async (req, res) => {
@@ -124,7 +124,7 @@ router.get("/summary", async (req, res) => {
       WHERE filing_date >= CURRENT_DATE - INTERVAL '90 days'
     `);
 
-    // Get retail sentiment summary  
+    // Get retail sentiment summary
     const retailSummary = await query(`
       SELECT 
         AVG(bullish_percentage) as avg_bullish,
@@ -142,8 +142,11 @@ router.get("/summary", async (req, res) => {
     if (institutional.avg_change > 2 && retail.avg_net_sentiment > 40) {
       overall_positioning = "BULLISH";
     } else if (institutional.avg_change > 0 && retail.avg_net_sentiment > 20) {
-      overall_positioning = "MODERATELY_BULLISH"; 
-    } else if (institutional.avg_change < -2 && retail.avg_net_sentiment < -20) {
+      overall_positioning = "MODERATELY_BULLISH";
+    } else if (
+      institutional.avg_change < -2 &&
+      retail.avg_net_sentiment < -20
+    ) {
       overall_positioning = "BEARISH";
     } else if (institutional.avg_change < 0 && retail.avg_net_sentiment < 0) {
       overall_positioning = "MODERATELY_BEARISH";
@@ -151,24 +154,31 @@ router.get("/summary", async (req, res) => {
 
     res.json({
       market_overview: {
-        institutional_flow: institutional.avg_change > 0 ? "BULLISH" : "BEARISH",
-        retail_sentiment: retail.avg_net_sentiment > 20 ? "BULLISH" : retail.avg_net_sentiment < -20 ? "BEARISH" : "MIXED",
-        overall_positioning: overall_positioning
+        institutional_flow:
+          institutional.avg_change > 0 ? "BULLISH" : "BEARISH",
+        retail_sentiment:
+          retail.avg_net_sentiment > 20
+            ? "BULLISH"
+            : retail.avg_net_sentiment < -20
+              ? "BEARISH"
+              : "MIXED",
+        overall_positioning: overall_positioning,
       },
       key_metrics: {
         institutional_avg_change: parseFloat(institutional.avg_change || 0),
-        retail_net_sentiment: parseFloat(retail.avg_net_sentiment || 0)
+        retail_net_sentiment: parseFloat(retail.avg_net_sentiment || 0),
       },
       data_freshness: {
         institutional_positions: parseInt(institutional.total_positions || 0),
-        retail_readings: "last_30_days"  
+        retail_readings: "last_30_days",
       },
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching positioning summary:", error);
-    res.status(500).json({success: false, error: "Failed to fetch positioning summary"});
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch positioning summary" });
   }
 });
 

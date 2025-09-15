@@ -16,23 +16,23 @@ router.use(responseFormatter);
 router.get("/results/:testId", async (req, res) => {
   try {
     const { testId } = req.params;
-    
+
     console.log(`📊 Retrieving backtest results for ID: ${testId}`);
-    
+
     // Get backtest from store
     let backtest = backtestStore.getBacktest(testId);
-    
+
     // Special case for "test" ID - return sample data for API testing
-    if (!backtest && testId === 'test') {
+    if (!backtest && testId === "test") {
       backtest = {
-        id: 'test',
-        status: 'completed',
+        id: "test",
+        status: "completed",
         config: {
-          strategy: 'sample_strategy',
-          symbols: ['AAPL', 'MSFT'],
-          startDate: '2024-01-01',
-          endDate: '2024-12-31',
-          initialCapital: 100000
+          strategy: "sample_strategy",
+          symbols: ["AAPL", "MSFT"],
+          startDate: "2024-01-01",
+          endDate: "2024-12-31",
+          initialCapital: 100000,
         },
         results: {
           summary: {
@@ -42,54 +42,68 @@ router.get("/results/:testId", async (req, res) => {
             winRate: 64.4,
             sharpeRatio: 1.2,
             maxDrawdown: -8.5,
-            finalValue: 115230
+            finalValue: 115230,
           },
           trades: [
-            { date: '2024-01-15', symbol: 'AAPL', type: 'buy', quantity: 100, price: 175.50, pnl: 0 },
-            { date: '2024-02-01', symbol: 'AAPL', type: 'sell', quantity: 100, price: 182.30, pnl: 680 }
+            {
+              date: "2024-01-15",
+              symbol: "AAPL",
+              type: "buy",
+              quantity: 100,
+              price: 175.5,
+              pnl: 0,
+            },
+            {
+              date: "2024-02-01",
+              symbol: "AAPL",
+              type: "sell",
+              quantity: 100,
+              price: 182.3,
+              pnl: 680,
+            },
           ],
           equity: [
-            { date: '2024-01-01', value: 100000 },
-            { date: '2024-06-30', value: 107500 },
-            { date: '2024-12-31', value: 115230 }
-          ]
+            { date: "2024-01-01", value: 100000 },
+            { date: "2024-06-30", value: 107500 },
+            { date: "2024-12-31", value: 115230 },
+          ],
         },
         createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
+        completedAt: new Date().toISOString(),
       };
     }
-    
+
     if (!backtest) {
       return res.status(404).json({
         success: false,
         error: "Backtest not found",
         message: `No backtest found with ID: ${testId}`,
-        available: backtestStore.listBacktests().map(bt => bt.id)
+        available: backtestStore.listBacktests().map((bt) => bt.id),
       });
     }
 
     // Check if backtest is complete
-    if (backtest.status === 'running') {
+    if (backtest.status === "running") {
       return res.json({
         success: true,
         data: {
           id: testId,
-          status: 'running',
+          status: "running",
           progress: backtest.progress || 0,
           startTime: backtest.startTime,
           message: "Backtest is still running",
-          estimatedCompletion: backtest.estimatedCompletion
+          estimatedCompletion: backtest.estimatedCompletion,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
-    if (backtest.status === 'failed') {
+    if (backtest.status === "failed") {
       return res.status(500).json({
         success: false,
         error: "Backtest failed",
         details: backtest.error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -105,15 +119,16 @@ router.get("/results/:testId", async (req, res) => {
           trades: backtest.results?.trades || [],
           equity: backtest.results?.equity || [],
           metrics: backtest.results?.metrics || {},
-          charts: backtest.results?.charts || {}
+          charts: backtest.results?.charts || {},
         },
         performance: {
           totalReturn: backtest.results?.performance?.totalReturn || 0,
-          annualizedReturn: backtest.results?.performance?.annualizedReturn || 0,
+          annualizedReturn:
+            backtest.results?.performance?.annualizedReturn || 0,
           sharpeRatio: backtest.results?.performance?.sharpeRatio || 0,
           maxDrawdown: backtest.results?.performance?.maxDrawdown || 0,
           winRate: backtest.results?.performance?.winRate || 0,
-          totalTrades: backtest.results?.performance?.totalTrades || 0
+          totalTrades: backtest.results?.performance?.totalTrades || 0,
         },
         timing: {
           startTime: backtest.startTime,
@@ -121,20 +136,19 @@ router.get("/results/:testId", async (req, res) => {
           duration: backtest.duration,
           backtestPeriod: {
             start: backtest.config?.startDate,
-            end: backtest.config?.endDate
-          }
-        }
+            end: backtest.config?.endDate,
+          },
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error retrieving backtest results:", error);
     res.status(500).json({
       success: false,
       error: "Failed to retrieve backtest results",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -430,18 +444,19 @@ router.get("/run", async (req, res) => {
       symbols: "Array of stock symbols (optional, defaults to popular stocks)",
       startDate: "Start date for backtest (required)",
       endDate: "End date for backtest (optional, defaults to today)",
-      initialCapital: "Initial capital amount (optional, defaults to 10000)"
+      initialCapital: "Initial capital amount (optional, defaults to 10000)",
     },
     example: {
       strategy: "// Simple moving average crossover strategy",
-      config: { "sma_short": 20, "sma_long": 50 },
+      config: { sma_short: 20, sma_long: 50 },
       symbols: ["AAPL", "MSFT", "GOOGL"],
       startDate: "2023-01-01",
       endDate: "2024-01-01",
-      initialCapital: 10000
+      initialCapital: 10000,
     },
-    usage: "Use POST method to submit backtest request with strategy and parameters",
-    timestamp: new Date().toISOString()
+    usage:
+      "Use POST method to submit backtest request with strategy and parameters",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -458,7 +473,9 @@ router.post("/run", async (req, res) => {
 
     // Validate input
     if (!strategy) {
-      return res.status(400).json({success: false, error: "Strategy code is required"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Strategy code is required" });
     }
 
     if (!startDate || !endDate) {
@@ -468,7 +485,9 @@ router.post("/run", async (req, res) => {
     }
 
     if (symbols.length === 0) {
-      return res.status(400).json({success: false, error: "At least one symbol is required"});
+      return res
+        .status(400)
+        .json({ success: false, error: "At least one symbol is required" });
     }
 
     // Initialize backtest engine
@@ -522,7 +541,9 @@ router.post("/run", async (req, res) => {
       try {
         await engine.executeStrategy(strategy, currentData);
       } catch (error) {
-        return res.status(400).json({success: false, error: "Strategy execution failed"});
+        return res
+          .status(400)
+          .json({ success: false, error: "Strategy execution failed" });
       }
 
       // Update portfolio value
@@ -533,7 +554,8 @@ router.post("/run", async (req, res) => {
     const metrics = engine.calculateMetrics();
 
     // Return results
-    res.json({config: backtestConfig,
+    res.json({
+      config: backtestConfig,
       metrics,
       equity: engine.equity,
       trades: engine.trades,
@@ -546,7 +568,9 @@ router.post("/run", async (req, res) => {
     });
   } catch (error) {
     console.error("Backtest error:", error);
-    return res.status(500).json({success: false, error: "Backtest execution failed"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Backtest execution failed" });
   }
 });
 
@@ -554,7 +578,9 @@ router.post("/run", async (req, res) => {
 router.post("/run-python", async (req, res) => {
   const { strategy, input: _input } = req.body;
   if (!strategy) {
-    return res.status(400).json({success: false, error: "Python strategy code is required"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Python strategy code is required" });
   }
   // Write code to temp file
   const tempFile = path.join(__dirname, `temp_strategy_${Date.now()}.py`);
@@ -567,35 +593,42 @@ router.post("/run-python", async (req, res) => {
     (err, stdout, stderr) => {
       require("fs").unlinkSync(tempFile);
       if (err) {
-        return res.status(400).json({success: false, error: "Python execution failed"});
+        return res
+          .status(400)
+          .json({ success: false, error: "Python execution failed" });
       }
-      res.json({ success: true, output: stdout, error: stderr  });
+      res.json({ success: true, output: stdout, error: stderr });
     }
   );
 });
 
 // User strategy management endpoints
 router.get("/strategies", (req, res) => {
-  return res.json({ success: true,  strategies: backtestStore.loadStrategies()  });
+  return res.json({
+    success: true,
+    strategies: backtestStore.loadStrategies(),
+  });
 });
 
 router.post("/strategies", (req, res) => {
   const { name, code, language } = req.body;
   if (!name || !code)
-    return res.status(400).json({success: false, error: "Name and code required"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Name and code required" });
   const strategy = backtestStore.addStrategy({ name, code, language });
-  return res.json({ success: true,  strategy  });
+  return res.json({ success: true, strategy });
 });
 
 router.get("/strategies/:id", (req, res) => {
   const strategy = backtestStore.getStrategy(req.params.id);
-  if (!strategy) return res.notFound("Not found" );
-  return res.json({ success: true,  strategy  });
+  if (!strategy) return res.notFound("Not found");
+  return res.json({ success: true, strategy });
 });
 
 router.delete("/strategies/:id", (req, res) => {
   backtestStore.deleteStrategy(req.params.id);
-  res.json({ success: true,  });
+  res.json({ success: true });
 });
 
 // Get historical data for a symbol
@@ -643,7 +676,7 @@ router.get("/symbols", async (req, res) => {
     const result = await query(sqlQuery, [`%${search}%`, limit]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     return res.json({
@@ -651,7 +684,7 @@ router.get("/symbols", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching symbols:", error);
-    return res.status(500).json({success: false, error: "Database error"});
+    return res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -769,10 +802,10 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
       },
     ];
 
-    return res.json({ success: true,  templates  });
+    return res.json({ success: true, templates });
   } catch (error) {
     console.error("Error fetching templates:", error);
-    return res.status(500).json({success: false, error: "Database error"});
+    return res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -782,14 +815,20 @@ router.post("/validate", async (req, res) => {
     const { strategy } = req.body;
 
     if (!strategy) {
-      return res.status(400).json({success: false, error: "Strategy code is required"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Strategy code is required" });
     }
 
     // Basic syntax validation
     try {
       // eslint-disable-next-line no-new-func
       new Function("context", `with(context) { ${strategy} }`);
-      return res.json({ success: true,  valid: true, message: "Strategy code is valid"  });
+      return res.json({
+        success: true,
+        valid: true,
+        message: "Strategy code is valid",
+      });
     } catch (error) {
       return res.json({
         valid: false,
@@ -799,7 +838,7 @@ router.post("/validate", async (req, res) => {
     }
   } catch (error) {
     console.error("Validation error:", error);
-    return res.status(500).json({success: false, error: "Database error"});
+    return res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -807,7 +846,7 @@ router.post("/validate", async (req, res) => {
 router.get("/results/test", async (req, res) => {
   try {
     console.log("📊 [BACKTEST] Getting test backtest results");
-    
+
     // Return a sample test backtest result
     const testResult = {
       id: "test-backtest-001",
@@ -821,7 +860,7 @@ router.get("/results/test", async (req, res) => {
         win_rate: 67.5,
         total_trades: 24,
         final_value: 115250,
-        start_value: 100000
+        start_value: 100000,
       },
       performance_metrics: {
         annualized_return: 12.8,
@@ -829,32 +868,32 @@ router.get("/results/test", async (req, res) => {
         calmar_ratio: 1.47,
         sortino_ratio: 1.85,
         beta: 0.92,
-        alpha: 3.2
+        alpha: 3.2,
       },
       execution_details: {
         start_date: "2023-01-01",
         end_date: "2023-12-31",
         symbols: ["AAPL", "MSFT", "GOOGL"],
         initial_capital: 100000,
-        commission: 0.001
+        commission: 0.001,
       },
       created_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
-      duration_ms: 2847
+      duration_ms: 2847,
     };
-    
+
     res.json({
       success: true,
       data: testResult,
       message: "Test backtest results retrieved successfully",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching test backtest results:", error);
     return res.status(500).json({
-      success: false, 
+      success: false,
       error: "Failed to fetch test backtest results",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -863,32 +902,34 @@ router.get("/results/test", async (req, res) => {
 router.get("/results", async (req, res) => {
   try {
     const { backtestId, limit = 50, status } = req.query;
-    console.log(`📊 Backtest results requested - ID: ${backtestId || 'all'}, limit: ${limit}`);
-    
+    console.log(
+      `📊 Backtest results requested - ID: ${backtestId || "all"}, limit: ${limit}`
+    );
+
     // Get backtest results from storage
     const allResults = backtestStore.loadStrategies();
-    
+
     let filteredResults = allResults;
-    
+
     // Filter by backtest ID if provided
     if (backtestId) {
-      filteredResults = allResults.filter(result => 
-        result.id === backtestId || result.name === backtestId
+      filteredResults = allResults.filter(
+        (result) => result.id === backtestId || result.name === backtestId
       );
     }
-    
+
     // Filter by status if provided
     if (status) {
-      filteredResults = filteredResults.filter(result => 
-        result.status === status
+      filteredResults = filteredResults.filter(
+        (result) => result.status === status
       );
     }
-    
+
     // Apply limit
     const results = filteredResults.slice(0, parseInt(limit));
-    
+
     // Enhance results with performance metrics if available
-    const enhancedResults = results.map(result => ({
+    const enhancedResults = results.map((result) => ({
       ...result,
       summary: {
         total_return: result.totalReturn || 0,
@@ -897,12 +938,13 @@ router.get("/results", async (req, res) => {
         win_rate: result.winRate || 0,
         total_trades: result.totalTrades || 0,
         final_value: result.finalValue || 100000,
-        start_value: result.startValue || 100000
+        start_value: result.startValue || 100000,
       },
-      created_at: result.createdAt || result.timestamp || new Date().toISOString(),
-      status: result.status || 'completed'
+      created_at:
+        result.createdAt || result.timestamp || new Date().toISOString(),
+      status: result.status || "completed",
     }));
-    
+
     res.json({
       success: true,
       data: enhancedResults,
@@ -911,16 +953,16 @@ router.get("/results", async (req, res) => {
       filters: {
         backtestId: backtestId || null,
         status: status || null,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Backtest results error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch backtest results",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -929,10 +971,10 @@ router.get("/results", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     console.log("📊 [BACKTEST] Getting user backtest results");
-    
+
     // Get some sample backtest results from the backtestStore
     const results = backtestStore.loadStrategies();
-    
+
     res.json({
       success: true,
       data: results.slice(0, 10), // Return up to 10 results
@@ -941,7 +983,13 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching backtest results:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch backtest results",  details: error.message });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch backtest results",
+        details: error.message,
+      });
   }
 });
 
@@ -949,9 +997,9 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     console.log("📊 [BACKTEST] Creating new backtest");
-    
+
     const { name, strategy, symbols, startDate, endDate } = req.body;
-    
+
     // Create a simple backtest record
     const backtestId = `test-backtest-${Date.now()}`;
     const backtest = {
@@ -964,10 +1012,10 @@ router.post("/", async (req, res) => {
       status: "created",
       createdAt: new Date().toISOString(),
     };
-    
+
     // Store it using backtestStore
     backtestStore.saveResult(backtestId, backtest);
-    
+
     res.json({
       success: true,
       data: backtest,
@@ -975,7 +1023,13 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating backtest:", error);
-    return res.status(500).json({success: false, error: "Failed to create backtest",  details: error.message });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to create backtest",
+        details: error.message,
+      });
   }
 });
 
@@ -984,21 +1038,29 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     console.log(`📊 [BACKTEST] Getting backtest ${id}`);
-    
+
     // Try to get from backtestStore
     const backtest = backtestStore.getStrategy(id);
-    
+
     if (!backtest) {
-      return res.error("Backtest not found", 404, { message: `No backtest found with ID ${id}` });
+      return res.error("Backtest not found", 404, {
+        message: `No backtest found with ID ${id}`,
+      });
     }
-    
+
     res.json({
       success: true,
       data: backtest,
     });
   } catch (error) {
     console.error("Error fetching backtest:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch backtest",  details: error.message });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch backtest",
+        details: error.message,
+      });
   }
 });
 
@@ -1007,23 +1069,29 @@ router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     console.log(`📊 [BACKTEST] Deleting backtest ${id}`);
-    
+
     // Check if backtest exists
     const backtest = backtestStore.getStrategy(id);
-    
+
     if (!backtest) {
-      return res.error("Backtest not found", 404, { message: `No backtest found with ID ${id}` });
+      return res.error("Backtest not found", 404, {
+        message: `No backtest found with ID ${id}`,
+      });
     }
-    
+
     // Delete from backtestStore (this will just remove from memory)
     // In a real implementation, this would delete from database
-    
-    res.json({message: `Backtest ${id} deleted successfully`,
-      deletedId: id,
-    });
+
+    res.json({ message: `Backtest ${id} deleted successfully`, deletedId: id });
   } catch (error) {
     console.error("Error deleting backtest:", error);
-    return res.status(500).json({success: false, error: "Failed to delete backtest",  details: error.message });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to delete backtest",
+        details: error.message,
+      });
   }
 });
 
@@ -1036,17 +1104,19 @@ router.get("/optimize", async (req, res) => {
       parameters = "{}",
       optimization_target = "sharpe_ratio",
       max_iterations = 100,
-      timeout_minutes: _timeout_minutes = 30
+      timeout_minutes: _timeout_minutes = 30,
     } = req.query;
 
-    console.log(`⚡ Backtest optimization requested - type: ${optimization_type}, target: ${optimization_target}`);
+    console.log(
+      `⚡ Backtest optimization requested - type: ${optimization_type}, target: ${optimization_target}`
+    );
 
     if (!strategy_id) {
       return res.status(400).json({
         success: false,
         error: "Strategy ID is required",
         message: "Please provide a strategy_id parameter to optimize",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1059,18 +1129,23 @@ router.get("/optimize", async (req, res) => {
         success: false,
         error: "Invalid parameters format",
         message: "Parameters must be valid JSON",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Generate optimization results based on the strategy
-    const generateOptimizationResults = (strategyId, optType, target, maxIter) => {
+    const generateOptimizationResults = (
+      strategyId,
+      optType,
+      target,
+      maxIter
+    ) => {
       const optimizationMethods = {
         grid_search: "Systematic grid search across parameter space",
         random_search: "Random sampling with Bayesian optimization",
         genetic_algorithm: "Evolutionary optimization with genetic operators",
         particle_swarm: "Swarm intelligence optimization",
-        bayesian: "Bayesian optimization with Gaussian processes"
+        bayesian: "Bayesian optimization with Gaussian processes",
       };
 
       const optimizationTargets = {
@@ -1080,19 +1155,19 @@ router.get("/optimize", async (req, res) => {
         win_rate: "Maximize win rate percentage",
         profit_factor: "Maximize profit factor",
         calmar_ratio: "Maximize Calmar ratio",
-        sortino_ratio: "Maximize Sortino ratio"
+        sortino_ratio: "Maximize Sortino ratio",
       };
 
       // Simulate optimization iterations
       const iterations = [];
       const basePerformance = {
         total_return: 0.15 + Math.random() * 0.25, // 15-40%
-        sharpe_ratio: 0.8 + Math.random() * 1.2,   // 0.8-2.0
+        sharpe_ratio: 0.8 + Math.random() * 1.2, // 0.8-2.0
         max_drawdown: -(0.05 + Math.random() * 0.15), // -5% to -20%
-        win_rate: 0.45 + Math.random() * 0.25,     // 45-70%
-        profit_factor: 1.1 + Math.random() * 0.9,  // 1.1-2.0
-        calmar_ratio: 0.5 + Math.random() * 1.0,   // 0.5-1.5
-        sortino_ratio: 1.0 + Math.random() * 1.5   // 1.0-2.5
+        win_rate: 0.45 + Math.random() * 0.25, // 45-70%
+        profit_factor: 1.1 + Math.random() * 0.9, // 1.1-2.0
+        calmar_ratio: 0.5 + Math.random() * 1.0, // 0.5-1.5
+        sortino_ratio: 1.0 + Math.random() * 1.5, // 1.0-2.5
       };
 
       let bestScore = basePerformance[target];
@@ -1101,7 +1176,7 @@ router.get("/optimize", async (req, res) => {
       for (let i = 0; i < Math.min(maxIter, 50); i++) {
         // Generate parameter variations
         const paramVariation = {};
-        Object.keys(optimizationParams).forEach(key => {
+        Object.keys(optimizationParams).forEach((key) => {
           const baseValue = optimizationParams[key];
           const variation = (Math.random() - 0.5) * 0.4; // ±20% variation
           paramVariation[key] = baseValue * (1 + variation);
@@ -1109,20 +1184,21 @@ router.get("/optimize", async (req, res) => {
 
         // Simulate performance with variations
         const performance = { ...basePerformance };
-        Object.keys(performance).forEach(metric => {
+        Object.keys(performance).forEach((metric) => {
           const improvement = (Math.random() - 0.5) * 0.3; // ±15% variation
           performance[metric] = basePerformance[metric] * (1 + improvement);
         });
 
         // Apply optimization bias (later iterations tend to be better)
-        const improvementBias = i / maxIter * 0.2; // Up to 20% improvement
+        const improvementBias = (i / maxIter) * 0.2; // Up to 20% improvement
         performance[target] = performance[target] * (1 + improvementBias);
 
         // Track best performance
         const currentScore = performance[target];
-        const isBetter = target === 'max_drawdown' ? 
-          currentScore > bestScore : // Drawdown: higher (less negative) is better
-          currentScore > bestScore;  // Others: higher is better
+        const isBetter =
+          target === "max_drawdown"
+            ? currentScore > bestScore // Drawdown: higher (less negative) is better
+            : currentScore > bestScore; // Others: higher is better
 
         if (isBetter) {
           bestScore = currentScore;
@@ -1135,13 +1211,17 @@ router.get("/optimize", async (req, res) => {
           performance: performance,
           target_score: currentScore,
           is_best: isBetter,
-          improvement_over_baseline: ((currentScore - basePerformance[target]) / Math.abs(basePerformance[target]) * 100).toFixed(2)
+          improvement_over_baseline: (
+            ((currentScore - basePerformance[target]) /
+              Math.abs(basePerformance[target])) *
+            100
+          ).toFixed(2),
         });
       }
 
       // Sort iterations by target score
       iterations.sort((a, b) => {
-        if (target === 'max_drawdown') {
+        if (target === "max_drawdown") {
           return b.performance[target] - a.performance[target]; // Higher drawdown (less negative) first
         }
         return b.performance[target] - a.performance[target]; // Higher scores first
@@ -1154,7 +1234,7 @@ router.get("/optimize", async (req, res) => {
           method: optType,
           target_metric: target,
           max_iterations: maxIter,
-          parameter_space: optimizationParams
+          parameter_space: optimizationParams,
         },
         methodology: optimizationMethods[optType] || "Unknown method",
         target_description: optimizationTargets[target] || "Unknown target",
@@ -1164,34 +1244,42 @@ router.get("/optimize", async (req, res) => {
         optimization_results: {
           total_iterations: iterations.length,
           improvement_achieved: true,
-          improvement_percentage: ((bestScore - basePerformance[target]) / Math.abs(basePerformance[target]) * 100).toFixed(2),
+          improvement_percentage: (
+            ((bestScore - basePerformance[target]) /
+              Math.abs(basePerformance[target])) *
+            100
+          ).toFixed(2),
           convergence_iteration: Math.floor(iterations.length * 0.7), // Assume convergence at 70%
-          optimization_time_minutes: Math.round(iterations.length * 0.5 * 100) / 100 // ~30s per iteration
+          optimization_time_minutes:
+            Math.round(iterations.length * 0.5 * 100) / 100, // ~30s per iteration
         },
         iteration_history: iterations,
-        parameter_sensitivity: Object.keys(optimizationParams).map(param => ({
+        parameter_sensitivity: Object.keys(optimizationParams).map((param) => ({
           parameter: param,
           sensitivity_score: Math.random() * 0.8 + 0.2, // 0.2-1.0
           optimal_range: {
             min: bestParams[param] * 0.9,
             max: bestParams[param] * 1.1,
-            optimal: bestParams[param]
+            optimal: bestParams[param],
           },
-          impact_description: Math.random() > 0.5 ? "High impact on performance" : "Moderate impact on performance"
+          impact_description:
+            Math.random() > 0.5
+              ? "High impact on performance"
+              : "Moderate impact on performance",
         })),
         recommendations: [
           "Use the optimized parameters for live trading with caution",
           "Validate results with out-of-sample testing",
           "Monitor performance closely for parameter drift",
           "Consider ensemble methods with multiple parameter sets",
-          "Implement robust risk management regardless of optimization"
+          "Implement robust risk management regardless of optimization",
         ],
         warnings: [
           "Optimization results may not generalize to future market conditions",
           "Overfitting risk increases with complex parameter spaces",
           "Market regime changes can invalidate optimized parameters",
-          "Transaction costs and slippage may affect real-world performance"
-        ]
+          "Transaction costs and slippage may affect real-world performance",
+        ],
       };
     };
 
@@ -1209,18 +1297,17 @@ router.get("/optimize", async (req, res) => {
         optimization_requested_at: new Date().toISOString(),
         estimated_completion_time: `${optimizationResult.optimization_results.optimization_time_minutes} minutes`,
         parameter_count: Object.keys(optimizationParams).length,
-        search_space_size: Math.pow(10, Object.keys(optimizationParams).length)
+        search_space_size: Math.pow(10, Object.keys(optimizationParams).length),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Backtest optimization error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to run backtest optimization",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

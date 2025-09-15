@@ -521,50 +521,56 @@ app.get("/", (req, res) => {
 const server = createServer(app);
 const wss = new WebSocket.Server({
   server,
-  path: '/ws'
+  path: "/ws",
 });
 
 // WebSocket connection handling
-wss.on('connection', (ws, req) => {
-  console.log('✅ New WebSocket connection established');
+wss.on("connection", (ws, req) => {
+  console.log("✅ New WebSocket connection established");
 
   // Send welcome message
-  ws.send(JSON.stringify({
-    type: 'welcome',
-    message: 'Connected to Financial Dashboard WebSocket',
-    timestamp: new Date().toISOString()
-  }));
+  ws.send(
+    JSON.stringify({
+      type: "welcome",
+      message: "Connected to Financial Dashboard WebSocket",
+      timestamp: new Date().toISOString(),
+    })
+  );
 
   // Handle incoming messages
-  ws.on('message', (message) => {
+  ws.on("message", (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('📨 Received WebSocket message:', data);
+      console.log("📨 Received WebSocket message:", data);
 
       // Echo back for now (can be extended for real-time data)
-      ws.send(JSON.stringify({
-        type: 'echo',
-        data: data,
-        timestamp: new Date().toISOString()
-      }));
+      ws.send(
+        JSON.stringify({
+          type: "echo",
+          data: data,
+          timestamp: new Date().toISOString(),
+        })
+      );
     } catch (error) {
-      console.error('❌ WebSocket message error:', error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: 'Invalid JSON message',
-        timestamp: new Date().toISOString()
-      }));
+      console.error("❌ WebSocket message error:", error);
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          message: "Invalid JSON message",
+          timestamp: new Date().toISOString(),
+        })
+      );
     }
   });
 
   // Handle connection close
-  ws.on('close', () => {
-    console.log('🔌 WebSocket connection closed');
+  ws.on("close", () => {
+    console.log("🔌 WebSocket connection closed");
   });
 
   // Handle errors
-  ws.on('error', (error) => {
-    console.error('❌ WebSocket error:', error);
+  ws.on("error", (error) => {
+    console.error("❌ WebSocket error:", error);
   });
 });
 
@@ -581,13 +587,13 @@ function broadcast(data) {
 global.broadcast = broadcast;
 
 // WebSocket endpoint handler for HTTP requests
-app.get('/ws', (req, res) => {
+app.get("/ws", (req, res) => {
   res.status(426).json({
-    error: 'Upgrade Required',
-    message: 'This endpoint requires WebSocket connection',
-    protocol: 'WebSocket',
-    endpoint: 'ws://localhost:3001/ws',
-    instructions: 'Use WebSocket client to connect'
+    error: "Upgrade Required",
+    message: "This endpoint requires WebSocket connection",
+    protocol: "WebSocket",
+    endpoint: "ws://localhost:3001/ws",
+    instructions: "Use WebSocket client to connect",
   });
 });
 

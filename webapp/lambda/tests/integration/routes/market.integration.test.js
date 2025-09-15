@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -15,11 +18,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market", () => {
     test("should return market endpoint information", async () => {
-      const response = await request(app)
-        .get("/api/market");
+      const response = await request(app).get("/api/market");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data) {
@@ -35,15 +37,14 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/overview", () => {
     test("should return market overview data", async () => {
-      const response = await request(app)
-        .get("/api/market/overview");
+      const response = await request(app).get("/api/market/overview");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
-        
+
         const data = response.body.data;
         if (data.marketSummary) {
           expect(data).toHaveProperty("marketSummary");
@@ -61,11 +62,12 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle market overview with parameters", async () => {
-      const response = await request(app)
-        .get("/api/market/overview?period=1d&includePremarket=true");
+      const response = await request(app).get(
+        "/api/market/overview?period=1d&includePremarket=true"
+      );
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -77,21 +79,21 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/data", () => {
     test("should return market data", async () => {
-      const response = await request(app)
-        .get("/api/market/data");
+      const response = await request(app).get("/api/market/data");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
-        
+
         if (Array.isArray(response.body.data)) {
           expect(Array.isArray(response.body.data)).toBe(true);
           if (response.body.data.length > 0) {
             const item = response.body.data[0];
             if (item.symbol) expect(item).toHaveProperty("symbol");
-            if (item.price !== undefined) expect(typeof item.price).toBe("number");
+            if (item.price !== undefined)
+              expect(typeof item.price).toBe("number");
           }
         }
       } else if (response.status === 404) {
@@ -102,14 +104,16 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle symbol-specific market data", async () => {
-      const response = await request(app)
-        .get("/api/market/data?symbol=AAPL");
+      const response = await request(app).get("/api/market/data?symbol=AAPL");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200 && response.body.data) {
         expect(response.body).toHaveProperty("success", true);
-        if (Array.isArray(response.body.data) && response.body.data.length > 0) {
+        if (
+          Array.isArray(response.body.data) &&
+          response.body.data.length > 0
+        ) {
           const item = response.body.data[0];
           if (item.symbol) {
             expect(item.symbol).toMatch(/^[A-Z]+$/);
@@ -121,11 +125,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/sentiment", () => {
     test("should return market sentiment data", async () => {
-      const response = await request(app)
-        .get("/api/market/sentiment");
+      const response = await request(app).get("/api/market/sentiment");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data) {
@@ -148,11 +151,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/sentiment/history", () => {
     test("should return sentiment history", async () => {
-      const response = await request(app)
-        .get("/api/market/sentiment/history");
+      const response = await request(app).get("/api/market/sentiment/history");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data && Array.isArray(response.body.data)) {
@@ -171,11 +173,12 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle sentiment history with time range", async () => {
-      const response = await request(app)
-        .get("/api/market/sentiment/history?days=30");
+      const response = await request(app).get(
+        "/api/market/sentiment/history?days=30"
+      );
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
       }
@@ -184,11 +187,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/movers", () => {
     test("should return top movers", async () => {
-      const response = await request(app)
-        .get("/api/market/movers");
+      const response = await request(app).get("/api/market/movers");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data) {
@@ -212,11 +214,12 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle movers with type parameter", async () => {
-      const response = await request(app)
-        .get("/api/market/movers?type=gainers");
+      const response = await request(app).get(
+        "/api/market/movers?type=gainers"
+      );
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
       }
@@ -225,11 +228,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/indices", () => {
     test("should return market indices", async () => {
-      const response = await request(app)
-        .get("/api/market/indices");
+      const response = await request(app).get("/api/market/indices");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data && Array.isArray(response.body.data)) {
@@ -238,7 +240,8 @@ describe("Market Routes Unit Tests", () => {
             const index = response.body.data[0];
             if (index.symbol) expect(index).toHaveProperty("symbol");
             if (index.name) expect(index).toHaveProperty("name");
-            if (index.value !== undefined) expect(typeof index.value).toBe("number");
+            if (index.value !== undefined)
+              expect(typeof index.value).toBe("number");
           }
         }
       } else if (response.status === 404) {
@@ -251,11 +254,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/status", () => {
     test("should return market status", async () => {
-      const response = await request(app)
-        .get("/api/market/status");
+      const response = await request(app).get("/api/market/status");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data) {
@@ -281,11 +283,10 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/sectors", () => {
     test("should return sector performance", async () => {
-      const response = await request(app)
-        .get("/api/market/sectors");
+      const response = await request(app).get("/api/market/sectors");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         if (response.body.data && Array.isArray(response.body.data)) {
@@ -293,7 +294,8 @@ describe("Market Routes Unit Tests", () => {
           if (response.body.data.length > 0) {
             const sector = response.body.data[0];
             if (sector.name) expect(sector).toHaveProperty("name");
-            if (sector.performance !== undefined) expect(typeof sector.performance).toBe("number");
+            if (sector.performance !== undefined)
+              expect(typeof sector.performance).toBe("number");
           }
         }
       } else if (response.status === 404) {
@@ -306,22 +308,23 @@ describe("Market Routes Unit Tests", () => {
 
   describe("Error Handling", () => {
     test("should handle invalid endpoints gracefully", async () => {
-      const response = await request(app)
-        .get("/api/market/invalid-endpoint");
+      const response = await request(app).get("/api/market/invalid-endpoint");
 
       expect([500, 404]).toContain(response.status);
     });
 
     test("should handle database connection issues", async () => {
-      const response = await request(app)
-        .get("/api/market/data?force_error=true");
+      const response = await request(app).get(
+        "/api/market/data?force_error=true"
+      );
 
       expect([200, 404]).toContain(response.status);
     });
 
     test("should handle malformed query parameters", async () => {
-      const response = await request(app)
-        .get("/api/market/sentiment/history?days=invalid");
+      const response = await request(app).get(
+        "/api/market/sentiment/history?days=invalid"
+      );
 
       expect([200, 404, 503]).toContain(response.status);
     });
@@ -330,12 +333,11 @@ describe("Market Routes Unit Tests", () => {
   describe("Performance Tests", () => {
     test("should respond to overview requests within reasonable time", async () => {
       const startTime = Date.now();
-      const response = await request(app)
-        .get("/api/market/overview");
+      const response = await request(app).get("/api/market/overview");
 
       const endTime = Date.now();
       const responseTime = endTime - startTime;
-      
+
       // Should respond within 10 seconds
       expect(responseTime).toBeLessThan(10000);
       expect([200, 404]).toContain(response.status);
@@ -347,13 +349,15 @@ describe("Market Routes Unit Tests", () => {
       );
 
       const responses = await Promise.allSettled(requests);
-      
+
       // At least some should succeed
-      const statusCodes = responses.map(r => 
-        r.status === 'fulfilled' ? r.value.status : 500
+      const statusCodes = responses.map((r) =>
+        r.status === "fulfilled" ? r.value.status : 500
       );
-      
-      expect(statusCodes.some(status => [200, 500, 503].includes(status))).toBe(true);
+
+      expect(
+        statusCodes.some((status) => [200, 500, 503].includes(status))
+      ).toBe(true);
     });
   });
 });

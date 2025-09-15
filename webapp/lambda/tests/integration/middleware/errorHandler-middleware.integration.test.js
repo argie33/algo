@@ -5,7 +5,10 @@
  */
 
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -24,7 +27,7 @@ describe("Error Handler Middleware Integration", () => {
       const nonExistentEndpoints = [
         "/api/nonexistent",
         "/api/portfolio/invalid-endpoint",
-        "/api/calendar/nonexistent-calendar-type"
+        "/api/calendar/nonexistent-calendar-type",
       ];
 
       for (const endpoint of nonExistentEndpoints) {
@@ -35,7 +38,7 @@ describe("Error Handler Middleware Integration", () => {
         expect([404, 500]).toContain(response.status);
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
-        expect(response.headers['content-type']).toMatch(/application\/json/);
+        expect(response.headers["content-type"]).toMatch(/application\/json/);
       }
     });
 
@@ -44,7 +47,7 @@ describe("Error Handler Middleware Integration", () => {
       const potentialErrorEndpoints = [
         "/api/portfolio/positions", // May fail with database issues
         "/api/calendar/events", // May fail with database dependencies
-        "/api/backtest/results/nonexistent-id" // May fail with invalid ID
+        "/api/backtest/results/nonexistent-id", // May fail with invalid ID
       ];
 
       for (const endpoint of potentialErrorEndpoints) {
@@ -56,10 +59,12 @@ describe("Error Handler Middleware Integration", () => {
         if (response.status === 500) {
           expect(response.body).toHaveProperty("success", false);
           expect(response.body).toHaveProperty("error");
-          expect(response.headers['content-type']).toMatch(/application\/json/);
-          
+          expect(response.headers["content-type"]).toMatch(/application\/json/);
+
           // Error should not expose internal details
-          expect(response.body.error).not.toMatch(/stack trace|internal|database connection|password|token/i);
+          expect(response.body.error).not.toMatch(
+            /stack trace|internal|database connection|password|token/i
+          );
         }
       }
     });
@@ -74,7 +79,7 @@ describe("Error Handler Middleware Integration", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.headers['content-type']).toMatch(/application\/json/);
+      expect(response.headers["content-type"]).toMatch(/application\/json/);
     });
   });
 
@@ -88,9 +93,9 @@ describe("Error Handler Middleware Integration", () => {
       expect([404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      
+
       // Should maintain JSON response format even for 404s
-      expect(response.headers['content-type']).toMatch(/application\/json/);
+      expect(response.headers["content-type"]).toMatch(/application\/json/);
     });
 
     test("should handle errors with user authentication context", async () => {
@@ -103,18 +108,17 @@ describe("Error Handler Middleware Integration", () => {
       expect([404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.headers['content-type']).toMatch(/application\/json/);
+      expect(response.headers["content-type"]).toMatch(/application\/json/);
     });
 
     test("should handle errors without authentication context", async () => {
       // Test error handling for unauthenticated requests
-      const response = await request(app)
-        .get("/api/nonexistent-endpoint");
+      const response = await request(app).get("/api/nonexistent-endpoint");
 
       expect([404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.headers['content-type']).toMatch(/application\/json/);
+      expect(response.headers["content-type"]).toMatch(/application\/json/);
     });
   });
 
@@ -123,7 +127,7 @@ describe("Error Handler Middleware Integration", () => {
       const sensitiveEndpoints = [
         "/api/portfolio/positions",
         "/api/calendar/events",
-        "/api/portfolio/analyze"
+        "/api/portfolio/analyze",
       ];
 
       for (const endpoint of sensitiveEndpoints) {
@@ -134,11 +138,15 @@ describe("Error Handler Middleware Integration", () => {
 
         if (response.status >= 400) {
           expect(response.body).toHaveProperty("error");
-          
+
           // Should not expose sensitive internal information
           const errorMessage = response.body.error.toLowerCase();
-          expect(errorMessage).not.toMatch(/password|secret|key|token|database|connection|stack|trace|internal/);
-          expect(errorMessage).not.toMatch(/file path|directory|server name|ip address/);
+          expect(errorMessage).not.toMatch(
+            /password|secret|key|token|database|connection|stack|trace|internal/
+          );
+          expect(errorMessage).not.toMatch(
+            /file path|directory|server name|ip address/
+          );
         }
       }
     });
@@ -150,31 +158,31 @@ describe("Error Handler Middleware Integration", () => {
           endpoint: "/api/portfolio/analyze",
           method: "post",
           data: { symbols: "<script>alert('xss')</script>" },
-          auth: "Bearer dev-bypass-token"
+          auth: "Bearer dev-bypass-token",
         },
         {
           endpoint: "/api/calendar/earnings",
           method: "get",
           query: "?symbol='; DROP TABLE users; --",
-          auth: null
-        }
+          auth: null,
+        },
       ];
 
       for (const trigger of errorTriggers) {
         let requestBuilder = request(app)[trigger.method](
           trigger.endpoint + (trigger.query || "")
         );
-        
+
         if (trigger.auth) {
           requestBuilder = requestBuilder.set("Authorization", trigger.auth);
         }
-        
+
         if (trigger.data) {
           requestBuilder = requestBuilder.send(trigger.data);
         }
-        
+
         const response = await requestBuilder;
-        
+
         if (response.status >= 400 && response.body.error) {
           // Error message should not contain the malicious input
           expect(response.body.error).not.toMatch(/<script>/);
@@ -191,11 +199,11 @@ describe("Error Handler Middleware Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([404, 500]).toContain(response.status);
-      expect(response.headers['content-type']).toMatch(/application\/json/);
-      
+      expect(response.headers["content-type"]).toMatch(/application\/json/);
+
       // Should not cache error responses
-      if (response.headers['cache-control']) {
-        expect(response.headers['cache-control']).toMatch(/no-cache|no-store/);
+      if (response.headers["cache-control"]) {
+        expect(response.headers["cache-control"]).toMatch(/no-cache|no-store/);
       }
     });
 
@@ -206,10 +214,10 @@ describe("Error Handler Middleware Integration", () => {
 
       // CORS preflight for non-existent endpoint
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       // Should still handle CORS appropriately even for errors
-      if (response.headers['access-control-allow-origin']) {
-        expect(response.headers['access-control-allow-origin']).toBeDefined();
+      if (response.headers["access-control-allow-origin"]) {
+        expect(response.headers["access-control-allow-origin"]).toBeDefined();
       }
     });
   });
@@ -220,21 +228,24 @@ describe("Error Handler Middleware Integration", () => {
       const asyncEndpoints = [
         { endpoint: "/api/portfolio/summary", auth: true },
         { endpoint: "/api/calendar/earnings", auth: false },
-        { endpoint: "/api/market/overview", auth: false }
+        { endpoint: "/api/market/overview", auth: false },
       ];
 
       for (const test of asyncEndpoints) {
         let requestBuilder = request(app).get(test.endpoint);
-        
+
         if (test.auth) {
-          requestBuilder = requestBuilder.set("Authorization", "Bearer dev-bypass-token");
+          requestBuilder = requestBuilder.set(
+            "Authorization",
+            "Bearer dev-bypass-token"
+          );
         }
-        
+
         const response = await requestBuilder;
-        
+
         // Should handle both success and error cases consistently
-        expect(response.headers['content-type']).toMatch(/application\/json/);
-        
+        expect(response.headers["content-type"]).toMatch(/application\/json/);
+
         if (response.status >= 400) {
           expect(response.body).toHaveProperty("success", false);
           expect(response.body).toHaveProperty("error");
@@ -247,7 +258,7 @@ describe("Error Handler Middleware Integration", () => {
       const dbDependentEndpoints = [
         "/api/portfolio/positions",
         "/api/calendar/events",
-        "/api/backtest/results"
+        "/api/backtest/results",
       ];
 
       for (const endpoint of dbDependentEndpoints) {
@@ -256,14 +267,16 @@ describe("Error Handler Middleware Integration", () => {
           .set("Authorization", "Bearer dev-bypass-token");
 
         // Should handle both success and database error cases
-        expect(response.headers['content-type']).toMatch(/application\/json/);
-        
+        expect(response.headers["content-type"]).toMatch(/application\/json/);
+
         if (response.status === 500) {
           expect(response.body).toHaveProperty("success", false);
           expect(response.body).toHaveProperty("error");
-          
+
           // Should not expose database connection details
-          expect(response.body.error).not.toMatch(/connection|pool|timeout|database/i);
+          expect(response.body.error).not.toMatch(
+            /connection|pool|timeout|database/i
+          );
         }
       }
     });
@@ -275,17 +288,17 @@ describe("Error Handler Middleware Integration", () => {
         { endpoint: "/api/invalid", expectedStatus: 404 },
         { endpoint: "/api/portfolio/invalid", expectedStatus: 404 },
         { endpoint: "/api/calendar/invalid", expectedStatus: 404 },
-        { endpoint: "/api/market/invalid", expectedStatus: 404 }
+        { endpoint: "/api/market/invalid", expectedStatus: 404 },
       ];
 
       for (const scenario of errorScenarios) {
         const response = await request(app).get(scenario.endpoint);
-        
+
         expect(response.status).toBe(scenario.expectedStatus);
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
-        expect(response.headers['content-type']).toMatch(/application\/json/);
-        
+        expect(response.headers["content-type"]).toMatch(/application\/json/);
+
         // Error structure should be consistent
         expect(typeof response.body.error).toBe("string");
         expect(response.body.error.length).toBeGreaterThan(0);
@@ -297,18 +310,18 @@ describe("Error Handler Middleware Integration", () => {
       const methodTests = [
         { endpoint: "/api/health", method: "post" },
         { endpoint: "/api/calendar/earnings", method: "put" },
-        { endpoint: "/api/market/overview", method: "delete" }
+        { endpoint: "/api/market/overview", method: "delete" },
       ];
 
       for (const test of methodTests) {
         const response = await request(app)[test.method](test.endpoint);
-        
+
         // Should return consistent error format for unsupported methods
         expect([404, 405]).toContain(response.status);
-        
-        if (response.body && typeof response.body === 'object') {
-          expect(response.headers['content-type']).toMatch(/application\/json/);
-          
+
+        if (response.body && typeof response.body === "object") {
+          expect(response.headers["content-type"]).toMatch(/application\/json/);
+
           if (response.body.success !== undefined) {
             expect(response.body.success).toBe(false);
           }

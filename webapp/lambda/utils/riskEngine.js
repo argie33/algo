@@ -53,15 +53,20 @@ class RiskEngine {
       let correlationRisk = 0;
       if (positions.length > 1) {
         // Calculate average correlation among portfolio positions
-        const symbols = positions.map(pos => pos.symbol).filter(Boolean);
+        const symbols = positions.map((pos) => pos.symbol).filter(Boolean);
         if (symbols.length > 1) {
           // Use a simplified correlation estimate based on sector diversity
-          const sectors = [...new Set(positions.map(pos => pos.sector).filter(Boolean))];
+          const sectors = [
+            ...new Set(positions.map((pos) => pos.sector).filter(Boolean)),
+          ];
           const sectorDiversity = sectors.length / positions.length;
-          
+
           // Higher correlation risk if positions are concentrated in same sector
           // Lower diversity means higher correlation risk
-          correlationRisk = Math.max(0, (1 - sectorDiversity) * this.maxCorrelation);
+          correlationRisk = Math.max(
+            0,
+            (1 - sectorDiversity) * this.maxCorrelation
+          );
         } else {
           // Fallback: assume moderate correlation for multi-position portfolios
           correlationRisk = 0.3;
@@ -191,20 +196,20 @@ class RiskEngine {
   ) {
     // Input validation
     if (!portfolioIdOrData) {
-      throw new Error('Portfolio data is required');
+      throw new Error("Portfolio data is required");
     }
     if (confidenceLevel <= 0 || confidenceLevel >= 1) {
-      throw new Error('Confidence level must be between 0 and 1');
+      throw new Error("Confidence level must be between 0 and 1");
     }
     if (timeHorizon <= 0) {
-      throw new Error('Time horizon must be greater than 0');
+      throw new Error("Time horizon must be greater than 0");
     }
-    
+
     try {
       let positions;
       let method = methodOrConfidenceLevel;
       let portfolioId = null;
-      
+
       // Handle different parameter signatures for test compatibility
       if (Array.isArray(portfolioIdOrData)) {
         // Test signature: calculateVaR(portfolio, confidenceLevel, lookbackDays)
@@ -212,33 +217,50 @@ class RiskEngine {
         confidenceLevel = methodOrConfidenceLevel || 0.95;
         lookbackDays = confidenceLevel === arguments[2] ? arguments[2] : 252;
         method = "historical";
-        
+
         // Create mock positions for test data
-        positions = { 
-          rows: portfolio.map(pos => ({
+        positions = {
+          rows: portfolio.map((pos) => ({
             symbol: pos.symbol,
             quantity: pos.quantity || 100,
             current_price: pos.currentPrice || pos.weight * 1000, // Convert weight to mock price
             total_value: pos.weight ? pos.weight * 100000 : 15000, // Mock portfolio value
             close_price: pos.currentPrice || pos.weight * 1000,
-            date: new Date().toISOString().split('T')[0]
-          }))
+            date: new Date().toISOString().split("T")[0],
+          })),
         };
       } else {
         // Production signature: calculateVaR(portfolioId, method, confidenceLevel, timeHorizon, lookbackDays)
         portfolioId = portfolioIdOrData;
-        
+
         // Handle case when database is not available (test environment)
-        if (!db || typeof db.query !== 'function') {
-          console.log('Database not available, using mock data for VaR calculation');
+        if (!db || typeof db.query !== "function") {
+          console.log(
+            "Database not available, using mock data for VaR calculation"
+          );
           positions = {
             rows: [
-              { symbol: 'AAPL', quantity: 100, current_price: 150, total_value: 15000, close_price: 150, date: new Date().toISOString().split('T')[0] },
-              { symbol: 'GOOGL', quantity: 50, current_price: 2000, total_value: 100000, close_price: 2000, date: new Date().toISOString().split('T')[0] }
-            ]
+              {
+                symbol: "AAPL",
+                quantity: 100,
+                current_price: 150,
+                total_value: 15000,
+                close_price: 150,
+                date: new Date().toISOString().split("T")[0],
+              },
+              {
+                symbol: "GOOGL",
+                quantity: 50,
+                current_price: 2000,
+                total_value: 100000,
+                close_price: 2000,
+                date: new Date().toISOString().split("T")[0],
+              },
+            ],
           };
         } else {
-          positions = await db.query(`
+          positions = await db.query(
+            `
           SELECT p.symbol, p.quantity, p.current_price, 
                  COALESCE(p.total_value, p.quantity * p.current_price) as total_value,
                  d.close_price, d.volume, d.date
@@ -247,7 +269,9 @@ class RiskEngine {
           WHERE p.user_id = $1 AND p.quantity > 0
           AND d.date >= CURRENT_DATE - INTERVAL '${lookbackDays} days'
           ORDER BY p.symbol, d.date DESC
-        `, [portfolioId]);
+        `,
+            [portfolioId]
+          );
         }
       }
 
@@ -260,13 +284,16 @@ class RiskEngine {
           confidence_level: confidenceLevel,
           time_horizon: timeHorizon,
           lookback_days: lookbackDays,
-          message: "No positions found for VaR calculation"
+          message: "No positions found for VaR calculation",
         };
       }
 
       // Group by symbol and calculate returns
       const symbolReturns = {};
-      const portfolioValue = positions.rows.reduce((sum, pos) => sum + parseFloat(pos.total_value || 0), 0);
+      const portfolioValue = positions.rows.reduce(
+        (sum, pos) => sum + parseFloat(pos.total_value || 0),
+        0
+      );
 
       // Calculate historical returns for each position
       for (const pos of positions.rows) {
@@ -274,7 +301,7 @@ class RiskEngine {
           symbolReturns[pos.symbol] = {
             prices: [],
             returns: [],
-            weight: parseFloat(pos.total_value || 0) / portfolioValue
+            weight: parseFloat(pos.total_value || 0) / portfolioValue,
           };
         }
         if (pos.close_price) {
@@ -283,26 +310,28 @@ class RiskEngine {
       }
 
       // Calculate daily returns for each symbol
-      Object.keys(symbolReturns).forEach(symbol => {
+      Object.keys(symbolReturns).forEach((symbol) => {
         const prices = symbolReturns[symbol].prices.sort((a, b) => a - b); // Ensure chronological order
         const returns = [];
-        
+
         for (let i = 1; i < prices.length; i++) {
-          if (prices[i-1] > 0) {
-            returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+          if (prices[i - 1] > 0) {
+            returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
           }
         }
-        
+
         symbolReturns[symbol].returns = returns;
       });
 
       // Calculate portfolio returns
       const portfolioReturns = [];
-      const maxReturns = Math.max(...Object.values(symbolReturns).map(s => s.returns.length));
-      
+      const maxReturns = Math.max(
+        ...Object.values(symbolReturns).map((s) => s.returns.length)
+      );
+
       for (let i = 0; i < maxReturns; i++) {
         let dailyReturn = 0;
-        Object.keys(symbolReturns).forEach(symbol => {
+        Object.keys(symbolReturns).forEach((symbol) => {
           const symbolData = symbolReturns[symbol];
           if (symbolData.returns[i] !== undefined) {
             dailyReturn += symbolData.returns[i] * symbolData.weight;
@@ -314,21 +343,37 @@ class RiskEngine {
       // Historical VaR calculation
       const sortedReturns = portfolioReturns.sort((a, b) => a - b);
       const varIndex = Math.floor((1 - confidenceLevel) * sortedReturns.length);
-      const historicalVaR = Math.abs(sortedReturns[varIndex] || 0) * Math.sqrt(timeHorizon);
+      const historicalVaR =
+        Math.abs(sortedReturns[varIndex] || 0) * Math.sqrt(timeHorizon);
 
       // Parametric VaR calculation (assuming normal distribution)
-      const mean = portfolioReturns.reduce((sum, ret) => sum + ret, 0) / portfolioReturns.length;
-      const variance = portfolioReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / (portfolioReturns.length - 1);
+      const mean =
+        portfolioReturns.reduce((sum, ret) => sum + ret, 0) /
+        portfolioReturns.length;
+      const variance =
+        portfolioReturns.reduce(
+          (sum, ret) => sum + Math.pow(ret - mean, 2),
+          0
+        ) /
+        (portfolioReturns.length - 1);
       const stdDev = Math.sqrt(variance);
       const zScore = this.getZScore(confidenceLevel);
-      const parametricVaR = Math.abs(mean - (zScore * stdDev)) * Math.sqrt(timeHorizon);
+      const parametricVaR =
+        Math.abs(mean - zScore * stdDev) * Math.sqrt(timeHorizon);
 
       // Monte Carlo VaR (simplified)
-      const monteCarloVaR = this.calculateMonteCarloVaR(portfolioReturns, confidenceLevel, timeHorizon);
+      const monteCarloVaR = this.calculateMonteCarloVaR(
+        portfolioReturns,
+        confidenceLevel,
+        timeHorizon
+      );
 
       // Expected Shortfall (Conditional VaR)
       const tailReturns = sortedReturns.slice(0, varIndex + 1);
-      const expectedShortfall = Math.abs(tailReturns.reduce((sum, ret) => sum + ret, 0) / tailReturns.length) * Math.sqrt(timeHorizon);
+      const expectedShortfall =
+        Math.abs(
+          tailReturns.reduce((sum, ret) => sum + ret, 0) / tailReturns.length
+        ) * Math.sqrt(timeHorizon);
 
       const varResults = {
         historical_var: Math.round(historicalVaR * 10000) / 10000, // Round to 4 decimal places
@@ -341,16 +386,15 @@ class RiskEngine {
         portfolio_value: portfolioValue,
         positions_analyzed: Object.keys(symbolReturns).length,
         returns_count: portfolioReturns.length,
-        method_used: method
+        method_used: method,
       };
-      
+
       // For test compatibility: return just the historical VaR number when called with array
       if (Array.isArray(portfolioIdOrData)) {
         return varResults.historical_var;
       }
-      
+
       return varResults;
-      
     } catch (error) {
       logger.error("VaR calculation failed:", error);
       return {
@@ -359,7 +403,7 @@ class RiskEngine {
         method: methodOrConfidenceLevel,
         confidence_level: confidenceLevel,
         time_horizon: timeHorizon,
-        lookback_days: lookbackDays
+        lookback_days: lookbackDays,
       };
     }
   }
@@ -369,43 +413,50 @@ class RiskEngine {
    */
   getZScore(confidenceLevel) {
     const zScores = {
-      0.90: 1.282,
+      0.9: 1.282,
       0.95: 1.645,
       0.99: 2.326,
-      0.999: 3.090
+      0.999: 3.09,
     };
-    
+
     return zScores[confidenceLevel] || 1.645; // Default to 95%
   }
 
   /**
    * Calculate Monte Carlo VaR (simplified implementation)
    */
-  calculateMonteCarloVaR(historicalReturns, confidenceLevel, timeHorizon, simulations = 1000) {
+  calculateMonteCarloVaR(
+    historicalReturns,
+    confidenceLevel,
+    timeHorizon,
+    simulations = 1000
+  ) {
     if (historicalReturns.length === 0) return 0;
 
-    const mean = historicalReturns.reduce((sum, ret) => sum + ret, 0) / historicalReturns.length;
+    const mean =
+      historicalReturns.reduce((sum, ret) => sum + ret, 0) /
+      historicalReturns.length;
     const stdDev = Math.sqrt(
-      historicalReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / 
-      (historicalReturns.length - 1)
+      historicalReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) /
+        (historicalReturns.length - 1)
     );
 
     const simulatedReturns = [];
-    
+
     for (let i = 0; i < simulations; i++) {
       // Generate random normal variable using Box-Muller transform
       const u1 = Math.random();
       const u2 = Math.random();
       const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-      
-      const simulatedReturn = mean + (stdDev * z);
+
+      const simulatedReturn = mean + stdDev * z;
       simulatedReturns.push(simulatedReturn);
     }
 
     // Sort and find VaR
     simulatedReturns.sort((a, b) => a - b);
     const varIndex = Math.floor((1 - confidenceLevel) * simulations);
-    
+
     return Math.abs(simulatedReturns[varIndex] || 0) * Math.sqrt(timeHorizon);
   }
 
@@ -413,7 +464,11 @@ class RiskEngine {
    * Calculate Pearson correlation coefficient between two return series
    */
   calculateCorrelation(returns1, returns2) {
-    if (returns1.length === 0 || returns2.length === 0 || returns1.length !== returns2.length) {
+    if (
+      returns1.length === 0 ||
+      returns2.length === 0 ||
+      returns1.length !== returns2.length
+    ) {
       return 0;
     }
 
@@ -431,14 +486,14 @@ class RiskEngine {
     for (let i = 0; i < n; i++) {
       const deltaX = x[i] - meanX;
       const deltaY = y[i] - meanY;
-      
+
       numerator += deltaX * deltaY;
       sumXSquared += deltaX * deltaX;
       sumYSquared += deltaY * deltaY;
     }
 
     const denominator = Math.sqrt(sumXSquared * sumYSquared);
-    
+
     return denominator === 0 ? 0 : numerator / denominator;
   }
 
@@ -550,23 +605,28 @@ class RiskEngine {
   async calculateCorrelationMatrix(portfolioId, lookbackDays = 252) {
     try {
       // Handle case when database is not available (test environment)
-      if (!db || typeof db.query !== 'function') {
-        console.log('Database not available, using mock data for correlation matrix calculation');
+      if (!db || typeof db.query !== "function") {
+        console.log(
+          "Database not available, using mock data for correlation matrix calculation"
+        );
         return {
           correlationMatrix: {
             AAPL: { AAPL: 1.0, GOOGL: 0.45 },
-            GOOGL: { AAPL: 0.45, GOOGL: 1.0 }
+            GOOGL: { AAPL: 0.45, GOOGL: 1.0 },
           },
-          assets: ['AAPL', 'GOOGL']
+          assets: ["AAPL", "GOOGL"],
         };
       }
-      
+
       // Get portfolio assets
-      const portfolioQuery = await db.query(`
+      const portfolioQuery = await db.query(
+        `
         SELECT DISTINCT symbol 
         FROM portfolio_holdings 
         WHERE user_id = $1 AND quantity > 0
-      `, [portfolioId]);
+      `,
+        [portfolioId]
+      );
 
       if (!portfolioQuery || !portfolioQuery.rows) {
         return {
@@ -575,11 +635,11 @@ class RiskEngine {
           correlationMatrix: {},
           assets: [],
           timestamp: new Date().toISOString(),
-          message: "Database not available"
+          message: "Database not available",
         };
       }
 
-      const assets = portfolioQuery.rows.map(row => row.symbol);
+      const assets = portfolioQuery.rows.map((row) => row.symbol);
 
       if (assets.length === 0) {
         return {
@@ -588,53 +648,60 @@ class RiskEngine {
           correlationMatrix: {},
           assets: [],
           timestamp: new Date().toISOString(),
-          message: "No assets found in portfolio"
+          message: "No assets found in portfolio",
         };
       }
 
       // Get historical prices for all assets
-      const pricesQuery = await db.query(`
+      const pricesQuery = await db.query(
+        `
         SELECT symbol, date, close_price 
         FROM price_daily 
         WHERE symbol = ANY($1) 
         AND date >= CURRENT_DATE - INTERVAL '${lookbackDays} days'
         ORDER BY symbol, date
-      `, [assets]);
+      `,
+        [assets]
+      );
 
       // Organize prices by symbol
       const priceData = {};
-      pricesQuery.rows.forEach(row => {
+      pricesQuery.rows.forEach((row) => {
         if (!priceData[row.symbol]) {
           priceData[row.symbol] = [];
         }
         priceData[row.symbol].push({
           date: row.date,
-          price: parseFloat(row.close_price)
+          price: parseFloat(row.close_price),
         });
       });
 
       // Calculate returns for each asset
       const returnsData = {};
-      Object.keys(priceData).forEach(symbol => {
-        const prices = priceData[symbol].sort((a, b) => new Date(a.date) - new Date(b.date));
+      Object.keys(priceData).forEach((symbol) => {
+        const prices = priceData[symbol].sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        );
         const returns = [];
-        
+
         for (let i = 1; i < prices.length; i++) {
-          if (prices[i-1].price > 0) {
-            returns.push((prices[i].price - prices[i-1].price) / prices[i-1].price);
+          if (prices[i - 1].price > 0) {
+            returns.push(
+              (prices[i].price - prices[i - 1].price) / prices[i - 1].price
+            );
           }
         }
-        
+
         returnsData[symbol] = returns;
       });
 
       // Calculate correlation matrix
       const matrix = {};
-      
-      assets.forEach(asset1 => {
+
+      assets.forEach((asset1) => {
         matrix[asset1] = {};
-        
-        assets.forEach(asset2 => {
+
+        assets.forEach((asset2) => {
           if (asset1 === asset2) {
             matrix[asset1][asset2] = 1.0;
           } else {
@@ -663,12 +730,22 @@ class RiskEngine {
           maxCorrelationPair: maxCorrelation.pair,
           minCorrelation: Math.round(minCorrelation.value * 1000) / 1000,
           minCorrelationPair: minCorrelation.pair,
-          diversificationRatio: Math.round((1 - avgCorrelation) * 1000) / 1000
+          diversificationRatio: Math.round((1 - avgCorrelation) * 1000) / 1000,
         },
         dataQuality: {
-          totalDataPoints: Object.values(returnsData).reduce((sum, returns) => sum + returns.length, 0),
-          avgDataPointsPerAsset: Math.round(Object.values(returnsData).reduce((sum, returns) => sum + returns.length, 0) / assets.length),
-          assetsWithSufficientData: Object.values(returnsData).filter(returns => returns.length >= 30).length
+          totalDataPoints: Object.values(returnsData).reduce(
+            (sum, returns) => sum + returns.length,
+            0
+          ),
+          avgDataPointsPerAsset: Math.round(
+            Object.values(returnsData).reduce(
+              (sum, returns) => sum + returns.length,
+              0
+            ) / assets.length
+          ),
+          assetsWithSufficientData: Object.values(returnsData).filter(
+            (returns) => returns.length >= 30
+          ).length,
         },
         timestamp: new Date().toISOString(),
       };
@@ -803,23 +880,26 @@ class RiskEngine {
     try {
       const limits = {
         maxSinglePosition: riskLimits.maxSinglePosition || this.maxPositionSize,
-        maxSectorAllocation: riskLimits.maxSectorAllocation || 0.30,
+        maxSectorAllocation: riskLimits.maxSectorAllocation || 0.3,
         maxLeverage: riskLimits.maxLeverage || 2.0,
         maxCorrelation: riskLimits.maxCorrelation || this.maxCorrelation,
-        ...riskLimits
+        ...riskLimits,
       };
 
       const violations = [];
       let overallStatus = "COMPLIANT";
 
       // Calculate total portfolio value
-      const totalValue = portfolio.reduce((sum, pos) => sum + (pos.value || pos.weight * 100000 || 0), 0);
+      const totalValue = portfolio.reduce(
+        (sum, pos) => sum + (pos.value || pos.weight * 100000 || 0),
+        0
+      );
 
       // Check individual position limits
       for (const position of portfolio) {
         const positionValue = position.value || position.weight * 100000 || 0;
         const positionWeight = totalValue > 0 ? positionValue / totalValue : 0;
-        
+
         if (positionWeight > limits.maxSinglePosition) {
           violations.push({
             type: "POSITION_SIZE_EXCEEDED",
@@ -827,7 +907,7 @@ class RiskEngine {
             symbol: position.symbol,
             currentValue: positionWeight,
             limitValue: limits.maxSinglePosition,
-            severity: "HIGH"
+            severity: "HIGH",
           });
           overallStatus = "NON_COMPLIANT";
         }
@@ -839,15 +919,17 @@ class RiskEngine {
         const sector = position.sector || "Unknown";
         const positionValue = position.value || position.weight * 100000 || 0;
         const positionWeight = totalValue > 0 ? positionValue / totalValue : 0;
-        
-        sectorAllocations[sector] = (sectorAllocations[sector] || 0) + positionWeight;
+
+        sectorAllocations[sector] =
+          (sectorAllocations[sector] || 0) + positionWeight;
       }
 
       for (const [sector, allocation] of Object.entries(sectorAllocations)) {
         // Only check sector limits if we have meaningful sector data
         // Skip "Unknown" sector when it's the only sector (common in test scenarios)
-        const isUnknownOnlySector = sector === "Unknown" && Object.keys(sectorAllocations).length === 1;
-        
+        const isUnknownOnlySector =
+          sector === "Unknown" && Object.keys(sectorAllocations).length === 1;
+
         if (allocation > limits.maxSectorAllocation && !isUnknownOnlySector) {
           violations.push({
             type: "SECTOR_ALLOCATION_EXCEEDED",
@@ -855,15 +937,18 @@ class RiskEngine {
             sector: sector,
             currentValue: allocation,
             limitValue: limits.maxSectorAllocation,
-            severity: "MEDIUM"
+            severity: "MEDIUM",
           });
           overallStatus = "NON_COMPLIANT";
         }
       }
 
       // Generate compliance metrics
-      const complianceScore = violations.length === 0 ? 100 : Math.max(0, 100 - (violations.length * 15));
-      
+      const complianceScore =
+        violations.length === 0
+          ? 100
+          : Math.max(0, 100 - violations.length * 15);
+
       return {
         overallStatus,
         complianceScore,
@@ -873,21 +958,24 @@ class RiskEngine {
           totalPositions: portfolio.length,
           totalValue: totalValue,
           sectors: Object.keys(sectorAllocations).length,
-          sectorAllocations
+          sectorAllocations,
         },
-        recommendations: violations.length === 0 
-          ? ["Portfolio is fully compliant with risk limits"]
-          : violations.map(v => `Address ${v.type.toLowerCase().replace(/_/g, ' ')} for ${v.symbol || v.sector}`),
+        recommendations:
+          violations.length === 0
+            ? ["Portfolio is fully compliant with risk limits"]
+            : violations.map(
+                (v) =>
+                  `Address ${v.type.toLowerCase().replace(/_/g, " ")} for ${v.symbol || v.sector}`
+              ),
         timestamp: new Date().toISOString(),
-        generatedBy: "RiskEngine"
+        generatedBy: "RiskEngine",
       };
-
     } catch (error) {
       logger.error("Compliance report generation failed:", error);
       return {
         overallStatus: "ERROR",
         error: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
   }
@@ -903,7 +991,7 @@ class RiskEngine {
         return {
           level: "low",
           hhi: 0,
-          recommendations: ["Portfolio is empty"]
+          recommendations: ["Portfolio is empty"],
         };
       }
 
@@ -915,7 +1003,8 @@ class RiskEngine {
       }
 
       // Determine concentration level
-      let level, recommendations = [];
+      let level,
+        recommendations = [];
       if (hhi < 0.15) {
         level = "low";
         recommendations.push("Portfolio has good diversification");
@@ -928,20 +1017,22 @@ class RiskEngine {
         recommendations.push("Reduce position sizes of largest holdings");
       } else {
         level = "EXTREME";
-        recommendations.push("Extremely concentrated portfolio - immediate diversification needed");
+        recommendations.push(
+          "Extremely concentrated portfolio - immediate diversification needed"
+        );
       }
 
       return {
         level,
         hhi: Math.round(hhi * 10000) / 10000, // Round to 4 decimal places
-        recommendations
+        recommendations,
       };
     } catch (error) {
       logger.error("Concentration risk assessment failed:", error);
       return {
         level: "unknown",
         hhi: 0,
-        recommendations: ["Error assessing concentration risk"]
+        recommendations: ["Error assessing concentration risk"],
       };
     }
   }
@@ -957,8 +1048,8 @@ class RiskEngine {
         return {
           diversification: {
             score: 0,
-            level: "none"
-          }
+            level: "none",
+          },
         };
       }
 
@@ -969,7 +1060,7 @@ class RiskEngine {
       for (const position of portfolio) {
         const sector = position.sector || "Unknown";
         const weight = position.weight || 0;
-        
+
         if (!sectorWeights[sector]) {
           sectorWeights[sector] = 0;
         }
@@ -987,7 +1078,7 @@ class RiskEngine {
       // Calculate diversification metrics
       const sectorCount = Object.keys(sectorWeights).length;
       const maxWeight = Math.max(...Object.values(sectorWeights));
-      
+
       let diversificationScore = 0;
       let diversificationLevel = "poor";
 
@@ -1009,16 +1100,16 @@ class RiskEngine {
         ...sectorWeights,
         diversification: {
           score: Math.round(diversificationScore * 100) / 100,
-          level: diversificationLevel
-        }
+          level: diversificationLevel,
+        },
       };
     } catch (error) {
       logger.error("Sector risk calculation failed:", error);
       return {
         diversification: {
           score: 0,
-          level: "error"
-        }
+          level: "error",
+        },
       };
     }
   }
@@ -1029,7 +1120,7 @@ class RiskEngine {
    * @param {string} marketSymbol - Market benchmark symbol (e.g., 'SPY')
    * @returns {Promise<number|null>} Beta coefficient
    */
-  async calculateBeta(symbol, marketSymbol = 'SPY') {
+  async calculateBeta(symbol, marketSymbol = "SPY") {
     try {
       if (!symbol || !marketSymbol) return null;
 
@@ -1045,13 +1136,19 @@ class RiskEngine {
       }
 
       // Calculate covariance and market variance
-      const stockMean = stockReturns.reduce((a, b) => a + b, 0) / stockReturns.length;
-      const marketMean = marketReturns.reduce((a, b) => a + b, 0) / marketReturns.length;
+      const stockMean =
+        stockReturns.reduce((a, b) => a + b, 0) / stockReturns.length;
+      const marketMean =
+        marketReturns.reduce((a, b) => a + b, 0) / marketReturns.length;
 
       let covariance = 0;
       let marketVariance = 0;
 
-      for (let i = 0; i < Math.min(stockReturns.length, marketReturns.length); i++) {
+      for (
+        let i = 0;
+        i < Math.min(stockReturns.length, marketReturns.length);
+        i++
+      ) {
         const stockDiff = stockReturns[i] - stockMean;
         const marketDiff = marketReturns[i] - marketMean;
         covariance += stockDiff * marketDiff;
@@ -1081,14 +1178,16 @@ class RiskEngine {
 
       const returns = await this.getStockReturns(symbol, days);
       if (!returns || returns.length < 10) {
-        return 0.20; // Default volatility of 20%
+        return 0.2; // Default volatility of 20%
       }
 
       // Calculate standard deviation of returns
       const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((sum, ret) => {
-        return sum + Math.pow(ret - mean, 2);
-      }, 0) / (returns.length - 1);
+      const variance =
+        returns.reduce((sum, ret) => {
+          return sum + Math.pow(ret - mean, 2);
+        }, 0) /
+        (returns.length - 1);
 
       // Annualize volatility (assuming 252 trading days)
       return Math.sqrt(variance) * Math.sqrt(252);
@@ -1111,19 +1210,22 @@ class RiskEngine {
       const query = db?.query;
       if (!query) return null;
 
-      const result = await query(`
+      const result = await query(
+        `
         SELECT price 
         FROM price_daily 
         WHERE symbol = $1 
           AND date >= CURRENT_DATE - INTERVAL '${days} days'
         ORDER BY date ASC
-      `, [symbol.toUpperCase()]);
+      `,
+        [symbol.toUpperCase()]
+      );
 
       if (!result?.rows || result.rows.length < 10) {
         return 0; // No drawdown if no data
       }
 
-      const prices = result.rows.map(row => parseFloat(row.price));
+      const prices = result.rows.map((row) => parseFloat(row.price));
       let peak = prices[0];
       let maxDrawdown = 0;
 
@@ -1147,42 +1249,49 @@ class RiskEngine {
    */
   async assessLiquidityRisk(symbol) {
     try {
-      if (!symbol) return { level: 'unknown', avgVolume: 0, daysToLiquidate: 0 };
+      if (!symbol)
+        return { level: "unknown", avgVolume: 0, daysToLiquidate: 0 };
 
       const query = db?.query;
-      if (!query) return { level: 'unknown', avgVolume: 0, daysToLiquidate: 0 };
+      if (!query) return { level: "unknown", avgVolume: 0, daysToLiquidate: 0 };
 
-      const result = await query(`
+      const result = await query(
+        `
         SELECT volume 
         FROM price_daily 
         WHERE symbol = $1 
           AND date >= CURRENT_DATE - INTERVAL '30 days'
         ORDER BY date DESC
-      `, [symbol.toUpperCase()]);
+      `,
+        [symbol.toUpperCase()]
+      );
 
       if (!result?.rows || result.rows.length < 10) {
-        return { level: 'high', avgVolume: 0, daysToLiquidate: 999 };
+        return { level: "high", avgVolume: 0, daysToLiquidate: 999 };
       }
 
-      const volumes = result.rows.map(row => parseInt(row.volume) || 0);
+      const volumes = result.rows.map((row) => parseInt(row.volume) || 0);
       const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
 
       // Estimate days to liquidate (simplified - assuming need to sell 1% of avg volume)
       const estimatedPosition = avgVolume * 0.01;
-      const daysToLiquidate = estimatedPosition > 0 ? Math.ceil(estimatedPosition / (avgVolume * 0.1)) : 999;
+      const daysToLiquidate =
+        estimatedPosition > 0
+          ? Math.ceil(estimatedPosition / (avgVolume * 0.1))
+          : 999;
 
-      let level = 'low';
-      if (avgVolume < 100000) level = 'high';
-      else if (avgVolume < 500000) level = 'medium';
+      let level = "low";
+      if (avgVolume < 100000) level = "high";
+      else if (avgVolume < 500000) level = "medium";
 
       return {
         level,
         avgVolume: Math.round(avgVolume),
-        daysToLiquidate
+        daysToLiquidate,
       };
     } catch (error) {
       logger.error(`Liquidity risk assessment failed for ${symbol}:`, error);
-      return { level: 'high', avgVolume: 0, daysToLiquidate: 999 };
+      return { level: "high", avgVolume: 0, daysToLiquidate: 999 };
     }
   }
 
@@ -1197,19 +1306,22 @@ class RiskEngine {
       const query = db?.query;
       if (!query) return null;
 
-      const result = await query(`
+      const result = await query(
+        `
         SELECT price, date
         FROM price_daily 
         WHERE symbol = $1 
           AND date >= CURRENT_DATE - INTERVAL '${days + 10} days'
         ORDER BY date ASC
-      `, [symbol.toUpperCase()]);
+      `,
+        [symbol.toUpperCase()]
+      );
 
       if (!result?.rows || result.rows.length < 2) {
         return null;
       }
 
-      const prices = result.rows.map(row => parseFloat(row.price));
+      const prices = result.rows.map((row) => parseFloat(row.price));
       const returns = [];
 
       for (let i = 1; i < prices.length; i++) {
@@ -1234,16 +1346,16 @@ class RiskEngine {
   checkPositionLimits(position, limits) {
     try {
       const weight = position?.weight || 0;
-      const maxLimit = limits?.maxSinglePosition || 0.10;
+      const maxLimit = limits?.maxSinglePosition || 0.1;
 
       return {
         exceeded: weight > maxLimit,
-        limit: 'maxSinglePosition',
+        limit: "maxSinglePosition",
         currentValue: weight,
-        limitValue: maxLimit
+        limitValue: maxLimit,
       };
     } catch (error) {
-      logger.error('Position limits check failed:', error);
+      logger.error("Position limits check failed:", error);
       return { exceeded: false, limit: null, currentValue: 0, limitValue: 0 };
     }
   }
@@ -1257,13 +1369,13 @@ class RiskEngine {
   checkSectorLimits(portfolio, limits) {
     try {
       const sectorAllocations = {};
-      const maxSectorLimit = limits?.maxSectorAllocation || 0.60;
+      const maxSectorLimit = limits?.maxSectorAllocation || 0.6;
 
       // Calculate sector allocations
       for (const position of portfolio) {
-        const sector = position?.sector || 'Unknown';
+        const sector = position?.sector || "Unknown";
         const weight = position?.weight || 0;
-        
+
         if (!sectorAllocations[sector]) {
           sectorAllocations[sector] = { allocation: 0, exceeded: false };
         }
@@ -1278,7 +1390,7 @@ class RiskEngine {
 
       return sectorAllocations;
     } catch (error) {
-      logger.error('Sector limits check failed:', error);
+      logger.error("Sector limits check failed:", error);
       return {};
     }
   }
@@ -1300,10 +1412,10 @@ class RiskEngine {
       return {
         currentLeverage: Math.round(currentLeverage * 100) / 100,
         exceeded: currentLeverage > maxLeverage,
-        limit: maxLeverage
+        limit: maxLeverage,
       };
     } catch (error) {
-      logger.error('Leverage limits check failed:', error);
+      logger.error("Leverage limits check failed:", error);
       return { currentLeverage: 0, exceeded: false, limit: 1.0 };
     }
   }
@@ -1317,7 +1429,7 @@ class RiskEngine {
    */
   async checkCorrelationLimits(portfolio, correlationMatrix, limits) {
     try {
-      const maxCorrelation = limits?.maxCorrelation || 0.80;
+      const maxCorrelation = limits?.maxCorrelation || 0.8;
       const violations = [];
 
       for (let i = 0; i < portfolio.length; i++) {
@@ -1328,12 +1440,12 @@ class RiskEngine {
           const weight2 = portfolio[j]?.weight || 0;
 
           const correlation = correlationMatrix[symbol1]?.[symbol2] || 0;
-          
+
           if (Math.abs(correlation) > maxCorrelation) {
             violations.push({
               pair: [symbol1, symbol2],
               correlation,
-              weightProduct: Math.round(weight1 * weight2 * 100) / 100
+              weightProduct: Math.round(weight1 * weight2 * 100) / 100,
             });
           }
         }
@@ -1341,10 +1453,10 @@ class RiskEngine {
 
       return {
         exceeded: violations.length > 0,
-        pairs: violations
+        pairs: violations,
       };
     } catch (error) {
-      logger.error('Correlation limits check failed:', error);
+      logger.error("Correlation limits check failed:", error);
       return { exceeded: false, pairs: [] };
     }
   }
@@ -1357,7 +1469,7 @@ class RiskEngine {
    */
   async runScenario(portfolio, scenario) {
     try {
-      const marketDrop = scenario?.marketDrop || -0.20;
+      const marketDrop = scenario?.marketDrop || -0.2;
       let totalLoss = 0;
       const breakdown = [];
 
@@ -1365,23 +1477,23 @@ class RiskEngine {
         const beta = position?.beta || 1.0;
         const value = (position?.quantity || 0) * (position?.currentPrice || 0);
         const expectedLoss = value * marketDrop * beta;
-        
+
         totalLoss += expectedLoss;
         breakdown.push({
           symbol: position?.symbol,
           value,
           beta,
-          expectedLoss
+          expectedLoss,
         });
       }
 
       return {
         totalLoss,
         breakdown,
-        scenario: scenario
+        scenario: scenario,
       };
     } catch (error) {
-      logger.error('Scenario analysis failed:', error);
+      logger.error("Scenario analysis failed:", error);
       return { totalLoss: 0, breakdown: [], scenario };
     }
   }
@@ -1402,14 +1514,15 @@ class RiskEngine {
 
       for (let sim = 0; sim < simulations; sim++) {
         let portfolioReturn = 0;
-        
+
         for (const asset of portfolio) {
           const expectedReturn = asset?.expectedReturn || 0;
-          const volatility = asset?.volatility || 0.20;
+          const volatility = asset?.volatility || 0.2;
           const weight = asset?.weight || 0;
 
           // Simple random return (normally distributed)
-          const randomReturn = expectedReturn + volatility * this.randomNormal();
+          const randomReturn =
+            expectedReturn + volatility * this.randomNormal();
           portfolioReturn += weight * randomReturn;
         }
 
@@ -1418,15 +1531,15 @@ class RiskEngine {
 
       results.sort((a, b) => a - b);
       const varIndex = Math.floor((1 - confidence) * simulations);
-      
+
       return {
         var95: results[varIndex] || 0,
         expectedReturn: results.reduce((a, b) => a + b, 0) / results.length,
         worstCase: results[0] || 0,
-        bestCase: results[results.length - 1] || 0
+        bestCase: results[results.length - 1] || 0,
       };
     } catch (error) {
-      logger.error('Monte Carlo simulation failed:', error);
+      logger.error("Monte Carlo simulation failed:", error);
       return { var95: 0, expectedReturn: 0, worstCase: 0, bestCase: 0 };
     }
   }
@@ -1437,9 +1550,10 @@ class RiskEngine {
    */
   randomNormal() {
     // Box-Muller transformation
-    let u = 0, v = 0;
-    while(u === 0) u = Math.random(); // Converting [0,1) to (0,1)
-    while(v === 0) v = Math.random();
+    let u = 0,
+      v = 0;
+    while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+    while (v === 0) v = Math.random();
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
   }
 
@@ -1459,7 +1573,7 @@ class RiskEngine {
         const weight = position?.weight || 0;
         const duration = position?.duration || 0;
         const value = weight * 1000000; // Assuming $1M portfolio
-        
+
         portfolioDuration += weight * duration;
         totalValue += value;
 
@@ -1473,10 +1587,10 @@ class RiskEngine {
       return {
         portfolioDuration,
         priceImpact,
-        bondImpact
+        bondImpact,
       };
     } catch (error) {
-      logger.error('Interest rate sensitivity analysis failed:', error);
+      logger.error("Interest rate sensitivity analysis failed:", error);
       return { portfolioDuration: 0, priceImpact: 0, bondImpact: 0 };
     }
   }
@@ -1497,27 +1611,30 @@ class RiskEngine {
       const cutoffIndex = Math.floor(confidenceLevel * sortedReturns.length);
       const tailReturns = sortedReturns.slice(0, cutoffIndex);
 
-      const expectedShortfall = tailReturns.length > 0 
-        ? tailReturns.reduce((a, b) => a + b, 0) / tailReturns.length 
-        : 0;
+      const expectedShortfall =
+        tailReturns.length > 0
+          ? tailReturns.reduce((a, b) => a + b, 0) / tailReturns.length
+          : 0;
 
       // Find extreme events (returns < -10%)
-      const extremeEvents = historicalReturns.filter(ret => ret < -0.10);
-      
+      const extremeEvents = historicalReturns.filter((ret) => ret < -0.1);
+
       // Tail ratio (average of worst 5% / average of best 5%)
       const bestReturns = sortedReturns.slice(-cutoffIndex);
-      const avgBest = bestReturns.length > 0 
-        ? bestReturns.reduce((a, b) => a + b, 0) / bestReturns.length 
-        : 0;
-      const tailRatio = avgBest !== 0 ? Math.abs(expectedShortfall / avgBest) : 0;
+      const avgBest =
+        bestReturns.length > 0
+          ? bestReturns.reduce((a, b) => a + b, 0) / bestReturns.length
+          : 0;
+      const tailRatio =
+        avgBest !== 0 ? Math.abs(expectedShortfall / avgBest) : 0;
 
       return {
         expectedShortfall,
         tailRatio,
-        extremeEvents: extremeEvents.length
+        extremeEvents: extremeEvents.length,
       };
     } catch (error) {
-      logger.error('Tail risk evaluation failed:', error);
+      logger.error("Tail risk evaluation failed:", error);
       return { expectedShortfall: 0, tailRatio: 0, extremeEvents: 0 };
     }
   }
@@ -1531,12 +1648,12 @@ class RiskEngine {
     try {
       const concentrationRisk = this.assessConcentrationRisk(portfolio);
       const sectorAllocation = this.calculateSectorRisk(portfolio);
-      
+
       // Calculate overall risk score (simplified)
       let riskScore = 0;
-      if (concentrationRisk.level === 'EXTREME') riskScore += 40;
-      else if (concentrationRisk.level === 'HIGH') riskScore += 30;
-      else if (concentrationRisk.level === 'MEDIUM') riskScore += 20;
+      if (concentrationRisk.level === "EXTREME") riskScore += 40;
+      else if (concentrationRisk.level === "HIGH") riskScore += 30;
+      else if (concentrationRisk.level === "MEDIUM") riskScore += 20;
       else riskScore += 10;
 
       // Add sector risk
@@ -1553,18 +1670,25 @@ class RiskEngine {
         keyMetrics: {
           hhi: concentrationRisk.hhi,
           sectorCount: Object.keys(sectorAllocation).length - 1, // -1 for diversification key
-          maxSectorWeight: Math.max(...Object.values(sectorAllocation).filter(v => typeof v === 'number'))
+          maxSectorWeight: Math.max(
+            ...Object.values(sectorAllocation).filter(
+              (v) => typeof v === "number"
+            )
+          ),
         },
-        alerts: this.generateRiskAlerts({ overallRiskScore, concentrationRisk: concentrationRisk.level }, {})
+        alerts: this.generateRiskAlerts(
+          { overallRiskScore, concentrationRisk: concentrationRisk.level },
+          {}
+        ),
       };
     } catch (error) {
-      logger.error('Risk dashboard generation failed:', error);
+      logger.error("Risk dashboard generation failed:", error);
       return {
         overallRiskScore: 0,
-        concentrationRisk: 'UNKNOWN',
+        concentrationRisk: "UNKNOWN",
         sectorAllocation: {},
         keyMetrics: {},
-        alerts: []
+        alerts: [],
       };
     }
   }
@@ -1583,11 +1707,11 @@ class RiskEngine {
       if (riskMetrics.var95 && thresholds.maxVar) {
         if (riskMetrics.var95 < thresholds.maxVar) {
           alerts.push({
-            type: 'VaR_EXCEEDED',
-            severity: 'HIGH',
+            type: "VaR_EXCEEDED",
+            severity: "HIGH",
             message: `VaR exceeded threshold: ${riskMetrics.var95} vs ${thresholds.maxVar}`,
             value: riskMetrics.var95,
-            threshold: thresholds.maxVar
+            threshold: thresholds.maxVar,
           });
         }
       }
@@ -1596,32 +1720,35 @@ class RiskEngine {
       if (riskMetrics.leverageRatio && thresholds.maxLeverage) {
         if (riskMetrics.leverageRatio > thresholds.maxLeverage) {
           alerts.push({
-            type: 'LEVERAGE_EXCEEDED',
-            severity: 'HIGH',
+            type: "LEVERAGE_EXCEEDED",
+            severity: "HIGH",
             message: `Leverage exceeded: ${riskMetrics.leverageRatio}x vs ${thresholds.maxLeverage}x`,
             value: riskMetrics.leverageRatio,
-            threshold: thresholds.maxLeverage
+            threshold: thresholds.maxLeverage,
           });
         }
       }
 
       // Concentration risk alert
-      if (riskMetrics.concentrationRisk === 'EXTREME' || riskMetrics.concentrationRisk === 'HIGH') {
+      if (
+        riskMetrics.concentrationRisk === "EXTREME" ||
+        riskMetrics.concentrationRisk === "HIGH"
+      ) {
         alerts.push({
-          type: 'CONCENTRATION_RISK',
-          severity: riskMetrics.concentrationRisk === 'EXTREME' ? 'CRITICAL' : 'HIGH',
+          type: "CONCENTRATION_RISK",
+          severity:
+            riskMetrics.concentrationRisk === "EXTREME" ? "CRITICAL" : "HIGH",
           message: `High concentration risk detected: ${riskMetrics.concentrationRisk}`,
-          value: riskMetrics.concentrationRisk
+          value: riskMetrics.concentrationRisk,
         });
       }
 
       return alerts;
     } catch (error) {
-      logger.error('Risk alerts generation failed:', error);
+      logger.error("Risk alerts generation failed:", error);
       return [];
     }
   }
-
 
   /**
    * Optimize position sizes based on risk-return profile
@@ -1637,13 +1764,13 @@ class RiskEngine {
       // Simple mean-variance optimization (simplified)
       for (const asset of assets) {
         const expectedReturn = asset?.expectedReturn || 0;
-        const volatility = asset?.volatility || 0.20;
+        const volatility = asset?.volatility || 0.2;
         const symbol = asset?.symbol;
 
         // Risk-adjusted return
         const sharpeRatio = volatility > 0 ? expectedReturn / volatility : 0;
         const weight = Math.max(0, Math.min(0.4, sharpeRatio * riskTolerance));
-        
+
         positions[symbol] = weight;
         totalWeight += weight;
       }
@@ -1657,7 +1784,7 @@ class RiskEngine {
 
       return positions;
     } catch (error) {
-      logger.error('Position size optimization failed:', error);
+      logger.error("Position size optimization failed:", error);
       return {};
     }
   }
@@ -1677,19 +1804,20 @@ class RiskEngine {
         const targetWeight = position?.targetWeight || 0;
         const difference = targetWeight - currentWeight;
 
-        if (Math.abs(difference) > 0.01) { // 1% threshold
+        if (Math.abs(difference) > 0.01) {
+          // 1% threshold
           rebalancing[symbol] = {
-            action: difference > 0 ? 'BUY' : 'SELL',
+            action: difference > 0 ? "BUY" : "SELL",
             amount: Math.abs(difference),
             currentWeight,
-            targetWeight
+            targetWeight,
           };
         }
       }
 
       return rebalancing;
     } catch (error) {
-      logger.error('Rebalancing calculation failed:', error);
+      logger.error("Rebalancing calculation failed:", error);
       return {};
     }
   }
@@ -1703,40 +1831,40 @@ class RiskEngine {
     try {
       const recommendations = [];
       let leverageMultiplier = 1.0;
-      let concentrationLimit = 0.10;
+      let concentrationLimit = 0.1;
 
       // Adjust based on volatility regime
-      if (marketConditions?.volatilityRegime === 'HIGH') {
+      if (marketConditions?.volatilityRegime === "HIGH") {
         leverageMultiplier *= 0.8;
         concentrationLimit *= 0.8;
-        recommendations.push('REDUCE_RISK');
+        recommendations.push("REDUCE_RISK");
       }
 
       // Adjust based on market trend
-      if (marketConditions?.marketTrend === 'BEARISH') {
+      if (marketConditions?.marketTrend === "BEARISH") {
         leverageMultiplier *= 0.9;
         concentrationLimit *= 0.9;
-        recommendations.push('REDUCE_EXPOSURE');
+        recommendations.push("REDUCE_EXPOSURE");
       }
 
       // Adjust based on economic indicators
-      if (marketConditions?.economicIndicators === 'NEGATIVE') {
+      if (marketConditions?.economicIndicators === "NEGATIVE") {
         leverageMultiplier *= 0.85;
         concentrationLimit *= 0.85;
-        recommendations.push('INCREASE_CASH');
+        recommendations.push("INCREASE_CASH");
       }
 
       return {
         leverageMultiplier: Math.round(leverageMultiplier * 100) / 100,
         concentrationLimit: Math.round(concentrationLimit * 100) / 100,
-        recommendedActions: recommendations
+        recommendedActions: recommendations,
       };
     } catch (error) {
-      logger.error('Market conditions risk adjustment failed:', error);
+      logger.error("Market conditions risk adjustment failed:", error);
       return {
         leverageMultiplier: 1.0,
-        concentrationLimit: 0.10,
-        recommendedActions: []
+        concentrationLimit: 0.1,
+        recommendedActions: [],
       };
     }
   }

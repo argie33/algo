@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -16,14 +19,16 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades", () => {
     test("should return trade API information", async () => {
-      const response = await request(app)
-        .get("/api/trades");
+      const response = await request(app).get("/api/trades");
 
       expect([200, 404]).toContain(response.status);
-      expect(response.body).toHaveProperty("message", "Trade History API - Ready");
+      expect(response.body).toHaveProperty(
+        "message",
+        "Trade History API - Ready"
+      );
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("timestamp");
-      
+
       // Validate timestamp
       const timestamp = new Date(response.body.timestamp);
       expect(timestamp).toBeInstanceOf(Date);
@@ -33,13 +38,15 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/health", () => {
     test("should return health status", async () => {
-      const response = await request(app)
-        .get("/api/trades/health");
+      const response = await request(app).get("/api/trades/health");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "trades");
-      expect(response.body).toHaveProperty("message", "Trade History service is running");
+      expect(response.body).toHaveProperty(
+        "message",
+        "Trade History service is running"
+      );
       expect(response.body).toHaveProperty("timestamp");
     });
   });
@@ -52,7 +59,10 @@ describe("Trades Routes", () => {
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Recent trades not implemented");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Recent trades not implemented"
+      );
       expect(response.body).toHaveProperty("details");
       expect(response.body).toHaveProperty("troubleshooting");
       expect(response.body).toHaveProperty("filters");
@@ -61,7 +71,9 @@ describe("Trades Routes", () => {
 
     test("should handle query parameters", async () => {
       const response = await request(app)
-        .get("/api/trades/recent?limit=10&days=30&symbol=AAPL&type=buy&status=executed")
+        .get(
+          "/api/trades/recent?limit=10&days=30&symbol=AAPL&type=buy&status=executed"
+        )
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -86,9 +98,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/recent");
-        // No auth header
+      const response = await request(app).get("/api/trades/recent");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -101,7 +112,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("brokerStatus");
         expect(response.body).toHaveProperty("totalBrokers");
@@ -113,9 +124,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/import/status");
-        // No auth header
+      const response = await request(app).get("/api/trades/import/status");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -128,12 +138,12 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
           startDate: "2023-01-01",
-          endDate: "2023-12-31"
+          endDate: "2023-12-31",
         });
 
       // May return 200 if API keys exist, 400 if not, or 500 for other errors
       expect([200, 400, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 400) {
         expect(response.body).toHaveProperty("error");
         expect(response.body.error).toContain("API");
@@ -147,7 +157,7 @@ describe("Trades Routes", () => {
       const response = await request(app)
         .post("/api/trades/import/alpaca")
         .send({ startDate: "2023-01-01", endDate: "2023-12-31" });
-        // No auth header
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -160,7 +170,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(typeof response.body.data).toBe("object");
@@ -168,9 +178,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/summary");
-        // No auth header
+      const response = await request(app).get("/api/trades/summary");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -183,7 +192,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("positions");
@@ -198,7 +207,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.pagination.limit).toBe(10);
         expect(response.body.data.pagination.offset).toBe(0);
@@ -206,9 +215,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/positions");
-        // No auth header
+      const response = await request(app).get("/api/trades/positions");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -221,20 +229,20 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
         expect(response.body).toHaveProperty("metadata");
         expect(response.body).toHaveProperty("timestamp");
-        
+
         // Validate analytics structure
         const data = response.body.data;
         expect(data).toHaveProperty("summary");
         expect(data).toHaveProperty("performance_metrics");
         expect(data).toHaveProperty("sector_breakdown");
         expect(data).toHaveProperty("recent_trades");
-        
+
         // Validate metadata
         expect(response.body.metadata).toHaveProperty("timeframe");
         expect(response.body.metadata).toHaveProperty("date_range");
@@ -244,14 +252,14 @@ describe("Trades Routes", () => {
 
     test("should handle timeframe parameter", async () => {
       const timeframes = ["1W", "1M", "3M", "6M", "1Y", "YTD"];
-      
+
       for (const timeframe of timeframes) {
         const response = await request(app)
           .get(`/api/trades/analytics?timeframe=${timeframe}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
         expect([200, 404]).toContain(response.status);
-        
+
         if (response.status === 200) {
           expect(response.body.metadata.timeframe).toBe(timeframe);
         }
@@ -259,9 +267,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/analytics");
-        // No auth header
+      const response = await request(app).get("/api/trades/analytics");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -274,12 +281,12 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
         expect(response.body).toHaveProperty("timestamp");
-        
+
         const data = response.body.data;
         expect(data).toHaveProperty("timeframe");
         expect(data).toHaveProperty("overview");
@@ -289,9 +296,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/analytics/overview");
-        // No auth header
+      const response = await request(app).get("/api/trades/analytics/overview");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -304,7 +310,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 503, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("trades");
@@ -312,7 +318,10 @@ describe("Trades Routes", () => {
         expect(Array.isArray(response.body.data.trades)).toBe(true);
       } else if (response.status === 503) {
         expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error", "Trade history unavailable");
+        expect(response.body).toHaveProperty(
+          "error",
+          "Trade history unavailable"
+        );
         expect(response.body).toHaveProperty("requirements");
         expect(response.body).toHaveProperty("actions");
       }
@@ -320,16 +329,17 @@ describe("Trades Routes", () => {
 
     test("should handle query parameters", async () => {
       const response = await request(app)
-        .get("/api/trades/history?symbol=AAPL&limit=10&offset=0&sortBy=execution_time&sortOrder=desc")
+        .get(
+          "/api/trades/history?symbol=AAPL&limit=10&offset=0&sortBy=execution_time&sortOrder=desc"
+        )
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 503, 500].includes(response.status)).toBe(true);
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/history");
-        // No auth header
+      const response = await request(app).get("/api/trades/history");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -342,7 +352,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("benchmarks");
@@ -350,16 +360,18 @@ describe("Trades Routes", () => {
         expect(response.body.data).toHaveProperty("timeframe");
       } else if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error", "Performance data unavailable");
+        expect(response.body).toHaveProperty(
+          "error",
+          "Performance data unavailable"
+        );
         expect(response.body).toHaveProperty("requirements");
         expect(response.body).toHaveProperty("actions");
       }
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/performance");
-        // No auth header
+      const response = await request(app).get("/api/trades/performance");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -372,7 +384,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("insights");
@@ -391,9 +403,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/insights");
-        // No auth header
+      const response = await request(app).get("/api/trades/insights");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -406,7 +417,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -419,9 +430,11 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
-        expect(response.headers["content-type"]).toBe("text/csv; charset=utf-8");
+        expect(response.headers["content-type"]).toBe(
+          "text/csv; charset=utf-8"
+        );
         expect(response.headers["content-disposition"]).toContain("attachment");
         expect(typeof response.text).toBe("string");
       }
@@ -436,9 +449,8 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/trades/export");
-        // No auth header
+      const response = await request(app).get("/api/trades/export");
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -464,7 +476,7 @@ describe("Trades Routes", () => {
         .send({ confirm: "DELETE_ALL_TRADE_DATA" });
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message");
         expect(response.body.message).toContain("deleted successfully");
@@ -475,7 +487,7 @@ describe("Trades Routes", () => {
       const response = await request(app)
         .delete("/api/trades/data")
         .send({ confirm: "DELETE_ALL_TRADE_DATA" });
-        // No auth header
+      // No auth header
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -502,26 +514,32 @@ describe("Trades Routes", () => {
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/trades")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(3000);
       expect([200, 404]).toContain(response.status);
     });
 
     test("should handle concurrent requests", async () => {
       const requests = [
-        request(app).get("/api/trades").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/trades/health").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/trades/summary").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/trades")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/trades/health")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/trades/summary")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
 
       const responses = await Promise.all(requests);
-      
+
       responses.forEach((response, index) => {
         if (index === 0) {
           expect([200, 404]).toContain(response.status);

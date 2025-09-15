@@ -8,15 +8,15 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     console.log(`📈 Earnings data requested - delegating to calendar/earnings`);
-    
+
     // Create a mock request/response to call calendar earnings internally
     const mockReq = {
       ...req,
-      url: '/earnings',
-      path: '/earnings',
-      route: { path: '/earnings' }
+      url: "/earnings",
+      path: "/earnings",
+      route: { path: "/earnings" },
     };
-    
+
     // Call calendar earnings handler
     return calendarRouter.handle(mockReq, res, (err) => {
       if (err) {
@@ -25,18 +25,17 @@ router.get("/", async (req, res) => {
           success: false,
           error: "Failed to fetch earnings data",
           details: err.message,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
-
   } catch (error) {
     console.error("Earnings delegation error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch earnings data",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -45,20 +44,22 @@ router.get("/", async (req, res) => {
 router.get("/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    console.log(`📊 Earnings details for ${symbol} - delegating to calendar/earnings`);
-    
+    console.log(
+      `📊 Earnings details for ${symbol} - delegating to calendar/earnings`
+    );
+
     // Modify query to include symbol filter and delegate to calendar
     const mockReq = {
       ...req,
-      url: '/earnings',
-      path: '/earnings',
-      route: { path: '/earnings' },
+      url: "/earnings",
+      path: "/earnings",
+      route: { path: "/earnings" },
       query: {
         ...req.query,
-        symbol: symbol.toUpperCase()
-      }
+        symbol: symbol.toUpperCase(),
+      },
     };
-    
+
     return calendarRouter.handle(mockReq, res, (err) => {
       if (err) {
         console.error("Calendar earnings delegation error:", err);
@@ -67,11 +68,10 @@ router.get("/:symbol", async (req, res) => {
           error: "Failed to fetch earnings details",
           details: err.message,
           symbol: symbol.toUpperCase(),
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     });
-
   } catch (error) {
     console.error(`Earnings delegation error for ${req.params.symbol}:`, error);
     res.status(500).json({
@@ -79,7 +79,7 @@ router.get("/:symbol", async (req, res) => {
       error: "Failed to fetch earnings details",
       details: error.message,
       symbol: req.params.symbol?.toUpperCase() || null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

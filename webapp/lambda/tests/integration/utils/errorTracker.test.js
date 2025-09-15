@@ -3,7 +3,10 @@
  * Tests error logging, monitoring, and alert system
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 const errorTracker = require("../../../utils/errorTracker");
 
 describe("Error Tracker Integration Tests", () => {
@@ -29,13 +32,13 @@ describe("Error Tracker Integration Tests", () => {
         userId: "test_user",
         route: "/api/test",
         method: "GET",
-        correlationId: "test-123"
+        correlationId: "test-123",
       };
 
       const errorId = errorTracker.trackError(testError, context);
-      
+
       expect(errorId).toBeDefined();
-      expect(typeof errorId).toBe('string');
+      expect(typeof errorId).toBe("string");
       expect(errorId).toMatch(/^[a-z]{3}-[a-z0-9]+-[a-z0-9]+$/); // Format: category-timestamp-random
     });
 
@@ -56,19 +59,21 @@ describe("Error Tracker Integration Tests", () => {
       const databaseError = new Error("Database connection failed");
       const authError = new Error("Unauthorized access");
       const validationError = new Error("Validation failed");
-      
+
       errorTracker.trackError(databaseError);
       errorTracker.trackError(authError, { statusCode: 401 });
       errorTracker.trackError(validationError, { statusCode: 400 });
 
       const recentErrors = errorTracker.getRecentErrors(3);
-      
+
       expect(recentErrors.length).toBe(3);
-      
-      const dbErr = recentErrors.find(e => e.message.includes("Database"));
-      const authErr = recentErrors.find(e => e.message.includes("Unauthorized"));
-      const valErr = recentErrors.find(e => e.message.includes("Validation"));
-      
+
+      const dbErr = recentErrors.find((e) => e.message.includes("Database"));
+      const authErr = recentErrors.find((e) =>
+        e.message.includes("Unauthorized")
+      );
+      const valErr = recentErrors.find((e) => e.message.includes("Validation"));
+
       expect(dbErr.category).toBe("database");
       expect(authErr.category).toBe("auth");
       expect(valErr.category).toBe("validation");
@@ -86,14 +91,14 @@ describe("Error Tracker Integration Tests", () => {
       errorTracker.trackError(lowError);
 
       const recentErrors = errorTracker.getRecentErrors(4);
-      
+
       expect(recentErrors.length).toBe(4);
-      
-      const critical = recentErrors.find(e => e.message.includes("timeout"));
-      const high = recentErrors.find(e => e.message.includes("Unauthorized"));
-      const medium = recentErrors.find(e => e.message.includes("Invalid"));
-      const low = recentErrors.find(e => e.message.includes("Minor"));
-      
+
+      const critical = recentErrors.find((e) => e.message.includes("timeout"));
+      const high = recentErrors.find((e) => e.message.includes("Unauthorized"));
+      const medium = recentErrors.find((e) => e.message.includes("Invalid"));
+      const low = recentErrors.find((e) => e.message.includes("Minor"));
+
       expect(critical.severity).toBe("critical");
       expect(high.severity).toBe("high");
       expect(medium.severity).toBe("medium");
@@ -106,7 +111,9 @@ describe("Error Tracker Integration Tests", () => {
       // Track various errors
       errorTracker.trackError(new Error("Database error"));
       errorTracker.trackError(new Error("Auth error"), { statusCode: 401 });
-      errorTracker.trackError(new Error("Validation error"), { statusCode: 400 });
+      errorTracker.trackError(new Error("Validation error"), {
+        statusCode: 400,
+      });
       errorTracker.trackError(new Error("API error"), { statusCode: 500 });
 
       const stats = errorTracker.getErrorStats();
@@ -117,7 +124,7 @@ describe("Error Tracker Integration Tests", () => {
       expect(stats.bySeverity).toBeDefined();
       expect(stats.lastHour).toBeDefined();
       expect(stats.currentMinuteRates).toBeDefined();
-      
+
       // Check categories are counted
       expect(stats.byCategory.database).toBeGreaterThanOrEqual(1);
       expect(stats.byCategory.auth).toBeGreaterThanOrEqual(1);
@@ -136,9 +143,9 @@ describe("Error Tracker Integration Tests", () => {
 
       expect(recent5.length).toBe(5);
       expect(recent3.length).toBe(3);
-      
+
       // Check that we have the most recent errors (may not be in exact order due to timing)
-      const messages = recent5.map(e => e.message);
+      const messages = recent5.map((e) => e.message);
       expect(messages).toContain("Test error 9");
       expect(messages).toContain("Test error 8");
       expect(messages).toContain("Test error 7");
@@ -154,13 +161,13 @@ describe("Error Tracker Integration Tests", () => {
         errorTracker.trackError(new Error("Connection failed"));
       }
 
-      // Generate multiple auth errors  
+      // Generate multiple auth errors
       for (let i = 0; i < 2; i++) {
         errorTracker.trackError(new Error("Unauthorized"), { statusCode: 401 });
       }
 
       const stats = errorTracker.getErrorStats();
-      
+
       expect(stats.byCategory.database).toBe(3);
       expect(stats.byCategory.auth).toBe(2);
       expect(stats.total).toBe(5);
@@ -168,17 +175,21 @@ describe("Error Tracker Integration Tests", () => {
 
     test("should handle concurrent error tracking", async () => {
       const promises = [];
-      
+
       // Track 20 errors concurrently
       for (let i = 0; i < 20; i++) {
-        promises.push(Promise.resolve(errorTracker.trackError(new Error(`Concurrent error ${i}`))));
+        promises.push(
+          Promise.resolve(
+            errorTracker.trackError(new Error(`Concurrent error ${i}`))
+          )
+        );
       }
 
       await Promise.all(promises);
-      
+
       const stats = errorTracker.getErrorStats();
       expect(stats.total).toBe(20);
-      
+
       const recentErrors = errorTracker.getRecentErrors(20);
       expect(recentErrors.length).toBe(20);
     });
@@ -192,7 +203,7 @@ describe("Error Tracker Integration Tests", () => {
 
       const stats = errorTracker.getErrorStats();
       expect(stats.byCategory.database).toBe(2);
-      
+
       // No specific alert tracking in current implementation
       // But errors should be logged and categorized properly
     });
@@ -200,19 +211,27 @@ describe("Error Tracker Integration Tests", () => {
     test("should handle different error categories simultaneously", () => {
       // Mix of different error types with unique messages
       const testId = Date.now();
-      
+
       // Use exact keywords that trigger categorization
-      errorTracker.trackError(new Error(`Database connection failed ${testId}`));
-      errorTracker.trackError(new Error(`Unauthorized access ${testId}`), { statusCode: 401 });
-      errorTracker.trackError(new Error(`API request failed ${testId}`), { statusCode: 500 });
-      errorTracker.trackError(new Error(`Validation failed ${testId}`), { statusCode: 400 });
+      errorTracker.trackError(
+        new Error(`Database connection failed ${testId}`)
+      );
+      errorTracker.trackError(new Error(`Unauthorized access ${testId}`), {
+        statusCode: 401,
+      });
+      errorTracker.trackError(new Error(`API request failed ${testId}`), {
+        statusCode: 500,
+      });
+      errorTracker.trackError(new Error(`Validation failed ${testId}`), {
+        statusCode: 400,
+      });
 
       const stats = errorTracker.getErrorStats();
-      
+
       // Verify we have the expected error categories
       const recentErrors = errorTracker.getRecentErrors(4);
-      const categories = recentErrors.map(e => e.category);
-      
+      const categories = recentErrors.map((e) => e.category);
+
       expect(categories).toContain("database");
       expect(categories).toContain("auth");
       expect(categories).toContain("api");
@@ -229,7 +248,7 @@ describe("Error Tracker Integration Tests", () => {
         route: "/api/portfolio",
         method: "POST",
         userAgent: "test-agent",
-        ip: "127.0.0.1"
+        ip: "127.0.0.1",
       };
 
       errorTracker.trackError(new Error("Context test error"), context);
@@ -253,15 +272,15 @@ describe("Error Tracker Integration Tests", () => {
       expect(error1).toBeDefined();
       expect(error2).toBeDefined();
       expect(error1).not.toBe(error2);
-      expect(typeof error1).toBe('string');
-      expect(typeof error2).toBe('string');
+      expect(typeof error1).toBe("string");
+      expect(typeof error2).toBe("string");
     });
   });
 
   describe("Error History Management", () => {
     test("should maintain error history with size limit", () => {
       const initialCount = 50;
-      
+
       // Add initial errors
       for (let i = 0; i < initialCount; i++) {
         errorTracker.trackError(new Error(`History test ${i}`));
@@ -277,7 +296,7 @@ describe("Error Tracker Integration Tests", () => {
 
       stats = errorTracker.getErrorStats();
       expect(stats.total).toBe(initialCount + 10);
-      
+
       // Should still be within limits
       expect(stats.total).toBeLessThanOrEqual(1000);
     });
@@ -307,7 +326,11 @@ describe("Error Tracker Integration Tests", () => {
 
       // Track 100 errors concurrently
       for (let i = 0; i < 100; i++) {
-        promises.push(Promise.resolve(errorTracker.trackError(new Error(`Volume test ${i}`))));
+        promises.push(
+          Promise.resolve(
+            errorTracker.trackError(new Error(`Volume test ${i}`))
+          )
+        );
       }
 
       await Promise.all(promises);
@@ -327,11 +350,11 @@ describe("Error Tracker Integration Tests", () => {
       }
 
       const startTime = Date.now();
-      
+
       // Perform multiple statistical operations
       const stats = errorTracker.getErrorStats();
       const recent = errorTracker.getRecentErrors(10);
-      
+
       const duration = Date.now() - startTime;
 
       expect(duration).toBeLessThan(100); // Should be very fast (< 100ms)
@@ -343,33 +366,36 @@ describe("Error Tracker Integration Tests", () => {
   describe("Integration Features", () => {
     test("should provide middleware integration capability", () => {
       const middleware = errorTracker.middleware();
-      
+
       expect(middleware).toBeDefined();
-      expect(typeof middleware).toBe('function');
+      expect(typeof middleware).toBe("function");
       expect(middleware.length).toBe(4); // err, req, res, next parameters
     });
 
     test("should handle middleware error processing", () => {
       const middleware = errorTracker.middleware();
       const mockReq = {
-        headers: { 'x-correlation-id': 'test-123' },
-        method: 'GET',
-        route: { path: '/test' },
-        ip: '127.0.0.1',
-        get: jest.fn(() => 'test-user-agent'),
+        headers: { "x-correlation-id": "test-123" },
+        method: "GET",
+        route: { path: "/test" },
+        ip: "127.0.0.1",
+        get: jest.fn(() => "test-user-agent"),
         body: {},
         query: {},
-        params: {}
+        params: {},
       };
       const mockRes = {
-        setHeader: jest.fn()
+        setHeader: jest.fn(),
       };
       const mockNext = jest.fn();
       const testError = new Error("Middleware test error");
 
       middleware(testError, mockReq, mockRes, mockNext);
 
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Error-ID', expect.any(String));
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        "X-Error-ID",
+        expect.any(String)
+      );
       expect(mockNext).toHaveBeenCalledWith(testError);
 
       const recentErrors = errorTracker.getRecentErrors(1);

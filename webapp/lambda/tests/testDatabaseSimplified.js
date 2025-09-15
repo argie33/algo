@@ -4,7 +4,7 @@
  * Provides basic database operations for testing without full schema complexity
  */
 
-const { newDb } = require('pg-mem');
+const { newDb } = require("pg-mem");
 
 class SimplifiedTestDatabase {
   constructor() {
@@ -15,23 +15,26 @@ class SimplifiedTestDatabase {
 
   async initialize() {
     try {
-      console.log('🔧 Initializing simplified test database...');
-      
+      console.log("🔧 Initializing simplified test database...");
+
       // Create pg-mem database
       this.db = newDb();
-      
+
       // Create simplified tables that work with pg-mem limitations
       await this.createSimplifiedTables();
-      
+
       // Get the PostgreSQL adapter and create a client (pg-mem pattern)
       const adapter = this.db.adapters.createPg();
       this.client = new adapter.Client();
       this.isInitialized = true;
-      
-      console.log('✅ Simplified test database ready');
+
+      console.log("✅ Simplified test database ready");
       return this.client;
     } catch (error) {
-      console.error('❌ Failed to initialize simplified test database:', error.message);
+      console.error(
+        "❌ Failed to initialize simplified test database:",
+        error.message
+      );
       throw error;
     }
   }
@@ -39,7 +42,7 @@ class SimplifiedTestDatabase {
   async createSimplifiedTables() {
     // Create simple tables without DECIMAL, TIMESTAMP WITH TIME ZONE, DEFAULT NOW()
     // These tables are for testing basic CRUD operations, not full schema validation
-    
+
     await this.db.public.none(`
       CREATE TABLE IF NOT EXISTS test_users (
         id SERIAL PRIMARY KEY,
@@ -74,18 +77,18 @@ class SimplifiedTestDatabase {
       );
     `);
 
-    console.log('✅ Simplified test tables created');
+    console.log("✅ Simplified test tables created");
   }
 
   async query(sql, params = []) {
     if (!this.isInitialized) {
-      throw new Error('Database not initialized. Call initialize() first.');
+      throw new Error("Database not initialized. Call initialize() first.");
     }
 
     try {
       return await this.client.query(sql, params);
     } catch (error) {
-      console.error('Query failed:', error.message);
+      console.error("Query failed:", error.message);
       throw error;
     }
   }
@@ -93,7 +96,7 @@ class SimplifiedTestDatabase {
   // Helper methods for common test operations
   async insertTestUser(email) {
     const result = await this.query(
-      'INSERT INTO test_users (email, created_at) VALUES ($1, $2) RETURNING *',
+      "INSERT INTO test_users (email, created_at) VALUES ($1, $2) RETURNING *",
       [email, new Date().toISOString()]
     );
     return result.rows[0];
@@ -101,7 +104,7 @@ class SimplifiedTestDatabase {
 
   async insertTestStock(symbol, price, volume) {
     const result = await this.query(
-      'INSERT INTO test_stocks (symbol, price, volume) VALUES ($1, $2, $3) RETURNING *',
+      "INSERT INTO test_stocks (symbol, price, volume) VALUES ($1, $2, $3) RETURNING *",
       [symbol, price, volume]
     );
     return result.rows[0];
@@ -109,7 +112,7 @@ class SimplifiedTestDatabase {
 
   async insertTestWatchlistItem(userId, symbol) {
     const result = await this.query(
-      'INSERT INTO test_watchlist (user_id, symbol, created_at) VALUES ($1, $2, $3) RETURNING *',
+      "INSERT INTO test_watchlist (user_id, symbol, created_at) VALUES ($1, $2, $3) RETURNING *",
       [userId, symbol, new Date().toISOString()]
     );
     return result.rows[0];
@@ -117,7 +120,7 @@ class SimplifiedTestDatabase {
 
   async insertTestApiKey(userId, provider, encryptedData) {
     const result = await this.query(
-      'INSERT INTO test_api_keys (user_id, provider, encrypted_data) VALUES ($1, $2, $3) RETURNING *',
+      "INSERT INTO test_api_keys (user_id, provider, encrypted_data) VALUES ($1, $2, $3) RETURNING *",
       [userId, provider, encryptedData]
     );
     return result.rows[0];
@@ -127,27 +130,27 @@ class SimplifiedTestDatabase {
     try {
       if (this.client) {
         // Clear all test data
-        await this.client.query('DELETE FROM test_watchlist');
-        await this.client.query('DELETE FROM test_api_keys');
-        await this.client.query('DELETE FROM test_stocks');
-        await this.client.query('DELETE FROM test_users');
-        
+        await this.client.query("DELETE FROM test_watchlist");
+        await this.client.query("DELETE FROM test_api_keys");
+        await this.client.query("DELETE FROM test_stocks");
+        await this.client.query("DELETE FROM test_users");
+
         await this.client.end();
-        console.log('✅ Simplified test database cleaned up');
+        console.log("✅ Simplified test database cleaned up");
       }
     } catch (error) {
-      console.error('❌ Cleanup failed:', error.message);
+      console.error("❌ Cleanup failed:", error.message);
     }
   }
 
   // Mock database health check for testing
   async healthCheck() {
     if (!this.isInitialized) {
-      return { healthy: false, error: 'Database not initialized' };
+      return { healthy: false, error: "Database not initialized" };
     }
 
     try {
-      await this.query('SELECT 1 as test');
+      await this.query("SELECT 1 as test");
       return { healthy: true, timestamp: new Date().toISOString() };
     } catch (error) {
       return { healthy: false, error: error.message };
@@ -157,5 +160,5 @@ class SimplifiedTestDatabase {
 
 module.exports = {
   SimplifiedTestDatabase,
-  createSimplifiedTestDatabase: () => new SimplifiedTestDatabase()
+  createSimplifiedTestDatabase: () => new SimplifiedTestDatabase(),
 };

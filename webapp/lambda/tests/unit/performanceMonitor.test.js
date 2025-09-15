@@ -21,7 +21,7 @@ describe("Performance Monitor", () => {
 
     // Get the current instance and reset it (instead of creating new instances)
     performanceMonitor = require("../../utils/performanceMonitor");
-    
+
     // Reset the singleton state for each test
     performanceMonitor.reset();
 
@@ -459,7 +459,9 @@ describe("Performance Monitor", () => {
 
       expect(typeof systemHealth.status).toBe("string");
       expect(
-        ["healthy", "warning", "degraded", "critical"].includes(systemHealth.status)
+        ["healthy", "warning", "degraded", "critical"].includes(
+          systemHealth.status
+        )
       ).toBe(true);
 
       expect(typeof systemHealth.score).toBe("number");
@@ -567,14 +569,14 @@ describe("Performance Monitor", () => {
   describe("History Management", () => {
     test("should maintain history size limit", () => {
       performanceMonitor.historySize = 5; // Set small limit for testing
-      
+
       // Add more operations than history limit
       for (let i = 0; i < 10; i++) {
         const opId = `hist-op-${i}`;
         performanceMonitor.startOperation(opId, "test");
         performanceMonitor.endOperation(opId, { success: true });
       }
-      
+
       expect(performanceMonitor.performanceHistory.length).toBe(5);
       expect(performanceMonitor.performanceHistory[0].id).toBe("hist-op-5");
       expect(performanceMonitor.performanceHistory[4].id).toBe("hist-op-9");
@@ -583,11 +585,11 @@ describe("Performance Monitor", () => {
     test("should clear history", () => {
       performanceMonitor.startOperation("clear-test", "test");
       performanceMonitor.endOperation("clear-test", { success: true });
-      
+
       expect(performanceMonitor.performanceHistory.length).toBeGreaterThan(0);
-      
+
       performanceMonitor.clearHistory();
-      
+
       expect(performanceMonitor.performanceHistory.length).toBe(0);
     });
   });
@@ -600,30 +602,32 @@ describe("Performance Monitor", () => {
         performanceMonitor.startOperation(opId, "test");
         performanceMonitor.endOperation(opId, { success: true });
       }
-      
+
       const initialHistorySize = performanceMonitor.performanceHistory.length;
-      
+
       // Simulate memory pressure cleanup
       performanceMonitor.cleanupMemory();
-      
-      expect(performanceMonitor.performanceHistory.length).toBeLessThanOrEqual(initialHistorySize);
+
+      expect(performanceMonitor.performanceHistory.length).toBeLessThanOrEqual(
+        initialHistorySize
+      );
     });
 
     test("should handle orphaned operations", () => {
       const orphanedOp = "orphaned-operation";
       performanceMonitor.startOperation(orphanedOp, "test");
-      
+
       // Simulate operation timeout by manually setting old start time
       const operation = performanceMonitor.activeOperations.get(orphanedOp);
       operation.startTime = Date.now() - 65000; // 65 seconds ago (more than 60 seconds)
-      
+
       performanceMonitor.cleanupOrphanedOperations();
-      
+
       expect(performanceMonitor.activeOperations.has(orphanedOp)).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         "Cleaned up orphaned operation",
         expect.objectContaining({
-          operationId: orphanedOp
+          operationId: orphanedOp,
         })
       );
     });
@@ -632,21 +636,21 @@ describe("Performance Monitor", () => {
   describe("Advanced Metrics and Statistics", () => {
     test("should calculate percentiles correctly", () => {
       const durations = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
-      
+
       durations.forEach((duration, i) => {
         const opId = `perf-op-${i}`;
         performanceMonitor.startOperation(opId, "percentile-test");
-        
+
         // Mock the duration by manipulating the operation
         const operation = performanceMonitor.activeOperations.get(opId);
         operation.startTime = Date.now() - duration;
-        
+
         performanceMonitor.endOperation(opId, { success: true });
       });
-      
+
       const stats = performanceMonitor.getPerformanceStats();
       const categoryStats = stats.byCategory["percentile-test"];
-      
+
       // For 10 items [100,200,300,400,500,600,700,800,900,1000] using nearest rank method:
       // p50: ceil(0.50 * 10) - 1 = 4 -> index 4 -> 500
       // p95: ceil(0.95 * 10) - 1 = 9 -> index 9 -> 1000
@@ -660,43 +664,45 @@ describe("Performance Monitor", () => {
       // Simulate operations with increasing duration (performance degradation)
       for (let i = 0; i < 10; i++) {
         const opId = `trend-op-${i}`;
-        const duration = 100 + (i * 50); // Increasing duration
-        
+        const duration = 100 + i * 50; // Increasing duration
+
         performanceMonitor.startOperation(opId, "trend-test");
-        
+
         const operation = performanceMonitor.activeOperations.get(opId);
         operation.startTime = Date.now() - duration;
-        
+
         performanceMonitor.endOperation(opId, { success: true });
       }
-      
+
       const trends = performanceMonitor.getPerformanceTrends("trend-test");
-      
+
       expect(trends.direction).toBe("degrading");
       expect(trends.slope).toBeGreaterThan(0);
     });
 
     test("should identify performance anomalies", () => {
       const testCategory = `anomaly-test-${Date.now()}`;
-      
+
       // Ensure clean state for this test
       performanceMonitor.reset();
       expect(performanceMonitor.performanceHistory.length).toBe(0);
-      
+
       // Create baseline with normal variance (need at least 10 for detection)
-      const baselineDurations = [90, 95, 100, 105, 110, 85, 115, 92, 108, 88, 112, 94, 106, 87, 113];
+      const baselineDurations = [
+        90, 95, 100, 105, 110, 85, 115, 92, 108, 88, 112, 94, 106, 87, 113,
+      ];
       for (let i = 0; i < 15; i++) {
         const opId = `baseline-op-${i}-${Date.now()}`;
         performanceMonitor.recordMetric({
           id: opId,
-          category: testCategory, 
+          category: testCategory,
           duration: baselineDurations[i], // Variable durations to create statistical variance
           timestamp: new Date().toISOString(),
           success: true,
-          metadata: {}
+          metadata: {},
         });
       }
-      
+
       // Add anomalous operation - needs to be way outside the baseline (3+ standard deviations)
       const anomalyOpId = `anomaly-op-${Date.now()}`;
       performanceMonitor.recordMetric({
@@ -705,11 +711,11 @@ describe("Performance Monitor", () => {
         duration: 500, // Much higher than baseline range of ~85-115ms
         timestamp: new Date().toISOString(),
         success: true,
-        metadata: {}
+        metadata: {},
       });
-      
+
       const anomalies = performanceMonitor.detectAnomalies(testCategory);
-      
+
       expect(anomalies.length).toBeGreaterThan(0);
       expect(anomalies[0].operationId).toBe(anomalyOpId);
       expect(anomalies[0].severity).toBe("medium");
@@ -723,32 +729,32 @@ describe("Performance Monitor", () => {
         { id: "rt-db-1", category: "database", duration: 150, success: true },
         { id: "rt-api-1", category: "api", duration: 2000, success: true },
         { id: "rt-db-2", category: "database", duration: 800, success: false },
-        { id: "rt-api-2", category: "api", duration: 6000, success: true } // Slow
+        { id: "rt-api-2", category: "api", duration: 6000, success: true }, // Slow
       ];
-      
-      operations.forEach(op => {
+
+      operations.forEach((op) => {
         performanceMonitor.startOperation(op.id, op.category);
-        
+
         const operation = performanceMonitor.activeOperations.get(op.id);
         operation.startTime = Date.now() - op.duration;
-        
+
         performanceMonitor.endOperation(op.id, { success: op.success });
       });
-      
+
       const dashboardData = performanceMonitor.getRealTimeDashboard();
-      
+
       expect(dashboardData.totalOperations).toBe(4);
       expect(dashboardData.activeOperations).toBe(0);
       expect(dashboardData.errorRate).toBe(0.25); // 1 out of 4 failed
       expect(dashboardData.alerts.length).toBeGreaterThan(0); // Should have slow operation alert
-      
+
       expect(dashboardData.categoryBreakdown.database.count).toBe(2);
       expect(dashboardData.categoryBreakdown.api.count).toBe(2);
     });
 
     test("should handle empty dashboard data", () => {
       const dashboardData = performanceMonitor.getRealTimeDashboard();
-      
+
       expect(dashboardData.totalOperations).toBe(0);
       expect(dashboardData.activeOperations).toBe(0);
       expect(dashboardData.errorRate).toBe(0);
@@ -761,11 +767,11 @@ describe("Performance Monitor", () => {
       const customThresholds = {
         database: 500,
         api: 3000,
-        custom_category: 1500
+        custom_category: 1500,
       };
-      
+
       performanceMonitor.setThresholds(customThresholds);
-      
+
       expect(performanceMonitor.thresholds.database).toBe(500);
       expect(performanceMonitor.thresholds.api).toBe(3000);
       expect(performanceMonitor.thresholds.custom_category).toBe(1500);
@@ -773,7 +779,7 @@ describe("Performance Monitor", () => {
 
     test("should allow history size configuration", () => {
       performanceMonitor.setHistorySize(2000);
-      
+
       expect(performanceMonitor.historySize).toBe(2000);
     });
 
@@ -781,7 +787,7 @@ describe("Performance Monitor", () => {
       expect(() => {
         performanceMonitor.setHistorySize(-100);
       }).toThrow("History size must be positive");
-      
+
       expect(() => {
         performanceMonitor.setThresholds({ database: -500 });
       }).toThrow("Threshold values must be positive");
@@ -791,14 +797,14 @@ describe("Performance Monitor", () => {
   describe("Error Handling and Edge Cases", () => {
     test("should handle concurrent operations with same ID", () => {
       const duplicateId = "duplicate-op";
-      
+
       performanceMonitor.startOperation(duplicateId, "test");
       performanceMonitor.startOperation(duplicateId, "test"); // Duplicate
-      
+
       expect(logger.warn).toHaveBeenCalledWith(
         "Operation ID already exists, overwriting",
         expect.objectContaining({
-          operationId: duplicateId
+          operationId: duplicateId,
         })
       );
     });
@@ -806,10 +812,10 @@ describe("Performance Monitor", () => {
     test("should handle null/undefined results", () => {
       const opId = "null-result-op";
       performanceMonitor.startOperation(opId, "test");
-      
+
       const metric1 = performanceMonitor.endOperation(opId, null);
       expect(metric1.result).toEqual({}); // null gets converted to empty object
-      
+
       performanceMonitor.startOperation(opId + "-2", "test");
       const metric2 = performanceMonitor.endOperation(opId + "-2", undefined);
       expect(metric2.result).toEqual({}); // undefined gets converted to empty object
@@ -817,9 +823,9 @@ describe("Performance Monitor", () => {
 
     test("should handle operations with missing metadata", () => {
       const opId = "no-metadata-op";
-      
+
       const operation = performanceMonitor.startOperation(opId, "test");
-      
+
       expect(operation.metadata).toEqual({});
       expect(operation.correlationId).toBeUndefined();
       expect(operation.userId).toBeUndefined();
@@ -828,13 +834,13 @@ describe("Performance Monitor", () => {
     test("should handle system clock changes", () => {
       const opId = "clock-change-op";
       performanceMonitor.startOperation(opId, "test");
-      
+
       // Simulate backward clock change
       const operation = performanceMonitor.activeOperations.get(opId);
       operation.startTime = Date.now() + 5000; // Future time
-      
+
       const metric = performanceMonitor.endOperation(opId, { success: true });
-      
+
       // Should handle negative duration gracefully
       expect(metric.duration).toBeGreaterThanOrEqual(0);
       expect(logger.warn).toHaveBeenCalledWith(
@@ -846,11 +852,16 @@ describe("Performance Monitor", () => {
 
   describe("Integration with External Systems", () => {
     test("should export metrics in standard format", () => {
-      performanceMonitor.startOperation("export-op", "database", { table: "stocks" });
-      performanceMonitor.endOperation("export-op", { success: true, rowCount: 100 });
-      
+      performanceMonitor.startOperation("export-op", "database", {
+        table: "stocks",
+      });
+      performanceMonitor.endOperation("export-op", {
+        success: true,
+        rowCount: 100,
+      });
+
       const exportData = performanceMonitor.exportMetrics();
-      
+
       expect(exportData).toHaveProperty("timestamp");
       expect(exportData).toHaveProperty("metrics");
       expect(exportData).toHaveProperty("summary");
@@ -866,13 +877,13 @@ describe("Performance Monitor", () => {
             totalDuration: 2500,
             avgDuration: 500,
             successCount: 4,
-            errorCount: 1
-          }
-        }
+            errorCount: 1,
+          },
+        },
       };
-      
+
       performanceMonitor.importMetrics(importData);
-      
+
       const externalStats = performanceMonitor.metrics.get("external");
       expect(externalStats.count).toBe(5);
       expect(externalStats.avgDuration).toBe(500);
@@ -882,50 +893,50 @@ describe("Performance Monitor", () => {
   describe("Middleware Integration", () => {
     test("should create middleware function", () => {
       const middleware = performanceMonitor.middleware();
-      
+
       expect(typeof middleware).toBe("function");
       expect(middleware.length).toBe(3); // req, res, next
     });
 
     test("should track request performance via middleware", (done) => {
       const middleware = performanceMonitor.middleware();
-      
+
       const mockReq = {
         method: "GET",
         path: "/api/stocks",
         headers: { "x-correlation-id": "test-123" },
         user: { id: "user-456" },
-        get: jest.fn().mockReturnValue("Test User Agent")
+        get: jest.fn().mockReturnValue("Test User Agent"),
       };
-      
+
       const mockRes = {
         statusCode: 200,
         end: jest.fn(),
-        get: jest.fn().mockReturnValue("1234")
+        get: jest.fn().mockReturnValue("1234"),
       };
-      
+
       const mockNext = jest.fn();
-      
+
       middleware(mockReq, mockRes, mockNext);
-      
+
       expect(mockNext).toHaveBeenCalled();
       expect(mockReq.performanceOperationId).toBeDefined();
-      
+
       // Simulate response end
       setTimeout(() => {
         mockRes.end();
-        
+
         // Check that operation was tracked
         const stats = performanceMonitor.getPerformanceStats();
         expect(stats.overview.totalOperations).toBeGreaterThan(0);
-        
+
         done();
       }, 10);
     });
 
     test("should categorize requests correctly", () => {
       const middleware = performanceMonitor.middleware();
-      
+
       const testCases = [
         { path: "/api/technical/patterns", expected: "pattern" },
         { path: "/api/live-data", expected: "dashboard" },
@@ -933,9 +944,9 @@ describe("Performance Monitor", () => {
         { path: "/api/database", expected: "database" },
         { path: "/api/health", expected: "health_check" },
         { path: "/api/other", expected: "api_request" },
-        { path: "/unknown", expected: "other" }
+        { path: "/unknown", expected: "other" },
       ];
-      
+
       testCases.forEach(({ path, expected }) => {
         const result = performanceMonitor.categorizeRequest({ path });
         expect(result).toBe(expected);
@@ -944,31 +955,31 @@ describe("Performance Monitor", () => {
 
     test("should handle error responses via middleware", (done) => {
       const middleware = performanceMonitor.middleware();
-      
+
       const mockReq = {
         method: "POST",
         path: "/api/error",
         headers: {},
-        get: jest.fn().mockReturnValue("Test Agent")
+        get: jest.fn().mockReturnValue("Test Agent"),
       };
-      
+
       const mockRes = {
         statusCode: 500,
         end: jest.fn(),
-        get: jest.fn().mockReturnValue("100")
+        get: jest.fn().mockReturnValue("100"),
       };
-      
+
       const mockNext = jest.fn();
-      
+
       middleware(mockReq, mockRes, mockNext);
-      
+
       setTimeout(() => {
         mockRes.end();
-        
+
         // Check that error was recorded
         const stats = performanceMonitor.getPerformanceStats();
         expect(stats.overview.totalOperations).toBeGreaterThan(0);
-        
+
         done();
       }, 10);
     });
@@ -977,7 +988,7 @@ describe("Performance Monitor", () => {
   describe("Manual Timing Utility", () => {
     test("should create timing utility with manual control", () => {
       const timer = performanceMonitor.time("custom", {}, { feature: "test" });
-      
+
       expect(timer).toHaveProperty("operationId");
       expect(timer).toHaveProperty("start");
       expect(timer).toHaveProperty("end");
@@ -988,35 +999,39 @@ describe("Performance Monitor", () => {
     });
 
     test("should work with manual start/end", (done) => {
-      const timer = performanceMonitor.time("manual-test", {}, { operation: "custom" });
-      
+      const timer = performanceMonitor.time(
+        "manual-test",
+        {},
+        { operation: "custom" }
+      );
+
       const operation = timer.start();
       expect(operation.id).toBe(timer.operationId);
       expect(operation.category).toBe("manual-test");
-      
+
       setTimeout(() => {
         const metric = timer.end({ success: true, data: "completed" });
-        
+
         expect(metric.success).toBe(true);
         expect(metric.duration).toBeGreaterThan(0);
         expect(metric.result).toBe("completed"); // data field is extracted
-        
+
         done();
       }, 10);
     });
 
     test("should wrap async functions successfully", async () => {
       const timer = performanceMonitor.time("wrap-test", {}, { wrapped: true });
-      
+
       const asyncFunction = async () => {
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await new Promise((resolve) => setTimeout(resolve, 5));
         return "async-result";
       };
-      
+
       const result = await timer.wrap(asyncFunction);
-      
+
       expect(result).toBe("async-result");
-      
+
       const stats = performanceMonitor.getPerformanceStats();
       expect(stats.byCategory["wrap-test"]).toBeDefined();
       expect(stats.byCategory["wrap-test"].count).toBe(1);
@@ -1024,15 +1039,19 @@ describe("Performance Monitor", () => {
     });
 
     test("should handle wrapped function errors", async () => {
-      const timer = performanceMonitor.time("wrap-error-test", {}, { willFail: true });
-      
+      const timer = performanceMonitor.time(
+        "wrap-error-test",
+        {},
+        { willFail: true }
+      );
+
       const failingFunction = async () => {
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await new Promise((resolve) => setTimeout(resolve, 5));
         throw new Error("Test error");
       };
-      
+
       await expect(timer.wrap(failingFunction)).rejects.toThrow("Test error");
-      
+
       const stats = performanceMonitor.getPerformanceStats();
       expect(stats.byCategory["wrap-error-test"]).toBeDefined();
       expect(stats.byCategory["wrap-error-test"].errorCount).toBe(1);
@@ -1043,28 +1062,52 @@ describe("Performance Monitor", () => {
     beforeEach(() => {
       // Add test data
       const operations = [
-        { id: "api-1", category: "api", duration: 500, success: true, metadata: { path: "/api/stocks" } },
-        { id: "db-1", category: "database", duration: 200, success: true, metadata: { operation: "select" } },
-        { id: "ext-1", category: "external", duration: 1000, success: true, metadata: { service: "alpaca" } },
-        { id: "api-2", category: "dashboard", duration: 800, success: false, metadata: { path: "/api/live-data" } }
+        {
+          id: "api-1",
+          category: "api",
+          duration: 500,
+          success: true,
+          metadata: { path: "/api/stocks" },
+        },
+        {
+          id: "db-1",
+          category: "database",
+          duration: 200,
+          success: true,
+          metadata: { operation: "select" },
+        },
+        {
+          id: "ext-1",
+          category: "external",
+          duration: 1000,
+          success: true,
+          metadata: { service: "alpaca" },
+        },
+        {
+          id: "api-2",
+          category: "dashboard",
+          duration: 800,
+          success: false,
+          metadata: { path: "/api/live-data" },
+        },
       ];
-      
-      operations.forEach(op => {
+
+      operations.forEach((op) => {
         performanceMonitor.recordMetric({
           ...op,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       });
     });
 
     test("should get comprehensive metrics", () => {
       const metrics = performanceMonitor.getMetrics();
-      
+
       expect(metrics).toHaveProperty("system");
       expect(metrics).toHaveProperty("api");
       expect(metrics).toHaveProperty("database");
       expect(metrics).toHaveProperty("external");
-      
+
       expect(metrics.system.totalRequests).toBe(4);
       expect(metrics.system.totalErrors).toBe(1);
       expect(metrics.system.errorRate).toBe(0.25);
@@ -1074,7 +1117,7 @@ describe("Performance Monitor", () => {
 
     test("should get performance summary", () => {
       const summary = performanceMonitor.getPerformanceSummary();
-      
+
       expect(summary).toHaveProperty("status");
       expect(summary).toHaveProperty("uptime");
       expect(summary).toHaveProperty("activeRequests");
@@ -1082,7 +1125,7 @@ describe("Performance Monitor", () => {
       expect(summary).toHaveProperty("errorRate");
       expect(summary).toHaveProperty("alerts");
       expect(summary).toHaveProperty("timestamp");
-      
+
       expect(summary.totalRequests).toBe(4);
       expect(summary.activeRequests).toBe(0);
       expect(Array.isArray(summary.alerts)).toBe(true);
@@ -1090,10 +1133,10 @@ describe("Performance Monitor", () => {
 
     test("should get API request metrics by endpoint", () => {
       const apiMetrics = performanceMonitor.getApiRequestMetrics();
-      
+
       expect(apiMetrics).toHaveProperty("/api/stocks");
       expect(apiMetrics).toHaveProperty("/api/live-data");
-      
+
       const stocksMetrics = apiMetrics["/api/stocks"];
       expect(stocksMetrics.count).toBe(1);
       expect(stocksMetrics.errors).toBe(0);
@@ -1106,9 +1149,9 @@ describe("Performance Monitor", () => {
 
     test("should get database metrics by operation", () => {
       const dbMetrics = performanceMonitor.getDatabaseMetrics();
-      
+
       expect(dbMetrics).toHaveProperty("select");
-      
+
       const selectMetrics = dbMetrics.select;
       expect(selectMetrics.count).toBe(1);
       expect(selectMetrics.errors).toBe(0);
@@ -1121,9 +1164,9 @@ describe("Performance Monitor", () => {
 
     test("should get external API metrics by service", () => {
       const externalMetrics = performanceMonitor.getExternalApiMetrics();
-      
+
       expect(externalMetrics).toHaveProperty("alpaca");
-      
+
       const alpacaMetrics = externalMetrics.alpaca;
       expect(alpacaMetrics.count).toBe(1);
       expect(alpacaMetrics.errors).toBe(0);
@@ -1136,13 +1179,13 @@ describe("Performance Monitor", () => {
 
     test("should generate response time histogram", () => {
       const histogram = performanceMonitor.getResponseTimeHistogram();
-      
+
       expect(histogram instanceof Map).toBe(true);
       expect(histogram.has("<50ms")).toBe(true);
       expect(histogram.has("<100ms")).toBe(true);
       expect(histogram.has("<500ms")).toBe(true);
       expect(histogram.has(">=10000ms")).toBe(true);
-      
+
       // Based on our test data: 200ms, 500ms, 800ms, 1000ms
       expect(histogram.get("<500ms")).toBeGreaterThan(0);
       expect(histogram.get("<1000ms")).toBeGreaterThan(0);
@@ -1151,13 +1194,13 @@ describe("Performance Monitor", () => {
     test("should get active operations", () => {
       performanceMonitor.startOperation("active-1", "test");
       performanceMonitor.startOperation("active-2", "test");
-      
+
       const activeOps = performanceMonitor.getActiveOperations();
-      
+
       expect(Array.isArray(activeOps)).toBe(true);
       expect(activeOps.length).toBe(2);
-      expect(activeOps.some(op => op.id === "active-1")).toBe(true);
-      expect(activeOps.some(op => op.id === "active-2")).toBe(true);
+      expect(activeOps.some((op) => op.id === "active-1")).toBe(true);
+      expect(activeOps.some((op) => op.id === "active-2")).toBe(true);
     });
   });
 });

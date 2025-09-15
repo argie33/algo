@@ -3,7 +3,10 @@
  * Tests data validation with real schemas and edge cases
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 const schemaValidator = require("../../../utils/schemaValidator");
 
 describe("Schema Validator Integration Tests", () => {
@@ -23,11 +26,11 @@ describe("Schema Validator Integration Tests", () => {
         volume: 1000000,
         timestamp: "2023-01-15T10:30:00Z",
         change: 2.5,
-        changePercent: 1.68
+        changePercent: 1.68,
       };
 
-      const validation = schemaValidator.validate(validQuote, 'stockQuote');
-      
+      const validation = schemaValidator.validate(validQuote, "stockQuote");
+
       expect(validation.isValid).toBe(true);
       expect(validation.errors).toEqual([]);
       expect(validation.sanitizedData).toBeDefined();
@@ -41,20 +44,20 @@ describe("Schema Validator Integration Tests", () => {
         volume: "invalid", // Non-numeric volume
         timestamp: "not-a-date", // Invalid date
         change: null,
-        changePercent: undefined
+        changePercent: undefined,
       };
 
-      const validation = schemaValidator.validate(invalidQuote, 'stockQuote');
-      
+      const validation = schemaValidator.validate(invalidQuote, "stockQuote");
+
       expect(validation.isValid).toBe(false);
       expect(Array.isArray(validation.errors)).toBe(true);
       expect(validation.errors.length).toBeGreaterThan(0);
-      
-      const errorFields = validation.errors.map(err => err.field);
-      expect(errorFields).toContain('symbol');
-      expect(errorFields).toContain('price');
-      expect(errorFields).toContain('volume');
-      expect(errorFields).toContain('timestamp');
+
+      const errorFields = validation.errors.map((err) => err.field);
+      expect(errorFields).toContain("symbol");
+      expect(errorFields).toContain("price");
+      expect(errorFields).toContain("volume");
+      expect(errorFields).toContain("timestamp");
     });
 
     test("should validate portfolio data", () => {
@@ -64,23 +67,23 @@ describe("Schema Validator Integration Tests", () => {
           {
             symbol: "AAPL",
             quantity: 100,
-            averageCost: 145.50,
-            currentValue: 15025
+            averageCost: 145.5,
+            currentValue: 15025,
           },
           {
             symbol: "GOOGL",
             quantity: 50,
             averageCost: 2800,
-            currentValue: 140000
-          }
+            currentValue: 140000,
+          },
         ],
         totalValue: 155025,
         cash: 10000,
-        lastUpdated: "2023-01-15T15:30:00Z"
+        lastUpdated: "2023-01-15T15:30:00Z",
       };
 
-      const validation = schemaValidator.validate(validPortfolio, 'portfolio');
-      
+      const validation = schemaValidator.validate(validPortfolio, "portfolio");
+
       expect(validation.isValid).toBe(true);
       expect(validation.errors).toEqual([]);
       expect(validation.sanitizedData.holdings.length).toBe(2);
@@ -96,11 +99,11 @@ describe("Schema Validator Integration Tests", () => {
         type: "market",
         quantity: 100,
         timeInForce: "day",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      const validation = schemaValidator.validate(buyOrder, 'tradingOrder');
-      
+      const validation = schemaValidator.validate(buyOrder, "tradingOrder");
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.side).toBe("buy");
       expect(validation.sanitizedData.type).toBe("market");
@@ -114,16 +117,16 @@ describe("Schema Validator Integration Tests", () => {
         side: "sell",
         type: "limit",
         quantity: 50,
-        limitPrice: 155.00,
+        limitPrice: 155.0,
         timeInForce: "gtc",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      const validation = schemaValidator.validate(limitOrder, 'tradingOrder');
-      
+      const validation = schemaValidator.validate(limitOrder, "tradingOrder");
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.type).toBe("limit");
-      expect(validation.sanitizedData.limitPrice).toBe(155.00);
+      expect(validation.sanitizedData.limitPrice).toBe(155.0);
     });
 
     test("should reject invalid trading orders", () => {
@@ -133,19 +136,19 @@ describe("Schema Validator Integration Tests", () => {
         side: "invalid_side",
         type: "limit", // Limit order without price
         quantity: -10, // Negative quantity
-        timeInForce: "invalid_tif"
+        timeInForce: "invalid_tif",
       };
 
-      const validation = schemaValidator.validate(invalidOrder, 'tradingOrder');
-      
+      const validation = schemaValidator.validate(invalidOrder, "tradingOrder");
+
       expect(validation.isValid).toBe(false);
       expect(validation.errors.length).toBeGreaterThan(0);
-      
-      const errorCodes = validation.errors.map(err => err.code);
-      expect(errorCodes).toContain('INVALID_USER_ID');
-      expect(errorCodes).toContain('INVALID_SYMBOL');
-      expect(errorCodes).toContain('INVALID_SIDE');
-      expect(errorCodes).toContain('INVALID_QUANTITY');
+
+      const errorCodes = validation.errors.map((err) => err.code);
+      expect(errorCodes).toContain("INVALID_USER_ID");
+      expect(errorCodes).toContain("INVALID_SYMBOL");
+      expect(errorCodes).toContain("INVALID_SIDE");
+      expect(errorCodes).toContain("INVALID_QUANTITY");
     });
   });
 
@@ -159,11 +162,11 @@ describe("Schema Validator Integration Tests", () => {
         lastName: "User",
         dateOfBirth: "1990-01-15",
         country: "US",
-        riskTolerance: "moderate"
+        riskTolerance: "moderate",
       };
 
-      const validation = schemaValidator.validate(userData, 'userRegistration');
-      
+      const validation = schemaValidator.validate(userData, "userRegistration");
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.email).toBe("test@example.com");
       expect(validation.sanitizedData.country).toBe("US");
@@ -180,11 +183,11 @@ describe("Schema Validator Integration Tests", () => {
         environment: "paper",
         permissions: ["read", "trade"],
         isActive: true,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
-      const validation = schemaValidator.validate(apiKeyConfig, 'apiKeyConfig');
-      
+      const validation = schemaValidator.validate(apiKeyConfig, "apiKeyConfig");
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.provider).toBe("alpaca");
       expect(validation.sanitizedData.environment).toBe("paper");
@@ -198,28 +201,31 @@ describe("Schema Validator Integration Tests", () => {
         symbol: "AAPL",
         timestamp: new Date().toISOString(),
         indicators: {
-          sma20: 145.50,
+          sma20: 145.5,
           sma50: 150.25,
           rsi: 65.5,
           macd: {
             macd: 1.25,
-            signal: 1.10,
-            histogram: 0.15
+            signal: 1.1,
+            histogram: 0.15,
           },
           bollinger: {
-            upper: 155.00,
-            middle: 150.00,
-            lower: 145.00
-          }
-        }
+            upper: 155.0,
+            middle: 150.0,
+            lower: 145.0,
+          },
+        },
       };
 
-      const validation = schemaValidator.validate(technicalData, 'technicalIndicators');
-      
+      const validation = schemaValidator.validate(
+        technicalData,
+        "technicalIndicators"
+      );
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.indicators.rsi).toBe(65.5);
       expect(validation.sanitizedData.indicators.macd.macd).toBe(1.25);
-      expect(validation.sanitizedData.indicators.bollinger.upper).toBe(155.00);
+      expect(validation.sanitizedData.indicators.bollinger.upper).toBe(155.0);
     });
 
     test("should validate earnings data", () => {
@@ -236,12 +242,12 @@ describe("Schema Validator Integration Tests", () => {
           eps: 0.07,
           epsPercent: 4.83,
           revenue: 2000000000,
-          revenuePercent: 2.11
-        }
+          revenuePercent: 2.11,
+        },
       };
 
-      const validation = schemaValidator.validate(earningsData, 'earningsData');
-      
+      const validation = schemaValidator.validate(earningsData, "earningsData");
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.quarter).toBe("Q1");
       expect(validation.sanitizedData.year).toBe(2023);
@@ -258,14 +264,17 @@ describe("Schema Validator Integration Tests", () => {
           price: 150.25,
           size: 100,
           timestamp: Date.now(),
-          exchange: "NASDAQ"
+          exchange: "NASDAQ",
         },
         channel: "quotes",
-        messageId: "msg_123456789"
+        messageId: "msg_123456789",
       };
 
-      const validation = schemaValidator.validate(wsMessage, 'webSocketMessage');
-      
+      const validation = schemaValidator.validate(
+        wsMessage,
+        "webSocketMessage"
+      );
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.type).toBe("quote");
       expect(validation.sanitizedData.symbol).toBe("AAPL");
@@ -283,22 +292,25 @@ describe("Schema Validator Integration Tests", () => {
             symbol: "AAPL",
             price: 150.25,
             size: 100,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           },
           {
             type: "quote",
             symbol: "AAPL",
-            bidPrice: 150.20,
-            askPrice: 150.30,
+            bidPrice: 150.2,
+            askPrice: 150.3,
             bidSize: 500,
             askSize: 300,
-            timestamp: Date.now()
-          }
-        ]
+            timestamp: Date.now(),
+          },
+        ],
       };
 
-      const validation = schemaValidator.validate(streamBatch, 'streamingBatch');
-      
+      const validation = schemaValidator.validate(
+        streamBatch,
+        "streamingBatch"
+      );
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.messages.length).toBe(2);
       expect(validation.sanitizedData.source).toBe("alpaca");
@@ -308,27 +320,30 @@ describe("Schema Validator Integration Tests", () => {
   describe("Custom Schema Validation", () => {
     test("should validate with custom schema", () => {
       const customSchema = {
-        type: 'object',
+        type: "object",
         properties: {
-          customField: { type: 'string', minLength: 1 },
-          numericField: { type: 'number', minimum: 0 },
+          customField: { type: "string", minLength: 1 },
+          numericField: { type: "number", minimum: 0 },
           arrayField: {
-            type: 'array',
-            items: { type: 'string' },
-            minItems: 1
-          }
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+          },
         },
-        required: ['customField', 'numericField']
+        required: ["customField", "numericField"],
       };
 
       const testData = {
         customField: "test_value",
         numericField: 42,
-        arrayField: ["item1", "item2"]
+        arrayField: ["item1", "item2"],
       };
 
-      const validation = schemaValidator.validateWithCustomSchema(testData, customSchema);
-      
+      const validation = schemaValidator.validateWithCustomSchema(
+        testData,
+        customSchema
+      );
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.customField).toBe("test_value");
       expect(validation.sanitizedData.numericField).toBe(42);
@@ -337,21 +352,21 @@ describe("Schema Validator Integration Tests", () => {
     test("should register and use persistent custom schemas", () => {
       const schemaName = "testCustomSchema";
       const schema = {
-        type: 'object',
+        type: "object",
         properties: {
-          id: { type: 'string' },
-          value: { type: 'number' }
+          id: { type: "string" },
+          value: { type: "number" },
         },
-        required: ['id']
+        required: ["id"],
       };
 
       // Register schema
       schemaValidator.registerSchema(schemaName, schema);
-      
+
       // Use registered schema
       const testData = { id: "test_123", value: 456 };
       const validation = schemaValidator.validate(testData, schemaName);
-      
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.id).toBe("test_123");
       expect(validation.sanitizedData.value).toBe(456);
@@ -365,14 +380,14 @@ describe("Schema Validator Integration Tests", () => {
         price: "150.25", // Convert to number
         timestamp: "2023-01-15T10:30:00.000Z", // Parse date
         description: "<script>alert('xss')</script>Safe content", // HTML sanitization
-        tags: ["  tag1  ", "TAG2", "tag3  "] // Trim and normalize
+        tags: ["  tag1  ", "TAG2", "tag3  "], // Trim and normalize
       };
 
-      const validation = schemaValidator.validate(dirtyData, 'stockQuote', {
+      const validation = schemaValidator.validate(dirtyData, "stockQuote", {
         sanitize: true,
-        transform: true
+        transform: true,
       });
-      
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData.symbol).toBe("AAPL");
       expect(validation.sanitizedData.price).toBe(150.25);
@@ -384,14 +399,14 @@ describe("Schema Validator Integration Tests", () => {
       const maliciousData = {
         symbol: "AAPL'; DROP TABLE stocks; --",
         userId: "user123' OR '1'='1",
-        description: "'; DELETE FROM users WHERE '1'='1'; --"
+        description: "'; DELETE FROM users WHERE '1'='1'; --",
       };
 
-      const validation = schemaValidator.validate(maliciousData, 'stockQuote', {
+      const validation = schemaValidator.validate(maliciousData, "stockQuote", {
         sanitize: true,
-        sqlInjectionProtection: true
+        sqlInjectionProtection: true,
       });
-      
+
       expect(validation.sanitized).toBe(true);
       expect(validation.sanitizedData.symbol).not.toContain("DROP TABLE");
       expect(validation.sanitizedData.userId).not.toContain("OR '1'='1");
@@ -405,35 +420,35 @@ describe("Schema Validator Integration Tests", () => {
         symbol: `STOCK${i}`,
         price: (i * 13 + 17) % 1000, // deterministic price
         volume: Math.floor((i * 19 + 23) % 1000000), // deterministic volume
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }));
 
       const startTime = Date.now();
-      const validations = largeDataset.map(data => 
-        schemaValidator.validate(data, 'stockQuote')
+      const validations = largeDataset.map((data) =>
+        schemaValidator.validate(data, "stockQuote")
       );
       const duration = Date.now() - startTime;
-      
+
       expect(validations.length).toBe(1000);
       expect(duration).toBeLessThan(5000); // Should validate 1000 items in under 5 seconds
-      
-      const validItems = validations.filter(v => v.isValid);
+
+      const validItems = validations.filter((v) => v.isValid);
       expect(validItems.length).toBe(1000); // All should be valid
     });
 
     test("should cache compiled schemas for performance", () => {
       const testData = { symbol: "AAPL", price: 150.25 };
-      
+
       // First validation (compiles schema)
       const startTime1 = Date.now();
-      const validation1 = schemaValidator.validate(testData, 'stockQuote');
+      const validation1 = schemaValidator.validate(testData, "stockQuote");
       const duration1 = Date.now() - startTime1;
-      
+
       // Second validation (uses cached schema)
       const startTime2 = Date.now();
-      const validation2 = schemaValidator.validate(testData, 'stockQuote');
+      const validation2 = schemaValidator.validate(testData, "stockQuote");
       const duration2 = Date.now() - startTime2;
-      
+
       expect(validation1.isValid).toBe(true);
       expect(validation2.isValid).toBe(true);
       expect(duration2).toBeLessThan(duration1); // Cached should be faster
@@ -442,17 +457,10 @@ describe("Schema Validator Integration Tests", () => {
 
   describe("Error Handling and Edge Cases", () => {
     test("should handle malformed data gracefully", () => {
-      const malformedData = [
-        null,
-        undefined,
-        "",
-        0,
-        [],
-        function() {}
-      ];
+      const malformedData = [null, undefined, "", 0, [], function () {}];
 
-      malformedData.forEach(data => {
-        const validation = schemaValidator.validate(data, 'stockQuote');
+      malformedData.forEach((data) => {
+        const validation = schemaValidator.validate(data, "stockQuote");
         expect(validation.isValid).toBe(false);
         expect(validation.errors).toBeDefined();
         expect(Array.isArray(validation.errors)).toBe(true);
@@ -462,11 +470,13 @@ describe("Schema Validator Integration Tests", () => {
     test("should handle circular references", () => {
       const circularData = { symbol: "AAPL" };
       circularData.self = circularData; // Create circular reference
-      
-      const validation = schemaValidator.validate(circularData, 'stockQuote');
-      
+
+      const validation = schemaValidator.validate(circularData, "stockQuote");
+
       expect(validation.isValid).toBe(false);
-      expect(validation.errors.some(err => err.code === 'CIRCULAR_REFERENCE')).toBe(true);
+      expect(
+        validation.errors.some((err) => err.code === "CIRCULAR_REFERENCE")
+      ).toBe(true);
     });
 
     test("should handle very large numbers", () => {
@@ -474,13 +484,18 @@ describe("Schema Validator Integration Tests", () => {
         symbol: "AAPL",
         price: Number.MAX_SAFE_INTEGER + 1,
         volume: Infinity,
-        marketCap: -Infinity
+        marketCap: -Infinity,
       };
 
-      const validation = schemaValidator.validate(largeNumberData, 'stockQuote');
-      
+      const validation = schemaValidator.validate(
+        largeNumberData,
+        "stockQuote"
+      );
+
       expect(validation.isValid).toBe(false);
-      expect(validation.errors.some(err => err.code === 'INVALID_NUMBER')).toBe(true);
+      expect(
+        validation.errors.some((err) => err.code === "INVALID_NUMBER")
+      ).toBe(true);
     });
   });
 
@@ -488,13 +503,16 @@ describe("Schema Validator Integration Tests", () => {
     test("should validate data before database insertion", async () => {
       const stockData = {
         symbol: "TEST",
-        price: 100.00,
+        price: 100.0,
         volume: 50000,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      const validation = await schemaValidator.validateForDatabase(stockData, 'stock_quotes');
-      
+      const validation = await schemaValidator.validateForDatabase(
+        stockData,
+        "stock_quotes"
+      );
+
       expect(validation.isValid).toBe(true);
       expect(validation.sanitizedData).toBeDefined();
       expect(validation.databaseReady).toBe(true);
@@ -505,13 +523,18 @@ describe("Schema Validator Integration Tests", () => {
         symbol: "AAPL", // Assume this already exists
         price: 150.25,
         volume: 1000000,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      const validation = await schemaValidator.validateForDatabase(duplicateData, 'stock_quotes');
-      
+      const validation = await schemaValidator.validateForDatabase(
+        duplicateData,
+        "stock_quotes"
+      );
+
       if (!validation.isValid) {
-        expect(validation.errors.some(err => err.code === 'DUPLICATE_KEY')).toBeTruthy();
+        expect(
+          validation.errors.some((err) => err.code === "DUPLICATE_KEY")
+        ).toBeTruthy();
       }
     });
   });
@@ -520,19 +543,21 @@ describe("Schema Validator Integration Tests", () => {
     test("should support localized error messages", () => {
       const invalidData = {
         symbol: "",
-        price: -100
+        price: -100,
       };
 
-      const validationEn = schemaValidator.validate(invalidData, 'stockQuote', { 
-        locale: 'en' 
+      const validationEn = schemaValidator.validate(invalidData, "stockQuote", {
+        locale: "en",
       });
-      const validationEs = schemaValidator.validate(invalidData, 'stockQuote', { 
-        locale: 'es' 
+      const validationEs = schemaValidator.validate(invalidData, "stockQuote", {
+        locale: "es",
       });
 
       expect(validationEn.isValid).toBe(false);
       expect(validationEs.isValid).toBe(false);
-      expect(validationEn.errors[0].message).not.toBe(validationEs.errors[0].message);
+      expect(validationEn.errors[0].message).not.toBe(
+        validationEs.errors[0].message
+      );
     });
   });
 });

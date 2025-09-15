@@ -1,6 +1,11 @@
 const express = require("express");
 
-const { query, initializeDatabase, getPool, healthCheck } = require("../utils/database");
+const {
+  query,
+  initializeDatabase,
+  getPool,
+  healthCheck,
+} = require("../utils/database");
 
 const router = express.Router();
 
@@ -120,8 +125,8 @@ router.get("/", async (req, res) => {
           console.log("Test database error:", testDbError.message);
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
-        const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-        return res.status(statusCode).json({
+          const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
+          return res.status(statusCode).json({
             success: false,
             type: "service_unavailable",
             status: "unhealthy",
@@ -179,8 +184,8 @@ router.get("/", async (req, res) => {
           console.log("Test database error:", testDbError.message);
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
-        const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-        return res.status(statusCode).json({
+          const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
+          return res.status(statusCode).json({
             success: false,
             type: "service_unavailable",
             status: "unhealthy",
@@ -214,7 +219,8 @@ router.get("/", async (req, res) => {
         database: {
           status: "unavailable",
           error: "Database connection not available - check configuration",
-          recommendation: "Configure database credentials and ensure PostgreSQL is running"
+          recommendation:
+            "Configure database credentials and ensure PostgreSQL is running",
         },
         api: {
           version: "1.0.0",
@@ -560,7 +566,7 @@ router.get("/database", async (req, res) => {
       total_missing_data: 0,
     };
     let tables = {};
-    
+
     try {
       // Get all tables in the database
       const tablesResult = await query(`
@@ -570,36 +576,37 @@ router.get("/database", async (req, res) => {
         AND table_type = 'BASE TABLE'
         ORDER BY table_name
       `);
-      
+
       summary.total_tables = tablesResult.rowCount;
-      
+
       // Check each table for record count and status
       for (const tableRow of tablesResult.rows) {
         const tableName = tableRow.table_name;
         try {
-          const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const countResult = await query(
+            `SELECT COUNT(*) as count FROM ${tableName}`
+          );
           const recordCount = parseInt(countResult.rows[0].count);
-          
-          let status = 'healthy';
+
+          let status = "healthy";
           if (recordCount === 0) {
-            status = 'empty';
+            status = "empty";
             summary.empty_tables++;
           } else {
             summary.healthy_tables++;
           }
-          
+
           tables[tableName] = {
             status: status,
             record_count: recordCount,
             last_checked: new Date().toISOString(),
           };
-          
+
           summary.total_records += recordCount;
-          
         } catch (tableErr) {
           console.error(`Error checking table ${tableName}:`, tableErr.message);
           tables[tableName] = {
-            status: 'error',
+            status: "error",
             record_count: 0,
             error: tableErr.message,
             last_checked: new Date().toISOString(),
@@ -607,7 +614,6 @@ router.get("/database", async (req, res) => {
           summary.error_tables++;
         }
       }
-      
     } catch (err) {
       console.error("Error querying database tables:", err.message);
       return res.status(500).json({
@@ -670,7 +676,8 @@ router.get("/debug-secret", async (req, res) => {
       // For local development, show local database configuration
       return res.status(200).json({
         success: true,
-        message: "Running in local development mode - AWS Secrets Manager not configured",
+        message:
+          "Running in local development mode - AWS Secrets Manager not configured",
         status: "debug",
         timestamp: new Date().toISOString(),
         debugInfo: {
@@ -681,8 +688,8 @@ router.get("/debug-secret", async (req, res) => {
           dbName: process.env.DB_NAME || "stocks",
           dbUser: process.env.DB_USER || "postgres",
           secretArn: "not_configured_for_local",
-          parseAttempt: "USING_LOCAL_ENV_VARS"
-        }
+          parseAttempt: "USING_LOCAL_ENV_VARS",
+        },
       });
     }
 
@@ -694,7 +701,7 @@ router.get("/debug-secret", async (req, res) => {
         message: "DB_SECRET_ARN must be a valid AWS Secrets Manager ARN",
         provided_arn: secretArn.substring(0, 50) + "...",
         status: "debug",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -859,7 +866,13 @@ router.get("/database/diagnostics", async (req, res) => {
       diagnostics.recommendations.push(
         "Database connection failed. Check credentials, network, and DB status."
       );
-      return res.status(500).json({success: false, error: "Internal server error", details: err.message });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Internal server error",
+          details: err.message,
+        });
     }
     // Host info
     try {

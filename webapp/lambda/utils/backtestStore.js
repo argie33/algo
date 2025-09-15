@@ -44,7 +44,7 @@ function listBacktests() {
 }
 
 function getUserStrategies(userId) {
-  return loadStrategies().filter(s => s.userId === userId);
+  return loadStrategies().filter((s) => s.userId === userId);
 }
 
 module.exports = {

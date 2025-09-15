@@ -576,6 +576,7 @@ function MarketOverview() {
   const marketCap =
     marketData?.data?.market_cap || marketData?.market_cap || {};
   const economicIndicators =
+    marketData?.economicIndicators ||
     marketData?.data?.economic_indicators ||
     marketData?.economic_indicators ||
     [];
@@ -584,9 +585,12 @@ function MarketOverview() {
     marketData?.indices || 
     [];
   const mainSectors =
-    marketData?.data?.sectors ||
     marketData?.sectors ||
+    marketData?.data?.sectors ||
     [];
+  const topMovers = 
+    marketData?.movers ||
+    { gainers: [], losers: [] };
 
   // Handle sector data - it could be at data.sectors or just data array
   const sectors = sectorData?.data?.sectors || sectorData?.data || [];
@@ -925,6 +929,185 @@ function MarketOverview() {
                           className={index.changePercent > 0 ? "text-green-600" : "text-red-600"}
                         >
                           {formatPercentageChange(index.changePercent)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </AnimatedCard>
+            </Grid>
+          ))}
+        </Grid>
+      )}
+
+      {/* Sector Performance Display */}
+      {mainSectors && mainSectors.length > 0 && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+              Sector Performance
+            </Typography>
+          </Grid>
+          {mainSectors.slice(0, 6).map((sector, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={sector.name || sector.sector}>
+              <AnimatedCard delay={idx}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {sector.name || sector.sector}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {sector.stocks || sector.stock_count || 0} stocks
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            color: getChangeColor(sector.performance || sector.changePercent || sector.change_percent),
+                            fontWeight: 600,
+                          }}
+                          className={(sector.performance || sector.changePercent || sector.change_percent) > 0 ? "text-green-600" : "text-red-600"}
+                        >
+                          {formatPercentageChange(sector.performance || sector.changePercent || sector.change_percent)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </AnimatedCard>
+            </Grid>
+          ))}
+        </Grid>
+      )}
+
+      {/* Top Movers Section */}
+      {(topMovers.gainers?.length > 0 || topMovers.losers?.length > 0) && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+              Top Movers
+            </Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, color: "success.main", fontWeight: 600 }}>
+                  Top Gainers
+                </Typography>
+                {topMovers.gainers?.slice(0, 5).map((mover, idx) => (
+                  <Box 
+                    key={mover.symbol} 
+                    data-testid="mover-item"
+                    sx={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center",
+                      py: 1,
+                      borderBottom: idx < topMovers.gainers.slice(0, 5).length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider'
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {mover.symbol}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatCurrency(mover.price)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: "right" }}>
+                      <Typography variant="body1" sx={{ color: "success.main", fontWeight: 600 }}>
+                        +{Math.abs(mover.change).toFixed(1)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "success.main" }}>
+                        +{mover.changePercent.toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, color: "error.main", fontWeight: 600 }}>
+                  Top Losers
+                </Typography>
+                {topMovers.losers?.slice(0, 5).map((mover, idx) => (
+                  <Box 
+                    key={mover.symbol} 
+                    data-testid="mover-item"
+                    sx={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center",
+                      py: 1,
+                      borderBottom: idx < topMovers.losers.slice(0, 5).length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider'
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {mover.symbol}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatCurrency(mover.price)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: "right" }}>
+                      <Typography variant="body1" sx={{ color: "error.main", fontWeight: 600 }}>
+                        {mover.change.toFixed(1)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "error.main" }}>
+                        {mover.changePercent.toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Economic Indicators Section */}
+      {economicIndicators && economicIndicators.length > 0 && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+              Economic Indicators
+            </Typography>
+          </Grid>
+          {economicIndicators.slice(0, 6).map((indicator, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={indicator.name}>
+              <AnimatedCard delay={idx}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {indicator.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {indicator.description}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {indicator.value}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: getChangeColor(indicator.change),
+                            fontWeight: 600,
+                          }}
+                        >
+                          {indicator.change > 0 ? '+' : ''}{indicator.change}
                         </Typography>
                       </Box>
                     </Box>

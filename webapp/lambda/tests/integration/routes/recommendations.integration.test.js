@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -107,8 +110,12 @@ describe("Recommendations Routes", () => {
       expect(response.body.troubleshooting).toHaveProperty("suggestion");
       expect(response.body.troubleshooting).toHaveProperty("required_setup");
       expect(response.body.troubleshooting).toHaveProperty("status");
-      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(true);
-      expect(response.body.troubleshooting.required_setup.length).toBeGreaterThan(0);
+      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(
+        true
+      );
+      expect(
+        response.body.troubleshooting.required_setup.length
+      ).toBeGreaterThan(0);
     });
 
     test("should have valid timestamp", async () => {
@@ -201,8 +208,12 @@ describe("Recommendations Routes", () => {
       expect(response.body.troubleshooting).toHaveProperty("suggestion");
       expect(response.body.troubleshooting).toHaveProperty("required_setup");
       expect(response.body.troubleshooting).toHaveProperty("status");
-      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(true);
-      expect(response.body.troubleshooting.required_setup.length).toBeGreaterThan(0);
+      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(
+        true
+      );
+      expect(
+        response.body.troubleshooting.required_setup.length
+      ).toBeGreaterThan(0);
     });
 
     test("should have valid timestamp", async () => {
@@ -234,7 +245,9 @@ describe("Recommendations Routes", () => {
       // Should handle gracefully, parseInt("invalid") returns NaN which is a number
       expect(response.body).toHaveProperty("limit");
       // NaN or number types are acceptable
-      expect(["number", "object"].includes(typeof response.body.limit)).toBe(true);
+      expect(["number", "object"].includes(typeof response.body.limit)).toBe(
+        true
+      );
     });
 
     test("should handle negative limit parameter", async () => {
@@ -258,17 +271,17 @@ describe("Recommendations Routes", () => {
 
   describe("Authentication", () => {
     test("should require authentication for recommendations", async () => {
-      const response = await request(app)
-        .get("/api/recommendations");
-        // No auth header
+      const response = await request(app).get("/api/recommendations");
+      // No auth header
 
       expect([501, 401, 403, 500].includes(response.status)).toBe(true);
     });
 
     test("should require authentication for analyst coverage", async () => {
-      const response = await request(app)
-        .get("/api/recommendations/analysts/AAPL");
-        // No auth header
+      const response = await request(app).get(
+        "/api/recommendations/analysts/AAPL"
+      );
+      // No auth header
 
       expect([501, 401, 403, 500].includes(response.status)).toBe(true);
     });
@@ -354,27 +367,33 @@ describe("Recommendations Routes", () => {
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(3000);
       expect([400, 401, 404, 422, 500]).toContain(response.status);
     });
 
     test("should handle concurrent requests", async () => {
       const requests = [
-        request(app).get("/api/recommendations").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/recommendations/analysts/AAPL").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/recommendations?symbol=MSFT").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/recommendations")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/recommendations/analysts/AAPL")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/recommendations?symbol=MSFT")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
 
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([400, 401, 404, 422, 500]).toContain(response.status);
       });
     });
@@ -388,11 +407,17 @@ describe("Recommendations Routes", () => {
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
       const setup = response.body.troubleshooting.required_setup;
-      
+
       // Should include key requirements
-      expect(setup.some(item => item.toLowerCase().includes("analyst"))).toBe(true);
-      expect(setup.some(item => item.toLowerCase().includes("recommendation"))).toBe(true);
-      expect(setup.some(item => item.toLowerCase().includes("data"))).toBe(true);
+      expect(setup.some((item) => item.toLowerCase().includes("analyst"))).toBe(
+        true
+      );
+      expect(
+        setup.some((item) => item.toLowerCase().includes("recommendation"))
+      ).toBe(true);
+      expect(setup.some((item) => item.toLowerCase().includes("data"))).toBe(
+        true
+      );
     });
 
     test("should document required setup for analyst coverage", async () => {
@@ -402,11 +427,17 @@ describe("Recommendations Routes", () => {
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
       const setup = response.body.troubleshooting.required_setup;
-      
+
       // Should include key requirements
-      expect(setup.some(item => item.toLowerCase().includes("analyst"))).toBe(true);
-      expect(setup.some(item => item.toLowerCase().includes("coverage"))).toBe(true);
-      expect(setup.some(item => item.toLowerCase().includes("track record"))).toBe(true);
+      expect(setup.some((item) => item.toLowerCase().includes("analyst"))).toBe(
+        true
+      );
+      expect(
+        setup.some((item) => item.toLowerCase().includes("coverage"))
+      ).toBe(true);
+      expect(
+        setup.some((item) => item.toLowerCase().includes("track record"))
+      ).toBe(true);
     });
   });
 });

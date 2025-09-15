@@ -62,16 +62,16 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 // Dynamic CORS configuration
 const allowedOrigins = [
-  "http://localhost:3000", 
+  "http://localhost:3000",
   "http://127.0.0.1:3000",
-  "http://localhost:3001", 
-  "http://localhost:3002", 
-  "http://localhost:3003", 
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:3003",
   "http://localhost:5173", // Common Vite port
   "http://127.0.0.1:3001",
   "http://127.0.0.1:3002",
   "http://127.0.0.1:3003",
-  "http://127.0.0.1:5173"
+  "http://127.0.0.1:5173",
 ];
 
 // Add API Gateway URL if available
@@ -104,15 +104,17 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // Body parsing with error handling
-app.use(express.json({ 
-  limit: "10mb",
-  // Add error handling for invalid JSON
-  verify: (req, res, buf, encoding) => {
-    if (buf && buf.length) {
-      req.rawBody = buf.toString(encoding || 'utf8');
-    }
-  }
-}));
+app.use(
+  express.json({
+    limit: "10mb",
+    // Add error handling for invalid JSON
+    verify: (req, res, buf, encoding) => {
+      if (buf && buf.length) {
+        req.rawBody = buf.toString(encoding || "utf8");
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Response formatter middleware (adds res.success and res.error)
@@ -242,21 +244,26 @@ app.use((err, req, res, _next) => {
   } catch (e) {
     // Ignore console logging errors
   }
-  
+
   // Handle JSON parsing errors specifically
-  if (err.type === 'entity.parse.failed' || err.name === 'SyntaxError') {
+  if (err.type === "entity.parse.failed" || err.name === "SyntaxError") {
     return res.status(400).json({
       success: false,
       error: "Invalid JSON format",
       message: "Request body contains malformed JSON",
-      details: process.env.NODE_ENV === 'development' ? {
-        body: err.body || (req.rawBody ? req.rawBody.substring(0, 200) : 'No body'),
-        parseError: err.message
-      } : undefined,
+      details:
+        process.env.NODE_ENV === "development"
+          ? {
+              body:
+                err.body ||
+                (req.rawBody ? req.rawBody.substring(0, 200) : "No body"),
+              parseError: err.message,
+            }
+          : undefined,
       timestamp: new Date().toISOString(),
     });
   }
-  
+
   // Handle other client errors
   if (err.status >= 400 && err.status < 500) {
     return res.status(err.status).json({
@@ -265,7 +272,7 @@ app.use((err, req, res, _next) => {
       timestamp: new Date().toISOString(),
     });
   }
-  
+
   // Handle server errors
   res.status(500).json({
     success: false,

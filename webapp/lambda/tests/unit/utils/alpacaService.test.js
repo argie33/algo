@@ -26,7 +26,7 @@ describe("AlpacaService", () => {
     jest.spyOn(console, "error").mockImplementation();
     jest.spyOn(console, "warn").mockImplementation();
     jest.spyOn(console, "log").mockImplementation();
-    
+
     alpacaService = new AlpacaService("test-key", "test-secret", true);
     mockClient = alpacaService.client;
   });
@@ -91,7 +91,9 @@ describe("AlpacaService", () => {
 
       // Should remove the old request and add new one
       expect(alpacaService.requestTimes).toHaveLength(3); // 2 recent + 1 new
-      expect(alpacaService.requestTimes.every(time => time > now - 60000)).toBe(true);
+      expect(
+        alpacaService.requestTimes.every((time) => time > now - 60000)
+      ).toBe(true);
     });
   });
 
@@ -180,7 +182,7 @@ describe("AlpacaService", () => {
         change_today: "0.50",
         avg_entry_price: "140.00",
         qty_available: "100",
-      }
+      },
     ];
 
     it("should fetch and format positions data successfully", async () => {
@@ -298,7 +300,7 @@ describe("AlpacaService", () => {
         price: "100.00",
         side: "buy",
         description: "Buy order filled",
-      }
+      },
     ];
 
     it("should fetch and format activities successfully", async () => {
@@ -321,17 +323,19 @@ describe("AlpacaService", () => {
     });
 
     it("should handle missing optional fields", async () => {
-      const activityWithNulls = [{
-        id: "activity-456",
-        activity_type: "DIV",
-        date: "2022-01-01",
-        net_amount: null,
-        symbol: "AAPL",
-        qty: null,
-        price: null,
-        side: null,
-        description: null,
-      }];
+      const activityWithNulls = [
+        {
+          id: "activity-456",
+          activity_type: "DIV",
+          date: "2022-01-01",
+          net_amount: null,
+          symbol: "AAPL",
+          qty: null,
+          price: null,
+          side: null,
+          description: null,
+        },
+      ];
 
       mockClient.getActivities.mockResolvedValue(activityWithNulls);
 
@@ -359,13 +363,16 @@ describe("AlpacaService", () => {
         close: "16:00",
         session_open: "04:00",
         session_close: "20:00",
-      }
+      },
     ];
 
     it("should fetch and format market calendar successfully", async () => {
       mockClient.getCalendar.mockResolvedValue(mockCalendarData);
 
-      const result = await alpacaService.getMarketCalendar("2022-01-01", "2022-01-31");
+      const result = await alpacaService.getMarketCalendar(
+        "2022-01-01",
+        "2022-01-31"
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -547,7 +554,10 @@ describe("AlpacaService", () => {
         { equity: 9800 },
       ];
 
-      const result = alpacaService.calculateBasicRiskMetrics(positions, history);
+      const result = alpacaService.calculateBasicRiskMetrics(
+        positions,
+        history
+      );
 
       expect(result.volatility).toBeGreaterThan(0);
       expect(result.sharpeRatio).toBeDefined();
@@ -560,7 +570,10 @@ describe("AlpacaService", () => {
       const positions = [];
       const history = [{ equity: 10000 }];
 
-      const result = alpacaService.calculateBasicRiskMetrics(positions, history);
+      const result = alpacaService.calculateBasicRiskMetrics(
+        positions,
+        history
+      );
 
       expect(result).toEqual({
         volatility: 0,
@@ -573,8 +586,8 @@ describe("AlpacaService", () => {
 
   describe("getLatestQuote", () => {
     const mockQuoteData = {
-      BidPrice: 149.50,
-      AskPrice: 149.60,
+      BidPrice: 149.5,
+      AskPrice: 149.6,
       BidSize: 100,
       AskSize: 200,
       Timestamp: "2022-01-01T10:30:00Z",
@@ -662,15 +675,15 @@ describe("AlpacaService", () => {
       bars: [
         {
           Timestamp: "2022-01-01T09:30:00Z",
-          OpenPrice: 150.00,
-          HighPrice: 151.00,
-          LowPrice: 149.50,
-          ClosePrice: 150.50,
+          OpenPrice: 150.0,
+          HighPrice: 151.0,
+          LowPrice: 149.5,
+          ClosePrice: 150.5,
           Volume: 1000,
           TradeCount: 10,
           VWAP: 150.25,
-        }
-      ]
+        },
+      ],
     };
 
     it("should fetch and format bars data successfully", async () => {
@@ -685,10 +698,10 @@ describe("AlpacaService", () => {
       expect(result[0]).toEqual({
         symbol: "AAPL",
         timestamp: "2022-01-01T09:30:00Z",
-        open: 150.00,
-        high: 151.00,
-        low: 149.50,
-        close: 150.50,
+        open: 150.0,
+        high: 151.0,
+        low: 149.5,
+        close: 150.5,
         volume: 1000,
         tradeCount: 10,
         vwap: 150.25,
@@ -783,7 +796,12 @@ describe("AlpacaService", () => {
     it("should create market order successfully", async () => {
       mockClient.createOrder.mockResolvedValue(mockOrderData);
 
-      const result = await alpacaService.createOrder("AAPL", 10, "buy", "market");
+      const result = await alpacaService.createOrder(
+        "AAPL",
+        10,
+        "buy",
+        "market"
+      );
 
       expect(result).toEqual({
         orderId: "order-123",
@@ -811,7 +829,13 @@ describe("AlpacaService", () => {
       const limitOrderData = { ...mockOrderData, order_type: "limit" };
       mockClient.createOrder.mockResolvedValue(limitOrderData);
 
-      const result = await alpacaService.createOrder("AAPL", 10, "buy", "limit", 150.00);
+      const result = await alpacaService.createOrder(
+        "AAPL",
+        10,
+        "buy",
+        "limit",
+        150.0
+      );
 
       expect(result.type).toBe("limit");
 
@@ -821,7 +845,7 @@ describe("AlpacaService", () => {
         side: "buy",
         type: "limit",
         time_in_force: "day",
-        limit_price: 150.00,
+        limit_price: 150.0,
       });
     });
 
@@ -834,28 +858,33 @@ describe("AlpacaService", () => {
         "Quantity must be a positive number"
       );
 
-      await expect(alpacaService.createOrder("AAPL", 10, "invalid")).rejects.toThrow(
-        "Side must be buy or sell"
-      );
+      await expect(
+        alpacaService.createOrder("AAPL", 10, "invalid")
+      ).rejects.toThrow("Side must be buy or sell");
 
-      await expect(alpacaService.createOrder("AAPL", 10, "buy", "limit")).rejects.toThrow(
-        "Limit price is required for limit orders"
-      );
+      await expect(
+        alpacaService.createOrder("AAPL", 10, "buy", "limit")
+      ).rejects.toThrow("Limit price is required for limit orders");
     });
 
     it("should handle order creation failure", async () => {
       mockClient.createOrder.mockRejectedValue(new Error("Insufficient funds"));
 
-      await expect(alpacaService.createOrder("AAPL", 10, "buy")).rejects.toThrow(
-        "Failed to create order: Insufficient funds"
-      );
+      await expect(
+        alpacaService.createOrder("AAPL", 10, "buy")
+      ).rejects.toThrow("Failed to create order: Insufficient funds");
     });
 
     it("should handle undefined order_type in response", async () => {
       const orderWithoutType = { ...mockOrderData, order_type: undefined };
       mockClient.createOrder.mockResolvedValue(orderWithoutType);
 
-      const result = await alpacaService.createOrder("AAPL", 10, "buy", "market");
+      const result = await alpacaService.createOrder(
+        "AAPL",
+        10,
+        "buy",
+        "market"
+      );
 
       expect(result.type).toBe("market");
     });

@@ -682,7 +682,13 @@ class AlpacaService {
   /**
    * Create trading order (market or limit)
    */
-  async createOrder(symbol, quantity, side, type = "market", limitPrice = null) {
+  async createOrder(
+    symbol,
+    quantity,
+    side,
+    type = "market",
+    limitPrice = null
+  ) {
     try {
       // Validate required parameters
       if (!symbol) {
@@ -694,7 +700,7 @@ class AlpacaService {
       if (!side || !["buy", "sell"].includes(side)) {
         throw new Error("Side must be buy or sell");
       }
-      
+
       // Validate limit price for limit orders
       if (type === "limit" && !limitPrice) {
         throw new Error("Limit price is required for limit orders");
@@ -707,7 +713,7 @@ class AlpacaService {
         qty: quantity,
         side: side,
         type: type,
-        time_in_force: "day"
+        time_in_force: "day",
       };
 
       if (type === "limit") {
@@ -726,7 +732,9 @@ class AlpacaService {
         status: order.status,
         createdAt: order.submitted_at,
         filledQty: parseFloat(order.filled_qty || 0),
-        filledAvgPrice: order.filled_avg_price ? parseFloat(order.filled_avg_price) : null,
+        filledAvgPrice: order.filled_avg_price
+          ? parseFloat(order.filled_avg_price)
+          : null,
       };
     } catch (error) {
       console.error("Alpaca order creation error:", error.message);
@@ -739,8 +747,8 @@ class AlpacaService {
       this.checkRateLimit();
       console.log("Fetching orders from Alpaca");
       const orders = await this.client.getOrders(options);
-      
-      return orders.map(order => ({
+
+      return orders.map((order) => ({
         id: order.id,
         symbol: order.symbol,
         qty: parseFloat(order.qty),
@@ -749,10 +757,12 @@ class AlpacaService {
         status: order.status,
         createdAt: order.submitted_at,
         filledQty: parseFloat(order.filled_qty || 0),
-        filledAvgPrice: order.filled_avg_price ? parseFloat(order.filled_avg_price) : null,
+        filledAvgPrice: order.filled_avg_price
+          ? parseFloat(order.filled_avg_price)
+          : null,
         limitPrice: order.limit_price ? parseFloat(order.limit_price) : null,
         stopPrice: order.stop_price ? parseFloat(order.stop_price) : null,
-        timeInForce: order.time_in_force
+        timeInForce: order.time_in_force,
       }));
     } catch (error) {
       console.error("Alpaca get orders error:", error.message);
@@ -767,9 +777,9 @@ class AlpacaService {
       const result = await this.client.cancelOrder(orderId);
       return {
         orderId: orderId,
-        status: 'cancelled',
+        status: "cancelled",
         cancelledAt: new Date().toISOString(),
-        success: true
+        success: true,
       };
     } catch (error) {
       console.error("Alpaca cancel order error:", error.message);
@@ -786,11 +796,11 @@ class AlpacaService {
    */
   async getPosition(symbol) {
     this.checkRateLimit();
-    
+
     try {
       const positions = await this.client.getPositions();
-      const position = positions.find(pos => pos.symbol === symbol);
-      
+      const position = positions.find((pos) => pos.symbol === symbol);
+
       if (!position) {
         return null;
       }
@@ -805,11 +815,13 @@ class AlpacaService {
         unrealized_plpc: parseFloat(position.unrealized_plpc || 0),
         current_price: parseFloat(position.current_price || 0),
         lastday_price: parseFloat(position.lastday_price || 0),
-        change_today: parseFloat(position.change_today || 0)
+        change_today: parseFloat(position.change_today || 0),
       };
     } catch (error) {
       console.error("Error fetching position:", error.message);
-      throw new Error(`Failed to fetch position for ${symbol}: ${error.message}`);
+      throw new Error(
+        `Failed to fetch position for ${symbol}: ${error.message}`
+      );
     }
   }
 
@@ -818,11 +830,11 @@ class AlpacaService {
    */
   async getAssets(options = {}) {
     this.checkRateLimit();
-    
+
     try {
       const assets = await this.client.getAssets(options);
-      
-      return assets.map(asset => ({
+
+      return assets.map((asset) => ({
         id: asset.id,
         class: asset.class,
         exchange: asset.exchange,
@@ -833,7 +845,7 @@ class AlpacaService {
         marginable: asset.marginable,
         shortable: asset.shortable,
         easy_to_borrow: asset.easy_to_borrow,
-        fractionable: asset.fractionable
+        fractionable: asset.fractionable,
       }));
     } catch (error) {
       console.error("Error fetching assets:", error.message);
@@ -846,21 +858,23 @@ class AlpacaService {
    */
   async getLastTrade(symbol) {
     this.checkRateLimit();
-    
+
     try {
       const trade = await this.client.getLastTrade(symbol);
-      
+
       return {
         symbol: symbol,
         price: parseFloat(trade.price),
         size: parseInt(trade.size),
         timestamp: trade.timestamp,
         timeframe: trade.timeframe,
-        exchange: trade.exchange
+        exchange: trade.exchange,
       };
     } catch (error) {
       console.error("Error fetching last trade:", error.message);
-      throw new Error(`Failed to fetch last trade for ${symbol}: ${error.message}`);
+      throw new Error(
+        `Failed to fetch last trade for ${symbol}: ${error.message}`
+      );
     }
   }
 
@@ -869,17 +883,17 @@ class AlpacaService {
    */
   async getWatchlists() {
     this.checkRateLimit();
-    
+
     try {
       const watchlists = await this.client.getWatchlists();
-      
-      return watchlists.map(watchlist => ({
+
+      return watchlists.map((watchlist) => ({
         id: watchlist.id,
         name: watchlist.name,
         account_id: watchlist.account_id,
         created_at: watchlist.created_at,
         updated_at: watchlist.updated_at,
-        assets: watchlist.assets || []
+        assets: watchlist.assets || [],
       }));
     } catch (error) {
       console.error("Error fetching watchlists:", error.message);
@@ -892,26 +906,26 @@ class AlpacaService {
    */
   async createWatchlist(options) {
     this.checkRateLimit();
-    
+
     try {
       const { name, symbols = [] } = options;
-      
+
       if (!name) {
         throw new Error("Watchlist name is required");
       }
 
       const watchlist = await this.client.createWatchlist({
         name: name,
-        symbols: symbols
+        symbols: symbols,
       });
-      
+
       return {
         id: watchlist.id,
         name: watchlist.name,
         account_id: watchlist.account_id,
         created_at: watchlist.created_at,
         updated_at: watchlist.updated_at,
-        assets: watchlist.assets || []
+        assets: watchlist.assets || [],
       };
     } catch (error) {
       console.error("Error creating watchlist:", error.message);
@@ -922,49 +936,52 @@ class AlpacaService {
   async makeRequest(provider, endpoint) {
     try {
       this.checkRateLimit();
-      
+
       // Mock implementation for testing
       console.log(`Making request to ${provider}: ${endpoint}`);
-      
+
       // Return mock response based on endpoint
-      if (endpoint.includes('/quote/')) {
-        const symbol = endpoint.split('/').pop();
+      if (endpoint.includes("/quote/")) {
+        const symbol = endpoint.split("/").pop();
         return {
           success: true,
           data: {
             symbol: symbol,
             price: 100 + Math.random() * 50,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           },
           provider: provider,
           endpoint: endpoint,
-          rateLimited: false
+          rateLimited: false,
         };
-      } else if (endpoint.includes('/test')) {
+      } else if (endpoint.includes("/test")) {
         return {
           success: true,
-          data: { message: 'Test endpoint response' },
+          data: { message: "Test endpoint response" },
           provider: provider,
           endpoint: endpoint,
-          rateLimited: false
+          rateLimited: false,
         };
       } else {
         return {
           success: true,
-          data: { message: 'Generic API response' },
+          data: { message: "Generic API response" },
           provider: provider,
           endpoint: endpoint,
-          rateLimited: false
+          rateLimited: false,
         };
       }
     } catch (error) {
-      console.error(`Make request error for ${provider}${endpoint}:`, error.message);
+      console.error(
+        `Make request error for ${provider}${endpoint}:`,
+        error.message
+      );
       return {
         success: false,
         error: error.message,
         provider: provider,
         endpoint: endpoint,
-        rateLimited: false
+        rateLimited: false,
       };
     }
   }

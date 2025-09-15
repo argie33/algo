@@ -1,7 +1,7 @@
 /**
  * AI Strategy Generator Service - Enhanced with AWS Bedrock
  * Converts natural language descriptions into executable trading strategies using Claude AI
- * 
+ *
  * Features:
  * - Claude-powered natural language understanding
  * - Intelligent Python strategy generation
@@ -10,76 +10,76 @@
  * - AI-powered explanations and optimization
  */
 
-const { createLogger } = require('../utils/logger');
+const { createLogger } = require("../utils/logger");
 
 class AIStrategyGenerator {
   constructor() {
     this.logger = createLogger();
     this.correlationId = this.generateCorrelationId();
-    
+
     // Mock service (AWS services not available)
     this.bedrockService = null;
     this.bedrockClient = null;
-    
+
     // AI Configuration
     this.aiConfig = {
-      model: 'claude-3-haiku', // Fast and cost-effective for strategy generation
+      model: "claude-3-haiku", // Fast and cost-effective for strategy generation
       maxTokens: 4000,
       temperature: 0.1, // Low temperature for consistent code generation
       fallbackToTemplates: true, // Fallback to templates if AI fails
-      streamingEnabled: false // Can be enabled for real-time generation
+      streamingEnabled: false, // Can be enabled for real-time generation
     };
-    
+
     // Strategy patterns for different asset types
     this.assetTypePatterns = {
       stock: {
-        indicators: ['sma', 'ema', 'rsi', 'macd', 'volume', 'bollinger'],
-        timeframes: ['1min', '5min', '15min', '1hour', '1day'],
-        actions: ['buy', 'sell', 'hold']
+        indicators: ["sma", "ema", "rsi", "macd", "volume", "bollinger"],
+        timeframes: ["1min", "5min", "15min", "1hour", "1day"],
+        actions: ["buy", "sell", "hold"],
       },
       crypto: {
-        indicators: ['sma', 'ema', 'rsi', 'volume', 'momentum', 'volatility'],
-        timeframes: ['1min', '5min', '15min', '1hour', '4hour', '1day'],
-        actions: ['buy', 'sell', 'hold']
+        indicators: ["sma", "ema", "rsi", "volume", "momentum", "volatility"],
+        timeframes: ["1min", "5min", "15min", "1hour", "4hour", "1day"],
+        actions: ["buy", "sell", "hold"],
       },
       etf: {
-        indicators: ['sma', 'ema', 'sector_rotation', 'relative_strength'],
-        timeframes: ['15min', '1hour', '1day'],
-        actions: ['buy', 'sell', 'hold']
-      }
+        indicators: ["sma", "ema", "sector_rotation", "relative_strength"],
+        timeframes: ["15min", "1hour", "1day"],
+        actions: ["buy", "sell", "hold"],
+      },
     };
 
     // Pre-defined strategy templates
     this.strategyTemplates = {
       momentum: {
-        description: 'Momentum-based strategy using moving averages',
+        description: "Momentum-based strategy using moving averages",
         code: this.getMomentumTemplate(),
         parameters: {
           short_window: 10,
           long_window: 30,
-          position_size: 0.1
-        }
+          position_size: 0.1,
+        },
       },
       mean_reversion: {
-        description: 'Mean reversion strategy using RSI',
+        description: "Mean reversion strategy using RSI",
         code: this.getMeanReversionTemplate(),
         parameters: {
           rsi_period: 14,
           oversold_threshold: 30,
           overbought_threshold: 70,
-          position_size: 0.1
-        }
+          position_size: 0.1,
+        },
       },
       breakout: {
-        description: 'Breakout strategy using Bollinger Bands',
+        description: "Breakout strategy using Bollinger Bands",
         code: this.getBreakoutTemplate(),
         parameters: {
           bb_period: 20,
           bb_std: 2,
           volume_threshold: 1.5,
-          position_size: 0.1
-        }
-      }
+          position_size: 0.1,
+        },
+      },
     };
   }
 
@@ -90,39 +90,50 @@ class AIStrategyGenerator {
   /**
    * Generate strategy from natural language description using Claude AI
    */
-  async generateFromNaturalLanguage(prompt, availableSymbols = [], options = {}) {
+  async generateFromNaturalLanguage(
+    prompt,
+    availableSymbols = [],
+    options = {}
+  ) {
     try {
-      this.logger.info('Generating AI-powered strategy from natural language', {
+      this.logger.info("Generating AI-powered strategy from natural language", {
         prompt: prompt.substring(0, 200),
         symbolCount: availableSymbols.length,
         correlationId: this.correlationId,
-        aiEnabled: true
+        aiEnabled: true,
       });
 
       // Try AI-powered generation first
-      const aiResult = await this.generateWithClaude(prompt, availableSymbols, options);
+      const aiResult = await this.generateWithClaude(
+        prompt,
+        availableSymbols,
+        options
+      );
       if (aiResult && aiResult.success) {
         return aiResult;
       } else {
-        this.logger.warn('AI generation failed, falling back to templates', {
-          error: aiResult?.error || 'AI service unavailable',
-          correlationId: this.correlationId
+        this.logger.warn("AI generation failed, falling back to templates", {
+          error: aiResult?.error || "AI service unavailable",
+          correlationId: this.correlationId,
         });
       }
 
       // Fallback to template-based generation
-      return await this.generateWithTemplates(prompt, availableSymbols, options);
-      
+      return await this.generateWithTemplates(
+        prompt,
+        availableSymbols,
+        options
+      );
     } catch (error) {
-      this.logger.error('Strategy generation failed', {
+      this.logger.error("Strategy generation failed", {
         error: error.message,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       });
-      
+
       return {
         success: false,
         error: `Failed to generate strategy: ${error.message}`,
-        fallbackSuggestions: this.getFallbackSuggestions()
+        fallbackSuggestions: this.getFallbackSuggestions(),
       };
     }
   }
@@ -132,58 +143,69 @@ class AIStrategyGenerator {
    */
   async generateWithClaude(prompt, availableSymbols = [], options = {}) {
     try {
-      const systemPrompt = await this.buildSystemPrompt(availableSymbols, options);
-      const userPrompt = await this.buildUserPrompt(prompt, availableSymbols, options);
+      const systemPrompt = await this.buildSystemPrompt(
+        availableSymbols,
+        options
+      );
+      const userPrompt = await this.buildUserPrompt(
+        prompt,
+        availableSymbols,
+        options
+      );
 
       // Call Claude for strategy generation
       const response = await this.callClaude(systemPrompt, userPrompt);
-      
+
       // Parse Claude's response
       const parsedStrategy = await this.parseClaudeResponse(response);
-      
+
       // Validate and enhance the generated strategy
-      const validatedStrategy = await this.validateAndEnhanceStrategy(parsedStrategy);
-      
+      const validatedStrategy =
+        await this.validateAndEnhanceStrategy(parsedStrategy);
+
       // Generate metadata and visual config
       const metadata = await this.generateAIMetadata(validatedStrategy, prompt);
       const visualConfig = await this.generateAIVisualConfig(validatedStrategy);
-      
+
       const result = {
         success: true,
         strategy: {
-          name: validatedStrategy.name || this.generateStrategyName({ description: prompt }),
+          name:
+            validatedStrategy.name ||
+            this.generateStrategyName({ description: prompt }),
           description: validatedStrategy.description || prompt,
           code: validatedStrategy.code,
-          strategyType: validatedStrategy.strategyType || 'ai_generated',
+          strategyType: validatedStrategy.strategyType || "ai_generated",
           symbols: validatedStrategy.symbols || availableSymbols.slice(0, 5),
-          riskLevel: validatedStrategy.riskLevel || 'medium',
+          riskLevel: validatedStrategy.riskLevel || "medium",
           parameters: validatedStrategy.parameters || {},
           aiGenerated: true,
           aiModel: this.aiConfig.model,
           timestamp: new Date().toISOString(),
           correlationId: this.correlationId,
-          ...metadata
+          ...metadata,
         },
         visualConfig,
-        aiInsights: validatedStrategy.insights || []
+        aiInsights: validatedStrategy.insights || [],
       };
 
-      this.logger.info('AI strategy generation successful', {
+      this.logger.info("AI strategy generation successful", {
         strategyName: result.strategy.name,
         strategyType: result.strategy.strategyType,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       });
 
       return result;
-      
     } catch (error) {
-      this.logger.warn('Claude AI service not available, using template fallback');
-      
+      this.logger.warn(
+        "Claude AI service not available, using template fallback"
+      );
+
       return {
         success: false,
-        error: 'Claude AI service not configured. Using template fallback.',
+        error: "Claude AI service not configured. Using template fallback.",
         fallbackRecommended: true,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       };
     }
   }
@@ -194,21 +216,32 @@ class AIStrategyGenerator {
   async generateWithTemplates(prompt, availableSymbols = [], _options = {}) {
     // Parse the user's intent using rule-based approach
     const intent = await this.parseIntent(prompt);
-    
+
     // Determine strategy type and approach
     const strategyType = this.determineStrategyType(intent);
-    
+
     // Filter symbols based on intent
-    const relevantSymbols = this.filterSymbolsByIntent(intent, availableSymbols);
-    
+    const relevantSymbols = this.filterSymbolsByIntent(
+      intent,
+      availableSymbols
+    );
+
     // Generate strategy code from templates
-    const strategyCode = await this.generateStrategyCode(intent, strategyType, relevantSymbols);
-    
+    const strategyCode = await this.generateStrategyCode(
+      intent,
+      strategyType,
+      relevantSymbols
+    );
+
     // Create visual configuration
     const visualConfig = this.createVisualConfig(intent, strategyType);
-    
+
     // Generate strategy metadata
-    const metadata = this.generateStrategyMetadata(intent, strategyType, relevantSymbols);
+    const metadata = this.generateStrategyMetadata(
+      intent,
+      strategyType,
+      relevantSymbols
+    );
 
     const result = {
       success: true,
@@ -216,7 +249,7 @@ class AIStrategyGenerator {
         name: this.generateStrategyName(intent, strategyType),
         description: intent.description || prompt,
         code: strategyCode,
-        language: 'python',
+        language: "python",
         visualConfig: visualConfig,
         parameters: metadata.parameters,
         symbols: relevantSymbols.slice(0, 10), // Limit to 10 symbols
@@ -226,16 +259,16 @@ class AIStrategyGenerator {
         estimatedPerformance: this.estimatePerformance(strategyType, intent),
         aiGenerated: false, // Template-based, not AI-generated
         prompt: prompt,
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
       },
       visualConfig,
-      metadata
+      metadata,
     };
 
-    this.logger.info('Template-based strategy generated successfully', {
+    this.logger.info("Template-based strategy generated successfully", {
       strategyName: result.strategy.name,
       strategyType: result.strategy.strategyType,
-      correlationId: this.correlationId
+      correlationId: this.correlationId,
     });
 
     return result;
@@ -246,98 +279,110 @@ class AIStrategyGenerator {
    */
   async parseIntent(prompt) {
     const intent = {
-      action: 'unknown',
+      action: "unknown",
       assets: [],
       indicators: [],
       conditions: [],
-      timeframe: '1day',
-      riskTolerance: 'medium',
-      description: prompt
+      timeframe: "1day",
+      riskTolerance: "medium",
+      description: prompt,
     };
 
     const lowerPrompt = prompt.toLowerCase();
 
     // Extract action intent
-    if (lowerPrompt.includes('buy') || lowerPrompt.includes('long')) {
-      intent.action = 'buy';
-    } else if (lowerPrompt.includes('sell') || lowerPrompt.includes('short')) {
-      intent.action = 'sell';
-    } else if (lowerPrompt.includes('trade') || lowerPrompt.includes('strategy')) {
-      intent.action = 'trade';
+    if (lowerPrompt.includes("buy") || lowerPrompt.includes("long")) {
+      intent.action = "buy";
+    } else if (lowerPrompt.includes("sell") || lowerPrompt.includes("short")) {
+      intent.action = "sell";
+    } else if (
+      lowerPrompt.includes("trade") ||
+      lowerPrompt.includes("strategy")
+    ) {
+      intent.action = "trade";
     }
 
     // Extract asset mentions
     const assetPatterns = {
-      bitcoin: ['bitcoin', 'btc', 'btcusd'],
-      apple: ['apple', 'aapl'],
-      tesla: ['tesla', 'tsla'],
-      spy: ['spy', 's&p', 'sp500'],
-      crypto: ['crypto', 'cryptocurrency', 'coin'],
-      stock: ['stock', 'equity', 'share'],
-      etf: ['etf', 'fund']
+      bitcoin: ["bitcoin", "btc", "btcusd"],
+      apple: ["apple", "aapl"],
+      tesla: ["tesla", "tsla"],
+      spy: ["spy", "s&p", "sp500"],
+      crypto: ["crypto", "cryptocurrency", "coin"],
+      stock: ["stock", "equity", "share"],
+      etf: ["etf", "fund"],
     };
 
     for (const [asset, patterns] of Object.entries(assetPatterns)) {
-      if (patterns.some(pattern => lowerPrompt.includes(pattern))) {
+      if (patterns.some((pattern) => lowerPrompt.includes(pattern))) {
         intent.assets.push(asset);
       }
     }
 
     // Extract indicators
     const indicatorPatterns = {
-      moving_average: ['moving average', 'ma', 'sma', 'ema'],
-      rsi: ['rsi', 'relative strength'],
-      macd: ['macd'],
-      bollinger: ['bollinger', 'bands'],
-      volume: ['volume', 'trading volume'],
-      momentum: ['momentum', 'price momentum'],
-      volatility: ['volatility', 'volatile']
+      moving_average: ["moving average", "ma", "sma", "ema"],
+      rsi: ["rsi", "relative strength"],
+      macd: ["macd"],
+      bollinger: ["bollinger", "bands"],
+      volume: ["volume", "trading volume"],
+      momentum: ["momentum", "price momentum"],
+      volatility: ["volatility", "volatile"],
     };
 
     for (const [indicator, patterns] of Object.entries(indicatorPatterns)) {
-      if (patterns.some(pattern => lowerPrompt.includes(pattern))) {
+      if (patterns.some((pattern) => lowerPrompt.includes(pattern))) {
         intent.indicators.push(indicator);
       }
     }
 
     // Extract timeframe
     const timeframePatterns = {
-      '1min': ['1 minute', '1min', 'minute'],
-      '5min': ['5 minute', '5min'],
-      '15min': ['15 minute', '15min'],
-      '1hour': ['1 hour', '1h', 'hourly'],
-      '1day': ['daily', '1 day', '1d', 'day']
+      "1min": ["1 minute", "1min", "minute"],
+      "5min": ["5 minute", "5min"],
+      "15min": ["15 minute", "15min"],
+      "1hour": ["1 hour", "1h", "hourly"],
+      "1day": ["daily", "1 day", "1d", "day"],
     };
 
     for (const [timeframe, patterns] of Object.entries(timeframePatterns)) {
-      if (patterns.some(pattern => lowerPrompt.includes(pattern))) {
+      if (patterns.some((pattern) => lowerPrompt.includes(pattern))) {
         intent.timeframe = timeframe;
         break;
       }
     }
 
     // Extract conditions
-    if (lowerPrompt.includes('breaks above') || lowerPrompt.includes('exceeds')) {
-      intent.conditions.push('breakout_above');
+    if (
+      lowerPrompt.includes("breaks above") ||
+      lowerPrompt.includes("exceeds")
+    ) {
+      intent.conditions.push("breakout_above");
     }
-    if (lowerPrompt.includes('breaks below') || lowerPrompt.includes('falls below')) {
-      intent.conditions.push('breakout_below');
+    if (
+      lowerPrompt.includes("breaks below") ||
+      lowerPrompt.includes("falls below")
+    ) {
+      intent.conditions.push("breakout_below");
     }
-    if (lowerPrompt.includes('spike') || lowerPrompt.includes('surge')) {
-      intent.conditions.push('spike');
+    if (lowerPrompt.includes("spike") || lowerPrompt.includes("surge")) {
+      intent.conditions.push("spike");
     }
-    if (lowerPrompt.includes('oversold')) {
-      intent.conditions.push('oversold');
+    if (lowerPrompt.includes("oversold")) {
+      intent.conditions.push("oversold");
     }
-    if (lowerPrompt.includes('overbought')) {
-      intent.conditions.push('overbought');
+    if (lowerPrompt.includes("overbought")) {
+      intent.conditions.push("overbought");
     }
 
     // Assess risk tolerance
-    if (lowerPrompt.includes('conservative') || lowerPrompt.includes('safe')) {
-      intent.riskTolerance = 'low';
-    } else if (lowerPrompt.includes('aggressive') || lowerPrompt.includes('risky')) {
-      intent.riskTolerance = 'high';
+    if (lowerPrompt.includes("conservative") || lowerPrompt.includes("safe")) {
+      intent.riskTolerance = "low";
+    } else if (
+      lowerPrompt.includes("aggressive") ||
+      lowerPrompt.includes("risky")
+    ) {
+      intent.riskTolerance = "high";
     }
 
     return intent;
@@ -347,25 +392,31 @@ class AIStrategyGenerator {
    * Determine strategy type based on intent
    */
   determineStrategyType(intent) {
-    if (intent.indicators.includes('momentum') || 
-        intent.conditions.includes('breakout_above') ||
-        intent.conditions.includes('breakout_below')) {
-      return 'momentum';
+    if (
+      intent.indicators.includes("momentum") ||
+      intent.conditions.includes("breakout_above") ||
+      intent.conditions.includes("breakout_below")
+    ) {
+      return "momentum";
     }
-    
-    if (intent.indicators.includes('rsi') ||
-        intent.conditions.includes('oversold') ||
-        intent.conditions.includes('overbought')) {
-      return 'mean_reversion';
+
+    if (
+      intent.indicators.includes("rsi") ||
+      intent.conditions.includes("oversold") ||
+      intent.conditions.includes("overbought")
+    ) {
+      return "mean_reversion";
     }
-    
-    if (intent.indicators.includes('bollinger') ||
-        intent.conditions.includes('spike')) {
-      return 'breakout';
+
+    if (
+      intent.indicators.includes("bollinger") ||
+      intent.conditions.includes("spike")
+    ) {
+      return "breakout";
     }
-    
+
     // Default to momentum strategy
-    return 'momentum';
+    return "momentum";
   }
 
   /**
@@ -373,22 +424,25 @@ class AIStrategyGenerator {
    */
   filterSymbolsByIntent(intent, availableSymbols) {
     if (!availableSymbols || availableSymbols.length === 0) {
-      throw new Error('No symbols available for strategy generation. Symbol data service must be configured and accessible for AI strategy creation.');
+      throw new Error(
+        "No symbols available for strategy generation. Symbol data service must be configured and accessible for AI strategy creation."
+      );
     }
 
     let filtered = availableSymbols;
 
     // Filter by asset type if specified
     if (intent.assets.length > 0) {
-      filtered = filtered.filter(symbol => {
+      filtered = filtered.filter((symbol) => {
         const symbolStr = symbol.symbol || symbol;
         const assetType = this.getAssetType(symbolStr);
-        
-        return intent.assets.some(asset => {
-          if (asset === 'crypto' && assetType === 'crypto') return true;
-          if (asset === 'stock' && assetType === 'stock') return true;
-          if (asset === 'etf' && assetType === 'etf') return true;
-          if (symbolStr.toLowerCase().includes(asset.toLowerCase())) return true;
+
+        return intent.assets.some((asset) => {
+          if (asset === "crypto" && assetType === "crypto") return true;
+          if (asset === "stock" && assetType === "stock") return true;
+          if (asset === "etf" && assetType === "etf") return true;
+          if (symbolStr.toLowerCase().includes(asset.toLowerCase()))
+            return true;
           return false;
         });
       });
@@ -396,7 +450,9 @@ class AIStrategyGenerator {
 
     // If no matches found, require symbol data service configuration
     if (filtered.length === 0) {
-      throw new Error(`No symbols match intent criteria for assets: ${intent.assets.join(', ')}. Symbol data service needs configuration for proper asset type filtering.`);
+      throw new Error(
+        `No symbols match intent criteria for assets: ${intent.assets.join(", ")}. Symbol data service needs configuration for proper asset type filtering.`
+      );
     }
 
     return filtered.slice(0, 10); // Limit to 10 symbols
@@ -421,7 +477,7 @@ class AIStrategyGenerator {
 
     // Add natural language comment
     const comment = `# AI Generated Strategy: ${intent.description}\n# Generated on: ${new Date().toISOString()}\n\n`;
-    
+
     return comment + code;
   }
 
@@ -704,22 +760,24 @@ signals.append({
    */
   customizeCodeForSymbols(code, symbols) {
     if (!symbols || symbols.length === 0) return code;
-    
-    const symbolList = symbols.map(s => typeof s === 'string' ? s : s.symbol).slice(0, 10);
+
+    const symbolList = symbols
+      .map((s) => (typeof s === "string" ? s : s.symbol))
+      .slice(0, 10);
     const symbolFilter = `
 # Filter to specific symbols of interest
 target_symbols = ${JSON.stringify(symbolList)}
 data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
 `;
-    
-    return symbolFilter + '\n' + code;
+
+    return symbolFilter + "\n" + code;
   }
 
   /**
    * Customize code for timeframe
    */
   customizeCodeForTimeframe(code, timeframe) {
-    if (timeframe === '1min' || timeframe === '5min') {
+    if (timeframe === "1min" || timeframe === "5min") {
       return code.replace(/rolling\(window=(\d+)\)/g, (match, period) => {
         const adjustedPeriod = Math.max(5, Math.floor(parseInt(period) / 2));
         return `rolling(window=${adjustedPeriod})`;
@@ -741,20 +799,22 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
    */
   customizeCodeForRiskTolerance(code, riskTolerance) {
     let positionSize = 0.1; // Default
-    
+
     switch (riskTolerance) {
-      case 'low':
+      case "low":
         positionSize = 0.05;
         break;
-      case 'high':
+      case "high":
         positionSize = 0.2;
         break;
       default:
         positionSize = 0.1;
     }
-    
-    return code.replace(/position_size = parameters\.get\('position_size', [0-9.]+\)/, 
-                       `position_size = parameters.get('position_size', ${positionSize})`);
+
+    return code.replace(
+      /position_size = parameters\.get\('position_size', [0-9.]+\)/,
+      `position_size = parameters.get('position_size', ${positionSize})`
+    );
   }
 
   /**
@@ -765,64 +825,142 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
       type: strategyType,
       nodes: [],
       connections: [],
-      layout: 'flowchart'
+      layout: "flowchart",
     };
 
     // Add nodes based on strategy type
     switch (strategyType) {
-      case 'momentum':
+      case "momentum":
         config.nodes = [
-          { id: 'data', type: 'input', label: 'Market Data', x: 100, y: 100 },
-          { id: 'sma_short', type: 'indicator', label: 'Short SMA', x: 250, y: 50 },
-          { id: 'sma_long', type: 'indicator', label: 'Long SMA', x: 250, y: 150 },
-          { id: 'crossover', type: 'condition', label: 'MA Crossover', x: 400, y: 100 },
-          { id: 'buy_signal', type: 'action', label: 'Buy Signal', x: 550, y: 75 },
-          { id: 'sell_signal', type: 'action', label: 'Sell Signal', x: 550, y: 125 }
+          { id: "data", type: "input", label: "Market Data", x: 100, y: 100 },
+          {
+            id: "sma_short",
+            type: "indicator",
+            label: "Short SMA",
+            x: 250,
+            y: 50,
+          },
+          {
+            id: "sma_long",
+            type: "indicator",
+            label: "Long SMA",
+            x: 250,
+            y: 150,
+          },
+          {
+            id: "crossover",
+            type: "condition",
+            label: "MA Crossover",
+            x: 400,
+            y: 100,
+          },
+          {
+            id: "buy_signal",
+            type: "action",
+            label: "Buy Signal",
+            x: 550,
+            y: 75,
+          },
+          {
+            id: "sell_signal",
+            type: "action",
+            label: "Sell Signal",
+            x: 550,
+            y: 125,
+          },
         ];
         config.connections = [
-          { from: 'data', to: 'sma_short' },
-          { from: 'data', to: 'sma_long' },
-          { from: 'sma_short', to: 'crossover' },
-          { from: 'sma_long', to: 'crossover' },
-          { from: 'crossover', to: 'buy_signal' },
-          { from: 'crossover', to: 'sell_signal' }
+          { from: "data", to: "sma_short" },
+          { from: "data", to: "sma_long" },
+          { from: "sma_short", to: "crossover" },
+          { from: "sma_long", to: "crossover" },
+          { from: "crossover", to: "buy_signal" },
+          { from: "crossover", to: "sell_signal" },
         ];
         break;
 
-      case 'mean_reversion':
+      case "mean_reversion":
         config.nodes = [
-          { id: 'data', type: 'input', label: 'Market Data', x: 100, y: 100 },
-          { id: 'rsi', type: 'indicator', label: 'RSI', x: 250, y: 100 },
-          { id: 'oversold', type: 'condition', label: 'Oversold < 30', x: 400, y: 75 },
-          { id: 'overbought', type: 'condition', label: 'Overbought > 70', x: 400, y: 125 },
-          { id: 'buy_signal', type: 'action', label: 'Buy Signal', x: 550, y: 75 },
-          { id: 'sell_signal', type: 'action', label: 'Sell Signal', x: 550, y: 125 }
+          { id: "data", type: "input", label: "Market Data", x: 100, y: 100 },
+          { id: "rsi", type: "indicator", label: "RSI", x: 250, y: 100 },
+          {
+            id: "oversold",
+            type: "condition",
+            label: "Oversold < 30",
+            x: 400,
+            y: 75,
+          },
+          {
+            id: "overbought",
+            type: "condition",
+            label: "Overbought > 70",
+            x: 400,
+            y: 125,
+          },
+          {
+            id: "buy_signal",
+            type: "action",
+            label: "Buy Signal",
+            x: 550,
+            y: 75,
+          },
+          {
+            id: "sell_signal",
+            type: "action",
+            label: "Sell Signal",
+            x: 550,
+            y: 125,
+          },
         ];
         config.connections = [
-          { from: 'data', to: 'rsi' },
-          { from: 'rsi', to: 'oversold' },
-          { from: 'rsi', to: 'overbought' },
-          { from: 'oversold', to: 'buy_signal' },
-          { from: 'overbought', to: 'sell_signal' }
+          { from: "data", to: "rsi" },
+          { from: "rsi", to: "oversold" },
+          { from: "rsi", to: "overbought" },
+          { from: "oversold", to: "buy_signal" },
+          { from: "overbought", to: "sell_signal" },
         ];
         break;
 
-      case 'breakout':
+      case "breakout":
         config.nodes = [
-          { id: 'data', type: 'input', label: 'Market Data', x: 100, y: 100 },
-          { id: 'bb', type: 'indicator', label: 'Bollinger Bands', x: 250, y: 100 },
-          { id: 'volume', type: 'indicator', label: 'Volume', x: 250, y: 150 },
-          { id: 'breakout', type: 'condition', label: 'Price Breakout', x: 400, y: 100 },
-          { id: 'vol_confirm', type: 'condition', label: 'Volume Confirm', x: 400, y: 150 },
-          { id: 'buy_signal', type: 'action', label: 'Buy Signal', x: 550, y: 125 }
+          { id: "data", type: "input", label: "Market Data", x: 100, y: 100 },
+          {
+            id: "bb",
+            type: "indicator",
+            label: "Bollinger Bands",
+            x: 250,
+            y: 100,
+          },
+          { id: "volume", type: "indicator", label: "Volume", x: 250, y: 150 },
+          {
+            id: "breakout",
+            type: "condition",
+            label: "Price Breakout",
+            x: 400,
+            y: 100,
+          },
+          {
+            id: "vol_confirm",
+            type: "condition",
+            label: "Volume Confirm",
+            x: 400,
+            y: 150,
+          },
+          {
+            id: "buy_signal",
+            type: "action",
+            label: "Buy Signal",
+            x: 550,
+            y: 125,
+          },
         ];
         config.connections = [
-          { from: 'data', to: 'bb' },
-          { from: 'data', to: 'volume' },
-          { from: 'bb', to: 'breakout' },
-          { from: 'volume', to: 'vol_confirm' },
-          { from: 'breakout', to: 'buy_signal' },
-          { from: 'vol_confirm', to: 'buy_signal' }
+          { from: "data", to: "bb" },
+          { from: "data", to: "volume" },
+          { from: "bb", to: "breakout" },
+          { from: "volume", to: "vol_confirm" },
+          { from: "breakout", to: "buy_signal" },
+          { from: "vol_confirm", to: "buy_signal" },
         ];
         break;
     }
@@ -835,13 +973,13 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
    */
   generateStrategyMetadata(intent, strategyType, symbols) {
     const template = this.strategyTemplates[strategyType];
-    
+
     return {
       parameters: { ...template.parameters },
       estimatedComplexity: this.calculateComplexity(intent, symbols),
       requiredIndicators: this.getRequiredIndicators(strategyType),
       minimumDataPoints: this.getMinimumDataPoints(strategyType),
-      supportedAssetTypes: this.getSupportedAssetTypes(symbols)
+      supportedAssetTypes: this.getSupportedAssetTypes(symbols),
     };
   }
 
@@ -849,77 +987,94 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
    * Utility methods
    */
   generateStrategyName(intent, strategyType = null) {
-    const assetPart = intent.assets.length > 0 ? intent.assets.join('-').toUpperCase() : 'Multi-Asset';
-    const actionPart = intent.action === 'buy' ? 'Long' : intent.action === 'sell' ? 'Short' : 'Trade';
-    const timestamp = new Date().toISOString().split('T')[0];
-    
+    const assetPart =
+      intent.assets.length > 0
+        ? intent.assets.join("-").toUpperCase()
+        : "Multi-Asset";
+    const actionPart =
+      intent.action === "buy"
+        ? "Long"
+        : intent.action === "sell"
+          ? "Short"
+          : "Trade";
+    const timestamp = new Date().toISOString().split("T")[0];
+
     // Include strategy type in name if available
-    const strategyPart = strategyType ? strategyType.charAt(0).toUpperCase() + strategyType.slice(1) : 'AI';
-    
+    const strategyPart = strategyType
+      ? strategyType.charAt(0).toUpperCase() + strategyType.slice(1)
+      : "AI";
+
     return `${strategyPart}-${assetPart}-${actionPart}-${timestamp}`;
   }
 
   getAssetType(symbol) {
-    const cryptoPatterns = ['BTC', 'ETH', 'USD', 'USDT'];
-    const etfPatterns = ['SPY', 'QQQ', 'IWM', 'EFA'];
-    
-    if (cryptoPatterns.some(pattern => symbol.includes(pattern))) {
-      return 'crypto';
+    const cryptoPatterns = ["BTC", "ETH", "USD", "USDT"];
+    const etfPatterns = ["SPY", "QQQ", "IWM", "EFA"];
+
+    if (cryptoPatterns.some((pattern) => symbol.includes(pattern))) {
+      return "crypto";
     }
-    if (etfPatterns.some(pattern => symbol.includes(pattern))) {
-      return 'etf';
+    if (etfPatterns.some((pattern) => symbol.includes(pattern))) {
+      return "etf";
     }
-    return 'stock';
+    return "stock";
   }
 
   getAssetTypes(symbols) {
-    const types = symbols.map(s => this.getAssetType(typeof s === 'string' ? s : s.symbol));
+    const types = symbols.map((s) =>
+      this.getAssetType(typeof s === "string" ? s : s.symbol)
+    );
     return [...new Set(types)];
   }
 
   assessRiskLevel(intent) {
     let riskScore = 0;
-    
-    if (intent.riskTolerance === 'high') riskScore += 3;
-    else if (intent.riskTolerance === 'low') riskScore -= 2;
-    
-    if (intent.assets.includes('crypto')) riskScore += 2;
-    if (intent.timeframe === '1min' || intent.timeframe === '5min') riskScore += 1;
-    if (intent.conditions.includes('spike')) riskScore += 1;
-    
-    if (riskScore >= 3) return 'high';
-    if (riskScore <= -1) return 'low';
-    return 'medium';
+
+    if (intent.riskTolerance === "high") riskScore += 3;
+    else if (intent.riskTolerance === "low") riskScore -= 2;
+
+    if (intent.assets.includes("crypto")) riskScore += 2;
+    if (intent.timeframe === "1min" || intent.timeframe === "5min")
+      riskScore += 1;
+    if (intent.conditions.includes("spike")) riskScore += 1;
+
+    if (riskScore >= 3) return "high";
+    if (riskScore <= -1) return "low";
+    return "medium";
   }
 
   estimatePerformance(strategyType, _intent) {
     // Simplified performance estimation
     const basePerformance = {
       momentum: { expectedReturn: 0.12, sharpeRatio: 1.2, maxDrawdown: 0.15 },
-      mean_reversion: { expectedReturn: 0.08, sharpeRatio: 0.9, maxDrawdown: 0.12 },
-      breakout: { expectedReturn: 0.15, sharpeRatio: 1.0, maxDrawdown: 0.18 }
+      mean_reversion: {
+        expectedReturn: 0.08,
+        sharpeRatio: 0.9,
+        maxDrawdown: 0.12,
+      },
+      breakout: { expectedReturn: 0.15, sharpeRatio: 1.0, maxDrawdown: 0.18 },
     };
-    
+
     return basePerformance[strategyType] || basePerformance.momentum;
   }
 
   calculateComplexity(intent, symbols) {
     let complexity = 1;
-    
+
     complexity += intent.indicators.length * 0.2;
     complexity += intent.conditions.length * 0.3;
     complexity += Math.min(symbols.length / 10, 1) * 0.5;
-    
+
     return Math.round(complexity * 10) / 10;
   }
 
   getRequiredIndicators(strategyType) {
     const indicators = {
-      momentum: ['SMA', 'EMA'],
-      mean_reversion: ['RSI'],
-      breakout: ['Bollinger Bands', 'Volume']
+      momentum: ["SMA", "EMA"],
+      mean_reversion: ["RSI"],
+      breakout: ["Bollinger Bands", "Volume"],
     };
-    
+
     return indicators[strategyType] || [];
   }
 
@@ -927,22 +1082,28 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
     const minimums = {
       momentum: 30,
       mean_reversion: 14,
-      breakout: 20
+      breakout: 20,
     };
-    
+
     return minimums[strategyType] || 20;
   }
 
   getSupportedAssetTypes(symbols) {
-    return [...new Set(symbols.map(s => this.getAssetType(typeof s === 'string' ? s : s.symbol)))];
+    return [
+      ...new Set(
+        symbols.map((s) =>
+          this.getAssetType(typeof s === "string" ? s : s.symbol)
+        )
+      ),
+    ];
   }
 
   getFallbackSuggestions() {
     return [
-      'Try describing a simple momentum strategy using moving averages',
-      'Specify which assets you want to trade (stocks, crypto, ETFs)',
-      'Include indicators like RSI, MACD, or Bollinger Bands',
-      'Mention your risk tolerance (conservative, moderate, aggressive)'
+      "Try describing a simple momentum strategy using moving averages",
+      "Specify which assets you want to trade (stocks, crypto, ETFs)",
+      "Include indicators like RSI, MACD, or Bollinger Bands",
+      "Mention your risk tolerance (conservative, moderate, aggressive)",
     ];
   }
 
@@ -954,39 +1115,44 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
       isValid: true,
       errors: [],
       warnings: [],
-      suggestions: []
+      suggestions: [],
     };
 
     // Basic validation
     if (!strategy.code || strategy.code.trim().length === 0) {
-      validation.errors.push('Strategy code is required');
+      validation.errors.push("Strategy code is required");
       validation.isValid = false;
     }
 
     if (!strategy.name || strategy.name.trim().length === 0) {
-      validation.errors.push('Strategy name is required');
+      validation.errors.push("Strategy name is required");
       validation.isValid = false;
     }
 
     // Code validation
     if (strategy.code) {
-      if (!strategy.code.includes('signals.append')) {
-        validation.warnings.push('Strategy does not generate any trading signals');
+      if (!strategy.code.includes("signals.append")) {
+        validation.warnings.push(
+          "Strategy does not generate any trading signals"
+        );
       }
-      
-      if (!strategy.code.includes('context.buy') && !strategy.code.includes('context.sell')) {
-        validation.warnings.push('Strategy does not execute any trades');
+
+      if (
+        !strategy.code.includes("context.buy") &&
+        !strategy.code.includes("context.sell")
+      ) {
+        validation.warnings.push("Strategy does not execute any trades");
       }
-      
-      if (strategy.code.includes('TODO') || strategy.code.includes('FIXME')) {
-        validation.warnings.push('Strategy code contains incomplete sections');
+
+      if (strategy.code.includes("TODO") || strategy.code.includes("FIXME")) {
+        validation.warnings.push("Strategy code contains incomplete sections");
       }
     }
 
     // Parameter validation
     if (strategy.parameters) {
       Object.entries(strategy.parameters).forEach(([key, value]) => {
-        if (typeof value !== 'number' || isNaN(value)) {
+        if (typeof value !== "number" || isNaN(value)) {
           validation.warnings.push(`Parameter ${key} should be a valid number`);
         }
       });
@@ -994,18 +1160,21 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
 
     // Symbol validation
     if (!strategy.symbols || strategy.symbols.length === 0) {
-      validation.warnings.push('No symbols specified for strategy');
+      validation.warnings.push("No symbols specified for strategy");
     }
 
     return validation;
   }
 
   // AI-specific methods (these would need full implementation with actual Bedrock calls)
-  
+
   async buildSystemPrompt(availableSymbols, options) {
     return `You are an expert trading strategy developer. Generate executable Python trading strategies based on natural language descriptions.
 
-Available symbols: ${availableSymbols.slice(0, 20).map(s => typeof s === 'string' ? s : s.symbol).join(', ')}
+Available symbols: ${availableSymbols
+      .slice(0, 20)
+      .map((s) => (typeof s === "string" ? s : s.symbol))
+      .join(", ")}
 User preferences: ${JSON.stringify(options)}
 
 Generate strategy code that:
@@ -1023,47 +1192,54 @@ Requirements:
 - Use Python pandas for data analysis
 - Generate buy/sell signals based on the description
 - Include proper risk management
-- Symbols available: ${availableSymbols.slice(0, 10).map(s => typeof s === 'string' ? s : s.symbol).join(', ')}
+- Symbols available: ${availableSymbols
+      .slice(0, 10)
+      .map((s) => (typeof s === "string" ? s : s.symbol))
+      .join(", ")}
 - User options: ${JSON.stringify(options)}`;
   }
 
   async callClaude(systemPrompt, userPrompt) {
-    // Since AWS Bedrock/Claude is not available, implement a sophisticated 
+    // Since AWS Bedrock/Claude is not available, implement a sophisticated
     // AI-like strategy generation system using advanced NLP and rule-based logic
-    
+
     try {
-      this.logger.info('Generating AI strategy using advanced NLP engine', {
-        correlationId: this.correlationId
+      this.logger.info("Generating AI strategy using advanced NLP engine", {
+        correlationId: this.correlationId,
       });
-      
+
       // Parse the user's intent more deeply
       const intent = await this.parseAdvancedIntent(userPrompt);
-      
+
       // Generate sophisticated strategy based on intent
-      const aiGeneratedStrategy = await this.generateAdvancedAIStrategy(intent, systemPrompt);
-      
+      const aiGeneratedStrategy = await this.generateAdvancedAIStrategy(
+        intent,
+        systemPrompt
+      );
+
       // Format as Claude-like response
       const response = {
         strategy: aiGeneratedStrategy,
         confidence: this.calculateAIConfidence(intent, aiGeneratedStrategy),
         reasoning: this.generateAIReasoning(intent, aiGeneratedStrategy),
-        optimizations: this.suggestAIOptimizations(intent, aiGeneratedStrategy)
+        optimizations: this.suggestAIOptimizations(intent, aiGeneratedStrategy),
       };
-      
-      this.logger.info('AI strategy generation successful', {
+
+      this.logger.info("AI strategy generation successful", {
         strategyType: aiGeneratedStrategy.strategyType,
         confidence: response.confidence,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       });
-      
+
       return response;
-      
     } catch (error) {
-      this.logger.error('AI strategy generation failed', {
+      this.logger.error("AI strategy generation failed", {
         error: error.message,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       });
-      throw new Error('AI strategy generation failed. Using template fallback.');
+      throw new Error(
+        "AI strategy generation failed. Using template fallback."
+      );
     }
   }
 
@@ -1071,38 +1247,37 @@ Requirements:
     // Parse our AI system's response into strategy structure
     try {
       if (!response || !response.strategy) {
-        throw new Error('Invalid AI response format');
+        throw new Error("Invalid AI response format");
       }
-      
+
       const strategy = response.strategy;
-      
+
       // Validate and structure the strategy
       const parsedStrategy = {
-        name: strategy.name || 'AI Generated Strategy',
-        description: strategy.description || 'Strategy generated by AI',
-        code: strategy.code || '',
-        strategyType: strategy.strategyType || 'ai_generated',
+        name: strategy.name || "AI Generated Strategy",
+        description: strategy.description || "Strategy generated by AI",
+        code: strategy.code || "",
+        strategyType: strategy.strategyType || "ai_generated",
         symbols: strategy.symbols || [],
-        riskLevel: strategy.riskLevel || 'medium',
+        riskLevel: strategy.riskLevel || "medium",
         parameters: strategy.parameters || {},
         confidence: response.confidence || 0.85,
-        reasoning: response.reasoning || 'Generated using advanced AI analysis',
+        reasoning: response.reasoning || "Generated using advanced AI analysis",
         optimizations: response.optimizations || [],
-        insights: response.insights || []
+        insights: response.insights || [],
       };
-      
-      this.logger.info('Successfully parsed AI response', {
+
+      this.logger.info("Successfully parsed AI response", {
         strategyName: parsedStrategy.name,
         confidence: parsedStrategy.confidence,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       });
-      
+
       return parsedStrategy;
-      
     } catch (error) {
-      this.logger.error('Failed to parse AI response', {
+      this.logger.error("Failed to parse AI response", {
         error: error.message,
-        correlationId: this.correlationId
+        correlationId: this.correlationId,
       });
       throw error;
     }
@@ -1118,162 +1293,203 @@ Requirements:
     return {
       aiConfidence: 0.85,
       complexityScore: 0.6,
-      estimatedAccuracy: 0.75
+      estimatedAccuracy: 0.75,
     };
   }
 
   async generateAIVisualConfig(_strategy) {
     // Generate AI-powered visual configuration
-    return this.createVisualConfig({ indicators: ['momentum'] }, 'momentum');
+    return this.createVisualConfig({ indicators: ["momentum"] }, "momentum");
   }
-
 
   // Advanced AI Strategy Generation Methods
 
   async parseAdvancedIntent(userPrompt) {
     const intent = await this.parseIntent(userPrompt);
     const lowerPrompt = userPrompt.toLowerCase();
-    
+
     // Enhanced pattern recognition for complex strategies
     const advancedPatterns = {
-      algorithmic: ['algorithm', 'algorithmic', 'quant', 'quantitative', 'systematic'],
-      arbitrage: ['arbitrage', 'spread', 'pair trading', 'statistical arbitrage'],
-      machine_learning: ['ml', 'machine learning', 'neural', 'ai trading', 'prediction'],
-      high_frequency: ['hft', 'high frequency', 'scalping', 'microsecond'],
-      options: ['options', 'calls', 'puts', 'volatility trading', 'gamma'],
-      fundamental: ['fundamental', 'pe ratio', 'earnings', 'revenue', 'dcf'],
-      sentiment: ['sentiment', 'news', 'social media', 'twitter', 'reddit'],
-      seasonal: ['seasonal', 'calendar', 'monthly effect', 'quarterly'],
-      multi_asset: ['multi asset', 'cross asset', 'portfolio', 'diversification'],
-      regime_based: ['regime', 'market regime', 'volatility regime', 'bull market', 'bear market']
+      algorithmic: [
+        "algorithm",
+        "algorithmic",
+        "quant",
+        "quantitative",
+        "systematic",
+      ],
+      arbitrage: [
+        "arbitrage",
+        "spread",
+        "pair trading",
+        "statistical arbitrage",
+      ],
+      machine_learning: [
+        "ml",
+        "machine learning",
+        "neural",
+        "ai trading",
+        "prediction",
+      ],
+      high_frequency: ["hft", "high frequency", "scalping", "microsecond"],
+      options: ["options", "calls", "puts", "volatility trading", "gamma"],
+      fundamental: ["fundamental", "pe ratio", "earnings", "revenue", "dcf"],
+      sentiment: ["sentiment", "news", "social media", "twitter", "reddit"],
+      seasonal: ["seasonal", "calendar", "monthly effect", "quarterly"],
+      multi_asset: [
+        "multi asset",
+        "cross asset",
+        "portfolio",
+        "diversification",
+      ],
+      regime_based: [
+        "regime",
+        "market regime",
+        "volatility regime",
+        "bull market",
+        "bear market",
+      ],
     };
 
     // Detect advanced strategy patterns
     intent.advancedPatterns = [];
     for (const [pattern, keywords] of Object.entries(advancedPatterns)) {
-      if (keywords.some(keyword => lowerPrompt.includes(keyword))) {
+      if (keywords.some((keyword) => lowerPrompt.includes(keyword))) {
         intent.advancedPatterns.push(pattern);
       }
     }
 
     // Enhanced complexity scoring
     intent.complexityScore = this.calculateComplexityScore(intent, lowerPrompt);
-    
+
     // Extract numerical parameters
     intent.numericalParams = this.extractNumericalParams(lowerPrompt);
-    
+
     // Detect strategy style
     intent.strategyStyle = this.detectStrategyStyle(lowerPrompt);
-    
+
     // Market conditions consideration
     intent.marketConditions = this.extractMarketConditions(lowerPrompt);
-    
+
     return intent;
   }
 
   calculateComplexityScore(intent, prompt) {
     let score = 1.0;
-    
+
     // Base complexity from indicators
     score += intent.indicators.length * 0.3;
-    
+
     // Advanced patterns add complexity
     score += intent.advancedPatterns?.length * 0.5 || 0;
-    
+
     // Multiple conditions increase complexity
     score += intent.conditions.length * 0.2;
-    
+
     // Multi-asset strategies are more complex
     if (intent.assets.length > 2) score += 0.4;
-    
+
     // Advanced keywords increase complexity
-    const complexKeywords = ['optimization', 'backtesting', 'risk management', 'portfolio theory'];
-    const complexMatches = complexKeywords.filter(keyword => prompt.includes(keyword)).length;
+    const complexKeywords = [
+      "optimization",
+      "backtesting",
+      "risk management",
+      "portfolio theory",
+    ];
+    const complexMatches = complexKeywords.filter((keyword) =>
+      prompt.includes(keyword)
+    ).length;
     score += complexMatches * 0.3;
-    
+
     return Math.min(score, 5.0); // Cap at 5.0
   }
 
   extractNumericalParams(prompt) {
     const params = {};
-    
+
     // Extract percentages
     const percentMatches = prompt.match(/(\d+(?:\.\d+)?)\s*%/g);
     if (percentMatches) {
-      params.percentages = percentMatches.map(m => parseFloat(m.replace('%', '')));
+      params.percentages = percentMatches.map((m) =>
+        parseFloat(m.replace("%", ""))
+      );
     }
-    
+
     // Extract periods/windows
     const periodMatches = prompt.match(/(\d+)\s*(?:day|period|window)/gi);
     if (periodMatches) {
-      params.periods = periodMatches.map(m => parseInt(m.match(/\d+/)[0]));
+      params.periods = periodMatches.map((m) => parseInt(m.match(/\d+/)[0]));
     }
-    
+
     // Extract ratios
     const ratioMatches = prompt.match(/(\d+(?:\.\d+)?)\s*(?:ratio|times)/gi);
     if (ratioMatches) {
-      params.ratios = ratioMatches.map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]));
+      params.ratios = ratioMatches.map((m) =>
+        parseFloat(m.match(/\d+(?:\.\d+)?/)[0])
+      );
     }
-    
+
     return params;
   }
 
   detectStrategyStyle(prompt) {
     const styles = {
-      conservative: ['conservative', 'safe', 'low risk', 'stable', 'defensive'],
-      aggressive: ['aggressive', 'high risk', 'maximum returns', 'volatile'],
-      balanced: ['balanced', 'moderate', 'diversified', 'mixed'],
-      contrarian: ['contrarian', 'opposite', 'against trend', 'reverse'],
-      trend_following: ['trend following', 'momentum', 'trend', 'directional']
+      conservative: ["conservative", "safe", "low risk", "stable", "defensive"],
+      aggressive: ["aggressive", "high risk", "maximum returns", "volatile"],
+      balanced: ["balanced", "moderate", "diversified", "mixed"],
+      contrarian: ["contrarian", "opposite", "against trend", "reverse"],
+      trend_following: ["trend following", "momentum", "trend", "directional"],
     };
-    
+
     for (const [style, keywords] of Object.entries(styles)) {
-      if (keywords.some(keyword => prompt.toLowerCase().includes(keyword))) {
+      if (keywords.some((keyword) => prompt.toLowerCase().includes(keyword))) {
         return style;
       }
     }
-    
-    return 'balanced'; // Default
+
+    return "balanced"; // Default
   }
 
   extractMarketConditions(prompt) {
     const conditions = [];
     const conditionPatterns = {
-      bull_market: ['bull market', 'uptrend', 'rising market'],
-      bear_market: ['bear market', 'downtrend', 'falling market'],
-      sideways: ['sideways', 'ranging', 'choppy', 'consolidation'],
-      high_volatility: ['volatile', 'high volatility', 'unstable'],
-      low_volatility: ['low volatility', 'stable', 'calm market']
+      bull_market: ["bull market", "uptrend", "rising market"],
+      bear_market: ["bear market", "downtrend", "falling market"],
+      sideways: ["sideways", "ranging", "choppy", "consolidation"],
+      high_volatility: ["volatile", "high volatility", "unstable"],
+      low_volatility: ["low volatility", "stable", "calm market"],
     };
-    
+
     for (const [condition, patterns] of Object.entries(conditionPatterns)) {
-      if (patterns.some(pattern => prompt.toLowerCase().includes(pattern))) {
+      if (patterns.some((pattern) => prompt.toLowerCase().includes(pattern))) {
         conditions.push(condition);
       }
     }
-    
+
     return conditions;
   }
 
   async generateAdvancedAIStrategy(intent, systemPrompt) {
     // Determine the best strategy type based on advanced intent analysis
     const strategyType = this.determineAdvancedStrategyType(intent);
-    
+
     // Generate sophisticated strategy code
-    const strategyCode = await this.generateSophisticatedCode(intent, strategyType);
-    
+    const strategyCode = await this.generateSophisticatedCode(
+      intent,
+      strategyType
+    );
+
     // Create strategy name with AI-like creativity
     const strategyName = this.generateAIStrategyName(intent, strategyType);
-    
+
     // Generate comprehensive description
     const description = this.generateAIDescription(intent, strategyType);
-    
+
     // Calculate sophisticated parameters
     const parameters = this.generateAIParameters(intent, strategyType);
-    
+
     // Determine symbols based on intent
     const symbols = this.selectOptimalSymbols(intent);
-    
+
     const strategy = {
       name: strategyName,
       description: description,
@@ -1284,24 +1500,33 @@ Requirements:
       parameters: parameters,
       complexity: intent.complexityScore,
       style: intent.strategyStyle,
-      marketConditions: intent.marketConditions
+      marketConditions: intent.marketConditions,
     };
-    
+
     return strategy;
   }
 
   determineAdvancedStrategyType(intent) {
     // Check for advanced patterns first
-    if (intent.advancedPatterns?.includes('arbitrage')) return 'statistical_arbitrage';
-    if (intent.advancedPatterns?.includes('machine_learning')) return 'ml_momentum';
-    if (intent.advancedPatterns?.includes('high_frequency')) return 'hft_scalping';
-    if (intent.advancedPatterns?.includes('options')) return 'volatility_trading';
-    if (intent.advancedPatterns?.includes('fundamental')) return 'fundamental_analysis';
-    if (intent.advancedPatterns?.includes('sentiment')) return 'sentiment_trading';
-    if (intent.advancedPatterns?.includes('seasonal')) return 'seasonal_patterns';
-    if (intent.advancedPatterns?.includes('multi_asset')) return 'multi_asset_rotation';
-    if (intent.advancedPatterns?.includes('regime_based')) return 'regime_switching';
-    
+    if (intent.advancedPatterns?.includes("arbitrage"))
+      return "statistical_arbitrage";
+    if (intent.advancedPatterns?.includes("machine_learning"))
+      return "ml_momentum";
+    if (intent.advancedPatterns?.includes("high_frequency"))
+      return "hft_scalping";
+    if (intent.advancedPatterns?.includes("options"))
+      return "volatility_trading";
+    if (intent.advancedPatterns?.includes("fundamental"))
+      return "fundamental_analysis";
+    if (intent.advancedPatterns?.includes("sentiment"))
+      return "sentiment_trading";
+    if (intent.advancedPatterns?.includes("seasonal"))
+      return "seasonal_patterns";
+    if (intent.advancedPatterns?.includes("multi_asset"))
+      return "multi_asset_rotation";
+    if (intent.advancedPatterns?.includes("regime_based"))
+      return "regime_switching";
+
     // Fall back to basic analysis
     return this.determineStrategyType(intent);
   }
@@ -1309,16 +1534,16 @@ Requirements:
   async generateSophisticatedCode(intent, strategyType) {
     const baseTemplate = this.getAdvancedTemplate(strategyType);
     let code = baseTemplate;
-    
+
     // Customize based on intent
     code = this.injectAIPersonalization(code, intent);
     code = this.optimizeForMarketConditions(code, intent.marketConditions);
     code = this.addAdvancedRiskManagement(code, intent);
     code = this.enhanceWithAILogic(code, intent);
-    
+
     // Add AI-generated comments
     const aiComment = this.generateAIComment(intent, strategyType);
-    return aiComment + '\n\n' + code;
+    return aiComment + "\n\n" + code;
   }
 
   getAdvancedTemplate(strategyType) {
@@ -1331,17 +1556,21 @@ Requirements:
       sentiment_trading: this.getSentimentTradingTemplate(),
       seasonal_patterns: this.getSeasonalPatternsTemplate(),
       multi_asset_rotation: this.getMultiAssetRotationTemplate(),
-      regime_switching: this.getRegimeSwitchingTemplate()
+      regime_switching: this.getRegimeSwitchingTemplate(),
     };
-    
+
     return advancedTemplates[strategyType] || this.getMomentumTemplate();
   }
 
   generateAIComment(intent, strategyType) {
     const timestamp = new Date().toISOString();
-    const complexityDesc = intent.complexityScore > 3 ? 'highly sophisticated' : 
-                          intent.complexityScore > 2 ? 'moderately complex' : 'straightforward';
-    
+    const complexityDesc =
+      intent.complexityScore > 3
+        ? "highly sophisticated"
+        : intent.complexityScore > 2
+          ? "moderately complex"
+          : "straightforward";
+
     return `"""
 AI-Generated Trading Strategy: ${strategyType.toUpperCase()}
 Generated on: ${timestamp}
@@ -1353,8 +1582,8 @@ ${intent.description}
 Key Features:
 - Strategy Style: ${intent.strategyStyle}
 - Risk Level: ${this.assessAIRiskLevel(intent)}
-- Market Conditions: ${intent.marketConditions.join(', ') || 'All market conditions'}
-- Advanced Patterns: ${intent.advancedPatterns?.join(', ') || 'None detected'}
+- Market Conditions: ${intent.marketConditions.join(", ") || "All market conditions"}
+- Advanced Patterns: ${intent.advancedPatterns?.join(", ") || "None detected"}
 
 This strategy was generated using advanced AI analysis of your requirements
 and incorporates sophisticated quantitative finance techniques.
@@ -1362,194 +1591,230 @@ and incorporates sophisticated quantitative finance techniques.
   }
 
   generateAIStrategyName(intent, strategyType) {
-    const stylePrefix = intent.strategyStyle.charAt(0).toUpperCase() + intent.strategyStyle.slice(1);
-    const assetPart = intent.assets.length > 0 ? intent.assets[0].toUpperCase() : 'Multi';
-    const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const stylePrefix =
+      intent.strategyStyle.charAt(0).toUpperCase() +
+      intent.strategyStyle.slice(1);
+    const assetPart =
+      intent.assets.length > 0 ? intent.assets[0].toUpperCase() : "Multi";
+    const timestamp = new Date().toISOString().split("T")[0].replace(/-/g, "");
     const aiSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
-    
+
     const nameComponents = [
       stylePrefix,
       assetPart,
-      strategyType.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''),
-      'AI',
-      aiSuffix
+      strategyType
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(""),
+      "AI",
+      aiSuffix,
     ];
-    
-    return nameComponents.join('-');
+
+    return nameComponents.join("-");
   }
 
   generateAIDescription(intent, strategyType) {
     const baseDescriptions = {
-      statistical_arbitrage: 'Advanced statistical arbitrage strategy using mean reversion and cointegration analysis',
-      ml_momentum: 'Machine learning-enhanced momentum strategy with predictive analytics',
-      hft_scalping: 'High-frequency scalping strategy optimized for micro-movements',
-      volatility_trading: 'Volatility-based trading strategy using options and derivatives',
-      fundamental_analysis: 'Fundamental analysis strategy incorporating financial metrics and ratios',
-      sentiment_trading: 'Sentiment-driven strategy using news and social media analysis',
-      seasonal_patterns: 'Seasonal pattern recognition strategy based on calendar effects',
-      multi_asset_rotation: 'Multi-asset rotation strategy with dynamic allocation',
-      regime_switching: 'Regime-switching strategy adapting to market conditions'
+      statistical_arbitrage:
+        "Advanced statistical arbitrage strategy using mean reversion and cointegration analysis",
+      ml_momentum:
+        "Machine learning-enhanced momentum strategy with predictive analytics",
+      hft_scalping:
+        "High-frequency scalping strategy optimized for micro-movements",
+      volatility_trading:
+        "Volatility-based trading strategy using options and derivatives",
+      fundamental_analysis:
+        "Fundamental analysis strategy incorporating financial metrics and ratios",
+      sentiment_trading:
+        "Sentiment-driven strategy using news and social media analysis",
+      seasonal_patterns:
+        "Seasonal pattern recognition strategy based on calendar effects",
+      multi_asset_rotation:
+        "Multi-asset rotation strategy with dynamic allocation",
+      regime_switching:
+        "Regime-switching strategy adapting to market conditions",
     };
-    
+
     let description = baseDescriptions[strategyType] || intent.description;
-    
+
     // Enhance with AI personalization
-    if (intent.strategyStyle !== 'balanced') {
+    if (intent.strategyStyle !== "balanced") {
       description += ` Designed with a ${intent.strategyStyle} approach`;
     }
-    
+
     if (intent.marketConditions.length > 0) {
-      description += ` optimized for ${intent.marketConditions.join(' and ')} conditions`;
+      description += ` optimized for ${intent.marketConditions.join(" and ")} conditions`;
     }
-    
-    description += '. Generated using advanced AI analysis and quantitative methods.';
-    
+
+    description +=
+      ". Generated using advanced AI analysis and quantitative methods.";
+
     return description;
   }
 
   generateAIParameters(intent, strategyType) {
-    const baseParams = this.strategyTemplates[strategyType]?.parameters || 
-                      this.strategyTemplates.momentum.parameters;
-    
+    const baseParams =
+      this.strategyTemplates[strategyType]?.parameters ||
+      this.strategyTemplates.momentum.parameters;
+
     // AI-enhanced parameter optimization
     const aiParams = { ...baseParams };
-    
+
     // Adjust based on complexity
     if (intent.complexityScore > 3) {
-      aiParams.lookback_period = Math.floor((aiParams.lookback_period || 20) * 1.5);
+      aiParams.lookback_period = Math.floor(
+        (aiParams.lookback_period || 20) * 1.5
+      );
       aiParams.confidence_threshold = 0.75;
     }
-    
+
     // Adjust based on risk tolerance
-    const riskMultiplier = intent.riskTolerance === 'high' ? 1.5 : 
-                          intent.riskTolerance === 'low' ? 0.5 : 1.0;
-    
+    const riskMultiplier =
+      intent.riskTolerance === "high"
+        ? 1.5
+        : intent.riskTolerance === "low"
+          ? 0.5
+          : 1.0;
+
     if (aiParams.position_size) {
       aiParams.position_size *= riskMultiplier;
     }
-    
+
     // Add AI-specific parameters
     aiParams.ai_confidence_threshold = 0.8;
     aiParams.strategy_complexity = intent.complexityScore;
-    aiParams.rebalance_frequency = intent.strategyStyle === 'aggressive' ? 'daily' : 'weekly';
-    
+    aiParams.rebalance_frequency =
+      intent.strategyStyle === "aggressive" ? "daily" : "weekly";
+
     return aiParams;
   }
 
   selectOptimalSymbols(intent) {
     // AI-like symbol selection based on intent
     const symbolRecommendations = {
-      crypto: ['BTC-USD', 'ETH-USD', 'ADA-USD'],
-      stock: ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN'],
-      etf: ['SPY', 'QQQ', 'IWM', 'VTI', 'ARKK'],
-      forex: ['EUR/USD', 'GBP/USD', 'USD/JPY'],
-      commodity: ['GLD', 'SLV', 'USO', 'DBA']
+      crypto: ["BTC-USD", "ETH-USD", "ADA-USD"],
+      stock: ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"],
+      etf: ["SPY", "QQQ", "IWM", "VTI", "ARKK"],
+      forex: ["EUR/USD", "GBP/USD", "USD/JPY"],
+      commodity: ["GLD", "SLV", "USO", "DBA"],
     };
-    
+
     let selectedSymbols = [];
-    
+
     // Select based on detected assets
     for (const asset of intent.assets) {
       if (symbolRecommendations[asset]) {
         selectedSymbols.push(...symbolRecommendations[asset].slice(0, 3));
       }
     }
-    
+
     // Default selection if no specific assets mentioned
     if (selectedSymbols.length === 0) {
-      selectedSymbols = ['AAPL', 'GOOGL', 'MSFT', 'SPY', 'QQQ'];
+      selectedSymbols = ["AAPL", "GOOGL", "MSFT", "SPY", "QQQ"];
     }
-    
+
     return selectedSymbols.slice(0, 8); // Limit to 8 symbols
   }
 
   calculateAIConfidence(intent, strategy) {
     let confidence = 0.7; // Base confidence
-    
+
     // Higher confidence for simpler strategies
     if (intent.complexityScore < 2) confidence += 0.15;
-    
+
     // Higher confidence for well-defined intents
     if (intent.indicators.length > 0) confidence += 0.1;
     if (intent.assets.length > 0) confidence += 0.05;
-    
+
     // Lower confidence for very complex strategies
     if (intent.complexityScore > 4) confidence -= 0.1;
-    
+
     // Adjust based on strategy type match
-    if (strategy.strategyType !== 'momentum') confidence += 0.05; // Non-default strategy
-    
+    if (strategy.strategyType !== "momentum") confidence += 0.05; // Non-default strategy
+
     return Math.min(Math.max(confidence, 0.5), 0.95); // Clamp between 0.5 and 0.95
   }
 
   generateAIReasoning(intent, strategy) {
     const reasons = [];
-    
-    reasons.push(`Selected ${strategy.strategyType} strategy based on your requirements`);
-    
+
+    reasons.push(
+      `Selected ${strategy.strategyType} strategy based on your requirements`
+    );
+
     if (intent.indicators.length > 0) {
-      reasons.push(`Incorporated ${intent.indicators.join(', ')} indicators as specified`);
+      reasons.push(
+        `Incorporated ${intent.indicators.join(", ")} indicators as specified`
+      );
     }
-    
+
     if (intent.assets.length > 0) {
-      reasons.push(`Focused on ${intent.assets.join(', ')} assets per your preference`);
+      reasons.push(
+        `Focused on ${intent.assets.join(", ")} assets per your preference`
+      );
     }
-    
-    if (intent.strategyStyle !== 'balanced') {
-      reasons.push(`Designed with ${intent.strategyStyle} approach to match risk tolerance`);
+
+    if (intent.strategyStyle !== "balanced") {
+      reasons.push(
+        `Designed with ${intent.strategyStyle} approach to match risk tolerance`
+      );
     }
-    
+
     if (intent.complexityScore > 3) {
-      reasons.push(`Implemented advanced features due to high complexity requirements`);
+      reasons.push(
+        `Implemented advanced features due to high complexity requirements`
+      );
     }
-    
-    reasons.push(`Optimized parameters based on AI analysis of market conditions`);
-    
-    return reasons.join('. ') + '.';
+
+    reasons.push(
+      `Optimized parameters based on AI analysis of market conditions`
+    );
+
+    return reasons.join(". ") + ".";
   }
 
   suggestAIOptimizations(intent, strategy) {
     const optimizations = [];
-    
+
     // Performance optimizations
     optimizations.push({
-      type: 'performance',
-      suggestion: 'Consider backtesting with different parameter combinations',
-      impact: 'medium'
+      type: "performance",
+      suggestion: "Consider backtesting with different parameter combinations",
+      impact: "medium",
     });
-    
+
     // Risk management optimizations
-    if (strategy.riskLevel === 'high') {
+    if (strategy.riskLevel === "high") {
       optimizations.push({
-        type: 'risk',
-        suggestion: 'Add stop-loss orders and position sizing rules',
-        impact: 'high'
+        type: "risk",
+        suggestion: "Add stop-loss orders and position sizing rules",
+        impact: "high",
       });
     }
-    
+
     // Complexity optimizations
     if (intent.complexityScore > 3) {
       optimizations.push({
-        type: 'complexity',
-        suggestion: 'Monitor computational requirements in live trading',
-        impact: 'medium'
+        type: "complexity",
+        suggestion: "Monitor computational requirements in live trading",
+        impact: "medium",
       });
     }
-    
+
     // Market condition optimizations
     if (intent.marketConditions.length > 0) {
       optimizations.push({
-        type: 'adaptability',
-        suggestion: 'Consider regime detection for better market adaptation',
-        impact: 'high'
+        type: "adaptability",
+        suggestion: "Consider regime detection for better market adaptation",
+        impact: "high",
       });
     }
-    
+
     return optimizations;
   }
 
   // Advanced Strategy Templates (fully implemented)
-  
+
   getStatisticalArbitrageTemplate() {
     return `
 import pandas as pd
@@ -4010,17 +4275,27 @@ if __name__ == "__main__":
     signals = regime_strategy.run_analysis()
 `;
   }
-  
+
   // Advanced code enhancement methods
-  injectAIPersonalization(code, intent) { return code; }
-  optimizeForMarketConditions(code, conditions) { return code; }
-  addAdvancedRiskManagement(code, intent) { return code; }
-  enhanceWithAILogic(code, intent) { return code; }
-  
+  injectAIPersonalization(code, intent) {
+    return code;
+  }
+  optimizeForMarketConditions(code, conditions) {
+    return code;
+  }
+  addAdvancedRiskManagement(code, intent) {
+    return code;
+  }
+  enhanceWithAILogic(code, intent) {
+    return code;
+  }
+
   assessAIRiskLevel(intent) {
-    if (intent.strategyStyle === 'aggressive' || intent.complexityScore > 4) return 'high';
-    if (intent.strategyStyle === 'conservative' || intent.complexityScore < 2) return 'low';
-    return 'medium';
+    if (intent.strategyStyle === "aggressive" || intent.complexityScore > 4)
+      return "high";
+    if (intent.strategyStyle === "conservative" || intent.complexityScore < 2)
+      return "low";
+    return "medium";
   }
 }
 

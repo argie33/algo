@@ -67,10 +67,10 @@ describe("Response Formatter Middleware", () => {
     test("should call responseFormatter.success with correct parameters", async () => {
       const mockData = { result: "test" };
       const mockMeta = { total: 10 };
-      
+
       responseFormatter.success.mockReturnValue({
         statusCode: 200,
-        response: { success: true, data: mockData }
+        response: { success: true, data: mockData },
       });
 
       app.get("/test-success", (req, res) => {
@@ -79,17 +79,21 @@ describe("Response Formatter Middleware", () => {
 
       const response = await request(app).get("/test-success");
 
-      expect(responseFormatter.success).toHaveBeenCalledWith(mockData, 200, mockMeta);
+      expect(responseFormatter.success).toHaveBeenCalledWith(
+        mockData,
+        200,
+        mockMeta
+      );
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ success: true, data: mockData });
     });
 
     test("should use default status code 200", async () => {
       const mockData = { result: "test" };
-      
+
       responseFormatter.success.mockReturnValue({
         statusCode: 200,
-        response: { success: true, data: mockData }
+        response: { success: true, data: mockData },
       });
 
       app.get("/test-success-default", (req, res) => {
@@ -103,10 +107,10 @@ describe("Response Formatter Middleware", () => {
 
     test("should use default empty meta object", async () => {
       const mockData = { result: "test" };
-      
+
       responseFormatter.success.mockReturnValue({
         statusCode: 201,
-        response: { success: true, data: mockData }
+        response: { success: true, data: mockData },
       });
 
       app.get("/test-success-no-meta", (req, res) => {
@@ -123,10 +127,10 @@ describe("Response Formatter Middleware", () => {
     test("should call responseFormatter.error with correct parameters", async () => {
       const mockMessage = "Test error";
       const mockDetails = { field: "email" };
-      
+
       responseFormatter.error.mockReturnValue({
         statusCode: 400,
-        response: { success: false, error: mockMessage }
+        response: { success: false, error: mockMessage },
       });
 
       app.get("/test-error", (req, res) => {
@@ -135,17 +139,21 @@ describe("Response Formatter Middleware", () => {
 
       const response = await request(app).get("/test-error");
 
-      expect(responseFormatter.error).toHaveBeenCalledWith(mockMessage, 400, mockDetails);
+      expect(responseFormatter.error).toHaveBeenCalledWith(
+        mockMessage,
+        400,
+        mockDetails
+      );
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ success: false, error: mockMessage });
     });
 
     test("should use default status code 400", async () => {
       const mockMessage = "Test error";
-      
+
       responseFormatter.error.mockReturnValue({
         statusCode: 400,
-        response: { success: false, error: mockMessage }
+        response: { success: false, error: mockMessage },
       });
 
       app.get("/test-error-default", (req, res) => {
@@ -154,7 +162,11 @@ describe("Response Formatter Middleware", () => {
 
       await request(app).get("/test-error-default");
 
-      expect(responseFormatter.error).toHaveBeenCalledWith(mockMessage, 400, {});
+      expect(responseFormatter.error).toHaveBeenCalledWith(
+        mockMessage,
+        400,
+        {}
+      );
     });
   });
 
@@ -163,10 +175,10 @@ describe("Response Formatter Middleware", () => {
       const mockData = [{ id: 1 }, { id: 2 }];
       const mockPagination = { page: 1, limit: 10, total: 100 };
       const mockMeta = { query: "test" };
-      
+
       responseFormatter.paginated.mockReturnValue({
         statusCode: 200,
-        response: { success: true, data: mockData, pagination: mockPagination }
+        response: { success: true, data: mockData, pagination: mockPagination },
       });
 
       app.get("/test-paginated", (req, res) => {
@@ -175,22 +187,26 @@ describe("Response Formatter Middleware", () => {
 
       const response = await request(app).get("/test-paginated");
 
-      expect(responseFormatter.paginated).toHaveBeenCalledWith(mockData, mockPagination, mockMeta);
+      expect(responseFormatter.paginated).toHaveBeenCalledWith(
+        mockData,
+        mockPagination,
+        mockMeta
+      );
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ 
-        success: true, 
-        data: mockData, 
-        pagination: mockPagination 
+      expect(response.body).toEqual({
+        success: true,
+        data: mockData,
+        pagination: mockPagination,
       });
     });
 
     test("should use default empty meta object", async () => {
       const mockData = [{ id: 1 }];
       const mockPagination = { page: 1, limit: 10, total: 1 };
-      
+
       responseFormatter.paginated.mockReturnValue({
         statusCode: 200,
-        response: { success: true, data: mockData }
+        response: { success: true, data: mockData },
       });
 
       app.get("/test-paginated-no-meta", (req, res) => {
@@ -199,7 +215,11 @@ describe("Response Formatter Middleware", () => {
 
       await request(app).get("/test-paginated-no-meta");
 
-      expect(responseFormatter.paginated).toHaveBeenCalledWith(mockData, mockPagination, {});
+      expect(responseFormatter.paginated).toHaveBeenCalledWith(
+        mockData,
+        mockPagination,
+        {}
+      );
     });
   });
 
@@ -207,12 +227,12 @@ describe("Response Formatter Middleware", () => {
     test("should call responseFormatter.validationError with correct parameters", async () => {
       const mockErrors = [
         { field: "email", message: "Invalid email format" },
-        { field: "password", message: "Password too short" }
+        { field: "password", message: "Password too short" },
       ];
-      
+
       responseFormatter.validationError.mockReturnValue({
         statusCode: 422,
-        response: { success: false, errors: mockErrors }
+        response: { success: false, errors: mockErrors },
       });
 
       app.get("/test-validation-error", (req, res) => {
@@ -221,7 +241,9 @@ describe("Response Formatter Middleware", () => {
 
       const response = await request(app).get("/test-validation-error");
 
-      expect(responseFormatter.validationError).toHaveBeenCalledWith(mockErrors);
+      expect(responseFormatter.validationError).toHaveBeenCalledWith(
+        mockErrors
+      );
       expect(response.status).toBe(422);
       expect(response.body).toEqual({ success: false, errors: mockErrors });
     });
@@ -230,10 +252,10 @@ describe("Response Formatter Middleware", () => {
   describe("res.notFound method", () => {
     test("should call responseFormatter.notFound with custom resource", async () => {
       const mockResource = "User";
-      
+
       responseFormatter.notFound.mockReturnValue({
         statusCode: 404,
-        response: { success: false, error: "User not found" }
+        response: { success: false, error: "User not found" },
       });
 
       app.get("/test-not-found", (req, res) => {
@@ -244,13 +266,16 @@ describe("Response Formatter Middleware", () => {
 
       expect(responseFormatter.notFound).toHaveBeenCalledWith(mockResource);
       expect(response.status).toBe(404);
-      expect(response.body).toEqual({ success: false, error: "User not found" });
+      expect(response.body).toEqual({
+        success: false,
+        error: "User not found",
+      });
     });
 
     test("should use default resource name", async () => {
       responseFormatter.notFound.mockReturnValue({
         statusCode: 404,
-        response: { success: false, error: "Resource not found" }
+        response: { success: false, error: "Resource not found" },
       });
 
       app.get("/test-not-found-default", (req, res) => {
@@ -266,10 +291,10 @@ describe("Response Formatter Middleware", () => {
   describe("res.unauthorized method", () => {
     test("should call responseFormatter.unauthorized with custom message", async () => {
       const mockMessage = "Invalid token";
-      
+
       responseFormatter.unauthorized.mockReturnValue({
         statusCode: 401,
-        response: { success: false, error: mockMessage }
+        response: { success: false, error: mockMessage },
       });
 
       app.get("/test-unauthorized", (req, res) => {
@@ -285,10 +310,10 @@ describe("Response Formatter Middleware", () => {
 
     test("should use default message", async () => {
       const defaultMessage = "Unauthorized access";
-      
+
       responseFormatter.unauthorized.mockReturnValue({
         statusCode: 401,
-        response: { success: false, error: defaultMessage }
+        response: { success: false, error: defaultMessage },
       });
 
       app.get("/test-unauthorized-default", (req, res) => {
@@ -297,17 +322,19 @@ describe("Response Formatter Middleware", () => {
 
       await request(app).get("/test-unauthorized-default");
 
-      expect(responseFormatter.unauthorized).toHaveBeenCalledWith(defaultMessage);
+      expect(responseFormatter.unauthorized).toHaveBeenCalledWith(
+        defaultMessage
+      );
     });
   });
 
   describe("res.forbidden method", () => {
     test("should call responseFormatter.forbidden with custom message", async () => {
       const mockMessage = "Insufficient permissions";
-      
+
       responseFormatter.forbidden.mockReturnValue({
         statusCode: 403,
-        response: { success: false, error: mockMessage }
+        response: { success: false, error: mockMessage },
       });
 
       app.get("/test-forbidden", (req, res) => {
@@ -323,10 +350,10 @@ describe("Response Formatter Middleware", () => {
 
     test("should use default message", async () => {
       const defaultMessage = "Access forbidden";
-      
+
       responseFormatter.forbidden.mockReturnValue({
         statusCode: 403,
-        response: { success: false, error: defaultMessage }
+        response: { success: false, error: defaultMessage },
       });
 
       app.get("/test-forbidden-default", (req, res) => {
@@ -343,10 +370,10 @@ describe("Response Formatter Middleware", () => {
     test("should call responseFormatter.serverError with custom message and details", async () => {
       const mockMessage = "Database connection failed";
       const mockDetails = { host: "localhost", port: 5432 };
-      
+
       responseFormatter.serverError.mockReturnValue({
         statusCode: 500,
-        response: { success: false, error: mockMessage }
+        response: { success: false, error: mockMessage },
       });
 
       app.get("/test-server-error", (req, res) => {
@@ -355,17 +382,20 @@ describe("Response Formatter Middleware", () => {
 
       const response = await request(app).get("/test-server-error");
 
-      expect(responseFormatter.serverError).toHaveBeenCalledWith(mockMessage, mockDetails);
+      expect(responseFormatter.serverError).toHaveBeenCalledWith(
+        mockMessage,
+        mockDetails
+      );
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ success: false, error: mockMessage });
     });
 
     test("should use default message and empty details", async () => {
       const defaultMessage = "Internal server error";
-      
+
       responseFormatter.serverError.mockReturnValue({
         statusCode: 500,
-        response: { success: false, error: defaultMessage }
+        response: { success: false, error: defaultMessage },
       });
 
       app.get("/test-server-error-default", (req, res) => {
@@ -374,7 +404,10 @@ describe("Response Formatter Middleware", () => {
 
       await request(app).get("/test-server-error-default");
 
-      expect(responseFormatter.serverError).toHaveBeenCalledWith(defaultMessage, {});
+      expect(responseFormatter.serverError).toHaveBeenCalledWith(
+        defaultMessage,
+        {}
+      );
     });
   });
 
@@ -382,12 +415,12 @@ describe("Response Formatter Middleware", () => {
     test("should work with multiple methods in sequence", async () => {
       responseFormatter.success.mockReturnValue({
         statusCode: 200,
-        response: { success: true, data: "test" }
+        response: { success: true, data: "test" },
       });
 
       responseFormatter.error.mockReturnValue({
         statusCode: 400,
-        response: { success: false, error: "test error" }
+        response: { success: false, error: "test error" },
       });
 
       app.get("/test-sequence", (req, res) => {
@@ -408,24 +441,78 @@ describe("Response Formatter Middleware", () => {
 
     test("should maintain API version header across all responses", async () => {
       const methods = [
-        { path: "/success", setup: () => responseFormatter.success.mockReturnValue({ statusCode: 200, response: {} }) },
-        { path: "/error", setup: () => responseFormatter.error.mockReturnValue({ statusCode: 400, response: {} }) },
-        { path: "/not-found", setup: () => responseFormatter.notFound.mockReturnValue({ statusCode: 404, response: {} }) },
-        { path: "/unauthorized", setup: () => responseFormatter.unauthorized.mockReturnValue({ statusCode: 401, response: {} }) },
-        { path: "/forbidden", setup: () => responseFormatter.forbidden.mockReturnValue({ statusCode: 403, response: {} }) },
-        { path: "/server-error", setup: () => responseFormatter.serverError.mockReturnValue({ statusCode: 500, response: {} }) },
+        {
+          path: "/success",
+          setup: () =>
+            responseFormatter.success.mockReturnValue({
+              statusCode: 200,
+              response: {},
+            }),
+        },
+        {
+          path: "/error",
+          setup: () =>
+            responseFormatter.error.mockReturnValue({
+              statusCode: 400,
+              response: {},
+            }),
+        },
+        {
+          path: "/not-found",
+          setup: () =>
+            responseFormatter.notFound.mockReturnValue({
+              statusCode: 404,
+              response: {},
+            }),
+        },
+        {
+          path: "/unauthorized",
+          setup: () =>
+            responseFormatter.unauthorized.mockReturnValue({
+              statusCode: 401,
+              response: {},
+            }),
+        },
+        {
+          path: "/forbidden",
+          setup: () =>
+            responseFormatter.forbidden.mockReturnValue({
+              statusCode: 403,
+              response: {},
+            }),
+        },
+        {
+          path: "/server-error",
+          setup: () =>
+            responseFormatter.serverError.mockReturnValue({
+              statusCode: 500,
+              response: {},
+            }),
+        },
       ];
 
-      methods.forEach(method => {
+      methods.forEach((method) => {
         method.setup();
         app.get(method.path, (req, res) => {
           switch (method.path) {
-            case "/success": res.success({}); break;
-            case "/error": res.error("error"); break;
-            case "/not-found": res.notFound(); break;
-            case "/unauthorized": res.unauthorized(); break;
-            case "/forbidden": res.forbidden(); break;
-            case "/server-error": res.serverError(); break;
+            case "/success":
+              res.success({});
+              break;
+            case "/error":
+              res.error("error");
+              break;
+            case "/not-found":
+              res.notFound();
+              break;
+            case "/unauthorized":
+              res.unauthorized();
+              break;
+            case "/forbidden":
+              res.forbidden();
+              break;
+            case "/server-error":
+              res.serverError();
+              break;
           }
         });
       });
@@ -441,11 +528,11 @@ describe("Response Formatter Middleware", () => {
 
       app.get("/test-chain", (req, res) => {
         methodsCalled.push("middleware");
-        
+
         // This should only call the first response method
         res.success({ test: true });
         methodsCalled.push("success");
-        
+
         // This shouldn't execute because response was already sent
         try {
           res.error("error");
@@ -457,7 +544,7 @@ describe("Response Formatter Middleware", () => {
 
       responseFormatter.success.mockReturnValue({
         statusCode: 200,
-        response: { success: true, data: { test: true } }
+        response: { success: true, data: { test: true } },
       });
 
       await request(app).get("/test-chain");

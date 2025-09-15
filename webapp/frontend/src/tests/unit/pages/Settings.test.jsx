@@ -317,9 +317,17 @@ describe("Settings Page", () => {
     it("should allow updating notification preferences", async () => {
       const user = userEvent.setup();
 
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: false, push: false },
-      });
+      // Mock fetch for preferences endpoint that component actually calls
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ preferences: { email: false, push: false } })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ preferences: { darkMode: false } })
+        });
+
       vi.mocked(api).updateSettings.mockResolvedValue({ success: true });
 
       renderWithProviders(<Settings />);
@@ -333,20 +341,22 @@ describe("Settings Page", () => {
       await user.click(notificationsTab);
 
       await waitFor(() => {
-        const emailToggle =
-          screen.getByRole("checkbox") || screen.getByRole("switch");
+        const emailToggle = screen.getByLabelText(/email notifications/i);
         expect(emailToggle).toBeTruthy();
       });
 
       // Toggle email notifications
-      const emailToggle =
-        screen.getByRole("checkbox") || screen.getByRole("switch");
+      const emailToggle = screen.getByLabelText(/email notifications/i);
       await user.click(emailToggle);
+
+      // Click the Save button to persist the changes
+      const saveButton = screen.getByRole("button", { name: /save notification preferences/i });
+      await user.click(saveButton);
 
       await waitFor(() => {
         expect(vi.mocked(api).updateSettings).toHaveBeenCalledWith(
           expect.objectContaining({
-            notifications: expect.objectContaining({
+            preferences: expect.objectContaining({
               email: true,
             }),
           })

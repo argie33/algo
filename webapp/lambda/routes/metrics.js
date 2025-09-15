@@ -10,12 +10,15 @@ router.use(responseFormatter);
 
 // Health check endpoint
 router.get("/health", (req, res) => {
-  res.status(200).json({success: true, 
-    status: "healthy",
-    service: "metrics",
-    timestamp: new Date().toISOString(),
-    database: "connected"
-  });
+  res
+    .status(200)
+    .json({
+      success: true,
+      status: "healthy",
+      service: "metrics",
+      timestamp: new Date().toISOString(),
+      database: "connected",
+    });
 });
 
 // Basic ping endpoint
@@ -36,36 +39,39 @@ router.get("/system", async (req, res) => {
         memory: {
           used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
           total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
-          rss: Math.round(process.memoryUsage().rss / 1024 / 1024)
+          rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
         },
         cpu: {
           usage: process.cpuUsage(),
-          load: process.platform !== 'win32' ? require('os').loadavg() : [0, 0, 0]
-        }
+          load:
+            process.platform !== "win32" ? require("os").loadavg() : [0, 0, 0],
+        },
       },
       api: {
         total_requests: Math.floor(Math.random() * 10000) + 5000,
         active_connections: Math.floor(Math.random() * 50) + 10,
         response_time_avg: Math.floor(Math.random() * 100) + 50,
-        error_rate: (Math.random() * 2).toFixed(2) + '%'
+        error_rate: (Math.random() * 2).toFixed(2) + "%",
       },
       database: {
         connection_pool: {
           active: Math.floor(Math.random() * 10) + 5,
           idle: Math.floor(Math.random() * 15) + 10,
-          max: 25
+          max: 25,
         },
         query_performance: {
           avg_query_time: Math.floor(Math.random() * 50) + 20,
-          slow_queries: Math.floor(Math.random() * 5)
-        }
-      }
+          slow_queries: Math.floor(Math.random() * 5),
+        },
+      },
     };
 
     res.success({ system_metrics: systemMetrics }, 200);
   } catch (err) {
-    console.error('System metrics error:', err);
-    res.serverError('Failed to retrieve system metrics', { error: err.message });
+    console.error("System metrics error:", err);
+    res.serverError("Failed to retrieve system metrics", {
+      error: err.message,
+    });
   }
 });
 
@@ -119,7 +125,7 @@ router.get("/", async (req, res) => {
     const validSortColumns = [
       "symbol",
       "fundamental_score",
-      "technical_score", 
+      "technical_score",
       "overall_score",
       "market_cap",
       "sector",
@@ -213,10 +219,18 @@ router.get("/", async (req, res) => {
     const countResult = await query(countQuery, params.slice(0, paramCount));
 
     // Add null checking for database availability
-    if (!stocksResult || !stocksResult.rows || !countResult || !countResult.rows) {
-      console.warn("Metrics query returned null result, database may be unavailable");
+    if (
+      !stocksResult ||
+      !stocksResult.rows ||
+      !countResult ||
+      !countResult.rows
+    ) {
+      console.warn(
+        "Metrics query returned null result, database may be unavailable"
+      );
       return res.error("Database temporarily unavailable", 503, {
-        message: "Stock metrics temporarily unavailable - database connection issue",
+        message:
+          "Stock metrics temporarily unavailable - database connection issue",
         stocks: [],
         pagination: {
           page: page,
@@ -224,12 +238,15 @@ router.get("/", async (req, res) => {
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
-        }
+          hasPrev: false,
+        },
       });
     }
 
-    const totalStocks = parseInt((countResult.rows && countResult.rows[0] && countResult.rows[0].total) || 0);
+    const totalStocks = parseInt(
+      (countResult.rows && countResult.rows[0] && countResult.rows[0].total) ||
+        0
+    );
 
     // Format the response
     const stocks = (stocksResult.rows || []).map((row) => ({
@@ -288,7 +305,7 @@ router.get("/", async (req, res) => {
       success: true,
       metrics: {
         stocks: stocks,
-        total: stocks.length
+        total: stocks.length,
       },
       pagination: {
         currentPage: page,
@@ -330,11 +347,15 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in metrics endpoint:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch metrics", 
-      message: error.message,
-      timestamp: new Date().toISOString(),
-      service: "financial-platform"
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch metrics",
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        service: "financial-platform",
+      });
   }
 });
 
@@ -342,28 +363,30 @@ router.get("/", async (req, res) => {
 router.get("/performance", async (req, res) => {
   try {
     const { symbol, period = "1m" } = req.query;
-    console.log(`📊 Performance metrics requested for symbol: ${symbol || 'all'}, period: ${period}`);
-    
+    console.log(
+      `📊 Performance metrics requested for symbol: ${symbol || "all"}, period: ${period}`
+    );
+
     if (!symbol) {
       return res.status(400).json({
         success: false,
         error: "Symbol parameter required",
-        message: "Please provide a symbol using ?symbol=TICKER"
+        message: "Please provide a symbol using ?symbol=TICKER",
       });
     }
-    
+
     // Convert period to days
     const periodDays = {
       "1d": 1,
-      "1w": 7, 
+      "1w": 7,
       "1m": 30,
       "3m": 90,
       "6m": 180,
-      "1y": 365
+      "1y": 365,
     };
-    
+
     const days = periodDays[period] || 30;
-    
+
     // Get performance metrics data
     const performanceQuery = `
       SELECT 
@@ -381,39 +404,47 @@ router.get("/performance", async (req, res) => {
       ORDER BY date DESC
       LIMIT 50
     `;
-    
+
     const result = await query(performanceQuery, [symbol.toUpperCase()]);
-    
+
     if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No performance data found",
         message: `No performance data found for symbol ${symbol.toUpperCase()}`,
         symbol: symbol.toUpperCase(),
-        period
+        period,
       });
     }
-    
-    const prices = result.rows.map(row => parseFloat(row.current_price));
-    const volumes = result.rows.map(row => parseFloat(row.volume));
-    
+
+    const prices = result.rows.map((row) => parseFloat(row.current_price));
+    const volumes = result.rows.map((row) => parseFloat(row.volume));
+
     // Calculate performance statistics
     const currentPrice = prices[0];
     const startPrice = prices[prices.length - 1];
     const totalReturn = ((currentPrice - startPrice) / startPrice) * 100;
     const maxPrice = Math.max(...prices);
     const minPrice = Math.min(...prices);
-    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
-    const avgVolume = volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
-    
+    const avgPrice =
+      prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const avgVolume =
+      volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
+
     // Calculate volatility (standard deviation of daily returns)
     const dailyReturns = result.rows.slice(0, -1).map((row, index) => {
       const nextRow = result.rows[index + 1];
-      return (parseFloat(row.current_price) - parseFloat(nextRow.current_price)) / parseFloat(nextRow.current_price);
+      return (
+        (parseFloat(row.current_price) - parseFloat(nextRow.current_price)) /
+        parseFloat(nextRow.current_price)
+      );
     });
-    
-    const avgReturn = dailyReturns.reduce((sum, ret) => sum + ret, 0) / dailyReturns.length;
-    const variance = dailyReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / dailyReturns.length;
+
+    const avgReturn =
+      dailyReturns.reduce((sum, ret) => sum + ret, 0) / dailyReturns.length;
+    const variance =
+      dailyReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) /
+      dailyReturns.length;
     const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized volatility
 
     res.json({
@@ -423,43 +454,48 @@ router.get("/performance", async (req, res) => {
         period,
         performance_metrics: {
           current_price: currentPrice,
-          total_return: totalReturn.toFixed(2) + '%',
+          total_return: totalReturn.toFixed(2) + "%",
           price_range: {
             high: maxPrice,
             low: minPrice,
-            average: avgPrice.toFixed(2)
+            average: avgPrice.toFixed(2),
           },
-          volatility: volatility.toFixed(2) + '%',
+          volatility: volatility.toFixed(2) + "%",
           trading_activity: {
             avg_volume: Math.round(avgVolume),
             max_volume: Math.max(...volumes),
-            min_volume: Math.min(...volumes)
+            min_volume: Math.min(...volumes),
           },
           data_points: result.rows.length,
           date_range: {
-            from: result.rows && result.rows.length > 0 ? result.rows[result.rows.length - 1].date : null,
-            to: result.rows && result.rows.length > 0 ? result.rows[0].date : null
-          }
+            from:
+              result.rows && result.rows.length > 0
+                ? result.rows[result.rows.length - 1].date
+                : null,
+            to:
+              result.rows && result.rows.length > 0
+                ? result.rows[0].date
+                : null,
+          },
         },
-        historical_data: result.rows.map(row => ({
+        historical_data: result.rows.map((row) => ({
           date: row.date,
           price: parseFloat(row.current_price),
           change: parseFloat(row.change_percent),
           volume: parseInt(row.volume),
           high: parseFloat(row.high_price),
-          low: parseFloat(row.low_price)
-        }))
+          low: parseFloat(row.low_price),
+        })),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("Performance metrics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch performance metrics",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -468,55 +504,71 @@ router.get("/performance", async (req, res) => {
 router.get("/dashboard", async (req, res) => {
   try {
     const { period = "1M", includeCharts = false } = req.query;
-    
-    console.log(`📊 Dashboard metrics requested - period: ${period}, charts: ${includeCharts}`);
-    
+
+    console.log(
+      `📊 Dashboard metrics requested - period: ${period}, charts: ${includeCharts}`
+    );
+
     // Generate comprehensive dashboard metrics
     const generateDashboardMetrics = (period, includeCharts) => {
       const now = new Date();
-      const periodDays = period === '1D' ? 1 : period === '1W' ? 7 : period === '1M' ? 30 : period === '3M' ? 90 : 365;
-      
+      const periodDays =
+        period === "1D"
+          ? 1
+          : period === "1W"
+            ? 7
+            : period === "1M"
+              ? 30
+              : period === "3M"
+                ? 90
+                : 365;
+
       // Portfolio Metrics
       const portfolioValue = 250000 + Math.random() * 500000; // $250K - $750K
       const dailyChange = (Math.random() - 0.5) * 0.06; // -3% to +3%
-      const periodChange = (Math.random() - 0.4) * 0.20; // -8% to +12%
-      
+      const periodChange = (Math.random() - 0.4) * 0.2; // -8% to +12%
+
       const portfolio = {
         total_value: Math.round(portfolioValue * 100) / 100,
         daily_change: Math.round(dailyChange * 10000) / 100,
-        daily_change_amount: Math.round(portfolioValue * dailyChange * 100) / 100,
+        daily_change_amount:
+          Math.round(portfolioValue * dailyChange * 100) / 100,
         period_change: Math.round(periodChange * 10000) / 100,
-        period_change_amount: Math.round(portfolioValue * periodChange * 100) / 100,
-        cash_balance: Math.round(portfolioValue * (0.05 + Math.random() * 0.15) * 100) / 100,
-        buying_power: Math.round(portfolioValue * (0.8 + Math.random() * 0.4) * 100) / 100,
+        period_change_amount:
+          Math.round(portfolioValue * periodChange * 100) / 100,
+        cash_balance:
+          Math.round(portfolioValue * (0.05 + Math.random() * 0.15) * 100) /
+          100,
+        buying_power:
+          Math.round(portfolioValue * (0.8 + Math.random() * 0.4) * 100) / 100,
         positions_count: 8 + Math.floor(Math.random() * 12),
         allocation: {
           stocks: Math.round((0.6 + Math.random() * 0.25) * 100),
           etfs: Math.round((0.1 + Math.random() * 0.15) * 100),
           cash: Math.round((0.05 + Math.random() * 0.15) * 100),
-          crypto: Math.round(Math.random() * 0.05 * 100)
-        }
+          crypto: Math.round(Math.random() * 0.05 * 100),
+        },
       };
-      
+
       // Market Overview
       const marketMetrics = {
         indices: {
           spy: { price: 445.67, change: 0.67, change_pct: 0.15 },
           qqq: { price: 378.89, change: -1.23, change_pct: -0.32 },
           iwm: { price: 198.45, change: 0.89, change_pct: 0.45 },
-          vix: { price: 18.34, change: -0.45, change_pct: -2.39 }
+          vix: { price: 18.34, change: -0.45, change_pct: -2.39 },
         },
         sentiment: {
           fear_greed_index: Math.round(25 + Math.random() * 50),
           put_call_ratio: Math.round((0.7 + Math.random() * 0.6) * 100) / 100,
-          market_breadth: Math.round((0.4 + Math.random() * 0.4) * 100) / 100
+          market_breadth: Math.round((0.4 + Math.random() * 0.4) * 100) / 100,
         },
         volatility: {
           current: Math.round((15 + Math.random() * 15) * 100) / 100,
-          avg_30d: Math.round((18 + Math.random() * 10) * 100) / 100
-        }
+          avg_30d: Math.round((18 + Math.random() * 10) * 100) / 100,
+        },
       };
-      
+
       // Performance Metrics
       const performance = {
         returns: {
@@ -524,65 +576,66 @@ router.get("/dashboard", async (req, res) => {
           week: Math.round((Math.random() - 0.4) * 0.08 * 10000) / 100,
           month: Math.round(periodChange * 10000) / 100,
           quarter: Math.round((Math.random() - 0.3) * 0.25 * 10000) / 100,
-          year: Math.round((Math.random() - 0.2) * 0.40 * 10000) / 100
+          year: Math.round((Math.random() - 0.2) * 0.4 * 10000) / 100,
         },
         risk_metrics: {
           beta: Math.round((0.8 + Math.random() * 0.6) * 100) / 100,
           sharpe_ratio: Math.round((0.5 + Math.random() * 1.0) * 100) / 100,
           max_drawdown: Math.round((0.05 + Math.random() * 0.15) * 10000) / 100,
-          volatility: Math.round((12 + Math.random() * 12) * 100) / 100
+          volatility: Math.round((12 + Math.random() * 12) * 100) / 100,
         },
         benchmarks: {
-          vs_sp500: Math.round((Math.random() - 0.4) * 0.10 * 10000) / 100,
+          vs_sp500: Math.round((Math.random() - 0.4) * 0.1 * 10000) / 100,
           vs_nasdaq: Math.round((Math.random() - 0.5) * 0.12 * 10000) / 100,
-          vs_russell2000: Math.round((Math.random() - 0.3) * 0.15 * 10000) / 100
-        }
+          vs_russell2000:
+            Math.round((Math.random() - 0.3) * 0.15 * 10000) / 100,
+        },
       };
-      
+
       // Trading Activity
       const trading = {
         orders: {
           active: 3 + Math.floor(Math.random() * 8),
           filled_today: Math.floor(Math.random() * 5),
-          pending: 1 + Math.floor(Math.random() * 4)
+          pending: 1 + Math.floor(Math.random() * 4),
         },
         volume: {
           shares_traded_today: Math.floor(Math.random() * 2000) + 100,
           dollar_volume_today: Math.round(Math.random() * 50000 * 100) / 100,
-          avg_trade_size: Math.floor(50 + Math.random() * 200)
+          avg_trade_size: Math.floor(50 + Math.random() * 200),
         },
         fees: {
           commission_today: Math.round(Math.random() * 25 * 100) / 100,
-          commission_month: Math.round((20 + Math.random() * 80) * 100) / 100
-        }
+          commission_month: Math.round((20 + Math.random() * 80) * 100) / 100,
+        },
       };
-      
+
       // Alerts and Notifications
       const alerts = {
         active_alerts: 2 + Math.floor(Math.random() * 6),
         price_alerts: Math.floor(Math.random() * 4),
         news_alerts: 1 + Math.floor(Math.random() * 3),
         earnings_alerts: Math.floor(Math.random() * 3),
-        recent_triggers: Math.floor(Math.random() * 3)
+        recent_triggers: Math.floor(Math.random() * 3),
       };
-      
+
       // Top Holdings
       const holdings = [
-        { symbol: 'AAPL', weight: 15.2, change: 0.87 },
-        { symbol: 'MSFT', weight: 12.8, change: -0.23 },
-        { symbol: 'GOOGL', weight: 10.5, change: 1.45 },
-        { symbol: 'AMZN', weight: 9.3, change: -0.67 },
-        { symbol: 'SPY', weight: 8.7, change: 0.15 }
+        { symbol: "AAPL", weight: 15.2, change: 0.87 },
+        { symbol: "MSFT", weight: 12.8, change: -0.23 },
+        { symbol: "GOOGL", weight: 10.5, change: 1.45 },
+        { symbol: "AMZN", weight: 9.3, change: -0.67 },
+        { symbol: "SPY", weight: 8.7, change: 0.15 },
       ];
-      
+
       // Watchlist Activity
       const watchlist = {
         symbols_count: 15 + Math.floor(Math.random() * 25),
         price_alerts: 3 + Math.floor(Math.random() * 7),
         movers_count: Math.floor(Math.random() * 5),
-        earnings_this_week: Math.floor(Math.random() * 4)
+        earnings_this_week: Math.floor(Math.random() * 4),
       };
-      
+
       return {
         portfolio,
         market: marketMetrics,
@@ -592,51 +645,50 @@ router.get("/dashboard", async (req, res) => {
         top_holdings: holdings,
         watchlist,
         period_analyzed: period,
-        last_updated: now.toISOString()
+        last_updated: now.toISOString(),
       };
     };
-    
+
     const dashboardData = generateDashboardMetrics(period, includeCharts);
-    
+
     // Generate quick insights
     const insights = [
-      dashboardData.portfolio.daily_change > 0 ? 
-        `Portfolio up ${dashboardData.portfolio.daily_change}% today` : 
-        `Portfolio down ${Math.abs(dashboardData.portfolio.daily_change)}% today`,
-      dashboardData.market.sentiment.fear_greed_index > 50 ? 
-        "Market sentiment showing greed bias" : 
-        "Market sentiment showing fear bias",
-      dashboardData.trading.orders.active > 5 ? 
-        `${dashboardData.trading.orders.active} active orders in queue` : 
-        "Low trading activity today",
-      dashboardData.performance.risk_metrics.sharpe_ratio > 1.0 ? 
-        "Strong risk-adjusted returns" : 
-        "Consider risk management review"
+      dashboardData.portfolio.daily_change > 0
+        ? `Portfolio up ${dashboardData.portfolio.daily_change}% today`
+        : `Portfolio down ${Math.abs(dashboardData.portfolio.daily_change)}% today`,
+      dashboardData.market.sentiment.fear_greed_index > 50
+        ? "Market sentiment showing greed bias"
+        : "Market sentiment showing fear bias",
+      dashboardData.trading.orders.active > 5
+        ? `${dashboardData.trading.orders.active} active orders in queue`
+        : "Low trading activity today",
+      dashboardData.performance.risk_metrics.sharpe_ratio > 1.0
+        ? "Strong risk-adjusted returns"
+        : "Consider risk management review",
     ];
-    
+
     res.success({
       dashboard: dashboardData,
       insights,
       market_status: {
         is_open: isMarketOpen(),
         next_session: getNextMarketSession(),
-        timezone: "EST"
+        timezone: "EST",
       },
       metadata: {
         generated_at: new Date().toISOString(),
         period: period,
         data_freshness: "Real-time simulation",
-        refresh_recommended: "Every 30 seconds during market hours"
-      }
+        refresh_recommended: "Every 30 seconds during market hours",
+      },
     });
-    
   } catch (error) {
     console.error("Dashboard metrics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dashboard metrics",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -646,7 +698,7 @@ function isMarketOpen() {
   const now = new Date();
   const day = now.getDay(); // 0 = Sunday, 6 = Saturday
   const hour = now.getHours();
-  
+
   // Simple market hours check (Monday-Friday, 9:30 AM - 4:00 PM EST)
   return day >= 1 && day <= 5 && hour >= 9 && hour < 16;
 }
@@ -656,20 +708,24 @@ function getNextMarketSession() {
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 30, 0, 0);
-  
+
   return tomorrow.toISOString();
 }
 
 // Helper functions removed - no mock data generation in APIs
 
-// Overview endpoint - alias for the base metrics route 
+// Overview endpoint - alias for the base metrics route
 router.get("/overview", async (req, res) => {
   try {
     // Redirect to the main metrics endpoint which already provides overview data
-    const baseUrl = req.protocol + '://' + req.get('host') + req.originalUrl.replace('/overview', '');
+    const baseUrl =
+      req.protocol +
+      "://" +
+      req.get("host") +
+      req.originalUrl.replace("/overview", "");
     const queryString = new URLSearchParams(req.query).toString();
     const redirectUrl = queryString ? `${baseUrl}?${queryString}` : baseUrl;
-    
+
     return res.redirect(307, redirectUrl);
   } catch (error) {
     console.error("Overview redirect error:", error);
@@ -677,7 +733,7 @@ router.get("/overview", async (req, res) => {
       success: false,
       error: "Overview endpoint error",
       message: "Use the base /api/metrics endpoint for overview data",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -729,23 +785,33 @@ router.get("/:symbol", async (req, res) => {
 
     // Add null checking for database availability
     if (!metricsResult || !metricsResult.rows) {
-      console.warn("Metrics query returned null result, database may be unavailable");
-      return res.status(503).json({success: false, error: "Database temporarily unavailable", 
-        message: "Stock metrics temporarily unavailable - database connection issue",
-        symbol,
-        timestamp: new Date().toISOString()
-      });
+      console.warn(
+        "Metrics query returned null result, database may be unavailable"
+      );
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Database temporarily unavailable",
+          message:
+            "Stock metrics temporarily unavailable - database connection issue",
+          symbol,
+          timestamp: new Date().toISOString(),
+        });
     }
 
     if (metricsResult.rows.length === 0) {
       return res.status(404).json({
         error: "Symbol not found or no metrics available",
         symbol: symbol,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const latestMetric = metricsResult.rows && metricsResult.rows[0] ? metricsResult.rows[0] : null;
+    const latestMetric =
+      metricsResult.rows && metricsResult.rows[0]
+        ? metricsResult.rows[0]
+        : null;
     const historicalMetrics = metricsResult.rows.slice(1);
 
     // Get sector benchmark data
@@ -818,8 +884,7 @@ router.get("/:symbol", async (req, res) => {
           overall: parseFloat(latestMetric.value_metric) || 0,
           components: {
             multiples: parseFloat(latestMetric.multiples_metric) || 0,
-            intrinsicValue:
-              parseFloat(latestMetric.intrinsic_value) || 0,
+            intrinsicValue: parseFloat(latestMetric.intrinsic_value) || 0,
             relativeValue: parseFloat(latestMetric.fair_value) || 0,
           },
           valuations: {
@@ -879,10 +944,10 @@ router.get("/:symbol", async (req, res) => {
   } catch (error) {
     console.error("Error getting detailed metrics:", error);
     return res.status(500).json({
-      error: "Failed to fetch detailed metrics", 
+      error: "Failed to fetch detailed metrics",
       message: "Database query failed",
       symbol: req.params.symbol?.toUpperCase(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -962,11 +1027,15 @@ router.get("/sectors/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sector analysis:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch sector analysis", 
-      message: error.message,
-      timestamp: new Date().toISOString(),
-      service: "financial-platform"
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch sector analysis",
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        service: "financial-platform",
+      });
   }
 });
 
@@ -981,7 +1050,7 @@ router.get("/top/:category", async (req, res) => {
       return res.status(400).json({
         error: "Invalid category",
         validCategories: validCategories,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1064,11 +1133,15 @@ router.get("/top/:category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting top stocks:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch top stocks", 
-      message: error.message,
-      timestamp: new Date().toISOString(),
-      service: "financial-platform"
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch top stocks",
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        service: "financial-platform",
+      });
   }
 });
 

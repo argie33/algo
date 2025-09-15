@@ -48,10 +48,10 @@ describe("Database Utility", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Store original environment
     originalEnv = { ...process.env };
-    
+
     // Setup default environment
     process.env.NODE_ENV = "test";
     delete process.env.DB_SECRET_ARN;
@@ -75,7 +75,7 @@ describe("Database Utility", () => {
   afterEach(async () => {
     // Restore original environment
     process.env = { ...originalEnv };
-    
+
     // Clean up database connections
     try {
       await closeDatabase();
@@ -131,7 +131,8 @@ describe("Database Utility", () => {
     });
 
     test("should use AWS Secrets Manager when secret ARN provided", async () => {
-      process.env.DB_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
 
       const secretValue = {
         host: "secret-host",
@@ -169,7 +170,8 @@ describe("Database Utility", () => {
     });
 
     test("should handle malformed secret JSON", async () => {
-      process.env.DB_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
 
       mockSecretsManager.send.mockResolvedValue({
         SecretString: "invalid json",
@@ -179,11 +181,16 @@ describe("Database Utility", () => {
     });
 
     test("should handle secrets manager errors", async () => {
-      process.env.DB_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
 
-      mockSecretsManager.send.mockRejectedValue(new Error("Secrets Manager error"));
+      mockSecretsManager.send.mockRejectedValue(
+        new Error("Secrets Manager error")
+      );
 
-      await expect(initializeDatabase()).rejects.toThrow("Secrets Manager error");
+      await expect(initializeDatabase()).rejects.toThrow(
+        "Secrets Manager error"
+      );
     });
 
     test("should use defaults for missing environment variables", async () => {
@@ -226,7 +233,9 @@ describe("Database Utility", () => {
     test("should handle database initialization errors", async () => {
       mockPool.query.mockRejectedValue(new Error("Database connection failed"));
 
-      await expect(initializeDatabase()).rejects.toThrow("Database connection failed");
+      await expect(initializeDatabase()).rejects.toThrow(
+        "Database connection failed"
+      );
     });
 
     test("should not reinitialize if already initialized", async () => {
@@ -234,7 +243,7 @@ describe("Database Utility", () => {
 
       await initializeDatabase();
       Pool.mockClear();
-      
+
       await initializeDatabase();
 
       expect(Pool).not.toHaveBeenCalled();
@@ -282,7 +291,10 @@ describe("Database Utility", () => {
 
       const result = await query("SELECT * FROM test WHERE id = $1", [1]);
 
-      expect(mockPool.query).toHaveBeenCalledWith("SELECT * FROM test WHERE id = $1", [1]);
+      expect(mockPool.query).toHaveBeenCalledWith(
+        "SELECT * FROM test WHERE id = $1",
+        [1]
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -295,7 +307,7 @@ describe("Database Utility", () => {
     test("should initialize database if not already initialized before query", async () => {
       // Reset initialization state
       await closeDatabase();
-      
+
       const mockResult = { rows: [{ id: 1 }] };
       mockPool.query.mockResolvedValue(mockResult);
 
@@ -330,9 +342,15 @@ describe("Database Utility", () => {
       const mockResult = { rows: [{ id: 1, name: "test" }] };
       mockPool.query.mockResolvedValue(mockResult);
 
-      const result1 = await cachedQuery("SELECT * FROM test WHERE id = $1", [1]);
-      const result2 = await cachedQuery("SELECT * FROM test WHERE id = $1", [1]);
-      const result3 = await cachedQuery("SELECT * FROM test WHERE id = $1", [2]);
+      const result1 = await cachedQuery("SELECT * FROM test WHERE id = $1", [
+        1,
+      ]);
+      const result2 = await cachedQuery("SELECT * FROM test WHERE id = $1", [
+        1,
+      ]);
+      const result3 = await cachedQuery("SELECT * FROM test WHERE id = $1", [
+        2,
+      ]);
 
       expect(mockPool.query).toHaveBeenCalledTimes(2); // Different parameters = different cache keys
       expect(result1).toEqual(mockResult);
@@ -347,7 +365,7 @@ describe("Database Utility", () => {
       await cachedQuery("SELECT * FROM test", [], 100); // 100ms TTL
 
       // Wait for cache to expire
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       await cachedQuery("SELECT * FROM test", [], 100);
 
@@ -368,7 +386,9 @@ describe("Database Utility", () => {
     test("should handle cached query errors", async () => {
       mockPool.query.mockRejectedValue(new Error("Cached query failed"));
 
-      await expect(cachedQuery("SELECT * FROM test")).rejects.toThrow("Cached query failed");
+      await expect(cachedQuery("SELECT * FROM test")).rejects.toThrow(
+        "Cached query failed"
+      );
     });
   });
 
@@ -377,7 +397,7 @@ describe("Database Utility", () => {
       process.env.DB_HOST = "localhost";
       mockPool.query.mockResolvedValue({ rows: [] });
       await initializeDatabase();
-      
+
       mockPool.connect.mockResolvedValue(mockClient);
       mockClient.query.mockResolvedValue({ rows: [] });
     });
@@ -396,9 +416,13 @@ describe("Database Utility", () => {
     });
 
     test("should rollback transaction on error", async () => {
-      const transactionCallback = jest.fn().mockRejectedValue(new Error("Transaction failed"));
+      const transactionCallback = jest
+        .fn()
+        .mockRejectedValue(new Error("Transaction failed"));
 
-      await expect(transaction(transactionCallback)).rejects.toThrow("Transaction failed");
+      await expect(transaction(transactionCallback)).rejects.toThrow(
+        "Transaction failed"
+      );
 
       expect(mockClient.query).toHaveBeenCalledWith("BEGIN");
       expect(mockClient.query).toHaveBeenCalledWith("ROLLBACK");
@@ -425,7 +449,7 @@ describe("Database Utility", () => {
 
     test("should handle COMMIT statement errors", async () => {
       const transactionCallback = jest.fn().mockResolvedValue("success");
-      
+
       mockClient.query.mockImplementation((sql) => {
         if (sql === "COMMIT") {
           throw new Error("COMMIT failed");
@@ -433,7 +457,9 @@ describe("Database Utility", () => {
         return { rows: [] };
       });
 
-      await expect(transaction(transactionCallback)).rejects.toThrow("COMMIT failed");
+      await expect(transaction(transactionCallback)).rejects.toThrow(
+        "COMMIT failed"
+      );
       expect(mockClient.release).toHaveBeenCalled();
     });
   });
@@ -477,10 +503,12 @@ describe("Database Utility", () => {
 
     test("should return healthy status", async () => {
       const mockHealthResult = {
-        rows: [{
-          timestamp: new Date(),
-          db_version: "PostgreSQL 13.7"
-        }]
+        rows: [
+          {
+            timestamp: new Date(),
+            db_version: "PostgreSQL 13.7",
+          },
+        ],
       };
 
       mockPool.query.mockResolvedValue(mockHealthResult);
@@ -502,10 +530,12 @@ describe("Database Utility", () => {
 
     test("should initialize database before health check", async () => {
       const mockHealthResult = {
-        rows: [{
-          timestamp: new Date(),
-          db_version: "PostgreSQL 13.7"
-        }]
+        rows: [
+          {
+            timestamp: new Date(),
+            db_version: "PostgreSQL 13.7",
+          },
+        ],
       };
 
       mockPool.query.mockResolvedValue(mockHealthResult);
@@ -579,7 +609,8 @@ describe("Database Utility", () => {
     });
 
     test("should handle complex SSL configuration from secrets", async () => {
-      process.env.DB_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
 
       const secretValue = {
         host: "localhost",
@@ -623,7 +654,9 @@ describe("Database Utility", () => {
     test("should handle connection pool exhaustion", async () => {
       mockPool.query.mockRejectedValue(new Error("Connection pool exhausted"));
 
-      await expect(query("SELECT 1")).rejects.toThrow("Connection pool exhausted");
+      await expect(query("SELECT 1")).rejects.toThrow(
+        "Connection pool exhausted"
+      );
     });
 
     test("should handle database connection timeout", async () => {
@@ -634,9 +667,11 @@ describe("Database Utility", () => {
 
     test("should handle large query results", async () => {
       const largeResult = {
-        rows: Array(10000).fill().map((_, i) => ({ id: i, data: `test-${i}` }))
+        rows: Array(10000)
+          .fill()
+          .map((_, i) => ({ id: i, data: `test-${i}` })),
       };
-      
+
       mockPool.query.mockResolvedValue(largeResult);
 
       const result = await query("SELECT * FROM large_table");
@@ -648,9 +683,9 @@ describe("Database Utility", () => {
       const mockResult = { rows: [{ id: 1 }] };
       mockPool.query.mockResolvedValue(mockResult);
 
-      const queries = Array(10).fill().map((_, i) => 
-        query(`SELECT ${i}`)
-      );
+      const queries = Array(10)
+        .fill()
+        .map((_, i) => query(`SELECT ${i}`));
 
       const results = await Promise.all(queries);
 
@@ -661,7 +696,7 @@ describe("Database Utility", () => {
     test("should handle very long SQL queries", async () => {
       const longQuery = "SELECT " + "1,".repeat(1000) + "1";
       const mockResult = { rows: [{}] };
-      
+
       mockPool.query.mockResolvedValue(mockResult);
 
       const result = await query(longQuery);
@@ -671,9 +706,11 @@ describe("Database Utility", () => {
     });
 
     test("should handle queries with many parameters", async () => {
-      const manyParams = Array(100).fill().map((_, i) => i);
+      const manyParams = Array(100)
+        .fill()
+        .map((_, i) => i);
       const mockResult = { rows: [{ result: "success" }] };
-      
+
       mockPool.query.mockResolvedValue(mockResult);
 
       const result = await query(
@@ -681,7 +718,10 @@ describe("Database Utility", () => {
         manyParams
       );
 
-      expect(mockPool.query).toHaveBeenCalledWith(expect.any(String), manyParams);
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.any(String),
+        manyParams
+      );
       expect(result).toEqual(mockResult);
     });
   });

@@ -27,7 +27,10 @@ jest.mock("../../../utils/scoringHelpers", () => ({
 
 const scoringRoutes = require("../../../routes/scoring");
 const { query } = require("../../../utils/database");
-const { calculateComprehensiveScores, storeComprehensiveScores } = require("../../../utils/scoringHelpers");
+const {
+  calculateComprehensiveScores,
+  storeComprehensiveScores,
+} = require("../../../utils/scoringHelpers");
 
 describe("Scoring Routes - Testing Your Actual Site", () => {
   let app;
@@ -56,17 +59,19 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
   describe("GET /scoring/calculate/:symbol - Calculate comprehensive scores", () => {
     test("should return cached scores when available", async () => {
-      const mockCachedScore = [{
-        symbol: "AAPL",
-        quality_score: 0.85,
-        growth_score: 0.78,
-        value_score: 0.65,
-        momentum_score: 0.72,
-        sentiment_score: 0.68,
-        positioning_score: 0.75,
-        composite_score: 0.74,
-        updated_at: new Date().toISOString(),
-      }];
+      const mockCachedScore = [
+        {
+          symbol: "AAPL",
+          quality_score: 0.85,
+          growth_score: 0.78,
+          value_score: 0.65,
+          momentum_score: 0.72,
+          sentiment_score: 0.68,
+          positioning_score: 0.75,
+          composite_score: 0.74,
+          updated_at: new Date().toISOString(),
+        },
+      ];
 
       // Mock the database query to return cached score directly as array
       query.mockResolvedValue(mockCachedScore);
@@ -93,7 +98,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
     test("should return 404 for insufficient data", async () => {
       // Mock no cached scores
       query.mockResolvedValue([]);
-      
+
       // Mock calculateComprehensiveScores function to return null (insufficient data)
       calculateComprehensiveScores.mockResolvedValue(null);
 
@@ -125,10 +130,10 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
       // Mock calculateComprehensiveScores function to return scores
       const mockCalculatedScores = {
         symbol: "AAPL",
-        quality_score: 0.80,
-        composite_score: 0.75
+        quality_score: 0.8,
+        composite_score: 0.75,
       };
-      
+
       calculateComprehensiveScores.mockResolvedValue(mockCalculatedScores);
       storeComprehensiveScores.mockResolvedValue(true);
 
@@ -146,10 +151,12 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
     });
 
     test("should convert symbol to uppercase", async () => {
-      const mockCachedScore = [{
-        symbol: "AAPL",
-        composite_score: 0.74,
-      }];
+      const mockCachedScore = [
+        {
+          symbol: "AAPL",
+          composite_score: 0.74,
+        },
+      ];
 
       query.mockResolvedValue(mockCachedScore);
 
@@ -158,7 +165,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       expect(response.body.scores.symbol).toBe("AAPL");
-      
+
       // Verify query was called with uppercase symbol
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("WHERE symbol = $1"),

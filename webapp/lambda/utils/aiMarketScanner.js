@@ -13,55 +13,55 @@ class AIMarketScanner {
   initializeStrategies() {
     return {
       momentum: {
-        name: 'Momentum Breakouts',
-        description: 'Stocks with strong price and volume momentum',
+        name: "Momentum Breakouts",
+        description: "Stocks with strong price and volume momentum",
         algorithm: this.momentumAlgorithm.bind(this),
-        weight: 0.8
+        weight: 0.8,
       },
       reversal: {
-        name: 'Reversal Opportunities', 
-        description: 'Oversold stocks showing signs of reversal',
+        name: "Reversal Opportunities",
+        description: "Oversold stocks showing signs of reversal",
         algorithm: this.reversalAlgorithm.bind(this),
-        weight: 0.7
+        weight: 0.7,
       },
       breakout: {
-        name: 'Technical Breakouts',
-        description: 'Stocks breaking through resistance levels',
+        name: "Technical Breakouts",
+        description: "Stocks breaking through resistance levels",
         algorithm: this.breakoutAlgorithm.bind(this),
-        weight: 0.85
+        weight: 0.85,
       },
       unusual: {
-        name: 'Unusual Activity',
-        description: 'Stocks with unusual volume or price activity',
+        name: "Unusual Activity",
+        description: "Stocks with unusual volume or price activity",
         algorithm: this.unusualActivityAlgorithm.bind(this),
-        weight: 0.9
+        weight: 0.9,
       },
       earnings: {
-        name: 'Earnings Momentum',
-        description: 'Stocks with strong earnings-related momentum',
+        name: "Earnings Momentum",
+        description: "Stocks with strong earnings-related momentum",
         algorithm: this.earningsAlgorithm.bind(this),
-        weight: 0.75
+        weight: 0.75,
       },
       news_sentiment: {
-        name: 'News Sentiment',
-        description: 'Stocks with positive news sentiment',
+        name: "News Sentiment",
+        description: "Stocks with positive news sentiment",
         algorithm: this.newsSentimentAlgorithm.bind(this),
-        weight: 0.6
-      }
+        weight: 0.6,
+      },
     };
   }
 
-  async scan(type = 'momentum', limit = 50, filters = {}) {
+  async scan(type = "momentum", limit = 50, filters = {}) {
     const strategy = this.strategies[type];
     if (!strategy) {
       throw new Error(`Unknown scan type: ${type}`);
     }
 
     console.log(`🔍 Running AI scan: ${strategy.name}`);
-    
+
     try {
       const results = await strategy.algorithm(limit, filters);
-      
+
       return {
         scanType: type,
         strategy: strategy.name,
@@ -73,8 +73,8 @@ class AIMarketScanner {
         metadata: {
           aiPowered: true,
           realTimeData: true,
-          algorithm: type
-        }
+          algorithm: type,
+        },
       };
     } catch (error) {
       console.error(`AI scan failed for ${type}:`, error);
@@ -143,8 +143,8 @@ class AIMarketScanner {
     `;
 
     const results = await query(baseQuery, [limit]);
-    
-    return results.rows.map(row => ({
+
+    return results.rows.map((row) => ({
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -159,9 +159,9 @@ class AIMarketScanner {
       technical_indicators: {
         rsi: row.rsi ? parseFloat(row.rsi).toFixed(2) : null,
         above_sma20: row.sma_20 && row.price ? row.price > row.sma_20 : null,
-        above_sma50: row.sma_50 && row.price ? row.price > row.sma_50 : null
+        above_sma50: row.sma_50 && row.price ? row.price > row.sma_50 : null,
       },
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 
@@ -226,8 +226,8 @@ class AIMarketScanner {
     `;
 
     const results = await query(baseQuery, [limit]);
-    
-    return results.rows.map(row => ({
+
+    return results.rows.map((row) => ({
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -243,9 +243,9 @@ class AIMarketScanner {
         rsi: row.rsi ? parseFloat(row.rsi).toFixed(2) : null,
         oversold: row.rsi ? row.rsi < 30 : null,
         below_sma20: row.sma_20 && row.price ? row.price < row.sma_20 : null,
-        below_sma50: row.sma_50 && row.price ? row.price < row.sma_50 : null
+        below_sma50: row.sma_50 && row.price ? row.price < row.sma_50 : null,
       },
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 
@@ -311,8 +311,8 @@ class AIMarketScanner {
     `;
 
     const results = await query(baseQuery, [limit]);
-    
-    return results.rows.map(row => ({
+
+    return results.rows.map((row) => ({
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -327,11 +327,11 @@ class AIMarketScanner {
       confidence: this.getConfidenceLevel(row.ai_score),
       signals: this.getBreakoutSignals(row),
       technical_indicators: {
-        near_high: row.high && row.price ? (row.price / row.high >= 0.98) : null,
+        near_high: row.high && row.price ? row.price / row.high >= 0.98 : null,
         above_sma20: row.sma_20 && row.price ? row.price > row.sma_20 : null,
-        above_sma50: row.sma_50 && row.price ? row.price > row.sma_50 : null
+        above_sma50: row.sma_50 && row.price ? row.price > row.sma_50 : null,
       },
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 
@@ -402,8 +402,8 @@ class AIMarketScanner {
     `;
 
     const results = await query(baseQuery, [limit]);
-    
-    return results.rows.map(row => ({
+
+    return results.rows.map((row) => ({
       symbol: row.symbol,
       company_name: row.company_name,
       price: parseFloat(row.price).toFixed(2),
@@ -418,7 +418,7 @@ class AIMarketScanner {
       ai_score: parseInt(row.ai_score),
       confidence: this.getConfidenceLevel(row.ai_score),
       signals: this.getUnusualActivitySignals(row),
-      scan_timestamp: new Date().toISOString()
+      scan_timestamp: new Date().toISOString(),
     }));
   }
 
@@ -481,8 +481,8 @@ class AIMarketScanner {
 
     try {
       const results = await query(baseQuery, [limit]);
-      
-      return results.rows.map(row => ({
+
+      return results.rows.map((row) => ({
         symbol: row.symbol,
         company_name: row.company_name,
         price: parseFloat(row.price).toFixed(2),
@@ -493,12 +493,12 @@ class AIMarketScanner {
           report_date: row.report_date,
           estimated_eps: row.estimated_eps,
           actual_eps: row.actual_eps,
-          surprise_percent: row.surprise_percent
+          surprise_percent: row.surprise_percent,
         },
         ai_score: parseInt(row.ai_score),
         confidence: this.getConfidenceLevel(row.ai_score),
         signals: this.getEarningsSignals(row),
-        scan_timestamp: new Date().toISOString()
+        scan_timestamp: new Date().toISOString(),
       }));
     } catch (error) {
       console.log("Earnings table not available, returning empty results");
@@ -562,8 +562,8 @@ class AIMarketScanner {
 
     try {
       const results = await query(baseQuery, [limit]);
-      
-      return results.rows.map(row => ({
+
+      return results.rows.map((row) => ({
         symbol: row.symbol,
         company_name: row.company_name,
         price: parseFloat(row.price).toFixed(2),
@@ -574,12 +574,12 @@ class AIMarketScanner {
           sentiment: parseFloat(row.sentiment).toFixed(3),
           confidence: parseFloat(row.sentiment_confidence).toFixed(3),
           headline: row.headline,
-          published_at: row.published_at
+          published_at: row.published_at,
         },
         ai_score: parseInt(row.ai_score),
         confidence: this.getConfidenceLevel(row.ai_score),
         signals: this.getNewsSentimentSignals(row),
-        scan_timestamp: new Date().toISOString()
+        scan_timestamp: new Date().toISOString(),
       }));
     } catch (error) {
       console.log("News table not available, returning empty results");
@@ -588,73 +588,76 @@ class AIMarketScanner {
   }
 
   getConfidenceLevel(score) {
-    if (score >= 85) return 'very high';
-    if (score >= 75) return 'high';
-    if (score >= 65) return 'medium';
-    if (score >= 55) return 'low';
-    return 'very low';
+    if (score >= 85) return "very high";
+    if (score >= 75) return "high";
+    if (score >= 65) return "medium";
+    if (score >= 55) return "low";
+    return "very low";
   }
 
   getMomentumSignals(row) {
     const signals = [];
-    if (row.price_change > 5) signals.push('Strong Price Gain');
-    if (row.volume_ratio > 2) signals.push('High Volume');
-    if (row.price_change > 2 && row.volume_ratio > 1.5) signals.push('Price-Volume Momentum');
-    if (row.rsi > 70) signals.push('Overbought RSI');
-    return signals.length > 0 ? signals : ['Momentum Signal'];
+    if (row.price_change > 5) signals.push("Strong Price Gain");
+    if (row.volume_ratio > 2) signals.push("High Volume");
+    if (row.price_change > 2 && row.volume_ratio > 1.5)
+      signals.push("Price-Volume Momentum");
+    if (row.rsi > 70) signals.push("Overbought RSI");
+    return signals.length > 0 ? signals : ["Momentum Signal"];
   }
 
   getReversalSignals(row) {
     const signals = [];
-    if (row.price_change < -5) signals.push('Oversold Condition');
-    if (row.volume_ratio > 2) signals.push('Volume Spike');
-    if (row.rsi < 30) signals.push('RSI Oversold');
-    if (Math.abs(row.price_change) > 3 && row.volume_ratio > 1.5) signals.push('Reversal Setup');
-    return signals.length > 0 ? signals : ['Reversal Signal'];
+    if (row.price_change < -5) signals.push("Oversold Condition");
+    if (row.volume_ratio > 2) signals.push("Volume Spike");
+    if (row.rsi < 30) signals.push("RSI Oversold");
+    if (Math.abs(row.price_change) > 3 && row.volume_ratio > 1.5)
+      signals.push("Reversal Setup");
+    return signals.length > 0 ? signals : ["Reversal Signal"];
   }
 
   getBreakoutSignals(row) {
     const signals = [];
-    if (row.price >= row.high * 0.99) signals.push('New High');
-    if (row.volume_ratio > 1.5) signals.push('Volume Breakout');
-    if (row.price_change > 2) signals.push('Price Breakout');
-    if (row.above_sma20 && row.above_sma50) signals.push('Above Moving Averages');
-    return signals.length > 0 ? signals : ['Breakout Signal'];
+    if (row.price >= row.high * 0.99) signals.push("New High");
+    if (row.volume_ratio > 1.5) signals.push("Volume Breakout");
+    if (row.price_change > 2) signals.push("Price Breakout");
+    if (row.above_sma20 && row.above_sma50)
+      signals.push("Above Moving Averages");
+    return signals.length > 0 ? signals : ["Breakout Signal"];
   }
 
   getUnusualActivitySignals(row) {
     const signals = [];
-    if (row.volume_ratio > 5) signals.push('Extreme Volume');
-    if (row.volume_vs_avg > 3) signals.push('Above Average Volume');
-    if (row.volume_ratio > 2) signals.push('Unusual Volume');
-    if (Math.abs(row.price_change) > 5) signals.push('Price Movement');
-    return signals.length > 0 ? signals : ['Unusual Activity'];
+    if (row.volume_ratio > 5) signals.push("Extreme Volume");
+    if (row.volume_vs_avg > 3) signals.push("Above Average Volume");
+    if (row.volume_ratio > 2) signals.push("Unusual Volume");
+    if (Math.abs(row.price_change) > 5) signals.push("Price Movement");
+    return signals.length > 0 ? signals : ["Unusual Activity"];
   }
 
   getEarningsSignals(row) {
     const signals = [];
-    if (row.surprise_percent > 20) signals.push('Big Earnings Beat');
-    if (row.surprise_percent > 10) signals.push('Earnings Beat');
-    if (row.surprise_percent > 0) signals.push('Positive Surprise');
-    if (row.report_date) signals.push('Recent Earnings');
-    return signals.length > 0 ? signals : ['Earnings Signal'];
+    if (row.surprise_percent > 20) signals.push("Big Earnings Beat");
+    if (row.surprise_percent > 10) signals.push("Earnings Beat");
+    if (row.surprise_percent > 0) signals.push("Positive Surprise");
+    if (row.report_date) signals.push("Recent Earnings");
+    return signals.length > 0 ? signals : ["Earnings Signal"];
   }
 
   getNewsSentimentSignals(row) {
     const signals = [];
-    if (row.sentiment > 0.8) signals.push('Very Positive News');
-    if (row.sentiment > 0.6) signals.push('Positive News');
-    if (row.sentiment_confidence > 0.7) signals.push('High Confidence');
-    if (row.headline) signals.push('Recent News');
-    return signals.length > 0 ? signals : ['News Sentiment'];
+    if (row.sentiment > 0.8) signals.push("Very Positive News");
+    if (row.sentiment > 0.6) signals.push("Positive News");
+    if (row.sentiment_confidence > 0.7) signals.push("High Confidence");
+    if (row.headline) signals.push("Recent News");
+    return signals.length > 0 ? signals : ["News Sentiment"];
   }
 
   getAvailableStrategies() {
-    return Object.keys(this.strategies).map(key => ({
+    return Object.keys(this.strategies).map((key) => ({
       type: key,
       name: this.strategies[key].name,
       description: this.strategies[key].description,
-      weight: this.strategies[key].weight
+      weight: this.strategies[key].weight,
     }));
   }
 }

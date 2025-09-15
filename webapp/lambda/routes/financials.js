@@ -12,7 +12,7 @@ router.get("/", async (req, res) => {
     status: "operational",
     endpoints: [
       "/:ticker/balance-sheet - Get balance sheet data",
-      "/:ticker/income-statement - Get income statement data", 
+      "/:ticker/income-statement - Get income statement data",
       "/:ticker/cash-flow - Get cash flow statement data",
       "/:ticker/financials - Get all financial statements combined",
       "/:ticker/key-metrics - Get comprehensive financial metrics",
@@ -25,8 +25,8 @@ router.get("/", async (req, res) => {
       "/earnings/:symbol - Get earnings history",
       "/cash-flow/:symbol - Get cash flow data (alias)",
       "/debug/tables - Debug table structure",
-      "/ping - Health check"
-    ]
+      "/ping - Health check",
+    ],
   });
 });
 
@@ -43,20 +43,22 @@ router.get("/ping", (req, res) => {
 router.get("/statements", async (req, res) => {
   try {
     const { symbol, period = "annual", type = "all" } = req.query;
-    
-    console.log(`📊 Financial statements requested - symbol: ${symbol || 'required'}, period: ${period}, type: ${type}`);
+
+    console.log(
+      `📊 Financial statements requested - symbol: ${symbol || "required"}, period: ${period}, type: ${type}`
+    );
 
     if (!symbol) {
       return res.status(400).json({
         success: false,
         error: "Symbol parameter required",
-        message: "Please provide a symbol using ?symbol=TICKER"
+        message: "Please provide a symbol using ?symbol=TICKER",
       });
     }
 
     // Determine which statements to fetch
     const statements = {};
-    
+
     if (type === "all" || type === "balance") {
       try {
         const balanceQuery = `
@@ -98,15 +100,20 @@ router.get("/statements", async (req, res) => {
           ORDER BY date DESC, item_name
           LIMIT 50
         `;
-        const cashflowResult = await query(cashflowQuery, [symbol.toUpperCase()]);
+        const cashflowResult = await query(cashflowQuery, [
+          symbol.toUpperCase(),
+        ]);
         statements.cash_flow = cashflowResult.rows;
       } catch (e) {
         statements.cash_flow = [];
       }
     }
 
-    const totalRecords = Object.values(statements).reduce((sum, arr) => sum + arr.length, 0);
-    
+    const totalRecords = Object.values(statements).reduce(
+      (sum, arr) => sum + arr.length,
+      0
+    );
+
     res.json({
       success: true,
       data: {
@@ -118,17 +125,17 @@ router.get("/statements", async (req, res) => {
           total_records: totalRecords,
           balance_sheet_records: statements.balance_sheet?.length || 0,
           income_statement_records: statements.income_statement?.length || 0,
-          cash_flow_records: statements.cash_flow?.length || 0
-        }
+          cash_flow_records: statements.cash_flow?.length || 0,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Financial statements error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch financial statements",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -137,14 +144,16 @@ router.get("/statements", async (req, res) => {
 router.get("/quarterly", async (req, res) => {
   try {
     const { symbol, limit = 4 } = req.query;
-    
-    console.log(`💰 Quarterly financials requested for symbol: ${symbol || 'all'}`);
+
+    console.log(
+      `💰 Quarterly financials requested for symbol: ${symbol || "all"}`
+    );
 
     if (!symbol) {
       return res.status(400).json({
         success: false,
         error: "Symbol parameter required",
-        message: "Please provide a symbol using ?symbol=TICKER"
+        message: "Please provide a symbol using ?symbol=TICKER",
       });
     }
 
@@ -160,7 +169,7 @@ router.get("/quarterly", async (req, res) => {
         `,
         [symbol.toUpperCase(), parseInt(limit)]
       ).catch(() => ({ rows: [] })),
-      
+
       query(
         `
         SELECT period_ending, total_assets, total_liabilities, total_equity
@@ -171,7 +180,7 @@ router.get("/quarterly", async (req, res) => {
         `,
         [symbol.toUpperCase(), parseInt(limit)]
       ).catch(() => ({ rows: [] })),
-      
+
       query(
         `
         SELECT period_ending, operating_cash_flow, free_cash_flow, capital_expenditure
@@ -181,13 +190,13 @@ router.get("/quarterly", async (req, res) => {
         LIMIT $2
         `,
         [symbol.toUpperCase(), parseInt(limit)]
-      ).catch(() => ({ rows: [] }))
+      ).catch(() => ({ rows: [] })),
     ]);
 
     // Combine quarterly data by period
     const quarterlyData = {};
-    
-    incomeResult.rows.forEach(row => {
+
+    incomeResult.rows.forEach((row) => {
       const period = row.period_ending;
       if (!quarterlyData[period]) quarterlyData[period] = {};
       quarterlyData[period] = {
@@ -195,11 +204,11 @@ router.get("/quarterly", async (req, res) => {
         period_ending: period,
         total_revenue: row.total_revenue,
         net_income: row.net_income,
-        earnings_per_share: row.earnings_per_share
+        earnings_per_share: row.earnings_per_share,
       };
     });
 
-    balanceResult.rows.forEach(row => {
+    balanceResult.rows.forEach((row) => {
       const period = row.period_ending;
       if (!quarterlyData[period]) quarterlyData[period] = {};
       quarterlyData[period] = {
@@ -207,11 +216,11 @@ router.get("/quarterly", async (req, res) => {
         period_ending: period,
         total_assets: row.total_assets,
         total_liabilities: row.total_liabilities,
-        total_equity: row.total_equity
+        total_equity: row.total_equity,
       };
     });
 
-    cashflowResult.rows.forEach(row => {
+    cashflowResult.rows.forEach((row) => {
       const period = row.period_ending;
       if (!quarterlyData[period]) quarterlyData[period] = {};
       quarterlyData[period] = {
@@ -219,12 +228,12 @@ router.get("/quarterly", async (req, res) => {
         period_ending: period,
         operating_cash_flow: row.operating_cash_flow,
         free_cash_flow: row.free_cash_flow,
-        capital_expenditure: row.capital_expenditure
+        capital_expenditure: row.capital_expenditure,
       };
     });
 
-    const quarters = Object.values(quarterlyData).sort((a, b) => 
-      new Date(b.period_ending) - new Date(a.period_ending)
+    const quarters = Object.values(quarterlyData).sort(
+      (a, b) => new Date(b.period_ending) - new Date(a.period_ending)
     );
 
     res.json({
@@ -238,18 +247,18 @@ router.get("/quarterly", async (req, res) => {
           data_sources: {
             income_statements: incomeResult.rows.length,
             balance_sheets: balanceResult.rows.length,
-            cash_flows: cashflowResult.rows.length
-          }
-        }
+            cash_flows: cashflowResult.rows.length,
+          },
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Quarterly financials error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch quarterly financials",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -257,16 +266,18 @@ router.get("/quarterly", async (req, res) => {
 // Financial ratios endpoint (general)
 router.get("/ratios", async (req, res) => {
   try {
-    const { 
-      symbol, 
-      limit: _limit = 50, 
-      category = "all", 
+    const {
+      symbol,
+      limit: _limit = 50,
+      category = "all",
       period = "latest",
-      sort: _sort = "ratio_value", 
-      order: _order = "desc" 
+      sort: _sort = "ratio_value",
+      order: _order = "desc",
     } = req.query;
 
-    console.log(`📊 Financial ratios requested - symbol: ${symbol || 'all'}, category: ${category}`);
+    console.log(
+      `📊 Financial ratios requested - symbol: ${symbol || "all"}, category: ${category}`
+    );
 
     // Query financial ratios from database
     const ratiosQuery = `
@@ -280,12 +291,12 @@ router.get("/ratios", async (req, res) => {
     `;
 
     const result = await query(ratiosQuery, [symbol.toUpperCase()]);
-    
+
     if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Financial ratios not found",
-        message: `No financial ratio data available for ${symbol}. Please ensure the key_metrics table is populated.`
+        message: `No financial ratio data available for ${symbol}. Please ensure the key_metrics table is populated.`,
       });
     }
 
@@ -300,35 +311,34 @@ router.get("/ratios", async (req, res) => {
             trailing_pe: ratiosData.trailing_pe,
             forward_pe: ratiosData.forward_pe,
             price_to_book: ratiosData.price_to_book,
-            price_to_sales: ratiosData.price_to_sales
+            price_to_sales: ratiosData.price_to_sales,
           },
           liquidity: {
             current_ratio: ratiosData.current_ratio,
-            quick_ratio: ratiosData.quick_ratio
+            quick_ratio: ratiosData.quick_ratio,
           },
           leverage: {
-            debt_to_equity: ratiosData.debt_to_equity
+            debt_to_equity: ratiosData.debt_to_equity,
           },
           profitability: {
             profit_margin: ratiosData.profit_margin_pct,
             return_on_equity: ratiosData.return_on_equity_pct,
-            return_on_assets: ratiosData.return_on_assets_pct
+            return_on_assets: ratiosData.return_on_assets_pct,
           },
           growth: {
             revenue_growth_1yr: ratiosData.revenue_growth_1yr,
-            earnings_growth_1yr: ratiosData.earnings_growth_1yr
-          }
-        }
+            earnings_growth_1yr: ratiosData.earnings_growth_1yr,
+          },
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Financial ratios error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch financial ratios",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -445,8 +455,8 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
           current_liabilities: "133973000000.00",
           long_term_debt: "104590000000.00",
           total_equity: "75288000000.00",
-          retained_earnings: "214403000000.00"
-        }
+          retained_earnings: "214403000000.00",
+        },
       },
       {
         symbol: ticker.toUpperCase(),
@@ -471,8 +481,8 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
           current_liabilities: "145308000000.00",
           long_term_debt: "106550000000.00",
           total_equity: "62146000000.00",
-          retained_earnings: "175897000000.00"
-        }
+          retained_earnings: "175897000000.00",
+        },
       },
       {
         symbol: ticker.toUpperCase(),
@@ -497,9 +507,9 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
           current_liabilities: "153982000000.00",
           long_term_debt: "98959000000.00",
           total_equity: "50672000000.00",
-          retained_earnings: "162814000000.00"
-        }
-      }
+          retained_earnings: "162814000000.00",
+        },
+      },
     ];
 
     return res.status(200).json({
@@ -510,8 +520,8 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
         period: period,
         count: fakeBalanceSheetData.length,
         timestamp: new Date().toISOString(),
-        dataSource: "fake_test_data"
-      }
+        dataSource: "fake_test_data",
+      },
     });
   } catch (error) {
     console.error("Balance sheet fetch error:", error.message);
@@ -583,7 +593,7 @@ router.get("/:ticker/income-statement", async (req, res) => {
       ebit: parseFloat(row.operating_income || 0),
       ebitda: parseFloat(row.operating_income || 0), // Approximation
       // Raw data for debugging
-      raw: row
+      raw: row,
     }));
 
     res.json({
@@ -627,7 +637,6 @@ router.get("/:ticker/cash-flow", async (req, res) => {
 
     // Check if cash flow tables exist, if not return placeholder
     try {
-
       // Query the normalized cash flow table
       const cashFlowQuery = `
         SELECT 
@@ -699,8 +708,10 @@ router.get("/:ticker/cash-flow", async (req, res) => {
       });
     } catch (dbError) {
       // Handle case where cash flow tables don't exist - return fake data
-      console.log(`Cash flow table ${tableName} does not exist, returning fake test data`);
-      
+      console.log(
+        `Cash flow table ${tableName} does not exist, returning fake test data`
+      );
+
       const fakeCashFlowData = [
         {
           symbol: ticker.toUpperCase(),
@@ -719,8 +730,8 @@ router.get("/:ticker/cash-flow", async (req, res) => {
             financing_cash_flow: "-108488000000.00",
             free_cash_flow: "99584000000.00",
             capital_expenditures: "10959000000.00",
-            net_income: "99803000000.00"
-          }
+            net_income: "99803000000.00",
+          },
         },
         {
           symbol: ticker.toUpperCase(),
@@ -739,8 +750,8 @@ router.get("/:ticker/cash-flow", async (req, res) => {
             financing_cash_flow: "-106256000000.00",
             free_cash_flow: "99584000000.00",
             capital_expenditures: "10959000000.00",
-            net_income: "96995000000.00"
-          }
+            net_income: "96995000000.00",
+          },
         },
         {
           symbol: ticker.toUpperCase(),
@@ -759,9 +770,9 @@ router.get("/:ticker/cash-flow", async (req, res) => {
             financing_cash_flow: "-110749000000.00",
             free_cash_flow: "111443000000.00",
             capital_expenditures: "10708000000.00",
-            net_income: "99803000000.00"
-          }
-        }
+            net_income: "99803000000.00",
+          },
+        },
       ];
 
       return res.status(200).json({
@@ -772,8 +783,8 @@ router.get("/:ticker/cash-flow", async (req, res) => {
           period: period,
           count: fakeCashFlowData.length,
           timestamp: new Date().toISOString(),
-          dataSource: "fake_test_data"
-        }
+          dataSource: "fake_test_data",
+        },
       });
     }
   } catch (error) {
@@ -802,7 +813,9 @@ router.get("/:ticker/financials", async (req, res) => {
       getFinancialStatement(ticker, "cash_flow", period),
     ]);
 
-    res.json({ success: true, data: {
+    res.json({
+      success: true,
+      data: {
         balance_sheet: balanceSheet,
         income_statement: incomeStatement,
         cash_flow: cashFlow,
@@ -870,64 +883,65 @@ async function getFinancialStatement(ticker, type, period) {
   );
 }
 
-// Financial estimates endpoint 
+// Financial estimates endpoint
 router.get("/estimates", async (req, res) => {
   try {
-    const { 
-      symbol, 
-      period = "annual", 
-      limit = 50, 
+    const {
+      symbol,
+      period = "annual",
+      limit = 50,
       page = 1,
       sortBy = "symbol",
-      sortOrder = "asc"
+      sortOrder = "asc",
     } = req.query;
-    
-    console.log(`📊 Financial estimates requested - symbol: ${symbol || 'all'}, period: ${period}`);
-    
+
+    console.log(
+      `📊 Financial estimates requested - symbol: ${symbol || "all"}, period: ${period}`
+    );
+
     // Query database for financial estimates
     let query_sql = `SELECT * FROM financial_estimates WHERE period = $1`;
     let params = [period];
-    
+
     if (symbol) {
       query_sql += ` AND symbol = $2`;
       params.push(symbol.toUpperCase());
     }
-    
+
     query_sql += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-    
+
     const result = await query(query_sql, params);
-    
+
     if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No financial estimates found",
         message: `No estimates data available for the specified criteria`,
-        filters: { symbol: symbol || 'all', period }
+        filters: { symbol: symbol || "all", period },
       });
     }
-    
+
     res.json({
       success: true,
       data: result.rows,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: result.rows.length
+        total: result.rows.length,
       },
       filters: {
-        symbol: symbol || 'all',
-        period
+        symbol: symbol || "all",
+        period,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("Financial estimates error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch financial estimates",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -974,7 +988,8 @@ router.get("/:symbol", async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        details: "Financial data temporarily unavailable - database connection issue",
+        details:
+          "Financial data temporarily unavailable - database connection issue",
       });
     }
 
@@ -985,7 +1000,9 @@ router.get("/:symbol", async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: result.rows.slice(0, 5), // Return just a few records
+    res.json({
+      success: true,
+      data: result.rows.slice(0, 5), // Return just a few records
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
@@ -1005,7 +1022,9 @@ router.get("/:symbol", async (req, res) => {
 // Get income statement (simple endpoint for tests)
 router.get("/:symbol/income", async (req, res) => {
   const { symbol } = req.params;
-  console.log(`💰 [FINANCIALS] Fetching income data for ${symbol} (test endpoint)`);
+  console.log(
+    `💰 [FINANCIALS] Fetching income data for ${symbol} (test endpoint)`
+  );
 
   try {
     const incomeQuery = `
@@ -1029,12 +1048,17 @@ router.get("/:symbol/income", async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: result.rows,
+    res.json({
+      success: true,
+      data: result.rows,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
   } catch (error) {
-    console.error(`❌ [FINANCIALS] Error fetching income data for ${symbol}:`, error);
+    console.error(
+      `❌ [FINANCIALS] Error fetching income data for ${symbol}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch income data",
@@ -1046,7 +1070,9 @@ router.get("/:symbol/income", async (req, res) => {
 // Get balance sheet (simple endpoint for tests)
 router.get("/:symbol/balance", async (req, res) => {
   const { symbol } = req.params;
-  console.log(`💰 [FINANCIALS] Fetching balance data for ${symbol} (test endpoint)`);
+  console.log(
+    `💰 [FINANCIALS] Fetching balance data for ${symbol} (test endpoint)`
+  );
 
   try {
     const balanceQuery = `
@@ -1070,12 +1096,17 @@ router.get("/:symbol/balance", async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: result.rows,
+    res.json({
+      success: true,
+      data: result.rows,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
   } catch (error) {
-    console.error(`❌ [FINANCIALS] Error fetching balance data for ${symbol}:`, error);
+    console.error(
+      `❌ [FINANCIALS] Error fetching balance data for ${symbol}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch balance data",
@@ -1087,7 +1118,9 @@ router.get("/:symbol/balance", async (req, res) => {
 // Get cash flow (simple endpoint for tests)
 router.get("/:symbol/cashflow", async (req, res) => {
   const { symbol } = req.params;
-  console.log(`💰 [FINANCIALS] Fetching cash flow for ${symbol} (test endpoint)`);
+  console.log(
+    `💰 [FINANCIALS] Fetching cash flow for ${symbol} (test endpoint)`
+  );
 
   try {
     const cashFlowQuery = `
@@ -1111,12 +1144,17 @@ router.get("/:symbol/cashflow", async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: result.rows,
+    res.json({
+      success: true,
+      data: result.rows,
       symbol: symbol.toUpperCase(),
       count: result.rows.length,
     });
   } catch (error) {
-    console.error(`❌ [FINANCIALS] Error fetching cash flow for ${symbol}:`, error);
+    console.error(
+      `❌ [FINANCIALS] Error fetching cash flow for ${symbol}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch cash flow data",
@@ -1128,7 +1166,9 @@ router.get("/:symbol/cashflow", async (req, res) => {
 // Get financial ratios by route format
 router.get("/ratios/:symbol", async (req, res) => {
   const { symbol } = req.params;
-  console.log(`💰 [FINANCIALS] Fetching ratios for ${symbol} via /ratios/ route`);
+  console.log(
+    `💰 [FINANCIALS] Fetching ratios for ${symbol} via /ratios/ route`
+  );
 
   try {
     // Query financial ratios from the database
@@ -1142,17 +1182,17 @@ router.get("/ratios/:symbol", async (req, res) => {
     `;
 
     const result = await query(ratiosQuery, [symbol.toUpperCase()]);
-    
+
     if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Financial ratios not found",
-        message: `No financial ratio data available for ${symbol}. Please ensure the key_metrics table is populated.`
+        message: `No financial ratio data available for ${symbol}. Please ensure the key_metrics table is populated.`,
       });
     }
 
     const ratioData = result.rows[0];
-    
+
     res.json({
       success: true,
       data: {
@@ -1162,27 +1202,29 @@ router.get("/ratios/:symbol", async (req, res) => {
             price_to_earnings: ratioData.trailing_pe,
             forward_pe: ratioData.forward_pe,
             price_to_book: ratioData.price_to_book,
-            price_to_sales: ratioData.price_to_sales
+            price_to_sales: ratioData.price_to_sales,
           },
           profitability_ratios: {
             net_profit_margin: ratioData.profit_margin_pct,
             return_on_equity: ratioData.return_on_equity_pct,
-            return_on_assets: ratioData.return_on_assets_pct
+            return_on_assets: ratioData.return_on_assets_pct,
           },
           liquidity_ratios: {
             current_ratio: ratioData.current_ratio,
-            quick_ratio: ratioData.quick_ratio
+            quick_ratio: ratioData.quick_ratio,
           },
           leverage_ratios: {
-            debt_to_equity: ratioData.debt_to_equity
-          }
-        }
+            debt_to_equity: ratioData.debt_to_equity,
+          },
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
-    console.error(`❌ [FINANCIALS] Error fetching ratios for ${symbol}:`, error);
+    console.error(
+      `❌ [FINANCIALS] Error fetching ratios for ${symbol}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch ratios data",
@@ -1223,11 +1265,16 @@ router.get("/:symbol/ratios", async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: result.rows[0],
+    res.json({
+      success: true,
+      data: result.rows[0],
       symbol: symbol.toUpperCase(),
     });
   } catch (error) {
-    console.error(`❌ [FINANCIALS] Error fetching ratios for ${symbol}:`, error);
+    console.error(
+      `❌ [FINANCIALS] Error fetching ratios for ${symbol}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch ratios data",
@@ -1235,7 +1282,6 @@ router.get("/:symbol/ratios", async (req, res) => {
     });
   }
 });
-
 
 // Get key metrics for a ticker (comprehensive financial ratios and metrics)
 router.get("/:ticker/key-metrics", async (req, res) => {
@@ -1260,69 +1306,73 @@ router.get("/:ticker/key-metrics", async (req, res) => {
       WHERE UPPER(ticker) = UPPER($1)
     `;
 
-    const result = await query(keyMetricsQuery, [ticker.toUpperCase()]);
+      const result = await query(keyMetricsQuery, [ticker.toUpperCase()]);
 
-    if (result.rows.length === 0) {
-      return res.json({
-        success: false,
-        error: "No key metrics data found",
-        data: null,
-        metadata: {
-          ticker: ticker.toUpperCase(),
-          message: "Key metrics data not available for this ticker",
+      if (result.rows.length === 0) {
+        return res.json({
+          success: false,
+          error: "No key metrics data found",
+          data: null,
+          metadata: {
+            ticker: ticker.toUpperCase(),
+            message: "Key metrics data not available for this ticker",
+          },
+        });
+      }
+
+      const metrics = result.rows[0];
+
+      // Organize metrics into logical categories for better presentation
+      const organizedMetrics = {
+        valuation: {
+          title: "Valuation Ratios",
+          icon: "TrendingUp",
+          metrics: {
+            "P/E Ratio (Trailing)": metrics.trailing_pe,
+            "P/E Ratio (Forward)": metrics.forward_pe,
+            "Price/Sales (TTM)": metrics.price_to_sales_ttm,
+            "Price/Book": metrics.price_to_book,
+            "PEG Ratio": metrics.peg_ratio,
+          },
         },
-      });
-    }
 
-    const metrics = result.rows[0];
-
-    // Organize metrics into logical categories for better presentation
-    const organizedMetrics = {
-      valuation: {
-        title: "Valuation Ratios",
-        icon: "TrendingUp",
-        metrics: {
-          "P/E Ratio (Trailing)": metrics.trailing_pe,
-          "P/E Ratio (Forward)": metrics.forward_pe,
-          "Price/Sales (TTM)": metrics.price_to_sales_ttm,
-          "Price/Book": metrics.price_to_book,
-          "PEG Ratio": metrics.peg_ratio,
+        dividends: {
+          title: "Dividend Information",
+          icon: "Savings",
+          metrics: {
+            "Dividend Yield": metrics.dividend_yield,
+          },
         },
-      },
+      };
 
-      dividends: {
-        title: "Dividend Information",
-        icon: "Savings",
-        metrics: {
-          "Dividend Yield": metrics.dividend_yield,
+      // Calculate data quality score
+      const totalFields = Object.values(organizedMetrics).reduce(
+        (sum, category) => {
+          return sum + Object.keys(category.metrics).length;
         },
-      },
-    };
+        0
+      );
 
-    // Calculate data quality score
-    const totalFields = Object.values(organizedMetrics).reduce(
-      (sum, category) => {
-        return sum + Object.keys(category.metrics).length;
-      },
-      0
-    );
+      const populatedFields = Object.values(organizedMetrics).reduce(
+        (sum, category) => {
+          return (
+            sum +
+            Object.values(category.metrics).filter(
+              (value) => value !== null && value !== undefined
+            ).length
+          );
+        },
+        0
+      );
 
-    const populatedFields = Object.values(organizedMetrics).reduce(
-      (sum, category) => {
-        return (
-          sum +
-          Object.values(category.metrics).filter(
-            (value) => value !== null && value !== undefined
-          ).length
-        );
-      },
-      0
-    );
+      const dataQuality =
+        totalFields > 0
+          ? ((populatedFields / totalFields) * 100).toFixed(1)
+          : 0;
 
-    const dataQuality =
-      totalFields > 0 ? ((populatedFields / totalFields) * 100).toFixed(1) : 0;
-
-      res.json({ success: true, data: organizedMetrics,
+      res.json({
+        success: true,
+        data: organizedMetrics,
         metadata: {
           ticker: ticker.toUpperCase(),
           dataQuality: `${dataQuality}%`,
@@ -1341,10 +1391,12 @@ router.get("/:ticker/key-metrics", async (req, res) => {
         metadata: {
           symbol: ticker.toUpperCase(),
           dataAvailable: false,
-          message: "Key metrics data is not currently available due to database schema differences",
-          suggestion: "This feature is being developed and will be available soon"
+          message:
+            "Key metrics data is not currently available due to database schema differences",
+          suggestion:
+            "This feature is being developed and will be available soon",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   } catch (error) {
@@ -1370,7 +1422,7 @@ router.get("/data/:symbol", async (req, res) => {
     let financialData = {
       balance_sheet: [],
       income_statement: [],
-      cash_flow: []
+      cash_flow: [],
     };
 
     try {
@@ -1400,37 +1452,44 @@ router.get("/data/:symbol", async (req, res) => {
       `;
 
       const result = await query(dataQuery, [symbol.toUpperCase()]);
-      
+
       if (result && result.rows && result.rows.length > 0) {
-        result.rows.forEach(row => {
+        result.rows.forEach((row) => {
           financialData[row.statement_type].push({
             date: row.date,
             item_name: row.item_name,
-            value: row.value
+            value: row.value,
           });
         });
       }
     } catch (tableError) {
-      console.log(`📊 [FINANCIALS] Financial tables not available for ${symbol}`);
+      console.log(
+        `📊 [FINANCIALS] Financial tables not available for ${symbol}`
+      );
       return res.status(404).json({
         success: false,
         error: "Financial data not found",
         message: `No financial statement data available for ${symbol}. Please ensure the financial statement tables are populated.`,
-        details: "Financial statements require the annual_balance_sheet, annual_income_statement, and annual_cash_flow tables to be populated."
+        details:
+          "Financial statements require the annual_balance_sheet, annual_income_statement, and annual_cash_flow tables to be populated.",
       });
     }
 
     // Return the financial data (either from DB or fallback)
-    const totalCount = financialData.balance_sheet.length + 
-                      financialData.income_statement.length + 
-                      financialData.cash_flow.length;
+    const totalCount =
+      financialData.balance_sheet.length +
+      financialData.income_statement.length +
+      financialData.cash_flow.length;
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: financialData,
       symbol: symbol.toUpperCase(),
       count: totalCount,
-      message: totalCount > 3 ? "Financial data retrieved successfully" : "Basic financial structure provided - detailed data requires financial data source"
+      message:
+        totalCount > 3
+          ? "Financial data retrieved successfully"
+          : "Basic financial structure provided - detailed data requires financial data source",
     });
   } catch (error) {
     console.error(
@@ -1452,7 +1511,7 @@ router.get("/earnings/:symbol", async (req, res) => {
 
   try {
     let earningsData = [];
-    
+
     try {
       // Try to get earnings data from earnings_history table (if it exists)
       const earningsQuery = `
@@ -1472,28 +1531,32 @@ router.get("/earnings/:symbol", async (req, res) => {
       `;
 
       const result = await query(earningsQuery, [symbol.toUpperCase()]);
-      
+
       if (result && result.rows && result.rows.length > 0) {
         earningsData = result.rows;
       }
     } catch (tableError) {
-      console.log(`📊 [FINANCIALS] Earnings history table not available for ${symbol}`);
+      console.log(
+        `📊 [FINANCIALS] Earnings history table not available for ${symbol}`
+      );
       return res.status(404).json({
         success: false,
         error: "Earnings data not found",
         message: `No earnings data available for ${symbol}. Please ensure the earnings_history table is populated.`,
-        details: "Earnings data requires the earnings_history or earnings_reports table to be populated."
+        details:
+          "Earnings data requires the earnings_history or earnings_reports table to be populated.",
       });
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: earningsData,
       count: earningsData.length,
       symbol: symbol.toUpperCase(),
-      message: earningsData.length === 1 && earningsData[0].note ? 
-        'Limited earnings data available - requires dedicated financial data provider' : 
-        undefined
+      message:
+        earningsData.length === 1 && earningsData[0].note
+          ? "Limited earnings data available - requires dedicated financial data provider"
+          : undefined,
     });
   } catch (error) {
     console.error(
@@ -1551,7 +1614,9 @@ router.get("/cash-flow/:symbol", async (req, res) => {
       groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
     });
 
-    res.json({ success: true, data: Object.values(groupedData),
+    res.json({
+      success: true,
+      data: Object.values(groupedData),
       count: Object.keys(groupedData).length,
       symbol: symbol.toUpperCase(),
     });
@@ -1573,13 +1638,13 @@ router.get("/:ticker/annual/balance-sheet", async (req, res) => {
   try {
     const { ticker } = req.params;
     console.log(`Annual balance sheet request for ${ticker}`);
-    
+
     // Query the annual_balance_sheet table we created
     const result = await query(
       `SELECT * FROM annual_balance_sheet WHERE symbol = $1 ORDER BY fiscal_year DESC LIMIT 1`,
       [ticker.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(200).json({
         success: true,
@@ -1588,12 +1653,12 @@ router.get("/:ticker/annual/balance-sheet", async (req, res) => {
           symbol: ticker.toUpperCase(),
           period: "annual",
           message: "No balance sheet data available for this symbol",
-          suggestion: "Data may be available soon or try another symbol"
+          suggestion: "Data may be available soon or try another symbol",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     const balanceSheetData = result.rows[0];
     res.json({
       success: true,
@@ -1605,21 +1670,24 @@ router.get("/:ticker/annual/balance-sheet", async (req, res) => {
         total_liabilities: balanceSheetData.total_liabilities,
         current_liabilities: balanceSheetData.current_liabilities,
         total_equity: balanceSheetData.total_equity,
-        period: "annual"
+        period: "annual",
       },
       metadata: {
         dataAvailable: true,
         reportDate: balanceSheetData.fiscal_year,
-        currency: "USD"
+        currency: "USD",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(`Annual balance sheet error for ${req.params.ticker}:`, error);
+    console.error(
+      `Annual balance sheet error for ${req.params.ticker}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch annual balance sheet data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1628,13 +1696,13 @@ router.get("/:ticker/annual/income-statement", async (req, res) => {
   try {
     const { ticker } = req.params;
     console.log(`Annual income statement request for ${ticker}`);
-    
+
     // Query the annual_income_statement table we created
     const result = await query(
       `SELECT * FROM annual_income_statement WHERE symbol = $1 ORDER BY fiscal_year DESC LIMIT 1`,
       [ticker.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(200).json({
         success: true,
@@ -1643,12 +1711,12 @@ router.get("/:ticker/annual/income-statement", async (req, res) => {
           symbol: ticker.toUpperCase(),
           period: "annual",
           message: "No income statement data available for this symbol",
-          suggestion: "Data may be available soon or try another symbol"
+          suggestion: "Data may be available soon or try another symbol",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     const incomeStatementData = result.rows[0];
     res.json({
       success: true,
@@ -1660,24 +1728,26 @@ router.get("/:ticker/annual/income-statement", async (req, res) => {
         operating_income: incomeStatementData.operating_income,
         net_income: incomeStatementData.net_income,
         earnings_per_share: incomeStatementData.earnings_per_share,
-        period: "annual"
+        period: "annual",
       },
       metadata: {
         dataAvailable: true,
         reportDate: incomeStatementData.fiscal_year,
-        currency: "USD"
+        currency: "USD",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(`Annual income statement error for ${req.params.ticker}:`, error);
+    console.error(
+      `Annual income statement error for ${req.params.ticker}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch annual income statement data",
-      message: error.message
+      message: error.message,
     });
   }
 });
-
 
 module.exports = router;

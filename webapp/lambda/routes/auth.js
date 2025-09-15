@@ -25,46 +25,57 @@ router.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({success: false, error: "Missing credentials"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing credentials" });
     }
 
     // Check if AWS Cognito is configured
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for login");
-      
+
       // Development fallback - generate proper JWT tokens for dev/test
-      if ((username === 'devuser' || username === 'argeropolos@gmail.com') && password === 'password123') {
-        const jwt = require('jsonwebtoken');
-        const secret = process.env.JWT_SECRET || 'dev-secret-key';
-        
+      if (
+        (username === "devuser" || username === "argeropolos@gmail.com") &&
+        password === "password123"
+      ) {
+        const jwt = require("jsonwebtoken");
+        const secret = process.env.JWT_SECRET || "dev-secret-key";
+
         const userPayload = {
           sub: `dev-user-${Date.now()}`,
           username: username,
-          email: username.includes('@') ? username : `${username}@dev.local`,
-          'cognito:username': username,
-          token_use: 'id',
+          email: username.includes("@") ? username : `${username}@dev.local`,
+          "cognito:username": username,
+          token_use: "id",
           auth_time: Math.floor(Date.now() / 1000),
-          iss: 'dev-issuer',
-          exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours
+          iss: "dev-issuer",
+          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
         };
-        
+
         const accessPayload = {
           ...userPayload,
-          token_use: 'access',
-          scope: 'aws.cognito.signin.user.admin'
+          token_use: "access",
+          scope: "aws.cognito.signin.user.admin",
         };
 
         return res.json({
-          accessToken: jwt.sign(accessPayload, secret, { algorithm: 'HS256' }),
-          idToken: jwt.sign(userPayload, secret, { algorithm: 'HS256' }),
-          refreshToken: jwt.sign({...userPayload, token_use: 'refresh'}, secret, { algorithm: 'HS256' }),
+          accessToken: jwt.sign(accessPayload, secret, { algorithm: "HS256" }),
+          idToken: jwt.sign(userPayload, secret, { algorithm: "HS256" }),
+          refreshToken: jwt.sign(
+            { ...userPayload, token_use: "refresh" },
+            secret,
+            { algorithm: "HS256" }
+          ),
           expiresIn: 3600,
-          tokenType: 'Bearer'
+          tokenType: "Bearer",
         });
       }
-      
+
       // Invalid credentials
-      return res.status(401).json({success: false, error: "Invalid credentials"});
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid credentials" });
     }
 
     const command = new InitiateAuthCommand({
@@ -106,7 +117,9 @@ router.post("/login", async (req, res) => {
       return res.unauthorized("Account not confirmed");
     }
 
-    return res.status(500).json({success: false, error: "Authentication failed"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Authentication failed" });
   }
 });
 
@@ -116,45 +129,52 @@ router.post("/challenge", async (req, res) => {
     // Check if AWS Cognito is configured
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for challenge");
-      
+
       // Development fallback - simulate challenge response
       const { challengeName, challengeResponses } = req.body;
-      
-      if (challengeName === 'SMS_MFA' && challengeResponses?.SMS_MFA_CODE === '123456') {
-        const jwt = require('jsonwebtoken');
-        const secret = process.env.JWT_SECRET || 'dev-secret-key';
-        
+
+      if (
+        challengeName === "SMS_MFA" &&
+        challengeResponses?.SMS_MFA_CODE === "123456"
+      ) {
+        const jwt = require("jsonwebtoken");
+        const secret = process.env.JWT_SECRET || "dev-secret-key";
+
         const userPayload = {
           sub: `mfa-user-${Date.now()}`,
-          username: 'mfa-dev-user',
-          email: 'mfa-user@dev.local',
-          'cognito:username': 'mfa-dev-user',
-          token_use: 'id',
+          username: "mfa-dev-user",
+          email: "mfa-user@dev.local",
+          "cognito:username": "mfa-dev-user",
+          token_use: "id",
           auth_time: Math.floor(Date.now() / 1000),
-          iss: 'dev-issuer',
-          exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24), // 24 hours
-          mfa_verified: true
+          iss: "dev-issuer",
+          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
+          mfa_verified: true,
         };
-        
+
         const accessPayload = {
           ...userPayload,
-          token_use: 'access',
-          scope: 'aws.cognito.signin.user.admin'
+          token_use: "access",
+          scope: "aws.cognito.signin.user.admin",
         };
 
         return res.json({
-          accessToken: jwt.sign(accessPayload, secret, { algorithm: 'HS256' }),
-          idToken: jwt.sign(userPayload, secret, { algorithm: 'HS256' }),
-          refreshToken: jwt.sign({...userPayload, token_use: 'refresh'}, secret, { algorithm: 'HS256' }),
+          accessToken: jwt.sign(accessPayload, secret, { algorithm: "HS256" }),
+          idToken: jwt.sign(userPayload, secret, { algorithm: "HS256" }),
+          refreshToken: jwt.sign(
+            { ...userPayload, token_use: "refresh" },
+            secret,
+            { algorithm: "HS256" }
+          ),
           expiresIn: 3600,
-          tokenType: 'Bearer'
+          tokenType: "Bearer",
         });
       }
-      
+
       return res.status(400).json({
         success: false,
         error: "Invalid challenge response",
-        message: "Development mode: use SMS_MFA_CODE = '123456'"
+        message: "Development mode: use SMS_MFA_CODE = '123456'",
       });
     }
 
@@ -188,7 +208,7 @@ router.post("/challenge", async (req, res) => {
     });
   } catch (error) {
     console.error("Challenge response error:", error);
-    return res.status(400).json({success: false, error: "Challenge failed"});
+    return res.status(400).json({ success: false, error: "Challenge failed" });
   }
 });
 
@@ -198,19 +218,21 @@ router.post("/register", async (req, res) => {
     const { username, password, email, firstName, lastName } = req.body;
 
     if (!username || !password || !email) {
-      return res.status(400).json({success: false, error: "Missing required fields"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing required fields" });
     }
 
     // Check if AWS Cognito is configured
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for registration");
-      
+
       // Development fallback - simulate successful registration
       return res.json({
         success: true,
-        message: 'User registered successfully',
-        userSub: 'mock-user-sub',
-        userConfirmed: false
+        message: "User registered successfully",
+        userSub: "mock-user-sub",
+        userConfirmed: false,
       });
     }
 
@@ -236,17 +258,20 @@ router.post("/register", async (req, res) => {
     console.error("Registration error:", error);
 
     if (error.name === "UsernameExistsException") {
-      return res.status(400).json({success: false, error: "Username exists"});
+      return res.status(400).json({ success: false, error: "Username exists" });
     }
 
     if (error.name === "InvalidParameterException") {
-      return res.status(400).json({success: false, error: "Invalid parameters"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid parameters" });
     }
 
-    return res.status(500).json({success: false, error: "Registration failed"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Registration failed" });
   }
 });
-
 
 // Confirm registration
 router.post("/confirm", async (req, res) => {
@@ -254,21 +279,23 @@ router.post("/confirm", async (req, res) => {
     const { username, confirmationCode } = req.body;
 
     if (!username || !confirmationCode) {
-      return res.status(400).json({success: false, error: "Missing parameters"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing parameters" });
     }
 
     // Check if AWS Cognito is configured
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for confirmation");
-      
+
       // Development fallback - simulate successful confirmation
-      if (confirmationCode === '123456') {
+      if (confirmationCode === "123456") {
         return res.json({
           success: true,
-          message: "Account confirmed successfully"
+          message: "Account confirmed successfully",
         });
       } else {
-        return res.status(400).json({success: false, error: "Invalid code"});
+        return res.status(400).json({ success: false, error: "Invalid code" });
       }
     }
 
@@ -287,10 +314,12 @@ router.post("/confirm", async (req, res) => {
     console.error("Confirmation error:", error);
 
     if (error.name === "CodeMismatchException") {
-      return res.status(400).json({success: false, error: "Invalid code"});
+      return res.status(400).json({ success: false, error: "Invalid code" });
     }
 
-    return res.status(400).json({success: false, error: "Confirmation failed"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Confirmation failed" });
   }
 });
 
@@ -300,17 +329,19 @@ router.post("/forgot-password", async (req, res) => {
     const { username } = req.body;
 
     if (!username) {
-      return res.status(400).json({success: false, error: "Missing username"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing username" });
     }
 
     // Check if AWS Cognito is configured
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for forgot password");
-      
+
       // Development fallback - simulate password reset initiated
       return res.json({
         success: true,
-        message: "Password reset code sent"
+        message: "Password reset code sent",
       });
     }
 
@@ -327,7 +358,9 @@ router.post("/forgot-password", async (req, res) => {
     });
   } catch (error) {
     console.error("Forgot password error:", error);
-    return res.status(400).json({success: false, error: "Password reset failed"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Password reset failed" });
   }
 });
 
@@ -337,24 +370,26 @@ router.post("/reset-password", async (req, res) => {
     // Check if AWS Cognito is configured
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for password reset");
-      
+
       // Development fallback - simulate password reset
       const { username, confirmationCode, newPassword } = req.body;
-      
+
       if (!username || !confirmationCode || !newPassword) {
-        return res.status(400).json({success: false, error: "Missing parameters"});
+        return res
+          .status(400)
+          .json({ success: false, error: "Missing parameters" });
       }
-      
-      if (confirmationCode === '123456') {
+
+      if (confirmationCode === "123456") {
         return res.json({
           success: true,
-          message: "Password reset successfully"
+          message: "Password reset successfully",
         });
       } else {
         return res.status(400).json({
-          success: false, 
+          success: false,
           error: "Invalid confirmation code",
-          message: "Development mode: use code '123456'"
+          message: "Development mode: use code '123456'",
         });
       }
     }
@@ -362,7 +397,9 @@ router.post("/reset-password", async (req, res) => {
     const { username, confirmationCode, newPassword } = req.body;
 
     if (!username || !confirmationCode || !newPassword) {
-      return res.status(400).json({success: false, error: "Missing parameters"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing parameters" });
     }
 
     const command = new ConfirmForgotPasswordCommand({
@@ -379,7 +416,9 @@ router.post("/reset-password", async (req, res) => {
     });
   } catch (error) {
     console.error("Reset password error:", error);
-    return res.status(400).json({success: false, error: "Password reset failed"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Password reset failed" });
   }
 });
 
@@ -388,24 +427,26 @@ router.post("/confirm-forgot-password", async (req, res) => {
   // Check if AWS Cognito is configured
   if (!process.env.COGNITO_CLIENT_ID) {
     console.log("🔧 DEV: Using development auth for confirm forgot password");
-    
+
     // Development fallback - simulate password reset confirmation
     const { username, confirmationCode, newPassword } = req.body;
-    
+
     if (!username || !confirmationCode || !newPassword) {
-      return res.status(400).json({success: false, error: "Missing required parameters"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing required parameters" });
     }
-    
-    if (confirmationCode === '123456') {
+
+    if (confirmationCode === "123456") {
       return res.json({
         success: true,
-        message: "Password reset successfully"
+        message: "Password reset successfully",
       });
     } else {
       return res.status(400).json({
-        success: false, 
+        success: false,
         error: "Invalid confirmation code",
-        message: "Development mode: use code '123456'"
+        message: "Development mode: use code '123456'",
       });
     }
   }
@@ -414,7 +455,9 @@ router.post("/confirm-forgot-password", async (req, res) => {
   const { username, confirmationCode, newPassword } = req.body;
 
   if (!username || !confirmationCode || !newPassword) {
-    return res.status(400).json({success: false, error: "Missing required parameters"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Missing required parameters" });
   }
 
   try {
@@ -439,49 +482,56 @@ router.post("/respond-to-challenge", async (req, res) => {
   // Check if AWS Cognito is configured
   if (!process.env.COGNITO_CLIENT_ID) {
     console.log("🔧 DEV: Using development auth for respond to challenge");
-    
+
     // Development fallback - simulate challenge response
     const { challengeName, challengeResponses } = req.body;
-    
-    if (challengeName === 'SMS_MFA' && challengeResponses?.SMS_MFA_CODE === '123456') {
-      const jwt = require('jsonwebtoken');
-      const secret = process.env.JWT_SECRET || 'dev-secret-key';
-      
+
+    if (
+      challengeName === "SMS_MFA" &&
+      challengeResponses?.SMS_MFA_CODE === "123456"
+    ) {
+      const jwt = require("jsonwebtoken");
+      const secret = process.env.JWT_SECRET || "dev-secret-key";
+
       const userPayload = {
         sub: `challenge-user-${Date.now()}`,
-        username: 'devuser',
-        email: 'dev@example.com',
-        'cognito:username': 'devuser',
-        token_use: 'id',
+        username: "devuser",
+        email: "dev@example.com",
+        "cognito:username": "devuser",
+        token_use: "id",
         auth_time: Math.floor(Date.now() / 1000),
-        iss: 'dev-issuer',
-        exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24), // 24 hours
-        challenge_verified: true
+        iss: "dev-issuer",
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
+        challenge_verified: true,
       };
-      
+
       const accessPayload = {
         ...userPayload,
-        token_use: 'access',
-        scope: 'aws.cognito.signin.user.admin'
+        token_use: "access",
+        scope: "aws.cognito.signin.user.admin",
       };
 
       return res.json({
         tokens: {
-          accessToken: jwt.sign(accessPayload, secret, { algorithm: 'HS256' }),
-          idToken: jwt.sign(userPayload, secret, { algorithm: 'HS256' }),
-          refreshToken: jwt.sign({...userPayload, token_use: 'refresh'}, secret, { algorithm: 'HS256' })
+          accessToken: jwt.sign(accessPayload, secret, { algorithm: "HS256" }),
+          idToken: jwt.sign(userPayload, secret, { algorithm: "HS256" }),
+          refreshToken: jwt.sign(
+            { ...userPayload, token_use: "refresh" },
+            secret,
+            { algorithm: "HS256" }
+          ),
         },
         user: {
           username: userPayload.username,
-          email: userPayload.email
-        }
+          email: userPayload.email,
+        },
       });
     }
-    
+
     return res.status(400).json({
       success: false,
-      error: "Invalid challenge response", 
-      message: "Development mode: use SMS_MFA_CODE = '123456'"
+      error: "Invalid challenge response",
+      message: "Development mode: use SMS_MFA_CODE = '123456'",
     });
   }
 
@@ -489,7 +539,9 @@ router.post("/respond-to-challenge", async (req, res) => {
   const { challengeName, session, challengeResponses } = req.body;
 
   if (!challengeName || !session) {
-    return res.status(400).json({success: false, error: "Missing required parameters"});
+    return res
+      .status(400)
+      .json({ success: false, error: "Missing required parameters" });
   }
 
   try {

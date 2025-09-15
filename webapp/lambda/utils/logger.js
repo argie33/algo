@@ -71,7 +71,17 @@ class Logger {
   output(logEntry) {
     if (this.environment === "development") {
       // Pretty print for development
-      const { timestamp, level, message, correlationId, service, environment, version, severity, ...rest } = logEntry;
+      const {
+        timestamp,
+        level,
+        message,
+        correlationId,
+        service,
+        environment,
+        version,
+        severity,
+        ...rest
+      } = logEntry;
       console.log(`[${timestamp}] [${level}] [${correlationId}] ${message}`);
       if (Object.keys(rest).length > 0) {
         console.log("Context:", JSON.stringify(rest, null, 2));

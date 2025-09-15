@@ -3,10 +3,10 @@
  * Tests real alert processing, database integration, and notification systems
  */
 
-const { 
-  initializeDatabase, 
-  closeDatabase, 
-  query 
+const {
+  initializeDatabase,
+  closeDatabase,
+  query,
 } = require("../../../utils/database");
 
 const AlertSystem = require("../../../utils/alertSystem");
@@ -43,20 +43,20 @@ describe("Alert System Integration Tests", () => {
           provider: "alpaca",
           latency: 150,
           threshold: 100,
-          symbol: "AAPL"
-        }
+          symbol: "AAPL",
+        },
       };
 
       // Process alert through system
       const alert = await alertSystem.createAlert(alertData);
-      
+
       expect(alert).toHaveProperty("id");
       expect(alert).toHaveProperty("timestamp");
       expect(alert.type).toBe("latency_warning");
       expect(alert.severity).toBe("warning");
       expect(alert.message).toBe("Provider latency exceeded threshold");
       expect(alert.metadata.provider).toBe("alpaca");
-      
+
       // Verify alert history
       const history = alertSystem.getAlertHistory();
       expect(history.length).toBe(1);
@@ -69,20 +69,20 @@ describe("Alert System Integration Tests", () => {
           type: "cost_critical",
           severity: "critical",
           message: "Daily cost limit exceeded",
-          metadata: { dailyCost: 55, limit: 50 }
+          metadata: { dailyCost: 55, limit: 50 },
         },
         {
           type: "error_rate_warning",
-          severity: "warning", 
+          severity: "warning",
           message: "Error rate above threshold",
-          metadata: { errorRate: 0.03, threshold: 0.02 }
+          metadata: { errorRate: 0.03, threshold: 0.02 },
         },
         {
           type: "connection_limit",
           severity: "info",
           message: "Connection count approaching limit",
-          metadata: { connections: 7, limit: 10 }
-        }
+          metadata: { connections: 7, limit: 10 },
+        },
       ];
 
       const alerts = [];
@@ -92,18 +92,18 @@ describe("Alert System Integration Tests", () => {
       }
 
       expect(alerts).toHaveLength(3);
-      
+
       // Verify all alerts have unique IDs
-      const alertIds = alerts.map(a => a.id);
+      const alertIds = alerts.map((a) => a.id);
       const uniqueIds = new Set(alertIds);
       expect(uniqueIds.size).toBe(3);
-      
+
       // Verify alert history contains all alerts
       const history = alertSystem.getAlertHistory();
       expect(history.length).toBe(3);
-      
+
       // Verify severity distribution
-      const severities = history.map(h => h.severity);
+      const severities = history.map((h) => h.severity);
       expect(severities).toContain("critical");
       expect(severities).toContain("warning");
       expect(severities).toContain("info");
@@ -114,21 +114,22 @@ describe("Alert System Integration Tests", () => {
       const performanceData = {
         alpaca: { latency: 180, errorRate: 0.03, uptime: 0.995 },
         polygon: { latency: 45, errorRate: 0.001, uptime: 0.999 },
-        finnhub: { latency: 220, errorRate: 0.08, uptime: 0.985 }
+        finnhub: { latency: 220, errorRate: 0.08, uptime: 0.985 },
       };
 
-      const alerts = await alertSystem.processProviderPerformance(performanceData);
-      
+      const alerts =
+        await alertSystem.processProviderPerformance(performanceData);
+
       // Should generate alerts for alpaca (high latency and error rate)
       // and finnhub (high latency and very high error rate)
       expect(alerts.length).toBeGreaterThan(0);
-      
+
       const alertsByProvider = alerts.reduce((acc, alert) => {
         const provider = alert.metadata.provider;
         acc[provider] = (acc[provider] || 0) + 1;
         return acc;
       }, {});
-      
+
       expect(alertsByProvider.alpaca).toBeGreaterThan(0);
       expect(alertsByProvider.finnhub).toBeGreaterThan(0);
       expect(alertsByProvider.polygon).toBeUndefined(); // Good performance
@@ -141,13 +142,13 @@ describe("Alert System Integration Tests", () => {
         providers: {
           alpaca: 18,
           polygon: 22,
-          finnhub: 8
+          finnhub: 8,
         },
-        trend: "increasing"
+        trend: "increasing",
       };
 
       const alerts = await alertSystem.processCostMonitoring(costData);
-      
+
       // Should generate warning for approaching daily limit
       expect(alerts.length).toBe(1);
       expect(alerts[0].type).toBe("cost_warning");
@@ -163,36 +164,36 @@ describe("Alert System Integration Tests", () => {
         id: "test-sub-1",
         types: ["latency_warning", "cost_critical"],
         severities: ["warning", "critical"],
-        callback: jest.fn()
+        callback: jest.fn(),
       };
 
       alertSystem.subscribe(subscription);
-      
+
       // Create alerts that match and don't match subscription
       await alertSystem.createAlert({
         type: "latency_warning",
-        severity: "warning", 
-        message: "Test alert 1"
+        severity: "warning",
+        message: "Test alert 1",
       });
-      
+
       await alertSystem.createAlert({
         type: "connection_info",
         severity: "info",
-        message: "Test alert 2"
+        message: "Test alert 2",
       });
-      
+
       await alertSystem.createAlert({
         type: "cost_critical",
         severity: "critical",
-        message: "Test alert 3"
+        message: "Test alert 3",
       });
 
       // Wait for async processing
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       // Callback should be called twice (for matching alerts)
       expect(subscription.callback).toHaveBeenCalledTimes(2);
-      
+
       const callArgs = subscription.callback.mock.calls;
       expect(callArgs[0][0].type).toBe("latency_warning");
       expect(callArgs[1][0].type).toBe("cost_critical");
@@ -202,26 +203,26 @@ describe("Alert System Integration Tests", () => {
       const sub1 = {
         id: "sub-1",
         types: ["latency_warning"],
-        callback: jest.fn()
+        callback: jest.fn(),
       };
-      
+
       const sub2 = {
-        id: "sub-2", 
+        id: "sub-2",
         severities: ["critical"],
-        callback: jest.fn()
+        callback: jest.fn(),
       };
 
       alertSystem.subscribe(sub1);
       alertSystem.subscribe(sub2);
-      
+
       await alertSystem.createAlert({
         type: "latency_warning",
         severity: "critical",
-        message: "Critical latency alert"
+        message: "Critical latency alert",
       });
 
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       // Both subscriptions should be triggered
       expect(sub1.callback).toHaveBeenCalledTimes(1);
       expect(sub2.callback).toHaveBeenCalledTimes(1);
@@ -234,20 +235,20 @@ describe("Alert System Integration Tests", () => {
         type: "latency_warning",
         severity: "warning",
         message: "Provider latency exceeded threshold",
-        metadata: { provider: "alpaca", latency: 150 }
+        metadata: { provider: "alpaca", latency: 150 },
       };
 
       // Create same alert multiple times quickly
       const alerts = await Promise.all([
         alertSystem.createAlert(alertData),
         alertSystem.createAlert(alertData),
-        alertSystem.createAlert(alertData)
+        alertSystem.createAlert(alertData),
       ]);
 
       // Should only create one unique alert due to deduplication
       const history = alertSystem.getAlertHistory();
       expect(history.length).toBe(1);
-      
+
       // All returned alerts should have same ID
       expect(alerts[0].id).toBe(alerts[1].id);
       expect(alerts[1].id).toBe(alerts[2].id);
@@ -257,23 +258,23 @@ describe("Alert System Integration Tests", () => {
       const alertData = {
         type: "error_rate_warning",
         severity: "warning",
-        message: "Error rate threshold exceeded"
+        message: "Error rate threshold exceeded",
       };
 
       // Set tight rate limit for testing
       alertSystem.setRateLimit("error_rate_warning", 2, 1000); // 2 per second
-      
+
       const alerts = [];
       for (let i = 0; i < 5; i++) {
         const alert = await alertSystem.createAlert({
           ...alertData,
-          metadata: { sequence: i }
+          metadata: { sequence: i },
         });
         alerts.push(alert);
       }
 
       // Should only create 2 alerts due to rate limiting
-      const uniqueAlerts = alerts.filter(a => a !== null);
+      const uniqueAlerts = alerts.filter((a) => a !== null);
       expect(uniqueAlerts.length).toBeLessThanOrEqual(2);
     });
   });
@@ -287,19 +288,19 @@ describe("Alert System Integration Tests", () => {
         { type: "cost_critical", severity: "critical" },
         { type: "error_rate_info", severity: "info" },
         { type: "error_rate_info", severity: "info" },
-        { type: "error_rate_info", severity: "info" }
+        { type: "error_rate_info", severity: "info" },
       ];
 
       for (const alert of alertTypes) {
         await alertSystem.createAlert({
           ...alert,
           message: `Test ${alert.type}`,
-          metadata: { test: true }
+          metadata: { test: true },
         });
       }
 
       const stats = alertSystem.getStatistics();
-      
+
       expect(stats.total).toBe(6);
       expect(stats.byType.latency_warning).toBe(2);
       expect(stats.byType.cost_critical).toBe(1);
@@ -315,9 +316,9 @@ describe("Alert System Integration Tests", () => {
       const now = Date.now();
       const alerts = [
         { timestamp: now - 1000 * 60 * 60 * 2 }, // 2 hours ago
-        { timestamp: now - 1000 * 60 * 30 }, // 30 minutes ago  
+        { timestamp: now - 1000 * 60 * 30 }, // 30 minutes ago
         { timestamp: now - 1000 * 60 * 5 }, // 5 minutes ago
-        { timestamp: now } // Now
+        { timestamp: now }, // Now
       ];
 
       for (let i = 0; i < alerts.length; i++) {
@@ -325,17 +326,19 @@ describe("Alert System Integration Tests", () => {
           type: "test_alert",
           severity: "info",
           message: `Test alert ${i}`,
-          metadata: { order: i }
+          metadata: { order: i },
         });
       }
 
       const trends = alertSystem.getTrends();
-      
+
       expect(trends).toHaveProperty("hourly");
-      expect(trends).toHaveProperty("daily"); 
+      expect(trends).toHaveProperty("daily");
       expect(trends).toHaveProperty("trend");
       expect(typeof trends.trend).toBe("string");
-      expect(["increasing", "decreasing", "stable"].includes(trends.trend)).toBe(true);
+      expect(
+        ["increasing", "decreasing", "stable"].includes(trends.trend)
+      ).toBe(true);
     });
   });
 
@@ -347,7 +350,7 @@ describe("Alert System Integration Tests", () => {
         {},
         { type: "" },
         { severity: "invalid" },
-        { message: null }
+        { message: null },
       ];
 
       for (const invalidAlert of invalidAlerts) {
@@ -370,21 +373,21 @@ describe("Alert System Integration Tests", () => {
 
       alertSystem.subscribe({
         id: "failing-sub",
-        callback: failingCallback
+        callback: failingCallback,
       });
 
       alertSystem.subscribe({
-        id: "working-sub", 
-        callback: workingCallback
+        id: "working-sub",
+        callback: workingCallback,
       });
 
       await alertSystem.createAlert({
         type: "test_alert",
         severity: "info",
-        message: "Test alert"
+        message: "Test alert",
       });
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Failing callback should be called but not crash system
       expect(failingCallback).toHaveBeenCalled();
@@ -398,16 +401,16 @@ describe("Alert System Integration Tests", () => {
     test("should handle database connectivity issues", async () => {
       // This test would need to mock database failures
       // For now, we test that the system doesn't crash with bad data
-      
+
       await expect(async () => {
         await alertSystem.createAlert({
           type: "database_test",
           severity: "warning",
           message: "Testing database resilience",
-          metadata: { 
+          metadata: {
             largeData: "x".repeat(10000), // Large data payload
-            circularRef: {} // Potential circular reference
-          }
+            circularRef: {}, // Potential circular reference
+          },
         });
       }).not.toThrow();
 
@@ -420,11 +423,11 @@ describe("Alert System Integration Tests", () => {
     test("should allow threshold customization", () => {
       const customThresholds = {
         latency: { warning: 50, critical: 100 },
-        errorRate: { warning: 0.01, critical: 0.03 }
+        errorRate: { warning: 0.01, critical: 0.03 },
       };
 
       alertSystem.updateThresholds(customThresholds);
-      
+
       const config = alertSystem.getConfiguration();
       expect(config.thresholds.latency.warning).toBe(50);
       expect(config.thresholds.latency.critical).toBe(100);
@@ -437,7 +440,7 @@ describe("Alert System Integration Tests", () => {
         return {
           ...alertData,
           customField: "processed",
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       });
 
@@ -446,11 +449,11 @@ describe("Alert System Integration Tests", () => {
       await alertSystem.createAlert({
         type: "custom_alert",
         severity: "info",
-        message: "Custom processed alert"
+        message: "Custom processed alert",
       });
 
       expect(customProcessor).toHaveBeenCalled();
-      
+
       const history = alertSystem.getAlertHistory();
       expect(history.length).toBe(1);
       expect(history[0].customField).toBe("processed");
@@ -464,51 +467,54 @@ describe("Alert System Integration Tests", () => {
 
       const promises = [];
       for (let i = 0; i < alertCount; i++) {
-        promises.push(alertSystem.createAlert({
-          type: "performance_test",
-          severity: "info", 
-          message: `Performance test alert ${i}`,
-          metadata: { index: i }
-        }));
+        promises.push(
+          alertSystem.createAlert({
+            type: "performance_test",
+            severity: "info",
+            message: `Performance test alert ${i}`,
+            metadata: { index: i },
+          })
+        );
       }
 
       await Promise.all(promises);
-      
+
       const endTime = Date.now();
       const duration = endTime - startTime;
 
       // Should process 100 alerts in reasonable time
       expect(duration).toBeLessThan(5000); // 5 seconds max
-      
+
       const history = alertSystem.getAlertHistory();
       expect(history.length).toBeLessThanOrEqual(alertCount); // May be less due to deduplication
     });
 
     test("should maintain memory usage under control", async () => {
       const initialMemory = process.memoryUsage();
-      
+
       // Create many alerts
       for (let i = 0; i < 1000; i++) {
         await alertSystem.createAlert({
           type: "memory_test",
           severity: "info",
           message: `Memory test ${i}`,
-          metadata: { data: `large_string_${"x".repeat(1000)}` }
+          metadata: { data: `large_string_${"x".repeat(1000)}` },
         });
       }
 
       const finalMemory = process.memoryUsage();
       const memoryIncrease = finalMemory.heapUsed - initialMemory.heapUsed;
-      
+
       // Memory increase should be reasonable (less than 50MB)
       expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
-      
+
       // Test cleanup
       alertSystem.clearHistory();
       const afterCleanup = process.memoryUsage();
-      
+
       // Memory should decrease after cleanup (within 10MB of initial)
-      const afterCleanupIncrease = afterCleanup.heapUsed - initialMemory.heapUsed;
+      const afterCleanupIncrease =
+        afterCleanup.heapUsed - initialMemory.heapUsed;
       expect(afterCleanupIncrease).toBeLessThan(10 * 1024 * 1024);
     }, 30000);
   });
@@ -520,18 +526,18 @@ describe("Alert System Integration Tests", () => {
         connections: {
           alpaca: { count: 3, latency: 45, errors: 0 },
           polygon: { count: 2, latency: 180, errors: 5 }, // High latency and errors
-          finnhub: { count: 1, latency: 30, errors: 0 }
+          finnhub: { count: 1, latency: 30, errors: 0 },
         },
         totalCost: 42, // Approaching warning threshold
-        dataRate: 850 // Normal
+        dataRate: 850, // Normal
       };
 
       const alerts = await alertSystem.processLiveDataMetrics(liveDataMetrics);
-      
+
       // Should generate alerts for polygon issues and cost warning
       expect(alerts.length).toBeGreaterThan(0);
-      
-      const alertTypes = alerts.map(a => a.type);
+
+      const alertTypes = alerts.map((a) => a.type);
       expect(alertTypes).toContain("latency_warning");
       expect(alertTypes).toContain("cost_warning");
     });

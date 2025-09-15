@@ -15,11 +15,11 @@ class E2ECoverageReporter {
    * Track frontend code coverage
    */
   trackFrontendCoverage(coverageData) {
-    coverageData.forEach(file => {
+    coverageData.forEach((file) => {
       this.frontendCoverage.set(file.url, {
         totalLines: file.ranges.length,
-        coveredLines: file.ranges.filter(r => r.count > 0).length,
-        percentage: this.calculatePercentage(file.ranges)
+        coveredLines: file.ranges.filter((r) => r.count > 0).length,
+        percentage: this.calculatePercentage(file.ranges),
       });
     });
   }
@@ -31,7 +31,7 @@ class E2ECoverageReporter {
     const key = `${method} ${path}`;
     this.apiCoverage.set(key, {
       tested,
-      callCount: (this.apiCoverage.get(key)?.callCount || 0) + 1
+      callCount: (this.apiCoverage.get(key)?.callCount || 0) + 1,
     });
   }
 
@@ -41,8 +41,8 @@ class E2ECoverageReporter {
   trackJourneyCoverage(journey, steps) {
     this.journeyCoverage.set(journey, {
       totalSteps: steps.length,
-      completedSteps: steps.filter(s => s.completed).length,
-      steps
+      completedSteps: steps.filter((s) => s.completed).length,
+      steps,
     });
   }
 
@@ -55,14 +55,14 @@ class E2ECoverageReporter {
         frontend: this.getFrontendSummary(),
         api: this.getApiSummary(),
         journeys: this.getJourneySummary(),
-        overall: this.getOverallCoverage()
+        overall: this.getOverallCoverage(),
       },
       detailed: {
         frontend: Object.fromEntries(this.frontendCoverage),
         api: Object.fromEntries(this.apiCoverage),
-        journeys: Object.fromEntries(this.journeyCoverage)
+        journeys: Object.fromEntries(this.journeyCoverage),
       },
-      recommendations: this.getRecommendations()
+      recommendations: this.getRecommendations(),
     };
   }
 
@@ -72,14 +72,17 @@ class E2ECoverageReporter {
   getFrontendSummary() {
     const files = Array.from(this.frontendCoverage.values());
     const totalLines = files.reduce((sum, file) => sum + file.totalLines, 0);
-    const coveredLines = files.reduce((sum, file) => sum + file.coveredLines, 0);
-    
+    const coveredLines = files.reduce(
+      (sum, file) => sum + file.coveredLines,
+      0
+    );
+
     return {
       filesTotal: files.length,
-      filesCovered: files.filter(f => f.coveredLines > 0).length,
+      filesCovered: files.filter((f) => f.coveredLines > 0).length,
       linesTotal: totalLines,
       linesCovered: coveredLines,
-      percentage: totalLines > 0 ? (coveredLines / totalLines) * 100 : 0
+      percentage: totalLines > 0 ? (coveredLines / totalLines) * 100 : 0,
     };
   }
 
@@ -89,14 +92,14 @@ class E2ECoverageReporter {
   getApiSummary() {
     const endpoints = Array.from(this.apiCoverage.entries());
     const tested = endpoints.filter(([_, data]) => data.tested).length;
-    
+
     return {
       endpointsTotal: endpoints.length,
       endpointsTested: tested,
       percentage: endpoints.length > 0 ? (tested / endpoints.length) * 100 : 0,
       untested: endpoints
         .filter(([_, data]) => !data.tested)
-        .map(([endpoint]) => endpoint)
+        .map(([endpoint]) => endpoint),
     };
   }
 
@@ -106,14 +109,19 @@ class E2ECoverageReporter {
   getJourneySummary() {
     const journeys = Array.from(this.journeyCoverage.values());
     const totalSteps = journeys.reduce((sum, j) => sum + j.totalSteps, 0);
-    const completedSteps = journeys.reduce((sum, j) => sum + j.completedSteps, 0);
-    
+    const completedSteps = journeys.reduce(
+      (sum, j) => sum + j.completedSteps,
+      0
+    );
+
     return {
       journeysTotal: journeys.length,
-      journeysCompleted: journeys.filter(j => j.completedSteps === j.totalSteps).length,
+      journeysCompleted: journeys.filter(
+        (j) => j.completedSteps === j.totalSteps
+      ).length,
       stepsTotal: totalSteps,
       stepsCompleted: completedSteps,
-      percentage: totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
+      percentage: totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0,
     };
   }
 
@@ -124,14 +132,14 @@ class E2ECoverageReporter {
     const frontend = this.getFrontendSummary().percentage;
     const api = this.getApiSummary().percentage;
     const journeys = this.getJourneySummary().percentage;
-    
+
     // Weighted average (journeys most important for E2E)
-    const weightedScore = (journeys * 0.5) + (api * 0.3) + (frontend * 0.2);
-    
+    const weightedScore = journeys * 0.5 + api * 0.3 + frontend * 0.2;
+
     return {
       score: Math.round(weightedScore * 100) / 100,
       breakdown: { frontend, api, journeys },
-      grade: this.getGrade(weightedScore)
+      grade: this.getGrade(weightedScore),
     };
   }
 
@@ -143,34 +151,34 @@ class E2ECoverageReporter {
     const summary = {
       frontend: this.getFrontendSummary(),
       api: this.getApiSummary(),
-      journeys: this.getJourneySummary()
+      journeys: this.getJourneySummary(),
     };
 
     if (summary.journeys.percentage < 80) {
       recommendations.push({
-        type: 'critical',
-        area: 'User Journeys',
+        type: "critical",
+        area: "User Journeys",
         message: `Only ${summary.journeys.percentage.toFixed(1)}% journey coverage. Focus on completing critical user workflows.`,
-        priority: 1
+        priority: 1,
       });
     }
 
     if (summary.api.percentage < 70) {
       recommendations.push({
-        type: 'high',
-        area: 'API Endpoints',
+        type: "high",
+        area: "API Endpoints",
         message: `${summary.api.untested.length} API endpoints not tested. Add E2E tests for missing endpoints.`,
         priority: 2,
-        details: summary.api.untested.slice(0, 5) // Top 5 untested
+        details: summary.api.untested.slice(0, 5), // Top 5 untested
       });
     }
 
     if (summary.frontend.percentage < 60) {
       recommendations.push({
-        type: 'medium',
-        area: 'Frontend Code',
+        type: "medium",
+        area: "Frontend Code",
         message: `Frontend coverage at ${summary.frontend.percentage.toFixed(1)}%. Consider adding more comprehensive E2E interactions.`,
-        priority: 3
+        priority: 3,
       });
     }
 
@@ -181,34 +189,34 @@ class E2ECoverageReporter {
    * Get coverage grade
    */
   getGrade(percentage) {
-    if (percentage >= 90) return 'A+';
-    if (percentage >= 80) return 'A';
-    if (percentage >= 70) return 'B';
-    if (percentage >= 60) return 'C';
-    if (percentage >= 50) return 'D';
-    return 'F';
+    if (percentage >= 90) return "A+";
+    if (percentage >= 80) return "A";
+    if (percentage >= 70) return "B";
+    if (percentage >= 60) return "C";
+    if (percentage >= 50) return "D";
+    return "F";
   }
 
   /**
    * Calculate percentage helper
    */
   calculatePercentage(ranges) {
-    const covered = ranges.filter(r => r.count > 0).length;
+    const covered = ranges.filter((r) => r.count > 0).length;
     return ranges.length > 0 ? (covered / ranges.length) * 100 : 0;
   }
 
   /**
    * Export coverage data to file
    */
-  exportToFile(filename = 'e2e-coverage-report.json') {
-    const fs = require('fs');
+  exportToFile(filename = "e2e-coverage-report.json") {
+    const fs = require("fs");
     const report = this.generateReport();
-    
+
     fs.writeFileSync(filename, JSON.stringify(report, null, 2));
-    
+
     // Also generate human-readable HTML report
-    this.generateHtmlReport(report, filename.replace('.json', '.html'));
-    
+    this.generateHtmlReport(report, filename.replace(".json", ".html"));
+
     return report;
   }
 
@@ -263,13 +271,17 @@ class E2ECoverageReporter {
 
       <div class="recommendations">
         <h2>Recommendations</h2>
-        ${report.recommendations.map(rec => `
+        ${report.recommendations
+          .map(
+            (rec) => `
           <div class="${rec.type}">
             <h3>${rec.area}</h3>
             <p>${rec.message}</p>
-            ${rec.details ? `<div class="untested">Untested: ${rec.details.join(', ')}</div>` : ''}
+            ${rec.details ? `<div class="untested">Untested: ${rec.details.join(", ")}</div>` : ""}
           </div>
-        `).join('')}
+        `
+          )
+          .join("")}
       </div>
 
       <div style="margin-top: 40px; font-size: 12px; color: #666;">
@@ -279,7 +291,7 @@ class E2ECoverageReporter {
     </html>
     `;
 
-    const fs = require('fs');
+    const fs = require("fs");
     fs.writeFileSync(filename, html);
   }
 }
@@ -289,19 +301,23 @@ module.exports = E2ECoverageReporter;
 // Example usage:
 if (require.main === module) {
   const reporter = new E2ECoverageReporter();
-  
+
   // Example data
-  reporter.trackJourneyCoverage('authentication', [
-    { name: 'sign_up', completed: true },
-    { name: 'sign_in', completed: true },
-    { name: 'sign_out', completed: true },
-    { name: 'password_reset', completed: false }
+  reporter.trackJourneyCoverage("authentication", [
+    { name: "sign_up", completed: true },
+    { name: "sign_in", completed: true },
+    { name: "sign_out", completed: true },
+    { name: "password_reset", completed: false },
   ]);
 
-  reporter.trackApiCoverage('GET', '/api/portfolio', true);
-  reporter.trackApiCoverage('POST', '/api/orders', true);
-  reporter.trackApiCoverage('DELETE', '/api/watchlist/:id', false);
+  reporter.trackApiCoverage("GET", "/api/portfolio", true);
+  reporter.trackApiCoverage("POST", "/api/orders", true);
+  reporter.trackApiCoverage("DELETE", "/api/watchlist/:id", false);
 
-  const report = reporter.exportToFile('sample-e2e-coverage.json');
-  console.log('E2E Coverage:', report.summary.overall.score + '%', report.summary.overall.grade);
+  const report = reporter.exportToFile("sample-e2e-coverage.json");
+  console.log(
+    "E2E Coverage:",
+    report.summary.overall.score + "%",
+    report.summary.overall.grade
+  );
 }

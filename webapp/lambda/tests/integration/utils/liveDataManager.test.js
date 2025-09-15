@@ -3,7 +3,10 @@
  * Tests real-time data management and streaming functionality
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 const LiveDataManager = require("../../../utils/liveDataManager");
 
 describe("Live Data Manager Integration Tests", () => {
@@ -21,23 +24,23 @@ describe("Live Data Manager Integration Tests", () => {
   describe("Dashboard Status Management", () => {
     test("should get comprehensive dashboard status", () => {
       const dashboardStatus = liveDataManager.getDashboardStatus();
-      
+
       expect(dashboardStatus).toBeDefined();
       expect(dashboardStatus.providers).toBeDefined();
       expect(dashboardStatus.global).toBeDefined();
       expect(dashboardStatus.limits).toBeDefined();
       expect(dashboardStatus.alerts).toBeDefined();
       expect(dashboardStatus.recommendations).toBeDefined();
-      
+
       // Check global metrics
-      expect(typeof dashboardStatus.global.totalConnections).toBe('number');
-      expect(typeof dashboardStatus.global.totalSymbols).toBe('number');
-      expect(typeof dashboardStatus.global.totalSubscribers).toBe('number');
+      expect(typeof dashboardStatus.global.totalConnections).toBe("number");
+      expect(typeof dashboardStatus.global.totalSymbols).toBe("number");
+      expect(typeof dashboardStatus.global.totalSubscribers).toBe("number");
     });
 
     test("should get provider status by ID", () => {
       const alpacaStatus = liveDataManager.getProviderStatus("alpaca");
-      
+
       expect(alpacaStatus).toBeDefined();
       expect(alpacaStatus.name).toBe("Alpaca Markets");
       expect(alpacaStatus.rateLimits).toBeDefined();
@@ -48,7 +51,8 @@ describe("Live Data Manager Integration Tests", () => {
     });
 
     test("should handle non-existent provider", () => {
-      const nonExistentProvider = liveDataManager.getProviderStatus("nonexistent");
+      const nonExistentProvider =
+        liveDataManager.getProviderStatus("nonexistent");
       expect(nonExistentProvider).toBeNull();
     });
   });
@@ -59,7 +63,11 @@ describe("Live Data Manager Integration Tests", () => {
       const provider = "alpaca";
       const symbols = ["AAPL", "GOOGL"];
 
-      const result = liveDataManager.addConnection(connectionId, provider, symbols);
+      const result = liveDataManager.addConnection(
+        connectionId,
+        provider,
+        symbols
+      );
 
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
@@ -73,7 +81,7 @@ describe("Live Data Manager Integration Tests", () => {
       liveDataManager.addConnection(connectionId, "alpaca", ["MSFT"]);
 
       const status = liveDataManager.getConnectionStatus(connectionId);
-      
+
       expect(status).toBeDefined();
       expect(status.connectionId).toBe(connectionId);
       expect(status.provider).toBe("alpaca");
@@ -104,12 +112,14 @@ describe("Live Data Manager Integration Tests", () => {
     test("should handle connection limit enforcement", () => {
       const connections = [];
       let limitReached = false;
-      
+
       // Add connections up to the limit
       for (let i = 0; i < 20; i++) {
         const connectionId = `limit-test-${i}`;
-        const result = liveDataManager.addConnection(connectionId, "alpaca", ["AAPL"]);
-        
+        const result = liveDataManager.addConnection(connectionId, "alpaca", [
+          "AAPL",
+        ]);
+
         if (result && result.success) {
           connections.push(connectionId);
         } else {
@@ -123,7 +133,7 @@ describe("Live Data Manager Integration Tests", () => {
       expect(connections.length > 0 || limitReached).toBe(true);
 
       // Clean up
-      connections.forEach(connectionId => {
+      connections.forEach((connectionId) => {
         liveDataManager.removeConnection(connectionId);
       });
     });
@@ -139,7 +149,12 @@ describe("Live Data Manager Integration Tests", () => {
       // First add a connection
       liveDataManager.addConnection(connectionId, provider, [symbol]);
 
-      const result = liveDataManager.addSubscription(symbol, provider, connectionId, userId);
+      const result = liveDataManager.addSubscription(
+        symbol,
+        provider,
+        connectionId,
+        userId
+      );
 
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
@@ -163,7 +178,7 @@ describe("Live Data Manager Integration Tests", () => {
 
       expect(Array.isArray(subscriptions)).toBe(true);
       expect(subscriptions.length).toBeGreaterThan(0);
-      
+
       const subscription = subscriptions[0];
       expect(subscription.symbol).toBe(symbol);
       expect(subscription.provider).toBe(provider);
@@ -223,9 +238,13 @@ describe("Live Data Manager Integration Tests", () => {
     test("should track provider usage successfully", () => {
       const providerId = "alpaca";
       const requests = 10;
-      const cost = 5.50;
+      const cost = 5.5;
 
-      const result = liveDataManager.trackProviderUsage(providerId, requests, cost);
+      const result = liveDataManager.trackProviderUsage(
+        providerId,
+        requests,
+        cost
+      );
 
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
@@ -267,13 +286,13 @@ describe("Live Data Manager Integration Tests", () => {
       const latencies = [100, 150, 200, 250, 300];
 
       // Track multiple latency measurements
-      latencies.forEach(latency => {
+      latencies.forEach((latency) => {
         liveDataManager.trackLatency(providerId, latency);
       });
 
       const avgLatency = liveDataManager.calculateAverageLatency(providerId);
 
-      expect(typeof avgLatency).toBe('number');
+      expect(typeof avgLatency).toBe("number");
       expect(avgLatency).toBeGreaterThan(0);
       expect(avgLatency).toBeLessThanOrEqual(300);
     });
@@ -296,10 +315,10 @@ describe("Live Data Manager Integration Tests", () => {
       const performance = liveDataManager.calculateGlobalPerformance();
 
       expect(performance).toBeDefined();
-      expect(typeof performance.averageLatency).toBe('number');
-      expect(typeof performance.globalSuccessRate).toBe('number');
-      expect(typeof performance.activeProviders).toBe('number');
-      expect(typeof performance.totalErrors).toBe('number');
+      expect(typeof performance.averageLatency).toBe("number");
+      expect(typeof performance.globalSuccessRate).toBe("number");
+      expect(typeof performance.activeProviders).toBe("number");
+      expect(typeof performance.totalErrors).toBe("number");
 
       expect(performance.averageLatency).toBeGreaterThanOrEqual(0);
       expect(performance.globalSuccessRate).toBeGreaterThanOrEqual(0);
@@ -343,7 +362,7 @@ describe("Live Data Manager Integration Tests", () => {
       }
 
       // Some requests should be rate limited
-      const rateLimitedRequests = results.filter(r => r.rateLimited);
+      const rateLimitedRequests = results.filter((r) => r.rateLimited);
       expect(rateLimitedRequests.length).toBeGreaterThan(0);
     });
 
@@ -370,20 +389,20 @@ describe("Live Data Manager Integration Tests", () => {
       for (let i = 0; i < 8; i++) {
         liveDataManager.addConnection(`alert-test-${i}`, "alpaca", ["AAPL"]);
       }
-      
+
       // Track some usage
       liveDataManager.trackProviderUsage("alpaca", 180, 45.0);
 
       const alerts = liveDataManager.generateAlerts();
 
       expect(Array.isArray(alerts)).toBe(true);
-      
-      alerts.forEach(alert => {
+
+      alerts.forEach((alert) => {
         expect(alert.type).toBeDefined();
         expect(alert.severity).toBeDefined();
         expect(alert.message).toBeDefined();
         expect(alert.action).toBeDefined();
-        expect(['high', 'medium', 'low']).toContain(alert.severity);
+        expect(["high", "medium", "low"]).toContain(alert.severity);
       });
 
       // Clean up connections
@@ -393,15 +412,16 @@ describe("Live Data Manager Integration Tests", () => {
     });
 
     test("should generate optimization recommendations", () => {
-      const recommendations = liveDataManager.generateOptimizationRecommendations();
+      const recommendations =
+        liveDataManager.generateOptimizationRecommendations();
 
       expect(Array.isArray(recommendations)).toBe(true);
-      
-      recommendations.forEach(recommendation => {
+
+      recommendations.forEach((recommendation) => {
         expect(recommendation.type).toBeDefined();
         expect(recommendation.message).toBeDefined();
         expect(recommendation.action).toBeDefined();
-        expect(typeof recommendation.autoApply).toBe('boolean');
+        expect(typeof recommendation.autoApply).toBe("boolean");
       });
     });
   });
@@ -421,7 +441,7 @@ describe("Live Data Manager Integration Tests", () => {
       const providerId = "alpaca";
       const newStatus = "active";
 
-      liveDataManager.once('providerStatusChange', (event) => {
+      liveDataManager.once("providerStatusChange", (event) => {
         expect(event).toBeDefined();
         expect(event.provider).toBe(providerId);
         expect(event.newStatus).toBe(newStatus);
@@ -437,17 +457,30 @@ describe("Live Data Manager Integration Tests", () => {
     test("should generate analytics report", () => {
       // Add some test data
       const userId = "analytics-user";
-      liveDataManager.addConnection("analytics-conn", "alpaca", ["AAPL", "GOOGL"]);
-      liveDataManager.addSubscription("AAPL", "alpaca", "analytics-conn", userId);
-      liveDataManager.addSubscription("GOOGL", "alpaca", "analytics-conn", userId);
+      liveDataManager.addConnection("analytics-conn", "alpaca", [
+        "AAPL",
+        "GOOGL",
+      ]);
+      liveDataManager.addSubscription(
+        "AAPL",
+        "alpaca",
+        "analytics-conn",
+        userId
+      );
+      liveDataManager.addSubscription(
+        "GOOGL",
+        "alpaca",
+        "analytics-conn",
+        userId
+      );
 
       const report = liveDataManager.generateAnalyticsReport();
 
       expect(report).toBeDefined();
-      expect(typeof report.totalSubscriptions).toBe('number');
-      expect(typeof report.totalSymbols).toBe('number');
+      expect(typeof report.totalSubscriptions).toBe("number");
+      expect(typeof report.totalSymbols).toBe("number");
       expect(Array.isArray(report.symbols)).toBe(true);
-      expect(typeof report.subscriberCounts).toBe('object');
+      expect(typeof report.subscriberCounts).toBe("object");
       expect(report.generatedAt).toBeDefined();
 
       // Clean up
@@ -458,12 +491,12 @@ describe("Live Data Manager Integration Tests", () => {
       const report = liveDataManager.generatePerformanceReport();
 
       expect(report).toBeDefined();
-      expect(typeof report.uptime).toBe('number');
-      expect(typeof report.dataPoints).toBe('number');
-      expect(typeof report.activeConnections).toBe('number');
-      expect(typeof report.totalSubscriptions).toBe('number');
-      expect(typeof report.errorRate).toBe('number');
-      expect(typeof report.avgResponseTime).toBe('number');
+      expect(typeof report.uptime).toBe("number");
+      expect(typeof report.dataPoints).toBe("number");
+      expect(typeof report.activeConnections).toBe("number");
+      expect(typeof report.totalSubscriptions).toBe("number");
+      expect(typeof report.errorRate).toBe("number");
+      expect(typeof report.avgResponseTime).toBe("number");
       expect(report.latencyStats).toBeDefined();
       expect(report.generatedAt).toBeDefined();
 
@@ -484,9 +517,9 @@ describe("Live Data Manager Integration Tests", () => {
       expect(result.subscribed.length).toBeGreaterThan(0);
       expect(result.subscribed.length).toBeLessThanOrEqual(symbols.length);
       expect(result.userId).toBe(userId);
-      
+
       // Verify that all returned symbols are from the original list
-      result.subscribed.forEach(symbol => {
+      result.subscribed.forEach((symbol) => {
         expect(symbols).toContain(symbol);
       });
     });
@@ -519,7 +552,10 @@ describe("Live Data Manager Integration Tests", () => {
       const latencyResult = liveDataManager.trackLatency("nonexistent", 100);
       expect(latencyResult.success).toBe(false);
 
-      const errorResult = liveDataManager.trackError("nonexistent", "test error");
+      const errorResult = liveDataManager.trackError(
+        "nonexistent",
+        "test error"
+      );
       expect(errorResult.success).toBe(false);
 
       const avgLatency = liveDataManager.calculateAverageLatency("nonexistent");

@@ -3,7 +3,10 @@
  * Tests the complete AI strategy generation workflow with real service integration
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let AIStrategyGenerator;
 let app;
@@ -22,7 +25,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
   describe("Service Initialization", () => {
     test("should initialize service with proper configuration", () => {
       const generator = new AIStrategyGenerator();
-      
+
       expect(generator).toBeInstanceOf(AIStrategyGenerator);
       expect(generator.aiConfig).toHaveProperty("model", "claude-3-haiku");
       expect(generator.aiConfig).toHaveProperty("maxTokens", 4000);
@@ -35,7 +38,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
     test("should generate unique correlation IDs", () => {
       const generator1 = new AIStrategyGenerator();
       const generator2 = new AIStrategyGenerator();
-      
+
       expect(generator1.correlationId).toBeDefined();
       expect(generator2.correlationId).toBeDefined();
       expect(generator1.correlationId).not.toBe(generator2.correlationId);
@@ -50,11 +53,12 @@ describe("AI Strategy Generator Service Integration Tests", () => {
     });
 
     test("should generate strategy from natural language description", async () => {
-      const description = "Buy when RSI is below 30 and sell when RSI is above 70";
+      const description =
+        "Buy when RSI is below 30 and sell when RSI is above 70";
       const preferences = {
         risk_level: "medium",
         timeframe: "1day",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const result = await generator.generateStrategy(description, preferences);
@@ -70,17 +74,17 @@ describe("AI Strategy Generator Service Integration Tests", () => {
 
     test("should handle different asset types", async () => {
       const description = "Simple moving average crossover strategy";
-      
+
       const stockResult = await generator.generateStrategy(description, {
         risk_level: "low",
         timeframe: "1hour",
-        asset_type: "stock"
+        asset_type: "stock",
       });
 
       const cryptoResult = await generator.generateStrategy(description, {
-        risk_level: "high", 
+        risk_level: "high",
         timeframe: "15min",
-        asset_type: "crypto"
+        asset_type: "crypto",
       });
 
       expect(stockResult.success).toBe(true);
@@ -94,7 +98,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "medium",
         timeframe: "1day",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const result = await generator.generateStrategy(description, preferences);
@@ -107,11 +111,12 @@ describe("AI Strategy Generator Service Integration Tests", () => {
     });
 
     test("should handle complex multi-indicator strategies", async () => {
-      const description = "Buy when RSI < 30 AND MACD > signal line AND volume > 20-day average, sell when RSI > 70";
+      const description =
+        "Buy when RSI < 30 AND MACD > signal line AND volume > 20-day average, sell when RSI > 70";
       const preferences = {
         risk_level: "high",
         timeframe: "1hour",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const result = await generator.generateStrategy(description, preferences);
@@ -137,13 +142,13 @@ describe("AI Strategy Generator Service Integration Tests", () => {
         parameters: [
           { name: "rsi_period", type: "int", value: 14, min: 5, max: 50 },
           { name: "rsi_low", type: "float", value: 30, min: 10, max: 40 },
-          { name: "rsi_high", type: "float", value: 70, min: 60, max: 90 }
-        ]
+          { name: "rsi_high", type: "float", value: 70, min: 60, max: 90 },
+        ],
       };
 
       const result = await generator.optimizeStrategy(strategy, {
         optimization_method: "grid_search",
-        metric: "sharpe_ratio"
+        metric: "sharpe_ratio",
       });
 
       expect(result).toHaveProperty("success", true);
@@ -157,13 +162,13 @@ describe("AI Strategy Generator Service Integration Tests", () => {
         code: "def run_strategy(data, sma_fast=10, sma_slow=20):",
         parameters: [
           { name: "sma_fast", type: "int", value: 10, min: 5, max: 20 },
-          { name: "sma_slow", type: "int", value: 20, min: 15, max: 50 }
-        ]
+          { name: "sma_slow", type: "int", value: 20, min: 15, max: 50 },
+        ],
       };
 
       const result = await generator.optimizeStrategy(strategy, {
         optimization_method: "bayesian",
-        metric: "total_return"
+        metric: "total_return",
       });
 
       expect(result.success).toBe(true);
@@ -185,7 +190,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "medium",
         timeframe: "1day",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const result = await generator.generateStrategy(description, preferences);
@@ -199,7 +204,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
     test("should provide educational content", async () => {
       const strategy = {
         code: "def run_strategy(data): # RSI strategy",
-        description: "RSI oversold/overbought strategy"
+        description: "RSI oversold/overbought strategy",
       };
 
       const result = await generator.explainStrategy(strategy);
@@ -225,10 +230,13 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "medium",
         timeframe: "1day",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
-      const result = await generator.generateStrategy(invalidDescription, preferences);
+      const result = await generator.generateStrategy(
+        invalidDescription,
+        preferences
+      );
 
       expect(result).toHaveProperty("success", false);
       expect(result).toHaveProperty("error");
@@ -240,10 +248,13 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const invalidPreferences = {
         risk_level: "invalid_level",
         timeframe: "invalid_timeframe",
-        asset_type: "invalid_type"
+        asset_type: "invalid_type",
       };
 
-      const result = await generator.generateStrategy(description, invalidPreferences);
+      const result = await generator.generateStrategy(
+        description,
+        invalidPreferences
+      );
 
       expect(result).toHaveProperty("success", false);
       expect(result).toHaveProperty("error");
@@ -259,7 +270,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "medium",
         timeframe: "1day",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const result = await generator.generateStrategy(description, preferences);
@@ -274,7 +285,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "high",
         timeframe: "1min",
-        asset_type: "crypto"
+        asset_type: "crypto",
       };
 
       // Set a very short timeout for testing
@@ -306,7 +317,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "medium",
         timeframe: "1day",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const startTime = Date.now();
@@ -317,7 +328,9 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       expect(result).toHaveProperty("metadata");
       expect(result.metadata).toHaveProperty("generation_time_ms");
       expect(result.metadata.generation_time_ms).toBeGreaterThan(0);
-      expect(result.metadata.generation_time_ms).toBeLessThan(endTime - startTime + 100);
+      expect(result.metadata.generation_time_ms).toBeLessThan(
+        endTime - startTime + 100
+      );
     });
 
     test("should handle concurrent strategy generation requests", async () => {
@@ -327,7 +340,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
           generator.generateStrategy(`RSI strategy ${i}`, {
             risk_level: "medium",
             timeframe: "1day",
-            asset_type: "stock"
+            asset_type: "stock",
           })
         );
       }
@@ -341,7 +354,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       });
 
       // All correlation IDs should be different
-      const correlationIds = results.map(r => r.metadata.correlationId);
+      const correlationIds = results.map((r) => r.metadata.correlationId);
       const uniqueIds = new Set(correlationIds);
       expect(uniqueIds.size).toBe(correlationIds.length);
     });
@@ -354,13 +367,13 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const preferences = {
         risk_level: "low",
         timeframe: "1hour",
-        asset_type: "stock"
+        asset_type: "stock",
       };
 
       const result = await generator.generateStrategy(description, preferences);
 
       expect(result.success).toBe(true);
-      
+
       // Test storage capability
       if (result.strategy && result.strategy.metadata) {
         expect(result.strategy.metadata).toHaveProperty("storage_ready", true);
@@ -373,7 +386,7 @@ describe("AI Strategy Generator Service Integration Tests", () => {
       const strategy = {
         code: "def run_strategy(data): pass",
         description: "Test strategy",
-        parameters: []
+        parameters: [],
       };
 
       const exportResult = await generator.exportStrategy(strategy, "json");

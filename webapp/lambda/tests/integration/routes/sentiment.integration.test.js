@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -16,14 +19,13 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment", () => {
     test("should return sentiment API information", async () => {
-      const response = await request(app)
-        .get("/api/sentiment");
+      const response = await request(app).get("/api/sentiment");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("message", "Sentiment API - Ready");
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("timestamp");
-      
+
       // Validate timestamp
       const timestamp = new Date(response.body.timestamp);
       expect(timestamp).toBeInstanceOf(Date);
@@ -33,21 +35,22 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/health", () => {
     test("should return health status", async () => {
-      const response = await request(app)
-        .get("/api/sentiment/health");
+      const response = await request(app).get("/api/sentiment/health");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "sentiment");
-      expect(response.body).toHaveProperty("message", "Sentiment analysis service is running");
+      expect(response.body).toHaveProperty(
+        "message",
+        "Sentiment analysis service is running"
+      );
       expect(response.body).toHaveProperty("timestamp");
     });
   });
 
   describe("GET /api/sentiment/ping", () => {
     test("should return ping response", async () => {
-      const response = await request(app)
-        .get("/api/sentiment/ping");
+      const response = await request(app).get("/api/sentiment/ping");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("status", "ok");
@@ -64,7 +67,10 @@ describe("Sentiment Routes", () => {
 
       expect([400, 422]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Symbol parameter required");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Symbol parameter required"
+      );
       expect(response.body).toHaveProperty("message");
       expect(response.body.message).toContain("Please provide a symbol");
     });
@@ -75,7 +81,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -115,14 +121,14 @@ describe("Sentiment Routes", () => {
 
     test("should handle different period parameters", async () => {
       const periods = ["1d", "3d", "7d", "14d", "30d"];
-      
+
       for (const period of periods) {
         const response = await request(app)
           .get(`/api/sentiment/analysis?symbol=AAPL&period=${period}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
         expect([200, 404]).toContain(response.status);
-        
+
         if (response.status === 200) {
           expect(response.body.data.period).toBe(period);
         }
@@ -135,7 +141,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.period).toBe("7d");
       }
@@ -147,7 +153,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         // Should fall back to default period
         expect(response.body.data.period).toBe("invalid");
@@ -160,7 +166,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("AAPL");
       }
@@ -172,7 +178,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("BRK.A");
       }
@@ -184,7 +190,13 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        const validGrades = ['Very Positive', 'Positive', 'Neutral', 'Negative', 'Very Negative'];
+        const validGrades = [
+          "Very Positive",
+          "Positive",
+          "Neutral",
+          "Negative",
+          "Very Negative",
+        ];
         expect(validGrades).toContain(response.body.data.sentiment_grade);
       }
     });
@@ -195,7 +207,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        const validTrends = ['improving', 'declining', 'stable'];
+        const validTrends = ["improving", "declining", "stable"];
         expect(validTrends).toContain(response.body.data.trend);
       }
     });
@@ -205,13 +217,16 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=META")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      if (response.status === 200 && response.body.data.recent_articles.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.recent_articles.length > 0
+      ) {
         const article = response.body.data.recent_articles[0];
         expect(article).toHaveProperty("title");
         expect(article).toHaveProperty("sentiment");
         expect(article).toHaveProperty("source");
         expect(article).toHaveProperty("published_at");
-        
+
         // Validate that published_at is a valid date
         const publishedDate = new Date(article.published_at);
         expect(publishedDate).toBeInstanceOf(Date);
@@ -228,7 +243,10 @@ describe("Sentiment Routes", () => {
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Social sentiment data not available");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Social sentiment data not available"
+      );
       expect(response.body).toHaveProperty("message");
       expect(response.body).toHaveProperty("data_source");
       expect(response.body).toHaveProperty("recommendation");
@@ -243,7 +261,10 @@ describe("Sentiment Routes", () => {
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Social sentiment data not available for symbol");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Social sentiment data not available for symbol"
+      );
       expect(response.body).toHaveProperty("message");
       expect(response.body.message).toContain("AAPL");
       expect(response.body).toHaveProperty("data_source");
@@ -251,7 +272,7 @@ describe("Sentiment Routes", () => {
 
     test("should handle different symbols", async () => {
       const symbols = ["MSFT", "TSLA", "GOOGL"];
-      
+
       for (const symbol of symbols) {
         const response = await request(app)
           .get(`/api/sentiment/social/${symbol}`)
@@ -280,7 +301,10 @@ describe("Sentiment Routes", () => {
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Trending sentiment data not available");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Trending sentiment data not available"
+      );
       expect(response.body).toHaveProperty("message");
       expect(response.body).toHaveProperty("data_source");
     });
@@ -293,7 +317,7 @@ describe("Sentiment Routes", () => {
         "/api/sentiment/health",
         "/api/sentiment/ping",
         "/api/sentiment/social",
-        "/api/sentiment/trending"
+        "/api/sentiment/trending",
       ];
 
       for (const endpoint of publicEndpoints) {
@@ -304,8 +328,9 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle sentiment analysis without authentication", async () => {
-      const response = await request(app)
-        .get("/api/sentiment/analysis?symbol=AAPL");
+      const response = await request(app).get(
+        "/api/sentiment/analysis?symbol=AAPL"
+      );
 
       // May work without auth or require it
       expect([200, 400, 401, 403, 500].includes(response.status)).toBe(true);
@@ -319,7 +344,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
@@ -349,7 +374,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("BRK.A");
       }
@@ -392,10 +417,11 @@ describe("Sentiment Routes", () => {
 
       if (response.status === 200) {
         const breakdown = response.body.data.sentiment_breakdown;
-        const totalPct = parseFloat(breakdown.positive_pct) + 
-                        parseFloat(breakdown.negative_pct) + 
-                        parseFloat(breakdown.neutral_pct);
-        
+        const totalPct =
+          parseFloat(breakdown.positive_pct) +
+          parseFloat(breakdown.negative_pct) +
+          parseFloat(breakdown.neutral_pct);
+
         // Percentages should add up to ~100% (allowing for rounding)
         if (totalPct > 0) {
           expect(totalPct).toBeCloseTo(100, 0);
@@ -407,28 +433,36 @@ describe("Sentiment Routes", () => {
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/sentiment/analysis?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(5000); // 5 second timeout
       expect([200, 400, 500].includes(response.status)).toBe(true);
     });
 
     test("should handle concurrent requests", async () => {
       const requests = [
-        request(app).get("/api/sentiment").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/sentiment/health").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/sentiment/ping").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/sentiment/social").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/sentiment")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/sentiment/health")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/sentiment/ping")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/sentiment/social")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
 
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 501].includes(response.status)).toBe(true);
       });
     });
@@ -441,7 +475,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("123");
       }
@@ -462,7 +496,7 @@ describe("Sentiment Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("AAPL");
         expect(response.body.data.period).toBe("7d");

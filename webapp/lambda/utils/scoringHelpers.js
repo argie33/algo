@@ -2,8 +2,8 @@
  * Scoring Helpers for Comprehensive Stock Scoring
  */
 
-const { query } = require('./database');
-const _logger = require('./logger');
+const { query } = require("./database");
+const _logger = require("./logger");
 
 /**
  * Calculate comprehensive scores for a stock
@@ -13,17 +13,13 @@ const _logger = require('./logger');
 async function calculateComprehensiveScores(symbol) {
   try {
     // Get all necessary data for scoring
-    const [
-      basicInfo,
-      financialData,
-      technicalData,
-      sentimentData,
-    ] = await Promise.all([
-      getBasicInfo(symbol),
-      getFinancialMetrics(symbol),
-      getTechnicalIndicators(symbol),
-      getSentimentData(symbol),
-    ]);
+    const [basicInfo, financialData, technicalData, sentimentData] =
+      await Promise.all([
+        getBasicInfo(symbol),
+        getFinancialMetrics(symbol),
+        getTechnicalIndicators(symbol),
+        getSentimentData(symbol),
+      ]);
 
     if (!basicInfo) {
       console.log(`No basic info found for ${symbol}`);
@@ -36,7 +32,10 @@ async function calculateComprehensiveScores(symbol) {
     const valueScore = calculateValueScore(basicInfo, financialData);
     const momentumScore = calculateMomentumScore(basicInfo, technicalData);
     const sentimentScore = calculateSentimentScore(sentimentData);
-    const positioningScore = calculatePositioningScore(basicInfo, technicalData);
+    const positioningScore = calculatePositioningScore(
+      basicInfo,
+      technicalData
+    );
 
     // Calculate weighted composite score
     const compositeScore = calculateCompositeScore({
@@ -58,7 +57,12 @@ async function calculateComprehensiveScores(symbol) {
       positioning_score: positioningScore,
       composite_score: compositeScore,
       calculation_date: new Date().toISOString().split("T")[0],
-      data_quality: assessDataQuality(basicInfo, financialData, technicalData, sentimentData),
+      data_quality: assessDataQuality(
+        basicInfo,
+        financialData,
+        technicalData,
+        sentimentData
+      ),
     };
   } catch (error) {
     console.error(`Error calculating scores for ${symbol}:`, error);
@@ -131,12 +135,12 @@ async function getFinancialMetrics(symbol) {
       `SELECT * FROM profitability_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
       [symbol]
     );
-    
+
     const combined = {};
     if (profitability.length > 0) {
       Object.assign(combined, profitability[0]);
     }
-    
+
     return Object.keys(combined).length > 0 ? combined : null;
   } catch (error) {
     console.error(`Error getting financial metrics for ${symbol}:`, error);
@@ -205,7 +209,10 @@ function calculateGrowthScore(basicInfo, financialData) {
 
   if (financialData) {
     // Revenue growth
-    if (financialData.revenue_growth_1y !== null && financialData.revenue_growth_1y !== undefined) {
+    if (
+      financialData.revenue_growth_1y !== null &&
+      financialData.revenue_growth_1y !== undefined
+    ) {
       const growth = parseFloat(financialData.revenue_growth_1y);
       const growthScore = 0.5 + growth / 0.4; // 40% growth = max score
       score += Math.min(Math.max(growthScore, 0), 1) * 0.5;
@@ -227,7 +234,10 @@ function calculateValueScore(basicInfo, financialData) {
 
   if (financialData) {
     // P/E ratio
-    if (financialData.trailing_pe !== null && financialData.trailing_pe !== undefined) {
+    if (
+      financialData.trailing_pe !== null &&
+      financialData.trailing_pe !== undefined
+    ) {
       const pe = parseFloat(financialData.trailing_pe);
       if (pe > 0 && pe < 100) {
         const peScore = Math.max(0, 1 - (pe - 10) / 20);
@@ -253,7 +263,12 @@ function calculateMomentumScore(basicInfo, technicalData) {
     // RSI component
     if (technicalData.rsi_14 !== null && technicalData.rsi_14 !== undefined) {
       const rsi = parseFloat(technicalData.rsi_14);
-      const rsiScore = rsi >= 50 && rsi <= 70 ? 1.0 : rsi > 70 ? Math.max(0, 1 - (rsi - 70) / 20) : Math.max(0, rsi / 50);
+      const rsiScore =
+        rsi >= 50 && rsi <= 70
+          ? 1.0
+          : rsi > 70
+            ? Math.max(0, 1 - (rsi - 70) / 20)
+            : Math.max(0, rsi / 50);
       score += rsiScore * 0.3;
       components++;
     }
@@ -269,10 +284,13 @@ function calculateMomentumScore(basicInfo, technicalData) {
 
 function calculateSentimentScore(sentimentData) {
   let score = 0.5; // Base score
-  
+
   if (sentimentData) {
     // Simple sentiment scoring
-    if (sentimentData.sentiment_score !== null && sentimentData.sentiment_score !== undefined) {
+    if (
+      sentimentData.sentiment_score !== null &&
+      sentimentData.sentiment_score !== undefined
+    ) {
       const sentiment = parseFloat(sentimentData.sentiment_score);
       score = (sentiment + 1) / 2; // Convert from -1,1 to 0,1
     }
@@ -283,10 +301,13 @@ function calculateSentimentScore(sentimentData) {
 
 function calculatePositioningScore(basicInfo, technicalData) {
   let score = 0.5; // Base score
-  
+
   // Simple positioning calculation
   if (technicalData) {
-    if (technicalData.price_vs_sma_200 !== null && technicalData.price_vs_sma_200 !== undefined) {
+    if (
+      technicalData.price_vs_sma_200 !== null &&
+      technicalData.price_vs_sma_200 !== undefined
+    ) {
       const priceVsSma200 = parseFloat(technicalData.price_vs_sma_200);
       score = priceVsSma200 > 0 ? Math.min(1, 0.5 + priceVsSma200 * 2) : 0.3;
     }
@@ -309,7 +330,11 @@ function calculateCompositeScore(scores) {
   let totalWeight = 0;
 
   Object.keys(weights).forEach((key) => {
-    if (scores[key] !== null && scores[key] !== undefined && !isNaN(scores[key])) {
+    if (
+      scores[key] !== null &&
+      scores[key] !== undefined &&
+      !isNaN(scores[key])
+    ) {
       compositeScore += scores[key] * weights[key];
       totalWeight += weights[key];
     }
@@ -323,7 +348,12 @@ function calculateCompositeScore(scores) {
   return Math.min(Math.max(compositeScore, 0), 1);
 }
 
-function assessDataQuality(basicInfo, financialData, technicalData, sentimentData) {
+function assessDataQuality(
+  basicInfo,
+  financialData,
+  technicalData,
+  sentimentData
+) {
   let qualityScore = 0;
   let maxScore = 4;
 

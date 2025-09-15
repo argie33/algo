@@ -5,7 +5,11 @@
 
 const request = require("supertest");
 const { app } = require("../../../index"); // Import the actual Express app
-const { query, initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  query,
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 describe("Risk Routes Integration", () => {
   beforeAll(async () => {
@@ -20,8 +24,7 @@ describe("Risk Routes Integration", () => {
 
   describe("GET /risk", () => {
     test("should return risk analysis data", async () => {
-      const response = await request(app)
-        .get("/risk");
+      const response = await request(app).get("/risk");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toBeDefined();
@@ -53,7 +56,7 @@ describe("Risk Routes Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .query({
           period: "1y",
-          confidence_level: 0.95
+          confidence_level: 0.95,
         });
 
       expect([200, 404]).toContain(response.status);
@@ -85,8 +88,7 @@ describe("Risk Routes Integration", () => {
 
   describe("GET /risk/health", () => {
     test("should return health status", async () => {
-      const response = await request(app)
-        .get("/risk/health");
+      const response = await request(app).get("/risk/health");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toBeDefined();
@@ -105,16 +107,14 @@ describe("Risk Routes Integration", () => {
     });
 
     test("should return consistent response format", async () => {
-      const response = await request(app)
-        .get("/risk");
+      const response = await request(app).get("/risk");
 
-      expect(response.headers['content-type']).toMatch(/json/);
-      expect(typeof response.body).toBe('object');
+      expect(response.headers["content-type"]).toMatch(/json/);
+      expect(typeof response.body).toBe("object");
     });
 
     test("should handle database connection issues", async () => {
-      const response = await request(app)
-        .get("/risk");
+      const response = await request(app).get("/risk");
 
       // Should not crash even if database issues occur
       expect([200, 404]).toContain(response.status);
@@ -124,12 +124,10 @@ describe("Risk Routes Integration", () => {
 
   describe("Security tests", () => {
     test("should handle SQL injection attempts", async () => {
-      const response = await request(app)
-        .get("/risk")
-        .query({ 
-          symbol: "'; DROP TABLE trading_alerts; --",
-          type: "portfolio'; DELETE FROM risk_metrics; --"
-        });
+      const response = await request(app).get("/risk").query({
+        symbol: "'; DROP TABLE trading_alerts; --",
+        type: "portfolio'; DELETE FROM risk_metrics; --",
+      });
 
       // Should handle malicious input safely
       expect([200, 404]).toContain(response.status);
@@ -142,7 +140,7 @@ describe("Risk Routes Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .query({
           period: "<script>alert('xss')</script>",
-          confidence_level: "<img src=x onerror=alert('xss')>"
+          confidence_level: "<img src=x onerror=alert('xss')>",
         });
 
       expect([200, 404]).toContain(response.status);
@@ -155,7 +153,7 @@ describe("Risk Routes Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .query({
           period: "'; DROP TABLE portfolio_holdings; --",
-          confidence_level: "999999"
+          confidence_level: "999999",
         });
 
       expect([200, 404]).toContain(response.status);
@@ -166,12 +164,11 @@ describe("Risk Routes Integration", () => {
   describe("Performance tests", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
-      const response = await request(app)
-        .get("/risk");
+
+      const response = await request(app).get("/risk");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect([200, 404]).toContain(response.status);
       expect(responseTime).toBeLessThan(5000);
     });
@@ -183,7 +180,7 @@ describe("Risk Routes Integration", () => {
 
       const responses = await Promise.all(requests);
 
-      responses.forEach(response => {
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
         expect(response.body).toBeDefined();
       });

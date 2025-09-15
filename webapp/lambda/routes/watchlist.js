@@ -27,13 +27,16 @@ router.get("/", authenticateToken, async (req, res) => {
 
     // Add null checking for database availability
     if (!watchlists || !watchlists.rows) {
-      console.warn("Watchlist query returned null result, database may be unavailable");
+      console.warn(
+        "Watchlist query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Watchlist data temporarily unavailable - database connection issue",
+        message:
+          "Watchlist data temporarily unavailable - database connection issue",
         data: [],
-        total: 0
+        total: 0,
       });
     }
 
@@ -60,7 +63,7 @@ router.get("/items", authenticateToken, async (req, res) => {
 
     console.log(`📋 Watchlist items requested for user: ${userId}`);
 
-    // Build query based on filters  
+    // Build query based on filters
     let itemsQuery = `
       SELECT 
         wi.symbol,
@@ -85,7 +88,7 @@ router.get("/items", authenticateToken, async (req, res) => {
       LEFT JOIN stocks s ON wi.symbol = s.symbol
       WHERE w.user_id = $1
     `;
-    
+
     const queryParams = [userId];
     let paramIndex = 2;
 
@@ -101,7 +104,7 @@ router.get("/items", authenticateToken, async (req, res) => {
         return res.status(400).json({
           success: false,
           error: "Invalid watchlist_id parameter",
-          message: "watchlist_id must be a valid number"
+          message: "watchlist_id must be a valid number",
         });
       }
       itemsQuery += ` AND w.id = $${paramIndex}`;
@@ -116,22 +119,34 @@ router.get("/items", authenticateToken, async (req, res) => {
     const itemsResult = await query(itemsQuery, queryParams);
 
     if (!itemsResult || !itemsResult.rows) {
-      console.warn("Watchlist items query returned null result, database may be unavailable");
+      console.warn(
+        "Watchlist items query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Watchlist items temporarily unavailable - database connection issue",
+        message:
+          "Watchlist items temporarily unavailable - database connection issue",
         data: [],
-        total: 0
+        total: 0,
       });
     }
 
     // Calculate summary statistics
     const items = itemsResult.rows;
-    const totalValue = items.reduce((sum, item) => sum + (item.current_price || 0), 0);
-    const totalChange = items.reduce((sum, item) => sum + (item.change_amount || 0), 0);
-    const avgChangePercent = items.length > 0 ? 
-      items.reduce((sum, item) => sum + (item.change_percent || 0), 0) / items.length : 0;
+    const totalValue = items.reduce(
+      (sum, item) => sum + (item.current_price || 0),
+      0
+    );
+    const totalChange = items.reduce(
+      (sum, item) => sum + (item.change_amount || 0),
+      0
+    );
+    const avgChangePercent =
+      items.length > 0
+        ? items.reduce((sum, item) => sum + (item.change_percent || 0), 0) /
+          items.length
+        : 0;
 
     res.json({
       data: items,
@@ -141,22 +156,22 @@ router.get("/items", authenticateToken, async (req, res) => {
         total_value: parseFloat(totalValue.toFixed(2)),
         total_change: parseFloat(totalChange.toFixed(2)),
         average_change_percent: parseFloat(avgChangePercent.toFixed(2)),
-        unique_watchlists: [...new Set(items.map(item => item.watchlist_id))].length
+        unique_watchlists: [...new Set(items.map((item) => item.watchlist_id))]
+          .length,
       },
       filters: {
         symbol: symbol || null,
         watchlist_id: watchlist_id || null,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching watchlist items:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch watchlist items",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -165,26 +180,28 @@ router.get("/items", authenticateToken, async (req, res) => {
 router.get("/items/recent", async (req, res) => {
   try {
     const { limit = 20, days = 7 } = req.query;
-    
-    console.log(`📋 Recent watchlist items requested - limit: ${limit}, days: ${days}`);
-    
+
+    console.log(
+      `📋 Recent watchlist items requested - limit: ${limit}, days: ${days}`
+    );
+
     // Validate parameters
     const parsedDays = parseInt(days);
     const parsedLimit = parseInt(limit);
-    
+
     if (isNaN(parsedDays) || parsedDays < 1 || parsedDays > 365) {
       return res.status(400).json({
         success: false,
         error: "Invalid days parameter",
-        message: "days must be a number between 1 and 365"
+        message: "days must be a number between 1 and 365",
       });
     }
-    
+
     if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 1000) {
       return res.status(400).json({
         success: false,
-        error: "Invalid limit parameter", 
-        message: "limit must be a number between 1 and 1000"
+        error: "Invalid limit parameter",
+        message: "limit must be a number between 1 and 1000",
       });
     }
 
@@ -214,9 +231,9 @@ router.get("/items/recent", async (req, res) => {
       ORDER BY wi.added_at DESC
       LIMIT $1
     `;
-    
+
     const result = await query(recentItemsQuery, [parsedLimit, parsedDays]);
-    
+
     if (!result || !result.rows) {
       return res.json({
         success: true,
@@ -227,14 +244,14 @@ router.get("/items/recent", async (req, res) => {
             unique_symbols: 0,
             unique_watchlists: 0,
             days_covered: parsedDays,
-            message: "No recent watchlist items found"
-          }
+            message: "No recent watchlist items found",
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
-    const items = result.rows.map(row => ({
+
+    const items = result.rows.map((row) => ({
       item_id: row.item_id,
       symbol: row.symbol,
       company_name: row.company_name || row.symbol,
@@ -245,23 +262,32 @@ router.get("/items/recent", async (req, res) => {
       change_amount: row.change_amount ? parseFloat(row.change_amount) : 0,
       volume: row.volume ? parseInt(row.volume) : 0,
       added_at: row.added_at,
-      hours_ago: Math.floor((Date.now() - new Date(row.added_at)) / (1000 * 60 * 60)),
+      hours_ago: Math.floor(
+        (Date.now() - new Date(row.added_at)) / (1000 * 60 * 60)
+      ),
       notes: row.notes || null,
       watchlist: {
         id: row.watchlist_id,
         name: row.watchlist_name || "Unknown",
-        user_id: row.user_id
-      }
+        user_id: row.user_id,
+      },
     }));
-    
+
     // Calculate summary statistics
-    const uniqueSymbols = [...new Set(items.map(item => item.symbol))].length;
-    const uniqueWatchlists = [...new Set(items.map(item => item.watchlist.id))].length;
-    const totalValue = items.reduce((sum, item) => sum + (item.current_price || 0), 0);
-    const avgChangePercent = items.length > 0 
-      ? items.reduce((sum, item) => sum + (item.change_percent || 0), 0) / items.length 
-      : 0;
-    
+    const uniqueSymbols = [...new Set(items.map((item) => item.symbol))].length;
+    const uniqueWatchlists = [
+      ...new Set(items.map((item) => item.watchlist.id)),
+    ].length;
+    const totalValue = items.reduce(
+      (sum, item) => sum + (item.current_price || 0),
+      0
+    );
+    const avgChangePercent =
+      items.length > 0
+        ? items.reduce((sum, item) => sum + (item.change_percent || 0), 0) /
+          items.length
+        : 0;
+
     const summary = {
       total_items: items.length,
       unique_symbols: uniqueSymbols,
@@ -269,17 +295,22 @@ router.get("/items/recent", async (req, res) => {
       days_covered: parsedDays,
       total_market_value: Math.round(totalValue * 100) / 100,
       avg_change_percent: Math.round(avgChangePercent * 100) / 100,
-      most_active_period: items.length > 0 
-        ? new Date(Math.max(...items.map(item => new Date(item.added_at)))).toISOString().split('T')[0]
-        : null,
+      most_active_period:
+        items.length > 0
+          ? new Date(Math.max(...items.map((item) => new Date(item.added_at))))
+              .toISOString()
+              .split("T")[0]
+          : null,
       top_sectors: calculateTopSectors(items),
-      recent_additions_trend: items.length >= 2 
-        ? items.slice(0, Math.ceil(items.length/2)).length > items.slice(Math.ceil(items.length/2)).length 
-          ? "increasing" 
-          : "decreasing"
-        : "stable"
+      recent_additions_trend:
+        items.length >= 2
+          ? items.slice(0, Math.ceil(items.length / 2)).length >
+            items.slice(Math.ceil(items.length / 2)).length
+            ? "increasing"
+            : "decreasing"
+          : "stable",
     };
-    
+
     res.json({
       success: true,
       data: {
@@ -287,17 +318,17 @@ router.get("/items/recent", async (req, res) => {
         summary: summary,
         filters: {
           limit: parsedLimit,
-          days: parsedDays
-        }
+          days: parsedDays,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching recent watchlist items:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch recent watchlist items",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -305,12 +336,12 @@ router.get("/items/recent", async (req, res) => {
 // Helper function to calculate top sectors
 function calculateTopSectors(items) {
   const sectorCounts = {};
-  items.forEach(item => {
+  items.forEach((item) => {
     if (item.sector && item.sector !== "Unknown") {
       sectorCounts[item.sector] = (sectorCounts[item.sector] || 0) + 1;
     }
   });
-  
+
   return Object.entries(sectorCounts)
     .map(([sector, count]) => ({ sector, count }))
     .sort((a, b) => b.count - a.count)
@@ -323,12 +354,13 @@ router.get("/performance", authenticateToken, async (req, res) => {
   console.log("🎯 Watchlist performance endpoint called");
   try {
     const userId = req.user?.sub;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
         error: "Authentication required",
-        message: "User authentication required to access watchlist performance data"
+        message:
+          "User authentication required to access watchlist performance data",
       });
     }
 
@@ -342,20 +374,22 @@ router.get("/performance", authenticateToken, async (req, res) => {
     `;
 
     const tableExists = await query(tableCheckQuery, []);
-    
+
     if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
       console.error("Watchlist performance table does not exist");
       return res.status(503).json({
         success: false,
         error: "Watchlist performance service not available",
-        message: "Watchlist performance tracking requires watchlist_performance table",
-        details: "watchlist_performance table does not exist in database schema",
+        message:
+          "Watchlist performance tracking requires watchlist_performance table",
+        details:
+          "watchlist_performance table does not exist in database schema",
         requirements: [
           "watchlist_performance table must be created with schema: user_id, watchlist_id, date, total_return, daily_return, etc.",
           "Performance calculation processes must run regularly to update metrics",
-          "Price data must be available to calculate returns"
+          "Price data must be available to calculate returns",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -382,26 +416,27 @@ router.get("/performance", authenticateToken, async (req, res) => {
         success: false,
         error: "No watchlist performance data available",
         message: "Watchlist performance data not found for user",
-        details: "User has no calculated performance metrics - watchlists may be empty or data not calculated yet",
+        details:
+          "User has no calculated performance metrics - watchlists may be empty or data not calculated yet",
         requirements: [
           "User must have active watchlists with symbols",
           "Performance calculation jobs must run to generate metrics",
-          "Price data must be available for all watchlist symbols"
+          "Price data must be available for all watchlist symbols",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     res.json({
       success: true,
       performance: result.rows[0],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching watchlist performance:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch watchlist performance"
+      error: "Failed to fetch watchlist performance",
     });
   }
 });
@@ -413,15 +448,15 @@ router.get("/alerts", authenticateToken, async (req, res) => {
       success: true,
       data: {
         message: "Watchlist alerts endpoint",
-        status: "under_development"
+        status: "under_development",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching watchlist alerts:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch watchlist alerts"
+      error: "Failed to fetch watchlist alerts",
     });
   }
 });
@@ -433,15 +468,15 @@ router.get("/export", authenticateToken, async (req, res) => {
       success: true,
       data: {
         message: "Watchlist export endpoint",
-        status: "under_development"
+        status: "under_development",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error exporting watchlist:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to export watchlist"
+      error: "Failed to export watchlist",
     });
   }
 });
@@ -456,7 +491,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Invalid watchlist ID",
-        message: "Watchlist ID must be a numeric value"
+        message: "Watchlist ID must be a numeric value",
       });
     }
 
@@ -471,11 +506,14 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
     // Add null checking for database availability
     if (!watchlistResult || !watchlistResult.rows) {
-      console.warn("Watchlist detail query returned null result, database may be unavailable");
+      console.warn(
+        "Watchlist detail query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
-        error: "Database temporarily unavailable", 
-        message: "Watchlist detail temporarily unavailable - database connection issue"
+        error: "Database temporarily unavailable",
+        message:
+          "Watchlist detail temporarily unavailable - database connection issue",
       });
     }
 
@@ -502,42 +540,54 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
     // Add null checking for database availability
     if (!itemsResult || !itemsResult.rows) {
-      console.warn("Watchlist items query returned null result, database may be unavailable");
+      console.warn(
+        "Watchlist items query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Watchlist items temporarily unavailable - database connection issue"
+        message:
+          "Watchlist items temporarily unavailable - database connection issue",
       });
     }
 
     watchlist.items = itemsResult.rows;
 
     // Calculate summary if requested
-    if (req.query.include_summary === 'true') {
+    if (req.query.include_summary === "true") {
       if (watchlist.items.length > 0) {
-        const totalValue = watchlist.items.reduce((sum, item) => sum + (item.price || 0), 0);
-        const totalChange = watchlist.items.reduce((sum, item) => sum + (item.change_amount || 0), 0);
-        
-        const bestPerformer = watchlist.items.reduce((best, item) => 
+        const totalValue = watchlist.items.reduce(
+          (sum, item) => sum + (item.price || 0),
+          0
+        );
+        const totalChange = watchlist.items.reduce(
+          (sum, item) => sum + (item.change_amount || 0),
+          0
+        );
+
+        const bestPerformer = watchlist.items.reduce((best, item) =>
           (item.change_percent || 0) > (best.change_percent || 0) ? item : best
         );
-        
-        const worstPerformer = watchlist.items.reduce((worst, item) => 
-          (item.change_percent || 0) < (worst.change_percent || 0) ? item : worst
+
+        const worstPerformer = watchlist.items.reduce((worst, item) =>
+          (item.change_percent || 0) < (worst.change_percent || 0)
+            ? item
+            : worst
         );
 
         watchlist.summary = {
           total_value: totalValue,
           total_change: totalChange,
-          total_change_percent: totalValue > 0 ? (totalChange / totalValue) * 100 : 0,
+          total_change_percent:
+            totalValue > 0 ? (totalChange / totalValue) * 100 : 0,
           best_performer: {
             symbol: bestPerformer.symbol,
-            change_percent: bestPerformer.change_percent
+            change_percent: bestPerformer.change_percent,
           },
           worst_performer: {
             symbol: worstPerformer.symbol,
-            change_percent: worstPerformer.change_percent
-          }
+            change_percent: worstPerformer.change_percent,
+          },
         };
       } else {
         // Empty watchlist summary
@@ -546,7 +596,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
           total_change: 0,
           total_change_percent: 0,
           best_performer: null,
-          worst_performer: null
+          worst_performer: null,
         };
       }
     }
@@ -586,8 +636,14 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     // Basic input sanitization - remove HTML tags and script content
-    const sanitizedName = name.trim().replace(/<[^>]*>/g, '').replace(/script/gi, '');
-    const sanitizedDescription = (description || "").replace(/<[^>]*>/g, '').replace(/script/gi, '').replace(/DROP\s+TABLE/gi, '');
+    const sanitizedName = name
+      .trim()
+      .replace(/<[^>]*>/g, "")
+      .replace(/script/gi, "");
+    const sanitizedDescription = (description || "")
+      .replace(/<[^>]*>/g, "")
+      .replace(/script/gi, "")
+      .replace(/DROP\s+TABLE/gi, "");
 
     // Check for duplicate names
     const existingWatchlist = await query(
@@ -638,7 +694,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
         success: false,
         error: "Invalid watchlist ID format",
         message: `Watchlist ID must be a number, got: "${watchlistId}"`,
-        hint: "Use PUT /api/watchlist/{id} to update watchlist metadata"
+        hint: "Use PUT /api/watchlist/{id} to update watchlist metadata",
       });
     }
 
@@ -657,8 +713,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     // Basic input sanitization - preserve content length
-    const sanitizedName = name.trim().replace(/<[^>]*>/g, '');
-    const sanitizedDescription = (description || "").replace(/<[^>]*>/g, '');
+    const sanitizedName = name.trim().replace(/<[^>]*>/g, "");
+    const sanitizedDescription = (description || "").replace(/<[^>]*>/g, "");
 
     const result = await query(
       `
@@ -667,7 +723,13 @@ router.put("/:id", authenticateToken, async (req, res) => {
       WHERE id = $4 AND user_id = $5
       RETURNING *
     `,
-      [sanitizedName, sanitizedDescription, is_public || false, watchlistId, userId]
+      [
+        sanitizedName,
+        sanitizedDescription,
+        is_public || false,
+        watchlistId,
+        userId,
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -703,7 +765,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
         success: false,
         error: "Invalid watchlist ID format",
         message: `Watchlist ID must be a number, got: "${watchlistId}"`,
-        hint: "Use DELETE /api/watchlist/{id}/items/{symbol} to remove a symbol from a watchlist"
+        hint: "Use DELETE /api/watchlist/{id}/items/{symbol} to remove a symbol from a watchlist",
       });
     }
 
@@ -753,8 +815,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({message: "Watchlist deleted successfully",
-    });
+    res.json({ message: "Watchlist deleted successfully" });
   } catch (error) {
     console.error("Error deleting watchlist:", error);
     res.status(500).json({
@@ -979,8 +1040,7 @@ router.delete("/:id/items/:symbol", authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({message: "removed successfully",
-    });
+    res.json({ message: "removed successfully" });
   } catch (error) {
     console.error("Error removing item from watchlist:", error);
     res.status(500).json({

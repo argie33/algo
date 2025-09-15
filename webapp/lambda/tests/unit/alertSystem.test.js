@@ -759,15 +759,15 @@ describe("Alert System", () => {
     test("should handle initialization in non-test environment", () => {
       // Temporarily set NODE_ENV to non-test to test the console.log
       const originalEnv = process.env.NODE_ENV;
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      
+      const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+
       try {
-        process.env.NODE_ENV = 'production';
-        
+        process.env.NODE_ENV = "production";
+
         // The alertSystem module exports a singleton, so we can't easily test initialization
         // This test verifies the basic functionality works
         expect(consoleSpy).not.toThrow();
-        
+
         // Test some basic functionality to ensure the system works
         const status = alertSystem.getAlertsStatus();
         expect(status).toBeDefined();
@@ -784,11 +784,11 @@ describe("Alert System", () => {
         notifications: {
           webhook: {
             enabled: true,
-            url: 'https://example.com/webhook'
-          }
-        }
+            url: "https://example.com/webhook",
+          },
+        },
       });
-      
+
       const status = alertSystem.getAlertsStatus();
       expect(status).toBeDefined();
       expect(status.config.notifications.webhook.enabled).toBe(true);
@@ -796,14 +796,20 @@ describe("Alert System", () => {
 
     test("should handle alert creation with metadata edge cases", () => {
       // Test alert creation with various metadata types to cover uncovered paths
-      alertSystem.createAlert('edge-test', 'warning', 'Edge Test', 'Message with special data', {
-        value: null,
-        array: [],
-        nested: { deep: { value: 123 } },
-        boolean: false,
-        number: 0
-      });
-      
+      alertSystem.createAlert(
+        "edge-test",
+        "warning",
+        "Edge Test",
+        "Message with special data",
+        {
+          value: null,
+          array: [],
+          nested: { deep: { value: 123 } },
+          boolean: false,
+          number: 0,
+        }
+      );
+
       const status = alertSystem.getAlertsStatus();
       expect(status.summary.total).toBeGreaterThan(0);
       expect(status.active.length).toBeGreaterThan(0);
@@ -811,42 +817,54 @@ describe("Alert System", () => {
 
     test("should handle alert history and cleanup edge cases", () => {
       // Create alerts to test history functionality
-      alertSystem.createAlert('history-1', 'info', 'History Test 1', 'Test message 1');
-      alertSystem.createAlert('history-2', 'warning', 'History Test 2', 'Test message 2');
-      
+      alertSystem.createAlert(
+        "history-1",
+        "info",
+        "History Test 1",
+        "Test message 1"
+      );
+      alertSystem.createAlert(
+        "history-2",
+        "warning",
+        "History Test 2",
+        "Test message 2"
+      );
+
       const initialCount = alertSystem.alertHistory.length;
-      
+
       // Resolve one alert to test resolved functionality
-      alertSystem.resolveAlert('history-1');
-      
+      alertSystem.resolveAlert("history-1");
+
       // Test cleanup functionality
       alertSystem.cleanupResolvedAlerts();
-      
-      expect(alertSystem.alertHistory.length).toBeGreaterThanOrEqual(initialCount);
+
+      expect(alertSystem.alertHistory.length).toBeGreaterThanOrEqual(
+        initialCount
+      );
     });
 
     test("should handle alert deduplication edge cases", () => {
       // Test alert deduplication with edge cases
       const alert1 = {
-        id: 'test-1',
-        type: 'warning',
-        source: 'test',
-        message: 'Test Alert',
+        id: "test-1",
+        type: "warning",
+        source: "test",
+        message: "Test Alert",
         data: { value: 1 },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const alert2 = {
         ...alert1,
-        timestamp: Date.now() + 100 // Slightly different timestamp
+        timestamp: Date.now() + 100, // Slightly different timestamp
       };
-      
-      alertSystem.createAlert('test', 'warning', 'Test Alert', { value: 1 });
+
+      alertSystem.createAlert("test", "warning", "Test Alert", { value: 1 });
       const initialCount = alertSystem.activeAlerts.size;
-      
-      alertSystem.createAlert('test', 'warning', 'Test Alert', { value: 1 });
+
+      alertSystem.createAlert("test", "warning", "Test Alert", { value: 1 });
       const finalCount = alertSystem.activeAlerts.size;
-      
+
       // Should deduplicate similar alerts
       expect(finalCount).toBe(initialCount);
     });
@@ -857,11 +875,11 @@ describe("Alert System", () => {
         null,
         undefined,
         { notifications: null },
-        { thresholds: { latency: 'invalid' } },
-        { notifications: { email: { enabled: 'not-boolean' } } }
+        { thresholds: { latency: "invalid" } },
+        { notifications: { email: { enabled: "not-boolean" } } },
       ];
-      
-      invalidConfigs.forEach(config => {
+
+      invalidConfigs.forEach((config) => {
         expect(() => {
           alertSystem.updateConfig(config);
         }).not.toThrow();
@@ -874,23 +892,23 @@ describe("Alert System", () => {
         thresholds: {
           latency: { warning: 50, critical: 100 },
           errorRate: { warning: 0.01, critical: 0.03 },
-          costDaily: { warning: 30, critical: 45 }
+          costDaily: { warning: 30, critical: 45 },
         },
         notifications: {
-          email: { 
-            enabled: true, 
-            recipients: ['admin@test.com', 'alerts@test.com'] 
+          email: {
+            enabled: true,
+            recipients: ["admin@test.com", "alerts@test.com"],
           },
-          slack: { 
-            enabled: false, 
-            webhook: null, 
-            channel: '#test-alerts' 
-          }
-        }
+          slack: {
+            enabled: false,
+            webhook: null,
+            channel: "#test-alerts",
+          },
+        },
       };
-      
+
       alertSystem.updateConfig(complexConfig);
-      
+
       const status = alertSystem.getAlertsStatus();
       expect(status.config.thresholds.latency.warning).toBe(50);
       expect(status.config.notifications.email.recipients).toHaveLength(2);
@@ -898,21 +916,40 @@ describe("Alert System", () => {
 
     test("should handle alert system status edge cases", () => {
       // Test various status scenarios to cover uncovered paths
-      alertSystem.createAlert('status-1', 'critical', 'Status Test Critical', 'Critical message');
-      alertSystem.createAlert('status-2', 'warning', 'Status Test Warning', 'Warning message');
-      alertSystem.createAlert('status-3', 'info', 'Status Test Info', 'Info message');
-      
+      alertSystem.createAlert(
+        "status-1",
+        "critical",
+        "Status Test Critical",
+        "Critical message"
+      );
+      alertSystem.createAlert(
+        "status-2",
+        "warning",
+        "Status Test Warning",
+        "Warning message"
+      );
+      alertSystem.createAlert(
+        "status-3",
+        "info",
+        "Status Test Info",
+        "Info message"
+      );
+
       const status = alertSystem.getAlertsStatus();
-      
+
       expect(status.summary.total).toBe(3);
       expect(status.active.length).toBe(3);
       expect(status.config).toBeDefined();
-      
+
       // Test different severity levels in status
-      const criticalAlerts = status.active.filter(a => a.severity === 'critical');
-      const warningAlerts = status.active.filter(a => a.severity === 'warning');
-      const infoAlerts = status.active.filter(a => a.severity === 'info');
-      
+      const criticalAlerts = status.active.filter(
+        (a) => a.severity === "critical"
+      );
+      const warningAlerts = status.active.filter(
+        (a) => a.severity === "warning"
+      );
+      const infoAlerts = status.active.filter((a) => a.severity === "info");
+
       expect(criticalAlerts.length).toBe(1);
       expect(warningAlerts.length).toBe(1);
       expect(infoAlerts.length).toBe(1);
@@ -921,15 +958,27 @@ describe("Alert System", () => {
     test("should handle alert deduplication and timing", () => {
       // Test alert deduplication timing to cover uncovered paths
       const startTime = Date.now();
-      
-      alertSystem.createAlert('timing-test', 'warning', 'Timing Test', 'Test message');
-      
+
+      alertSystem.createAlert(
+        "timing-test",
+        "warning",
+        "Timing Test",
+        "Test message"
+      );
+
       // Try to create the same alert quickly (should be deduplicated)
-      alertSystem.createAlert('timing-test', 'warning', 'Timing Test', 'Test message');
-      
+      alertSystem.createAlert(
+        "timing-test",
+        "warning",
+        "Timing Test",
+        "Test message"
+      );
+
       const status = alertSystem.getAlertsStatus();
-      const timingAlerts = status.active.filter(a => a.title === 'Timing Test');
-      
+      const timingAlerts = status.active.filter(
+        (a) => a.title === "Timing Test"
+      );
+
       // Should only have one alert due to deduplication
       expect(timingAlerts.length).toBeGreaterThanOrEqual(1);
       if (timingAlerts.length > 0) {
@@ -940,20 +989,32 @@ describe("Alert System", () => {
     test("should handle startMonitoring with mock liveDataManager", () => {
       // Test startMonitoring with a mock liveDataManager to cover uncovered paths
       const mockLiveDataManager = {
-        on: jest.fn()
+        on: jest.fn(),
       };
-      
+
       // Temporarily set non-test environment
       const originalEnv = process.env.NODE_ENV;
       try {
-        process.env.NODE_ENV = 'production';
+        process.env.NODE_ENV = "production";
         alertSystem.startMonitoring(mockLiveDataManager);
-        
+
         // Should set up event listeners
-        expect(mockLiveDataManager.on).toHaveBeenCalledWith('connectionCreated', expect.any(Function));
-        expect(mockLiveDataManager.on).toHaveBeenCalledWith('connectionClosed', expect.any(Function));
-        expect(mockLiveDataManager.on).toHaveBeenCalledWith('errorRecorded', expect.any(Function));
-        expect(mockLiveDataManager.on).toHaveBeenCalledWith('requestTracked', expect.any(Function));
+        expect(mockLiveDataManager.on).toHaveBeenCalledWith(
+          "connectionCreated",
+          expect.any(Function)
+        );
+        expect(mockLiveDataManager.on).toHaveBeenCalledWith(
+          "connectionClosed",
+          expect.any(Function)
+        );
+        expect(mockLiveDataManager.on).toHaveBeenCalledWith(
+          "errorRecorded",
+          expect.any(Function)
+        );
+        expect(mockLiveDataManager.on).toHaveBeenCalledWith(
+          "requestTracked",
+          expect.any(Function)
+        );
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
@@ -962,56 +1023,62 @@ describe("Alert System", () => {
     test("should handle missing methods gracefully", () => {
       // Test that missing methods don't break the system
       // These methods are referenced but not implemented
-      expect(typeof alertSystem.checkConnectionLimits).toBe('undefined');
-      expect(typeof alertSystem.checkCostLimits).toBe('undefined');
-      expect(typeof alertSystem.checkErrorRates).toBe('undefined');
+      expect(typeof alertSystem.checkConnectionLimits).toBe("undefined");
+      expect(typeof alertSystem.checkCostLimits).toBe("undefined");
+      expect(typeof alertSystem.checkErrorRates).toBe("undefined");
     });
 
     test("should handle webhook notification paths", async () => {
       // Test webhook notification to cover uncovered lines 490-491
       const mockAlert = {
-        id: 'test-webhook',
-        severity: 'warning',
-        title: 'Test Webhook Alert',
-        message: 'Test message',
+        id: "test-webhook",
+        severity: "warning",
+        title: "Test Webhook Alert",
+        message: "Test message",
         createdAt: Date.now(),
-        metadata: { test: true }
+        metadata: { test: true },
       };
-      
+
       // Enable webhook notifications
       alertSystem.updateConfig({
         notifications: {
           webhook: {
             enabled: true,
-            url: 'https://example.com/webhook'
-          }
-        }
+            url: "https://example.com/webhook",
+          },
+        },
       });
-      
+
       // Test without webhook URL (line 490)
       alertSystem.config.notifications.webhook.url = null;
       await alertSystem.sendWebhookNotification(mockAlert);
-      
+
       // Test with webhook URL
-      alertSystem.config.notifications.webhook.url = 'https://example.com/webhook';
+      alertSystem.config.notifications.webhook.url =
+        "https://example.com/webhook";
       await alertSystem.sendWebhookNotification(mockAlert);
     });
 
     test("should handle notification event listeners", () => {
       // Test notification event handling to cover more paths
       const mockAlert = {
-        id: 'event-test',
-        severity: 'info',
-        title: 'Event Test',
-        message: 'Test message'
+        id: "event-test",
+        severity: "info",
+        title: "Event Test",
+        message: "Test message",
       };
-      
+
       let eventFired = false;
-      alertSystem.on('alertCreated', () => {
+      alertSystem.on("alertCreated", () => {
         eventFired = true;
       });
-      
-      alertSystem.createAlert('event-test', 'info', 'Event Test', 'Test message');
+
+      alertSystem.createAlert(
+        "event-test",
+        "info",
+        "Event Test",
+        "Test message"
+      );
       expect(eventFired).toBe(true);
     });
   });

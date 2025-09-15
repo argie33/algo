@@ -11,8 +11,8 @@ jest.mock("../../../utils/logger", () => ({
   createLogger: jest.fn(() => ({
     info: jest.fn(),
     warn: jest.fn(),
-    error: jest.fn()
-  }))
+    error: jest.fn(),
+  })),
 }));
 
 jest.mock("../../../utils/database", () => ({
@@ -27,14 +27,14 @@ jest.mock("../../../services/aiStrategyGenerator", () => {
       meanReversion: {
         description: "Mean reversion strategy",
         parameters: ["period", "threshold"],
-        complexity: "medium"
+        complexity: "medium",
       },
       momentum: {
         description: "Momentum strategy",
         parameters: ["window", "signal"],
-        complexity: "high"
-      }
-    }
+        complexity: "high",
+      },
+    },
   }));
 });
 
@@ -44,9 +44,9 @@ jest.mock("../../../services/aiStrategyGeneratorStreaming", () => {
 
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
-    req.user = { id: 'test-user-123' };
+    req.user = { id: "test-user-123" };
     next();
-  }
+  },
 }));
 
 const { query: mockQuery } = require("../../../utils/database");
@@ -74,7 +74,7 @@ describe("Strategy Builder Routes", () => {
     const validRequest = {
       prompt: "Create a momentum strategy for AAPL",
       symbols: ["AAPL", "MSFT"],
-      preferences: { riskLevel: "medium" }
+      preferences: { riskLevel: "medium" },
     };
 
     it.skip("should generate strategy successfully (skipped - AI service mock hanging)", async () => {
@@ -82,12 +82,12 @@ describe("Strategy Builder Routes", () => {
         name: "Momentum Strategy",
         strategyType: "momentum",
         code: "strategy code here",
-        symbols: ["AAPL", "MSFT"]
+        symbols: ["AAPL", "MSFT"],
       };
 
       mockAiGenerator.generateFromNaturalLanguage.mockResolvedValue({
         success: true,
-        strategy: mockStrategy
+        strategy: mockStrategy,
       });
 
       const response = await request(app)
@@ -97,15 +97,15 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        strategy: mockStrategy
+        strategy: mockStrategy,
       });
 
       expect(mockAiGenerator.generateFromNaturalLanguage).toHaveBeenCalledWith(
         validRequest.prompt,
         validRequest.symbols,
         expect.objectContaining({
-          userId: 'test-user-123',
-          riskLevel: 'medium'
+          userId: "test-user-123",
+          riskLevel: "medium",
         })
       );
     });
@@ -118,7 +118,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy description must be at least 10 characters long'
+        error: "Strategy description must be at least 10 characters long",
       });
     });
 
@@ -129,13 +129,15 @@ describe("Strategy Builder Routes", () => {
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("No symbols provided for strategy not found");
+      expect(response.body.error).toBe(
+        "No symbols provided for strategy not found"
+      );
     });
 
     it.skip("should handle AI generation failure (skipped - AI service mock hanging)", async () => {
       mockAiGenerator.generateFromNaturalLanguage.mockResolvedValue({
         success: false,
-        error: "Unable to generate strategy"
+        error: "Unable to generate strategy",
       });
 
       const response = await request(app)
@@ -145,7 +147,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: "Unable to generate strategy"
+        error: "Unable to generate strategy",
       });
     });
 
@@ -161,7 +163,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Internal server error during strategy generation'
+        error: "Internal server error during strategy generation",
       });
     });
 
@@ -171,12 +173,14 @@ describe("Strategy Builder Routes", () => {
         .send({ ...validRequest, prompt: "" })
         .expect(400);
 
-      expect(response.body.error).toBe('Strategy description must be at least 10 characters long');
+      expect(response.body.error).toBe(
+        "Strategy description must be at least 10 characters long"
+      );
     });
 
     it("should use default symbols array when not provided", async () => {
       const requestWithoutSymbols = {
-        prompt: "Create a momentum strategy"
+        prompt: "Create a momentum strategy",
       };
 
       const response = await request(app)
@@ -184,7 +188,9 @@ describe("Strategy Builder Routes", () => {
         .send(requestWithoutSymbols)
         .expect(400);
 
-      expect(response.body.error).toBe("No symbols provided for strategy not found");
+      expect(response.body.error).toBe(
+        "No symbols provided for strategy not found"
+      );
     });
   });
 
@@ -192,7 +198,7 @@ describe("Strategy Builder Routes", () => {
     const validStrategy = {
       name: "Test Strategy",
       code: "def strategy(): return True",
-      type: "momentum"
+      type: "momentum",
     };
 
     it("should validate strategy successfully", async () => {
@@ -200,7 +206,7 @@ describe("Strategy Builder Routes", () => {
         isValid: true,
         errors: [],
         warnings: ["Minor optimization available"],
-        suggestions: ["Use vectorized operations"]
+        suggestions: ["Use vectorized operations"],
       };
 
       mockAiGenerator.validateStrategy.mockResolvedValue(mockValidation);
@@ -212,10 +218,12 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: true,
-        validation: mockValidation
+        validation: mockValidation,
       });
 
-      expect(mockAiGenerator.validateStrategy).toHaveBeenCalledWith(validStrategy);
+      expect(mockAiGenerator.validateStrategy).toHaveBeenCalledWith(
+        validStrategy
+      );
     });
 
     it("should return 400 when strategy is missing", async () => {
@@ -226,7 +234,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy code is required for validation'
+        error: "Strategy code is required for validation",
       });
     });
 
@@ -238,7 +246,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy code is required for validation'
+        error: "Strategy code is required for validation",
       });
     });
 
@@ -254,7 +262,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Internal server error during strategy validation'
+        error: "Internal server error during strategy validation",
       });
     });
 
@@ -263,7 +271,7 @@ describe("Strategy Builder Routes", () => {
         isValid: false,
         errors: ["Syntax error on line 5", "Undefined variable 'price'"],
         warnings: ["Performance concern"],
-        suggestions: []
+        suggestions: [],
       };
 
       mockAiGenerator.validateStrategy.mockResolvedValue(mockValidation);
@@ -283,14 +291,14 @@ describe("Strategy Builder Routes", () => {
       strategy: {
         name: "Test Strategy",
         code: "strategy code",
-        symbols: ["AAPL"]
+        symbols: ["AAPL"],
       },
       config: {
         startDate: "2023-01-01",
         endDate: "2023-12-31",
-        initialCapital: 100000
+        initialCapital: 100000,
       },
-      symbols: ["AAPL", "MSFT"]
+      symbols: ["AAPL", "MSFT"],
     };
 
     it("should return 501 for backtest (not implemented)", async () => {
@@ -300,7 +308,9 @@ describe("Strategy Builder Routes", () => {
         .expect(501);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Strategy backtesting not implemented not found");
+      expect(response.body.error).toBe(
+        "Strategy backtesting not implemented not found"
+      );
     });
 
     it("should return 400 when strategy is missing", async () => {
@@ -311,7 +321,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy is required for backtesting'
+        error: "Strategy is required for backtesting",
       });
     });
 
@@ -323,7 +333,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy is required for backtesting'
+        error: "Strategy is required for backtesting",
       });
     });
 
@@ -333,8 +343,8 @@ describe("Strategy Builder Routes", () => {
         symbols: [],
         strategy: {
           ...validBacktestRequest.strategy,
-          symbols: undefined
-        }
+          symbols: undefined,
+        },
       };
 
       const response = await request(app)
@@ -344,7 +354,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'At least one symbol is required for backtesting'
+        error: "At least one symbol is required for backtesting",
       });
     });
   });
@@ -353,19 +363,19 @@ describe("Strategy Builder Routes", () => {
     const validDeployRequest = {
       strategy: {
         name: "Test Strategy",
-        code: "strategy code"
+        code: "strategy code",
       },
       backtestResults: {
         metrics: {
           sharpeRatio: 1.5,
           maxDrawdown: 0.15,
-          winRate: 0.55
-        }
+          winRate: 0.55,
+        },
       },
       hftConfig: {
         positionSize: 0.1,
-        riskLevel: "medium"
-      }
+        riskLevel: "medium",
+      },
     };
 
     it("should return 501 for HFT deployment (not implemented)", async () => {
@@ -375,7 +385,9 @@ describe("Strategy Builder Routes", () => {
         .expect(501);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("HFT deployment not implemented not found");
+      expect(response.body.error).toBe(
+        "HFT deployment not implemented not found"
+      );
     });
 
     it("should return 400 when strategy is missing", async () => {
@@ -386,7 +398,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy and backtest results are required for HFT deployment'
+        error: "Strategy and backtest results are required for HFT deployment",
       });
     });
 
@@ -398,7 +410,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Strategy and backtest results are required for HFT deployment'
+        error: "Strategy and backtest results are required for HFT deployment",
       });
     });
 
@@ -409,9 +421,9 @@ describe("Strategy Builder Routes", () => {
           metrics: {
             sharpeRatio: 0.5, // Too low
             maxDrawdown: 0.3, // Too high
-            winRate: 0.35 // Too low
-          }
-        }
+            winRate: 0.35, // Too low
+          },
+        },
       };
 
       const response = await request(app)
@@ -420,10 +432,12 @@ describe("Strategy Builder Routes", () => {
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Strategy does not meet HFT deployment requirements');
-      expect(response.body.requirements).toHaveProperty('sharpeRatio');
-      expect(response.body.requirements).toHaveProperty('maxDrawdown');
-      expect(response.body.requirements).toHaveProperty('winRate');
+      expect(response.body.error).toBe(
+        "Strategy does not meet HFT deployment requirements"
+      );
+      expect(response.body.requirements).toHaveProperty("sharpeRatio");
+      expect(response.body.requirements).toHaveProperty("maxDrawdown");
+      expect(response.body.requirements).toHaveProperty("winRate");
     });
 
     it("should format requirement failures correctly", async () => {
@@ -433,9 +447,9 @@ describe("Strategy Builder Routes", () => {
           metrics: {
             sharpeRatio: 0.9,
             maxDrawdown: 0.26,
-            winRate: 0.44
-          }
-        }
+            winRate: 0.44,
+          },
+        },
       };
 
       const response = await request(app)
@@ -444,16 +458,16 @@ describe("Strategy Builder Routes", () => {
         .expect(400);
 
       expect(response.body.requirements.sharpeRatio).toEqual({
-        required: '>= 1.0',
-        actual: 0.9
+        required: ">= 1.0",
+        actual: 0.9,
       });
       expect(response.body.requirements.maxDrawdown).toEqual({
-        required: '<= 25%',
-        actual: '26.0%'
+        required: "<= 25%",
+        actual: "26.0%",
       });
       expect(response.body.requirements.winRate).toEqual({
-        required: '>= 45%',
-        actual: '44.0%'
+        required: ">= 45%",
+        actual: "44.0%",
       });
     });
   });
@@ -463,7 +477,7 @@ describe("Strategy Builder Routes", () => {
       const mockSymbols = [
         { symbol: "AAPL" },
         { symbol: "MSFT" },
-        { symbol: "GOOGL" }
+        { symbol: "GOOGL" },
       ];
 
       mockQuery.mockResolvedValue({ rows: mockSymbols });
@@ -475,7 +489,7 @@ describe("Strategy Builder Routes", () => {
       expect(response.body).toEqual({
         success: true,
         symbols: ["AAPL", "MSFT", "GOOGL"],
-        count: 3
+        count: 3,
       });
 
       expect(mockQuery).toHaveBeenCalledWith(
@@ -492,7 +506,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body).toEqual({
         success: false,
-        error: 'Failed to retrieve available symbols'
+        error: "Failed to retrieve available symbols",
       });
     });
 
@@ -504,7 +518,9 @@ describe("Strategy Builder Routes", () => {
         .expect(503);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Unable to fetch available symbols not found");
+      expect(response.body.error).toBe(
+        "Unable to fetch available symbols not found"
+      );
     });
 
     it("should handle empty symbol result", async () => {
@@ -517,7 +533,7 @@ describe("Strategy Builder Routes", () => {
       expect(response.body).toEqual({
         success: true,
         symbols: [],
-        count: 0
+        count: 0,
       });
     });
   });
@@ -529,12 +545,16 @@ describe("Strategy Builder Routes", () => {
         .expect(501);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("User strategies not implemented not found");
+      expect(response.body.error).toBe(
+        "User strategies not implemented not found"
+      );
     });
 
     it("should handle query parameters", async () => {
       const response = await request(app)
-        .get("/api/strategies/list?includeBacktests=true&includeDeployments=true")
+        .get(
+          "/api/strategies/list?includeBacktests=true&includeDeployments=true"
+        )
         .expect(501);
 
       expect(response.body.success).toBe(false);
@@ -556,14 +576,14 @@ describe("Strategy Builder Routes", () => {
         description: "Mean reversion strategy",
         parameters: ["period", "threshold"],
         complexity: "medium",
-        aiEnhanced: true
+        aiEnhanced: true,
       });
       expect(response.body.count).toBe(2);
       expect(response.body.aiFeatures).toEqual({
         streamingEnabled: true,
         optimizationSupported: true,
         insightsGeneration: true,
-        explanationLevels: ['basic', 'medium', 'detailed']
+        explanationLevels: ["basic", "medium", "detailed"],
       });
     });
 
@@ -590,7 +610,7 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/ai-generate")
         .send({
           prompt: "Test strategy",
-          symbols: ["AAPL"]
+          symbols: ["AAPL"],
         });
 
       // Should not return 401 since we mock authentication
@@ -600,7 +620,7 @@ describe("Strategy Builder Routes", () => {
     it("should handle malformed JSON gracefully", async () => {
       const response = await request(app)
         .post("/api/strategies/ai-generate")
-        .set('Content-Type', 'application/json')
+        .set("Content-Type", "application/json")
         .send('{"invalid": json}')
         .expect(400);
 
@@ -611,17 +631,15 @@ describe("Strategy Builder Routes", () => {
     it("should log user actions properly", async () => {
       const validRequest = {
         prompt: "Create a test strategy",
-        symbols: ["AAPL"]
+        symbols: ["AAPL"],
       };
 
       mockAiGenerator.generateFromNaturalLanguage.mockResolvedValue({
         success: true,
-        strategy: { name: "Test", strategyType: "test" }
+        strategy: { name: "Test", strategyType: "test" },
       });
 
-      await request(app)
-        .post("/api/strategies/ai-generate")
-        .send(validRequest);
+      await request(app).post("/api/strategies/ai-generate").send(validRequest);
 
       // Logger should be called for the request
       // Since we're mocking the logger, we can't easily verify this without more complex setup
@@ -654,9 +672,9 @@ describe("Strategy Builder Routes", () => {
 
     it("should handle all route parameter combinations", async () => {
       const routes = [
-        { method: 'get', path: '/api/strategies/available-symbols' },
-        { method: 'get', path: '/api/strategies/list' },
-        { method: 'get', path: '/api/strategies/templates' }
+        { method: "get", path: "/api/strategies/available-symbols" },
+        { method: "get", path: "/api/strategies/list" },
+        { method: "get", path: "/api/strategies/templates" },
       ];
 
       for (const route of routes) {

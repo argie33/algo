@@ -277,10 +277,10 @@ const createTestDatabase = () => {
 
   // pg-mem returns an object with Pool and Client, we need to create a client
   const client = new adapter.Client();
-  
+
   // Store the original query method
   const originalQuery = client.query.bind(client);
-  
+
   // Create a wrapper that ensures connection
   client.query = async (text, params = []) => {
     try {
@@ -291,7 +291,7 @@ const createTestDatabase = () => {
     const result = await originalQuery(text, params);
     return result;
   };
-  
+
   return client;
 };
 

@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -15,8 +18,7 @@ describe("News Routes", () => {
 
   describe("GET /api/news/health", () => {
     test("should return health status", async () => {
-      const response = await request(app)
-        .get("/api/news/health");
+      const response = await request(app).get("/api/news/health");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.status).toBe("operational");
@@ -28,8 +30,7 @@ describe("News Routes", () => {
 
   describe("GET /api/news", () => {
     test("should return news API status", async () => {
-      const response = await request(app)
-        .get("/api/news");
+      const response = await request(app).get("/api/news");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.message).toBe("News API - Ready");
@@ -40,13 +41,12 @@ describe("News Routes", () => {
 
   describe("GET /api/news/recent", () => {
     test("should return recent news", async () => {
-      const response = await request(app)
-        .get("/api/news/recent");
+      const response = await request(app).get("/api/news/recent");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
-      
+
       if (response.body.data.length > 0) {
         const article = response.body.data[0];
         expect(article).toHaveProperty("title");
@@ -56,8 +56,7 @@ describe("News Routes", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const response = await request(app)
-        .get("/api/news/recent?limit=5");
+      const response = await request(app).get("/api/news/recent?limit=5");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -65,8 +64,9 @@ describe("News Routes", () => {
     });
 
     test("should handle category filtering", async () => {
-      const response = await request(app)
-        .get("/api/news/recent?category=earnings");
+      const response = await request(app).get(
+        "/api/news/recent?category=earnings"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -75,11 +75,10 @@ describe("News Routes", () => {
 
   describe("GET /api/news/search", () => {
     test("should search news articles", async () => {
-      const response = await request(app)
-        .get("/api/news/search?q=market");
+      const response = await request(app).get("/api/news/search?q=market");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -89,11 +88,10 @@ describe("News Routes", () => {
 
   describe("GET /api/news/sentiment", () => {
     test("should return news sentiment analysis", async () => {
-      const response = await request(app)
-        .get("/api/news/sentiment");
+      const response = await request(app).get("/api/news/sentiment");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(response.body.data).toHaveProperty("sentiment");
@@ -103,8 +101,7 @@ describe("News Routes", () => {
 
   describe("GET /api/news/symbols/:symbol", () => {
     test("should return news for specific symbol", async () => {
-      const response = await request(app)
-        .get("/api/news/symbols/AAPL");
+      const response = await request(app).get("/api/news/symbols/AAPL");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);

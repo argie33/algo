@@ -130,7 +130,7 @@ class FactorScoringEngine {
     } catch (error) {
       logger.error("Composite score calculation error", {
         error,
-        symbol: stockData && stockData.symbol ? stockData.symbol : 'unknown',
+        symbol: stockData && stockData.symbol ? stockData.symbol : "unknown",
       });
       return null;
     }
@@ -309,7 +309,7 @@ class FactorScoringEngine {
       if (!stockData || stockData.length === 0) {
         return [];
       }
-      
+
       logger.info("Starting universe scoring", {
         stockCount: stockData.length,
       });
@@ -460,7 +460,7 @@ class FactorScoringEngine {
     if (!stockData || stockData.length === 0) {
       return [];
     }
-    
+
     const scoredStocks = this.scoreUniverse(stockData);
     return scoredStocks.map((stock, index) => {
       // Ensure the factorScore properties are available at the top level for tests
@@ -468,13 +468,13 @@ class FactorScoringEngine {
         ...stock,
         rank: index + 1,
       };
-      
+
       if (stock.factorScore) {
         result.compositeScore = stock.factorScore.compositeScore;
         result.percentile = stock.factorScore.percentile;
         result.categoryScores = stock.factorScore.categoryScores;
       }
-      
+
       return result;
     });
   }
@@ -484,34 +484,34 @@ class FactorScoringEngine {
    */
   calculateUniverseStats(universeData) {
     const stats = new Map();
-    
+
     // Calculate statistics for each factor
-    const allFactors = Object.values(this.factors).flatMap(cat => 
+    const allFactors = Object.values(this.factors).flatMap((cat) =>
       Object.keys(cat.factors)
     );
-    
+
     for (const factorName of allFactors) {
       const values = universeData
-        .map(stock => stock[factorName])
-        .filter(val => val !== null && val !== undefined && !isNaN(val));
-      
+        .map((stock) => stock[factorName])
+        .filter((val) => val !== null && val !== undefined && !isNaN(val));
+
       if (values.length > 0) {
         values.sort((a, b) => a - b);
         const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
         const variance = this.calculateVariance(values);
         const std = Math.sqrt(variance);
-        
+
         stats.set(factorName, {
           min: values[0],
           max: values[values.length - 1],
           median: values[Math.floor(values.length / 2)],
           mean: mean,
           std: std,
-          count: values.length
+          count: values.length,
         });
       }
     }
-    
+
     this.universeStats = stats;
     return stats;
   }
@@ -522,7 +522,7 @@ class FactorScoringEngine {
   analyzeFactors(universeData) {
     const stats = this.calculateUniverseStats(universeData);
     const correlations = this.calculateFactorCorrelations(universeData);
-    
+
     // Calculate distributions for each factor
     const distributions = {};
     for (const [factorName, factorStats] of stats.entries()) {
@@ -531,15 +531,15 @@ class FactorScoringEngine {
         max: factorStats.max,
         mean: factorStats.mean,
         median: factorStats.median,
-        quartiles: this.calculateQuartiles(universeData, factorName)
+        quartiles: this.calculateQuartiles(universeData, factorName),
       };
     }
-    
+
     return {
       factorStats: Object.fromEntries(stats),
       correlations: correlations,
       distributions: distributions,
-      sampleSize: universeData.length
+      sampleSize: universeData.length,
     };
   }
 
@@ -548,21 +548,23 @@ class FactorScoringEngine {
    */
   calculateFactorCorrelations(universeData) {
     const correlations = {};
-    const allFactors = Object.values(this.factors).flatMap(cat => 
+    const allFactors = Object.values(this.factors).flatMap((cat) =>
       Object.keys(cat.factors)
     );
-    
+
     for (const factor1 of allFactors) {
       correlations[factor1] = {};
       for (const factor2 of allFactors) {
         if (factor1 !== factor2) {
           correlations[factor1][factor2] = this.calculateCorrelation(
-            universeData, factor1, factor2
+            universeData,
+            factor1,
+            factor2
           );
         }
       }
     }
-    
+
     return correlations;
   }
 
@@ -571,26 +573,31 @@ class FactorScoringEngine {
    */
   calculateCorrelation(universeData, factor1, factor2) {
     const pairs = universeData
-      .map(stock => [stock[factor1], stock[factor2]])
-      .filter(([val1, val2]) => 
-        val1 !== null && val1 !== undefined && !isNaN(val1) &&
-        val2 !== null && val2 !== undefined && !isNaN(val2)
+      .map((stock) => [stock[factor1], stock[factor2]])
+      .filter(
+        ([val1, val2]) =>
+          val1 !== null &&
+          val1 !== undefined &&
+          !isNaN(val1) &&
+          val2 !== null &&
+          val2 !== undefined &&
+          !isNaN(val2)
       );
-    
+
     if (pairs.length < 2) return 0;
-    
+
     const n = pairs.length;
     const sum1 = pairs.reduce((sum, [val1]) => sum + val1, 0);
     const sum2 = pairs.reduce((sum, [, val2]) => sum + val2, 0);
     const sum1Sq = pairs.reduce((sum, [val1]) => sum + val1 * val1, 0);
     const sum2Sq = pairs.reduce((sum, [, val2]) => sum + val2 * val2, 0);
     const sumProd = pairs.reduce((sum, [val1, val2]) => sum + val1 * val2, 0);
-    
+
     const numerator = n * sumProd - sum1 * sum2;
     const denominator = Math.sqrt(
       (n * sum1Sq - sum1 * sum1) * (n * sum2Sq - sum2 * sum2)
     );
-    
+
     return denominator === 0 ? 0 : numerator / denominator;
   }
 
@@ -599,21 +606,21 @@ class FactorScoringEngine {
    */
   identifyTopFactors(universeData, topN = 5) {
     const factorPerformance = [];
-    const allFactors = Object.values(this.factors).flatMap(cat => 
+    const allFactors = Object.values(this.factors).flatMap((cat) =>
       Object.keys(cat.factors)
     );
-    
+
     for (const factorName of allFactors) {
       const values = universeData
-        .map(stock => stock[factorName])
-        .filter(val => val !== null && val !== undefined && !isNaN(val));
-      
+        .map((stock) => stock[factorName])
+        .filter((val) => val !== null && val !== undefined && !isNaN(val));
+
       if (values.length > 1) {
         const variance = this.calculateVariance(values);
         const range = Math.max(...values) - Math.min(...values);
-        
+
         // Find the category and weight for this factor
-        let category = 'unknown';
+        let category = "unknown";
         let weight = 0;
         for (const [catName, catDef] of Object.entries(this.factors)) {
           if (catDef.factors[factorName]) {
@@ -622,10 +629,12 @@ class FactorScoringEngine {
             break;
           }
         }
-        
+
         factorPerformance.push({
           factor: factorName,
-          name: factorName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          name: factorName
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase()),
           category: category,
           impact: variance,
           significance: range,
@@ -633,11 +642,11 @@ class FactorScoringEngine {
           range: range,
           discriminationPower: variance * range, // Combined metric
           dataPoints: values.length,
-          weight: weight
+          weight: weight,
         });
       }
     }
-    
+
     return factorPerformance
       .sort((a, b) => b.discriminationPower - a.discriminationPower)
       .slice(0, topN);
@@ -648,9 +657,9 @@ class FactorScoringEngine {
    */
   calculateVariance(values) {
     if (values.length < 2) return 0;
-    
+
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-    const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
+    const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
     return squaredDiffs.reduce((sum, diff) => sum + diff, 0) / values.length;
   }
 
@@ -661,21 +670,21 @@ class FactorScoringEngine {
     if (!values || values.length === 0) {
       return [];
     }
-    
+
     if (values.length === 1) {
       return [0.5]; // Single value normalizes to middle
     }
-    
+
     const min = Math.min(...values);
     const max = Math.max(...values);
-    
+
     // Handle identical values
     if (min === max) {
       return values.map(() => 0.5);
     }
-    
+
     const range = max - min;
-    return values.map(value => {
+    return values.map((value) => {
       const normalized = (value - min) / range;
       return inverse ? 1 - normalized : normalized;
     });
@@ -686,26 +695,26 @@ class FactorScoringEngine {
    */
   calculateQuartiles(universeData, factorName) {
     const values = universeData
-      .map(stock => stock[factorName])
-      .filter(val => val !== null && val !== undefined && !isNaN(val))
+      .map((stock) => stock[factorName])
+      .filter((val) => val !== null && val !== undefined && !isNaN(val))
       .sort((a, b) => a - b);
-    
+
     if (values.length < 4) {
       return {
         q1: values[0] || 0,
         q2: values[Math.floor(values.length / 2)] || 0,
-        q3: values[values.length - 1] || 0
+        q3: values[values.length - 1] || 0,
       };
     }
-    
+
     const q1Index = Math.floor(values.length * 0.25);
     const q2Index = Math.floor(values.length * 0.5);
     const q3Index = Math.floor(values.length * 0.75);
-    
+
     return {
       q1: values[q1Index],
       q2: values[q2Index],
-      q3: values[q3Index]
+      q3: values[q3Index],
     };
   }
 

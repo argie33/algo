@@ -11,40 +11,43 @@ const authenticateToken = (req, res, next) => {
   // In test environment, use simple JWT validation to match test expectations
   if (process.env.NODE_ENV === "test") {
     const authHeader = req.headers["authorization"];
-    
+
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        error: "Authorization required"
+        error: "Authorization required",
       });
     }
 
     // Handle malformed authorization header first
-    if (!authHeader.startsWith("Bearer ") && !authHeader.startsWith("bearer ")) {
+    if (
+      !authHeader.startsWith("Bearer ") &&
+      !authHeader.startsWith("bearer ")
+    ) {
       return res.status(401).json({
         success: false,
-        error: "Invalid authorization format"
+        error: "Invalid authorization format",
       });
     }
 
     // Handle multiple spaces by filtering out empty parts
-    const tokenParts = authHeader.split(" ").filter(part => part.length > 0);
+    const tokenParts = authHeader.split(" ").filter((part) => part.length > 0);
     let token = tokenParts[1]; // Bearer TOKEN
-    
+
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: "Authorization required"
+        error: "Authorization required",
       });
     }
 
     // Trim whitespace from token (in case of trailing spaces)
     token = token.trim();
-    
+
     if (token === "") {
       return res.status(401).json({
         success: false,
-        error: "Authorization required"
+        error: "Authorization required",
       });
     }
 
@@ -64,7 +67,7 @@ const authenticateToken = (req, res, next) => {
 
     // Use dynamic require to ensure mock is properly applied
     const jwt = require("jsonwebtoken");
-    
+
     // Handle missing JWT library - this should throw to match test expectations
     if (!jwt || !jwt.verify) {
       throw new Error("JWT library not available");
@@ -75,44 +78,44 @@ const authenticateToken = (req, res, next) => {
       if (process.env.JWT_SECRET === undefined) {
         return res.status(500).json({
           success: false,
-          error: "Authentication configuration error"
+          error: "Authentication configuration error",
         });
       }
 
       try {
         const jwtSecret = process.env.JWT_SECRET || "test-secret";
         const decoded = jwt.verify(token, jwtSecret);
-        
+
         req.user = decoded;
         req.token = token;
-        
+
         return next();
       } catch (error) {
         if (error.name === "TokenExpiredError") {
           return res.status(401).json({
             success: false,
-            error: "Session expired"
+            error: "Session expired",
           });
         }
         if (error.name === "JsonWebTokenError") {
           return res.status(401).json({
             success: false,
-            error: "Invalid authentication"
+            error: "Invalid authentication",
           });
         }
         return res.status(401).json({
           success: false,
-          error: "Authentication failed"
+          error: "Authentication failed",
         });
       }
     } catch (error) {
       return res.status(401).json({
         success: false,
-        error: "Authentication failed"
+        error: "Authentication failed",
       });
     }
   }
-  
+
   // For non-test environments, use async functionality
   return authenticateTokenAsync(req, res, next);
 };
@@ -121,16 +124,19 @@ const authenticateToken = (req, res, next) => {
 const authenticateTokenAsync = async (req, res, next) => {
   try {
     // Skip authentication in development mode when ALLOW_DEV_BYPASS is true
-    if (process.env.NODE_ENV === "development" && process.env.ALLOW_DEV_BYPASS === "true") {
+    if (
+      process.env.NODE_ENV === "development" &&
+      process.env.ALLOW_DEV_BYPASS === "true"
+    ) {
       const authHeader = req.headers && req.headers["authorization"];
       const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
-      
+
       // If no auth header provided in development, bypass authentication
       if (!authHeader || !token || token === "dev-bypass-token") {
         console.log("🔧 Development mode: Bypassing authentication");
         req.user = {
           sub: "dev-user-bypass",
-          email: "dev-bypass@example.com", 
+          email: "dev-bypass@example.com",
           username: "dev-bypass-user",
           role: "admin",
           sessionId: "dev-bypass-session",
@@ -164,13 +170,14 @@ const authenticateTokenAsync = async (req, res, next) => {
       return res.unauthorized("Authorization missing from request headers", {
         code: "MISSING_AUTHORIZATION",
         suggestion: "Include valid authorization in the Authorization header",
-        requirements: "Authorization header must be present with format: Bearer <auth-data>",
+        requirements:
+          "Authorization header must be present with format: Bearer <auth-data>",
         steps: [
           "1. Log in to the application to obtain valid authentication",
           "2. Include the credentials in the Authorization header: 'Bearer your-auth-data'",
           "3. Ensure your session hasn't expired - authentication is valid for a limited time",
-          "4. Check that you're using the correct API endpoint"
-        ]
+          "4. Check that you're using the correct API endpoint",
+        ],
       });
     }
 
@@ -181,30 +188,38 @@ const authenticateTokenAsync = async (req, res, next) => {
     if (!result.valid) {
       // Handle specific token error types
       if (result.error && result.error.includes("expired")) {
-        return res.unauthorized("Your session has expired. Please log in again.", {
-          code: "SESSION_EXPIRED",
-          suggestion: "Your authentication has expired and needs to be renewed",
-          requirements: "Active session with valid authentication",
-          steps: [
-            "1. Log out of the application completely",
-            "2. Log back in with your credentials",
-            "3. Try your request again with the new session",
-            "4. Consider enabling 'Keep me logged in' if available"
-          ]
-        });
+        return res.unauthorized(
+          "Your session has expired. Please log in again.",
+          {
+            code: "SESSION_EXPIRED",
+            suggestion:
+              "Your authentication has expired and needs to be renewed",
+            requirements: "Active session with valid authentication",
+            steps: [
+              "1. Log out of the application completely",
+              "2. Log back in with your credentials",
+              "3. Try your request again with the new session",
+              "4. Consider enabling 'Keep me logged in' if available",
+            ],
+          }
+        );
       }
-      
-      return res.unauthorized(result.error || "Authentication credentials are invalid", {
-        code: "INVALID_CREDENTIALS",
-        suggestion: "The provided authentication could not be validated",
-        requirements: "Valid, properly formatted authentication from successful login",
-        steps: [
-          "1. Verify you're using the most recent credentials from login",
-          "2. Check that the data hasn't been corrupted during transmission",
-          "3. Log out and log back in to get fresh credentials",
-          "4. Ensure you're accessing the correct API environment"
-        ]
-      });
+
+      return res.unauthorized(
+        result.error || "Authentication credentials are invalid",
+        {
+          code: "INVALID_CREDENTIALS",
+          suggestion: "The provided authentication could not be validated",
+          requirements:
+            "Valid, properly formatted authentication from successful login",
+          steps: [
+            "1. Verify you're using the most recent credentials from login",
+            "2. Check that the data hasn't been corrupted during transmission",
+            "3. Log out and log back in to get fresh credentials",
+            "4. Ensure you're accessing the correct API environment",
+          ],
+        }
+      );
     }
 
     const user = result.user;
@@ -226,38 +241,47 @@ const authenticateTokenAsync = async (req, res, next) => {
 
     // Handle specific error types
     if (error.message.includes("circuit breaker")) {
-      return res.error("Authentication service is experiencing issues. Please try again shortly.", 500, {
-        type: "service_unavailable",
-        code: "AUTH_SERVICE_UNAVAILABLE",
-        service: "financial-platform-auth-circuit-breaker",
-        troubleshooting: {
-          suggestion: "The authentication service is temporarily unavailable due to high load or errors",
-          requirements: "Authentication service must be operational and responsive",
-          steps: [
-            "1. Wait 30-60 seconds for the service to recover automatically",
-            "2. Try logging in again after the brief wait",
-            "3. Check system status page if available",
-            "4. Contact technical support if issues persist beyond 5 minutes"
-          ]
+      return res.error(
+        "Authentication service is experiencing issues. Please try again shortly.",
+        500,
+        {
+          type: "service_unavailable",
+          code: "AUTH_SERVICE_UNAVAILABLE",
+          service: "financial-platform-auth-circuit-breaker",
+          troubleshooting: {
+            suggestion:
+              "The authentication service is temporarily unavailable due to high load or errors",
+            requirements:
+              "Authentication service must be operational and responsive",
+            steps: [
+              "1. Wait 30-60 seconds for the service to recover automatically",
+              "2. Try logging in again after the brief wait",
+              "3. Check system status page if available",
+              "4. Contact technical support if issues persist beyond 5 minutes",
+            ],
+          },
         }
-      });
+      );
     }
 
     if (
       error.name === "TokenExpiredError" ||
       error.message.includes("expired")
     ) {
-      return res.unauthorized("Your session has expired. Please log in again.", {
-        code: "SESSION_EXPIRED",
-        suggestion: "Your authentication has expired and needs to be renewed",
-        requirements: "Active session with valid authentication",
-        steps: [
-          "1. Log out of the application completely",
-          "2. Log back in with your credentials",
-          "3. Try your request again with the new session",
-          "4. Consider enabling 'Keep me logged in' if available"
-        ]
-      });
+      return res.unauthorized(
+        "Your session has expired. Please log in again.",
+        {
+          code: "SESSION_EXPIRED",
+          suggestion: "Your authentication has expired and needs to be renewed",
+          requirements: "Active session with valid authentication",
+          steps: [
+            "1. Log out of the application completely",
+            "2. Log back in with your credentials",
+            "3. Try your request again with the new session",
+            "4. Consider enabling 'Keep me logged in' if available",
+          ],
+        }
+      );
     }
 
     if (
@@ -267,27 +291,29 @@ const authenticateTokenAsync = async (req, res, next) => {
       return res.unauthorized("The provided credentials are invalid.", {
         code: "INVALID_CREDENTIALS",
         suggestion: "The authentication format is incorrect or corrupted",
-        requirements: "Valid, properly formatted authentication from successful login",
+        requirements:
+          "Valid, properly formatted authentication from successful login",
         steps: [
           "1. Verify the data was copied correctly if manually entered",
           "2. Check that you're using the most recent credentials from login",
           "3. Log out and log back in to get fresh authentication",
-          "4. Clear browser cache if the issue persists"
-        ]
+          "4. Clear browser cache if the issue persists",
+        ],
       });
     }
 
     // Generic authentication failure
     return res.unauthorized("Could not verify authentication", {
       code: "AUTH_FAILED",
-      suggestion: "Authentication verification failed due to an unexpected error",
+      suggestion:
+        "Authentication verification failed due to an unexpected error",
       requirements: "Valid authentication and operational auth service",
       steps: [
         "1. Try logging out and back in to refresh your authentication",
         "2. Check your network connection and try again",
         "3. Clear browser cache and cookies for this site",
-        "4. Contact technical support if the error continues"
-      ]
+        "4. Contact technical support if the error continues",
+      ],
     });
   }
 };
@@ -296,9 +322,12 @@ const authenticateTokenAsync = async (req, res, next) => {
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.unauthorized("User must be authenticated to access this resource", {
-        code: "AUTH_REQUIRED",
-      });
+      return res.unauthorized(
+        "User must be authenticated to access this resource",
+        {
+          code: "AUTH_REQUIRED",
+        }
+      );
     }
 
     const userRole = req.user.role;
@@ -309,12 +338,15 @@ const requireRole = (roles) => {
     const hasGroup = roles.some((role) => userGroups.includes(role));
 
     if (!hasRole && !hasGroup) {
-      return res.forbidden(`Access denied. Required roles: ${roles.join(", ")}`, {
-        code: "INSUFFICIENT_PERMISSIONS",
-        userRole: userRole,
-        userGroups: userGroups,
-        requiredRoles: roles,
-      });
+      return res.forbidden(
+        `Access denied. Required roles: ${roles.join(", ")}`,
+        {
+          code: "INSUFFICIENT_PERMISSIONS",
+          userRole: userRole,
+          userGroups: userGroups,
+          requiredRoles: roles,
+        }
+      );
     }
 
     next();
@@ -357,19 +389,26 @@ const requireApiKey = (provider) => {
   return async (req, res, next) => {
     try {
       if (!req.user || !req.token) {
-        return res.unauthorized("User must be authenticated to access API configuration", {
-          code: "AUTH_REQUIRED",
-        });
+        return res.unauthorized(
+          "User must be authenticated to access API configuration",
+          {
+            code: "AUTH_REQUIRED",
+          }
+        );
       }
 
       const { getApiKey } = require("../utils/apiKeyService");
       const apiKey = await getApiKey(req.token, provider);
 
       if (!apiKey) {
-        return res.error(`${provider} API configuration is required for this operation`, 400, {
-          code: "API_CONFIG_REQUIRED",
-          provider: provider,
-        });
+        return res.error(
+          `${provider} API configuration is required for this operation`,
+          400,
+          {
+            code: "API_CONFIG_REQUIRED",
+            provider: provider,
+          }
+        );
       }
 
       // Add API key to request for use in route handlers
@@ -438,10 +477,14 @@ const rateLimitByUser = (requestsPerMinute = 100) => {
 
     // Check rate limit
     if (requests.length >= requestsPerMinute) {
-      return res.error(`Too many requests. Limit: ${requestsPerMinute} per minute`, 429, {
-        code: "RATE_LIMIT_EXCEEDED",
-        retryAfter: Math.ceil((requests[0] - windowStart) / 1000),
-      });
+      return res.error(
+        `Too many requests. Limit: ${requestsPerMinute} per minute`,
+        429,
+        {
+          code: "RATE_LIMIT_EXCEEDED",
+          retryAfter: Math.ceil((requests[0] - windowStart) / 1000),
+        }
+      );
     }
 
     // Add current request

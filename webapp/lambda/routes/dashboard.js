@@ -7,12 +7,15 @@ const router = express.Router();
 
 // Health check endpoint
 router.get("/health", (req, res) => {
-  res.status(200).json({success: true, 
-    status: "healthy",
-    service: "dashboard",
-    timestamp: new Date().toISOString(),
-    database: "connected"
-  });
+  res
+    .status(200)
+    .json({
+      success: true,
+      status: "healthy",
+      service: "dashboard",
+      timestamp: new Date().toISOString(),
+      database: "connected",
+    });
 });
 
 // Root dashboard route - returns available endpoints
@@ -25,16 +28,16 @@ router.get("/", async (req, res) => {
       service: "dashboard",
       version: "1.0.0",
       features: ["portfolio", "market", "watchlists", "alerts"],
-      status: "operational"
+      status: "operational",
     },
     endpoints: [
       "/summary - Comprehensive dashboard summary",
-      "/holdings - Portfolio holdings data", 
+      "/holdings - Portfolio holdings data",
       "/performance - Performance metrics",
       "/alerts - User alerts",
-      "/market-data - Market overview data"
+      "/market-data - Market overview data",
     ],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -236,13 +239,23 @@ router.get("/summary", async (req, res) => {
     ]);
 
     // Check for database connection issues
-    if (!marketResult || !gainersResult || !losersResult || !sectorResult ||
-        !earningsResult || !sentimentResult || !volumeResult || !breadthResult) {
-      console.error("Dashboard summary query returned null result, database connection failed");
+    if (
+      !marketResult ||
+      !gainersResult ||
+      !losersResult ||
+      !sectorResult ||
+      !earningsResult ||
+      !sentimentResult ||
+      !volumeResult ||
+      !breadthResult
+    ) {
+      console.error(
+        "Dashboard summary query returned null result, database connection failed"
+      );
       return res.status(500).json({
         success: false,
         error: "Internal server error",
-        message: "Database query failed - service temporarily unavailable"
+        message: "Database query failed - service temporarily unavailable",
       });
     }
 
@@ -267,20 +280,20 @@ router.get("/summary", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No market data found",
-        message: "No market overview data available in database"
+        message: "No market overview data available in database",
       });
     }
     res.json({
       success: true,
       data: summary,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("❌ Dashboard summary error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dashboard summary",
-      message: "Database query failed", 
+      message: "Database query failed",
       details: error.message,
     });
   }
@@ -299,7 +312,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
       return res.status(401).json({
         success: false,
         error: "User authentication required",
-        message: "Please provide valid authentication credentials"
+        message: "Please provide valid authentication credentials",
       });
     }
 
@@ -343,25 +356,30 @@ router.get("/holdings", authenticateToken, async (req, res) => {
     );
 
     // Process and convert data types properly
-    const processedHoldings = holdingsResult.rows.map(holding => ({
+    const processedHoldings = holdingsResult.rows.map((holding) => ({
       ...holding,
       shares: parseFloat(holding.shares) || 0,
       avg_price: parseFloat(holding.avg_price) || 0,
       current_price: parseFloat(holding.current_price) || 0,
       total_value: parseFloat(holding.total_value) || 0,
       gain_loss: parseFloat(holding.gain_loss) || 0,
-      gain_loss_percent: parseFloat(holding.gain_loss_percent) || 0
+      gain_loss_percent: parseFloat(holding.gain_loss_percent) || 0,
     }));
 
-    // Process summary data with proper type conversion  
-    const processedSummary = summaryResult.rows[0] ? {
-      ...summaryResult.rows[0],
-      total_positions: parseInt(summaryResult.rows[0].total_positions) || 0,
-      total_portfolio_value: parseFloat(summaryResult.rows[0].total_portfolio_value) || 0,
-      total_gain_loss: parseFloat(summaryResult.rows[0].total_gain_loss) || 0,
-      avg_gain_loss_percent: parseFloat(summaryResult.rows[0].avg_gain_loss_percent) || 0,
-      market_value: parseFloat(summaryResult.rows[0].market_value) || 0
-    } : null;
+    // Process summary data with proper type conversion
+    const processedSummary = summaryResult.rows[0]
+      ? {
+          ...summaryResult.rows[0],
+          total_positions: parseInt(summaryResult.rows[0].total_positions) || 0,
+          total_portfolio_value:
+            parseFloat(summaryResult.rows[0].total_portfolio_value) || 0,
+          total_gain_loss:
+            parseFloat(summaryResult.rows[0].total_gain_loss) || 0,
+          avg_gain_loss_percent:
+            parseFloat(summaryResult.rows[0].avg_gain_loss_percent) || 0,
+          market_value: parseFloat(summaryResult.rows[0].market_value) || 0,
+        }
+      : null;
 
     if (
       !holdingsResult ||
@@ -371,7 +389,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No data found for holdings",
-        message: "No portfolio holdings found for this user"
+        message: "No portfolio holdings found for this user",
       });
     }
     if (
@@ -390,7 +408,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
         summary: processedSummary,
         count: holdingsResult.rowCount,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("❌ Holdings error:", error);
@@ -412,7 +430,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.unauthorized("User authentication required" );
+      return res.unauthorized("User authentication required");
     }
 
     const performanceQuery = `
@@ -450,32 +468,40 @@ router.get("/performance", authenticateToken, async (req, res) => {
       `✅ Performance queries completed: ${performanceResult.rowCount} data points`
     );
 
-    if (!performanceResult || !performanceResult.rows || performanceResult.rows.length === 0) {
+    if (
+      !performanceResult ||
+      !performanceResult.rows ||
+      performanceResult.rows.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         error: "No performance data found",
-        message: "No performance data available for this user"
+        message: "No performance data available for this user",
       });
     }
 
-    if (!metricsResult || !metricsResult.rows || metricsResult.rows.length === 0) {
+    if (
+      !metricsResult ||
+      !metricsResult.rows ||
+      metricsResult.rows.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         error: "No performance metrics found",
-        message: "No performance metrics available for this user"
+        message: "No performance metrics available for this user",
       });
     }
 
     // Process and convert data types properly for performance data
-    const performance = performanceResult.rows.map(row => ({
+    const performance = performanceResult.rows.map((row) => ({
       ...row,
       total_value: parseFloat(row.total_value) || 0,
       daily_return: parseFloat(row.daily_return) || 0,
       cumulative_return: parseFloat(row.cumulative_return) || 0,
       benchmark_return: parseFloat(row.benchmark_return) || 0,
-      excess_return: parseFloat(row.excess_return) || 0
+      excess_return: parseFloat(row.excess_return) || 0,
     }));
-    
+
     // Process metrics with proper type conversion
     const metrics = {
       ...metricsResult.rows[0],
@@ -483,7 +509,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
       volatility: parseFloat(metricsResult.rows[0].volatility) || 0,
       max_return: parseFloat(metricsResult.rows[0].max_return) || 0,
       min_return: parseFloat(metricsResult.rows[0].min_return) || 0,
-      trading_days: parseInt(metricsResult.rows[0].trading_days) || 0
+      trading_days: parseInt(metricsResult.rows[0].trading_days) || 0,
     };
 
     res.json({
@@ -493,7 +519,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
         metrics: metrics,
         count: performance.length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("❌ Performance error:", error);
@@ -515,7 +541,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.unauthorized("User authentication required" );
+      return res.unauthorized("User authentication required");
     }
 
     const alertsQuery = `
@@ -560,15 +586,19 @@ router.get("/alerts", authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No alerts found",
-        message: "No trading alerts available for this user"
+        message: "No trading alerts available for this user",
       });
     }
 
-    if (!summaryResult || !summaryResult.rows || summaryResult.rows.length === 0) {
+    if (
+      !summaryResult ||
+      !summaryResult.rows ||
+      summaryResult.rows.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         error: "No alert summary found",
-        message: "No alert summary data available for this user"
+        message: "No alert summary data available for this user",
       });
     }
 
@@ -582,7 +612,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
         summary: summary,
         count: alerts.length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("❌ Alerts error:", error);
@@ -618,7 +648,7 @@ router.get("/market-data", async (req, res) => {
         ORDER BY date DESC
         LIMIT 10
       `;
-      
+
       economicResult = await query(economicQuery);
     } catch (error) {
       console.error("❌ Economic data query failed:", error.message);
@@ -627,7 +657,7 @@ router.get("/market-data", async (req, res) => {
         error: "Economic data unavailable",
         message: "Database query failed for economic indicators",
         details: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -708,17 +738,17 @@ router.get("/market-data", async (req, res) => {
           troubleshooting: [
             "1. Run economic data loader to populate economic_data table",
             "2. Verify economic_data table structure matches expected format",
-            "3. Check data provider API connections"
-          ]
+            "3. Check data provider API connections",
+          ],
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     if (!sectorResult.rows || sectorResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: "No sector rotation data found", 
+        error: "No sector rotation data found",
         message: "No sector performance data available",
         details: {
           tables_checked: ["price_daily", "company_profile"],
@@ -726,10 +756,10 @@ router.get("/market-data", async (req, res) => {
           troubleshooting: [
             "1. Load price data using yfinance data loaders",
             "2. Populate company_profile table with sector information",
-            "3. Verify price_daily has recent data with change_percent"
-          ]
+            "3. Verify price_daily has recent data with change_percent",
+          ],
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -763,7 +793,7 @@ router.get("/market-data", async (req, res) => {
 router.get("/overview", async (req, res) => {
   try {
     console.log("📊 Dashboard overview requested");
-    
+
     // Get key market indices
     const keyMetricsQuery = `
       SELECT 
@@ -849,25 +879,32 @@ router.get("/overview", async (req, res) => {
     const [keyMetricsResult, moversResult, sectorResult] = await Promise.all([
       query(keyMetricsQuery),
       query(moversQuery),
-      query(sectorQuery)
+      query(sectorQuery),
     ]);
 
-    if (!keyMetricsResult || !keyMetricsResult.rows || keyMetricsResult.rows.length === 0) {
+    if (
+      !keyMetricsResult ||
+      !keyMetricsResult.rows ||
+      keyMetricsResult.rows.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         error: "No key market metrics found",
         message: "No market data available for key indices",
         details: {
-          attempted_symbols: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI'],
+          attempted_symbols: ["SPY", "QQQ", "IWM", "DIA", "VTI"],
           rows_found: keyMetricsResult?.rows?.length || 0,
-          table_status: "price_daily table exists but no data for required symbols"
+          table_status:
+            "price_daily table exists but no data for required symbols",
         },
         troubleshooting: {
           required_tables: ["price_daily", "stock_symbols"],
-          check_tables: "SELECT COUNT(*) FROM price_daily WHERE symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI')",
+          check_tables:
+            "SELECT COUNT(*) FROM price_daily WHERE symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'VTI')",
           solution: "Ensure key market indices have data in price_daily table",
-          data_requirements: "At least one of: SPY, QQQ, IWM, DIA, VTI with current and previous day prices"
-        }
+          data_requirements:
+            "At least one of: SPY, QQQ, IWM, DIA, VTI with current and previous day prices",
+        },
       });
     }
 
@@ -875,7 +912,7 @@ router.get("/overview", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No market movers found",
-        message: "No market mover data available"
+        message: "No market mover data available",
       });
     }
 
@@ -883,68 +920,67 @@ router.get("/overview", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No sector performance found",
-        message: "No sector performance data available"
+        message: "No sector performance data available",
       });
     }
 
     // Process the results
     const keyMetrics = {};
-    keyMetricsResult.rows.forEach(row => {
+    keyMetricsResult.rows.forEach((row) => {
       keyMetrics[row.symbol.toLowerCase()] = {
         value: parseFloat(row.value) || 0,
         change: parseFloat(row.change) || 0,
-        change_percent: parseFloat(row.change_percent) || 0
+        change_percent: parseFloat(row.change_percent) || 0,
       };
     });
 
-    const gainers = moversResult.rows.filter(row => row.type === 'gainer');
-    const losers = moversResult.rows.filter(row => row.type === 'loser');
+    const gainers = moversResult.rows.filter((row) => row.type === "gainer");
+    const losers = moversResult.rows.filter((row) => row.type === "loser");
 
     const overviewData = {
       market_status: {
         is_open: new Date().getHours() >= 9 && new Date().getHours() < 16,
         next_open: "2025-09-02T09:30:00Z",
-        next_close: "2025-09-01T16:00:00Z", 
-        timezone: "EST"
+        next_close: "2025-09-01T16:00:00Z",
+        timezone: "EST",
       },
       key_metrics: keyMetrics,
       top_movers: {
-        gainers: gainers.map(row => ({
+        gainers: gainers.map((row) => ({
           symbol: row.symbol,
           price: parseFloat(row.price) || 0,
-          change_percent: parseFloat(row.change_percent) || 0
+          change_percent: parseFloat(row.change_percent) || 0,
         })),
-        losers: losers.map(row => ({
+        losers: losers.map((row) => ({
           symbol: row.symbol,
           price: parseFloat(row.price) || 0,
-          change_percent: parseFloat(row.change_percent) || 0
-        }))
+          change_percent: parseFloat(row.change_percent) || 0,
+        })),
       },
-      sector_performance: sectorResult.rows.map(row => ({
+      sector_performance: sectorResult.rows.map((row) => ({
         sector: row.sector,
         stock_count: parseInt(row.stock_count) || 0,
-        change_percent: parseFloat(row.change_percent) || 0
+        change_percent: parseFloat(row.change_percent) || 0,
       })),
       alerts_summary: {
         total_active: 0,
         critical: 0,
         high: 0,
-        medium: 0
-      }
+        medium: 0,
+      },
     };
 
     res.json({
       success: true,
       data: overviewData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Dashboard overview error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dashboard overview",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1016,7 +1052,7 @@ router.get("/debug", async (req, res) => {
       !Array.isArray(debugData.table_counts) ||
       Object.keys(debugData.table_counts).length === 0
     ) {
-      return res.notFound("No table counts found" );
+      return res.notFound("No table counts found");
     }
     if (
       !debugData ||
@@ -1026,7 +1062,7 @@ router.get("/debug", async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "Database statistics unavailable",
-        message: "Unable to retrieve database counts"
+        message: "Unable to retrieve database counts",
       });
     }
     res.json({
@@ -1046,20 +1082,22 @@ router.get("/debug", async (req, res) => {
 // Dashboard analytics endpoint
 router.get("/analytics", async (req, res) => {
   try {
-    const { 
-      period = '30d', 
-      include_sectors = 'true',
-      include_performance = 'true' 
+    const {
+      period = "30d",
+      include_sectors = "true",
+      include_performance = "true",
     } = req.query;
-    
-    console.log(`📊 Dashboard analytics requested - period: ${period}, sectors: ${include_sectors}, performance: ${include_performance}`);
+
+    console.log(
+      `📊 Dashboard analytics requested - period: ${period}, sectors: ${include_sectors}, performance: ${include_performance}`
+    );
 
     // Calculate date range
     const periodDays = {
-      '7d': 7,
-      '30d': 30,
-      '90d': 90,
-      '1y': 365
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "1y": 365,
     };
     const days = periodDays[period] || 30;
 
@@ -1094,7 +1132,7 @@ router.get("/analytics", async (req, res) => {
     `);
 
     let sectorAnalysis = {};
-    if (include_sectors === 'true') {
+    if (include_sectors === "true") {
       const sectorResult = await query(`
         SELECT 
           s.sector,
@@ -1108,20 +1146,22 @@ router.get("/analytics", async (req, res) => {
         ORDER BY total_value DESC
         LIMIT 10
       `);
-      
+
       sectorAnalysis = {
-        sectors: (sectorResult.rows || []).map(row => ({
+        sectors: (sectorResult.rows || []).map((row) => ({
           sector: row.sector,
           positions: parseInt(row.positions),
           total_value: parseFloat(row.total_value || 0),
-          avg_performance: parseFloat(row.avg_performance || 0).toFixed(2) + '%'
+          avg_performance:
+            parseFloat(row.avg_performance || 0).toFixed(2) + "%",
         })),
-        diversification_score: (sectorResult.rows || []).length >= 5 ? 'Good' : 'Needs Improvement'
+        diversification_score:
+          (sectorResult.rows || []).length >= 5 ? "Good" : "Needs Improvement",
       };
     }
 
     let performanceMetrics = {};
-    if (include_performance === 'true') {
+    if (include_performance === "true") {
       // Get price performance for major indices
       const performanceResult = await query(`
         SELECT 
@@ -1133,16 +1173,18 @@ router.get("/analytics", async (req, res) => {
         WHERE symbol IN ('SPY', 'QQQ', 'IWM')
           AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ('SPY', 'QQQ', 'IWM'))
       `);
-      
+
       performanceMetrics = {
-        market_indices: (performanceResult.rows || []).map(row => ({
+        market_indices: (performanceResult.rows || []).map((row) => ({
           symbol: row.symbol,
           name: getIndexName(row.symbol),
           price: parseFloat(row.close_price),
-          change_percent: parseFloat(row.change_percent).toFixed(2) + '%',
-          date: row.date
+          change_percent: parseFloat(row.change_percent).toFixed(2) + "%",
+          date: row.date,
         })),
-        market_sentiment: calculateMarketSentiment(performanceResult.rows || [])
+        market_sentiment: calculateMarketSentiment(
+          performanceResult.rows || []
+        ),
       };
     }
 
@@ -1155,42 +1197,52 @@ router.get("/analytics", async (req, res) => {
       overview: {
         portfolio_value: parseFloat(portfolioData.total_value || 0).toFixed(2),
         total_positions: parseInt(portfolioData.total_positions || 0),
-        total_gain_loss: parseFloat(portfolioData.total_gain_loss || 0).toFixed(2),
-        portfolio_performance: parseFloat(portfolioData.avg_gain_loss_percent || 0).toFixed(2) + '%',
-        watchlist_size: parseInt(watchlistData.total_watchlist_items || 0)
+        total_gain_loss: parseFloat(portfolioData.total_gain_loss || 0).toFixed(
+          2
+        ),
+        portfolio_performance:
+          parseFloat(portfolioData.avg_gain_loss_percent || 0).toFixed(2) + "%",
+        watchlist_size: parseInt(watchlistData.total_watchlist_items || 0),
       },
-      
+
       trading_activity: {
         period: period,
         total_trades: parseInt(tradesData.total_trades || 0),
         buy_trades: parseInt(tradesData.buy_trades || 0),
         sell_trades: parseInt(tradesData.sell_trades || 0),
         total_volume: parseFloat(tradesData.total_volume || 0).toFixed(2),
-        avg_profit_per_trade: parseFloat(tradesData.avg_profit_loss || 0).toFixed(2),
-        trade_frequency: parseInt(tradesData.total_trades || 0) > 0 ? 
-          `${(parseInt(tradesData.total_trades) / days).toFixed(1)} trades/day` : '0 trades/day'
+        avg_profit_per_trade: parseFloat(
+          tradesData.avg_profit_loss || 0
+        ).toFixed(2),
+        trade_frequency:
+          parseInt(tradesData.total_trades || 0) > 0
+            ? `${(parseInt(tradesData.total_trades) / days).toFixed(1)} trades/day`
+            : "0 trades/day",
       },
 
       sector_analysis: sectorAnalysis,
       performance_metrics: performanceMetrics,
-      
-      insights: generateDashboardInsights(portfolioData, tradesData, sectorAnalysis),
-      
-      last_updated: new Date().toISOString()
+
+      insights: generateDashboardInsights(
+        portfolioData,
+        tradesData,
+        sectorAnalysis
+      ),
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: dashboardAnalytics,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Dashboard analytics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dashboard analytics",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1198,68 +1250,71 @@ router.get("/analytics", async (req, res) => {
 // Helper functions for dashboard analytics
 function getIndexName(symbol) {
   const indexMap = {
-    'SPY': 'S&P 500',
-    'QQQ': 'NASDAQ-100',
-    'IWM': 'Russell 2000'
+    SPY: "S&P 500",
+    QQQ: "NASDAQ-100",
+    IWM: "Russell 2000",
   };
   return indexMap[symbol] || symbol;
 }
 
 function calculateMarketSentiment(indices) {
-  if (!indices || indices.length === 0) return 'Neutral';
-  
-  const avgChange = indices.reduce((sum, idx) => sum + parseFloat(idx.change_percent || 0), 0) / indices.length;
-  
-  if (avgChange > 1) return 'Bullish';
-  if (avgChange > 0) return 'Slightly Bullish';
-  if (avgChange > -1) return 'Slightly Bearish';
-  return 'Bearish';
+  if (!indices || indices.length === 0) return "Neutral";
+
+  const avgChange =
+    indices.reduce((sum, idx) => sum + parseFloat(idx.change_percent || 0), 0) /
+    indices.length;
+
+  if (avgChange > 1) return "Bullish";
+  if (avgChange > 0) return "Slightly Bullish";
+  if (avgChange > -1) return "Slightly Bearish";
+  return "Bearish";
 }
 
 function generateDashboardInsights(portfolio, trades, sectors) {
   const insights = [];
-  
+
   // Portfolio insights
   const portfolioPerf = parseFloat(portfolio.avg_gain_loss_percent || 0);
-  
+
   if (portfolioPerf > 5) {
     insights.push({
-      type: 'positive',
-      message: `Strong portfolio performance with ${portfolioPerf.toFixed(1)}% average gains`
+      type: "positive",
+      message: `Strong portfolio performance with ${portfolioPerf.toFixed(1)}% average gains`,
     });
   } else if (portfolioPerf < -5) {
     insights.push({
-      type: 'warning',
-      message: `Portfolio showing losses with ${portfolioPerf.toFixed(1)}% average performance`
+      type: "warning",
+      message: `Portfolio showing losses with ${portfolioPerf.toFixed(1)}% average performance`,
     });
   }
-  
+
   // Trading insights
   const totalTrades = parseInt(trades.total_trades || 0);
   const avgProfit = parseFloat(trades.avg_profit_loss || 0);
-  
+
   if (totalTrades > 0) {
     if (avgProfit > 0) {
       insights.push({
-        type: 'positive',
-        message: `Profitable trading with average $${avgProfit.toFixed(2)} per trade`
+        type: "positive",
+        message: `Profitable trading with average $${avgProfit.toFixed(2)} per trade`,
       });
     } else if (avgProfit < 0) {
       insights.push({
-        type: 'warning',
-        message: `Trading showing losses averaging $${Math.abs(avgProfit).toFixed(2)} per trade`
+        type: "warning",
+        message: `Trading showing losses averaging $${Math.abs(avgProfit).toFixed(2)} per trade`,
       });
     }
   }
-  
+
   // Diversification insights
   if (sectors.sectors && sectors.sectors.length < 3) {
     insights.push({
-      type: 'suggestion',
-      message: 'Consider diversifying across more sectors for better risk management'
+      type: "suggestion",
+      message:
+        "Consider diversifying across more sectors for better risk management",
     });
   }
-  
+
   return insights;
 }
 

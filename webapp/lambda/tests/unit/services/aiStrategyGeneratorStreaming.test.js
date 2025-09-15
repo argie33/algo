@@ -68,11 +68,11 @@ describe("AIStrategyGeneratorStreaming Service", () => {
       expect(result.streamId).toMatch(/^stream-\d+-[a-z0-9]+$/);
       expect(result.metadata.streaming).toBe(true);
       expect(onProgress).toHaveBeenCalled();
-      
+
       // Should have called progress with initialization
-      expect(progressUpdates.some(update => 
-        update.phase === "initialization"
-      )).toBe(true);
+      expect(
+        progressUpdates.some((update) => update.phase === "initialization")
+      ).toBe(true);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         "Starting streaming strategy generation",
@@ -86,24 +86,26 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
     test("should handle concurrent stream limit", async () => {
       const prompt = "Create a strategy";
-      
+
       // Fill up to max concurrent streams
       const promises = [];
       for (let i = 0; i < 6; i++) {
-        const promise = streamingGenerator.generateWithStreaming(prompt, ["AAPL"]);
+        const promise = streamingGenerator.generateWithStreaming(prompt, [
+          "AAPL",
+        ]);
         promises.push(promise);
-        
+
         // Small delay to ensure streams start
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       const results = await Promise.allSettled(promises);
-      
+
       // At least one should fail due to concurrent limit
-      const failures = results.filter(r => r.status === "rejected");
+      const failures = results.filter((r) => r.status === "rejected");
       expect(failures.length).toBeGreaterThan(0);
-      
-      const rejectedError = failures.find(f => 
+
+      const rejectedError = failures.find((f) =>
         f.reason.message.includes("Maximum concurrent streams reached")
       );
       expect(rejectedError).toBeDefined();
@@ -113,7 +115,10 @@ describe("AIStrategyGeneratorStreaming Service", () => {
       const prompt = "Create a simple strategy";
       const symbols = ["SPY"];
 
-      const result = await streamingGenerator.generateWithStreaming(prompt, symbols);
+      const result = await streamingGenerator.generateWithStreaming(
+        prompt,
+        symbols
+      );
 
       expect(result.success).toBe(true);
       expect(result.streamId).toBeDefined();
@@ -139,13 +144,17 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
     test("should handle streaming errors gracefully", async () => {
       const prompt = "Invalid prompt that will cause errors";
-      
-      // Mock an error in the parent class method
-      jest.spyOn(streamingGenerator, "buildSystemPrompt").mockImplementation(() => {
-        throw new Error("System prompt generation failed");
-      });
 
-      const result = await streamingGenerator.generateWithStreaming(prompt, ["AAPL"]);
+      // Mock an error in the parent class method
+      jest
+        .spyOn(streamingGenerator, "buildSystemPrompt")
+        .mockImplementation(() => {
+          throw new Error("System prompt generation failed");
+        });
+
+      const result = await streamingGenerator.generateWithStreaming(prompt, [
+        "AAPL",
+      ]);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Streaming generation failed");
@@ -157,14 +166,18 @@ describe("AIStrategyGeneratorStreaming Service", () => {
       streamingGenerator.streamingConfig.timeout = 10; // 10ms
 
       const prompt = "Create a complex strategy";
-      
-      // Mock a slow operation
-      jest.spyOn(streamingGenerator, "buildUserPrompt").mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
-        return "prompt";
-      });
 
-      const result = await streamingGenerator.generateWithStreaming(prompt, ["AAPL"]);
+      // Mock a slow operation
+      jest
+        .spyOn(streamingGenerator, "buildUserPrompt")
+        .mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50)); // 50ms delay
+          return "prompt";
+        });
+
+      const result = await streamingGenerator.generateWithStreaming(prompt, [
+        "AAPL",
+      ]);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("timeout");
@@ -235,8 +248,8 @@ describe("AIStrategyGeneratorStreaming Service", () => {
       await streamingGenerator.simulateStreamingResponse(strategy, onProgress);
 
       expect(onProgress).toHaveBeenCalledTimes(3); // name, description, code
-      
-      const phases = progressUpdates.map(update => update.phase);
+
+      const phases = progressUpdates.map((update) => update.phase);
       expect(phases).toContain("name");
       expect(phases).toContain("description");
       expect(phases).toContain("code");
@@ -249,7 +262,10 @@ describe("AIStrategyGeneratorStreaming Service", () => {
       };
       const onProgress = jest.fn();
 
-      await streamingGenerator.simulateStreamingResponse(incompleteStrategy, onProgress);
+      await streamingGenerator.simulateStreamingResponse(
+        incompleteStrategy,
+        onProgress
+      );
 
       expect(onProgress).toHaveBeenCalled();
     });
@@ -267,7 +283,7 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
       const endTime = Date.now();
       const duration = endTime - startTime;
-      
+
       // Should take some time due to simulated delays
       expect(duration).toBeGreaterThan(100); // At least 100ms
     });
@@ -461,7 +477,7 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
     test("should respect chunk size configuration", async () => {
       streamingGenerator.streamingConfig.chunkSize = 100;
-      
+
       const onProgress = jest.fn();
       const largeChunk = "x".repeat(500);
 
@@ -474,14 +490,16 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
   describe("Error Handling and Edge Cases", () => {
     test("should handle concurrent stream generation attempts", async () => {
-      const promises = Array(3).fill().map((_, i) =>
-        streamingGenerator.generateWithStreaming(`strategy ${i}`, ["AAPL"])
-      );
+      const promises = Array(3)
+        .fill()
+        .map((_, i) =>
+          streamingGenerator.generateWithStreaming(`strategy ${i}`, ["AAPL"])
+        );
 
       const results = await Promise.allSettled(promises);
 
       // All should either succeed or fail gracefully
-      results.forEach(result => {
+      results.forEach((result) => {
         if (result.status === "fulfilled") {
           expect(result.value).toHaveProperty("success");
         } else {
@@ -503,7 +521,7 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
     test("should handle very rapid stream start/stop cycles", async () => {
       const streamId = streamingGenerator.generateStreamId();
-      
+
       streamingGenerator.activeStreams.set(streamId, {
         status: "active",
         startTime: Date.now(),
@@ -548,13 +566,17 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
     test("should clean up properly on errors", async () => {
       const initialStreamCount = streamingGenerator.activeStreams.size;
-      
-      // Force an error during streaming
-      jest.spyOn(streamingGenerator, "buildSystemPrompt").mockImplementation(() => {
-        throw new Error("Forced error");
-      });
 
-      const result = await streamingGenerator.generateWithStreaming("test", ["AAPL"]);
+      // Force an error during streaming
+      jest
+        .spyOn(streamingGenerator, "buildSystemPrompt")
+        .mockImplementation(() => {
+          throw new Error("Forced error");
+        });
+
+      const result = await streamingGenerator.generateWithStreaming("test", [
+        "AAPL",
+      ]);
 
       expect(result.success).toBe(false);
       expect(streamingGenerator.activeStreams.size).toBe(initialStreamCount);
@@ -571,14 +593,18 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
     test("should use base class template generation", async () => {
       const prompt = "momentum strategy";
-      const result = await streamingGenerator.generateWithStreaming(prompt, ["AAPL"]);
+      const result = await streamingGenerator.generateWithStreaming(prompt, [
+        "AAPL",
+      ]);
 
       expect(result.success).toBe(true);
       expect(result.strategy.name).toContain("Momentum");
     });
 
     test("should maintain correlation ID from base class", () => {
-      expect(streamingGenerator.correlationId).toMatch(/^ai-strategy-\d+-[a-z0-9]+$/);
+      expect(streamingGenerator.correlationId).toMatch(
+        /^ai-strategy-\d+-[a-z0-9]+$/
+      );
     });
   });
 });

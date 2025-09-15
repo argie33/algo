@@ -23,11 +23,11 @@ jest.mock("../../../utils/database", () => ({
 jest.mock("../../../utils/responseFormatter", () => ({
   success: jest.fn((data) => ({
     response: { success: true, data },
-    statusCode: 200
+    statusCode: 200,
   })),
   error: jest.fn((message, code, details) => ({
     response: { success: false, error: message, code, ...details },
-    statusCode: code || 500
+    statusCode: code || 500,
   })),
 }));
 
@@ -66,7 +66,7 @@ jest.mock("../../../middleware/validation", () => ({
 const websocketRoutes = require("../../../routes/websocket");
 
 const app = express();
-app.disable('etag'); // Disable ETags to avoid crypto issues in tests
+app.disable("etag"); // Disable ETags to avoid crypto issues in tests
 app.use(express.json());
 app.use("/api/websocket", websocketRoutes);
 
@@ -77,7 +77,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
     mockAlpacaInstance.getLatestTrade.mockReset();
     mockAlpacaInstance.getBars.mockReset();
     mockAlpacaService.mockClear();
-    
+
     // Restore default mock implementation for AlpacaService constructor
     // This is critical because some tests change the mock implementation
     // (e.g., to simulate errors) and if not reset, subsequent tests fail
@@ -343,7 +343,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
           subscribed: ["AAPL", "TSLA"],
           dataTypes: ["quotes", "trades"],
           message: "Subscribed to 2 symbols",
-        }
+        },
       });
     });
 
@@ -377,7 +377,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         data: {
           symbols: ["AAPL", "TSLA"],
           count: 2,
-        }
+        },
       });
     });
 
@@ -398,7 +398,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         data: {
           message: "Unsubscribed successfully",
           remainingSubscriptions: ["MSFT"],
-        }
+        },
       });
     });
   });

@@ -68,7 +68,8 @@ class AlertSystem extends EventEmitter {
 
     // Initialize AWS SES client if email notifications are enabled
     this.sesClient = new SESClient({
-      region: process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1"
+      region:
+        process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1",
     });
 
     if (process.env.NODE_ENV !== "test") {
@@ -471,7 +472,7 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
         `,
         html: `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background: ${alert.severity === 'critical' ? '#dc3545' : alert.severity === 'warning' ? '#ffc107' : '#28a745'}; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+  <div style="background: ${alert.severity === "critical" ? "#dc3545" : alert.severity === "warning" ? "#ffc107" : "#28a745"}; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
     <h2 style="margin: 0; font-size: 24px;">🚨 ${alert.title}</h2>
     <p style="margin: 5px 0 0 0; opacity: 0.9;">Severity: ${alert.severity.toUpperCase()}</p>
   </div>
@@ -482,29 +483,35 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
       <p><strong>Alert Count:</strong> ${alert.count}</p>
       <p><strong>System:</strong> Financial Dashboard</p>
     </div>
-    ${alert.metadata && Object.keys(alert.metadata).length > 0 ? `
+    ${
+      alert.metadata && Object.keys(alert.metadata).length > 0
+        ? `
     <div style="background: #e9ecef; padding: 15px; border-radius: 4px;">
       <p><strong>Additional Details:</strong></p>
       <pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(alert.metadata, null, 2)}</pre>
     </div>
-    ` : ''}
+    `
+        : ""
+    }
   </div>
-</div>`
+</div>`,
       };
 
       // Check if we have email service configuration
-      const emailService = process.env.EMAIL_SERVICE || 'console'; // 'ses', 'sendgrid', or 'console'
-      
-      if (emailService === 'console') {
+      const emailService = process.env.EMAIL_SERVICE || "console"; // 'ses', 'sendgrid', or 'console'
+
+      if (emailService === "console") {
         // Development mode - log to console
-        console.log(`📧 Email notification: [${alert.severity}] ${alert.title}`);
-        console.log('Recipients:', emailData.to);
-        console.log('Subject:', emailData.subject);
-        console.log('Body preview:', emailData.text.substring(0, 200) + '...');
-      } else if (emailService === 'ses' && process.env.AWS_REGION) {
+        console.log(
+          `📧 Email notification: [${alert.severity}] ${alert.title}`
+        );
+        console.log("Recipients:", emailData.to);
+        console.log("Subject:", emailData.subject);
+        console.log("Body preview:", emailData.text.substring(0, 200) + "...");
+      } else if (emailService === "ses" && process.env.AWS_REGION) {
         // AWS SES integration
         await this.sendSESEmail(emailData);
-      } else if (emailService === 'sendgrid' && process.env.SENDGRID_API_KEY) {
+      } else if (emailService === "sendgrid" && process.env.SENDGRID_API_KEY) {
         // SendGrid integration
         await this.sendSendGridEmail(emailData);
       } else {
@@ -512,7 +519,9 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
         if (process.env.EMAIL_WEBHOOK_URL) {
           await this.sendEmailWebhook(emailData);
         } else {
-          console.log(`📧 Email notification (no service configured): [${alert.severity}] ${alert.title}`);
+          console.log(
+            `📧 Email notification (no service configured): [${alert.severity}] ${alert.title}`
+          );
         }
       }
 
@@ -533,20 +542,24 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
    */
   async sendEmailWebhook(emailData) {
     const response = await fetch(process.env.EMAIL_WEBHOOK_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': process.env.EMAIL_WEBHOOK_TOKEN ? `Bearer ${process.env.EMAIL_WEBHOOK_TOKEN}` : undefined
+        "Content-Type": "application/json",
+        Authorization: process.env.EMAIL_WEBHOOK_TOKEN
+          ? `Bearer ${process.env.EMAIL_WEBHOOK_TOKEN}`
+          : undefined,
       },
       body: JSON.stringify({
-        type: 'email',
+        type: "email",
         data: emailData,
-        timestamp: new Date().toISOString()
-      })
+        timestamp: new Date().toISOString(),
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Email webhook failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Email webhook failed: ${response.status} ${response.statusText}`
+      );
     }
   }
 
@@ -561,38 +574,47 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
 
       const params = {
         Destination: {
-          ToAddresses: Array.isArray(emailData.to) ? emailData.to : [emailData.to],
+          ToAddresses: Array.isArray(emailData.to)
+            ? emailData.to
+            : [emailData.to],
         },
         Message: {
           Body: {
             Text: { Data: emailData.text },
-            ...(emailData.html && { Html: { Data: emailData.html } })
+            ...(emailData.html && { Html: { Data: emailData.html } }),
           },
           Subject: { Data: emailData.subject },
         },
-        Source: emailData.from || process.env.SES_FROM_EMAIL || "noreply@financialdashboard.com",
-        ...(emailData.replyTo && { ReplyToAddresses: [emailData.replyTo] })
+        Source:
+          emailData.from ||
+          process.env.SES_FROM_EMAIL ||
+          "noreply@financialdashboard.com",
+        ...(emailData.replyTo && { ReplyToAddresses: [emailData.replyTo] }),
       };
 
       const command = new SendEmailCommand(params);
       const result = await this.sesClient.send(command);
-      
-      console.log(`📧 AWS SES email sent successfully: ${emailData.subject} (MessageId: ${result.MessageId})`);
-      return { success: true, messageId: result.MessageId };
 
+      console.log(
+        `📧 AWS SES email sent successfully: ${emailData.subject} (MessageId: ${result.MessageId})`
+      );
+      return { success: true, messageId: result.MessageId };
     } catch (error) {
       console.error(`❌ Failed to send AWS SES email: ${error.message}`);
-      
+
       // Fallback to console logging in development
-      if (!process.env.SES_FROM_EMAIL || process.env.NODE_ENV === 'development') {
-        console.log('📧 DEV: Email would be sent with SES:', {
+      if (
+        !process.env.SES_FROM_EMAIL ||
+        process.env.NODE_ENV === "development"
+      ) {
+        console.log("📧 DEV: Email would be sent with SES:", {
           to: emailData.to,
           subject: emailData.subject,
-          text: emailData.text.substring(0, 100) + '...'
+          text: emailData.text.substring(0, 100) + "...",
         });
-        return { success: true, messageId: 'dev-mock-message-id' };
+        return { success: true, messageId: "dev-mock-message-id" };
       }
-      
+
       throw error;
     }
   }
@@ -603,8 +625,11 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
   async sendSendGridEmail(emailData) {
     try {
       if (!process.env.SENDGRID_API_KEY) {
-        console.log('📧 DEV: SendGrid not configured, email would be sent:', emailData.subject);
-        return { success: true, messageId: 'dev-sendgrid-mock-id' };
+        console.log(
+          "📧 DEV: SendGrid not configured, email would be sent:",
+          emailData.subject
+        );
+        return { success: true, messageId: "dev-sendgrid-mock-id" };
       }
 
       if (!emailData.to || !emailData.subject || !emailData.text) {
@@ -612,49 +637,58 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
       }
 
       const payload = {
-        personalizations: [{
-          to: Array.isArray(emailData.to) ? 
-            emailData.to.map(email => ({ email })) : 
-            [{ email: emailData.to }]
-        }],
-        from: { 
-          email: emailData.from || process.env.SENDGRID_FROM_EMAIL || "noreply@financialdashboard.com" 
+        personalizations: [
+          {
+            to: Array.isArray(emailData.to)
+              ? emailData.to.map((email) => ({ email }))
+              : [{ email: emailData.to }],
+          },
+        ],
+        from: {
+          email:
+            emailData.from ||
+            process.env.SENDGRID_FROM_EMAIL ||
+            "noreply@financialdashboard.com",
         },
         subject: emailData.subject,
         content: [
           { type: "text/plain", value: emailData.text },
-          ...(emailData.html ? [{ type: "text/html", value: emailData.html }] : [])
-        ]
+          ...(emailData.html
+            ? [{ type: "text/html", value: emailData.html }]
+            : []),
+        ],
       };
 
-      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-        method: 'POST',
+      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        const messageId = response.headers.get('x-message-id') || 'sendgrid-success';
-        console.log(`📧 SendGrid email sent successfully: ${emailData.subject} (MessageId: ${messageId})`);
+        const messageId =
+          response.headers.get("x-message-id") || "sendgrid-success";
+        console.log(
+          `📧 SendGrid email sent successfully: ${emailData.subject} (MessageId: ${messageId})`
+        );
         return { success: true, messageId };
       } else {
         const errorText = await response.text();
         throw new Error(`SendGrid API error: ${response.status} ${errorText}`);
       }
-
     } catch (error) {
       console.error(`❌ Failed to send SendGrid email: ${error.message}`);
-      
+
       // Fallback to console logging
-      console.log('📧 DEV: Email would be sent with SendGrid:', {
+      console.log("📧 DEV: Email would be sent with SendGrid:", {
         to: emailData.to,
         subject: emailData.subject,
-        text: emailData.text.substring(0, 100) + '...'
+        text: emailData.text.substring(0, 100) + "...",
       });
-      
+
       return { success: false, error: error.message };
     }
   }
@@ -708,20 +742,26 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
       // Send real Slack notification if webhook is configured
       if (this.config.notifications.slack.webhook) {
         const response = await fetch(this.config.notifications.slack.webhook, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
-          body: JSON.stringify(_slackMessage)
+          body: JSON.stringify(_slackMessage),
         });
 
         if (!response.ok) {
-          throw new Error(`Slack API error: ${response.status} ${response.statusText}`);
+          throw new Error(
+            `Slack API error: ${response.status} ${response.statusText}`
+          );
         }
 
-        console.log(`💬 Slack notification sent: [${alert.severity}] ${alert.title}`);
+        console.log(
+          `💬 Slack notification sent: [${alert.severity}] ${alert.title}`
+        );
       } else {
-        console.log(`💬 Slack notification (no webhook configured): [${alert.severity}] ${alert.title}`);
+        console.log(
+          `💬 Slack notification (no webhook configured): [${alert.severity}] ${alert.title}`
+        );
       }
 
       this.emit("notificationSent", { type: "slack", alert, success: true });
@@ -758,41 +798,46 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
         },
         system: "financial-dashboard",
         timestamp: Date.now(),
-        environment: process.env.NODE_ENV || 'development',
-        version: process.env.npm_package_version || '1.0.0'
+        environment: process.env.NODE_ENV || "development",
+        version: process.env.npm_package_version || "1.0.0",
       };
 
       // Send real webhook notification
       const headers = {
-        'Content-Type': 'application/json',
-        'User-Agent': 'FinancialDashboard-AlertSystem/1.0'
+        "Content-Type": "application/json",
+        "User-Agent": "FinancialDashboard-AlertSystem/1.0",
       };
 
       // Add authentication if configured
       if (this.config.notifications.webhook.secret) {
-        headers['X-Webhook-Secret'] = this.config.notifications.webhook.secret;
+        headers["X-Webhook-Secret"] = this.config.notifications.webhook.secret;
       }
       if (this.config.notifications.webhook.token) {
-        headers['Authorization'] = `Bearer ${this.config.notifications.webhook.token}`;
+        headers["Authorization"] =
+          `Bearer ${this.config.notifications.webhook.token}`;
       }
 
       const response = await fetch(this.config.notifications.webhook.url, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: JSON.stringify(webhookData),
-        timeout: 10000 // 10 second timeout
+        timeout: 10000, // 10 second timeout
       });
 
       if (!response.ok) {
-        throw new Error(`Webhook failed: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Webhook failed: ${response.status} ${response.statusText}`
+        );
       }
 
       const responseText = await response.text();
-      console.log(`🔗 Webhook notification sent: [${alert.severity}] ${alert.title}`);
-      
+      console.log(
+        `🔗 Webhook notification sent: [${alert.severity}] ${alert.title}`
+      );
+
       // Log response for debugging if it's not empty
       if (responseText && responseText.length < 200) {
-        console.log('Webhook response:', responseText);
+        console.log("Webhook response:", responseText);
       }
 
       this.emit("notificationSent", { type: "webhook", alert, success: true });

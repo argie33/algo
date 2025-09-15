@@ -123,7 +123,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         error: "Technical data not available",
         message: "Technical data table for daily timeframe does not exist",
         service: "technical-overview",
-        timeframe: "daily"
+        timeframe: "daily",
       });
     });
   });
@@ -805,7 +805,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
     beforeEach(() => {
       // Mock the table check to return true
       query.mockResolvedValue({
-        rows: [{ exists: true }]
+        rows: [{ exists: true }],
       });
     });
 
@@ -815,30 +815,32 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('chart_data');
-      expect(response.body.data).toHaveProperty('summary');
-      expect(response.body.data).toHaveProperty('metadata');
+      expect(response.body.data).toHaveProperty("chart_data");
+      expect(response.body.data).toHaveProperty("summary");
+      expect(response.body.data).toHaveProperty("metadata");
       expect(Array.isArray(response.body.data.chart_data)).toBe(true);
-      expect(response.body.data.metadata.symbol).toBe('AAPL');
-      expect(response.body.data.metadata.period).toBe('1M');
-      expect(response.body.data.metadata.interval).toBe('1d');
+      expect(response.body.data.metadata.symbol).toBe("AAPL");
+      expect(response.body.data.metadata.period).toBe("1M");
+      expect(response.body.data.metadata.interval).toBe("1d");
     });
 
     test("should return chart data with custom parameters", async () => {
       const response = await request(app)
-        .get("/technical/chart/MSFT?period=1Y&interval=1d&include_volume=true&limit=50")
+        .get(
+          "/technical/chart/MSFT?period=1Y&interval=1d&include_volume=true&limit=50"
+        )
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.chart_data.length).toBeLessThanOrEqual(50);
-      expect(response.body.data.metadata.symbol).toBe('MSFT');
-      expect(response.body.data.metadata.period).toBe('1Y');
-      expect(response.body.data.metadata.interval).toBe('1d');
+      expect(response.body.data.metadata.symbol).toBe("MSFT");
+      expect(response.body.data.metadata.period).toBe("1Y");
+      expect(response.body.data.metadata.interval).toBe("1d");
       expect(response.body.data.metadata.include_volume).toBe(true);
-      
+
       // Check if volume is included when requested
       if (response.body.data.chart_data.length > 0) {
-        expect(response.body.data.chart_data[0]).toHaveProperty('volume');
+        expect(response.body.data.chart_data[0]).toHaveProperty("volume");
       }
     });
 
@@ -849,18 +851,18 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
       if (response.body.data.chart_data.length > 0) {
         const candle = response.body.data.chart_data[0];
-        expect(candle).toHaveProperty('datetime');
-        expect(candle).toHaveProperty('timestamp');
-        expect(candle).toHaveProperty('open');
-        expect(candle).toHaveProperty('high');
-        expect(candle).toHaveProperty('low');
-        expect(candle).toHaveProperty('close');
-        expect(candle).toHaveProperty('adjusted_close');
-        expect(candle).toHaveProperty('technical_indicators');
-        expect(typeof candle.open).toBe('number');
-        expect(typeof candle.high).toBe('number');
-        expect(typeof candle.low).toBe('number');
-        expect(typeof candle.close).toBe('number');
+        expect(candle).toHaveProperty("datetime");
+        expect(candle).toHaveProperty("timestamp");
+        expect(candle).toHaveProperty("open");
+        expect(candle).toHaveProperty("high");
+        expect(candle).toHaveProperty("low");
+        expect(candle).toHaveProperty("close");
+        expect(candle).toHaveProperty("adjusted_close");
+        expect(candle).toHaveProperty("technical_indicators");
+        expect(typeof candle.open).toBe("number");
+        expect(typeof candle.high).toBe("number");
+        expect(typeof candle.low).toBe("number");
+        expect(typeof candle.close).toBe("number");
       }
     });
 
@@ -870,18 +872,19 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       if (response.body.data.chart_data.length > 0) {
-        const indicators = response.body.data.chart_data[0].technical_indicators;
-        expect(indicators).toHaveProperty('sma_20');
-        expect(indicators).toHaveProperty('sma_50');
-        expect(indicators).toHaveProperty('ema_12');
-        expect(indicators).toHaveProperty('ema_26');
-        expect(indicators).toHaveProperty('rsi');
-        expect(indicators).toHaveProperty('macd');
-        expect(indicators).toHaveProperty('macd_signal');
-        expect(indicators).toHaveProperty('macd_histogram');
-        expect(indicators).toHaveProperty('bollinger_upper');
-        expect(indicators).toHaveProperty('bollinger_middle');
-        expect(indicators).toHaveProperty('bollinger_lower');
+        const indicators =
+          response.body.data.chart_data[0].technical_indicators;
+        expect(indicators).toHaveProperty("sma_20");
+        expect(indicators).toHaveProperty("sma_50");
+        expect(indicators).toHaveProperty("ema_12");
+        expect(indicators).toHaveProperty("ema_26");
+        expect(indicators).toHaveProperty("rsi");
+        expect(indicators).toHaveProperty("macd");
+        expect(indicators).toHaveProperty("macd_signal");
+        expect(indicators).toHaveProperty("macd_histogram");
+        expect(indicators).toHaveProperty("bollinger_upper");
+        expect(indicators).toHaveProperty("bollinger_middle");
+        expect(indicators).toHaveProperty("bollinger_lower");
       }
     });
 
@@ -890,15 +893,19 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         .get("/technical/chart/AAPL?limit=10")
         .expect(200);
 
-      expect(response.body.data.summary).toHaveProperty('symbol', 'AAPL');
-      expect(response.body.data.summary).toHaveProperty('price_range');
-      expect(response.body.data.summary).toHaveProperty('technical_summary');
-      expect(response.body.data.summary.price_range).toHaveProperty('current');
-      expect(response.body.data.summary.price_range).toHaveProperty('high');
-      expect(response.body.data.summary.price_range).toHaveProperty('low');
-      expect(response.body.data.summary.price_range).toHaveProperty('change');
-      expect(response.body.data.summary.technical_summary).toHaveProperty('current_rsi');
-      expect(response.body.data.summary.technical_summary).toHaveProperty('trend_direction');
+      expect(response.body.data.summary).toHaveProperty("symbol", "AAPL");
+      expect(response.body.data.summary).toHaveProperty("price_range");
+      expect(response.body.data.summary).toHaveProperty("technical_summary");
+      expect(response.body.data.summary.price_range).toHaveProperty("current");
+      expect(response.body.data.summary.price_range).toHaveProperty("high");
+      expect(response.body.data.summary.price_range).toHaveProperty("low");
+      expect(response.body.data.summary.price_range).toHaveProperty("change");
+      expect(response.body.data.summary.technical_summary).toHaveProperty(
+        "current_rsi"
+      );
+      expect(response.body.data.summary.technical_summary).toHaveProperty(
+        "trend_direction"
+      );
     });
 
     test("should handle volume inclusion correctly", async () => {
@@ -911,19 +918,27 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       if (responseWithVolume.body.data.chart_data.length > 0) {
-        expect(responseWithVolume.body.data.chart_data[0]).toHaveProperty('volume');
-        expect(responseWithVolume.body.data.summary).toHaveProperty('volume_stats');
+        expect(responseWithVolume.body.data.chart_data[0]).toHaveProperty(
+          "volume"
+        );
+        expect(responseWithVolume.body.data.summary).toHaveProperty(
+          "volume_stats"
+        );
       }
 
       if (responseWithoutVolume.body.data.chart_data.length > 0) {
-        expect(responseWithoutVolume.body.data.chart_data[0]).not.toHaveProperty('volume');
-        expect(responseWithoutVolume.body.data.summary.volume_stats).toBeUndefined();
+        expect(
+          responseWithoutVolume.body.data.chart_data[0]
+        ).not.toHaveProperty("volume");
+        expect(
+          responseWithoutVolume.body.data.summary.volume_stats
+        ).toBeUndefined();
       }
     });
 
     test("should handle table not exists gracefully", async () => {
       query.mockResolvedValue({
-        rows: [{ exists: false }]
+        rows: [{ exists: false }],
       });
 
       const response = await request(app)
@@ -956,11 +971,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
     test("should filter indicators correctly", async () => {
       query.mockResolvedValue({
-        rows: []
+        rows: [],
       });
 
       const response = await request(app)
-        .get("/technical/chart?symbol=AAPL&indicators=sma,rsi&timeframe=daily&period=1m")
+        .get(
+          "/technical/chart?symbol=AAPL&indicators=sma,rsi&timeframe=daily&period=1m"
+        )
         .expect(404); // Will return 404 because no data in mock
 
       // The request should be processed and query should be called

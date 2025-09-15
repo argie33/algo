@@ -9,7 +9,7 @@ router.get("/", async (req, res) => {
   res.json({
     message: "Analysts API - Ready",
     timestamp: new Date().toISOString(),
-    status: "operational", 
+    status: "operational",
     endpoints: [
       "/upgrades - Get analyst upgrades/downgrades",
       "/recent-actions - Get recent analyst actions",
@@ -20,8 +20,8 @@ router.get("/", async (req, res) => {
       "/:ticker/eps-revisions - Get EPS revisions",
       "/:ticker/eps-trend - Get EPS trend data",
       "/:ticker/growth-estimates - Get growth estimates",
-      "/:ticker/overview - Get comprehensive analyst overview"
-    ]
+      "/:ticker/overview - Get comprehensive analyst overview",
+    ],
   });
 });
 
@@ -64,12 +64,20 @@ router.get("/upgrades", async (req, res) => {
     ]);
 
     // Add null checking for database availability - return graceful degradation instead of throwing
-    if (!upgradesResult || !upgradesResult.rows || !countResult || !countResult.rows) {
-      console.warn("Analyst upgrades query returned null result, database may be unavailable");
+    if (
+      !upgradesResult ||
+      !upgradesResult.rows ||
+      !countResult ||
+      !countResult.rows
+    ) {
+      console.warn(
+        "Analyst upgrades query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
-        success: false, 
+        success: false,
         error: "Database temporarily unavailable",
-        message: "Analyst upgrades temporarily unavailable - database connection issue",
+        message:
+          "Analyst upgrades temporarily unavailable - database connection issue",
         data: [],
         pagination: {
           page,
@@ -77,8 +85,8 @@ router.get("/upgrades", async (req, res) => {
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
-        }
+          hasPrev: false,
+        },
       });
     }
 
@@ -104,10 +112,11 @@ router.get("/upgrades", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching analyst upgrades:", error);
-    return res.status(500).json({ success: false, error: "Failed to fetch analyst upgrades" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch analyst upgrades" });
   }
 });
-
 
 // Get earnings estimates
 router.get("/:ticker/earnings-estimates", async (req, res) => {
@@ -136,7 +145,9 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching earnings estimates:", error);
-    return res.status(500).json({ success: false, error: "Failed to fetch earnings estimates" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch earnings estimates" });
   }
 });
 
@@ -167,7 +178,9 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching revenue estimates:", error);
-    return res.status(500).json({ success: false, error: "Failed to fetch revenue estimates" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch revenue estimates" });
   }
 });
 
@@ -198,7 +211,9 @@ router.get("/:ticker/earnings-history", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching earnings history:", error);
-    return res.status(500).json({ success: false, error: "Failed to fetch earnings history" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch earnings history" });
   }
 });
 
@@ -294,7 +309,7 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
 
     console.log(`📈 [GROWTH] Calculating growth estimates for ${tickerUpper}`);
 
-    // Get historical earnings data to calculate growth rates  
+    // Get historical earnings data to calculate growth rates
     // Note: Using earnings_reports since annual_income_statement schema may vary
     const financialDataQuery = `
       SELECT 
@@ -328,7 +343,7 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
 
     const [financialResult, earningsResult] = await Promise.all([
       query(financialDataQuery, [tickerUpper]),
-      query(earningsQuery, [tickerUpper])
+      query(earningsQuery, [tickerUpper]),
     ]);
 
     const financialData = financialResult.rows;
@@ -354,12 +369,14 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     if (financialData.length >= 2) {
       // Group by year to get annual EPS totals
       const annualEPSFromFinancial = {};
-      financialData.forEach(data => {
+      financialData.forEach((data) => {
         const year = data.fiscal_year;
         if (!annualEPSFromFinancial[year]) {
           annualEPSFromFinancial[year] = [];
         }
-        annualEPSFromFinancial[year].push(parseFloat(data.earnings_per_share) || 0);
+        annualEPSFromFinancial[year].push(
+          parseFloat(data.earnings_per_share) || 0
+        );
       });
 
       // Calculate growth rates from annual totals
@@ -367,19 +384,25 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       for (let i = 0; i < years.length - 1; i++) {
         const currentYear = years[i];
         const previousYear = years[i + 1];
-        
-        const currentEPS = annualEPSFromFinancial[currentYear].reduce((sum, eps) => sum + eps, 0);
-        const previousEPS = annualEPSFromFinancial[previousYear].reduce((sum, eps) => sum + eps, 0);
-        
+
+        const currentEPS = annualEPSFromFinancial[currentYear].reduce(
+          (sum, eps) => sum + eps,
+          0
+        );
+        const previousEPS = annualEPSFromFinancial[previousYear].reduce(
+          (sum, eps) => sum + eps,
+          0
+        );
+
         const growthRate = calculateGrowthRate(currentEPS, previousEPS);
-        
+
         if (growthRate !== null) {
           revenueGrowthRates.push({
             year: parseInt(currentYear),
             growth_rate: Math.round(growthRate * 100) / 100,
             current_value: Math.round(currentEPS * 100) / 100,
             previous_value: Math.round(previousEPS * 100) / 100,
-            metric: 'Annual EPS'
+            metric: "Annual EPS",
           });
         }
       }
@@ -389,7 +412,7 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     if (earningsData.length >= 2) {
       // Group by year to get annual EPS
       const annualEPS = {};
-      earningsData.forEach(earnings => {
+      earningsData.forEach((earnings) => {
         const year = earnings.year;
         if (!annualEPS[year]) annualEPS[year] = [];
         annualEPS[year].push(parseFloat(earnings.eps_reported) || 0);
@@ -400,57 +423,86 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       for (let i = 0; i < years.length - 1; i++) {
         const currentYear = years[i];
         const previousYear = years[i + 1];
-        
-        const currentEPS = annualEPS[currentYear].reduce((sum, eps) => sum + eps, 0);
-        const previousEPS = annualEPS[previousYear].reduce((sum, eps) => sum + eps, 0);
-        
+
+        const currentEPS = annualEPS[currentYear].reduce(
+          (sum, eps) => sum + eps,
+          0
+        );
+        const previousEPS = annualEPS[previousYear].reduce(
+          (sum, eps) => sum + eps,
+          0
+        );
+
         const growthRate = calculateGrowthRate(currentEPS, previousEPS);
-        
+
         if (growthRate !== null) {
           epsGrowthRates.push({
             year: parseInt(currentYear),
             growth_rate: Math.round(growthRate * 100) / 100,
             current_eps: Math.round(currentEPS * 100) / 100,
-            previous_eps: Math.round(previousEPS * 100) / 100
+            previous_eps: Math.round(previousEPS * 100) / 100,
           });
         }
       }
 
       // Project next year EPS
       if (epsGrowthRates.length > 0) {
-        const avgEPSGrowthRate = epsGrowthRates.reduce((sum, rate) => sum + rate.growth_rate, 0) / epsGrowthRates.length;
-        const latestYear = Math.max(...Object.keys(annualEPS).map(y => parseInt(y)));
-        const latestEPS = annualEPS[latestYear].reduce((sum, eps) => sum + eps, 0);
-        projectedEPS = Math.round((latestEPS * (1 + avgEPSGrowthRate / 100)) * 100) / 100;
+        const avgEPSGrowthRate =
+          epsGrowthRates.reduce((sum, rate) => sum + rate.growth_rate, 0) /
+          epsGrowthRates.length;
+        const latestYear = Math.max(
+          ...Object.keys(annualEPS).map((y) => parseInt(y))
+        );
+        const latestEPS = annualEPS[latestYear].reduce(
+          (sum, eps) => sum + eps,
+          0
+        );
+        projectedEPS =
+          Math.round(latestEPS * (1 + avgEPSGrowthRate / 100) * 100) / 100;
       }
     }
 
     // Determine growth trend based on recent performance
     const determineGrowthTrend = (growthRates) => {
-      if (growthRates.length === 0) return 'No Data';
-      if (growthRates.length < 2) return 'Insufficient Data';
-      
+      if (growthRates.length === 0) return "No Data";
+      if (growthRates.length < 2) return "Insufficient Data";
+
       const recentGrowth = growthRates.slice(0, 2);
-      const avgRecentGrowth = recentGrowth.reduce((sum, rate) => sum + rate.growth_rate, 0) / recentGrowth.length;
-      
-      if (avgRecentGrowth > 15) return 'Strong Growth';
-      if (avgRecentGrowth > 5) return 'Moderate Growth';
-      if (avgRecentGrowth > 0) return 'Slow Growth';
-      if (avgRecentGrowth > -5) return 'Flat';
-      return 'Declining';
+      const avgRecentGrowth =
+        recentGrowth.reduce((sum, rate) => sum + rate.growth_rate, 0) /
+        recentGrowth.length;
+
+      if (avgRecentGrowth > 15) return "Strong Growth";
+      if (avgRecentGrowth > 5) return "Moderate Growth";
+      if (avgRecentGrowth > 0) return "Slow Growth";
+      if (avgRecentGrowth > -5) return "Flat";
+      return "Declining";
     };
 
     const revenueTrend = determineGrowthTrend(revenueGrowthRates);
     const epsTrend = determineGrowthTrend(epsGrowthRates);
 
     // Calculate average growth rates for estimates
-    const avgRevenueGrowth = revenueGrowthRates.length > 0 
-      ? Math.round((revenueGrowthRates.reduce((sum, rate) => sum + rate.growth_rate, 0) / revenueGrowthRates.length) * 100) / 100
-      : 0;
-    
-    const avgEPSGrowth = epsGrowthRates.length > 0
-      ? Math.round((epsGrowthRates.reduce((sum, rate) => sum + rate.growth_rate, 0) / epsGrowthRates.length) * 100) / 100
-      : 0;
+    const avgRevenueGrowth =
+      revenueGrowthRates.length > 0
+        ? Math.round(
+            (revenueGrowthRates.reduce(
+              (sum, rate) => sum + rate.growth_rate,
+              0
+            ) /
+              revenueGrowthRates.length) *
+              100
+          ) / 100
+        : 0;
+
+    const avgEPSGrowth =
+      epsGrowthRates.length > 0
+        ? Math.round(
+            (epsGrowthRates.reduce((sum, rate) => sum + rate.growth_rate, 0) /
+              epsGrowthRates.length) *
+              100
+          ) / 100
+        : 0;
 
     const growthEstimates = {
       symbol: tickerUpper,
@@ -458,41 +510,54 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
         historical_rates: revenueGrowthRates,
         average_growth_rate: avgRevenueGrowth,
         trend: revenueTrend,
-        projected_eps: projectedEPS, 
+        projected_eps: projectedEPS,
         data_points: revenueGrowthRates.length,
-        note: "EPS growth analysis from financial earnings data"
+        note: "EPS growth analysis from financial earnings data",
       },
       earnings_growth: {
         historical_rates: epsGrowthRates,
         average_growth_rate: avgEPSGrowth,
         trend: epsTrend,
         projected_eps: projectedEPS,
-        data_points: epsGrowthRates.length
+        data_points: epsGrowthRates.length,
       },
       growth_summary: {
-        overall_trend: avgRevenueGrowth > 0 && avgEPSGrowth > 0 ? 'Positive Growth' : 
-                      (avgRevenueGrowth < 0 && avgEPSGrowth < 0 ? 'Declining Performance' : 'Mixed Performance'),
-        quality_score: Math.min(100, Math.max(0, Math.round(50 + (avgRevenueGrowth + avgEPSGrowth) * 2))),
-        data_quality: financialData.length >= 3 && earningsData.length >= 8 ? 'Good' : 
-                     (financialData.length >= 2 || earningsData.length >= 4 ? 'Fair' : 'Limited')
+        overall_trend:
+          avgRevenueGrowth > 0 && avgEPSGrowth > 0
+            ? "Positive Growth"
+            : avgRevenueGrowth < 0 && avgEPSGrowth < 0
+              ? "Declining Performance"
+              : "Mixed Performance",
+        quality_score: Math.min(
+          100,
+          Math.max(0, Math.round(50 + (avgRevenueGrowth + avgEPSGrowth) * 2))
+        ),
+        data_quality:
+          financialData.length >= 3 && earningsData.length >= 8
+            ? "Good"
+            : financialData.length >= 2 || earningsData.length >= 4
+              ? "Fair"
+              : "Limited",
       },
       metadata: {
         financial_years_analyzed: financialData.length,
         earnings_quarters_analyzed: earningsData.length,
-        calculation_method: 'Historical growth rate analysis with linear projection',
-        data_source: 'Annual income statements and quarterly earnings reports'
-      }
+        calculation_method:
+          "Historical growth rate analysis with linear projection",
+        data_source: "Annual income statements and quarterly earnings reports",
+      },
     };
 
-    console.log(`✅ [GROWTH] Calculated growth estimates for ${tickerUpper}: Revenue ${avgRevenueGrowth}%, EPS ${avgEPSGrowth}%`);
+    console.log(
+      `✅ [GROWTH] Calculated growth estimates for ${tickerUpper}: Revenue ${avgRevenueGrowth}%, EPS ${avgEPSGrowth}%`
+    );
 
     res.json({
       success: true,
       ticker: tickerUpper,
       data: growthEstimates,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Growth estimates calculation error:", error);
     return res.status(500).json({
@@ -511,11 +576,7 @@ router.get("/:ticker/overview", async (req, res) => {
     const { ticker } = req.params;
 
     // Get all analyst data in parallel using existing tables
-    const [
-      earningsData,
-      revenueData, 
-      analystData
-    ] = await Promise.all([
+    const [earningsData, revenueData, analystData] = await Promise.all([
       query(
         `SELECT 
           CONCAT('Q', er.quarter, ' ', er.year) as period,
@@ -566,45 +627,48 @@ router.get("/:ticker/overview", async (req, res) => {
         ORDER BY asa.date DESC
         LIMIT 1`,
         [ticker]
-      )
+      ),
     ]);
 
-    res.json({ticker: ticker.toUpperCase(),
+    res.json({
+      ticker: ticker.toUpperCase(),
       data: {
         earnings_estimates: earningsData.rows,
         revenue_estimates: revenueData.rows,
         earnings_history: earningsData.rows,
-        eps_revisions: analystData.rows.map(row => ({
+        eps_revisions: analystData.rows.map((row) => ({
           symbol: ticker.toUpperCase(),
-          period: '0q',
+          period: "0q",
           up_last7days: 0,
           up_last30days: row.eps_revisions_up_last_30d,
           down_last30days: row.eps_revisions_down_last_30d,
           down_last7days: 0,
-          fetched_at: row.collected_date
+          fetched_at: row.collected_date,
         })),
-        eps_trend: analystData.rows.map(row => ({
+        eps_trend: analystData.rows.map((row) => ({
           symbol: ticker.toUpperCase(),
-          period: '0q',
+          period: "0q",
           current: null,
           days7ago: null,
           days30ago: null,
           days60ago: null,
           days90ago: null,
-          fetched_at: row.collected_date
+          fetched_at: row.collected_date,
         })),
-        growth_estimates: [{
-          symbol: ticker.toUpperCase(),
-          period: '0q',
-          stock_trend: 'N/A',
-          index_trend: 'N/A',
-          fetched_at: new Date().toISOString()
-        }],
+        growth_estimates: [
+          {
+            symbol: ticker.toUpperCase(),
+            period: "0q",
+            stock_trend: "N/A",
+            index_trend: "N/A",
+            fetched_at: new Date().toISOString(),
+          },
+        ],
         recommendations: analystData.rows,
       },
       metadata: {
         timestamp: new Date().toISOString(),
-        note: "Overview data adapted from existing tables"
+        note: "Overview data adapted from existing tables",
       },
     });
   } catch (error) {
@@ -709,10 +773,14 @@ router.get("/recent-actions", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching recent analyst actions:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch recent analyst actions"});
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch recent analyst actions",
+      });
   }
 });
-
 
 // Analyst recommendations
 router.get("/recommendations/:symbol", async (req, res) => {
@@ -731,42 +799,61 @@ router.get("/recommendations/:symbol", async (req, res) => {
         success: false,
         error: "No analyst recommendations found",
         message: `No analyst data available for ${symbol.toUpperCase()}`,
-        symbol: symbol.toUpperCase()
+        symbol: symbol.toUpperCase(),
       });
     }
 
     // Calculate consensus rating from database data
     const ratings = result.rows;
     const totalRatings = ratings.length;
-    
+
     const ratingDistribution = {
-      strong_buy: ratings.filter(r => r.rating === 'STRONG_BUY').length,
-      buy: ratings.filter(r => r.rating === 'BUY').length,
-      hold: ratings.filter(r => r.rating === 'HOLD').length,
-      sell: ratings.filter(r => r.rating === 'SELL').length,
-      strong_sell: ratings.filter(r => r.rating === 'STRONG_SELL').length
+      strong_buy: ratings.filter((r) => r.rating === "STRONG_BUY").length,
+      buy: ratings.filter((r) => r.rating === "BUY").length,
+      hold: ratings.filter((r) => r.rating === "HOLD").length,
+      sell: ratings.filter((r) => r.rating === "SELL").length,
+      strong_sell: ratings.filter((r) => r.rating === "STRONG_SELL").length,
     };
 
     // Calculate weighted consensus (5=Strong Buy, 4=Buy, 3=Hold, 2=Sell, 1=Strong Sell)
-    const ratingWeights = { 'STRONG_BUY': 5, 'BUY': 4, 'HOLD': 3, 'SELL': 2, 'STRONG_SELL': 1 };
-    const weightedSum = ratings.reduce((sum, rating) => sum + (ratingWeights[rating.rating] || 3), 0);
-    const consensusScore = totalRatings > 0 ? (weightedSum / totalRatings).toFixed(2) : null;
+    const ratingWeights = {
+      STRONG_BUY: 5,
+      BUY: 4,
+      HOLD: 3,
+      SELL: 2,
+      STRONG_SELL: 1,
+    };
+    const weightedSum = ratings.reduce(
+      (sum, rating) => sum + (ratingWeights[rating.rating] || 3),
+      0
+    );
+    const consensusScore =
+      totalRatings > 0 ? (weightedSum / totalRatings).toFixed(2) : null;
 
     // Calculate average price target from database
-    const priceTargets = ratings.filter(r => r.price_target && r.price_target > 0);
-    const avgPriceTarget = priceTargets.length > 0 
-      ? priceTargets.reduce((sum, r) => sum + parseFloat(r.price_target), 0) / priceTargets.length
-      : null;
+    const priceTargets = ratings.filter(
+      (r) => r.price_target && r.price_target > 0
+    );
+    const avgPriceTarget =
+      priceTargets.length > 0
+        ? priceTargets.reduce((sum, r) => sum + parseFloat(r.price_target), 0) /
+          priceTargets.length
+        : null;
 
     // Get recent changes from database (last 30 days)
     const recentChanges = ratings
-      .filter(r => r.date_published && new Date(r.date_published) > new Date(Date.now() - 30*24*60*60*1000))
-      .map(r => ({
+      .filter(
+        (r) =>
+          r.date_published &&
+          new Date(r.date_published) >
+            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      )
+      .map((r) => ({
         firm: r.firm_name || r.analyst_firm,
         rating: r.rating,
         price_target: r.price_target || null,
         date: r.date_published,
-        analyst: r.analyst_name || null
+        analyst: r.analyst_name || null,
       }))
       .slice(0, 10);
 
@@ -775,24 +862,25 @@ router.get("/recommendations/:symbol", async (req, res) => {
       total_analysts: totalRatings,
       rating_distribution: ratingDistribution,
       consensus_rating: consensusScore,
-      average_price_target: avgPriceTarget ? parseFloat(avgPriceTarget.toFixed(2)) : null,
+      average_price_target: avgPriceTarget
+        ? parseFloat(avgPriceTarget.toFixed(2))
+        : null,
       recent_changes: recentChanges,
       last_updated: new Date().toISOString(),
-      data_source: "database"
+      data_source: "database",
     };
 
     res.json({
       success: true,
       data: [recommendationsData], // Wrap in array as expected by test
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Analyst recommendations error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst recommendations",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -805,25 +893,25 @@ router.get("/targets/:symbol", async (req, res) => {
 
     const targetsData = {
       symbol: symbol.toUpperCase(),
-      
+
       price_targets: {
         mean: 0,
         median: 0,
         high: 0,
         low: 0,
-        std_deviation: 0
+        std_deviation: 0,
       },
-      
+
       recent_targets: [
         {
           firm: "Morgan Stanley",
           target: 0,
           rating: "Overweight",
-          date: new Date().toISOString()
-        }
+          date: new Date().toISOString(),
+        },
       ],
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
@@ -833,17 +921,16 @@ router.get("/targets/:symbol", async (req, res) => {
         mean_target: targetsData.price_targets.mean,
         target_count: targetsData.recent_targets.length,
         upside_potential: 0,
-        last_updated: targetsData.last_updated
+        last_updated: targetsData.last_updated,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Price targets error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch price targets",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -851,73 +938,132 @@ router.get("/targets/:symbol", async (req, res) => {
 // Analyst downgrades
 router.get("/downgrades", async (req, res) => {
   try {
-    const { 
-      limit = 50, 
-      timeframe = "30d", 
+    const {
+      limit = 50,
+      timeframe = "30d",
       symbol = null,
       analyst_firm = null,
       severity = "all",
-      min_price_impact = 0 
+      min_price_impact = 0,
     } = req.query;
-    
-    console.log(`📉 Analyst downgrades requested - limit: ${limit}, timeframe: ${timeframe}`);
+
+    console.log(
+      `📉 Analyst downgrades requested - limit: ${limit}, timeframe: ${timeframe}`
+    );
 
     // Generate realistic analyst downgrade data
-    const generateDowngrades = (maxResults, period, targetSymbol, firmFilter, severityFilter) => {
+    const generateDowngrades = (
+      maxResults,
+      period,
+      targetSymbol,
+      firmFilter,
+      severityFilter
+    ) => {
       const analystFirms = [
-        'Goldman Sachs', 'Morgan Stanley', 'JP Morgan', 'Credit Suisse', 'Deutsche Bank',
-        'Barclays', 'UBS', 'Citigroup', 'Bank of America', 'Wells Fargo',
-        'Raymond James', 'Jefferies', 'RBC Capital', 'Cowen', 'Piper Sandler',
-        'Wedbush', 'Needham', 'Oppenheimer', 'Benchmark', 'Canaccord'
+        "Goldman Sachs",
+        "Morgan Stanley",
+        "JP Morgan",
+        "Credit Suisse",
+        "Deutsche Bank",
+        "Barclays",
+        "UBS",
+        "Citigroup",
+        "Bank of America",
+        "Wells Fargo",
+        "Raymond James",
+        "Jefferies",
+        "RBC Capital",
+        "Cowen",
+        "Piper Sandler",
+        "Wedbush",
+        "Needham",
+        "Oppenheimer",
+        "Benchmark",
+        "Canaccord",
       ];
 
-      const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'PYPL', 'CRM', 'ZOOM', 'ROKU', 'SQ', 'SNAP', 'TWTR', 'UBER', 'LYFT', 'ABNB', 'COIN', 'RBLX'];
-      
+      const symbols = [
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "TSLA",
+        "NVDA",
+        "META",
+        "NFLX",
+        "PYPL",
+        "CRM",
+        "ZOOM",
+        "ROKU",
+        "SQ",
+        "SNAP",
+        "TWTR",
+        "UBER",
+        "LYFT",
+        "ABNB",
+        "COIN",
+        "RBLX",
+      ];
+
       const downgradeSeverities = {
-        'mild': { from: 'Buy', to: 'Hold', impact: 0.02 },
-        'moderate': { from: 'Buy', to: 'Sell', impact: 0.05 },
-        'severe': { from: 'Strong Buy', to: 'Sell', impact: 0.08 }
+        mild: { from: "Buy", to: "Hold", impact: 0.02 },
+        moderate: { from: "Buy", to: "Sell", impact: 0.05 },
+        severe: { from: "Strong Buy", to: "Sell", impact: 0.08 },
       };
 
       const reasons = [
-        'Slowing growth concerns',
-        'Increased competition pressure',
-        'Regulatory headwinds',
-        'Margin compression expected',
-        'Market saturation risks',
-        'Execution challenges',
-        'Macroeconomic uncertainty',
-        'Valuation concerns',
-        'Guidance disappointing',
-        'Supply chain disruptions',
-        'Customer acquisition slowing',
-        'Technology disruption threat'
+        "Slowing growth concerns",
+        "Increased competition pressure",
+        "Regulatory headwinds",
+        "Margin compression expected",
+        "Market saturation risks",
+        "Execution challenges",
+        "Macroeconomic uncertainty",
+        "Valuation concerns",
+        "Guidance disappointing",
+        "Supply chain disruptions",
+        "Customer acquisition slowing",
+        "Technology disruption threat",
       ];
 
       const downgrades = [];
       const now = new Date();
-      const timeRangeHours = period === '7d' ? 168 : period === '30d' ? 720 : period === '90d' ? 2160 : 720;
+      const timeRangeHours =
+        period === "7d"
+          ? 168
+          : period === "30d"
+            ? 720
+            : period === "90d"
+              ? 2160
+              : 720;
 
       for (let i = 0; i < maxResults; i++) {
-        const firm = firmFilter || analystFirms[Math.floor(Math.random() * analystFirms.length)];
-        const symbol = targetSymbol || symbols[Math.floor(Math.random() * symbols.length)];
-        const severityKey = Object.keys(downgradeSeverities)[Math.floor(Math.random() * 3)];
+        const firm =
+          firmFilter ||
+          analystFirms[Math.floor(Math.random() * analystFirms.length)];
+        const symbol =
+          targetSymbol || symbols[Math.floor(Math.random() * symbols.length)];
+        const severityKey =
+          Object.keys(downgradeSeverities)[Math.floor(Math.random() * 3)];
         const severity = downgradeSeverities[severityKey];
-        
+
         // Apply severity filter
         if (severityFilter !== "all" && severityKey !== severityFilter) {
           continue;
         }
 
         const reason = reasons[Math.floor(Math.random() * reasons.length)];
-        const analyst = `${['John', 'Sarah', 'Michael', 'Jennifer', 'David', 'Lisa'][Math.floor(Math.random() * 6)]} ${['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia'][Math.floor(Math.random() * 6)]}`;
-        
+        const analyst = `${["John", "Sarah", "Michael", "Jennifer", "David", "Lisa"][Math.floor(Math.random() * 6)]} ${["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia"][Math.floor(Math.random() * 6)]}`;
+
         // Generate realistic timestamps
-        const downgradeTime = new Date(now.getTime() - Math.random() * timeRangeHours * 60 * 60 * 1000);
-        
+        const downgradeTime = new Date(
+          now.getTime() - Math.random() * timeRangeHours * 60 * 60 * 1000
+        );
+
         // Calculate price impact
         const expectedPriceImpact = -(severity.impact + Math.random() * 0.03); // Negative impact
-        const actualPriceImpact = expectedPriceImpact * (0.8 + Math.random() * 0.4); // Some variation
+        const actualPriceImpact =
+          expectedPriceImpact * (0.8 + Math.random() * 0.4); // Some variation
 
         // Skip if below minimum price impact threshold
         if (Math.abs(actualPriceImpact) < parseFloat(min_price_impact)) {
@@ -946,48 +1092,64 @@ router.get("/downgrades", async (req, res) => {
             previous_target: Math.round(previousTarget * 100) / 100,
             new_target: Math.round(newTarget * 100) / 100,
             target_change: Math.round((newTarget - previousTarget) * 100) / 100,
-            target_change_percent: Math.round(((newTarget - previousTarget) / previousTarget) * 10000) / 100
+            target_change_percent:
+              Math.round(
+                ((newTarget - previousTarget) / previousTarget) * 10000
+              ) / 100,
           },
           market_impact: {
-            expected_price_impact_percent: Math.round(expectedPriceImpact * 10000) / 100,
-            actual_price_impact_percent: Math.round(actualPriceImpact * 10000) / 100,
+            expected_price_impact_percent:
+              Math.round(expectedPriceImpact * 10000) / 100,
+            actual_price_impact_percent:
+              Math.round(actualPriceImpact * 10000) / 100,
             volume_impact: Math.round((1.5 + Math.random() * 2) * 100) / 100, // 1.5x-3.5x normal volume
-            market_cap_impact_millions: Math.round(Math.abs(actualPriceImpact) * (5000 + Math.random() * 45000))
+            market_cap_impact_millions: Math.round(
+              Math.abs(actualPriceImpact) * (5000 + Math.random() * 45000)
+            ),
           },
           timing: {
-            hours_since_downgrade: Math.round((now - downgradeTime) / (1000 * 60 * 60) * 100) / 100,
-            market_hours: downgradeTime.getHours() >= 9 && downgradeTime.getHours() <= 16,
+            hours_since_downgrade:
+              Math.round(((now - downgradeTime) / (1000 * 60 * 60)) * 100) /
+              100,
+            market_hours:
+              downgradeTime.getHours() >= 9 && downgradeTime.getHours() <= 16,
             earnings_related: Math.random() > 0.7,
-            days_until_earnings: Math.floor(Math.random() * 90)
+            days_until_earnings: Math.floor(Math.random() * 90),
           },
           confidence_metrics: {
             analyst_accuracy_12m: Math.round((0.6 + Math.random() * 0.3) * 100), // 60-90%
-            firm_reputation_score: Math.round((0.7 + Math.random() * 0.3) * 100), // 70-100%
-            consensus_alignment: Math.random() > 0.6 ? 'Aligned' : 'Contrarian'
-          }
+            firm_reputation_score: Math.round(
+              (0.7 + Math.random() * 0.3) * 100
+            ), // 70-100%
+            consensus_alignment: Math.random() > 0.6 ? "Aligned" : "Contrarian",
+          },
         });
       }
 
       // Sort by recency and impact
       return downgrades.sort((a, b) => {
-        const dateComp = new Date(b.downgrade_date) - new Date(a.downgrade_date);
+        const dateComp =
+          new Date(b.downgrade_date) - new Date(a.downgrade_date);
         if (dateComp !== 0) return dateComp;
-        return Math.abs(b.market_impact.actual_price_impact_percent) - Math.abs(a.market_impact.actual_price_impact_percent);
+        return (
+          Math.abs(b.market_impact.actual_price_impact_percent) -
+          Math.abs(a.market_impact.actual_price_impact_percent)
+        );
       });
     };
 
     const getCompanyName = (symbol) => {
       const companyNames = {
-        'AAPL': 'Apple Inc.',
-        'MSFT': 'Microsoft Corp.',
-        'GOOGL': 'Alphabet Inc.',
-        'AMZN': 'Amazon.com Inc.',
-        'TSLA': 'Tesla Inc.',
-        'NVDA': 'NVIDIA Corp.',
-        'META': 'Meta Platforms Inc.',
-        'NFLX': 'Netflix Inc.',
-        'PYPL': 'PayPal Holdings Inc.',
-        'CRM': 'Salesforce Inc.'
+        AAPL: "Apple Inc.",
+        MSFT: "Microsoft Corp.",
+        GOOGL: "Alphabet Inc.",
+        AMZN: "Amazon.com Inc.",
+        TSLA: "Tesla Inc.",
+        NVDA: "NVIDIA Corp.",
+        META: "Meta Platforms Inc.",
+        NFLX: "Netflix Inc.",
+        PYPL: "PayPal Holdings Inc.",
+        CRM: "Salesforce Inc.",
       };
       return companyNames[symbol] || `${symbol} Corporation`;
     };
@@ -1013,18 +1175,35 @@ router.get("/downgrades", async (req, res) => {
           acc[d.analyst_firm] = (acc[d.analyst_firm] || 0) + 1;
           return acc;
         }, {})
-      ).sort(([,a], [,b]) => b - a).slice(0, 5),
-      average_price_impact: downgrades.length > 0 ? 
-        Math.round(downgrades.reduce((sum, d) => sum + Math.abs(d.market_impact.actual_price_impact_percent), 0) / downgrades.length * 100) / 100 : 0,
+      )
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5),
+      average_price_impact:
+        downgrades.length > 0
+          ? Math.round(
+              (downgrades.reduce(
+                (sum, d) =>
+                  sum + Math.abs(d.market_impact.actual_price_impact_percent),
+                0
+              ) /
+                downgrades.length) *
+                100
+            ) / 100
+          : 0,
       most_downgraded_symbols: Object.entries(
         downgrades.reduce((acc, d) => {
           acc[d.symbol] = (acc[d.symbol] || 0) + 1;
           return acc;
         }, {})
-      ).sort(([,a], [,b]) => b - a).slice(0, 10),
-      market_cap_impact_total: Math.round(
-        downgrades.reduce((sum, d) => sum + d.market_impact.market_cap_impact_millions, 0)
       )
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10),
+      market_cap_impact_total: Math.round(
+        downgrades.reduce(
+          (sum, d) => sum + d.market_impact.market_cap_impact_millions,
+          0
+        )
+      ),
     };
 
     res.json({
@@ -1034,37 +1213,49 @@ router.get("/downgrades", async (req, res) => {
         analytics: analytics,
         summary: {
           total_downgrades: downgrades.length,
-          average_severity: downgrades.length > 0 ? 
-            downgrades.filter(d => d.severity === 'severe').length > downgrades.length * 0.3 ? 'High' :
-            downgrades.filter(d => d.severity === 'moderate').length > downgrades.length * 0.4 ? 'Moderate' : 'Low' : 'None',
-          market_sentiment: downgrades.length > 20 ? 'Bearish' : downgrades.length > 10 ? 'Cautious' : 'Neutral',
-          total_market_impact: `$${analytics.market_cap_impact_total}M`
-        }
+          average_severity:
+            downgrades.length > 0
+              ? downgrades.filter((d) => d.severity === "severe").length >
+                downgrades.length * 0.3
+                ? "High"
+                : downgrades.filter((d) => d.severity === "moderate").length >
+                    downgrades.length * 0.4
+                  ? "Moderate"
+                  : "Low"
+              : "None",
+          market_sentiment:
+            downgrades.length > 20
+              ? "Bearish"
+              : downgrades.length > 10
+                ? "Cautious"
+                : "Neutral",
+          total_market_impact: `$${analytics.market_cap_impact_total}M`,
+        },
       },
       filters: {
         limit: parseInt(limit),
         timeframe,
-        symbol: symbol || 'all',
-        analyst_firm: analyst_firm || 'all',
+        symbol: symbol || "all",
+        analyst_firm: analyst_firm || "all",
         severity: severity,
-        min_price_impact: parseFloat(min_price_impact)
+        min_price_impact: parseFloat(min_price_impact),
       },
       methodology: {
         data_source: "Analyst research reports and rating changes",
         impact_calculation: "Price target changes and actual market reaction",
-        severity_classification: "Based on rating change magnitude and price impact",
-        real_time_updates: "Updated within 15 minutes of analyst announcements"
+        severity_classification:
+          "Based on rating change magnitude and price impact",
+        real_time_updates: "Updated within 15 minutes of analyst announcements",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Analyst downgrades error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst downgrades",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1077,36 +1268,35 @@ router.get("/consensus/:symbol", async (req, res) => {
 
     const consensusData = {
       symbol: symbol.toUpperCase(),
-      
+
       consensus_metrics: {
         avg_rating: 0,
         total_analysts: 15,
         rating_strength: 0,
-        revision_trend: "NEUTRAL"
+        revision_trend: "NEUTRAL",
       },
-      
+
       estimate_revisions: {
         upgrades_last_30d: 0,
         downgrades_last_30d: 0,
         target_increases: 0,
-        target_decreases: 0
+        target_decreases: 0,
       },
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: consensusData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Analyst consensus error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst consensus",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1129,23 +1319,22 @@ router.get("/:ticker/coverage", async (req, res) => {
         coverage_firms: [
           { firm: "Goldman Sachs", rating: "Buy", price_target: 195 },
           { firm: "Morgan Stanley", rating: "Buy", price_target: 190 },
-          { firm: "JP Morgan", rating: "Hold", price_target: 180 }
+          { firm: "JP Morgan", rating: "Hold", price_target: 180 },
         ],
         avg_price_target: 188.33,
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
       metadata: {
         data_source: "sample_data",
-        note: "This is sample analyst coverage data"
-      }
+        note: "This is sample analyst coverage data",
+      },
     });
-
   } catch (error) {
     console.error("Analyst coverage error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst coverage",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1162,35 +1351,49 @@ router.get("/:ticker/price-targets", async (req, res) => {
       data: {
         current_price: 175.43,
         avg_price_target: 188.33,
-        high_target: 210.00,
-        low_target: 160.00,
-        median_target: 185.00,
+        high_target: 210.0,
+        low_target: 160.0,
+        median_target: 185.0,
         upside_potential: 7.35,
         price_targets: [
-          { firm: "Goldman Sachs", target: 195, date: "2024-11-15", action: "Maintain" },
-          { firm: "Morgan Stanley", target: 190, date: "2024-11-12", action: "Upgrade" },
-          { firm: "JP Morgan", target: 180, date: "2024-11-10", action: "Hold" }
+          {
+            firm: "Goldman Sachs",
+            target: 195,
+            date: "2024-11-15",
+            action: "Maintain",
+          },
+          {
+            firm: "Morgan Stanley",
+            target: 190,
+            date: "2024-11-12",
+            action: "Upgrade",
+          },
+          {
+            firm: "JP Morgan",
+            target: 180,
+            date: "2024-11-10",
+            action: "Hold",
+          },
         ],
         target_distribution: {
           above_200: 2,
           "180_200": 7,
           "160_180": 3,
-          below_160: 0
+          below_160: 0,
         },
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
       metadata: {
         data_source: "sample_data",
-        note: "This is sample price target data"
-      }
+        note: "This is sample price target data",
+      },
     });
-
   } catch (error) {
     console.error("Price targets error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch price targets",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1212,45 +1415,47 @@ router.get("/research", async (req, res) => {
           price_target: 195,
           published_date: "2024-11-15",
           analyst: "John Smith",
-          summary: "Strong quarterly performance and positive forward guidance support our Buy rating"
+          summary:
+            "Strong quarterly performance and positive forward guidance support our Buy rating",
         },
         {
-          id: "research_002", 
+          id: "research_002",
           symbol: symbol || "AAPL",
           firm: firm || "Morgan Stanley",
           title: "Innovation Pipeline Drives Growth",
-          rating: "Buy", 
+          rating: "Buy",
           price_target: 190,
           published_date: "2024-11-12",
           analyst: "Sarah Johnson",
-          summary: "New product launches and market expansion create multiple growth catalysts"
+          summary:
+            "New product launches and market expansion create multiple growth catalysts",
         },
         {
           id: "research_003",
-          symbol: symbol || "AAPL", 
+          symbol: symbol || "AAPL",
           firm: firm || "JP Morgan",
           title: "Maintaining Neutral Stance",
           rating: "Hold",
           price_target: 180,
-          published_date: "2024-11-10", 
+          published_date: "2024-11-10",
           analyst: "Michael Chen",
-          summary: "While fundamentals remain solid, valuation appears fairly priced at current levels"
-        }
+          summary:
+            "While fundamentals remain solid, valuation appears fairly priced at current levels",
+        },
       ].slice(0, parseInt(limit)),
       metadata: {
         total_reports: 3,
         filters: { symbol, firm, limit },
         data_source: "sample_data",
-        note: "This is sample research data"
-      }
+        note: "This is sample research data",
+      },
     });
-
   } catch (error) {
     console.error("Research reports error:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch research reports", 
-      message: error.message
+      error: "Failed to fetch research reports",
+      message: error.message,
     });
   }
 });

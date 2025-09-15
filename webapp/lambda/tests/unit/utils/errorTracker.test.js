@@ -15,10 +15,10 @@ describe("ErrorTracker", () => {
     jest.clearAllMocks();
     originalConsoleLog = console.log;
     console.log = jest.fn();
-    
+
     // Clear the singleton state
     errorTracker.clearHistory();
-    
+
     // Mock Date.now and Math.random for consistent testing
     jest.spyOn(Date, "now").mockReturnValue(1640995200000); // 2022-01-01 00:00:00 -> 'kxv26800' in base36
     jest.spyOn(Math, "random").mockReturnValue(0.5); // -> 'i' when processed
@@ -107,10 +107,14 @@ describe("ErrorTracker", () => {
 
     it("should categorize circuit breaker errors", () => {
       const circuitError = new Error("Circuit breaker is open");
-      expect(errorTracker.categorizeError(circuitError)).toBe("circuit_breaker");
+      expect(errorTracker.categorizeError(circuitError)).toBe(
+        "circuit_breaker"
+      );
 
       const breakerError = new Error("Service breaker activated");
-      expect(errorTracker.categorizeError(breakerError)).toBe("circuit_breaker");
+      expect(errorTracker.categorizeError(breakerError)).toBe(
+        "circuit_breaker"
+      );
     });
 
     it("should default to general category", () => {
@@ -187,24 +191,27 @@ describe("ErrorTracker", () => {
         route: "/api/test",
         method: "GET",
         userAgent: "Test Agent",
-        ip: "127.0.0.1"
+        ip: "127.0.0.1",
       };
 
       const errorId = errorTracker.trackError(error, context);
 
       expect(errorId).toBe("api-kxv26800-i");
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        message: "Test error",
-        name: "Error",
-        code: "TEST_ERROR",
-        statusCode: 500,
-        correlationId: "test-123",
-        userId: "user-456",
-        route: "/api/test",
-        method: "GET",
-        category: "api",
-        severity: "critical"
-      }));
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          message: "Test error",
+          name: "Error",
+          code: "TEST_ERROR",
+          statusCode: 500,
+          correlationId: "test-123",
+          userId: "user-456",
+          route: "/api/test",
+          method: "GET",
+          category: "api",
+          severity: "critical",
+        })
+      );
 
       expect(errorTracker.errorHistory).toHaveLength(1);
     });
@@ -214,11 +221,14 @@ describe("ErrorTracker", () => {
       const errorId = errorTracker.trackError(error);
 
       expect(errorId).toBe("gen-kxv26800-i");
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        message: "Simple error",
-        category: "general",
-        severity: "low"
-      }));
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          message: "Simple error",
+          category: "general",
+          severity: "low",
+        })
+      );
     });
 
     it("should handle errors without stack trace", () => {
@@ -228,10 +238,13 @@ describe("ErrorTracker", () => {
       const errorId = errorTracker.trackError(error);
 
       expect(errorId).toBeDefined();
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        message: "Error without stack",
-        stack: undefined
-      }));
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          message: "Error without stack",
+          stack: undefined,
+        })
+      );
     });
   });
 
@@ -239,7 +252,7 @@ describe("ErrorTracker", () => {
     it("should track error counts by minute", () => {
       const errorData = {
         category: "database",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       errorTracker.updateErrorCounts(errorData);
@@ -247,7 +260,7 @@ describe("ErrorTracker", () => {
 
       const minuteKey = Math.floor(Date.now() / 60000);
       const countKey = `database:${minuteKey}`;
-      
+
       expect(errorTracker.errorCounts.get(countKey)).toBe(2);
     });
 
@@ -257,7 +270,7 @@ describe("ErrorTracker", () => {
 
       const oldErrorData = {
         category: "database",
-        timestamp: new Date(oldTime).toISOString()
+        timestamp: new Date(oldTime).toISOString(),
       };
 
       errorTracker.updateErrorCounts(oldErrorData);
@@ -266,7 +279,7 @@ describe("ErrorTracker", () => {
       Date.now.mockReturnValue(1640995200000);
       const newErrorData = {
         category: "api",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       errorTracker.updateErrorCounts(newErrorData);
@@ -312,7 +325,7 @@ describe("ErrorTracker", () => {
     it("should trigger alert when threshold is exceeded", () => {
       const errorData = {
         category: "database",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // Add errors to exceed database threshold (5)
@@ -322,12 +335,15 @@ describe("ErrorTracker", () => {
 
       errorTracker.checkAlertThresholds(errorData);
 
-      expect(mockWarn).toHaveBeenCalledWith("Error Rate Alert", expect.objectContaining({
-        category: "database",
-        currentCount: 6,
-        threshold: 5,
-        severity: "high"
-      }));
+      expect(mockWarn).toHaveBeenCalledWith(
+        "Error Rate Alert",
+        expect.objectContaining({
+          category: "database",
+          currentCount: 6,
+          threshold: 5,
+          severity: "high",
+        })
+      );
 
       expect(console.log).toHaveBeenCalledWith(
         "🚨 ALERT:",
@@ -338,7 +354,7 @@ describe("ErrorTracker", () => {
     it("should not trigger alert when below threshold", () => {
       const errorData = {
         category: "database",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // Add errors below threshold
@@ -355,7 +371,7 @@ describe("ErrorTracker", () => {
     it("should use general threshold for unknown categories", () => {
       const errorData = {
         category: "unknown_category",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // Add errors to exceed general threshold (15)
@@ -365,18 +381,21 @@ describe("ErrorTracker", () => {
 
       errorTracker.checkAlertThresholds(errorData);
 
-      expect(mockWarn).toHaveBeenCalledWith("Error Rate Alert", expect.objectContaining({
-        currentCount: 16,
-        threshold: 15
-      }));
+      expect(mockWarn).toHaveBeenCalledWith(
+        "Error Rate Alert",
+        expect.objectContaining({
+          currentCount: 16,
+          threshold: 15,
+        })
+      );
     });
 
     it("should handle missing error count for category (branch coverage)", () => {
       const errorData = { category: "new_category", severity: "high" };
-      
+
       // Don't add any errors, so count should default to 0 via || operator (line 205)
       errorTracker.checkAlertThresholds(errorData);
-      
+
       // Should not trigger alert since count is 0
       expect(mockWarn).not.toHaveBeenCalled();
     });
@@ -414,27 +433,27 @@ describe("ErrorTracker", () => {
     beforeEach(() => {
       // Add some test errors with different timestamps
       const baseTime = 1640995200000;
-      
+
       // Current hour errors
       Date.now.mockReturnValue(baseTime);
-      errorTracker.addToHistory({ 
+      errorTracker.addToHistory({
         timestamp: new Date(baseTime).toISOString(),
         category: "database",
-        severity: "critical"
+        severity: "critical",
       });
 
       Date.now.mockReturnValue(baseTime - 30 * 60000); // 30 minutes ago
       errorTracker.addToHistory({
         timestamp: new Date(baseTime - 30 * 60000).toISOString(),
         category: "api",
-        severity: "high"
+        severity: "high",
       });
 
       Date.now.mockReturnValue(baseTime - 2 * 60 * 60000); // 2 hours ago
       errorTracker.addToHistory({
         timestamp: new Date(baseTime - 2 * 60 * 60000).toISOString(),
         category: "database",
-        severity: "medium"
+        severity: "medium",
       });
 
       // Reset to current time
@@ -454,23 +473,23 @@ describe("ErrorTracker", () => {
         lastHour: 2,
         byCategory: {
           database: 2,
-          api: 1
+          api: 1,
         },
         bySeverity: {
           critical: 1,
           high: 1,
-          medium: 1
+          medium: 1,
         },
         currentMinuteRates: {
           database: 3,
-          api: 1
-        }
+          api: 1,
+        },
       });
     });
 
     it("should handle empty error history", () => {
       errorTracker.clearHistory();
-      
+
       const stats = errorTracker.getErrorStats();
 
       expect(stats).toEqual({
@@ -478,27 +497,27 @@ describe("ErrorTracker", () => {
         lastHour: 0,
         byCategory: {},
         bySeverity: {},
-        currentMinuteRates: {}
+        currentMinuteRates: {},
       });
     });
 
     it("should exclude error counts from different minutes (branch coverage)", () => {
       errorTracker.clearHistory();
-      
+
       const baseTime = 1640995200000;
       Date.now.mockReturnValue(baseTime);
       const currentMinute = Math.floor(baseTime / 60000);
-      
+
       // Add counts for current minute and different minutes
       errorTracker.errorCounts.set(`database:${currentMinute}`, 2); // Should be included
-      errorTracker.errorCounts.set(`api:${currentMinute - 1}`, 5);   // Should be excluded (different minute)
+      errorTracker.errorCounts.set(`api:${currentMinute - 1}`, 5); // Should be excluded (different minute)
       errorTracker.errorCounts.set(`auth:${currentMinute + 1}`, 3); // Should be excluded (different minute)
-      
+
       const stats = errorTracker.getErrorStats();
-      
+
       // Only the current minute count should be included (line 281 branch coverage)
       expect(stats.currentMinuteRates).toEqual({
-        database: 2
+        database: 2,
       });
     });
   });
@@ -509,7 +528,7 @@ describe("ErrorTracker", () => {
       for (let i = 0; i < 10; i++) {
         errorTracker.addToHistory({
           message: `Error ${i}`,
-          timestamp: new Date(1640995200000 + i * 1000).toISOString()
+          timestamp: new Date(1640995200000 + i * 1000).toISOString(),
         });
       }
     });
@@ -536,7 +555,7 @@ describe("ErrorTracker", () => {
 
     it("should return empty array when no errors exist", () => {
       errorTracker.clearHistory();
-      
+
       const recent = errorTracker.getRecentErrors();
 
       expect(recent).toEqual([]);
@@ -567,7 +586,7 @@ describe("ErrorTracker", () => {
 
     beforeEach(() => {
       middleware = errorTracker.middleware();
-      
+
       mockReq = {
         headers: { "x-correlation-id": "test-correlation-123" },
         user: { id: "user-456" },
@@ -577,11 +596,11 @@ describe("ErrorTracker", () => {
         ip: "192.168.1.1",
         body: { test: "data" },
         query: { param: "value" },
-        params: { id: "123" }
+        params: { id: "123" },
       };
 
       mockRes = {
-        setHeader: jest.fn()
+        setHeader: jest.fn(),
       };
 
       mockNext = jest.fn();
@@ -589,69 +608,84 @@ describe("ErrorTracker", () => {
 
     it("should track error and add context from request", () => {
       const error = new Error("Middleware test error");
-      
+
       middleware(error, mockReq, mockRes, mockNext);
 
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        message: "Middleware test error",
-        context: expect.objectContaining({
-          correlationId: "test-correlation-123",
-          userId: "user-456",
-          route: "/api/test",
-          method: "POST",
-          userAgent: "Test User Agent",
-          ip: "192.168.1.1",
-          body: { test: "data" },
-          query: { param: "value" },
-          params: { id: "123" }
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          message: "Middleware test error",
+          context: expect.objectContaining({
+            correlationId: "test-correlation-123",
+            userId: "user-456",
+            route: "/api/test",
+            method: "POST",
+            userAgent: "Test User Agent",
+            ip: "192.168.1.1",
+            body: { test: "data" },
+            query: { param: "value" },
+            params: { id: "123" },
+          }),
         })
-      }));
+      );
 
-      expect(mockRes.setHeader).toHaveBeenCalledWith("X-Error-ID", "gen-kxv26800-i");
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        "X-Error-ID",
+        "gen-kxv26800-i"
+      );
       expect(mockNext).toHaveBeenCalledWith(error);
     });
 
     it("should handle request without correlation ID", () => {
       mockReq.headers = {};
       mockReq.id = "fallback-id-789";
-      
+
       const error = new Error("Test error without correlation ID");
-      
+
       middleware(error, mockReq, mockRes, mockNext);
 
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        context: expect.objectContaining({
-          correlationId: "fallback-id-789"
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          context: expect.objectContaining({
+            correlationId: "fallback-id-789",
+          }),
         })
-      }));
+      );
     });
 
     it("should handle request without user", () => {
       delete mockReq.user;
-      
+
       const error = new Error("Test error without user");
-      
+
       middleware(error, mockReq, mockRes, mockNext);
 
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        context: expect.objectContaining({
-          userId: undefined
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          context: expect.objectContaining({
+            userId: undefined,
+          }),
         })
-      }));
+      );
     });
 
     it("should handle request without route", () => {
       delete mockReq.route;
-      
+
       const error = new Error("Test error without route");
-      
+
       middleware(error, mockReq, mockRes, mockNext);
 
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        context: expect.objectContaining({
-          route: undefined
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          context: expect.objectContaining({
+            route: undefined,
+          }),
         })
-      }));
+      );
     });
 
     it("should handle minimal request object", () => {
@@ -661,16 +695,19 @@ describe("ErrorTracker", () => {
         get: jest.fn().mockReturnValue(undefined),
         body: {},
         query: {},
-        params: {}
+        params: {},
       };
 
       const error = new Error("Minimal request error");
-      
+
       middleware(error, minimalReq, mockRes, mockNext);
 
-      expect(mockError).toHaveBeenCalledWith("Application Error", expect.objectContaining({
-        message: "Minimal request error"
-      }));
+      expect(mockError).toHaveBeenCalledWith(
+        "Application Error",
+        expect.objectContaining({
+          message: "Minimal request error",
+        })
+      );
 
       expect(mockNext).toHaveBeenCalledWith(error);
     });

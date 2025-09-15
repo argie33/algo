@@ -176,11 +176,11 @@ class LiveDataManager extends EventEmitter {
     const oldStatus = provider.status;
     if (oldStatus !== status) {
       provider.status = status;
-      this.emit('providerStatusChange', {
+      this.emit("providerStatusChange", {
         provider: providerId,
         oldStatus,
         newStatus: status,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -268,7 +268,7 @@ class LiveDataManager extends EventEmitter {
   /**
    * Add connection to management system
    * @param {string} connectionId - Connection identifier
-   * @param {string} provider - Provider name  
+   * @param {string} provider - Provider name
    * @param {Array} symbols - Array of symbols to track
    * @returns {Object} Connection status
    */
@@ -280,14 +280,24 @@ class LiveDataManager extends EventEmitter {
       const actualConnectionId = provider;
       const userId = symbols;
       const actualSymbols = arguments[3] || [];
-      
-      return this._addConnectionInternal(actualConnectionId, actualProvider, actualSymbols, userId);
+
+      return this._addConnectionInternal(
+        actualConnectionId,
+        actualProvider,
+        actualSymbols,
+        userId
+      );
     }
-    
+
     return this._addConnectionInternal(connectionId, provider, symbols);
   }
-  
-  _addConnectionInternal(connectionId, provider = "unknown", symbols = [], userId = null) {
+
+  _addConnectionInternal(
+    connectionId,
+    provider = "unknown",
+    symbols = [],
+    userId = null
+  ) {
     try {
       if (!connectionId) {
         throw new Error("Connection ID is required");
@@ -304,7 +314,7 @@ class LiveDataManager extends EventEmitter {
         if (currentConnections >= limit) {
           return {
             success: false,
-            error: `Provider ${provider} concurrent connection limit (${limit}) exceeded`
+            error: `Provider ${provider} concurrent connection limit (${limit}) exceeded`,
           };
         }
       }
@@ -325,8 +335,8 @@ class LiveDataManager extends EventEmitter {
           messagesReceived: 0,
           bytesReceived: 0,
           errors: 0,
-          latency: []
-        }
+          latency: [],
+        },
       };
 
       // Store connection in connectionPool (as expected by tests)
@@ -353,13 +363,13 @@ class LiveDataManager extends EventEmitter {
         success: true,
         connectionId,
         status: connection.status,
-        created: connection.created
+        created: connection.created,
       };
     } catch (error) {
       console.error(`Failed to add connection ${connectionId}:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -382,23 +392,26 @@ class LiveDataManager extends EventEmitter {
       if (!this.connectionPool.has(actualConnectionId)) {
         return {
           success: false,
-          error: "Connection not found"
+          error: "Connection not found",
         };
       }
 
       const connection = this.connectionPool.get(actualConnectionId);
-      
+
       // Remove from connectionPool
       this.connectionPool.delete(actualConnectionId);
-      
+
       // Remove from provider's connections map if provider is specified
       if (providerId && this.providers.has(providerId)) {
         const provider = this.providers.get(providerId);
-        if (provider.connections && provider.connections.has(actualConnectionId)) {
+        if (
+          provider.connections &&
+          provider.connections.has(actualConnectionId)
+        ) {
           provider.connections.delete(actualConnectionId);
         }
       }
-      
+
       // Remove from global connections map
       if (this.connections) {
         this.connections.delete(actualConnectionId);
@@ -406,21 +419,27 @@ class LiveDataManager extends EventEmitter {
 
       // Update metrics
       if (this.metrics && this.metrics.connections) {
-        this.metrics.connections.total = Math.max(0, (this.metrics.connections.total || 1) - 1);
-        this.metrics.connections.active = Math.max(0, (this.metrics.connections.active || 1) - 1);
+        this.metrics.connections.total = Math.max(
+          0,
+          (this.metrics.connections.total || 1) - 1
+        );
+        this.metrics.connections.active = Math.max(
+          0,
+          (this.metrics.connections.active || 1) - 1
+        );
       }
 
       return {
         success: true,
         connectionId: actualConnectionId,
         removedAt: new Date().toISOString(),
-        provider: connection.provider
+        provider: connection.provider,
       };
     } catch (error) {
       console.error(`Failed to remove connection ${connectionId}:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -448,7 +467,7 @@ class LiveDataManager extends EventEmitter {
         status: connection.status,
         created: connection.created,
         lastActivity: connection.lastActivity,
-        metrics: connection.metrics
+        metrics: connection.metrics,
       };
     } catch (error) {
       console.error(`Failed to get connection status ${connectionId}:`, error);
@@ -522,14 +541,16 @@ class LiveDataManager extends EventEmitter {
   addSubscription(symbol, provider, connectionId, userId) {
     try {
       if (!symbol || !provider || !connectionId || !userId) {
-        throw new Error("Symbol, provider, connectionId, and userId are required");
+        throw new Error(
+          "Symbol, provider, connectionId, and userId are required"
+        );
       }
 
       // Initialize user subscriptions if needed
       if (!this.userSubscriptions) {
         this.userSubscriptions = new Map();
       }
-      
+
       if (!this.userSubscriptions.has(userId)) {
         this.userSubscriptions.set(userId, new Set());
       }
@@ -549,8 +570,8 @@ class LiveDataManager extends EventEmitter {
           metrics: {
             updates: 0,
             errors: 0,
-            latency: []
-          }
+            latency: [],
+          },
         });
       }
 
@@ -570,13 +591,16 @@ class LiveDataManager extends EventEmitter {
         provider,
         connectionId,
         userId,
-        subscribedAt: new Date().toISOString()
+        subscribedAt: new Date().toISOString(),
       };
     } catch (error) {
-      console.error(`Failed to add subscription for symbol ${symbol}, user ${userId}:`, error);
+      console.error(
+        `Failed to add subscription for symbol ${symbol}, user ${userId}:`,
+        error
+      );
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -597,7 +621,7 @@ class LiveDataManager extends EventEmitter {
       if (this.subscriptions.has(symbol)) {
         const subscription = this.subscriptions.get(symbol);
         subscription.subscribers.delete(userId);
-        
+
         // Clean up if no more subscribers
         if (subscription.subscribers.size === 0) {
           this.subscriptions.delete(symbol);
@@ -628,13 +652,16 @@ class LiveDataManager extends EventEmitter {
         success: true,
         symbol,
         userId,
-        unsubscribedAt: new Date().toISOString()
+        unsubscribedAt: new Date().toISOString(),
       };
     } catch (error) {
-      console.error(`Failed to remove subscription for symbol ${symbol}, user ${userId}:`, error);
+      console.error(
+        `Failed to remove subscription for symbol ${symbol}, user ${userId}:`,
+        error
+      );
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -649,7 +676,7 @@ class LiveDataManager extends EventEmitter {
       if (!userId) {
         return {
           success: false,
-          error: "User ID is required"
+          error: "User ID is required",
         };
       }
 
@@ -658,13 +685,13 @@ class LiveDataManager extends EventEmitter {
       if (this.userSubscriptions && this.userSubscriptions.has(userId)) {
         const userSubs = this.userSubscriptions.get(userId);
         removedCount = userSubs.size;
-        
+
         // Remove user from all global subscriptions
         for (const subscriptionKey of userSubs) {
-          const [symbol] = subscriptionKey.split(':');
+          const [symbol] = subscriptionKey.split(":");
           if (this.subscriptions.has(symbol)) {
             this.subscriptions.get(symbol).subscribers.delete(userId);
-            
+
             // Clean up if no more subscribers
             if (this.subscriptions.get(symbol).subscribers.size === 0) {
               this.subscriptions.delete(symbol);
@@ -680,13 +707,13 @@ class LiveDataManager extends EventEmitter {
         success: true,
         userId,
         removedSubscriptions: removedCount,
-        removedAt: new Date().toISOString()
+        removedAt: new Date().toISOString(),
       };
     } catch (error) {
       console.error(`Failed to remove subscriber ${userId}:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -713,7 +740,7 @@ class LiveDataManager extends EventEmitter {
             connectionId: subscription.connectionId,
             subscribed: new Date(subscription.created).toISOString(),
             lastUpdate: subscription.lastUpdate,
-            metrics: subscription.metrics
+            metrics: subscription.metrics,
           });
         }
       }
@@ -846,7 +873,7 @@ class LiveDataManager extends EventEmitter {
       if (!provider) {
         return {
           success: false,
-          error: "Provider not found"
+          error: "Provider not found",
         };
       }
 
@@ -873,18 +900,16 @@ class LiveDataManager extends EventEmitter {
         success: true,
         providerId,
         updatedUsage: provider.usage,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     } catch (error) {
       console.error(`Failed to track provider usage for ${providerId}:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
-
-
 
   /**
    * Admin controls
@@ -940,7 +965,6 @@ class LiveDataManager extends EventEmitter {
     );
   }
 
-
   calculateUptime(providerId) {
     const provider = this.providers.get(providerId);
     if (!provider) return 0;
@@ -976,7 +1000,7 @@ class LiveDataManager extends EventEmitter {
       if (!provider) {
         return {
           success: false,
-          error: "Provider not found"
+          error: "Provider not found",
         };
       }
 
@@ -987,7 +1011,7 @@ class LiveDataManager extends EventEmitter {
 
       // Store latency as simple number (tests expect array of numbers)
       provider.metrics.latency.push(latency);
-      
+
       // Keep only last 100 latency measurements for memory efficiency
       if (provider.metrics.latency.length > 100) {
         provider.metrics.latency = provider.metrics.latency.slice(-100);
@@ -997,13 +1021,13 @@ class LiveDataManager extends EventEmitter {
         success: true,
         providerId,
         latency,
-        totalMeasurements: provider.metrics.latency.length
+        totalMeasurements: provider.metrics.latency.length,
       };
     } catch (error) {
       console.error(`Failed to track latency for ${providerId}:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -1011,14 +1035,24 @@ class LiveDataManager extends EventEmitter {
   calculateAverageLatency(providerId) {
     try {
       const provider = this.providers.get(providerId);
-      if (!provider || !provider.metrics.latency || provider.metrics.latency.length === 0) {
+      if (
+        !provider ||
+        !provider.metrics.latency ||
+        provider.metrics.latency.length === 0
+      ) {
         return 0;
       }
 
-      const sum = provider.metrics.latency.reduce((total, latency) => total + latency, 0);
+      const sum = provider.metrics.latency.reduce(
+        (total, latency) => total + latency,
+        0
+      );
       return Math.round(sum / provider.metrics.latency.length);
     } catch (error) {
-      console.error(`Failed to calculate average latency for ${providerId}:`, error);
+      console.error(
+        `Failed to calculate average latency for ${providerId}:`,
+        error
+      );
       return 0;
     }
   }
@@ -1029,7 +1063,7 @@ class LiveDataManager extends EventEmitter {
       if (!provider) {
         return {
           success: false,
-          error: "Provider not found"
+          error: "Provider not found",
         };
       }
 
@@ -1049,9 +1083,10 @@ class LiveDataManager extends EventEmitter {
       // Update success rate based on total requests and errors
       const totalRequests = provider.usage.requestsThisMonth || 0;
       const totalErrors = provider.metrics.errors.length;
-      
+
       if (totalRequests > 0) {
-        provider.metrics.successRate = ((totalRequests - totalErrors) / totalRequests) * 100;
+        provider.metrics.successRate =
+          ((totalRequests - totalErrors) / totalRequests) * 100;
       } else {
         provider.metrics.successRate = 100; // No requests means no failures
       }
@@ -1061,13 +1096,13 @@ class LiveDataManager extends EventEmitter {
         providerId,
         error,
         totalErrors: provider.metrics.errors.length,
-        successRate: provider.metrics.successRate
+        successRate: provider.metrics.successRate,
       };
     } catch (err) {
       console.error(`Failed to track error for ${providerId}:`, err);
       return {
         success: false,
-        error: err.message
+        error: err.message,
       };
     }
   }
@@ -1085,40 +1120,45 @@ class LiveDataManager extends EventEmitter {
           allLatencies.push(...provider.metrics.latency);
           activeProviders++;
         }
-        
+
         if (provider.metrics.errors) {
           totalErrors += provider.metrics.errors.length;
         }
-        
+
         if (provider.usage.requestsThisMonth) {
           totalRequests += provider.usage.requestsThisMonth;
         }
       }
 
       // Calculate average latency
-      const averageLatency = allLatencies.length > 0 
-        ? Math.round(allLatencies.reduce((sum, latency) => sum + latency, 0) / allLatencies.length)
-        : 0;
+      const averageLatency =
+        allLatencies.length > 0
+          ? Math.round(
+              allLatencies.reduce((sum, latency) => sum + latency, 0) /
+                allLatencies.length
+            )
+          : 0;
 
       // Calculate global success rate
-      const globalSuccessRate = totalRequests > 0 
-        ? ((totalRequests - totalErrors) / totalRequests) * 100
-        : 100; // No requests means no failures
+      const globalSuccessRate =
+        totalRequests > 0
+          ? ((totalRequests - totalErrors) / totalRequests) * 100
+          : 100; // No requests means no failures
 
       return {
         averageLatency,
         globalSuccessRate: Math.round(globalSuccessRate * 100) / 100, // Round to 2 decimal places
         activeProviders,
-        totalErrors
+        totalErrors,
       };
     } catch (error) {
-      console.error('Failed to calculate global performance:', error);
+      console.error("Failed to calculate global performance:", error);
       // Return default values on error
       return {
         averageLatency: 0,
         globalSuccessRate: 100,
         activeProviders: 0,
-        totalErrors: 0
+        totalErrors: 0,
       };
     }
   }
@@ -1152,8 +1192,11 @@ class LiveDataManager extends EventEmitter {
 
     // Check rate limits - tests expect "rate_limit" type and "medium" severity
     for (const [_providerId, provider] of this.providers) {
-      const rateUsagePercent = (provider.usage.requestsToday / provider.rateLimits.requestsPerMinute) * 100;
-      if (rateUsagePercent > 80) { // Above 80% of rate limit
+      const rateUsagePercent =
+        (provider.usage.requestsToday / provider.rateLimits.requestsPerMinute) *
+        100;
+      if (rateUsagePercent > 80) {
+        // Above 80% of rate limit
         alerts.push({
           type: "rate_limit",
           severity: "medium",
@@ -1232,13 +1275,13 @@ class LiveDataManager extends EventEmitter {
     try {
       // Assign the alert system to the instance
       this.alertSystem = alertSystem;
-      
+
       // Ensure alertSystem is properly initialized
       if (!this.alertSystem) {
         console.warn("AlertSystem not available, using fallback methods");
         return;
       }
-      
+
       // Start alert monitoring (even in test environment for testing purposes)
       alertSystem.startMonitoring(this);
 
@@ -1270,10 +1313,10 @@ class LiveDataManager extends EventEmitter {
   subscribe(userId, symbols) {
     try {
       const subscribedSymbols = [];
-      
+
       // Find any existing connection for the alpaca provider, or create one
       let reuseConnectionId = null;
-      
+
       // Look for any existing connection we can reuse
       for (const [symbol, subscription] of this.subscriptions) {
         if (subscription.provider === "alpaca") {
@@ -1281,45 +1324,53 @@ class LiveDataManager extends EventEmitter {
           break;
         }
       }
-      
+
       // If no existing connection, create one for the first symbol
       if (!reuseConnectionId && symbols.length > 0) {
         reuseConnectionId = `auto-${userId}-multi-${Date.now()}`;
-        const connectionResult = this.addConnection(reuseConnectionId, "alpaca", symbols);
-        
+        const connectionResult = this.addConnection(
+          reuseConnectionId,
+          "alpaca",
+          symbols
+        );
+
         if (!connectionResult || !connectionResult.success) {
           return {
             success: false,
             error: "Failed to create connection",
             subscribed: [],
-            userId: userId
+            userId: userId,
           };
         }
       }
-      
+
       // Subscribe user to all symbols using the same connection
       for (const symbol of symbols) {
-        const subscriptionResult = this.addSubscription(symbol, "alpaca", reuseConnectionId, userId);
-        
+        const subscriptionResult = this.addSubscription(
+          symbol,
+          "alpaca",
+          reuseConnectionId,
+          userId
+        );
+
         if (subscriptionResult && subscriptionResult.success) {
           subscribedSymbols.push(symbol);
         }
       }
-      
+
       return {
         success: subscribedSymbols.length > 0,
         subscribed: subscribedSymbols,
-        userId: userId
+        userId: userId,
       };
     } catch (error) {
       console.error(`Failed to subscribe user ${userId} to symbols:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
-
 
   /**
    * Generate performance report (for testing)
@@ -1328,7 +1379,7 @@ class LiveDataManager extends EventEmitter {
     try {
       const now = Date.now();
       const uptime = now - this.startTime || 0;
-      
+
       return {
         uptime: Math.floor(uptime / 1000), // seconds
         dataPoints: this.subscriptions.size,
@@ -1341,9 +1392,9 @@ class LiveDataManager extends EventEmitter {
           max: 300,
           avg: 150,
           p95: 250,
-          p99: 290
+          p99: 290,
         },
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
       };
     } catch (error) {
       console.error("Failed to generate performance report:", error);
@@ -1355,7 +1406,7 @@ class LiveDataManager extends EventEmitter {
         errorRate: 0,
         avgResponseTime: 0,
         generatedAt: new Date().toISOString(),
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -1372,7 +1423,7 @@ class LiveDataManager extends EventEmitter {
     this.rateLimits.set(provider, {
       limit: limit,
       requests: [],
-      window: 1000 // 1 second window
+      window: 1000, // 1 second window
     });
   }
 
@@ -1399,21 +1450,23 @@ class LiveDataManager extends EventEmitter {
       if (this.rateLimits && this.rateLimits.has(provider)) {
         const rateLimit = this.rateLimits.get(provider);
         const now = Date.now();
-        
+
         // Remove old requests outside the window
-        rateLimit.requests = rateLimit.requests.filter(time => now - time < rateLimit.window);
-        
+        rateLimit.requests = rateLimit.requests.filter(
+          (time) => now - time < rateLimit.window
+        );
+
         // Check if we exceed the limit
         if (rateLimit.requests.length >= rateLimit.limit) {
           return {
             success: false,
-            error: 'Rate limit exceeded',
+            error: "Rate limit exceeded",
             provider: provider,
             endpoint: endpoint,
-            rateLimited: true
+            rateLimited: true,
           };
         }
-        
+
         // Add this request to the counter
         rateLimit.requests.push(now);
       }
@@ -1421,15 +1474,15 @@ class LiveDataManager extends EventEmitter {
       // Mock successful response
       return {
         success: true,
-        data: { 
-          message: 'Mock API response',
+        data: {
+          message: "Mock API response",
           provider: provider,
           endpoint: endpoint,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         },
         provider: provider,
         endpoint: endpoint,
-        rateLimited: false
+        rateLimited: false,
       };
     } catch (error) {
       return {
@@ -1437,7 +1490,7 @@ class LiveDataManager extends EventEmitter {
         error: error.message,
         provider: provider,
         endpoint: endpoint,
-        rateLimited: false
+        rateLimited: false,
       };
     }
   }
@@ -1448,22 +1501,22 @@ class LiveDataManager extends EventEmitter {
    */
   getSubscriptionTrends() {
     const popular = [];
-    
+
     // Ensure symbolSubscriptions is initialized
     if (!this.symbolSubscriptions) {
       this.symbolSubscriptions = new Map();
     }
-    
+
     this.symbolSubscriptions.forEach((subscribers, symbol) => {
       popular.push({ symbol, count: subscribers.size });
     });
-    
+
     return {
       hourly: [],
       daily: [],
       weekly: [],
       monthly: [],
-      popular: popular.sort((a, b) => b.count - a.count)
+      popular: popular.sort((a, b) => b.count - a.count),
     };
   }
 
@@ -1495,22 +1548,22 @@ class LiveDataManager extends EventEmitter {
         totalProviders: this.providers.size,
         activeConnections: this.connectionPool.size,
         totalSymbols: symbols.length,
-        totalSubscriptions
+        totalSubscriptions,
       },
-      providers: Array.from(this.providers.keys()).map(name => ({
+      providers: Array.from(this.providers.keys()).map((name) => ({
         name,
-        status: this.getProviderStatus(name)
+        status: this.getProviderStatus(name),
       })),
       subscriptions: {
         bySymbol: subscriberCounts,
-        total: totalSubscriptions
+        total: totalSubscriptions,
       },
       costs: {
         daily: this.calculateDailyCost(),
         monthly: this.calculateMonthlyCost(),
-        efficiency: this.calculateCostEfficiency()
+        efficiency: this.calculateCostEfficiency(),
       },
-      recommendations: this.identifyCostOptimizationOpportunities()
+      recommendations: this.identifyCostOptimizationOpportunities(),
     };
   }
 
@@ -1522,7 +1575,8 @@ class LiveDataManager extends EventEmitter {
     let monthlyCost = 0;
     this.providers.forEach((provider, name) => {
       if (provider.usage && provider.usage.monthly) {
-        monthlyCost += provider.usage.monthly.requests * (provider.costPerRequest || 0.001);
+        monthlyCost +=
+          provider.usage.monthly.requests * (provider.costPerRequest || 0.001);
       }
     });
     return monthlyCost;
@@ -1545,7 +1599,8 @@ class LiveDataManager extends EventEmitter {
     }
 
     providerData.usage.daily.cost = (providerData.usage.daily.cost || 0) + cost;
-    providerData.usage.monthly.cost = (providerData.usage.monthly.cost || 0) + cost;
+    providerData.usage.monthly.cost =
+      (providerData.usage.monthly.cost || 0) + cost;
 
     return { success: true, totalCost: providerData.usage.daily.cost };
   }
@@ -1565,12 +1620,12 @@ class LiveDataManager extends EventEmitter {
     const dailyLimit = 100; // Example daily cost limit
 
     if (dailyCost + requestCost > dailyLimit) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: "Daily cost limit would be exceeded",
         currentCost: dailyCost,
         requestCost,
-        limit: dailyLimit
+        limit: dailyLimit,
       };
     }
 
@@ -1591,7 +1646,7 @@ class LiveDataManager extends EventEmitter {
           type: "low_efficiency",
           provider: name,
           efficiency,
-          suggestion: `Consider optimizing usage for ${name} provider`
+          suggestion: `Consider optimizing usage for ${name} provider`,
         });
       }
     });
@@ -1606,11 +1661,11 @@ class LiveDataManager extends EventEmitter {
    */
   calculateProviderEfficiency(provider) {
     if (!this.providers.has(provider)) return 0;
-    
+
     const providerData = this.providers.get(provider);
     const requests = providerData.usage?.daily?.requests || 0;
     const cost = providerData.usage?.daily?.cost || 0;
-    
+
     if (cost === 0) return 1;
     return Math.min(requests / cost, 1);
   }
@@ -1621,7 +1676,7 @@ class LiveDataManager extends EventEmitter {
    */
   handleMonthlyUsageReset() {
     let resetProviders = 0;
-    
+
     this.providers.forEach((provider, name) => {
       if (provider.usage && provider.usage.monthly) {
         provider.usage.monthly = { requests: 0, cost: 0 };
@@ -1629,10 +1684,10 @@ class LiveDataManager extends EventEmitter {
       }
     });
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       resetProviders,
-      resetAt: new Date().toISOString()
+      resetAt: new Date().toISOString(),
     };
   }
 
@@ -1643,7 +1698,10 @@ class LiveDataManager extends EventEmitter {
    * @returns {Object} Failover result
    */
   handleProviderFailover(primaryProvider, backupProvider) {
-    if (!this.providers.has(primaryProvider) || !this.providers.has(backupProvider)) {
+    if (
+      !this.providers.has(primaryProvider) ||
+      !this.providers.has(backupProvider)
+    ) {
       return { success: false, error: "Invalid provider(s)" };
     }
 
@@ -1659,7 +1717,7 @@ class LiveDataManager extends EventEmitter {
       failedOver: true,
       from: primaryProvider,
       to: backupProvider,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -1678,11 +1736,14 @@ class LiveDataManager extends EventEmitter {
     const errors = providerData.errors || [];
 
     return {
-      averageLatency: latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
+      averageLatency:
+        latencies.length > 0
+          ? latencies.reduce((a, b) => a + b, 0) / latencies.length
+          : 0,
       errorRate: errors.length > 0 ? errors.length / (errors.length + 100) : 0,
       uptime: this.calculateUptime(provider),
       successRate: providerData.successRate || 1.0,
-      throughput: providerData.usage?.daily?.requests || 0
+      throughput: providerData.usage?.daily?.requests || 0,
     };
   }
 
@@ -1695,11 +1756,20 @@ class LiveDataManager extends EventEmitter {
   handleAdvancedSubscriptionPatterns(pattern, options = {}) {
     switch (pattern) {
       case "bulk":
-        return this.handleBulkSubscription(options.symbols || [], options.userId);
+        return this.handleBulkSubscription(
+          options.symbols || [],
+          options.userId
+        );
       case "conditional":
-        return this.handleConditionalSubscription(options.condition, options.symbols || []);
+        return this.handleConditionalSubscription(
+          options.condition,
+          options.symbols || []
+        );
       case "tiered":
-        return this.handleTieredSubscription(options.tier, options.symbols || []);
+        return this.handleTieredSubscription(
+          options.tier,
+          options.symbols || []
+        );
       default:
         return { success: false, error: "Unknown pattern type" };
     }
@@ -1713,7 +1783,7 @@ class LiveDataManager extends EventEmitter {
    */
   handleBulkSubscription(symbols, userId) {
     let subscribed = 0;
-    symbols.forEach(symbol => {
+    symbols.forEach((symbol) => {
       if (this.subscribeSymbol(symbol, "alpaca", "connection1", userId)) {
         subscribed++;
       }
@@ -1756,15 +1826,15 @@ class LiveDataManager extends EventEmitter {
    */
   recordRequest(provider, options = {}) {
     if (!this.providers.has(provider)) return false;
-    
+
     const providerData = this.providers.get(provider);
     if (!providerData.usage) {
       providerData.usage = { totalCost: 0 };
     }
-    
+
     const cost = options.cost || 0.05;
     providerData.usage.totalCost = (providerData.usage.totalCost || 0) + cost;
-    
+
     return true;
   }
 
@@ -1774,12 +1844,12 @@ class LiveDataManager extends EventEmitter {
    */
   analyzeCostOptimization() {
     const result = {};
-    
+
     this.providers.forEach((provider, name) => {
       const totalCost = provider.usage?.totalCost || 0;
       const requests = provider.usage?.requestsThisMonth || 1;
       const averageCostPerRequest = totalCost / requests;
-      
+
       const recommendations = [];
       if (averageCostPerRequest > 0.05) {
         recommendations.push("Consider reducing request frequency");
@@ -1790,15 +1860,15 @@ class LiveDataManager extends EventEmitter {
       if (requests > 50000) {
         recommendations.push("High usage: Consider bulk data subscriptions");
       }
-      
+
       result[name] = {
         averageCostPerRequest,
         totalCost,
         requests,
-        recommendations
+        recommendations,
       };
     });
-    
+
     return result;
   }
 
@@ -1808,17 +1878,17 @@ class LiveDataManager extends EventEmitter {
    */
   updateProviderUsage(provider) {
     if (!this.providers.has(provider)) return;
-    
+
     const providerData = this.providers.get(provider);
     const currentMonth = new Date().getMonth();
     const lastReset = providerData.usage?.lastResetMonth;
-    
+
     if (lastReset !== currentMonth) {
       // Reset monthly counters
       providerData.usage = {
         requestsThisMonth: 0,
         totalCost: 0,
-        lastResetMonth: currentMonth
+        lastResetMonth: currentMonth,
       };
     }
   }
@@ -1830,24 +1900,24 @@ class LiveDataManager extends EventEmitter {
   generateHealthReport() {
     const report = {
       overall: { status: "healthy" },
-      providers: {}
+      providers: {},
     };
-    
+
     let hasError = false;
-    
+
     this.providers.forEach((provider, name) => {
       const status = provider.status === "error" ? "error" : "healthy";
       report.providers[name] = { status };
-      
+
       if (status === "error") {
         hasError = true;
       }
     });
-    
+
     if (hasError) {
       report.overall.status = "degraded";
     }
-    
+
     return report;
   }
 
@@ -1858,25 +1928,25 @@ class LiveDataManager extends EventEmitter {
    */
   calculateProviderMetrics(provider) {
     if (!this.providers.has(provider)) return {};
-    
+
     const providerData = this.providers.get(provider);
     const latencies = providerData.metrics?.latency || [];
-    
+
     // Calculate uptime (time since start)
     const uptime = Date.now() - this.startTime;
-    
+
     if (latencies.length === 0) {
       return { averageLatency: 0, p95Latency: 0, uptime };
     }
-    
+
     const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
     const sortedLatencies = [...latencies].sort((a, b) => a - b);
     const p95Index = Math.floor(sortedLatencies.length * 0.95);
-    
+
     return {
       averageLatency: avgLatency,
       p95Latency: sortedLatencies[p95Index] || 0,
-      uptime
+      uptime,
     };
   }
 
@@ -1887,23 +1957,22 @@ class LiveDataManager extends EventEmitter {
   getSymbolAnalytics() {
     const popularity = {};
     const mostPopular = [];
-    
+
     // Ensure symbolSubscriptions is initialized
     if (!this.symbolSubscriptions) {
       this.symbolSubscriptions = new Map();
     }
-    
+
     this.symbolSubscriptions.forEach((subscribers, symbol) => {
       popularity[symbol] = subscribers.size;
       mostPopular.push({ symbol, count: subscribers.size });
     });
-    
+
     // Sort mostPopular by count (descending)
     mostPopular.sort((a, b) => b.count - a.count);
-    
+
     return { popularity, mostPopular };
   }
-
 
   /**
    * Clean up user connections
@@ -1919,7 +1988,7 @@ class LiveDataManager extends EventEmitter {
         }
       });
     }
-    
+
     // Remove user subscriptions
     if (this.userSubscriptions) {
       this.userSubscriptions.delete(userId);
@@ -1933,25 +2002,25 @@ class LiveDataManager extends EventEmitter {
   getRealTimeMetrics() {
     let totalRequests = 0;
     let totalSubscribers = 0;
-    
-    this.providers.forEach(provider => {
+
+    this.providers.forEach((provider) => {
       totalRequests += provider.usage?.requestsThisMonth || 0;
     });
-    
+
     // Ensure symbolSubscriptions is initialized
     if (!this.symbolSubscriptions) {
       this.symbolSubscriptions = new Map();
     }
-    
-    this.symbolSubscriptions.forEach(subscribers => {
+
+    this.symbolSubscriptions.forEach((subscribers) => {
       totalSubscribers += subscribers.size;
     });
-    
+
     return {
       totalRequests,
       totalSubscribers,
       activeProviders: this.providers.size,
-      activeConnections: this.connectionPool.size
+      activeConnections: this.connectionPool.size,
     };
   }
 

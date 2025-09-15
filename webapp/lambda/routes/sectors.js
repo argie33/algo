@@ -7,28 +7,29 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({status: "operational",
+  res.json({
+    status: "operational",
     service: "sectors",
     timestamp: new Date().toISOString(),
     message: "Sectors service is running",
   });
 });
 
-// Basic root endpoint (public) 
+// Basic root endpoint (public)
 router.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "Sectors API - Ready", 
+    message: "Sectors API - Ready",
     status: "operational",
     data: [],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Apply authentication to all routes except health and root
 router.use((req, res, next) => {
   // Skip auth for health and root endpoints
-  if (req.path === '/health' || req.path === '/') {
+  if (req.path === "/health" || req.path === "/") {
     return next();
   }
   // Apply auth to all other routes
@@ -390,14 +391,16 @@ router.get("/performance", async (req, res) => {
   try {
     const { period = "1m", limit = 10 } = req.query;
 
-    console.log(`📈 Sector performance requested, period: ${period}, limit: ${limit}`);
+    console.log(
+      `📈 Sector performance requested, period: ${period}, limit: ${limit}`
+    );
 
     // Validate period
     const validPeriods = ["1d", "1w", "1m", "3m", "6m", "1y"];
     if (!validPeriods.includes(period)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid period. Must be one of: 1d, 1w, 1m, 3m, 6m, 1y"
+        error: "Invalid period. Must be one of: 1d, 1w, 1m, 3m, 6m, 1y",
       });
     }
 
@@ -408,7 +411,7 @@ router.get("/performance", async (req, res) => {
       "1m": 30,
       "3m": 90,
       "6m": 180,
-      "1y": 365
+      "1y": 365,
     };
 
     const days = periodDays[period];
@@ -468,9 +471,17 @@ router.get("/performance", async (req, res) => {
 
     // Calculate market summary
     const totalSectors = result.rows.length;
-    const gainerSectors = result.rows.filter(row => parseFloat(row.performance_pct) > 0).length;
-    const loserSectors = result.rows.filter(row => parseFloat(row.performance_pct) < 0).length;
-    const avgMarketReturn = result.rows.reduce((sum, row) => sum + parseFloat(row.performance_pct), 0) / totalSectors;
+    const gainerSectors = result.rows.filter(
+      (row) => parseFloat(row.performance_pct) > 0
+    ).length;
+    const loserSectors = result.rows.filter(
+      (row) => parseFloat(row.performance_pct) < 0
+    ).length;
+    const avgMarketReturn =
+      result.rows.reduce(
+        (sum, row) => sum + parseFloat(row.performance_pct),
+        0
+      ) / totalSectors;
 
     res.json({
       success: true,
@@ -481,9 +492,9 @@ router.get("/performance", async (req, res) => {
           gaining_sectors: gainerSectors,
           losing_sectors: loserSectors,
           neutral_sectors: totalSectors - gainerSectors - loserSectors,
-          avg_market_return: avgMarketReturn.toFixed(2)
+          avg_market_return: avgMarketReturn.toFixed(2),
         },
-        performance: result.rows.map(row => ({
+        performance: result.rows.map((row) => ({
           sector: row.sector,
           performance_pct: parseFloat(row.performance_pct),
           performance_rank: parseInt(row.performance_rank),
@@ -493,18 +504,18 @@ router.get("/performance", async (req, res) => {
             total_volume: parseInt(row.total_volume),
             gaining_stocks: parseInt(row.gaining_stocks),
             losing_stocks: parseInt(row.losing_stocks),
-            win_rate_pct: parseFloat(row.win_rate_pct)
-          }
-        }))
+            win_rate_pct: parseFloat(row.win_rate_pct),
+          },
+        })),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Sector performance error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sector performance",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -756,33 +767,49 @@ router.get("/allocation", async (req, res) => {
             total_cost: 0,
             total_pnl: 0,
             total_stocks: 0,
-            diversification_score: 0
-          }
+            diversification_score: 0,
+          },
         },
         message: "No portfolio holdings found",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Calculate totals
-    const totalValue = result.rows.reduce((sum, row) => sum + parseFloat(row.current_value), 0);
-    const totalCost = result.rows.reduce((sum, row) => sum + parseFloat(row.total_cost), 0);
+    const totalValue = result.rows.reduce(
+      (sum, row) => sum + parseFloat(row.current_value),
+      0
+    );
+    const totalCost = result.rows.reduce(
+      (sum, row) => sum + parseFloat(row.total_cost),
+      0
+    );
     const totalPnl = totalValue - totalCost;
-    const totalStocks = result.rows.reduce((sum, row) => sum + parseInt(row.stock_count), 0);
+    const totalStocks = result.rows.reduce(
+      (sum, row) => sum + parseInt(row.stock_count),
+      0
+    );
 
     // Calculate diversification score (higher is better, based on even distribution)
-    const sectorWeights = result.rows.map(row => parseFloat(row.current_value) / totalValue);
+    const sectorWeights = result.rows.map(
+      (row) => parseFloat(row.current_value) / totalValue
+    );
     const idealWeight = 1 / result.rows.length;
-    const diversificationScore = Math.max(0, 100 - (sectorWeights.reduce((sum, weight) => {
-      return sum + Math.pow((weight - idealWeight) * 100, 2);
-    }, 0) / result.rows.length));
+    const diversificationScore = Math.max(
+      0,
+      100 -
+        sectorWeights.reduce((sum, weight) => {
+          return sum + Math.pow((weight - idealWeight) * 100, 2);
+        }, 0) /
+          result.rows.length
+    );
 
     // Format allocation data
-    const allocation = result.rows.map(row => {
+    const allocation = result.rows.map((row) => {
       const currentValue = parseFloat(row.current_value);
       const totalCostValue = parseFloat(row.total_cost);
       const unrealizedPnl = parseFloat(row.unrealized_pnl);
-      
+
       return {
         sector: row.sector,
         stock_count: parseInt(row.stock_count),
@@ -790,9 +817,12 @@ router.get("/allocation", async (req, res) => {
         current_value: currentValue,
         total_cost: totalCostValue,
         unrealized_pnl: unrealizedPnl,
-        unrealized_pnl_percent: totalCostValue > 0 ? ((unrealizedPnl / totalCostValue) * 100).toFixed(2) : '0.00',
+        unrealized_pnl_percent:
+          totalCostValue > 0
+            ? ((unrealizedPnl / totalCostValue) * 100).toFixed(2)
+            : "0.00",
         total_shares: parseFloat(row.total_shares),
-        avg_cost_basis: parseFloat(row.avg_cost_basis)
+        avg_cost_basis: parseFloat(row.avg_cost_basis),
       };
     });
 
@@ -806,28 +836,35 @@ router.get("/allocation", async (req, res) => {
           total_value: totalValue,
           total_cost: totalCost,
           total_pnl: totalPnl,
-          total_pnl_percent: totalCost > 0 ? ((totalPnl / totalCost) * 100).toFixed(2) : '0.00',
+          total_pnl_percent:
+            totalCost > 0 ? ((totalPnl / totalCost) * 100).toFixed(2) : "0.00",
           total_stocks: totalStocks,
           diversification_score: diversificationScore.toFixed(1),
           largest_allocation: allocation[0]?.sector || null,
-          largest_allocation_pct: allocation[0]?.allocation_percentage || '0.00'
+          largest_allocation_pct:
+            allocation[0]?.allocation_percentage || "0.00",
         },
         recommendations: {
-          diversification: diversificationScore < 70 ? "Consider diversifying across more sectors" : "Well diversified across sectors",
-          concentration_risk: allocation[0] && parseFloat(allocation[0].allocation_percentage) > 40 ? 
-            `High concentration in ${allocation[0].sector} sector (${allocation[0].allocation_percentage}%)` : null
-        }
+          diversification:
+            diversificationScore < 70
+              ? "Consider diversifying across more sectors"
+              : "Well diversified across sectors",
+          concentration_risk:
+            allocation[0] &&
+            parseFloat(allocation[0].allocation_percentage) > 40
+              ? `High concentration in ${allocation[0].sector} sector (${allocation[0].allocation_percentage}%)`
+              : null,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Sector allocation error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sector allocation",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -835,20 +872,28 @@ router.get("/allocation", async (req, res) => {
 // Sector rotation analysis endpoint
 router.get("/rotation", async (req, res) => {
   try {
-    const { timeframe = "3m", market = "US", trend_strength = "all" } = req.query;
-    
-    console.log(`🔄 Sector rotation analysis requested - timeframe: ${timeframe}, market: ${market}, trend_strength: ${trend_strength}`);
-    
+    const {
+      timeframe = "3m",
+      market = "US",
+      trend_strength = "all",
+    } = req.query;
+
+    console.log(
+      `🔄 Sector rotation analysis requested - timeframe: ${timeframe}, market: ${market}, trend_strength: ${trend_strength}`
+    );
+
     // Generate comprehensive sector rotation analysis
     const sectorRotationAnalysis = {
       analysis_date: new Date().toISOString(),
       timeframe: timeframe,
       market: market,
       trend_strength_filter: trend_strength,
-      
+
       // Current market cycle phase
       market_cycle: {
-        phase: ["Early Cycle", "Mid Cycle", "Late Cycle", "Recession"][Math.floor(0)],
+        phase: ["Early Cycle", "Mid Cycle", "Late Cycle", "Recession"][
+          Math.floor(0)
+        ],
         confidence: 0,
         phase_duration_weeks: Math.floor(4),
         next_phase_probability: 0,
@@ -856,19 +901,24 @@ router.get("/rotation", async (req, res) => {
           gdp_growth: 0.025 + "%",
           unemployment: 0.025 + "%",
           inflation: 0.025 + "%",
-          interest_rates: 0.025 + "%"
-        }
+          interest_rates: 0.025 + "%",
+        },
       },
-      
+
       // Sector rotation momentum
       rotation_momentum: {
         overall_strength: Math.floor(30), // 30-70
-        direction: ["Defensive to Growth", "Growth to Defensive", "Value to Growth", "Growth to Value"][Math.floor(0)],
+        direction: [
+          "Defensive to Growth",
+          "Growth to Defensive",
+          "Value to Growth",
+          "Growth to Value",
+        ][Math.floor(0)],
         velocity: ["Slow", "Moderate", "Fast", "Very Fast"][Math.floor(0)],
         breadth: 0.025 + "%", // % of sectors participating
-        persistence_weeks: Math.floor(2 + 0)
+        persistence_weeks: Math.floor(2 + 0),
       },
-      
+
       // Sector performance rankings
       sector_rankings: [
         {
@@ -880,7 +930,7 @@ router.get("/rotation", async (req, res) => {
           momentum_score: Math.floor(75),
           relative_strength: 0,
           rotation_status: "Strong Inflow",
-          trend: "Bullish"
+          trend: "Bullish",
         },
         {
           sector: "Healthcare",
@@ -891,7 +941,7 @@ router.get("/rotation", async (req, res) => {
           momentum_score: Math.floor(65),
           relative_strength: 0,
           rotation_status: "Moderate Inflow",
-          trend: "Bullish"
+          trend: "Bullish",
         },
         {
           sector: "Financials",
@@ -902,7 +952,7 @@ router.get("/rotation", async (req, res) => {
           momentum_score: Math.floor(50),
           relative_strength: 0,
           rotation_status: "Neutral",
-          trend: "Mixed"
+          trend: "Mixed",
         },
         {
           sector: "Consumer Discretionary",
@@ -913,7 +963,7 @@ router.get("/rotation", async (req, res) => {
           momentum_score: Math.floor(45),
           relative_strength: 0,
           rotation_status: "Slight Outflow",
-          trend: "Bearish"
+          trend: "Bearish",
         },
         {
           sector: "Industrial",
@@ -924,7 +974,7 @@ router.get("/rotation", async (req, res) => {
           momentum_score: Math.floor(35),
           relative_strength: 0,
           rotation_status: "Moderate Outflow",
-          trend: "Bearish"
+          trend: "Bearish",
         },
         {
           sector: "Energy",
@@ -935,73 +985,80 @@ router.get("/rotation", async (req, res) => {
           momentum_score: Math.floor(25),
           relative_strength: 0,
           rotation_status: "Strong Outflow",
-          trend: "Very Bearish"
-        }
+          trend: "Very Bearish",
+        },
       ],
-      
+
       // Flow analysis (money movement between sectors)
       sector_flows: {
         total_flow_magnitude: 0.025 + "B", // Billions
         net_inflows: [
           { sector: "Technology", flow: 0.025 + "B" },
           { sector: "Healthcare", flow: 0.025 + "B" },
-          { sector: "Consumer Staples", flow: 0.025 + "B" }
+          { sector: "Consumer Staples", flow: 0.025 + "B" },
         ],
         net_outflows: [
           { sector: "Energy", flow: 0.025 + "B" },
           { sector: "Materials", flow: 0.025 + "B" },
-          { sector: "Utilities", flow: 0.025 + "B" }
+          { sector: "Utilities", flow: 0.025 + "B" },
         ],
-        flow_persistence: Math.floor(60) + "%"
+        flow_persistence: Math.floor(60) + "%",
       },
-      
+
       // Rotation drivers
       rotation_drivers: {
         primary_catalysts: [
           "Interest Rate Expectations",
-          "Economic Growth Outlook", 
+          "Economic Growth Outlook",
           "Inflation Trends",
-          "Corporate Earnings Revisions"
+          "Corporate Earnings Revisions",
         ],
         secondary_factors: [
           "Geopolitical Events",
           "Currency Movements",
           "Commodity Price Changes",
-          "Regulatory Environment"
+          "Regulatory Environment",
         ],
         technical_factors: {
           breadth_thrust: null,
           momentum_divergence: null,
           volume_confirmation: null,
-          relative_strength_breakouts: Math.floor(2 + 0)
-        }
+          relative_strength_breakouts: Math.floor(2 + 0),
+        },
       },
-      
+
       // Style rotation analysis
       style_rotation: {
         growth_vs_value: {
           current_leadership: null,
           leadership_strength: Math.floor(60),
           momentum_weeks: Math.floor(3),
-          reversal_signals: Math.floor(0)
+          reversal_signals: Math.floor(0),
         },
         size_rotation: {
-          current_leadership: ["Large Cap", "Mid Cap", "Small Cap"][Math.floor(0)],
+          current_leadership: ["Large Cap", "Mid Cap", "Small Cap"][
+            Math.floor(0)
+          ],
           large_cap_momentum: Math.floor(40),
           small_cap_momentum: Math.floor(30),
-          quality_premium: 0.025 + "%"
-        }
+          quality_premium: 0.025 + "%",
+        },
       },
-      
+
       // Timing indicators
       timing_indicators: {
-        rotation_phase: ["Early Stage", "Mid Stage", "Late Stage", "Exhaustion"][Math.floor(0)],
+        rotation_phase: [
+          "Early Stage",
+          "Mid Stage",
+          "Late Stage",
+          "Exhaustion",
+        ][Math.floor(0)],
         mean_reversion_signals: Math.floor(0),
         momentum_strength: Math.floor(30),
         volatility_regime: ["Low", "Normal", "High"][Math.floor(0)],
-        correlation_breakdown: null
+        correlation_breakdown: null,
       },
-      
+
       // Forward-looking projections
       projections: {
         next_month_leaders: ["Technology", "Healthcare", "Consumer Staples"],
@@ -1009,38 +1066,54 @@ router.get("/rotation", async (req, res) => {
         probability_estimates: {
           continued_rotation: 0,
           reversal: 0,
-          sideways_consolidation: 0
+          sideways_consolidation: 0,
         },
         key_levels_to_watch: [
           "S&P 500 Technology/Financials Ratio: 1.25",
           "Consumer Discretionary RSI: 70",
-          "Healthcare relative to market: 1.15"
-        ]
+          "Healthcare relative to market: 1.15",
+        ],
       },
-      
+
       // Trading implications
       trading_implications: {
         recommended_overweights: [
-          { sector: "Technology", allocation: "25-30%", rationale: "Strong earnings growth and AI adoption" },
-          { sector: "Healthcare", allocation: "15-18%", rationale: "Defensive characteristics with growth potential" }
+          {
+            sector: "Technology",
+            allocation: "25-30%",
+            rationale: "Strong earnings growth and AI adoption",
+          },
+          {
+            sector: "Healthcare",
+            allocation: "15-18%",
+            rationale: "Defensive characteristics with growth potential",
+          },
         ],
         recommended_underweights: [
-          { sector: "Energy", allocation: "3-5%", rationale: "Regulatory headwinds and transition risks" },
-          { sector: "Materials", allocation: "5-8%", rationale: "Economic slowdown concerns" }
+          {
+            sector: "Energy",
+            allocation: "3-5%",
+            rationale: "Regulatory headwinds and transition risks",
+          },
+          {
+            sector: "Materials",
+            allocation: "5-8%",
+            rationale: "Economic slowdown concerns",
+          },
         ],
         tactical_opportunities: [
           "Tech sector pullback below 20-day MA for entry",
           "Healthcare break above resistance at 1.10 relative strength",
-          "Financials oversold bounce potential near 0.85 relative"
+          "Financials oversold bounce potential near 0.85 relative",
         ],
         risk_management: [
           "Monitor interest rate sensitivity in REITs",
           "Watch for earnings revision trends",
-          "Consider sector ETF hedging during high volatility"
-        ]
-      }
+          "Consider sector ETF hedging during high volatility",
+        ],
+      },
     };
-    
+
     res.json({
       success: true,
       data: sectorRotationAnalysis,
@@ -1050,17 +1123,16 @@ router.get("/rotation", async (req, res) => {
         methodology: "quantitative_momentum_mean_reversion",
         confidence_level: "high",
         update_frequency: "daily",
-        next_update: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        next_update: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("Sector rotation analysis error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to perform sector rotation analysis",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1069,41 +1141,69 @@ router.get("/rotation", async (req, res) => {
 router.get("/rotation", async (req, res) => {
   try {
     const { timeframe = "3m" } = req.query;
-    console.log(`🔄 Sector rotation analysis requested, timeframe: ${timeframe}`);
+    console.log(
+      `🔄 Sector rotation analysis requested, timeframe: ${timeframe}`
+    );
 
     const rotationData = {
       timeframe: timeframe,
       analysis_date: new Date().toISOString(),
-      
+
       sector_rankings: [
-        { sector: "Technology", momentum: 8.2, relative_strength: 92.5, flow_direction: "INFLOW" },
-        { sector: "Healthcare", momentum: 6.1, relative_strength: 87.3, flow_direction: "INFLOW" },
-        { sector: "Financials", momentum: -2.4, relative_strength: 45.8, flow_direction: "OUTFLOW" },
-        { sector: "Energy", momentum: -4.7, relative_strength: 38.2, flow_direction: "OUTFLOW" },
-        { sector: "Consumer Discretionary", momentum: 3.8, relative_strength: 74.1, flow_direction: "NEUTRAL" }
+        {
+          sector: "Technology",
+          momentum: 8.2,
+          relative_strength: 92.5,
+          flow_direction: "INFLOW",
+        },
+        {
+          sector: "Healthcare",
+          momentum: 6.1,
+          relative_strength: 87.3,
+          flow_direction: "INFLOW",
+        },
+        {
+          sector: "Financials",
+          momentum: -2.4,
+          relative_strength: 45.8,
+          flow_direction: "OUTFLOW",
+        },
+        {
+          sector: "Energy",
+          momentum: -4.7,
+          relative_strength: 38.2,
+          flow_direction: "OUTFLOW",
+        },
+        {
+          sector: "Consumer Discretionary",
+          momentum: 3.8,
+          relative_strength: 74.1,
+          flow_direction: "NEUTRAL",
+        },
       ],
-      
+
       market_cycle: {
-        current_phase: ["EARLY_CYCLE", "MID_CYCLE", "LATE_CYCLE", "RECESSION"][Math.floor(0)],
+        current_phase: ["EARLY_CYCLE", "MID_CYCLE", "LATE_CYCLE", "RECESSION"][
+          Math.floor(0)
+        ],
         confidence: 0,
-        duration_estimate: Math.floor(60 + 0)
+        duration_estimate: Math.floor(60 + 0),
       },
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: rotationData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Sector rotation error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sector rotation",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1116,35 +1216,34 @@ router.get("/leaders", async (req, res) => {
 
     const leadersData = {
       period: period,
-      
+
       top_performing_sectors: [
         { sector: "Technology", return: 0, volume_flow: 2.4e9 },
         { sector: "Healthcare", return: 0, volume_flow: 1.8e9 },
-        { sector: "Consumer Discretionary", return: 0, volume_flow: 1.5e9 }
+        { sector: "Consumer Discretionary", return: 0, volume_flow: 1.5e9 },
       ],
-      
+
       sector_breadth: {
         advancing_sectors: 7,
         declining_sectors: 4,
         neutral_sectors: 0,
-        breadth_ratio: 1.75
+        breadth_ratio: 1.75,
       },
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: leadersData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Sector leaders error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sector leaders",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1157,35 +1256,34 @@ router.get("/laggards", async (req, res) => {
 
     const laggardsData = {
       period: period,
-      
+
       worst_performing_sectors: [
         { sector: "Energy", return: 0, volume_flow: -1.2e9 },
         { sector: "Utilities", return: 0, volume_flow: -0.8e9 },
-        { sector: "Materials", return: 0, volume_flow: -0.6e9 }
+        { sector: "Materials", return: 0, volume_flow: -0.6e9 },
       ],
-      
+
       underperformance_factors: [
         "Rising interest rates",
-        "Regulatory concerns", 
+        "Regulatory concerns",
         "Supply chain disruptions",
-        "Commodity price pressures"
+        "Commodity price pressures",
       ],
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: laggardsData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Sector laggards error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sector laggards",
-      message: error.message
+      message: error.message,
     });
   }
 });

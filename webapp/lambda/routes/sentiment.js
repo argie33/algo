@@ -7,7 +7,8 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({status: "operational",
+  res.json({
+    status: "operational",
     service: "sentiment",
     timestamp: new Date().toISOString(),
     message: "Sentiment analysis service is running",
@@ -22,7 +23,7 @@ router.get("/", (req, res) => {
       message: "Sentiment API - Ready",
       timestamp: new Date().toISOString(),
       status: "operational",
-    }
+    },
   });
 });
 
@@ -31,13 +32,15 @@ router.get("/analysis", async (req, res) => {
   try {
     const { symbol, period = "7d" } = req.query;
 
-    console.log(`😊 Sentiment analysis requested for symbol: ${symbol || 'market'}, period: ${period}`);
+    console.log(
+      `😊 Sentiment analysis requested for symbol: ${symbol || "market"}, period: ${period}`
+    );
 
     if (!symbol) {
       return res.status(400).json({
         success: false,
         error: "Symbol parameter required",
-        message: "Please provide a symbol using ?symbol=TICKER"
+        message: "Please provide a symbol using ?symbol=TICKER",
       });
     }
 
@@ -47,7 +50,7 @@ router.get("/analysis", async (req, res) => {
       "3d": 3,
       "7d": 7,
       "14d": 14,
-      "30d": 30
+      "30d": 30,
     };
 
     const days = periodDays[period] || 7;
@@ -74,7 +77,7 @@ router.get("/analysis", async (req, res) => {
     // Calculate sentiment metrics
     const articles = newsResult.rows;
     const sentimentCounts = articles.reduce((counts, article) => {
-      const sentiment = article.sentiment || 'neutral';
+      const sentiment = article.sentiment || "neutral";
       counts[sentiment] = (counts[sentiment] || 0) + 1;
       return counts;
     }, {});
@@ -85,17 +88,18 @@ router.get("/analysis", async (req, res) => {
     const negativeCount = sentimentCounts.negative || 0;
     const neutralCount = sentimentCounts.neutral || 0;
 
-    const sentimentScore = totalArticles > 0 
-      ? ((positiveCount - negativeCount) / totalArticles * 100).toFixed(2)
-      : 0;
+    const sentimentScore =
+      totalArticles > 0
+        ? (((positiveCount - negativeCount) / totalArticles) * 100).toFixed(2)
+        : 0;
 
     // Group articles by date for trend analysis
     const dailySentiment = articles.reduce((daily, article) => {
-      const date = article.published_at.toISOString().split('T')[0];
+      const date = article.published_at.toISOString().split("T")[0];
       if (!daily[date]) {
         daily[date] = { positive: 0, negative: 0, neutral: 0, total: 0 };
       }
-      const sentiment = article.sentiment || 'neutral';
+      const sentiment = article.sentiment || "neutral";
       daily[date][sentiment]++;
       daily[date].total++;
       return daily;
@@ -106,40 +110,57 @@ router.get("/analysis", async (req, res) => {
     const recentDates = sortedDates.slice(-3);
     const earlierDates = sortedDates.slice(0, -3);
 
-    let recentScore = 0, earlierScore = 0;
-    
+    let recentScore = 0,
+      earlierScore = 0;
+
     if (recentDates.length > 0) {
-      const recentStats = recentDates.reduce((sum, date) => {
-        const day = dailySentiment[date];
-        return {
-          positive: sum.positive + day.positive,
-          negative: sum.negative + day.negative,
-          total: sum.total + day.total
-        };
-      }, { positive: 0, negative: 0, total: 0 });
-      
-      recentScore = recentStats.total > 0 
-        ? (recentStats.positive - recentStats.negative) / recentStats.total * 100
-        : 0;
+      const recentStats = recentDates.reduce(
+        (sum, date) => {
+          const day = dailySentiment[date];
+          return {
+            positive: sum.positive + day.positive,
+            negative: sum.negative + day.negative,
+            total: sum.total + day.total,
+          };
+        },
+        { positive: 0, negative: 0, total: 0 }
+      );
+
+      recentScore =
+        recentStats.total > 0
+          ? ((recentStats.positive - recentStats.negative) /
+              recentStats.total) *
+            100
+          : 0;
     }
 
     if (earlierDates.length > 0) {
-      const earlierStats = earlierDates.reduce((sum, date) => {
-        const day = dailySentiment[date];
-        return {
-          positive: sum.positive + day.positive,
-          negative: sum.negative + day.negative,
-          total: sum.total + day.total
-        };
-      }, { positive: 0, negative: 0, total: 0 });
-      
-      earlierScore = earlierStats.total > 0 
-        ? (earlierStats.positive - earlierStats.negative) / earlierStats.total * 100
-        : 0;
+      const earlierStats = earlierDates.reduce(
+        (sum, date) => {
+          const day = dailySentiment[date];
+          return {
+            positive: sum.positive + day.positive,
+            negative: sum.negative + day.negative,
+            total: sum.total + day.total,
+          };
+        },
+        { positive: 0, negative: 0, total: 0 }
+      );
+
+      earlierScore =
+        earlierStats.total > 0
+          ? ((earlierStats.positive - earlierStats.negative) /
+              earlierStats.total) *
+            100
+          : 0;
     }
 
-    const trend = recentScore > earlierScore ? 'improving' : 
-                  recentScore < earlierScore ? 'declining' : 'stable';
+    const trend =
+      recentScore > earlierScore
+        ? "improving"
+        : recentScore < earlierScore
+          ? "declining"
+          : "stable";
 
     res.json({
       success: true,
@@ -154,37 +175,46 @@ router.get("/analysis", async (req, res) => {
           positive: positiveCount,
           negative: negativeCount,
           neutral: neutralCount,
-          positive_pct: totalArticles > 0 ? (positiveCount / totalArticles * 100).toFixed(1) : "0.0",
-          negative_pct: totalArticles > 0 ? (negativeCount / totalArticles * 100).toFixed(1) : "0.0",
-          neutral_pct: totalArticles > 0 ? (neutralCount / totalArticles * 100).toFixed(1) : "0.0"
+          positive_pct:
+            totalArticles > 0
+              ? ((positiveCount / totalArticles) * 100).toFixed(1)
+              : "0.0",
+          negative_pct:
+            totalArticles > 0
+              ? ((negativeCount / totalArticles) * 100).toFixed(1)
+              : "0.0",
+          neutral_pct:
+            totalArticles > 0
+              ? ((neutralCount / totalArticles) * 100).toFixed(1)
+              : "0.0",
         },
         daily_sentiment: dailySentiment,
-        recent_articles: articles.slice(0, 10).map(article => ({
+        recent_articles: articles.slice(0, 10).map((article) => ({
           title: article.title,
           sentiment: article.sentiment,
           source: article.source,
-          published_at: article.published_at
-        }))
+          published_at: article.published_at,
+        })),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Sentiment analysis error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to perform sentiment analysis",
-      details: error.message
+      details: error.message,
     });
   }
 });
 
 // Helper function to convert sentiment score to grade
 function getSentimentGrade(score) {
-  if (score >= 50) return 'Very Positive';
-  if (score >= 20) return 'Positive';
-  if (score > -20) return 'Neutral';
-  if (score > -50) return 'Negative';
-  return 'Very Negative';
+  if (score >= 50) return "Very Positive";
+  if (score >= 20) return "Positive";
+  if (score > -20) return "Neutral";
+  if (score > -50) return "Negative";
+  return "Very Negative";
 }
 
 // Apply authentication to protected routes only
@@ -203,14 +233,16 @@ router.get("/ping", (req, res) => {
 // Get social media sentiment overview
 router.get("/social", async (req, res) => {
   try {
-    const { 
-      limit = 50, 
-      timeframe = '24h',
-      platform = 'all',
-      sentiment_threshold = 0 
+    const {
+      limit = 50,
+      timeframe = "24h",
+      platform = "all",
+      sentiment_threshold = 0,
     } = req.query;
 
-    console.log(`📱 Social sentiment overview requested - timeframe: ${timeframe}, platform: ${platform}`);
+    console.log(
+      `📱 Social sentiment overview requested - timeframe: ${timeframe}, platform: ${platform}`
+    );
 
     // Simulate social media sentiment data based on recent news and price movements
     const socialSentimentQuery = `
@@ -302,12 +334,12 @@ router.get("/social", async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch social sentiment data",
-        details: "Database query failed"
+        details: "Database query failed",
       });
     }
 
     // Process sentiment results
-    const sentimentData = result.rows.map(row => ({
+    const sentimentData = result.rows.map((row) => ({
       symbol: row.symbol,
       overall_sentiment: parseFloat(row.overall_sentiment),
       sentiment_label: row.sentiment_label,
@@ -317,78 +349,108 @@ router.get("/social", async (req, res) => {
       platform_breakdown: {
         twitter: {
           mentions: parseInt(row.twitter_mentions),
-          sentiment: parseFloat(row.twitter_sentiment)
+          sentiment: parseFloat(row.twitter_sentiment),
         },
         reddit: {
           mentions: parseInt(row.reddit_mentions),
-          sentiment: parseFloat(row.reddit_sentiment)
+          sentiment: parseFloat(row.reddit_sentiment),
         },
         discord: {
           mentions: parseInt(row.discord_mentions),
-          sentiment: parseFloat(row.avg_platform_sentiment)
+          sentiment: parseFloat(row.avg_platform_sentiment),
         },
         stocktwits: {
           mentions: parseInt(row.stocktwits_mentions),
-          sentiment: parseFloat(row.avg_platform_sentiment)
-        }
+          sentiment: parseFloat(row.avg_platform_sentiment),
+        },
       },
-      last_updated: row.last_updated
+      last_updated: row.last_updated,
     }));
 
     // Generate summary statistics
     const summary = {
       total_symbols_tracked: sentimentData.length,
-      average_sentiment: sentimentData.length > 0 ? 
-        Math.round(sentimentData.reduce((sum, s) => sum + s.overall_sentiment, 0) / sentimentData.length * 1000) / 1000 : 0,
-      total_mentions: sentimentData.reduce((sum, s) => sum + s.total_mentions, 0),
+      average_sentiment:
+        sentimentData.length > 0
+          ? Math.round(
+              (sentimentData.reduce((sum, s) => sum + s.overall_sentiment, 0) /
+                sentimentData.length) *
+                1000
+            ) / 1000
+          : 0,
+      total_mentions: sentimentData.reduce(
+        (sum, s) => sum + s.total_mentions,
+        0
+      ),
       sentiment_distribution: {
-        very_positive: sentimentData.filter(s => s.sentiment_label === 'Very Positive').length,
-        positive: sentimentData.filter(s => s.sentiment_label === 'Positive').length,
-        neutral: sentimentData.filter(s => s.sentiment_label === 'Neutral').length,
-        negative: sentimentData.filter(s => s.sentiment_label === 'Negative').length,
-        very_negative: sentimentData.filter(s => s.sentiment_label === 'Very Negative').length
+        very_positive: sentimentData.filter(
+          (s) => s.sentiment_label === "Very Positive"
+        ).length,
+        positive: sentimentData.filter((s) => s.sentiment_label === "Positive")
+          .length,
+        neutral: sentimentData.filter((s) => s.sentiment_label === "Neutral")
+          .length,
+        negative: sentimentData.filter((s) => s.sentiment_label === "Negative")
+          .length,
+        very_negative: sentimentData.filter(
+          (s) => s.sentiment_label === "Very Negative"
+        ).length,
       },
       platform_activity: {
-        twitter_total: sentimentData.reduce((sum, s) => sum + s.platform_breakdown.twitter.mentions, 0),
-        reddit_total: sentimentData.reduce((sum, s) => sum + s.platform_breakdown.reddit.mentions, 0),
-        discord_total: sentimentData.reduce((sum, s) => sum + s.platform_breakdown.discord.mentions, 0),
-        stocktwits_total: sentimentData.reduce((sum, s) => sum + s.platform_breakdown.stocktwits.mentions, 0)
+        twitter_total: sentimentData.reduce(
+          (sum, s) => sum + s.platform_breakdown.twitter.mentions,
+          0
+        ),
+        reddit_total: sentimentData.reduce(
+          (sum, s) => sum + s.platform_breakdown.reddit.mentions,
+          0
+        ),
+        discord_total: sentimentData.reduce(
+          (sum, s) => sum + s.platform_breakdown.discord.mentions,
+          0
+        ),
+        stocktwits_total: sentimentData.reduce(
+          (sum, s) => sum + s.platform_breakdown.stocktwits.mentions,
+          0
+        ),
       },
-      most_mentioned: sentimentData.slice(0, 10).map(s => ({ 
-        symbol: s.symbol, 
-        mentions: s.total_mentions, 
-        sentiment: s.overall_sentiment 
-      }))
+      most_mentioned: sentimentData.slice(0, 10).map((s) => ({
+        symbol: s.symbol,
+        mentions: s.total_mentions,
+        sentiment: s.overall_sentiment,
+      })),
     };
 
-    console.log(`📱 Social sentiment processed: ${sentimentData.length} symbols, ${summary.total_mentions} total mentions`);
+    console.log(
+      `📱 Social sentiment processed: ${sentimentData.length} symbols, ${summary.total_mentions} total mentions`
+    );
 
     res.json({
       success: true,
       social_sentiment: sentimentData,
       summary: summary,
       methodology: {
-        description: "Social media sentiment analysis across multiple platforms",
+        description:
+          "Social media sentiment analysis across multiple platforms",
         platforms: ["Twitter", "Reddit", "Discord", "StockTwits"],
         sentiment_scale: "0.0 (very negative) to 1.0 (very positive)",
         data_sources: "Real-time social media APIs with NLP sentiment analysis",
-        update_frequency: "Every 15 minutes during market hours"
+        update_frequency: "Every 15 minutes during market hours",
       },
       filters: {
         timeframe: timeframe,
         platform: platform,
         limit: parseInt(limit),
-        sentiment_threshold: parseFloat(sentiment_threshold)
+        sentiment_threshold: parseFloat(sentiment_threshold),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Social sentiment overview error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch social sentiment overview",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -396,53 +458,75 @@ router.get("/social", async (req, res) => {
 // Get Reddit-specific sentiment data (must come BEFORE /social/:symbol)
 router.get("/social/reddit", async (req, res) => {
   try {
-    const { symbol, limit = 50, sort = 'relevance' } = req.query;
-    
-    console.log(`🔗 Reddit sentiment requested - symbol: ${symbol || 'all'}, limit: ${limit}, sort: ${sort}`);
+    const { symbol, limit = 50, sort = "relevance" } = req.query;
+
+    console.log(
+      `🔗 Reddit sentiment requested - symbol: ${symbol || "all"}, limit: ${limit}, sort: ${sort}`
+    );
 
     // Generate Reddit-specific sentiment data
     const generateRedditSentiment = (targetSymbol, maxResults, sortBy) => {
-      const subreddits = ['wallstreetbets', 'stocks', 'investing', 'SecurityAnalysis', 'ValueInvesting'];
-      const symbols = targetSymbol ? [targetSymbol.toUpperCase()] : 
-        ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'META', 'AMZN', 'NFLX'];
-      
+      const subreddits = [
+        "wallstreetbets",
+        "stocks",
+        "investing",
+        "SecurityAnalysis",
+        "ValueInvesting",
+      ];
+      const symbols = targetSymbol
+        ? [targetSymbol.toUpperCase()]
+        : ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "META", "AMZN", "NFLX"];
+
       const posts = [];
-      
-      symbols.forEach(sym => {
+
+      symbols.forEach((sym) => {
         for (let i = 0; i < Math.min(maxResults / symbols.length, 10); i++) {
-          const subreddit = subreddits[Math.floor(Math.random() * subreddits.length)];
+          const subreddit =
+            subreddits[Math.floor(Math.random() * subreddits.length)];
           const sentiment = Math.random();
           const upvotes = Math.floor(Math.random() * 5000) + 10;
           const comments = Math.floor(Math.random() * 500) + 1;
-          
+
           posts.push({
             id: `reddit_${sym.toLowerCase()}_${i}_${Date.now()}`,
             symbol: sym,
             subreddit: subreddit,
-            title: `Discussion about ${sym} - ${sentiment > 0.6 ? 'Bullish' : sentiment < 0.4 ? 'Bearish' : 'Mixed'} sentiment`,
+            title: `Discussion about ${sym} - ${sentiment > 0.6 ? "Bullish" : sentiment < 0.4 ? "Bearish" : "Mixed"} sentiment`,
             author: `u/trader${Math.floor(Math.random() * 9999)}`,
             upvotes: upvotes,
             downvotes: Math.floor(upvotes * (Math.random() * 0.3)),
             comments: comments,
             sentiment_score: parseFloat(sentiment.toFixed(3)),
-            sentiment_label: sentiment > 0.6 ? 'positive' : sentiment < 0.4 ? 'negative' : 'neutral',
-            created_utc: Math.floor(Date.now() / 1000) - Math.floor(Math.random() * 86400 * 7),
+            sentiment_label:
+              sentiment > 0.6
+                ? "positive"
+                : sentiment < 0.4
+                  ? "negative"
+                  : "neutral",
+            created_utc:
+              Math.floor(Date.now() / 1000) -
+              Math.floor(Math.random() * 86400 * 7),
             url: `https://reddit.com/r/${subreddit}/comments/sample_${i}`,
-            flair: Math.random() > 0.7 ? ['DD', 'YOLO', 'Discussion', 'News'][Math.floor(Math.random() * 4)] : null,
-            mention_count: Math.floor(Math.random() * 20) + 1
+            flair:
+              Math.random() > 0.7
+                ? ["DD", "YOLO", "Discussion", "News"][
+                    Math.floor(Math.random() * 4)
+                  ]
+                : null,
+            mention_count: Math.floor(Math.random() * 20) + 1,
           });
         }
       });
-      
+
       // Sort posts
-      if (sortBy === 'sentiment') {
+      if (sortBy === "sentiment") {
         posts.sort((a, b) => b.sentiment_score - a.sentiment_score);
-      } else if (sortBy === 'engagement') {
-        posts.sort((a, b) => (b.upvotes + b.comments) - (a.upvotes + a.comments));
+      } else if (sortBy === "engagement") {
+        posts.sort((a, b) => b.upvotes + b.comments - (a.upvotes + a.comments));
       } else {
         posts.sort((a, b) => b.created_utc - a.created_utc);
       }
-      
+
       return posts.slice(0, maxResults);
     };
 
@@ -450,52 +534,60 @@ router.get("/social/reddit", async (req, res) => {
 
     res.json({
       success: true,
-      platform: 'reddit',
+      platform: "reddit",
       data: {
         posts: redditData,
-        total: redditData.length
+        total: redditData.length,
       },
       filters: {
-        symbol: symbol || 'all',
+        symbol: symbol || "all",
         limit: parseInt(limit),
-        sort: sort
+        sort: sort,
       },
       summary: {
         total_posts: redditData.length,
-        avg_sentiment: redditData.length > 0 ? 
-          redditData.reduce((sum, post) => sum + post.sentiment_score, 0) / redditData.length : 0,
+        avg_sentiment:
+          redditData.length > 0
+            ? redditData.reduce((sum, post) => sum + post.sentiment_score, 0) /
+              redditData.length
+            : 0,
         by_sentiment: {
-          positive: redditData.filter(p => p.sentiment_label === 'positive').length,
-          negative: redditData.filter(p => p.sentiment_label === 'negative').length,
-          neutral: redditData.filter(p => p.sentiment_label === 'neutral').length
+          positive: redditData.filter((p) => p.sentiment_label === "positive")
+            .length,
+          negative: redditData.filter((p) => p.sentiment_label === "negative")
+            .length,
+          neutral: redditData.filter((p) => p.sentiment_label === "neutral")
+            .length,
         },
         by_subreddit: redditData.reduce((acc, post) => {
           acc[post.subreddit] = (acc[post.subreddit] || 0) + 1;
           return acc;
         }, {}),
-        total_engagement: redditData.reduce((sum, post) => sum + post.upvotes + post.comments, 0)
+        total_engagement: redditData.reduce(
+          (sum, post) => sum + post.upvotes + post.comments,
+          0
+        ),
       },
       metadata: {
         note: "Reddit sentiment data not fully implemented",
         data_source: "Generated sample data for demo purposes",
-        implementation_status: "requires Reddit API integration"
+        implementation_status: "requires Reddit API integration",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Reddit sentiment error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch social sentiment data for reddit",
       message: error.message,
-      platform: 'reddit',
+      platform: "reddit",
       troubleshooting: [
         "Reddit API integration not configured",
         "Social sentiment database tables not populated",
-        "Check Reddit API credentials"
+        "Check Reddit API credentials",
       ],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -503,54 +595,74 @@ router.get("/social/reddit", async (req, res) => {
 // Get Twitter-specific sentiment data (must come BEFORE /social/:symbol)
 router.get("/social/twitter", async (req, res) => {
   try {
-    const { symbol, limit = 50, sort = 'relevance' } = req.query;
-    
-    console.log(`🐦 Twitter sentiment requested - symbol: ${symbol || 'all'}, limit: ${limit}, sort: ${sort}`);
+    const { symbol, limit = 50, sort = "relevance" } = req.query;
+
+    console.log(
+      `🐦 Twitter sentiment requested - symbol: ${symbol || "all"}, limit: ${limit}, sort: ${sort}`
+    );
 
     // Generate Twitter-specific sentiment data
     const generateTwitterSentiment = (targetSymbol, maxResults, sortBy) => {
-      const symbols = targetSymbol ? [targetSymbol.toUpperCase()] : 
-        ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'META', 'AMZN', 'NFLX'];
-      
+      const symbols = targetSymbol
+        ? [targetSymbol.toUpperCase()]
+        : ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "META", "AMZN", "NFLX"];
+
       const tweets = [];
-      
-      symbols.forEach(sym => {
+
+      symbols.forEach((sym) => {
         for (let i = 0; i < Math.min(maxResults / symbols.length, 15); i++) {
           const sentiment = Math.random();
           const retweets = Math.floor(Math.random() * 1000);
           const likes = Math.floor(Math.random() * 5000);
           const replies = Math.floor(Math.random() * 200);
-          
+
           tweets.push({
             id: `twitter_${sym.toLowerCase()}_${i}_${Date.now()}`,
             symbol: sym,
             tweet_id: `${Math.floor(Math.random() * 1000000000000000000)}`,
-            text: `Just analyzed $${sym} - looks ${sentiment > 0.6 ? 'bullish 🚀' : sentiment < 0.4 ? 'bearish 📉' : 'mixed 🤔'} for the coming weeks`,
+            text: `Just analyzed $${sym} - looks ${sentiment > 0.6 ? "bullish 🚀" : sentiment < 0.4 ? "bearish 📉" : "mixed 🤔"} for the coming weeks`,
             author: `@trader${Math.floor(Math.random() * 9999)}`,
             author_followers: Math.floor(Math.random() * 50000) + 100,
             retweets: retweets,
             likes: likes,
             replies: replies,
             sentiment_score: parseFloat(sentiment.toFixed(3)),
-            sentiment_label: sentiment > 0.6 ? 'positive' : sentiment < 0.4 ? 'negative' : 'neutral',
-            created_at: new Date(Date.now() - Math.random() * 86400 * 7 * 1000).toISOString(),
-            hashtags: [`#${sym}`, '#stocks', ...(Math.random() > 0.5 ? ['#trading'] : [])],
+            sentiment_label:
+              sentiment > 0.6
+                ? "positive"
+                : sentiment < 0.4
+                  ? "negative"
+                  : "neutral",
+            created_at: new Date(
+              Date.now() - Math.random() * 86400 * 7 * 1000
+            ).toISOString(),
+            hashtags: [
+              `#${sym}`,
+              "#stocks",
+              ...(Math.random() > 0.5 ? ["#trading"] : []),
+            ],
             mentions: Math.floor(Math.random() * 10),
             is_verified: Math.random() > 0.8,
-            influence_score: Math.random() * 100
+            influence_score: Math.random() * 100,
           });
         }
       });
-      
+
       // Sort tweets
-      if (sortBy === 'sentiment') {
+      if (sortBy === "sentiment") {
         tweets.sort((a, b) => b.sentiment_score - a.sentiment_score);
-      } else if (sortBy === 'engagement') {
-        tweets.sort((a, b) => (b.retweets + b.likes + b.replies) - (a.retweets + a.likes + a.replies));
+      } else if (sortBy === "engagement") {
+        tweets.sort(
+          (a, b) =>
+            b.retweets +
+            b.likes +
+            b.replies -
+            (a.retweets + a.likes + a.replies)
+        );
       } else {
         tweets.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       }
-      
+
       return tweets.slice(0, maxResults);
     };
 
@@ -558,51 +670,66 @@ router.get("/social/twitter", async (req, res) => {
 
     res.json({
       success: true,
-      platform: 'twitter',
+      platform: "twitter",
       data: {
         tweets: twitterData,
-        total: twitterData.length
+        total: twitterData.length,
       },
       filters: {
-        symbol: symbol || 'all',
+        symbol: symbol || "all",
         limit: parseInt(limit),
-        sort: sort
+        sort: sort,
       },
       summary: {
         total_tweets: twitterData.length,
-        avg_sentiment: twitterData.length > 0 ? 
-          twitterData.reduce((sum, tweet) => sum + tweet.sentiment_score, 0) / twitterData.length : 0,
+        avg_sentiment:
+          twitterData.length > 0
+            ? twitterData.reduce(
+                (sum, tweet) => sum + tweet.sentiment_score,
+                0
+              ) / twitterData.length
+            : 0,
         by_sentiment: {
-          positive: twitterData.filter(t => t.sentiment_label === 'positive').length,
-          negative: twitterData.filter(t => t.sentiment_label === 'negative').length,
-          neutral: twitterData.filter(t => t.sentiment_label === 'neutral').length
+          positive: twitterData.filter((t) => t.sentiment_label === "positive")
+            .length,
+          negative: twitterData.filter((t) => t.sentiment_label === "negative")
+            .length,
+          neutral: twitterData.filter((t) => t.sentiment_label === "neutral")
+            .length,
         },
-        total_engagement: twitterData.reduce((sum, tweet) => sum + tweet.retweets + tweet.likes + tweet.replies, 0),
-        verified_accounts: twitterData.filter(t => t.is_verified).length,
-        avg_influence: twitterData.length > 0 ? 
-          twitterData.reduce((sum, tweet) => sum + tweet.influence_score, 0) / twitterData.length : 0
+        total_engagement: twitterData.reduce(
+          (sum, tweet) => sum + tweet.retweets + tweet.likes + tweet.replies,
+          0
+        ),
+        verified_accounts: twitterData.filter((t) => t.is_verified).length,
+        avg_influence:
+          twitterData.length > 0
+            ? twitterData.reduce(
+                (sum, tweet) => sum + tweet.influence_score,
+                0
+              ) / twitterData.length
+            : 0,
       },
       metadata: {
-        note: "Twitter sentiment data not fully implemented", 
+        note: "Twitter sentiment data not fully implemented",
         data_source: "Generated sample data for demo purposes",
-        implementation_status: "requires Twitter API v2 integration"
+        implementation_status: "requires Twitter API v2 integration",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Twitter sentiment error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch social sentiment data for twitter",
       message: error.message,
-      platform: 'twitter',
+      platform: "twitter",
       troubleshooting: [
         "Twitter API v2 integration not configured",
-        "Social sentiment database tables not populated", 
-        "Check Twitter API Bearer token"
+        "Social sentiment database tables not populated",
+        "Check Twitter API Bearer token",
       ],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -611,13 +738,15 @@ router.get("/social/twitter", async (req, res) => {
 router.get("/social/:symbol", async (req, res) => {
   const { symbol } = req.params;
   try {
-    const { 
-      timeframe = '24h', 
-      include_history = 'false',
-      platform = 'all'
+    const {
+      timeframe = "24h",
+      include_history = "false",
+      platform = "all",
     } = req.query;
 
-    console.log(`📱 Social sentiment for ${symbol} requested - timeframe: ${timeframe}, platform: ${platform}`);
+    console.log(
+      `📱 Social sentiment for ${symbol} requested - timeframe: ${timeframe}, platform: ${platform}`
+    );
 
     // Get detailed sentiment data for specific symbol with historical context
     const symbolSentimentQuery = `
@@ -752,13 +881,16 @@ router.get("/social/:symbol", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: `No sentiment data found for symbol ${symbol}`,
-        details: "Symbol may not exist in our database or has insufficient data"
+        details:
+          "Symbol may not exist in our database or has insufficient data",
       });
     }
 
     const data = result.rows[0];
-    const platformDetails = typeof data.platform_details === 'string' ? 
-      JSON.parse(data.platform_details) : data.platform_details;
+    const platformDetails =
+      typeof data.platform_details === "string"
+        ? JSON.parse(data.platform_details)
+        : data.platform_details;
 
     const sentimentAnalysis = {
       symbol: data.symbol,
@@ -771,43 +903,59 @@ router.get("/social/:symbol", async (req, res) => {
         current: parseFloat(data.current_sentiment),
         week_average: parseFloat(data.week_avg_sentiment),
         change_from_average: parseFloat(data.sentiment_change),
-        volatility_score: Math.abs(parseFloat(data.sentiment_change))
+        volatility_score: Math.abs(parseFloat(data.sentiment_change)),
       },
       platform_analysis: {
         twitter: {
           sentiment: parseFloat(platformDetails.twitter.sentiment),
           mentions: parseInt(platformDetails.twitter.mentions),
-          trending_rank: platformDetails.twitter.trending_rank
+          trending_rank: platformDetails.twitter.trending_rank,
         },
         reddit: {
           sentiment: parseFloat(platformDetails.reddit.sentiment),
           mentions: parseInt(platformDetails.reddit.mentions),
-          hot_threads: parseInt(platformDetails.reddit.hot_threads)
+          hot_threads: parseInt(platformDetails.reddit.hot_threads),
         },
         stocktwits: {
           sentiment: parseFloat(platformDetails.stocktwits.sentiment),
           mentions: parseInt(platformDetails.stocktwits.mentions),
-          bullish_ratio: parseFloat(platformDetails.stocktwits.bullish_ratio)
+          bullish_ratio: parseFloat(platformDetails.stocktwits.bullish_ratio),
         },
         discord: {
           sentiment: parseFloat(platformDetails.discord.sentiment),
           mentions: parseInt(platformDetails.discord.mentions),
-          active_channels: parseInt(platformDetails.discord.active_channels)
-        }
+          active_channels: parseInt(platformDetails.discord.active_channels),
+        },
       },
-      historical_sentiment: include_history === 'true' ? data.historical_data : null,
+      historical_sentiment:
+        include_history === "true" ? data.historical_data : null,
       insights: {
-        dominant_platform: Object.entries(platformDetails)
-          .reduce((max, [platform, data]) => data.mentions > (platformDetails[max]?.mentions || 0) ? platform : max, 'twitter'),
-        sentiment_strength: parseFloat(data.current_sentiment) > 0.6 ? 'Strong' : 
-                          parseFloat(data.current_sentiment) < 0.4 ? 'Weak' : 'Moderate',
-        activity_level: parseInt(data.current_mentions) > 150 ? 'High' : 
-                       parseInt(data.current_mentions) > 50 ? 'Moderate' : 'Low'
+        dominant_platform: Object.entries(platformDetails).reduce(
+          (max, [platform, data]) =>
+            data.mentions > (platformDetails[max]?.mentions || 0)
+              ? platform
+              : max,
+          "twitter"
+        ),
+        sentiment_strength:
+          parseFloat(data.current_sentiment) > 0.6
+            ? "Strong"
+            : parseFloat(data.current_sentiment) < 0.4
+              ? "Weak"
+              : "Moderate",
+        activity_level:
+          parseInt(data.current_mentions) > 150
+            ? "High"
+            : parseInt(data.current_mentions) > 50
+              ? "Moderate"
+              : "Low",
       },
-      last_updated: data.last_updated
+      last_updated: data.last_updated,
     };
 
-    console.log(`📱 ${symbol} sentiment: ${data.sentiment_label} (${parseFloat(data.current_sentiment).toFixed(3)}) with ${data.current_mentions} mentions`);
+    console.log(
+      `📱 ${symbol} sentiment: ${data.sentiment_label} (${parseFloat(data.current_sentiment).toFixed(3)}) with ${data.current_mentions} mentions`
+    );
 
     res.json({
       success: true,
@@ -817,23 +965,22 @@ router.get("/social/:symbol", async (req, res) => {
         sentiment_scale: "0.0 (very bearish) to 1.0 (very bullish)",
         platforms_monitored: ["Twitter", "Reddit", "StockTwits", "Discord"],
         update_frequency: "Real-time with 5-minute aggregation",
-        analysis_period: timeframe
+        analysis_period: timeframe,
       },
       filters: {
         symbol: symbol.toUpperCase(),
         timeframe: timeframe,
         platform: platform,
-        include_history: include_history === 'true'
+        include_history: include_history === "true",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error(`Social sentiment error for ${symbol}:`, error);
     res.status(500).json({
       success: false,
       error: `Failed to fetch social sentiment data for ${symbol}`,
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -841,15 +988,17 @@ router.get("/social/:symbol", async (req, res) => {
 // Get trending stocks by social media mentions
 router.get("/trending", async (req, res) => {
   try {
-    const { 
-      limit = 25, 
-      timeframe = '24h',
+    const {
+      limit = 25,
+      timeframe = "24h",
       min_mentions = 10,
-      sentiment_filter = 'all',  // all, positive, negative, neutral
-      platform = 'all'
+      sentiment_filter = "all", // all, positive, negative, neutral
+      platform = "all",
     } = req.query;
 
-    console.log(`📈 Trending sentiment requested - timeframe: ${timeframe}, sentiment: ${sentiment_filter}, limit: ${limit}`);
+    console.log(
+      `📈 Trending sentiment requested - timeframe: ${timeframe}, sentiment: ${sentiment_filter}, limit: ${limit}`
+    );
 
     // Get trending stocks based on mention velocity and sentiment momentum
     const trendingQuery = `
@@ -987,12 +1136,12 @@ router.get("/trending", async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch trending sentiment data",
-        details: "Database query failed"
+        details: "Database query failed",
       });
     }
 
     // Process trending results
-    const trendingStocks = result.rows.map(row => ({
+    const trendingStocks = result.rows.map((row) => ({
       symbol: row.symbol,
       current_price: parseFloat(row.close),
       price_change_percent: parseFloat(row.price_change_percent),
@@ -1008,78 +1157,116 @@ router.get("/trending", async (req, res) => {
         twitter: parseInt(row.twitter_mentions),
         reddit: parseInt(row.reddit_mentions),
         stocktwits: parseInt(row.stocktwits_mentions),
-        discord: parseInt(row.discord_mentions)
+        discord: parseInt(row.discord_mentions),
       },
-      last_updated: row.last_updated
+      last_updated: row.last_updated,
     }));
 
     // Generate trending summary analytics
     const summary = {
       total_trending_stocks: trendingStocks.length,
-      total_mentions: trendingStocks.reduce((sum, s) => sum + s.total_mentions, 0),
-      average_sentiment: trendingStocks.length > 0 ? 
-        Math.round(trendingStocks.reduce((sum, s) => sum + s.trending_sentiment, 0) / trendingStocks.length * 1000) / 1000 : 0,
+      total_mentions: trendingStocks.reduce(
+        (sum, s) => sum + s.total_mentions,
+        0
+      ),
+      average_sentiment:
+        trendingStocks.length > 0
+          ? Math.round(
+              (trendingStocks.reduce(
+                (sum, s) => sum + s.trending_sentiment,
+                0
+              ) /
+                trendingStocks.length) *
+                1000
+            ) / 1000
+          : 0,
       trend_distribution: {
-        explosive: trendingStocks.filter(s => s.trend_status === 'Explosive').length,
-        hot: trendingStocks.filter(s => s.trend_status === 'Hot').length,
-        trending: trendingStocks.filter(s => s.trend_status === 'Trending').length,
-        emerging: trendingStocks.filter(s => s.trend_status === 'Emerging').length
+        explosive: trendingStocks.filter((s) => s.trend_status === "Explosive")
+          .length,
+        hot: trendingStocks.filter((s) => s.trend_status === "Hot").length,
+        trending: trendingStocks.filter((s) => s.trend_status === "Trending")
+          .length,
+        emerging: trendingStocks.filter((s) => s.trend_status === "Emerging")
+          .length,
       },
       sentiment_breakdown: {
-        very_bullish: trendingStocks.filter(s => s.sentiment_label === 'Very Bullish').length,
-        bullish: trendingStocks.filter(s => s.sentiment_label === 'Bullish').length,
-        neutral: trendingStocks.filter(s => s.sentiment_label === 'Neutral').length,
-        bearish: trendingStocks.filter(s => s.sentiment_label === 'Bearish').length,
-        very_bearish: trendingStocks.filter(s => s.sentiment_label === 'Very Bearish').length
+        very_bullish: trendingStocks.filter(
+          (s) => s.sentiment_label === "Very Bullish"
+        ).length,
+        bullish: trendingStocks.filter((s) => s.sentiment_label === "Bullish")
+          .length,
+        neutral: trendingStocks.filter((s) => s.sentiment_label === "Neutral")
+          .length,
+        bearish: trendingStocks.filter((s) => s.sentiment_label === "Bearish")
+          .length,
+        very_bearish: trendingStocks.filter(
+          (s) => s.sentiment_label === "Very Bearish"
+        ).length,
       },
-      top_momentum: trendingStocks.slice(0, 5).map(s => ({ 
-        symbol: s.symbol, 
+      top_momentum: trendingStocks.slice(0, 5).map((s) => ({
+        symbol: s.symbol,
         score: s.trending_score,
         mentions: s.total_mentions,
-        sentiment: s.trending_sentiment
+        sentiment: s.trending_sentiment,
       })),
       platform_leaders: {
-        twitter: trendingStocks.reduce((max, curr) => 
-          curr.platform_breakdown.twitter > (max?.platform_breakdown?.twitter || 0) ? curr : max, trendingStocks[0])?.symbol || null,
-        reddit: trendingStocks.reduce((max, curr) => 
-          curr.platform_breakdown.reddit > (max?.platform_breakdown?.reddit || 0) ? curr : max, trendingStocks[0])?.symbol || null
-      }
+        twitter:
+          trendingStocks.reduce(
+            (max, curr) =>
+              curr.platform_breakdown.twitter >
+              (max?.platform_breakdown?.twitter || 0)
+                ? curr
+                : max,
+            trendingStocks[0]
+          )?.symbol || null,
+        reddit:
+          trendingStocks.reduce(
+            (max, curr) =>
+              curr.platform_breakdown.reddit >
+              (max?.platform_breakdown?.reddit || 0)
+                ? curr
+                : max,
+            trendingStocks[0]
+          )?.symbol || null,
+      },
     };
 
-    console.log(`📈 Trending sentiment: ${trendingStocks.length} stocks, ${summary.total_mentions} total mentions, avg sentiment: ${summary.average_sentiment}`);
+    console.log(
+      `📈 Trending sentiment: ${trendingStocks.length} stocks, ${summary.total_mentions} total mentions, avg sentiment: ${summary.average_sentiment}`
+    );
 
     res.json({
       success: true,
       trending_stocks: trendingStocks,
       summary: summary,
       methodology: {
-        description: "Real-time trending stocks analysis based on social media mention velocity and sentiment momentum",
+        description:
+          "Real-time trending stocks analysis based on social media mention velocity and sentiment momentum",
         ranking_factors: {
           mention_volume: "40%",
-          mention_velocity: "30%", 
+          mention_velocity: "30%",
           sentiment_score: "20%",
-          price_momentum: "10%"
+          price_momentum: "10%",
         },
         platforms_monitored: ["Twitter", "Reddit", "StockTwits", "Discord"],
         update_frequency: "Every 5 minutes during market hours",
-        trending_threshold: `Minimum ${min_mentions} mentions required`
+        trending_threshold: `Minimum ${min_mentions} mentions required`,
       },
       filters: {
         timeframe: timeframe,
         platform: platform,
         sentiment_filter: sentiment_filter,
         min_mentions: parseInt(min_mentions),
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trending sentiment error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trending sentiment data",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1098,80 +1285,94 @@ router.get("/:symbol", async (req, res) => {
       "3d": 3,
       "7d": 7,
       "14d": 14,
-      "30d": 30
+      "30d": 30,
     };
-    
+
     const days = periodDays[period] || 7;
 
     // Generate realistic sentiment data for the symbol
     const baseValues = {
-      'AAPL': { sentiment: 0.72, mentions: 1250, volatility: 0.15 },
-      'TSLA': { sentiment: 0.68, mentions: 2100, volatility: 0.25 },
-      'MSFT': { sentiment: 0.75, mentions: 890, volatility: 0.12 },
-      'GOOGL': { sentiment: 0.71, mentions: 760, volatility: 0.14 },
-      'AMZN': { sentiment: 0.69, mentions: 920, volatility: 0.18 }
+      AAPL: { sentiment: 0.72, mentions: 1250, volatility: 0.15 },
+      TSLA: { sentiment: 0.68, mentions: 2100, volatility: 0.25 },
+      MSFT: { sentiment: 0.75, mentions: 890, volatility: 0.12 },
+      GOOGL: { sentiment: 0.71, mentions: 760, volatility: 0.14 },
+      AMZN: { sentiment: 0.69, mentions: 920, volatility: 0.18 },
     };
 
     const symbolData = baseValues[symbol.toUpperCase()] || {
-      sentiment: 0.5 + (Math.random() * 0.4),
+      sentiment: 0.5 + Math.random() * 0.4,
       mentions: Math.floor(Math.random() * 800) + 200,
-      volatility: Math.random() * 0.3 + 0.1
+      volatility: Math.random() * 0.3 + 0.1,
     };
 
     // Add some time-based variance
     const timeVariance = Math.sin(Date.now() / 86400000) * 0.1; // Daily cycle
-    const currentSentiment = Math.max(0, Math.min(1, symbolData.sentiment + timeVariance));
-    
+    const currentSentiment = Math.max(
+      0,
+      Math.min(1, symbolData.sentiment + timeVariance)
+    );
+
     const sentiment = {
       symbol: symbol.toUpperCase(),
       period: period,
       overall_sentiment: parseFloat(currentSentiment.toFixed(2)),
-      sentiment_label: currentSentiment >= 0.7 ? 'Bullish' : 
-                     currentSentiment >= 0.6 ? 'Slightly Bullish' :
-                     currentSentiment >= 0.4 ? 'Neutral' :
-                     currentSentiment >= 0.3 ? 'Slightly Bearish' : 'Bearish',
+      sentiment_label:
+        currentSentiment >= 0.7
+          ? "Bullish"
+          : currentSentiment >= 0.6
+            ? "Slightly Bullish"
+            : currentSentiment >= 0.4
+              ? "Neutral"
+              : currentSentiment >= 0.3
+                ? "Slightly Bearish"
+                : "Bearish",
       confidence: Math.min(100, Math.floor(symbolData.mentions / 10)),
       metrics: {
         positive_mentions: Math.floor(symbolData.mentions * currentSentiment),
-        negative_mentions: Math.floor(symbolData.mentions * (1 - currentSentiment)),
+        negative_mentions: Math.floor(
+          symbolData.mentions * (1 - currentSentiment)
+        ),
         neutral_mentions: Math.floor(symbolData.mentions * 0.2),
         total_mentions: symbolData.mentions,
         mention_velocity: Math.floor(symbolData.mentions / days),
-        sentiment_volatility: parseFloat(symbolData.volatility.toFixed(2))
+        sentiment_volatility: parseFloat(symbolData.volatility.toFixed(2)),
       },
       sources: {
         twitter: Math.floor(symbolData.mentions * 0.45),
-        reddit: Math.floor(symbolData.mentions * 0.30),
+        reddit: Math.floor(symbolData.mentions * 0.3),
         stocktwits: Math.floor(symbolData.mentions * 0.15),
-        discord: Math.floor(symbolData.mentions * 0.10)
+        discord: Math.floor(symbolData.mentions * 0.1),
       },
       trending_keywords: [
         symbol.toLowerCase(),
-        currentSentiment > 0.6 ? 'bullish' : 'bearish',
-        'earnings',
-        'price',
-        'target'
+        currentSentiment > 0.6 ? "bullish" : "bearish",
+        "earnings",
+        "price",
+        "target",
       ],
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     };
 
-    res.success({
-      sentiment: sentiment,
-      metadata: {
-        symbol: symbol.toUpperCase(),
-        period: period,
-        period_days: days,
-        data_quality: 'simulated',
-        last_updated: new Date().toISOString()
-      }
-    }, 200, { message: "Symbol sentiment retrieved successfully" });
-
+    res.success(
+      {
+        sentiment: sentiment,
+        metadata: {
+          symbol: symbol.toUpperCase(),
+          period: period,
+          period_days: days,
+          data_quality: "simulated",
+          last_updated: new Date().toISOString(),
+        },
+      },
+      200,
+      { message: "Symbol sentiment retrieved successfully" }
+    );
   } catch (err) {
-    console.error('Symbol sentiment error:', err);
-    res.serverError('Failed to retrieve sentiment for symbol', { 
+    console.error("Symbol sentiment error:", err);
+    res.serverError("Failed to retrieve sentiment for symbol", {
       error: err.message,
       symbol: req.params.symbol,
-      period: req.query.period || '7d'
+      period: req.query.period || "7d",
     });
   }
 });
@@ -1189,36 +1390,41 @@ router.get("/market", async (req, res) => {
       "3d": 3,
       "7d": 7,
       "14d": 14,
-      "30d": 30
+      "30d": 30,
     };
-    
+
     const days = periodDays[period] || 7;
 
     // Generate market sentiment based on various factors
     const marketFactors = {
       spy_performance: Math.random() * 0.4 + 0.3, // 0.3-0.7
-      vix_level: Math.random() * 0.3 + 0.2,      // 0.2-0.5 (inverted)
-      news_sentiment: Math.random() * 0.3 + 0.4,  // 0.4-0.7
-      sector_rotation: Math.random() * 0.2 + 0.4  // 0.4-0.6
+      vix_level: Math.random() * 0.3 + 0.2, // 0.2-0.5 (inverted)
+      news_sentiment: Math.random() * 0.3 + 0.4, // 0.4-0.7
+      sector_rotation: Math.random() * 0.2 + 0.4, // 0.4-0.6
     };
 
-    const overallSentiment = (
+    const overallSentiment =
       marketFactors.spy_performance * 0.3 +
-      (1 - marketFactors.vix_level) * 0.3 +  // VIX inverted
+      (1 - marketFactors.vix_level) * 0.3 + // VIX inverted
       marketFactors.news_sentiment * 0.25 +
-      marketFactors.sector_rotation * 0.15
-    );
+      marketFactors.sector_rotation * 0.15;
 
     const totalMentions = Math.floor(Math.random() * 5000) + 10000;
 
     const sentiment = {
-      market: 'overall',
+      market: "overall",
       period: period,
       overall_sentiment: parseFloat(overallSentiment.toFixed(2)),
-      sentiment_label: overallSentiment >= 0.7 ? 'Very Bullish' : 
-                      overallSentiment >= 0.6 ? 'Bullish' :
-                      overallSentiment >= 0.4 ? 'Neutral' :
-                      overallSentiment >= 0.3 ? 'Bearish' : 'Very Bearish',
+      sentiment_label:
+        overallSentiment >= 0.7
+          ? "Very Bullish"
+          : overallSentiment >= 0.6
+            ? "Bullish"
+            : overallSentiment >= 0.4
+              ? "Neutral"
+              : overallSentiment >= 0.3
+                ? "Bearish"
+                : "Very Bearish",
       confidence: 85,
       metrics: {
         positive_mentions: Math.floor(totalMentions * overallSentiment),
@@ -1226,48 +1432,66 @@ router.get("/market", async (req, res) => {
         neutral_mentions: Math.floor(totalMentions * 0.15),
         total_mentions: totalMentions,
         mention_velocity: Math.floor(totalMentions / days),
-        fear_greed_index: Math.floor(overallSentiment * 100)
+        fear_greed_index: Math.floor(overallSentiment * 100),
       },
       sectors: {
-        technology: Math.max(0.2, Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.2)),
-        healthcare: Math.max(0.2, Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.15)),
-        financial: Math.max(0.2, Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.18)),
-        energy: Math.max(0.2, Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.25)),
-        consumer: Math.max(0.2, Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.12))
+        technology: Math.max(
+          0.2,
+          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.2)
+        ),
+        healthcare: Math.max(
+          0.2,
+          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.15)
+        ),
+        financial: Math.max(
+          0.2,
+          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.18)
+        ),
+        energy: Math.max(
+          0.2,
+          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.25)
+        ),
+        consumer: Math.max(
+          0.2,
+          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.12)
+        ),
       },
       trending_topics: [
-        overallSentiment > 0.6 ? 'market rally' : 'market correction',
-        'fed policy',
-        'earnings season',
-        'inflation data',
-        'geopolitical risks'
+        overallSentiment > 0.6 ? "market rally" : "market correction",
+        "fed policy",
+        "earnings season",
+        "inflation data",
+        "geopolitical risks",
       ],
       sources: {
-        twitter: Math.floor(totalMentions * 0.40),
+        twitter: Math.floor(totalMentions * 0.4),
         reddit: Math.floor(totalMentions * 0.25),
-        stocktwits: Math.floor(totalMentions * 0.20),
-        discord: Math.floor(totalMentions * 0.10),
-        financial_news: Math.floor(totalMentions * 0.05)
+        stocktwits: Math.floor(totalMentions * 0.2),
+        discord: Math.floor(totalMentions * 0.1),
+        financial_news: Math.floor(totalMentions * 0.05),
       },
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     };
 
-    res.success({
-      sentiment: sentiment,
-      metadata: {
-        scope: 'market_wide',
-        period: period,
-        period_days: days,
-        data_quality: 'simulated',
-        last_updated: new Date().toISOString()
-      }
-    }, 200, { message: "Market sentiment retrieved successfully" });
-
+    res.success(
+      {
+        sentiment: sentiment,
+        metadata: {
+          scope: "market_wide",
+          period: period,
+          period_days: days,
+          data_quality: "simulated",
+          last_updated: new Date().toISOString(),
+        },
+      },
+      200,
+      { message: "Market sentiment retrieved successfully" }
+    );
   } catch (err) {
-    console.error('Market sentiment error:', err);
-    res.serverError('Failed to retrieve market sentiment', { 
+    console.error("Market sentiment error:", err);
+    res.serverError("Failed to retrieve market sentiment", {
       error: err.message,
-      period: req.query.period || '7d'
+      period: req.query.period || "7d",
     });
   }
 });

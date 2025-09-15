@@ -10,10 +10,16 @@ jest.mock("../../utils/alertSystem", () => {
   const { EventEmitter } = require("events");
   const mockAlertSystem = new EventEmitter();
   mockAlertSystem.startMonitoring = jest.fn();
-  mockAlertSystem.getAlertsStatus = jest.fn().mockReturnValue({ active: [], resolved: [] });
+  mockAlertSystem.getAlertsStatus = jest
+    .fn()
+    .mockReturnValue({ active: [], resolved: [] });
   mockAlertSystem.updateConfig = jest.fn().mockReturnValue({ success: true });
-  mockAlertSystem.forceHealthCheck = jest.fn().mockResolvedValue({ status: "healthy" });
-  mockAlertSystem.testNotifications = jest.fn().mockResolvedValue({ success: true });
+  mockAlertSystem.forceHealthCheck = jest
+    .fn()
+    .mockResolvedValue({ status: "healthy" });
+  mockAlertSystem.testNotifications = jest
+    .fn()
+    .mockResolvedValue({ success: true });
   mockAlertSystem.sendAlert = jest.fn();
   mockAlertSystem.registerAlertHandler = jest.fn();
   mockAlertSystem.on = jest.fn();
@@ -245,15 +251,19 @@ describe("Live Data Manager", () => {
         i < liveDataManager.globalLimits.maxTotalConnections;
         i++
       ) {
-        liveDataManager.addConnection(`conn-${i}`, `test-provider-${i}`, ["AAPL"]);
+        liveDataManager.addConnection(`conn-${i}`, `test-provider-${i}`, [
+          "AAPL",
+        ]);
       }
 
       expect(liveDataManager.connectionPool.size).toBe(10);
 
       // Try to exceed limit
-      const result = liveDataManager.addConnection("conn-overflow", "test-provider-overflow", [
-        "GOOGL",
-      ]);
+      const result = liveDataManager.addConnection(
+        "conn-overflow",
+        "test-provider-overflow",
+        ["GOOGL"]
+      );
 
       expect(result).toBe(false);
       expect(liveDataManager.connectionPool.size).toBe(10);
@@ -484,7 +494,9 @@ describe("Live Data Manager", () => {
       );
 
       for (let i = 0; i < connectionsNearLimit; i++) {
-        liveDataManager.addConnection(`conn-${i}`, `test-provider-${i}`, ["AAPL"]);
+        liveDataManager.addConnection(`conn-${i}`, `test-provider-${i}`, [
+          "AAPL",
+        ]);
       }
 
       const alerts = liveDataManager.generateAlerts();
@@ -571,7 +583,9 @@ describe("Live Data Manager", () => {
       expect(provider.usage.requestsToday).toBe(1);
       expect(provider.usage.requestsThisMonth).toBe(1);
       expect(provider.usage.totalCost).toBe(0.05);
-      expect(provider.usage.lastReset).toBe(new Date().toISOString().split("T")[0]);
+      expect(provider.usage.lastReset).toBe(
+        new Date().toISOString().split("T")[0]
+      );
     });
 
     test("should accumulate requests for same day", () => {
@@ -594,7 +608,7 @@ describe("Live Data Manager", () => {
 
       expect(requestTrackedSpy).toHaveBeenCalledWith({
         providerId: "alpaca",
-        cost: 0.03
+        cost: 0.03,
       });
     });
 
@@ -604,7 +618,9 @@ describe("Live Data Manager", () => {
 
       liveDataManager.trackRequest("alpaca");
 
-      expect(provider.usage.totalCost).toBe(initialCost + provider.rateLimits.costPerRequest);
+      expect(provider.usage.totalCost).toBe(
+        initialCost + provider.rateLimits.costPerRequest
+      );
     });
 
     test("should handle request tracking for invalid provider", () => {
@@ -616,7 +632,10 @@ describe("Live Data Manager", () => {
 
   describe("Connection Creation and Removal", () => {
     test("should create connection with provider validation", async () => {
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL", "GOOGL"]);
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+        "GOOGL",
+      ]);
 
       expect(connectionId).toBeDefined();
       expect(connectionId).toContain("alpaca");
@@ -629,32 +648,41 @@ describe("Live Data Manager", () => {
     });
 
     test("should reject connection creation for invalid provider", async () => {
-      await expect(liveDataManager.createConnection("invalid-provider", ["AAPL"])).rejects.toThrow("Provider invalid-provider not found");
+      await expect(
+        liveDataManager.createConnection("invalid-provider", ["AAPL"])
+      ).rejects.toThrow("Provider invalid-provider not found");
     });
 
     test("should reject connection when provider limit exceeded", async () => {
       // Fill up alpaca connections to limit (1)
       await liveDataManager.createConnection("alpaca", ["AAPL"]);
 
-      await expect(liveDataManager.createConnection("alpaca", ["GOOGL"])).rejects.toThrow("Provider alpaca connection limit reached");
+      await expect(
+        liveDataManager.createConnection("alpaca", ["GOOGL"])
+      ).rejects.toThrow("Provider alpaca connection limit reached");
     });
 
     test("should emit connection events", async () => {
       const connectionCreatedSpy = jest.fn();
       liveDataManager.on("connectionCreated", connectionCreatedSpy);
 
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL"]);
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+      ]);
 
       expect(connectionCreatedSpy).toHaveBeenCalledWith({
         connectionId,
         providerId: "alpaca",
-        symbols: ["AAPL"]
+        symbols: ["AAPL"],
       });
     });
 
     test("should close connection and unsubscribe symbols", async () => {
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL", "GOOGL"]);
-      
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+        "GOOGL",
+      ]);
+
       const connectionClosedSpy = jest.fn();
       liveDataManager.on("connectionClosed", connectionClosedSpy);
 
@@ -663,19 +691,21 @@ describe("Live Data Manager", () => {
       expect(liveDataManager.connectionPool.has(connectionId)).toBe(false);
       expect(connectionClosedSpy).toHaveBeenCalledWith({
         connectionId,
-        provider: "alpaca"
+        provider: "alpaca",
       });
     });
 
     test("should reject closing invalid connection", async () => {
-      await expect(liveDataManager.closeConnection("invalid-conn")).rejects.toThrow("Connection invalid-conn not found");
+      await expect(
+        liveDataManager.closeConnection("invalid-conn")
+      ).rejects.toThrow("Connection invalid-conn not found");
     });
   });
 
   describe("Symbol Subscription Management", () => {
     test("should subscribe symbol to connection", async () => {
       const connectionId = await liveDataManager.createConnection("alpaca", []);
-      
+
       const symbolSubscribedSpy = jest.fn();
       liveDataManager.on("symbolSubscribed", symbolSubscribedSpy);
 
@@ -689,13 +719,15 @@ describe("Live Data Manager", () => {
       expect(symbolSubscribedSpy).toHaveBeenCalledWith({
         symbol: "AAPL",
         providerId: "alpaca",
-        connectionId
+        connectionId,
       });
     });
 
     test("should unsubscribe symbol from connection", async () => {
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL"]);
-      
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+      ]);
+
       const symbolUnsubscribedSpy = jest.fn();
       liveDataManager.on("symbolUnsubscribed", symbolUnsubscribedSpy);
 
@@ -704,7 +736,7 @@ describe("Live Data Manager", () => {
       expect(liveDataManager.subscriptions.has("AAPL")).toBe(false);
       expect(symbolUnsubscribedSpy).toHaveBeenCalledWith({
         symbol: "AAPL",
-        connectionId
+        connectionId,
       });
     });
 
@@ -715,11 +747,13 @@ describe("Live Data Manager", () => {
     });
 
     test("should handle unsubscribe for non-matching connection", async () => {
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL"]);
-      
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+      ]);
+
       // Try to unsubscribe with wrong connection ID - should not error
       liveDataManager.unsubscribeSymbol("AAPL", "wrong-conn");
-      
+
       // Symbol should still be subscribed
       expect(liveDataManager.subscriptions.has("AAPL")).toBe(true);
     });
@@ -727,7 +761,9 @@ describe("Live Data Manager", () => {
 
   describe("Error and Latency Recording", () => {
     test("should record latency for provider and connection", async () => {
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL"]);
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+      ]);
 
       liveDataManager.recordLatency("alpaca", connectionId, 125);
 
@@ -753,7 +789,9 @@ describe("Live Data Manager", () => {
     });
 
     test("should record error for provider and connection", async () => {
-      const connectionId = await liveDataManager.createConnection("alpaca", ["AAPL"]);
+      const connectionId = await liveDataManager.createConnection("alpaca", [
+        "AAPL",
+      ]);
       const error = { message: "Test error", type: "connection_timeout" };
 
       const errorRecordedSpy = jest.fn();
@@ -772,7 +810,7 @@ describe("Live Data Manager", () => {
       expect(errorRecordedSpy).toHaveBeenCalledWith({
         providerId: "alpaca",
         connectionId,
-        error
+        error,
       });
     });
 
@@ -803,12 +841,14 @@ describe("Live Data Manager", () => {
 
       expect(rateLimitsUpdatedSpy).toHaveBeenCalledWith({
         providerId: "alpaca",
-        newLimits
+        newLimits,
       });
     });
 
     test("should reject updating rate limits for invalid provider", async () => {
-      await expect(liveDataManager.updateRateLimits("invalid", {})).rejects.toThrow("Provider invalid not found");
+      await expect(
+        liveDataManager.updateRateLimits("invalid", {})
+      ).rejects.toThrow("Provider invalid not found");
     });
 
     test("should update global limits", async () => {
@@ -855,16 +895,18 @@ describe("Live Data Manager", () => {
       // Check if subscriptions still exist before checking subscribers
       const aaplSub = liveDataManager.subscriptions.get("AAPL");
       const googlSub = liveDataManager.subscriptions.get("GOOGL");
-      
+
       if (aaplSub) {
         expect(aaplSub.subscribers.has("user-123")).toBe(false);
       }
       if (googlSub) {
         expect(googlSub.subscribers.has("user-123")).toBe(false);
       }
-      
+
       // Other user should remain
-      expect(liveDataManager.subscriptions.get("TSLA").subscribers.has("user-456")).toBe(true);
+      expect(
+        liveDataManager.subscriptions.get("TSLA").subscribers.has("user-456")
+      ).toBe(true);
     });
 
     test("should handle removing subscriber with invalid ID", () => {
@@ -887,11 +929,20 @@ describe("Live Data Manager", () => {
 
     test("should initialize alert system integration", () => {
       liveDataManager.initializeAlertSystem();
-      
+
       expect(alertSystem.startMonitoring).toHaveBeenCalledWith(liveDataManager);
-      expect(alertSystem.on).toHaveBeenCalledWith("alertCreated", expect.any(Function));
-      expect(alertSystem.on).toHaveBeenCalledWith("alertResolved", expect.any(Function));
-      expect(alertSystem.on).toHaveBeenCalledWith("notificationSent", expect.any(Function));
+      expect(alertSystem.on).toHaveBeenCalledWith(
+        "alertCreated",
+        expect.any(Function)
+      );
+      expect(alertSystem.on).toHaveBeenCalledWith(
+        "alertResolved",
+        expect.any(Function)
+      );
+      expect(alertSystem.on).toHaveBeenCalledWith(
+        "notificationSent",
+        expect.any(Function)
+      );
     });
 
     test("should handle alert system events", () => {
@@ -907,13 +958,13 @@ describe("Live Data Manager", () => {
 
       // Simulate alert system events
       const alertCreatedHandler = alertSystem.on.mock.calls.find(
-        call => call[0] === "alertCreated"
+        (call) => call[0] === "alertCreated"
       )[1];
       const alertResolvedHandler = alertSystem.on.mock.calls.find(
-        call => call[0] === "alertResolved"
+        (call) => call[0] === "alertResolved"
       )[1];
       const notificationSentHandler = alertSystem.on.mock.calls.find(
-        call => call[0] === "notificationSent"
+        (call) => call[0] === "notificationSent"
       )[1];
 
       const testAlert = { title: "Test Alert", severity: "high" };
@@ -934,50 +985,50 @@ describe("Live Data Manager", () => {
       });
 
       const consoleSpy = jest.spyOn(console, "error").mockImplementation();
-      
+
       liveDataManager.initializeAlertSystem();
-      
+
       expect(consoleSpy).toHaveBeenCalledWith(
         "Failed to initialize alert system:",
         expect.any(Error)
       );
-      
+
       consoleSpy.mockRestore();
     });
 
     test("should get alert status", () => {
       liveDataManager.initializeAlertSystem();
-      
+
       const result = liveDataManager.getAlertStatus();
-      
+
       // The method now uses this.alertSystem, which should be the same mock
       expect(result).toEqual({ active: [], resolved: [] });
     });
 
     test("should update alert configuration", () => {
       liveDataManager.initializeAlertSystem();
-      
+
       const config = { threshold: 100, enabled: true };
       const result = liveDataManager.updateAlertConfig(config);
-      
+
       // The method now uses this.alertSystem, which should be the same mock
       expect(result).toEqual({ success: true });
     });
 
     test("should force health check", async () => {
       liveDataManager.initializeAlertSystem();
-      
+
       const result = await liveDataManager.forceHealthCheck();
-      
+
       // The method now uses this.alertSystem, which should be the same mock
       expect(result).toEqual({ status: "healthy" });
     });
 
     test("should test notifications", async () => {
       liveDataManager.initializeAlertSystem();
-      
+
       const result = await liveDataManager.testNotifications();
-      
+
       // The method now uses this.alertSystem, which should be the same mock
       expect(result).toEqual({ success: true });
     });
@@ -987,11 +1038,11 @@ describe("Live Data Manager", () => {
     test("should track cost accumulation correctly", () => {
       const provider = liveDataManager.providers.get("alpaca");
       const initialCost = provider.usage.totalCost;
-      
+
       // Simulate requests with costs
       liveDataManager.recordRequest("alpaca", { cost: 0.01 });
       liveDataManager.recordRequest("alpaca", { cost: 0.02 });
-      
+
       expect(provider.usage.totalCost).toBe(initialCost + 0.03);
     });
 
@@ -999,10 +1050,10 @@ describe("Live Data Manager", () => {
       const provider = liveDataManager.providers.get("alpaca");
       provider.rateLimits.costPerRequest = 0.05;
       provider.usage.totalCost = 0;
-      
+
       // Test cost tracking
       liveDataManager.recordRequest("alpaca", { responseTime: 100 });
-      
+
       expect(provider.usage.totalCost).toBe(0.05);
     });
 
@@ -1011,9 +1062,9 @@ describe("Live Data Manager", () => {
       const provider = liveDataManager.providers.get("alpaca");
       provider.usage.totalCost = 1000;
       provider.usage.requestsThisMonth = 10000;
-      
+
       const optimization = liveDataManager.analyzeCostOptimization();
-      
+
       expect(optimization).toBeDefined();
       expect(optimization.alpaca.averageCostPerRequest).toBe(0.1);
       expect(optimization.alpaca.recommendations).toBeDefined();
@@ -1022,16 +1073,20 @@ describe("Live Data Manager", () => {
     test("should handle monthly usage reset", () => {
       const provider = liveDataManager.providers.get("alpaca");
       const currentDate = new Date();
-      const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-      
+      const previousMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() - 1,
+        1
+      );
+
       // Set usage to previous month
       provider.usage.lastReset = previousMonth.toISOString().split("T")[0];
       provider.usage.requestsThisMonth = 5000;
       provider.usage.totalCost = 50;
-      
+
       // This should trigger a reset when checking
       liveDataManager.updateProviderUsage("alpaca");
-      
+
       expect(provider.usage.requestsThisMonth).toBe(0);
       expect(provider.usage.totalCost).toBe(0);
     });
@@ -1045,23 +1100,23 @@ describe("Live Data Manager", () => {
       alpacaProvider.metrics.errors.push({
         timestamp: new Date().toISOString(),
         error: "Connection failed",
-        severity: "high"
+        severity: "high",
       });
-      
+
       const healthReport = liveDataManager.generateHealthReport();
-      
+
       expect(healthReport.overall.status).toBe("degraded");
       expect(healthReport.providers.alpaca.status).toBe("error");
     });
 
     test("should calculate provider performance metrics", () => {
       const provider = liveDataManager.providers.get("alpaca");
-      
+
       // Add latency data
       provider.metrics.latency = [50, 75, 100, 125, 150];
-      
+
       const metrics = liveDataManager.calculateProviderMetrics("alpaca");
-      
+
       expect(metrics.averageLatency).toBe(100);
       expect(metrics.p95Latency).toBe(150);
       expect(metrics.uptime).toBeDefined();
@@ -1070,32 +1125,34 @@ describe("Live Data Manager", () => {
     test("should handle provider connection limits", () => {
       const provider = liveDataManager.providers.get("alpaca");
       provider.rateLimits.maxConcurrentConnections = 1;
-      
+
       // Add a connection
       provider.connections.set("conn1", {
         id: "conn1",
         userId: "user1",
         symbols: ["AAPL"],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
-      
+
       // Try to add another connection (should fail)
-      const result = liveDataManager.addConnection("alpaca", "conn2", "user2", ["MSFT"]);
-      
+      const result = liveDataManager.addConnection("alpaca", "conn2", "user2", [
+        "MSFT",
+      ]);
+
       expect(result.success).toBe(false);
       expect(result.error).toContain("concurrent connection limit");
     });
 
     test("should track symbol popularity and optimize subscriptions", () => {
       const symbols = ["AAPL", "MSFT", "GOOGL", "AAPL", "MSFT", "AAPL"];
-      
+
       // Add subscriptions for these symbols
       symbols.forEach((symbol, index) => {
         liveDataManager.subscribe(`user-${index}`, [symbol]);
       });
-      
+
       const analytics = liveDataManager.getSymbolAnalytics();
-      
+
       expect(analytics.popularity.AAPL).toBe(3);
       expect(analytics.popularity.MSFT).toBe(2);
       expect(analytics.popularity.GOOGL).toBe(1);
@@ -1108,17 +1165,25 @@ describe("Live Data Manager", () => {
       const connectionId = "ws-test-123";
       const userId = "user-websocket";
       const symbols = ["AAPL", "MSFT"];
-      
+
       // Add connection
-      const addResult = liveDataManager.addConnection("alpaca", connectionId, userId, symbols);
+      const addResult = liveDataManager.addConnection(
+        "alpaca",
+        connectionId,
+        userId,
+        symbols
+      );
       expect(addResult.success).toBe(true);
-      
+
       // Verify connection exists
       const provider = liveDataManager.providers.get("alpaca");
       expect(provider.connections.has(connectionId)).toBe(true);
-      
+
       // Remove connection
-      const removeResult = liveDataManager.removeConnection("alpaca", connectionId);
+      const removeResult = liveDataManager.removeConnection(
+        "alpaca",
+        connectionId
+      );
       expect(removeResult.success).toBe(true);
       expect(provider.connections.has(connectionId)).toBe(false);
     });
@@ -1126,18 +1191,18 @@ describe("Live Data Manager", () => {
     test("should handle connection cleanup on user disconnect", () => {
       const userId = "cleanup-user";
       const symbols = ["AAPL", "MSFT", "GOOGL"];
-      
+
       // Create multiple connections for the user
       liveDataManager.addConnection("alpaca", "conn1", userId, ["AAPL"]);
       liveDataManager.addConnection("alpaca", "conn2", userId, ["MSFT"]);
       liveDataManager.subscribe(userId, symbols);
-      
+
       // Verify subscriptions exist
       expect(liveDataManager.subscriptions.size).toBeGreaterThan(0);
-      
+
       // Clean up user connections
       liveDataManager.cleanupUserConnections(userId);
-      
+
       // Verify cleanup
       const userSubscriptions = liveDataManager.getUserSubscriptions(userId);
       expect(userSubscriptions).toHaveLength(0);
@@ -1145,10 +1210,10 @@ describe("Live Data Manager", () => {
 
     test("should handle connection errors gracefully", () => {
       const connectionId = "error-conn";
-      
+
       // Try to remove non-existent connection
       const result = liveDataManager.removeConnection("alpaca", connectionId);
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toContain("not found");
     });
@@ -1161,9 +1226,9 @@ describe("Live Data Manager", () => {
       provider.usage.requestsToday = 1500;
       provider.usage.requestsThisMonth = 45000;
       provider.metrics.latency = [45, 67, 89, 123, 156];
-      
+
       const metrics = liveDataManager.getRealTimeMetrics();
-      
+
       expect(metrics.totalRequests).toBe(1500);
       expect(metrics.totalSubscribers).toBeDefined();
       expect(metrics.systemHealth).toBeDefined();
@@ -1172,7 +1237,7 @@ describe("Live Data Manager", () => {
 
     test("should track subscription trends over time", () => {
       const trends = liveDataManager.getSubscriptionTrends();
-      
+
       expect(trends).toHaveProperty("hourly");
       expect(trends).toHaveProperty("daily");
       expect(trends).toHaveProperty("popular");
@@ -1183,9 +1248,9 @@ describe("Live Data Manager", () => {
       // Set up test data
       liveDataManager.subscribe("analytics-user-1", ["AAPL", "MSFT"]);
       liveDataManager.subscribe("analytics-user-2", ["GOOGL", "AAPL"]);
-      
+
       const report = liveDataManager.generateAnalyticsReport();
-      
+
       expect(report).toHaveProperty("summary");
       expect(report).toHaveProperty("providers");
       expect(report).toHaveProperty("subscriptions");
@@ -1197,7 +1262,7 @@ describe("Live Data Manager", () => {
   describe("Module Exports and Singleton", () => {
     test("should export class and singleton instance", () => {
       const module = require("../../utils/liveDataManager");
-      
+
       expect(typeof module).toBe("function"); // Class constructor
       expect(module.instance).toBeDefined(); // Singleton instance
       expect(module.instance).toBeInstanceOf(module); // Instance of the class
@@ -1206,9 +1271,9 @@ describe("Live Data Manager", () => {
     test("should maintain singleton state across requires", () => {
       const instance1 = require("../../utils/liveDataManager").instance;
       const instance2 = require("../../utils/liveDataManager").instance;
-      
+
       expect(instance1).toBe(instance2); // Same instance
-      
+
       // Test state persistence
       instance1.testProperty = "persistent";
       expect(instance2.testProperty).toBe("persistent");

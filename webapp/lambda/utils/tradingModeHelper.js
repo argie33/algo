@@ -1,11 +1,11 @@
 /**
  * Trading Mode Helper - Utilities for paper/live trading mode management
- * 
- * Provides functions to check user trading mode preferences and 
+ *
+ * Provides functions to check user trading mode preferences and
  * apply appropriate behavior for portfolio, trading, and order operations
  */
 
-const { query } = require('./database');
+const { query } = require("./database");
 
 /**
  * Get user's current trading mode (paper or live)
@@ -21,27 +21,30 @@ async function getUserTradingMode(userId) {
     );
 
     const userSettings = result.rows[0];
-    
+
     // Default to paper trading mode for safety
-    const paperTradingMode = userSettings?.trading_preferences?.paper_trading_mode !== false;
-    const mode = paperTradingMode ? 'paper' : 'live';
+    const paperTradingMode =
+      userSettings?.trading_preferences?.paper_trading_mode !== false;
+    const mode = paperTradingMode ? "paper" : "live";
 
     return {
       mode,
       isPaper: paperTradingMode,
       isLive: !paperTradingMode,
-      source: userSettings ? 'database' : 'default'
+      source: userSettings ? "database" : "default",
     };
-
   } catch (error) {
-    console.log("Trading mode check failed, defaulting to paper:", error.message);
-    
+    console.log(
+      "Trading mode check failed, defaulting to paper:",
+      error.message
+    );
+
     // Default to paper trading mode on any error
     return {
-      mode: 'paper',
+      mode: "paper",
       isPaper: true,
       isLive: false,
-      source: 'fallback'
+      source: "fallback",
     };
   }
 }
@@ -54,21 +57,21 @@ async function getUserTradingMode(userId) {
  */
 async function addTradingModeContext(data, userId) {
   const tradingMode = await getUserTradingMode(userId);
-  
+
   return {
     ...data,
     trading_mode: tradingMode.mode,
     paper_trading: tradingMode.isPaper,
     live_trading: tradingMode.isLive,
     mode_context: {
-      description: tradingMode.isPaper 
+      description: tradingMode.isPaper
         ? "Paper trading - Simulated trades, no real money at risk"
         : "Live trading - Real money trades with actual brokerage",
       risk_level: tradingMode.isPaper ? "none" : "high",
-      disclaimer: tradingMode.isLive 
-        ? "⚠️ Live trading involves real money. Trade responsibly." 
-        : "📊 Paper trading for learning and strategy testing."
-    }
+      disclaimer: tradingMode.isLive
+        ? "⚠️ Live trading involves real money. Trade responsibly."
+        : "📊 Paper trading for learning and strategy testing.",
+    },
   };
 }
 
@@ -81,13 +84,13 @@ async function addTradingModeContext(data, userId) {
  */
 async function validateTradingOperation(userId, operation, params = {}) {
   const tradingMode = await getUserTradingMode(userId);
-  
+
   // Paper trading allows all operations (simulated)
   if (tradingMode.isPaper) {
     return {
       allowed: true,
-      mode: 'paper',
-      message: 'Operation allowed in paper trading mode (simulated)'
+      mode: "paper",
+      message: "Operation allowed in paper trading mode (simulated)",
     };
   }
 
@@ -95,40 +98,42 @@ async function validateTradingOperation(userId, operation, params = {}) {
   if (tradingMode.isLive) {
     // Check if user has required API keys for live trading
     const hasRequiredKeys = await checkLiveTradingRequirements(userId);
-    
+
     if (!hasRequiredKeys) {
       return {
         allowed: false,
-        mode: 'live',
-        message: 'Live trading requires valid brokerage API keys. Please configure API keys in settings.'
+        mode: "live",
+        message:
+          "Live trading requires valid brokerage API keys. Please configure API keys in settings.",
       };
     }
 
     // Additional validation for high-risk operations
-    if (['buy', 'sell', 'place_order'].includes(operation)) {
+    if (["buy", "sell", "place_order"].includes(operation)) {
       const amount = params.amount || params.quantity * (params.price || 0);
-      
+
       // Example: Block trades over $10,000 without additional confirmation
       if (amount > 10000 && !params.confirmed_high_value) {
         return {
           allowed: false,
-          mode: 'live',
-          message: 'High-value live trades require additional confirmation. Add confirmed_high_value: true parameter.'
+          mode: "live",
+          message:
+            "High-value live trades require additional confirmation. Add confirmed_high_value: true parameter.",
         };
       }
     }
 
     return {
       allowed: true,
-      mode: 'live',
-      message: 'Operation allowed in live trading mode'
+      mode: "live",
+      message: "Operation allowed in live trading mode",
     };
   }
 
   return {
     allowed: false,
-    mode: 'unknown',
-    message: 'Invalid trading mode configuration'
+    mode: "unknown",
+    message: "Invalid trading mode configuration",
   };
 }
 
@@ -146,8 +151,8 @@ async function checkLiveTradingRequirements(userId) {
     );
 
     // For live trading, need at least one production API key
-    const hasProductionKey = result.rows.some(key => !key.is_sandbox);
-    
+    const hasProductionKey = result.rows.some((key) => !key.is_sandbox);
+
     return hasProductionKey;
   } catch (error) {
     console.log("API key check failed:", error.message);
@@ -163,7 +168,7 @@ async function checkLiveTradingRequirements(userId) {
  */
 async function getTradingModeTable(userId, baseTableName) {
   const tradingMode = await getUserTradingMode(userId);
-  
+
   // Use the base table name for both paper and live trading
   // Paper trading is distinguished by metadata/flags rather than separate tables
   const tableName = baseTableName;
@@ -171,7 +176,7 @@ async function getTradingModeTable(userId, baseTableName) {
   return {
     table: tableName,
     mode: tradingMode.mode,
-    fallbackTable: baseTableName // Use base table if mode-specific table doesn't exist
+    fallbackTable: baseTableName, // Use base table if mode-specific table doesn't exist
   };
 }
 
@@ -186,30 +191,32 @@ async function getTradingModeTable(userId, baseTableName) {
 async function executeWithTradingMode(userId, sqlQuery, params, baseTableName) {
   try {
     const { table, mode } = await getTradingModeTable(userId, baseTableName);
-    
+
     // Replace {table} placeholder with mode-specific table name
     const modeSpecificQuery = sqlQuery.replace(/\{table\}/g, table);
-    
+
     console.log(`🎯 Executing ${mode} trading query on table: ${table}`);
-    
+
     try {
       const result = await query(modeSpecificQuery, params);
       return {
         ...result,
         trading_mode: mode,
-        table_used: table
+        table_used: table,
       };
     } catch (tableError) {
       // If mode-specific table doesn't exist, try fallback table
-      if (tableError.message.includes('does not exist')) {
-        console.log(`Table ${table} not found, using fallback table: ${baseTableName}`);
+      if (tableError.message.includes("does not exist")) {
+        console.log(
+          `Table ${table} not found, using fallback table: ${baseTableName}`
+        );
         const fallbackQuery = sqlQuery.replace(/\{table\}/g, baseTableName);
         const fallbackResult = await query(fallbackQuery, params);
         return {
           ...fallbackResult,
           trading_mode: mode,
           table_used: `${baseTableName} (fallback)`,
-          note: `Mode-specific table ${table} not available, using shared table`
+          note: `Mode-specific table ${table} not available, using shared table`,
         };
       }
       throw tableError;
@@ -228,18 +235,18 @@ async function executeWithTradingMode(userId, sqlQuery, params, baseTableName) {
  */
 async function formatPortfolioWithMode(portfolioData, userId) {
   const tradingMode = await getUserTradingMode(userId);
-  
+
   return {
     ...portfolioData,
     trading_mode: tradingMode.mode,
     paper_trading: tradingMode.isPaper,
     live_trading: tradingMode.isLive,
-    performance_disclaimer: tradingMode.isPaper 
+    performance_disclaimer: tradingMode.isPaper
       ? "Paper trading performance - results are simulated and may not reflect real trading conditions"
       : "Live trading performance - actual results from real money trades",
-    risk_warning: tradingMode.isLive 
+    risk_warning: tradingMode.isLive
       ? "⚠️ Live trading results reflect real money gains/losses"
-      : null
+      : null,
   };
 }
 
@@ -254,19 +261,19 @@ async function switchMode(userId, newMode) {
     if (!userId || !newMode) {
       return {
         success: false,
-        error: "User ID and mode are required"
+        error: "User ID and mode are required",
       };
     }
 
-    if (!['paper', 'live'].includes(newMode)) {
+    if (!["paper", "live"].includes(newMode)) {
       return {
         success: false,
-        error: "Mode must be 'paper' or 'live'"
+        error: "Mode must be 'paper' or 'live'",
       };
     }
 
-    const paperTradingMode = newMode === 'paper';
-    
+    const paperTradingMode = newMode === "paper";
+
     await query(
       `UPDATE user_dashboard_settings 
        SET trading_preferences = jsonb_set(
@@ -281,13 +288,13 @@ async function switchMode(userId, newMode) {
     return {
       success: true,
       newMode: newMode,
-      previousMode: newMode === 'paper' ? 'live' : 'paper',
-      timestamp: new Date().toISOString()
+      previousMode: newMode === "paper" ? "live" : "paper",
+      timestamp: new Date().toISOString(),
     };
   } catch (error) {
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -298,20 +305,26 @@ async function validateModeRequirements(userId, mode) {
       return {
         valid: false,
         requirements: ["Valid user identification"],
-        missing: ["Valid user identification"]
+        missing: ["Valid user identification"],
       };
     }
 
     const requirements = {
       paper: ["User account", "Basic verification"],
-      live: ["User account", "Identity verification", "Bank account", "Risk acknowledgment", "API credentials"]
+      live: [
+        "User account",
+        "Identity verification",
+        "Bank account",
+        "Risk acknowledgment",
+        "API credentials",
+      ],
     };
 
     const userRequirements = requirements[mode] || requirements.paper;
     const missing = [];
 
     // Simulate requirement checks
-    if (mode === 'live') {
+    if (mode === "live") {
       // Add some simulated missing requirements for live mode
       missing.push("Bank account verification");
     }
@@ -320,14 +333,14 @@ async function validateModeRequirements(userId, mode) {
       valid: missing.length === 0,
       requirements: userRequirements,
       missing: missing,
-      mode: mode
+      mode: mode,
     };
   } catch (error) {
     return {
       valid: false,
       requirements: [],
       missing: ["System error: " + error.message],
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -339,17 +352,17 @@ async function configureTradingEnvironment(userId, mode) {
       environment: mode,
       userId: userId,
       configuration: {
-        dataFeeds: mode === 'live' ? 'real-time' : 'delayed',
-        orderRouting: mode === 'live' ? 'market' : 'simulated',
-        riskLimits: mode === 'live' ? 'strict' : 'relaxed'
+        dataFeeds: mode === "live" ? "real-time" : "delayed",
+        orderRouting: mode === "live" ? "market" : "simulated",
+        riskLimits: mode === "live" ? "strict" : "relaxed",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   } catch (error) {
     return {
       configured: false,
       environment: mode,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -360,24 +373,24 @@ async function performEnvironmentHealthCheck(userId) {
       { name: "Database connection", status: "healthy", latency: 12 },
       { name: "Market data feed", status: "healthy", latency: 45 },
       { name: "Trading API", status: "healthy", latency: 23 },
-      { name: "Risk engine", status: "healthy", latency: 8 }
+      { name: "Risk engine", status: "healthy", latency: 8 },
     ];
 
-    const allHealthy = checks.every(check => check.status === 'healthy');
+    const allHealthy = checks.every((check) => check.status === "healthy");
 
     return {
       healthy: allHealthy,
       checks: checks,
       userId: userId,
       timestamp: new Date().toISOString(),
-      overall: allHealthy ? 'All systems operational' : 'Some systems degraded'
+      overall: allHealthy ? "All systems operational" : "Some systems degraded",
     };
   } catch (error) {
     return {
       healthy: false,
       checks: [],
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }
@@ -388,7 +401,7 @@ async function validateOrderAgainstRiskLimits(userId, order) {
       positionSize: order.quantity * (order.price || 100), // Estimate position value
       portfolioPercentage: 10, // Simulated
       dailyTradingLimit: false,
-      volatilityCheck: true
+      volatilityCheck: true,
     };
 
     const violations = [];
@@ -405,21 +418,17 @@ async function validateOrderAgainstRiskLimits(userId, order) {
       violations: violations,
       order: order,
       userId: userId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   } catch (error) {
     return {
       valid: false,
       riskAssessment: {},
       violations: ["Risk check failed: " + error.message],
-      error: error.message
+      error: error.message,
     };
   }
 }
-
-
-
-
 
 async function getPaperTradingPerformance(userId) {
   return {
@@ -428,7 +437,7 @@ async function getPaperTradingPerformance(userId) {
     winRate: 67.3,
     sharpeRatio: 1.42,
     maxDrawdown: -8.2,
-    period: '90_days'
+    period: "90_days",
   };
 }
 
@@ -439,10 +448,10 @@ async function runBacktest(userId, strategy) {
       totalReturn: 23.4,
       winRate: 72.1,
       trades: 156,
-      sharpeRatio: 1.67
+      sharpeRatio: 1.67,
     },
-    period: '1_year',
-    strategy: strategy || 'default'
+    period: "1_year",
+    strategy: strategy || "default",
   };
 }
 
@@ -451,17 +460,17 @@ async function validateCredentialSecurity(userId) {
     secure: true,
     apiKeysEncrypted: true,
     lastSecurityCheck: new Date().toISOString(),
-    compliance: 'SOC2_compliant'
+    compliance: "SOC2_compliant",
   };
 }
 
 async function handleSystemFailure(userId, error) {
   return {
     handled: true,
-    fallbackMode: 'paper',
-    error: error?.message || 'Unknown error',
-    recovery: 'automatic',
-    timestamp: new Date().toISOString()
+    fallbackMode: "paper",
+    error: error?.message || "Unknown error",
+    recovery: "automatic",
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -469,18 +478,18 @@ async function checkNetworkConnectivity() {
   return {
     connected: true,
     latency: 45,
-    marketDataFeed: 'active',
-    tradingApi: 'connected'
+    marketDataFeed: "active",
+    tradingApi: "connected",
   };
 }
 
 async function getComplianceStatus(userId) {
   return {
     compliant: true,
-    kycStatus: 'verified',
+    kycStatus: "verified",
     accreditedInvestor: false,
-    tradingPermissions: ['stocks', 'etfs'],
-    restrictions: []
+    tradingPermissions: ["stocks", "etfs"],
+    restrictions: [],
   };
 }
 
@@ -504,5 +513,5 @@ module.exports = {
   validateCredentialSecurity,
   handleSystemFailure,
   checkNetworkConnectivity,
-  getComplianceStatus
+  getComplianceStatus,
 };

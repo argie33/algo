@@ -3,7 +3,10 @@
  * Tests real Alpaca API integration with paper trading account
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 // Mock Alpaca SDK to avoid requiring real API keys in tests
 jest.mock("@alpacahq/alpaca-trade-api", () => {
@@ -41,7 +44,7 @@ describe("Alpaca Service Integration Tests", () => {
   beforeEach(() => {
     // Clear mocks before each test
     jest.clearAllMocks();
-    
+
     // Get the mock client instance
     mockClient = {
       getAccount: jest.fn(),
@@ -59,7 +62,7 @@ describe("Alpaca Service Integration Tests", () => {
     };
 
     Alpaca.mockImplementation(() => mockClient);
-    
+
     // Create service instance with test credentials
     alpacaService = new AlpacaService("test_key", "test_secret", true);
   });
@@ -91,10 +94,10 @@ describe("Alpaca Service Integration Tests", () => {
   describe("Rate Limiting", () => {
     test("should track request times for rate limiting", () => {
       const initialLength = alpacaService.requestTimes.length;
-      
+
       alpacaService.checkRateLimit();
       expect(alpacaService.requestTimes.length).toBe(initialLength + 1);
-      
+
       alpacaService.checkRateLimit();
       expect(alpacaService.requestTimes.length).toBe(initialLength + 2);
     });
@@ -115,7 +118,7 @@ describe("Alpaca Service Integration Tests", () => {
       alpacaService.requestTimes = [oldTime, oldTime, oldTime];
 
       alpacaService.checkRateLimit();
-      
+
       // Old times should be filtered out, only the new one should remain
       expect(alpacaService.requestTimes.length).toBe(1);
       expect(alpacaService.requestTimes[0]).toBeGreaterThan(oldTime);
@@ -129,7 +132,7 @@ describe("Alpaca Service Integration Tests", () => {
         status: "ACTIVE",
         cash: "10000.00",
         portfolio_value: "12000.00",
-        buying_power: "20000.00"
+        buying_power: "20000.00",
       };
 
       mockClient.getAccount.mockResolvedValueOnce(mockAccount);
@@ -151,19 +154,19 @@ describe("Alpaca Service Integration Tests", () => {
       const mockHistory = {
         timestamp: [1640995200, 1641081600],
         equity: [10000, 10500],
-        profit_loss: [0, 500]
+        profit_loss: [0, 500],
       };
 
       mockClient.getPortfolioHistory.mockResolvedValueOnce(mockHistory);
 
       const history = await alpacaService.getPortfolioHistory({
         period: "1D",
-        timeframe: "1Min"
+        timeframe: "1Min",
       });
 
       expect(mockClient.getPortfolioHistory).toHaveBeenCalledWith({
         period: "1D",
-        timeframe: "1Min"
+        timeframe: "1Min",
       });
       expect(history).toEqual(mockHistory);
     });
@@ -178,16 +181,16 @@ describe("Alpaca Service Integration Tests", () => {
           side: "long",
           market_value: "1500.00",
           cost_basis: "1400.00",
-          unrealized_pl: "100.00"
+          unrealized_pl: "100.00",
         },
         {
           symbol: "TSLA",
           qty: "5",
-          side: "long", 
+          side: "long",
           market_value: "2500.00",
           cost_basis: "2400.00",
-          unrealized_pl: "100.00"
-        }
+          unrealized_pl: "100.00",
+        },
       ];
 
       mockClient.getPositions.mockResolvedValueOnce(mockPositions);
@@ -206,7 +209,7 @@ describe("Alpaca Service Integration Tests", () => {
         qty: "10",
         side: "long",
         market_value: "1500.00",
-        cost_basis: "1400.00"
+        cost_basis: "1400.00",
       };
 
       mockClient.getPosition = jest.fn().mockResolvedValueOnce(mockPosition);
@@ -227,7 +230,7 @@ describe("Alpaca Service Integration Tests", () => {
         qty: "10",
         side: "buy",
         type: "market",
-        status: "new"
+        status: "new",
       };
 
       mockClient.createOrder.mockResolvedValueOnce(mockOrder);
@@ -236,14 +239,14 @@ describe("Alpaca Service Integration Tests", () => {
         symbol: "AAPL",
         qty: 10,
         side: "buy",
-        type: "market"
+        type: "market",
       });
 
       expect(mockClient.createOrder).toHaveBeenCalledWith({
         symbol: "AAPL",
         qty: 10,
         side: "buy",
-        type: "market"
+        type: "market",
       });
       expect(order.id).toBe("order-123");
     });
@@ -256,7 +259,7 @@ describe("Alpaca Service Integration Tests", () => {
         side: "sell",
         type: "limit",
         limit_price: "800.00",
-        status: "new"
+        status: "new",
       };
 
       mockClient.createOrder.mockResolvedValueOnce(mockOrder);
@@ -266,7 +269,7 @@ describe("Alpaca Service Integration Tests", () => {
         qty: 5,
         side: "sell",
         type: "limit",
-        limit_price: 800.00
+        limit_price: 800.0,
       });
 
       expect(mockClient.createOrder).toHaveBeenCalledWith({
@@ -274,7 +277,7 @@ describe("Alpaca Service Integration Tests", () => {
         qty: 5,
         side: "sell",
         type: "limit",
-        limit_price: 800.00
+        limit_price: 800.0,
       });
       expect(order.type).toBe("limit");
     });
@@ -282,7 +285,7 @@ describe("Alpaca Service Integration Tests", () => {
     test("should fetch all orders", async () => {
       const mockOrders = [
         { id: "order-1", symbol: "AAPL", status: "filled" },
-        { id: "order-2", symbol: "TSLA", status: "pending_new" }
+        { id: "order-2", symbol: "TSLA", status: "pending_new" },
       ];
 
       mockClient.getOrders.mockResolvedValueOnce(mockOrders);
@@ -304,28 +307,34 @@ describe("Alpaca Service Integration Tests", () => {
 
     test("should validate order parameters", async () => {
       // Test invalid symbol
-      await expect(alpacaService.createOrder({
-        symbol: "",
-        qty: 10,
-        side: "buy",
-        type: "market"
-      })).rejects.toThrow("Symbol is required");
+      await expect(
+        alpacaService.createOrder({
+          symbol: "",
+          qty: 10,
+          side: "buy",
+          type: "market",
+        })
+      ).rejects.toThrow("Symbol is required");
 
       // Test invalid quantity
-      await expect(alpacaService.createOrder({
-        symbol: "AAPL",
-        qty: 0,
-        side: "buy",
-        type: "market"
-      })).rejects.toThrow("Quantity must be greater than 0");
+      await expect(
+        alpacaService.createOrder({
+          symbol: "AAPL",
+          qty: 0,
+          side: "buy",
+          type: "market",
+        })
+      ).rejects.toThrow("Quantity must be greater than 0");
 
       // Test invalid side
-      await expect(alpacaService.createOrder({
-        symbol: "AAPL",
-        qty: 10,
-        side: "invalid",
-        type: "market"
-      })).rejects.toThrow("Side must be 'buy' or 'sell'");
+      await expect(
+        alpacaService.createOrder({
+          symbol: "AAPL",
+          qty: 10,
+          side: "invalid",
+          type: "market",
+        })
+      ).rejects.toThrow("Side must be 'buy' or 'sell'");
     });
   });
 
@@ -337,7 +346,7 @@ describe("Alpaca Service Integration Tests", () => {
         name: "Apple Inc.",
         exchange: "NASDAQ",
         tradable: true,
-        status: "active"
+        status: "active",
       };
 
       mockClient.getAsset.mockResolvedValueOnce(mockAsset);
@@ -352,7 +361,7 @@ describe("Alpaca Service Integration Tests", () => {
     test("should fetch tradable assets", async () => {
       const mockAssets = [
         { symbol: "AAPL", tradable: true, status: "active" },
-        { symbol: "TSLA", tradable: true, status: "active" }
+        { symbol: "TSLA", tradable: true, status: "active" },
       ];
 
       mockClient.getAssets.mockResolvedValueOnce(mockAssets);
@@ -361,7 +370,7 @@ describe("Alpaca Service Integration Tests", () => {
 
       expect(mockClient.getAssets).toHaveBeenCalledWith({ status: "active" });
       expect(assets).toHaveLength(2);
-      expect(assets.every(asset => asset.tradable)).toBe(true);
+      expect(assets.every((asset) => asset.tradable)).toBe(true);
     });
 
     test("should fetch historical bars data", async () => {
@@ -369,13 +378,13 @@ describe("Alpaca Service Integration Tests", () => {
         bars: [
           {
             t: "2023-01-01T09:30:00Z",
-            o: 150.00,
-            h: 155.00,
-            l: 149.00,
-            c: 154.00,
-            v: 1000000
-          }
-        ]
+            o: 150.0,
+            h: 155.0,
+            l: 149.0,
+            c: 154.0,
+            v: 1000000,
+          },
+        ],
       };
 
       mockClient.getBars.mockResolvedValueOnce(mockBars);
@@ -383,13 +392,13 @@ describe("Alpaca Service Integration Tests", () => {
       const bars = await alpacaService.getBars("AAPL", {
         start: "2023-01-01",
         end: "2023-01-02",
-        timeframe: "1Day"
+        timeframe: "1Day",
       });
 
       expect(mockClient.getBars).toHaveBeenCalledWith("AAPL", {
         start: "2023-01-01",
-        end: "2023-01-02", 
-        timeframe: "1Day"
+        end: "2023-01-02",
+        timeframe: "1Day",
       });
       expect(bars.bars).toHaveLength(1);
     });
@@ -397,9 +406,9 @@ describe("Alpaca Service Integration Tests", () => {
     test("should fetch latest trade data", async () => {
       const mockTrade = {
         symbol: "AAPL",
-        price: 155.50,
+        price: 155.5,
         size: 100,
-        timestamp: "2023-01-01T15:59:59Z"
+        timestamp: "2023-01-01T15:59:59Z",
       };
 
       mockClient.getLastTrade.mockResolvedValueOnce(mockTrade);
@@ -408,7 +417,7 @@ describe("Alpaca Service Integration Tests", () => {
 
       expect(mockClient.getLastTrade).toHaveBeenCalledWith("AAPL");
       expect(trade.symbol).toBe("AAPL");
-      expect(trade.price).toBe(155.50);
+      expect(trade.price).toBe(155.5);
     });
   });
 
@@ -416,7 +425,7 @@ describe("Alpaca Service Integration Tests", () => {
     test("should fetch all watchlists", async () => {
       const mockWatchlists = [
         { id: "watchlist-1", name: "My Stocks", assets: [] },
-        { id: "watchlist-2", name: "Tech Stocks", assets: [] }
+        { id: "watchlist-2", name: "Tech Stocks", assets: [] },
       ];
 
       mockClient.getWatchlists.mockResolvedValueOnce(mockWatchlists);
@@ -432,19 +441,19 @@ describe("Alpaca Service Integration Tests", () => {
       const mockWatchlist = {
         id: "watchlist-123",
         name: "New Watchlist",
-        assets: []
+        assets: [],
       };
 
       mockClient.createWatchlist.mockResolvedValueOnce(mockWatchlist);
 
       const watchlist = await alpacaService.createWatchlist({
         name: "New Watchlist",
-        symbols: ["AAPL", "TSLA"]
+        symbols: ["AAPL", "TSLA"],
       });
 
       expect(mockClient.createWatchlist).toHaveBeenCalledWith({
         name: "New Watchlist",
-        symbols: ["AAPL", "TSLA"]
+        symbols: ["AAPL", "TSLA"],
       });
       expect(watchlist.name).toBe("New Watchlist");
     });
@@ -462,7 +471,9 @@ describe("Alpaca Service Integration Tests", () => {
       rateLimitError.status = 429;
       mockClient.getAccount.mockRejectedValueOnce(rateLimitError);
 
-      await expect(alpacaService.getAccount()).rejects.toThrow("Rate limit exceeded");
+      await expect(alpacaService.getAccount()).rejects.toThrow(
+        "Rate limit exceeded"
+      );
     });
 
     test("should handle invalid API credentials", async () => {
@@ -470,7 +481,9 @@ describe("Alpaca Service Integration Tests", () => {
       authError.status = 401;
       mockClient.getAccount.mockRejectedValueOnce(authError);
 
-      await expect(alpacaService.getAccount()).rejects.toThrow("Invalid API credentials");
+      await expect(alpacaService.getAccount()).rejects.toThrow(
+        "Invalid API credentials"
+      );
     });
 
     test("should handle market closed scenarios", async () => {
@@ -478,12 +491,14 @@ describe("Alpaca Service Integration Tests", () => {
       marketClosedError.status = 422;
       mockClient.createOrder.mockRejectedValueOnce(marketClosedError);
 
-      await expect(alpacaService.createOrder({
-        symbol: "AAPL",
-        qty: 10,
-        side: "buy",
-        type: "market"
-      })).rejects.toThrow("Market is closed");
+      await expect(
+        alpacaService.createOrder({
+          symbol: "AAPL",
+          qty: 10,
+          side: "buy",
+          type: "market",
+        })
+      ).rejects.toThrow("Market is closed");
     });
 
     test("should handle insufficient funds", async () => {
@@ -491,12 +506,14 @@ describe("Alpaca Service Integration Tests", () => {
       insufficientFundsError.status = 422;
       mockClient.createOrder.mockRejectedValueOnce(insufficientFundsError);
 
-      await expect(alpacaService.createOrder({
-        symbol: "AAPL",
-        qty: 1000,
-        side: "buy",
-        type: "market"
-      })).rejects.toThrow("Insufficient buying power");
+      await expect(
+        alpacaService.createOrder({
+          symbol: "AAPL",
+          qty: 1000,
+          side: "buy",
+          type: "market",
+        })
+      ).rejects.toThrow("Insufficient buying power");
     });
   });
 
@@ -521,7 +538,7 @@ describe("Alpaca Service Integration Tests", () => {
       const promises = [
         alpacaService.getAccount(),
         alpacaService.getPositions(),
-        alpacaService.getOrders()
+        alpacaService.getOrders(),
       ];
 
       const results = await Promise.all(promises);

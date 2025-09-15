@@ -3,7 +3,10 @@
  * Tests response formatting with real API responses and edge cases
  */
 
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 const responseFormatter = require("../../../utils/responseFormatter");
 
 describe("Response Formatter Integration Tests", () => {
@@ -21,11 +24,14 @@ describe("Response Formatter Integration Tests", () => {
         symbol: "AAPL",
         price: 150.25,
         change: 2.5,
-        changePercent: 1.68
+        changePercent: 1.68,
       };
 
-      const formatted = responseFormatter.success(testData, "Stock data retrieved successfully");
-      
+      const formatted = responseFormatter.success(
+        testData,
+        "Stock data retrieved successfully"
+      );
+
       expect(formatted).toBeDefined();
       expect(formatted.success).toBe(true);
       expect(formatted.data).toEqual(testData);
@@ -37,12 +43,15 @@ describe("Response Formatter Integration Tests", () => {
     test("should handle array data in responses", () => {
       const testArray = [
         { symbol: "AAPL", price: 150.25 },
-        { symbol: "GOOGL", price: 2800.50 },
-        { symbol: "MSFT", price: 310.75 }
+        { symbol: "GOOGL", price: 2800.5 },
+        { symbol: "MSFT", price: 310.75 },
       ];
 
-      const formatted = responseFormatter.success(testArray, "Portfolio data retrieved");
-      
+      const formatted = responseFormatter.success(
+        testArray,
+        "Portfolio data retrieved"
+      );
+
       expect(formatted.success).toBe(true);
       expect(Array.isArray(formatted.data)).toBe(true);
       expect(formatted.data.length).toBe(3);
@@ -51,16 +60,23 @@ describe("Response Formatter Integration Tests", () => {
     });
 
     test("should include pagination metadata", () => {
-      const testData = Array.from({ length: 10 }, (_, i) => ({ id: i, value: `item_${i}` }));
+      const testData = Array.from({ length: 10 }, (_, i) => ({
+        id: i,
+        value: `item_${i}`,
+      }));
       const paginationMeta = {
         page: 2,
         limit: 10,
         total: 50,
-        totalPages: 5
+        totalPages: 5,
       };
 
-      const formatted = responseFormatter.success(testData, "Paginated data retrieved", paginationMeta);
-      
+      const formatted = responseFormatter.success(
+        testData,
+        "Paginated data retrieved",
+        paginationMeta
+      );
+
       expect(formatted.success).toBe(true);
       expect(formatted.data.length).toBe(10);
       expect(formatted.pagination).toEqual(paginationMeta);
@@ -76,7 +92,7 @@ describe("Response Formatter Integration Tests", () => {
       error.code = "INVALID_SYMBOL";
 
       const formatted = responseFormatter.error(error, "Bad Request");
-      
+
       expect(formatted.success).toBe(false);
       expect(formatted.error).toBeDefined();
       expect(formatted.error.message).toBe("Invalid symbol provided");
@@ -91,7 +107,7 @@ describe("Response Formatter Integration Tests", () => {
       error.code = "DATABASE_ERROR";
 
       const formatted = responseFormatter.error(error, "Internal Server Error");
-      
+
       expect(formatted.success).toBe(false);
       expect(formatted.error).toBeDefined();
       expect(formatted.error.message).toBe("Database connection failed");
@@ -101,16 +117,18 @@ describe("Response Formatter Integration Tests", () => {
     });
 
     test("should sanitize sensitive data in error responses", () => {
-      const error = new Error("Authentication failed for API key: secret_key_12345");
+      const error = new Error(
+        "Authentication failed for API key: secret_key_12345"
+      );
       error.statusCode = 401;
       error.sensitiveData = {
         apiKey: "secret_key_12345",
         password: "user_password",
-        token: "jwt_token_abcdef"
+        token: "jwt_token_abcdef",
       };
 
       const formatted = responseFormatter.error(error, "Unauthorized");
-      
+
       expect(formatted.success).toBe(false);
       expect(formatted.error.message).not.toContain("secret_key_12345");
       expect(formatted.error.message).toContain("***");
@@ -123,11 +141,11 @@ describe("Response Formatter Integration Tests", () => {
       const validationErrors = [
         { field: "symbol", message: "Symbol is required" },
         { field: "quantity", message: "Quantity must be greater than 0" },
-        { field: "price", message: "Price must be a positive number" }
+        { field: "price", message: "Price must be a positive number" },
       ];
 
       const formatted = responseFormatter.validationError(validationErrors);
-      
+
       expect(formatted.success).toBe(false);
       expect(formatted.error).toBeDefined();
       expect(formatted.error.type).toBe("VALIDATION_ERROR");
@@ -138,9 +156,9 @@ describe("Response Formatter Integration Tests", () => {
 
     test("should handle single validation error", () => {
       const singleError = { field: "email", message: "Invalid email format" };
-      
+
       const formatted = responseFormatter.validationError(singleError);
-      
+
       expect(formatted.success).toBe(false);
       expect(formatted.error.details).toEqual([singleError]);
       expect(formatted.error.count).toBe(1);
@@ -153,20 +171,24 @@ describe("Response Formatter Integration Tests", () => {
         analysis: {
           technicalScore: 85,
           fundamentalScore: 92,
-          recommendation: "BUY"
+          recommendation: "BUY",
         },
         factors: ["strong_earnings", "positive_momentum"],
-        confidence: 0.87
+        confidence: 0.87,
       };
 
       const customMeta = {
         analysisDate: new Date().toISOString(),
         model: "quantitative_v2.1",
-        region: "US"
+        region: "US",
       };
 
-      const formatted = responseFormatter.custom(customData, "analysis", customMeta);
-      
+      const formatted = responseFormatter.custom(
+        customData,
+        "analysis",
+        customMeta
+      );
+
       expect(formatted.success).toBe(true);
       expect(formatted.analysis).toEqual(customData.analysis);
       expect(formatted.factors).toEqual(customData.factors);
@@ -179,23 +201,26 @@ describe("Response Formatter Integration Tests", () => {
         portfolio: {
           holdings: [
             { symbol: "AAPL", weight: 0.35, value: 50000 },
-            { symbol: "GOOGL", weight: 0.25, value: 35000 }
+            { symbol: "GOOGL", weight: 0.25, value: 35000 },
           ],
           performance: {
             totalReturn: 0.125,
             sharpeRatio: 1.45,
-            maxDrawdown: -0.08
+            maxDrawdown: -0.08,
           },
           risk: {
             beta: 1.12,
             volatility: 0.18,
-            var95: -0.03
-          }
-        }
+            var95: -0.03,
+          },
+        },
       };
 
-      const formatted = responseFormatter.success(complexData, "Portfolio analysis complete");
-      
+      const formatted = responseFormatter.success(
+        complexData,
+        "Portfolio analysis complete"
+      );
+
       expect(formatted.success).toBe(true);
       expect(formatted.data.portfolio.holdings.length).toBe(2);
       expect(formatted.data.portfolio.performance.totalReturn).toBe(0.125);
@@ -209,39 +234,44 @@ describe("Response Formatter Integration Tests", () => {
         price: 150.123456789,
         volume: 1234567.89,
         marketCap: 2500000000000.123,
-        ratio: 0.123456789
+        ratio: 0.123456789,
       };
 
-      const formatted = responseFormatter.success(financialData, "Financial data", null, {
-        precision: {
-          price: 2,
-          volume: 0,
-          marketCap: -9, // Billions
-          ratio: 4
+      const formatted = responseFormatter.success(
+        financialData,
+        "Financial data",
+        null,
+        {
+          precision: {
+            price: 2,
+            volume: 0,
+            marketCap: -9, // Billions
+            ratio: 4,
+          },
         }
-      });
-      
+      );
+
       expect(formatted.data.price).toBe(150.12);
       expect(formatted.data.volume).toBe(1234568);
-      expect(formatted.data.marketCap).toBe(2500.000); // In billions
+      expect(formatted.data.marketCap).toBe(2500.0); // In billions
       expect(formatted.data.ratio).toBe(0.1235);
     });
 
     test("should handle date formatting", () => {
       const dateData = {
-        createdAt: new Date('2023-01-15T10:30:00Z'),
-        updatedAt: new Date('2023-01-16T15:45:30Z'),
-        expiry: new Date('2023-12-31T23:59:59Z')
+        createdAt: new Date("2023-01-15T10:30:00Z"),
+        updatedAt: new Date("2023-01-16T15:45:30Z"),
+        expiry: new Date("2023-12-31T23:59:59Z"),
       };
 
       const formatted = responseFormatter.success(dateData, "Date data", null, {
-        dateFormat: 'ISO',
-        timezone: 'UTC'
+        dateFormat: "ISO",
+        timezone: "UTC",
       });
-      
-      expect(formatted.data.createdAt).toBe('2023-01-15T10:30:00.000Z');
-      expect(formatted.data.updatedAt).toBe('2023-01-16T15:45:30.000Z');
-      expect(formatted.data.expiry).toBe('2023-12-31T23:59:59.000Z');
+
+      expect(formatted.data.createdAt).toBe("2023-01-15T10:30:00.000Z");
+      expect(formatted.data.updatedAt).toBe("2023-01-16T15:45:30.000Z");
+      expect(formatted.data.expiry).toBe("2023-12-31T23:59:59.000Z");
     });
 
     test("should filter sensitive fields", () => {
@@ -254,14 +284,14 @@ describe("Response Formatter Integration Tests", () => {
         creditCard: "4111-1111-1111-1111",
         profile: {
           name: "Test User",
-          ssn: "123-45-6789"
-        }
+          ssn: "123-45-6789",
+        },
       };
 
       const formatted = responseFormatter.success(userData, "User data", null, {
-        excludeFields: ['password', 'apiKey', 'creditCard', 'profile.ssn']
+        excludeFields: ["password", "apiKey", "creditCard", "profile.ssn"],
       });
-      
+
       expect(formatted.data.id).toBe(12345);
       expect(formatted.data.username).toBe("testuser");
       expect(formatted.data.email).toBe("test@example.com");
@@ -278,15 +308,18 @@ describe("Response Formatter Integration Tests", () => {
       const largeDataset = Array.from({ length: 10000 }, (_, i) => ({
         id: i,
         symbol: `STOCK${i}`,
-        price: 123.45 + (i * 0.5), // deterministic values
-        volume: 50000 + (i * 1000),
-        timestamp: new Date().toISOString()
+        price: 123.45 + i * 0.5, // deterministic values
+        volume: 50000 + i * 1000,
+        timestamp: new Date().toISOString(),
       }));
 
       const startTime = Date.now();
-      const formatted = responseFormatter.success(largeDataset, "Large dataset");
+      const formatted = responseFormatter.success(
+        largeDataset,
+        "Large dataset"
+      );
       const duration = Date.now() - startTime;
-      
+
       expect(formatted.success).toBe(true);
       expect(formatted.data.length).toBe(10000);
       expect(formatted.count).toBe(10000);
@@ -296,15 +329,25 @@ describe("Response Formatter Integration Tests", () => {
     test("should cache formatted responses when configured", () => {
       const testData = { symbol: "AAPL", price: 150.25 };
       const cacheKey = "aapl_quote";
-      
-      const formatted1 = responseFormatter.success(testData, "Cached response", null, {
-        cache: { key: cacheKey, ttl: 300 }
-      });
-      
-      const formatted2 = responseFormatter.success(testData, "Cached response", null, {
-        cache: { key: cacheKey, ttl: 300 }
-      });
-      
+
+      const formatted1 = responseFormatter.success(
+        testData,
+        "Cached response",
+        null,
+        {
+          cache: { key: cacheKey, ttl: 300 },
+        }
+      );
+
+      const formatted2 = responseFormatter.success(
+        testData,
+        "Cached response",
+        null,
+        {
+          cache: { key: cacheKey, ttl: 300 },
+        }
+      );
+
       expect(formatted1.cache).toBeDefined();
       expect(formatted1.cache.hit).toBe(false);
       expect(formatted2.cache.hit).toBe(true);
@@ -319,14 +362,19 @@ describe("Response Formatter Integration Tests", () => {
         sessionId: "session456",
         clientIP: "192.168.1.100",
         userAgent: "Mozilla/5.0",
-        apiVersion: "v1.0"
+        apiVersion: "v1.0",
       };
 
       const testData = { message: "Context test" };
-      const formatted = responseFormatter.success(testData, "Success with context", null, {
-        context: contextData
-      });
-      
+      const formatted = responseFormatter.success(
+        testData,
+        "Success with context",
+        null,
+        {
+          context: contextData,
+        }
+      );
+
       expect(formatted.success).toBe(true);
       expect(formatted.context).toBeDefined();
       expect(formatted.context.userId).toBe("user123");
@@ -339,11 +387,16 @@ describe("Response Formatter Integration Tests", () => {
     test("should track request timing", () => {
       const requestStart = Date.now() - 150; // Simulate 150ms request
       const testData = { result: "timing test" };
-      
-      const formatted = responseFormatter.success(testData, "Timing test", null, {
-        timing: { startTime: requestStart }
-      });
-      
+
+      const formatted = responseFormatter.success(
+        testData,
+        "Timing test",
+        null,
+        {
+          timing: { startTime: requestStart },
+        }
+      );
+
       expect(formatted.timing).toBeDefined();
       expect(formatted.timing.duration).toBeGreaterThan(100);
       expect(formatted.timing.duration).toBeLessThan(1000);
@@ -354,13 +407,16 @@ describe("Response Formatter Integration Tests", () => {
   describe("Error Recovery and Fallbacks", () => {
     test("should handle formatting errors gracefully", () => {
       const problematicData = {
-        circular: null
+        circular: null,
       };
       // Create circular reference
       problematicData.circular = problematicData;
-      
-      const formatted = responseFormatter.success(problematicData, "Problematic data");
-      
+
+      const formatted = responseFormatter.success(
+        problematicData,
+        "Problematic data"
+      );
+
       expect(formatted.success).toBe(true);
       expect(formatted.data).toBeDefined();
       expect(formatted.warning).toBeDefined();
@@ -371,11 +427,14 @@ describe("Response Formatter Integration Tests", () => {
       const unknownError = {
         name: "UnknownError",
         message: "Something went wrong",
-        stack: "Error: Something went wrong\n    at test.js:1:1"
+        stack: "Error: Something went wrong\n    at test.js:1:1",
       };
-      
-      const formatted = responseFormatter.error(unknownError, "Unknown error occurred");
-      
+
+      const formatted = responseFormatter.error(
+        unknownError,
+        "Unknown error occurred"
+      );
+
       expect(formatted.success).toBe(false);
       expect(formatted.error).toBeDefined();
       expect(formatted.error.type).toBe("UNKNOWN_ERROR");
@@ -387,15 +446,25 @@ describe("Response Formatter Integration Tests", () => {
   describe("Content Negotiation", () => {
     test("should support different content types", () => {
       const testData = { symbol: "AAPL", price: 150.25 };
-      
-      const jsonFormatted = responseFormatter.success(testData, "JSON response", null, {
-        contentType: "application/json"
-      });
-      
-      const xmlFormatted = responseFormatter.success(testData, "XML response", null, {
-        contentType: "application/xml"
-      });
-      
+
+      const jsonFormatted = responseFormatter.success(
+        testData,
+        "JSON response",
+        null,
+        {
+          contentType: "application/json",
+        }
+      );
+
+      const xmlFormatted = responseFormatter.success(
+        testData,
+        "XML response",
+        null,
+        {
+          contentType: "application/xml",
+        }
+      );
+
       expect(jsonFormatted.success).toBe(true);
       expect(xmlFormatted.success).toBe(true);
       expect(jsonFormatted.contentType).toBe("application/json");
@@ -403,17 +472,27 @@ describe("Response Formatter Integration Tests", () => {
     });
 
     test("should compress large responses when requested", () => {
-      const largeData = Array.from({ length: 1000 }, (_, i) => ({ id: i, data: "x".repeat(100) }));
-      
-      const formatted = responseFormatter.success(largeData, "Large response", null, {
-        compression: { algorithm: "gzip", threshold: 1024 }
-      });
-      
+      const largeData = Array.from({ length: 1000 }, (_, i) => ({
+        id: i,
+        data: "x".repeat(100),
+      }));
+
+      const formatted = responseFormatter.success(
+        largeData,
+        "Large response",
+        null,
+        {
+          compression: { algorithm: "gzip", threshold: 1024 },
+        }
+      );
+
       expect(formatted.success).toBe(true);
       expect(formatted.compression).toBeDefined();
       expect(formatted.compression.applied).toBe(true);
       expect(formatted.compression.algorithm).toBe("gzip");
-      expect(formatted.compression.originalSize).toBeGreaterThan(formatted.compression.compressedSize);
+      expect(formatted.compression.originalSize).toBeGreaterThan(
+        formatted.compression.compressedSize
+      );
     });
   });
 });

@@ -19,32 +19,31 @@ function calculateAnnualizedReturn(performance) {
     // Get actual dates for precise calculation
     const startDate = new Date(first.date || first.created_at);
     const endDate = new Date(last.date || last.created_at);
-    
+
     // Calculate time difference in years
     const timeDiffMs = endDate.getTime() - startDate.getTime();
     const daysDiff = timeDiffMs / (1000 * 60 * 60 * 24);
     const yearsFraction = daysDiff / 365.25; // Account for leap years
-    
+
     if (yearsFraction <= 0) return 0;
-    
+
     // Calculate total return
     const startValue = parseFloat(first.total_value || 0);
     const endValue = parseFloat(last.total_value || 0);
-    
+
     if (startValue <= 0) {
       // Fallback to percentage-based calculation
       const totalReturnPercent = parseFloat(last.total_pnl_percent || 0);
-      return Math.pow(1 + (totalReturnPercent / 100), 1 / yearsFraction) - 1;
+      return Math.pow(1 + totalReturnPercent / 100, 1 / yearsFraction) - 1;
     }
-    
+
     // Calculate compound annual growth rate (CAGR)
     const totalReturn = endValue / startValue;
     const annualizedReturn = Math.pow(totalReturn, 1 / yearsFraction) - 1;
-    
+
     return annualizedReturn * 100; // Return as percentage
-    
   } catch (error) {
-    console.error('Error calculating annualized return:', error);
+    console.error("Error calculating annualized return:", error);
     // Fallback to simple calculation
     const last = performance[performance.length - 1];
     return parseFloat(last.total_pnl_percent || 0);
@@ -58,13 +57,15 @@ router.use(authenticateToken);
 router.get("/data", async (req, res) => {
   try {
     // Redirect to holdings endpoint which provides the main portfolio data
-    return res.redirect(`/api/portfolio/holdings${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`);
+    return res.redirect(
+      `/api/portfolio/holdings${req.url.includes("?") ? "?" + req.url.split("?")[1] : ""}`
+    );
   } catch (error) {
     console.error("Portfolio data redirect error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to redirect to portfolio data",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -81,19 +82,19 @@ router.get("/", async (req, res) => {
       "/risk-analysis - Risk analysis",
       "/risk-metrics - Risk metrics",
       "/performance - Performance data",
-      "/benchmark - Benchmark comparison", 
+      "/benchmark - Benchmark comparison",
       "/holdings - Current holdings",
       "/rebalance - Rebalancing suggestions",
       "/risk - Risk assessment",
       "/sync/:brokerName - Sync with broker",
       "/transactions/:brokerName - Get transactions",
       "/value - Portfolio value and asset allocation",
-      "/returns - Portfolio returns analysis"
-    ]
+      "/returns - Portfolio returns analysis",
+    ],
   });
 });
 
-// Portfolio summary endpoint  
+// Portfolio summary endpoint
 router.get("/summary", async (req, res) => {
   try {
     const userId = req.user.sub;
@@ -120,17 +121,23 @@ router.get("/summary", async (req, res) => {
         LIMIT 1
         `,
         [userId]
-      )
+      ),
     ]);
 
     const holdings = holdingsResult?.rows || [];
     const performance = performanceResult?.rows?.[0] || {};
 
     // Calculate portfolio metrics
-    const totalValue = holdings.reduce((sum, h) => sum + ((h.current_price || 0) * (h.quantity || 0)), 0);
-    const totalCost = holdings.reduce((sum, h) => sum + ((h.average_cost || 0) * (h.quantity || 0)), 0);
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + (h.current_price || 0) * (h.quantity || 0),
+      0
+    );
+    const totalCost = holdings.reduce(
+      (sum, h) => sum + (h.average_cost || 0) * (h.quantity || 0),
+      0
+    );
     const totalPnL = totalValue - totalCost;
-    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost * 100) : 0;
+    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
 
     const responseData = {
       success: true,
@@ -141,26 +148,30 @@ router.get("/summary", async (req, res) => {
         total_pnl_percent: totalPnLPercent.toFixed(2),
         holdings_count: holdings.length,
         performance: performance || null,
-        last_updated: performance?.created_at || new Date().toISOString()
+        last_updated: performance?.created_at || new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Add trading mode context
-    const responseWithTradingMode = await addTradingModeContext(responseData, userId);
-    
+    const responseWithTradingMode = await addTradingModeContext(
+      responseData,
+      userId
+    );
+
     // Add performance disclaimer for portfolio context
-    responseWithTradingMode.performance_disclaimer = responseWithTradingMode.paper_trading
-      ? "Paper trading performance - results are simulated and may not reflect real trading conditions"
-      : "Live trading performance - results reflect real market conditions and actual trading costs";
-    
+    responseWithTradingMode.performance_disclaimer =
+      responseWithTradingMode.paper_trading
+        ? "Paper trading performance - results are simulated and may not reflect real trading conditions"
+        : "Live trading performance - results reflect real market conditions and actual trading costs";
+
     res.json(responseWithTradingMode);
   } catch (error) {
     console.error("Portfolio summary error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio summary",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -192,7 +203,7 @@ router.get("/positions", async (req, res) => {
       [userId, parseInt(limit)]
     );
 
-    const positions = (result.rows || []).map(row => ({
+    const positions = (result.rows || []).map((row) => ({
       symbol: row.symbol,
       company_name: row.company_name,
       sector: row.sector,
@@ -204,23 +215,23 @@ router.get("/positions", async (req, res) => {
       unrealized_pnl: parseFloat(row.unrealized_pnl).toFixed(2),
       unrealized_pnl_percent: parseFloat(row.unrealized_pnl_percent).toFixed(2),
       created_at: row.created_at,
-      updated_at: row.updated_at
+      updated_at: row.updated_at,
     }));
 
     res.json({
       success: true,
       data: {
         positions: positions,
-        total_positions: positions.length
+        total_positions: positions.length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Portfolio positions error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio positions",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -254,10 +265,14 @@ router.get("/analytics", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
+
     // If user has holdings, get current prices for those symbols
-    if (holdingsResult && holdingsResult.rows && holdingsResult.rows.length > 0) {
-      const symbols = (holdingsResult.rows || []).map(h => h.symbol);
+    if (
+      holdingsResult &&
+      holdingsResult.rows &&
+      holdingsResult.rows.length > 0
+    ) {
+      const symbols = (holdingsResult.rows || []).map((h) => h.symbol);
       const priceQuery = `
         SELECT symbol, close as current_price
         FROM stock_prices
@@ -265,19 +280,19 @@ router.get("/analytics", async (req, res) => {
       `;
 
       const priceResult = await query(priceQuery, [symbols]);
-      
+
       // Create a price map for easy lookup
       const priceMap = {};
       if (priceResult && priceResult.rows) {
-        priceResult.rows.forEach(row => {
+        priceResult.rows.forEach((row) => {
           priceMap[row.symbol] = parseFloat(row.current_price);
         });
       }
-      
+
       // Combine holdings with current prices
-      holdingsResult.rows = holdingsResult.rows.map(holding => ({
+      holdingsResult.rows = holdingsResult.rows.map((holding) => ({
         ...holding,
-        current_price: priceMap[holding.symbol] || holding.avg_cost
+        current_price: priceMap[holding.symbol] || holding.avg_cost,
       }));
     }
 
@@ -287,7 +302,8 @@ router.get("/analytics", async (req, res) => {
         success: false,
         error: "Failed to fetch portfolio holdings from database",
         details: "Database query returned empty result",
-        suggestion: "Ensure database connection is available and user_portfolio table exists"
+        suggestion:
+          "Ensure database connection is available and user_portfolio table exists",
       });
     }
 
@@ -307,8 +323,8 @@ router.get("/analytics", async (req, res) => {
         pnl: pnl,
         pnl_percent: pnlPercent,
         weight: 0, // Will calculate after getting total
-        sector: holding.sector || 'Unknown',
-        industry: holding.industry || 'Unknown',
+        sector: holding.sector || "Unknown",
+        industry: holding.industry || "Unknown",
         last_updated: holding.last_updated,
         currentPrice: holding.current_price,
         avgCost: holding.avg_cost,
@@ -406,44 +422,46 @@ router.get("/analytics", async (req, res) => {
       (sum, h) => sum + parseFloat(h.day_change || 0),
       0
     );
-    const summaryDayGainLossPercent = summaryTotalValue > 0 
-      ? (summaryDayGainLoss / (summaryTotalValue - summaryDayGainLoss)) * 100 
-      : 0;
+    const summaryDayGainLossPercent =
+      summaryTotalValue > 0
+        ? (summaryDayGainLoss / (summaryTotalValue - summaryDayGainLoss)) * 100
+        : 0;
 
     // Calculate top performers for contract compliance
     const topPerformers = holdings
-      .filter(h => h.pnl && h.cost_basis && parseFloat(h.cost_basis) > 0)
-      .map(h => ({
+      .filter((h) => h.pnl && h.cost_basis && parseFloat(h.cost_basis) > 0)
+      .map((h) => ({
         symbol: h.symbol,
-        gainLossPercent: parseFloat(h.cost_basis) > 0 
-          ? (parseFloat(h.pnl || 0) / parseFloat(h.cost_basis)) * 100 
-          : 0
+        gainLossPercent:
+          parseFloat(h.cost_basis) > 0
+            ? (parseFloat(h.pnl || 0) / parseFloat(h.cost_basis)) * 100
+            : 0,
       }))
       .sort((a, b) => b.gainLossPercent - a.gainLossPercent)
       .slice(0, 5);
 
     res.success({
-        holdings: holdings,
-        performance: performance,
-        analytics: analytics,
-        // Contract-required fields at top level
+      holdings: holdings,
+      performance: performance,
+      analytics: analytics,
+      // Contract-required fields at top level
+      totalValue: summaryTotalValue,
+      totalCost: summaryTotalCost,
+      totalGainLoss: summaryTotalPnL,
+      totalGainLossPercent:
+        summaryTotalCost > 0 ? (summaryTotalPnL / summaryTotalCost) * 100 : 0,
+      dayGainLoss: summaryDayGainLoss,
+      dayGainLossPercent: summaryDayGainLossPercent,
+      topPerformers: topPerformers,
+      sectorAllocation: sectorAllocation,
+      summary: {
         totalValue: summaryTotalValue,
-        totalCost: summaryTotalCost,
-        totalGainLoss: summaryTotalPnL,
-        totalGainLossPercent:
-          summaryTotalCost > 0 ? (summaryTotalPnL / summaryTotalCost) * 100 : 0,
-        dayGainLoss: summaryDayGainLoss,
-        dayGainLossPercent: summaryDayGainLossPercent,
-        topPerformers: topPerformers,
-        sectorAllocation: sectorAllocation,
-        summary: {
-          totalValue: summaryTotalValue,
-          totalPnL: summaryTotalPnL,
-          numPositions: holdings.length,
-          topSector: getTopSector(holdings),
-          concentration: calculateConcentration(holdings),
-          riskScore: analytics.riskScore,
-        },
+        totalPnL: summaryTotalPnL,
+        numPositions: holdings.length,
+        topSector: getTopSector(holdings),
+        concentration: calculateConcentration(holdings),
+        riskScore: analytics.riskScore,
+      },
     });
   } catch (error) {
     console.error("Error fetching portfolio analytics:", error);
@@ -453,7 +471,8 @@ router.get("/analytics", async (req, res) => {
       success: false,
       error: "Failed to fetch portfolio analytics",
       details: error.message,
-      suggestion: "Please ensure you have portfolio positions configured or try again later"
+      suggestion:
+        "Please ensure you have portfolio positions configured or try again later",
     });
   }
 });
@@ -462,14 +481,16 @@ router.get("/analytics", async (req, res) => {
 router.get("/analysis", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
-      period = "1y", 
+    const {
+      period = "1y",
       include_sectors = "true",
       include_risk = "true",
-      include_performance = "true" 
+      include_performance = "true",
     } = req.query;
 
-    console.log(`📊 Portfolio analysis requested for user: ${userId}, period: ${period}`);
+    console.log(
+      `📊 Portfolio analysis requested for user: ${userId}, period: ${period}`
+    );
 
     // Try to get real portfolio data from database
     const holdingsQuery = `
@@ -487,18 +508,18 @@ router.get("/analysis", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
+
     if (!holdingsResult || !holdingsResult.rows) {
       return res.status(503).json({
         success: false,
         error: "Database connection failed",
         details: "Unable to retrieve portfolio holdings from database",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     const holdings = holdingsResult?.rows || [];
-    
+
     if (holdings.length === 0) {
       return res.status(404).json({
         success: false,
@@ -508,24 +529,30 @@ router.get("/analysis", async (req, res) => {
           suggestion: "Add portfolio holdings to enable analysis",
           required_data: [
             "Portfolio holdings in portfolio_holdings table",
-            "Company profiles for sector analysis", 
-            "Current market prices for valuation"
-          ]
+            "Company profiles for sector analysis",
+            "Current market prices for valuation",
+          ],
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Calculate real portfolio metrics
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-    const totalCost = holdings.reduce((sum, h) => sum + parseFloat(h.cost_basis || 0), 0);
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
+    const totalCost = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.cost_basis || 0),
+      0
+    );
     const totalPnL = totalValue - totalCost;
-    const totalPnLPercent = totalCost > 0 ? ((totalPnL / totalCost) * 100) : 0;
+    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
 
     // Calculate sector allocation
     const sectorMap = {};
-    holdings.forEach(h => {
-      const sector = h.sector || 'Unknown';
+    holdings.forEach((h) => {
+      const sector = h.sector || "Unknown";
       if (!sectorMap[sector]) {
         sectorMap[sector] = { value: 0, positions: 0 };
       }
@@ -533,12 +560,14 @@ router.get("/analysis", async (req, res) => {
       sectorMap[sector].positions += 1;
     });
 
-    const sectorAllocation = Object.entries(sectorMap).map(([sector, data]) => ({
-      sector,
-      value: data.value,
-      percentage: totalValue > 0 ? ((data.value / totalValue) * 100) : 0,
-      positions: data.positions
-    })).sort((a, b) => b.value - a.value);
+    const sectorAllocation = Object.entries(sectorMap)
+      .map(([sector, data]) => ({
+        sector,
+        value: data.value,
+        percentage: totalValue > 0 ? (data.value / totalValue) * 100 : 0,
+        positions: data.positions,
+      }))
+      .sort((a, b) => b.value - a.value);
 
     // Build real response
     const analysisData = {
@@ -547,30 +576,49 @@ router.get("/analysis", async (req, res) => {
         total_cost: totalCost,
         positions_count: holdings.length,
         unrealized_pnl: totalPnL,
-        unrealized_pnl_percent: totalPnLPercent
+        unrealized_pnl_percent: totalPnLPercent,
       },
       performance: {
         total_return: totalPnL,
-        total_return_percent: totalPnLPercent
+        total_return_percent: totalPnLPercent,
       },
       sector_allocation: sectorAllocation,
-      top_holdings: holdings.slice(0, 10).map(h => ({
+      top_holdings: holdings.slice(0, 10).map((h) => ({
         symbol: h.symbol,
         company_name: h.company_name,
         quantity: parseFloat(h.quantity),
         market_value: parseFloat(h.market_value || 0),
         cost_basis: parseFloat(h.cost_basis || 0),
-        unrealized_pnl: parseFloat(h.market_value || 0) - parseFloat(h.cost_basis || 0),
-        current_price: h.market_value > 0 && h.quantity > 0 ? (h.market_value / h.quantity) : 0,
-        weight: totalValue > 0 ? ((parseFloat(h.market_value || 0) / totalValue) * 100) : 0
+        unrealized_pnl:
+          parseFloat(h.market_value || 0) - parseFloat(h.cost_basis || 0),
+        current_price:
+          h.market_value > 0 && h.quantity > 0
+            ? h.market_value / h.quantity
+            : 0,
+        weight:
+          totalValue > 0
+            ? (parseFloat(h.market_value || 0) / totalValue) * 100
+            : 0,
       })),
       diversification: {
-        position_concentration: holdings.length > 0 ? (Math.max(...holdings.map(h => parseFloat(h.market_value || 0))) / totalValue) * 100 : 0,
-        sector_concentration: sectorAllocation.length > 0 ? Math.max(...sectorAllocation.map(s => s.percentage)) : 0,
-        herfindahl_index: holdings.reduce((sum, h) => {
-          const weight = totalValue > 0 ? (parseFloat(h.market_value || 0) / totalValue) : 0;
-          return sum + (weight * weight);
-        }, 0) * 100
+        position_concentration:
+          holdings.length > 0
+            ? (Math.max(
+                ...holdings.map((h) => parseFloat(h.market_value || 0))
+              ) /
+                totalValue) *
+              100
+            : 0,
+        sector_concentration:
+          sectorAllocation.length > 0
+            ? Math.max(...sectorAllocation.map((s) => s.percentage))
+            : 0,
+        herfindahl_index:
+          holdings.reduce((sum, h) => {
+            const weight =
+              totalValue > 0 ? parseFloat(h.market_value || 0) / totalValue : 0;
+            return sum + weight * weight;
+          }, 0) * 100,
       },
       risk_metrics: {
         volatility: 15.5,
@@ -578,20 +626,29 @@ router.get("/analysis", async (req, res) => {
         sharpe_ratio: 0.85,
         max_drawdown: -8.2,
         var_95: totalValue * 0.03,
-        correlation_to_market: 0.75
+        correlation_to_market: 0.75,
       },
       performance_attribution: {
-        sector_contribution: sectorAllocation.map(sector => ({
+        sector_contribution: sectorAllocation.map((sector) => ({
           sector: sector.sector,
           contribution: (sector.value / totalValue) * totalPnLPercent,
-          weight: sector.percentage
+          weight: sector.percentage,
         })),
-        security_contribution: holdings.slice(0, 5).map(h => ({
+        security_contribution: holdings.slice(0, 5).map((h) => ({
           symbol: h.symbol,
-          contribution: totalValue > 0 ? ((parseFloat(h.market_value || 0) - parseFloat(h.cost_basis || 0)) / totalValue) * 100 : 0,
-          weight: totalValue > 0 ? (parseFloat(h.market_value || 0) / totalValue) * 100 : 0
-        }))
-      }
+          contribution:
+            totalValue > 0
+              ? ((parseFloat(h.market_value || 0) -
+                  parseFloat(h.cost_basis || 0)) /
+                  totalValue) *
+                100
+              : 0,
+          weight:
+            totalValue > 0
+              ? (parseFloat(h.market_value || 0) / totalValue) * 100
+              : 0,
+        })),
+      },
     };
 
     return res.json({
@@ -602,17 +659,16 @@ router.get("/analysis", async (req, res) => {
         period: period,
         holdings_count: holdings.length,
         analysis_date: new Date().toISOString(),
-        data_sources: ["portfolio_holdings", "company_profile", "market_data"]
+        data_sources: ["portfolio_holdings", "company_profile", "market_data"],
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Portfolio analysis error:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to generate portfolio analysis",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -638,23 +694,25 @@ router.get("/risk-analysis", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
+
     // Validate database response
     if (!holdingsResult || !holdingsResult.rows) {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch portfolio holdings for risk analysis",
         details: "Database query returned empty result",
-        suggestion: "Ensure database connection is available and user_portfolio table exists"
+        suggestion:
+          "Ensure database connection is available and user_portfolio table exists",
       });
     }
-    
+
     const holdings = holdingsResult?.rows || [];
 
     // Calculate risk metrics
     const riskAnalysis = calculateRiskMetrics(holdings);
 
-    res.success({data: {
+    res.success({
+      data: {
         portfolioBeta: riskAnalysis.portfolioBeta,
         portfolioVolatility: riskAnalysis.portfolioVolatility,
         var95: riskAnalysis.var95,
@@ -673,9 +731,10 @@ router.get("/risk-analysis", async (req, res) => {
     // Return proper error response instead of mock data
     return res.status(500).json({
       success: false,
-      error: "Failed to perform portfolio risk analysis", 
+      error: "Failed to perform portfolio risk analysis",
       details: error.message,
-      suggestion: "Ensure you have portfolio holdings with sector and beta data available"
+      suggestion:
+        "Ensure you have portfolio holdings with sector and beta data available",
     });
   }
 });
@@ -704,18 +763,22 @@ router.get("/risk-metrics", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
-    if (!holdingsResult || !holdingsResult.rows || holdingsResult.rows.length === 0) {
+
+    if (
+      !holdingsResult ||
+      !holdingsResult.rows ||
+      holdingsResult.rows.length === 0
+    ) {
       return res.status(400).json({
         success: false,
         error: "No portfolio holdings found for risk analysis",
         details: `User ${userId} has no holdings in the portfolio_holdings table`,
-        suggestion: "Add stocks to your portfolio to perform risk analysis"
+        suggestion: "Add stocks to your portfolio to perform risk analysis",
       });
     }
 
     // Get current market prices for holdings to supplement database data
-    const symbols = holdingsResult.rows.map(h => h.symbol);
+    const symbols = holdingsResult.rows.map((h) => h.symbol);
     const priceQuery = `
       SELECT symbol, close as current_price
       FROM stock_prices
@@ -725,30 +788,40 @@ router.get("/risk-metrics", async (req, res) => {
     const priceResult = await query(priceQuery, [symbols]);
     const priceMap = {};
     if (priceResult && priceResult.rows) {
-      priceResult.rows.forEach(row => {
+      priceResult.rows.forEach((row) => {
         priceMap[row.symbol] = row.current_price;
       });
     }
 
     // Update holdings with latest market prices if available
-    const holdings = holdingsResult.rows.map(holding => ({
+    const holdings = holdingsResult.rows.map((holding) => ({
       ...holding,
-      current_price: priceMap[holding.symbol] || holding.current_price || holding.average_cost
+      current_price:
+        priceMap[holding.symbol] ||
+        holding.current_price ||
+        holding.average_cost,
     }));
-    
+
     // Validate database response
     if (!holdingsResult || !holdingsResult.rows) {
-      return res.status(500).json({success: false, error: "Failed to fetch portfolio holdings for risk metrics", 
-        details: "Database query returned empty result",
-        suggestion: "Ensure database connection is available and user_portfolio table exists"
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Failed to fetch portfolio holdings for risk metrics",
+          details: "Database query returned empty result",
+          suggestion:
+            "Ensure database connection is available and user_portfolio table exists",
+        });
     }
 
     // Calculate basic risk metrics
     let totalValue = 0;
     const holdingsWithMetrics = holdings.map((holding) => {
-      const costBasis = holding.cost_basis || (holding.quantity * holding.average_cost);
-      const marketValue = holding.market_value || (holding.quantity * holding.current_price);
+      const costBasis =
+        holding.cost_basis || holding.quantity * holding.average_cost;
+      const marketValue =
+        holding.market_value || holding.quantity * holding.current_price;
       totalValue += marketValue;
 
       return {
@@ -760,8 +833,9 @@ router.get("/risk-metrics", async (req, res) => {
         beta: 1.0, // Default beta - could be enhanced with real data
         volatility: 0.15, // Default volatility 15% - could be enhanced with real data
         sector: holding.sector,
-        pnl: holding.pnl || (marketValue - costBasis),
-        pnl_percent: holding.pnl_percent || ((marketValue - costBasis) / costBasis * 100)
+        pnl: holding.pnl || marketValue - costBasis,
+        pnl_percent:
+          holding.pnl_percent || ((marketValue - costBasis) / costBasis) * 100,
       };
     });
 
@@ -795,7 +869,9 @@ router.get("/risk-metrics", async (req, res) => {
       portfolioVolatility * 100 + concentrationRisk * 50
     );
 
-    res.status(200).json({success: true, data: {
+    res.status(200).json({
+      success: true,
+      data: {
         beta: Math.round(portfolioBeta * 100) / 100, // Match test expectations
         volatility: Math.round(portfolioVolatility * 10000) / 100, // as percentage
         var95: Math.round(var95 * 100) / 100,
@@ -820,7 +896,7 @@ router.get("/risk-metrics", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to calculate portfolio risk metrics",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -829,7 +905,7 @@ router.get("/risk-metrics", async (req, res) => {
 router.get("/:id/holdings", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     console.log(`📊 Holdings for portfolio ${id} requested`);
 
     const result = await query(
@@ -846,27 +922,41 @@ router.get("/:id/holdings", async (req, res) => {
       [id]
     );
 
-    res.status(200).json({success: true, 
-      portfolio_id: id,
-      holdings: result.rows,
-      total_holdings: result.rows.length,
-      total_value: result.rows.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0)
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        portfolio_id: id,
+        holdings: result.rows,
+        total_holdings: result.rows.length,
+        total_value: result.rows.reduce(
+          (sum, h) => sum + parseFloat(h.market_value || 0),
+          0
+        ),
+      });
   } catch (error) {
     console.error(`Portfolio holdings error for ID ${req.params.id}:`, error);
-    
-    if (error.code === '42P01') {
-      return res.error("Portfolio holdings data not available", {
-        message: "Portfolio holdings table does not exist in database.",
-        suggestion: "Portfolio holdings tracking needs to be set up",
-        table_needed: "portfolio_holdings"
-      }, 503);
+
+    if (error.code === "42P01") {
+      return res.error(
+        "Portfolio holdings data not available",
+        {
+          message: "Portfolio holdings table does not exist in database.",
+          suggestion: "Portfolio holdings tracking needs to be set up",
+          table_needed: "portfolio_holdings",
+        },
+        503
+      );
     }
-    
-    res.error("Failed to fetch portfolio holdings", { 
-      message: error.message,
-      portfolio_id: req.params.id
-    }, 500);
+
+    res.error(
+      "Failed to fetch portfolio holdings",
+      {
+        message: error.message,
+        portfolio_id: req.params.id,
+      },
+      500
+    );
   }
 });
 
@@ -875,8 +965,10 @@ router.get("/:id/performance", async (req, res) => {
   try {
     const { id } = req.params;
     const { timeframe = "1y" } = req.query;
-    
-    console.log(`📊 Performance for portfolio ${id} requested, timeframe: ${timeframe}`);
+
+    console.log(
+      `📊 Performance for portfolio ${id} requested, timeframe: ${timeframe}`
+    );
 
     const result = await query(
       `
@@ -892,27 +984,41 @@ router.get("/:id/performance", async (req, res) => {
       [id]
     );
 
-    res.status(200).json({success: true, 
-      portfolio_id: id,
-      performance: result.rows,
-      count: result.rows.length,
-      timeframe: timeframe
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        portfolio_id: id,
+        performance: result.rows,
+        count: result.rows.length,
+        timeframe: timeframe,
+      });
   } catch (error) {
-    console.error(`Portfolio performance error for ID ${req.params.id}:`, error);
-    
-    if (error.code === '42P01') {
-      return res.error("Portfolio performance data not available", {
-        message: "Portfolio performance table does not exist in database.",
-        suggestion: "Portfolio performance tracking needs to be set up",
-        table_needed: "portfolio_performance"
-      }, 503);
+    console.error(
+      `Portfolio performance error for ID ${req.params.id}:`,
+      error
+    );
+
+    if (error.code === "42P01") {
+      return res.error(
+        "Portfolio performance data not available",
+        {
+          message: "Portfolio performance table does not exist in database.",
+          suggestion: "Portfolio performance tracking needs to be set up",
+          table_needed: "portfolio_performance",
+        },
+        503
+      );
     }
-    
-    res.error("Failed to fetch portfolio performance", { 
-      message: error.message,
-      portfolio_id: req.params.id
-    }, 500);
+
+    res.error(
+      "Failed to fetch portfolio performance",
+      {
+        message: error.message,
+        portfolio_id: req.params.id,
+      },
+      500
+    );
   }
 });
 
@@ -947,32 +1053,37 @@ router.get("/performance", async (req, res) => {
       ORDER BY date
     `;
     const performanceResult = await query(performanceQuery, [userId]);
-    const performance = performanceResult && performanceResult.rows ? performanceResult.rows : [];
-    
+    const performance =
+      performanceResult && performanceResult.rows ? performanceResult.rows : [];
+
     console.log(`📊 Retrieved ${performance.length} performance data points`);
-    
+
     if (performance.length === 0) {
       // Return 200 with empty data instead of 404
-      return res.success({
-        performance: [],
-        metrics: {
-          totalReturn: 0,
-          totalReturnPercent: 0,
-          annualizedReturn: 0,
-          volatility: 0,
-          sharpeRatio: 0,
-          maxDrawdown: 0,
-          alpha: 0,
-          beta: 1,
-          winRate: 0
+      return res.success(
+        {
+          performance: [],
+          metrics: {
+            totalReturn: 0,
+            totalReturnPercent: 0,
+            annualizedReturn: 0,
+            volatility: 0,
+            sharpeRatio: 0,
+            maxDrawdown: 0,
+            alpha: 0,
+            beta: 1,
+            winRate: 0,
+          },
+          metadata: {
+            message: "No portfolio performance data found",
+            timeframe: timeframe,
+            period: _timeframeMap[timeframe] || "365 days",
+            suggestion: "Add trades or holdings to generate performance data",
+          },
         },
-        metadata: {
-          message: "No portfolio performance data found",
-          timeframe: timeframe,
-          period: _timeframeMap[timeframe] || "365 days",
-          suggestion: "Add trades or holdings to generate performance data"
-        }
-      }, 200, { message: "Performance data retrieved (empty dataset)" });
+        200,
+        { message: "Performance data retrieved (empty dataset)" }
+      );
     }
 
     // Use performance data from database (already retrieved above)
@@ -1015,18 +1126,26 @@ router.get("/performance", async (req, res) => {
       // Add fields expected by tests
       annualized_return: metrics.annualizedReturn,
       timeWeightedReturn: metrics.totalReturnPercent,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    // Add trading mode context  
-    const responseWithTradingMode = await addTradingModeContext(responseData, userId);
+    // Add trading mode context
+    const responseWithTradingMode = await addTradingModeContext(
+      responseData,
+      userId
+    );
     res.json(responseWithTradingMode);
   } catch (error) {
     console.error("Portfolio performance error:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch portfolio performance", 
-      details: error.message,
-      suggestion: "Ensure portfolio performance data has been recorded or import from broker"
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch portfolio performance",
+        details: error.message,
+        suggestion:
+          "Ensure portfolio performance data has been recorded or import from broker",
+      });
   }
 });
 
@@ -1034,14 +1153,16 @@ router.get("/performance", async (req, res) => {
 router.get("/performance/analysis", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
+    const {
       period = "1y",
       include_risk_metrics = "true",
       include_attribution = "true",
-      benchmark = "SPY"
+      benchmark = "SPY",
     } = req.query;
 
-    console.log(`📊 Portfolio performance analysis requested for user: ${userId}, period: ${period}`);
+    console.log(
+      `📊 Portfolio performance analysis requested for user: ${userId}, period: ${period}`
+    );
 
     // Query portfolio holdings for analysis
     const holdingsQuery = `
@@ -1057,40 +1178,46 @@ router.get("/performance/analysis", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
-    if (!holdingsResult || !holdingsResult.rows || holdingsResult.rows.length === 0) {
+
+    if (
+      !holdingsResult ||
+      !holdingsResult.rows ||
+      holdingsResult.rows.length === 0
+    ) {
       return res.status(400).json({
         success: false,
         error: "No portfolio data found for analysis",
         details: "Portfolio analysis requires holdings data",
-        suggestion: "Please add holdings to your portfolio or sync with your broker"
+        suggestion:
+          "Please add holdings to your portfolio or sync with your broker",
       });
     }
 
     const holdings = holdingsResult?.rows || [];
-    
+
     // Calculate actual portfolio metrics from holdings data
     let totalMarketValue = 0;
     let totalPnl = 0;
     let totalCostBasis = 0;
-    
-    holdings.forEach(holding => {
+
+    holdings.forEach((holding) => {
       totalMarketValue += holding.market_value || 0;
       totalPnl += holding.pnl || 0;
-      totalCostBasis += (holding.quantity * holding.average_cost) || 0;
+      totalCostBasis += holding.quantity * holding.average_cost || 0;
     });
-    
-    const totalReturnPercent = totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
-    
+
+    const totalReturnPercent =
+      totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
+
     // Calculate real sector attribution from actual holdings
     const sectorAnalysis = {};
-    holdings.forEach(holding => {
-      const sector = holding.sector || 'Other';
+    holdings.forEach((holding) => {
+      const sector = holding.sector || "Other";
       const marketValue = parseFloat(holding.market_value || 0);
       const costBasis = parseFloat(holding.cost_basis || marketValue);
       const pnl = marketValue - costBasis;
       const _returnPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-      
+
       if (!sectorAnalysis[sector]) {
         sectorAnalysis[sector] = { value: 0, cost: 0, pnl: 0, holdings: 0 };
       }
@@ -1101,107 +1228,127 @@ router.get("/performance/analysis", async (req, res) => {
     });
 
     // Calculate sector attribution with real data
-    const sectorAttribution = Object.entries(sectorAnalysis).map(([sector, data]) => ({
-      sector,
-      weight: `${((data.value / totalMarketValue) * 100).toFixed(1)}%`,
-      return: `${(data.cost > 0 ? (data.pnl / data.cost) * 100 : 0).toFixed(1)}%`,
-      contribution: `${((data.pnl / totalCostBasis) * 100).toFixed(2)}%`,
-      holdings_count: data.holdings
-    })).sort((a, b) => parseFloat(b.weight) - parseFloat(a.weight));
+    const sectorAttribution = Object.entries(sectorAnalysis)
+      .map(([sector, data]) => ({
+        sector,
+        weight: `${((data.value / totalMarketValue) * 100).toFixed(1)}%`,
+        return: `${(data.cost > 0 ? (data.pnl / data.cost) * 100 : 0).toFixed(1)}%`,
+        contribution: `${((data.pnl / totalCostBasis) * 100).toFixed(2)}%`,
+        holdings_count: data.holdings,
+      }))
+      .sort((a, b) => parseFloat(b.weight) - parseFloat(a.weight));
 
     // Calculate top contributors and detractors from real holdings
-    const holdingReturns = holdings.map(holding => {
+    const holdingReturns = holdings.map((holding) => {
       const marketValue = parseFloat(holding.market_value || 0);
       const costBasis = parseFloat(holding.cost_basis || marketValue);
       const pnl = marketValue - costBasis;
       const returnPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
       const weight = (marketValue / totalMarketValue) * 100;
-      const contribution = totalCostBasis > 0 ? (pnl / totalCostBasis) * 100 : 0;
-      
+      const contribution =
+        totalCostBasis > 0 ? (pnl / totalCostBasis) * 100 : 0;
+
       return {
         symbol: holding.symbol,
         return: `${returnPct.toFixed(1)}%`,
         weight: `${weight.toFixed(1)}%`,
         contribution: `${contribution.toFixed(2)}%`,
-        pnl: pnl
+        pnl: pnl,
       };
     });
 
     const topContributors = holdingReturns
-      .filter(h => h.pnl > 0)
+      .filter((h) => h.pnl > 0)
       .sort((a, b) => b.pnl - a.pnl)
       .slice(0, 5);
-    
+
     const topDetractors = holdingReturns
-      .filter(h => h.pnl < 0)
+      .filter((h) => h.pnl < 0)
       .sort((a, b) => a.pnl - b.pnl)
       .slice(0, 5);
 
     const portfolioAnalysis = {
-        period_analysis: {
-          period: period,
-          start_date: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          end_date: new Date().toISOString().split('T')[0],
-          total_return: `${totalReturnPercent.toFixed(2)}%`,
-          total_market_value: totalMarketValue,
-          total_pnl: totalPnl,
-          holdings_count: holdings.length
-        },
-        risk_metrics: include_risk_metrics === "true" ? {
-          portfolio_value: totalMarketValue,
-          cost_basis: totalCostBasis,
-          unrealized_pnl: totalPnl,
-          return_percentage: totalReturnPercent,
-          sectors_count: Object.keys(sectorAnalysis).length,
-          largest_holding_weight: holdingReturns.length > 0 ? 
-            Math.max(...holdingReturns.map(h => parseFloat(h.weight))) : 0
-        } : null,
-        attribution_analysis: include_attribution === "true" ? {
-          sector_attribution: sectorAttribution,
-          top_contributors: topContributors,
-          top_detractors: topDetractors
-        } : null,
-        benchmark_comparison: benchmark ? {
-          benchmark_symbol: benchmark,
-          portfolio_return: `${totalReturnPercent.toFixed(2)}%`,
-          benchmark_return: "Data not available - requires market data integration",
-          excess_return: "Cannot calculate without benchmark data",
-          tracking_error: "Cannot calculate without benchmark data",
-          information_ratio: null,
-          correlation: null,
-          note: "Benchmark comparison requires historical market data integration"
-        } : null,
-        performance_summary: {
-          total_value: totalMarketValue,
-          total_gain_loss: totalPnl,
-          total_gain_loss_percent: `${totalReturnPercent.toFixed(2)}%`,
-          best_performing_position: topContributors.length > 0 ? 
-            `${topContributors[0].symbol} (${topContributors[0].return})` : "No profitable positions",
-          worst_performing_position: topDetractors.length > 0 ? 
-            `${topDetractors[0].symbol} (${topDetractors[0].return})` : "No losing positions",
-          win_rate: `${(holdingReturns.filter(h => h.pnl > 0).length / holdingReturns.length * 100).toFixed(1)}%`,
-          positions_analyzed: holdings.length
-        }
-      };
+      period_analysis: {
+        period: period,
+        start_date: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
+        end_date: new Date().toISOString().split("T")[0],
+        total_return: `${totalReturnPercent.toFixed(2)}%`,
+        total_market_value: totalMarketValue,
+        total_pnl: totalPnl,
+        holdings_count: holdings.length,
+      },
+      risk_metrics:
+        include_risk_metrics === "true"
+          ? {
+              portfolio_value: totalMarketValue,
+              cost_basis: totalCostBasis,
+              unrealized_pnl: totalPnl,
+              return_percentage: totalReturnPercent,
+              sectors_count: Object.keys(sectorAnalysis).length,
+              largest_holding_weight:
+                holdingReturns.length > 0
+                  ? Math.max(...holdingReturns.map((h) => parseFloat(h.weight)))
+                  : 0,
+            }
+          : null,
+      attribution_analysis:
+        include_attribution === "true"
+          ? {
+              sector_attribution: sectorAttribution,
+              top_contributors: topContributors,
+              top_detractors: topDetractors,
+            }
+          : null,
+      benchmark_comparison: benchmark
+        ? {
+            benchmark_symbol: benchmark,
+            portfolio_return: `${totalReturnPercent.toFixed(2)}%`,
+            benchmark_return:
+              "Data not available - requires market data integration",
+            excess_return: "Cannot calculate without benchmark data",
+            tracking_error: "Cannot calculate without benchmark data",
+            information_ratio: null,
+            correlation: null,
+            note: "Benchmark comparison requires historical market data integration",
+          }
+        : null,
+      performance_summary: {
+        total_value: totalMarketValue,
+        total_gain_loss: totalPnl,
+        total_gain_loss_percent: `${totalReturnPercent.toFixed(2)}%`,
+        best_performing_position:
+          topContributors.length > 0
+            ? `${topContributors[0].symbol} (${topContributors[0].return})`
+            : "No profitable positions",
+        worst_performing_position:
+          topDetractors.length > 0
+            ? `${topDetractors[0].symbol} (${topDetractors[0].return})`
+            : "No losing positions",
+        win_rate: `${((holdingReturns.filter((h) => h.pnl > 0).length / holdingReturns.length) * 100).toFixed(1)}%`,
+        positions_analyzed: holdings.length,
+      },
+    };
 
-      return res.json({
-        success: true,
-        data: portfolioAnalysis,
-        metadata: {
-          analysis_type: "comprehensive_performance",
-          period: period,
-          generated_at: new Date().toISOString(),
-          data_source: "database",
-          message: "Demo performance analysis - add real holdings for actual analysis"
-        }
-      });
-
+    return res.json({
+      success: true,
+      data: portfolioAnalysis,
+      metadata: {
+        analysis_type: "comprehensive_performance",
+        period: period,
+        generated_at: new Date().toISOString(),
+        data_source: "database",
+        message:
+          "Demo performance analysis - add real holdings for actual analysis",
+      },
+    });
   } catch (error) {
     console.error("Portfolio performance analysis error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to generate portfolio performance analysis",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1238,14 +1385,15 @@ router.get("/benchmark", async (req, res) => {
     `;
 
     const benchmarkResult = await query(benchmarkQuery, [benchmark]);
-    
+
     // Validate benchmark data result
     if (!benchmarkResult || !benchmarkResult.rows) {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch benchmark data from database",
         details: "Database query returned empty result for benchmark symbol",
-        suggestion: "Ensure database connection is available and price_daily table contains data for the benchmark symbol"
+        suggestion:
+          "Ensure database connection is available and price_daily table contains data for the benchmark symbol",
       });
     }
     const benchmarkData = benchmarkResult.rows;
@@ -1259,8 +1407,8 @@ router.get("/benchmark", async (req, res) => {
           message: `No benchmark data available for ${benchmark}`,
           performance: 0,
           volatility: 0,
-          returns: []
-        }
+          returns: [],
+        },
       });
     }
 
@@ -1278,7 +1426,10 @@ router.get("/benchmark", async (req, res) => {
       const basePrice = parseFloat(benchmarkData[0]?.price || price);
 
       return {
-        date: row.date instanceof Date ? row.date.toISOString().split("T")[0] : row.date,
+        date:
+          row.date instanceof Date
+            ? row.date.toISOString().split("T")[0]
+            : row.date,
         value: price,
         return: ((price - basePrice) / basePrice) * 100,
         dailyReturn: parseFloat(row.daily_return || 0),
@@ -1286,7 +1437,8 @@ router.get("/benchmark", async (req, res) => {
       };
     });
 
-    res.success({data: {
+    res.success({
+      data: {
         benchmark: benchmark,
         performance: performance,
         totalReturn: Math.round(totalReturn * 100) / 100,
@@ -1300,7 +1452,7 @@ router.get("/benchmark", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to fetch benchmark data",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1314,7 +1466,7 @@ router.get("/holdings", async (req, res) => {
       `Portfolio holdings endpoint called for authenticated user: ${userId}`
     );
 
-    // Query portfolio_holdings table for user's holdings with market data  
+    // Query portfolio_holdings table for user's holdings with market data
     const holdingsQuery = `
       SELECT 
         ph.user_id, ph.symbol, ph.quantity, ph.average_cost, ph.current_price, 
@@ -1420,11 +1572,14 @@ router.get("/holdings", async (req, res) => {
           positions: updatedHoldings.length,
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Add trading mode context
-    const responseWithTradingMode = await addTradingModeContext(responseData, userId);
+    const responseWithTradingMode = await addTradingModeContext(
+      responseData,
+      userId
+    );
     res.json(responseWithTradingMode);
   } catch (error) {
     console.error("Portfolio holdings error:", error);
@@ -1471,21 +1626,21 @@ router.get("/rebalance", async (req, res) => {
 
     if (holdings.length === 0) {
       return res.success({
-          recommendations: [],
-          rebalanceScore: 0,
-          estimatedCost: 0,
-          expectedImprovement: 0,
-          message: "No holdings found to rebalance",
-          summary: {
-            total_value: 0,
-            recommendations_count: 0,
-            rebalance_score: 0,
-            estimated_cost: 0,
-            expected_improvement: 0,
-            risk_reduction: 0,
-            rebalance_needed: false,
-            last_rebalance: null
-          }
+        recommendations: [],
+        rebalanceScore: 0,
+        estimatedCost: 0,
+        expectedImprovement: 0,
+        message: "No holdings found to rebalance",
+        summary: {
+          total_value: 0,
+          recommendations_count: 0,
+          rebalance_score: 0,
+          estimated_cost: 0,
+          expected_improvement: 0,
+          risk_reduction: 0,
+          rebalance_needed: false,
+          last_rebalance: null,
+        },
       });
     }
 
@@ -1535,7 +1690,7 @@ router.get("/rebalance", async (req, res) => {
           const largestHolding = tierHoldings.reduce(
             (max, holding) =>
               holding.market_value > (max?.market_value || 0) ? holding : max,
-0
+            0
           );
 
           if (largestHolding) {
@@ -1587,30 +1742,33 @@ router.get("/rebalance", async (req, res) => {
     `;
 
     const lastRebalanceResult = await query(lastRebalanceQuery, [userId]);
-    const lastRebalance = lastRebalanceResult?.rows?.[0]?.last_rebalance || null;
+    const lastRebalance =
+      lastRebalanceResult?.rows?.[0]?.last_rebalance || null;
 
     res.success({
-        recommendations,
-        rebalanceScore: Math.round(rebalanceScore * 100) / 100,
-        estimatedCost: recommendations.length * 7.95, // Estimated trading fees
-        expectedImprovement: Math.min(rebalanceScore * 0.02, 0.5), // Estimated improvement
-        lastRebalance: lastRebalance
+      recommendations,
+      rebalanceScore: Math.round(rebalanceScore * 100) / 100,
+      estimatedCost: recommendations.length * 7.95, // Estimated trading fees
+      expectedImprovement: Math.min(rebalanceScore * 0.02, 0.5), // Estimated improvement
+      lastRebalance: lastRebalance
+        ? lastRebalance.toISOString().split("T")[0]
+        : null,
+      currentAllocation,
+      targetAllocation,
+      strategy: targetStrategy,
+      totalValue: Math.round(totalValue * 100) / 100,
+      summary: {
+        total_value: Math.round(totalValue * 100) / 100,
+        recommendations_count: recommendations.length,
+        rebalance_score: Math.round(rebalanceScore * 100) / 100,
+        estimated_cost: recommendations.length * 7.95,
+        expected_improvement: Math.min(rebalanceScore * 0.02, 0.5),
+        risk_reduction: Math.max(0, rebalanceScore * 0.01),
+        rebalance_needed: recommendations.length > 0,
+        last_rebalance: lastRebalance
           ? lastRebalance.toISOString().split("T")[0]
           : null,
-        currentAllocation,
-        targetAllocation,
-        strategy: targetStrategy,
-        totalValue: Math.round(totalValue * 100) / 100,
-        summary: {
-          total_value: Math.round(totalValue * 100) / 100,
-          recommendations_count: recommendations.length,
-          rebalance_score: Math.round(rebalanceScore * 100) / 100,
-          estimated_cost: recommendations.length * 7.95,
-          expected_improvement: Math.min(rebalanceScore * 0.02, 0.5),
-          risk_reduction: Math.max(0, rebalanceScore * 0.01),
-          rebalance_needed: recommendations.length > 0,
-          last_rebalance: lastRebalance ? lastRebalance.toISOString().split("T")[0] : null
-        },
+      },
     });
   } catch (error) {
     console.error("Portfolio rebalance error:", error);
@@ -1618,106 +1776,124 @@ router.get("/rebalance", async (req, res) => {
       success: false,
       error: "Failed to generate rebalance suggestions",
       details: error.message,
-      suggestion: "Ensure portfolio holdings and price data are available"
+      suggestion: "Ensure portfolio holdings and price data are available",
     });
   }
 });
 
-// POST /rebalance - Handle custom target allocations  
+// POST /rebalance - Handle custom target allocations
 router.post("/rebalance", async (req, res) => {
   const userId = req.user.sub;
-  
+
   try {
     console.log(`POST /rebalance called for user: ${userId}`);
-    
+
     const { target_allocations } = req.body;
-    
-    if (!target_allocations || typeof target_allocations !== 'object') {
+
+    if (!target_allocations || typeof target_allocations !== "object") {
       return res.error("target_allocations required", 400);
     }
-    
+
     // Validate allocation percentages (allow partial allocations up to 100%)
-    const totalAllocation = Object.values(target_allocations).reduce((sum, val) => sum + parseFloat(val || 0), 0);
+    const totalAllocation = Object.values(target_allocations).reduce(
+      (sum, val) => sum + parseFloat(val || 0),
+      0
+    );
     if (totalAllocation > 100.1) {
-      return res.error(`Target allocation percentages cannot exceed 100%, got ${totalAllocation.toFixed(1)}%`, 400);
+      return res.error(
+        `Target allocation percentages cannot exceed 100%, got ${totalAllocation.toFixed(1)}%`,
+        400
+      );
     }
     if (totalAllocation <= 0) {
-      return res.error("Target allocation percentages must be greater than 0%", 400);
+      return res.error(
+        "Target allocation percentages must be greater than 0%",
+        400
+      );
     }
-    
+
     // Generate recommendations based on custom allocations
     const holdingsQuery = `
       SELECT symbol, quantity, market_value, current_price
       FROM portfolio_holdings 
       WHERE user_id = $1 AND quantity > 0
     `;
-    
+
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = holdingsResult?.rows || [];
-    
+
     if (holdings.length === 0) {
       return res.success({
         recommendations: [],
         data: {
-          recommendations: []
-        }
+          recommendations: [],
+        },
       });
     }
-    
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
     const recommendations = [];
-    
+
     // Generate recommendations based on target vs current allocations
     for (const [symbol, targetPercent] of Object.entries(target_allocations)) {
-      const holding = holdings.find(h => h.symbol === symbol);
+      const holding = holdings.find((h) => h.symbol === symbol);
       const currentValue = holding ? parseFloat(holding.market_value || 0) : 0;
-      const currentPercent = totalValue > 0 ? (currentValue / totalValue) * 100 : 0;
+      const currentPercent =
+        totalValue > 0 ? (currentValue / totalValue) * 100 : 0;
       const targetValue = (parseFloat(targetPercent) / 100) * totalValue;
       const difference = targetValue - currentValue;
-      
-      if (Math.abs(difference) > totalValue * 0.01) { // 1% threshold
+
+      if (Math.abs(difference) > totalValue * 0.01) {
+        // 1% threshold
         recommendations.push({
           symbol: symbol,
-          action: difference > 0 ? 'buy' : 'sell',
+          action: difference > 0 ? "buy" : "sell",
           current_allocation: parseFloat(currentPercent.toFixed(2)),
           target_allocation: parseFloat(targetPercent),
           difference: parseFloat(difference.toFixed(2)),
-          shares_needed: holding && holding.current_price > 0 ? Math.abs(difference / parseFloat(holding.current_price)) : 0
+          shares_needed:
+            holding && holding.current_price > 0
+              ? Math.abs(difference / parseFloat(holding.current_price))
+              : 0,
         });
       }
     }
-    
+
     res.success({
       recommendations: recommendations,
       summary: {
         total_recommendations: recommendations.length,
         total_value: totalValue,
-        target_allocations: target_allocations
-      }
+        target_allocations: target_allocations,
+      },
     });
-    
   } catch (error) {
     console.error("POST /rebalance error:", error);
-    res.serverError("Failed to generate rebalance recommendations", { details: error.message });
+    res.serverError("Failed to generate rebalance recommendations", {
+      details: error.message,
+    });
   }
 });
 
 // Execute portfolio rebalance
 router.post("/rebalance/execute", async (req, res) => {
   const userId = req.user.sub;
-  
+
   try {
     console.log(`Portfolio rebalance execution called for user: ${userId}`);
-    
+
     const { recommendations } = req.body;
-    
+
     if (!recommendations || !Array.isArray(recommendations)) {
       return res.status(400).json({
         success: false,
-        error: "Rebalance recommendations required"
+        error: "Rebalance recommendations required",
       });
     }
-    
+
     // Update portfolio metadata with rebalance timestamp
     const updateMetadataQuery = `
       INSERT INTO portfolio_metadata (
@@ -1734,51 +1910,51 @@ router.post("/rebalance/execute", async (req, res) => {
         rebalance_count = COALESCE(portfolio_metadata.rebalance_count, 0) + 1,
         updated_at = $4
     `;
-    
+
     const now = new Date();
-    await query(updateMetadataQuery, [userId, 'default', now, now]);
-    
+    await query(updateMetadataQuery, [userId, "default", now, now]);
+
     // Log rebalance transactions
     for (const rec of recommendations) {
-      if (rec.action !== 'hold') {
+      if (rec.action !== "hold") {
         const transactionQuery = `
           INSERT INTO portfolio_transactions (
             user_id, symbol, transaction_type, quantity, price, total_value, created_at
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7)
         `;
-        
+
         const quantity = Math.abs(rec.shares_to_trade || 0);
         const price = rec.current_price || 0;
-        
+
         await query(transactionQuery, [
-          userId, 
-          rec.symbol, 
-          'rebalance', 
-          quantity, 
-          price, 
+          userId,
+          rec.symbol,
+          "rebalance",
+          quantity,
+          price,
           quantity * price,
-          now
+          now,
         ]);
       }
     }
-    
+
     res.json({
       success: true,
       data: {
         message: "Rebalance executed successfully",
-        rebalance_date: now.toISOString().split('T')[0],
-        transactions_logged: recommendations.filter(r => r.action !== 'hold').length
+        rebalance_date: now.toISOString().split("T")[0],
+        transactions_logged: recommendations.filter((r) => r.action !== "hold")
+          .length,
       },
-      timestamp: now.toISOString()
+      timestamp: now.toISOString(),
     });
-    
   } catch (error) {
     console.error("Portfolio rebalance execution error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to execute rebalance",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1825,7 +2001,7 @@ router.get("/risk", async (req, res) => {
           alerts: [],
           message: "No holdings found for risk analysis",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1938,7 +2114,7 @@ router.get("/risk", async (req, res) => {
     }
 
     res.status(200).json({
-      success: true, 
+      success: true,
       data: {
         riskScore: Math.round(riskScore * 100) / 100,
         riskLevel,
@@ -1981,7 +2157,8 @@ router.get("/risk", async (req, res) => {
       success: false,
       error: "Failed to fetch risk analysis",
       details: error.message,
-      suggestion: "Ensure portfolio holdings with beta and volatility data are available"
+      suggestion:
+        "Ensure portfolio holdings with beta and volatility data are available",
     });
   }
 });
@@ -2007,7 +2184,13 @@ router.post("/sync/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "No API key found for this broker. Please connect your account first." });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          error:
+            "No API key found for this broker. Please connect your account first.",
+        });
     }
 
     const keyData = keyResult.rows[0];
@@ -2068,18 +2251,27 @@ router.post("/sync/:brokerName", async (req, res) => {
 
     console.log(`Portfolio sync completed successfully for user ${userId}`);
 
-    res.status(200).json({success: true, message: "Portfolio synchronized successfully",
-      data: syncResult,
-      timestamp: new Date().toISOString(),
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: "Portfolio synchronized successfully",
+        data: syncResult,
+        timestamp: new Date().toISOString(),
+      });
   } catch (error) {
     console.error(
       `Portfolio sync error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res.status(500).json({success: false, error: "Failed to sync portfolio. Please check your API credentials and try again.", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error:
+          "Failed to sync portfolio. Please check your API credentials and try again.",
+        details: error.message,
+      });
   }
 });
 
@@ -2107,7 +2299,8 @@ router.get("/transactions/:brokerName", async (req, res) => {
     if (keyResult.rows.length === 0) {
       return res.status(400).json({
         success: false,
-        error: "No API key found for this broker. Please connect your account first."
+        error:
+          "No API key found for this broker. Please connect your account first.",
       });
     }
 
@@ -2158,7 +2351,7 @@ router.get("/transactions/:brokerName", async (req, res) => {
           success: false,
           error: `Transaction history not supported for broker '${brokerName}' yet`,
           supportedBrokers: ["alpaca"],
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
     }
 
@@ -2173,7 +2366,7 @@ router.get("/transactions/:brokerName", async (req, res) => {
         count: transactions.length,
         broker: brokerName,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(
@@ -2182,8 +2375,9 @@ router.get("/transactions/:brokerName", async (req, res) => {
     );
     return res.status(500).json({
       success: false,
-      error: "Failed to retrieve transactions. Please check your API credentials and try again.",
-      details: error.message
+      error:
+        "Failed to retrieve transactions. Please check your API credentials and try again.",
+      details: error.message,
     });
   }
 });
@@ -2209,7 +2403,13 @@ router.get("/valuation/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "No API key found for this broker. Please connect your account first." });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          error:
+            "No API key found for this broker. Please connect your account first.",
+        });
     }
 
     const keyData = keyResult.rows[0];
@@ -2262,18 +2462,27 @@ router.get("/valuation/:brokerName", async (req, res) => {
         );
     }
 
-    res.status(200).json({success: true, message: "Portfolio valuation retrieved successfully",
-      data: valuation,
-      timestamp: new Date().toISOString(),
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: "Portfolio valuation retrieved successfully",
+        data: valuation,
+        timestamp: new Date().toISOString(),
+      });
   } catch (error) {
     console.error(
       `Portfolio valuation error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res.status(500).json({success: false, error: "Failed to retrieve portfolio valuation. Please check your API credentials and try again.", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error:
+          "Failed to retrieve portfolio valuation. Please check your API credentials and try again.",
+        details: error.message,
+      });
   }
 });
 
@@ -2315,30 +2524,31 @@ router.get("/optimization", async (req, res) => {
         diversificationScore: optimizations.diversificationScore,
         optimization: {
           recommendations: optimizations.actions,
-          riskTolerance: req.query.risk_tolerance || 'moderate',
-          includeRebalancing: req.query.include_rebalancing === 'true',
+          riskTolerance: req.query.risk_tolerance || "moderate",
+          includeRebalancing: req.query.include_rebalancing === "true",
           expectedReturn: optimizations.expectedImprovement,
           riskReduction: optimizations.riskReduction,
           current_allocation: calculateCurrentAllocation(holdings),
-          optimal_allocation: optimizations.suggestedAllocation
-        }
+          optimal_allocation: optimizations.suggestedAllocation,
+        },
       },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error generating portfolio optimization:", error);
-    
+
     return res.status(503).json({
       success: false,
       error: "Portfolio optimization failed",
       details: error.message,
-      suggestion: "Portfolio optimization requires sufficient position data and market data feeds. Please ensure your portfolio has holdings and try again later.",
+      suggestion:
+        "Portfolio optimization requires sufficient position data and market data feeds. Please ensure your portfolio has holdings and try again later.",
       service: "portfolio-optimization",
       requirements: [
         "Active portfolio positions with current market values",
         "Historical price data for risk calculations",
-        "Market data connectivity for real-time analysis"
-      ]
+        "Market data connectivity for real-time analysis",
+      ],
     });
   }
 });
@@ -2346,7 +2556,7 @@ router.get("/optimization", async (req, res) => {
 // POST /portfolio/optimization/execute - Execute optimization recommendations
 router.post("/optimization/execute", async (req, res) => {
   const userId = req.user.sub;
-  const { recommendations, riskTolerance = 'moderate' } = req.body;
+  const { recommendations, riskTolerance = "moderate" } = req.body;
 
   console.log(`Portfolio optimization execution requested for user: ${userId}`);
 
@@ -2355,21 +2565,25 @@ router.post("/optimization/execute", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Invalid recommendations provided",
-        details: "Recommendations must be provided as an array"
+        details: "Recommendations must be provided as an array",
       });
     }
 
     // Simulate execution of optimization recommendations
     const executionResults = [];
     for (const recommendation of recommendations) {
-      if (recommendation.type === 'rebalance' && recommendation.symbol && recommendation.targetWeight !== undefined) {
+      if (
+        recommendation.type === "rebalance" &&
+        recommendation.symbol &&
+        recommendation.targetWeight !== undefined
+      ) {
         executionResults.push({
           symbol: recommendation.symbol,
-          action: 'rebalanced',
+          action: "rebalanced",
           fromWeight: recommendation.currentWeight || 0,
           toWeight: recommendation.targetWeight,
-          status: 'executed',
-          timestamp: new Date().toISOString()
+          status: "executed",
+          timestamp: new Date().toISOString(),
         });
       }
     }
@@ -2382,18 +2596,17 @@ router.post("/optimization/execute", async (req, res) => {
         total: recommendations.length,
         results: executionResults,
         riskTolerance: riskTolerance,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       },
-      message: `Successfully executed ${executionResults.length} optimization recommendations`
+      message: `Successfully executed ${executionResults.length} optimization recommendations`,
     });
-
   } catch (error) {
     console.error("Error executing portfolio optimization:", error);
     res.status(500).json({
       success: false,
       error: "Portfolio optimization execution failed",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2401,9 +2614,11 @@ router.post("/optimization/execute", async (req, res) => {
 // GET /portfolio/metrics - Detailed portfolio metrics
 router.get("/metrics", async (req, res) => {
   const userId = req.user.sub;
-  const { period = '30d', include_risk = 'false' } = req.query;
+  const { period = "30d", include_risk = "false" } = req.query;
 
-  console.log(`Portfolio metrics requested for user: ${userId}, period: ${period}, include_risk: ${include_risk}`);
+  console.log(
+    `Portfolio metrics requested for user: ${userId}, period: ${period}, include_risk: ${include_risk}`
+  );
 
   try {
     // Get portfolio holdings
@@ -2415,13 +2630,13 @@ router.get("/metrics", async (req, res) => {
       WHERE user_id = $1 AND quantity > 0 
       ORDER BY market_value DESC
     `;
-    
+
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = holdingsResult?.rows || [];
 
     // Get performance data based on period
     let performanceQuery;
-    if (period === '30d') {
+    if (period === "30d") {
       performanceQuery = `
         SELECT total_value, daily_pnl, daily_pnl_percent, created_at as date
         FROM portfolio_performance 
@@ -2442,8 +2657,14 @@ router.get("/metrics", async (req, res) => {
     const performance = performanceResult.rows;
 
     // Calculate basic metrics
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-    const totalCost = holdings.reduce((sum, h) => sum + parseFloat(h.cost_basis || 0), 0);
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
+    const totalCost = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.cost_basis || 0),
+      0
+    );
     const totalPnl = totalValue - totalCost;
     const totalReturn = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
 
@@ -2455,41 +2676,52 @@ router.get("/metrics", async (req, res) => {
         totalPnl,
         totalReturn,
         numberOfHoldings: holdings.length,
-        averageHoldingValue: holdings.length > 0 ? totalValue / holdings.length : 0
+        averageHoldingValue:
+          holdings.length > 0 ? totalValue / holdings.length : 0,
       },
       performance: {
         period: period,
-        returns: performance.slice(0, 10).map(p => ({
+        returns: performance.slice(0, 10).map((p) => ({
           date: p.date,
           dailyReturn: parseFloat(p.daily_pnl_percent || 0),
-          cumulativeValue: parseFloat(p.total_value || 0)
-        }))
+          cumulativeValue: parseFloat(p.total_value || 0),
+        })),
       },
       holdings: {
         largestPosition: holdings[0] || null,
-        topHoldings: holdings.slice(0, 5).map(h => ({
+        topHoldings: holdings.slice(0, 5).map((h) => ({
           symbol: h.symbol,
           value: parseFloat(h.market_value || 0),
-          percentage: totalValue > 0 ? (parseFloat(h.market_value || 0) / totalValue) * 100 : 0,
+          percentage:
+            totalValue > 0
+              ? (parseFloat(h.market_value || 0) / totalValue) * 100
+              : 0,
           unrealizedPnl: parseFloat(h.unrealized_pnl || 0),
-          unrealizedPnlPercent: parseFloat(h.unrealized_pnl_percent || 0)
-        }))
-      }
+          unrealizedPnlPercent: parseFloat(h.unrealized_pnl_percent || 0),
+        })),
+      },
     };
 
     // Add risk metrics if requested
-    if (include_risk === 'true' && performance.length > 1) {
-      const returns = performance.slice(0, 30).map(p => parseFloat(p.daily_pnl_percent || 0));
+    if (include_risk === "true" && performance.length > 1) {
+      const returns = performance
+        .slice(0, 30)
+        .map((p) => parseFloat(p.daily_pnl_percent || 0));
       const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-      const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+      const variance =
+        returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+        returns.length;
       const volatility = Math.sqrt(variance);
-      
+
       metrics.risk = {
         volatility: volatility,
         sharpeRatio: volatility > 0 ? avgReturn / volatility : 0,
         maxDrawdown: Math.min(...returns),
         beta: 0.8, // Placeholder - would need market data for actual calculation
-        var95: returns.length > 0 ? returns.sort((a, b) => a - b)[Math.floor(returns.length * 0.05)] : 0
+        var95:
+          returns.length > 0
+            ? returns.sort((a, b) => a - b)[Math.floor(returns.length * 0.05)]
+            : 0,
       };
     }
 
@@ -2501,23 +2733,27 @@ router.get("/metrics", async (req, res) => {
           total_cost: totalCost,
           unrealized_pnl: totalPnl,
           total_return: totalReturn,
-          daily_return: performance.length > 0 ? parseFloat(performance[0].daily_pnl_percent || 0) : 0,
+          daily_return:
+            performance.length > 0
+              ? parseFloat(performance[0].daily_pnl_percent || 0)
+              : 0,
           number_of_holdings: holdings.length,
           largest_position: holdings[0] || null,
           ...metrics,
-          ...(include_risk === 'true' && metrics.risk ? { risk: metrics.risk } : {})
-        }
+          ...(include_risk === "true" && metrics.risk
+            ? { risk: metrics.risk }
+            : {}),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error retrieving portfolio metrics:", error);
     res.status(500).json({
       success: false,
       error: "Failed to retrieve portfolio metrics",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2525,23 +2761,29 @@ router.get("/metrics", async (req, res) => {
 // GET /portfolio/holdings/detailed - Enhanced holdings with filtering/sorting
 router.get("/holdings/detailed", async (req, res) => {
   const userId = req.user.sub;
-  const { min_value = '0', sort_by = 'market_value', order = 'desc' } = req.query;
+  const {
+    min_value = "0",
+    sort_by = "market_value",
+    order = "desc",
+  } = req.query;
 
-  console.log(`Detailed holdings requested for user: ${userId}, min_value: ${min_value}, sort: ${sort_by} ${order}`);
+  console.log(
+    `Detailed holdings requested for user: ${userId}, min_value: ${min_value}, sort: ${sort_by} ${order}`
+  );
 
   try {
     const minValue = parseFloat(min_value) || 0;
-    
+
     // Build the ORDER BY clause
-    let orderClause = 'ORDER BY ';
-    if (sort_by === 'unrealized_pnl') {
-      orderClause += '(market_value - cost_basis)';
-    } else if (sort_by === 'symbol') {
-      orderClause += 'symbol';
+    let orderClause = "ORDER BY ";
+    if (sort_by === "unrealized_pnl") {
+      orderClause += "(market_value - cost_basis)";
+    } else if (sort_by === "symbol") {
+      orderClause += "symbol";
     } else {
-      orderClause += 'market_value';
+      orderClause += "market_value";
     }
-    orderClause += order === 'asc' ? ' ASC' : ' DESC';
+    orderClause += order === "asc" ? " ASC" : " DESC";
 
     const holdingsQuery = `
       SELECT 
@@ -2565,14 +2807,20 @@ router.get("/holdings/detailed", async (req, res) => {
     const holdings = holdingsResult?.rows || [];
 
     // Calculate summary statistics
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-    const totalCost = holdings.reduce((sum, h) => sum + parseFloat(h.cost_basis || 0), 0);
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
+    const totalCost = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.cost_basis || 0),
+      0
+    );
     const totalUnrealizedPnl = totalValue - totalCost;
 
     res.json({
       success: true,
       data: {
-        holdings: holdings.map(h => ({
+        holdings: holdings.map((h) => ({
           symbol: h.symbol,
           quantity: parseFloat(h.quantity || 0),
           market_value: parseFloat(h.market_value || 0),
@@ -2587,36 +2835,36 @@ router.get("/holdings/detailed", async (req, res) => {
           asset_type: h.asset_type,
           sector: h.sector,
           last_updated: h.updated_at,
-          market_cap: '1B+',
+          market_cap: "1B+",
           company_info: {
             name: `${h.symbol} Inc.`,
-            sector: h.sector || 'Technology',
-            market_cap: '1B+'
-          }
+            sector: h.sector || "Technology",
+            market_cap: "1B+",
+          },
         })),
         summary: {
           totalHoldings: holdings.length,
           totalValue: totalValue,
           totalCost: totalCost,
           totalUnrealizedPnl: totalUnrealizedPnl,
-          totalUnrealizedPnlPercent: totalCost > 0 ? (totalUnrealizedPnl / totalCost) * 100 : 0,
+          totalUnrealizedPnlPercent:
+            totalCost > 0 ? (totalUnrealizedPnl / totalCost) * 100 : 0,
           filters: {
             minValue: minValue,
             sortBy: sort_by,
-            order: order
-          }
-        }
+            order: order,
+          },
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error retrieving detailed holdings:", error);
     res.status(500).json({
       success: false,
       error: "Failed to retrieve detailed holdings",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2632,7 +2880,7 @@ router.post("/holdings/add", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
-        details: "Symbol, quantity, and average_cost are required"
+        details: "Symbol, quantity, and average_cost are required",
       });
     }
 
@@ -2641,14 +2889,15 @@ router.post("/holdings/add", async (req, res) => {
     const costBasis = parseFloat(quantity) * parseFloat(cost);
 
     // Check for duplicate holdings
-    const existingQuery = 'SELECT * FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2';
+    const existingQuery =
+      "SELECT * FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2";
     const existing = await query(existingQuery, [userId, symbol]);
 
     if (existing.rows.length > 0) {
       return res.status(409).json({
         success: false,
         error: "Holding already exists",
-        details: `A holding for ${symbol} already exists in the portfolio`
+        details: `A holding for ${symbol} already exists in the portfolio`,
       });
     }
 
@@ -2659,9 +2908,15 @@ router.post("/holdings/add", async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
       RETURNING *
     `;
-    
+
     const result = await query(insertQuery, [
-      userId, symbol, quantity, cost, currentPrice, marketValue, costBasis
+      userId,
+      symbol,
+      quantity,
+      cost,
+      currentPrice,
+      marketValue,
+      costBasis,
     ]);
 
     res.status(201).json({
@@ -2671,18 +2926,17 @@ router.post("/holdings/add", async (req, res) => {
         quantity: parseFloat(quantity),
         average_cost: parseFloat(cost),
         holding: result?.rows?.[0] || {},
-        message: `Successfully added ${quantity} shares of ${symbol} to portfolio`
+        message: `Successfully added ${quantity} shares of ${symbol} to portfolio`,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error adding holding:", error);
     res.status(500).json({
       success: false,
       error: "Failed to add holding",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2690,7 +2944,7 @@ router.post("/holdings/add", async (req, res) => {
 // GET /portfolio/performance/history - Historical performance data
 router.get("/performance/history", async (req, res) => {
   const userId = req.user.sub;
-  const { start_date, end_date, benchmark, limit = '100' } = req.query;
+  const { start_date, end_date, benchmark, limit = "100" } = req.query;
 
   try {
     // Validate limit parameter
@@ -2698,7 +2952,8 @@ router.get("/performance/history", async (req, res) => {
     if (limitValue > 1000) {
       return res.status(400).json({
         success: false,
-        error: "limit parameter cannot exceed 1000 records for performance reasons"
+        error:
+          "limit parameter cannot exceed 1000 records for performance reasons",
       });
     }
 
@@ -2708,35 +2963,35 @@ router.get("/performance/history", async (req, res) => {
       WHERE user_id = $1
     `;
     const queryParams = [userId];
-    
+
     if (start_date && end_date) {
-      performanceQuery += ' AND created_at BETWEEN $2 AND $3';
+      performanceQuery += " AND created_at BETWEEN $2 AND $3";
       queryParams.push(start_date, end_date);
     }
-    
+
     performanceQuery += ` ORDER BY created_at DESC LIMIT ${Math.min(limitValue, 1000)}`;
 
     const performanceResult = await query(performanceQuery, queryParams);
     const performance = performanceResult.rows;
 
     const data = {
-      history: performance.map(p => ({
+      history: performance.map((p) => ({
         date: p.date,
         total_value: parseFloat(p.total_value || 0),
         daily_return: parseFloat(p.daily_pnl || 0),
         daily_return_percent: parseFloat(p.daily_pnl_percent || 0),
-        cumulative_return_percent: parseFloat(p.total_pnl_percent || 0)
+        cumulative_return_percent: parseFloat(p.total_pnl_percent || 0),
       })),
       summary: {
         startDate: start_date,
         endDate: end_date,
-        totalDays: performance.length
+        totalDays: performance.length,
       },
       pagination: {
         limit: limitValue,
         returned: performance.length,
-        hasMore: performance.length === limitValue
-      }
+        hasMore: performance.length === limitValue,
+      },
     };
 
     if (benchmark) {
@@ -2744,26 +2999,25 @@ router.get("/performance/history", async (req, res) => {
         symbol: benchmark,
         comparison: `Performance vs ${benchmark}`,
         // Simplified benchmark data for tests
-        performance: performance.map(p => ({
+        performance: performance.map((p) => ({
           date: p.date,
-          benchmarkReturn: Math.random() * 2 - 1 // Random return for testing
-        }))
+          benchmarkReturn: Math.random() * 2 - 1, // Random return for testing
+        })),
       };
     }
 
     res.json({
       success: true,
       data: data,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error retrieving performance history:", error);
     res.status(500).json({
       success: false,
       error: "Failed to retrieve performance history",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2771,7 +3025,7 @@ router.get("/performance/history", async (req, res) => {
 // GET /portfolio/performance/attribution - Performance attribution analysis
 router.get("/performance/attribution", async (req, res) => {
   const userId = req.user.sub;
-  const { breakdown = 'sectors' } = req.query;
+  const { breakdown = "sectors" } = req.query;
 
   try {
     const holdingsQuery = `
@@ -2786,8 +3040,14 @@ router.get("/performance/attribution", async (req, res) => {
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = holdingsResult?.rows || [];
 
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-    const totalContribution = holdings.reduce((sum, h) => sum + parseFloat(h.contribution || 0), 0);
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
+    const totalContribution = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.contribution || 0),
+      0
+    );
 
     let attributionData = {
       security_selection: totalContribution,
@@ -2797,33 +3057,45 @@ router.get("/performance/attribution", async (req, res) => {
       total: {
         totalValue: totalValue,
         totalContribution: totalContribution,
-        totalReturn: totalValue > 0 ? (totalContribution / totalValue) * 100 : 0
-      }
+        totalReturn:
+          totalValue > 0 ? (totalContribution / totalValue) * 100 : 0,
+      },
     };
 
-    if (breakdown === 'holdings') {
-      attributionData.holdings = holdings.map(h => ({
+    if (breakdown === "holdings") {
+      attributionData.holdings = holdings.map((h) => ({
         symbol: h.symbol,
         contribution: parseFloat(h.contribution || 0),
-        contributionPercent: totalContribution !== 0 ? (parseFloat(h.contribution || 0) / totalContribution) * 100 : 0,
-        weight: totalValue > 0 ? (parseFloat(h.market_value || 0) / totalValue) * 100 : 0
+        contributionPercent:
+          totalContribution !== 0
+            ? (parseFloat(h.contribution || 0) / totalContribution) * 100
+            : 0,
+        weight:
+          totalValue > 0
+            ? (parseFloat(h.market_value || 0) / totalValue) * 100
+            : 0,
       }));
     } else {
       // Sector breakdown
       const sectorContributions = {};
-      holdings.forEach(h => {
-        const sector = h.sector || 'Unknown';
+      holdings.forEach((h) => {
+        const sector = h.sector || "Unknown";
         if (!sectorContributions[sector]) {
           sectorContributions[sector] = 0;
         }
         sectorContributions[sector] += parseFloat(h.contribution || 0);
       });
 
-      attributionData.sectors = Object.entries(sectorContributions).map(([sector, contribution]) => ({
-        sector: sector,
-        contribution: contribution,
-        contributionPercent: totalContribution !== 0 ? (contribution / totalContribution) * 100 : 0
-      }));
+      attributionData.sectors = Object.entries(sectorContributions).map(
+        ([sector, contribution]) => ({
+          sector: sector,
+          contribution: contribution,
+          contributionPercent:
+            totalContribution !== 0
+              ? (contribution / totalContribution) * 100
+              : 0,
+        })
+      );
     }
 
     res.json({
@@ -2831,22 +3103,21 @@ router.get("/performance/attribution", async (req, res) => {
       data: {
         attribution: attributionData,
         breakdown: breakdown,
-        period: 'current',
+        period: "current",
         security_selection: totalContribution,
         sector_allocation: totalContribution * 0.3,
         interaction_effect: totalContribution * 0.1,
-        total_attribution: totalContribution
+        total_attribution: totalContribution,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error calculating performance attribution:", error);
     res.status(500).json({
       success: false,
       error: "Failed to calculate performance attribution",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2854,7 +3125,12 @@ router.get("/performance/attribution", async (req, res) => {
 // POST /portfolio/watchlist/add - Add symbol to watchlist
 router.post("/watchlist/add", async (req, res) => {
   const userId = req.user.sub;
-  const { symbol, alertPrice, target_price, alertType = 'price_above' } = req.body;
+  const {
+    symbol,
+    alertPrice,
+    target_price,
+    alertType = "price_above",
+  } = req.body;
   const price = alertPrice || target_price;
 
   try {
@@ -2862,7 +3138,7 @@ router.post("/watchlist/add", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Symbol is required",
-        details: "Please provide a valid stock symbol"
+        details: "Please provide a valid stock symbol",
       });
     }
 
@@ -2871,7 +3147,7 @@ router.post("/watchlist/add", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Invalid symbol format",
-        details: "Symbol must be 1-5 uppercase letters"
+        details: "Symbol must be 1-5 uppercase letters",
       });
     }
 
@@ -2881,7 +3157,7 @@ router.post("/watchlist/add", async (req, res) => {
       alertPrice: price ? parseFloat(price) : null,
       alertType: alertType,
       addedDate: new Date().toISOString(),
-      isActive: true
+      isActive: true,
     };
 
     res.status(201).json({
@@ -2890,18 +3166,17 @@ router.post("/watchlist/add", async (req, res) => {
         symbol: symbol,
         target_price: price ? parseFloat(price) : null,
         watchlist: watchlistEntry,
-        message: `Successfully added ${symbol} to watchlist`
+        message: `Successfully added ${symbol} to watchlist`,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error adding to watchlist:", error);
     res.status(500).json({
       success: false,
       error: "Failed to add to watchlist",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2909,13 +3184,13 @@ router.post("/watchlist/add", async (req, res) => {
 // GET /portfolio/export - Export portfolio data
 router.get("/export", async (req, res) => {
   const userId = req.user.sub;
-  const { format = 'json', include = 'holdings' } = req.query;
+  const { format = "json", include = "holdings" } = req.query;
 
   try {
-    const includeFields = include.split(',');
+    const includeFields = include.split(",");
     const exportData = {};
 
-    if (includeFields.includes('holdings')) {
+    if (includeFields.includes("holdings")) {
       const holdingsQuery = `
         SELECT symbol, quantity, market_value, average_cost, current_price, cost_basis
         FROM portfolio_holdings 
@@ -2926,7 +3201,7 @@ router.get("/export", async (req, res) => {
       exportData.holdings = holdingsResult.rows;
     }
 
-    if (includeFields.includes('performance')) {
+    if (includeFields.includes("performance")) {
       const performanceQuery = `
         SELECT total_value, daily_pnl, daily_pnl_percent, created_at as date
         FROM portfolio_performance 
@@ -2938,25 +3213,29 @@ router.get("/export", async (req, res) => {
       exportData.performance = performanceResult.rows;
     }
 
-    if (includeFields.includes('analytics')) {
-      const totalValue = exportData.holdings ? 
-        exportData.holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0) : 0;
+    if (includeFields.includes("analytics")) {
+      const totalValue = exportData.holdings
+        ? exportData.holdings.reduce(
+            (sum, h) => sum + parseFloat(h.market_value || 0),
+            0
+          )
+        : 0;
       exportData.analytics = {
         totalValue: totalValue,
         numberOfHoldings: exportData.holdings ? exportData.holdings.length : 0,
-        exportDate: new Date().toISOString()
+        exportDate: new Date().toISOString(),
       };
     }
 
-    if (format === 'csv') {
+    if (format === "csv") {
       // Convert to CSV format (simplified)
-      let csvData = 'Symbol,Quantity,Market Value,Average Cost,Current Price\n';
+      let csvData = "Symbol,Quantity,Market Value,Average Cost,Current Price\n";
       if (exportData.holdings) {
-        exportData.holdings.forEach(h => {
+        exportData.holdings.forEach((h) => {
           csvData += `${h.symbol},${h.quantity},${h.market_value},${h.average_cost},${h.current_price}\n`;
         });
       }
-      
+
       // Return JSON response with CSV data for test compatibility
       res.json({
         success: true,
@@ -2964,9 +3243,9 @@ router.get("/export", async (req, res) => {
           export_data: csvData,
           format: format,
           exportDate: new Date().toISOString(),
-          includedFields: includeFields
+          includedFields: includeFields,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
@@ -2975,19 +3254,18 @@ router.get("/export", async (req, res) => {
           export_data: exportData,
           format: format,
           exportDate: new Date().toISOString(),
-          includedFields: includeFields
+          includedFields: includeFields,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-
   } catch (error) {
     console.error("Error exporting portfolio:", error);
     res.status(500).json({
       success: false,
       error: "Failed to export portfolio",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -3182,7 +3460,6 @@ function calculateAlphaBeta(returns, benchmarkReturns) {
   return { alpha, beta };
 }
 
-
 function calculateInformationRatio(returns, benchmarkReturns) {
   if (returns.length !== benchmarkReturns.length) return 0;
 
@@ -3271,7 +3548,6 @@ function generateRiskRecommendations(riskAnalysis) {
   return recommendations;
 }
 
-
 // Encrypt API keys using AES-256-GCM
 function encryptApiKey(apiKey, userSalt) {
   const algorithm = "aes-256-gcm";
@@ -3326,7 +3602,12 @@ router.post("/api-keys", async (req, res) => {
 
     // Validate required fields
     if (!brokerName || !apiKey) {
-      return res.status(400).json({success: false, error: "Broker name and API key are required"});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Broker name and API key are required",
+        });
     }
 
     // Create user-specific salt
@@ -3377,11 +3658,15 @@ router.post("/api-keys", async (req, res) => {
       `API key stored securely for user ${userId}, broker: ${brokerName}`
     );
 
-    res.status(200).json({success: true, message: "API key stored securely",
-      broker: brokerName,
-      sandbox,
-      timestamp: new Date().toISOString(),
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: "API key stored securely",
+        broker: brokerName,
+        sandbox,
+        timestamp: new Date().toISOString(),
+      });
   } catch (error) {
     console.error("Error storing API key:", error.message); // Don't log full error which might contain keys
     return res.status(500).json({
@@ -3407,25 +3692,34 @@ router.get("/api-keys", async (req, res) => {
 
     // Validate database result
     if (!result) {
-      return res.status(500).json({success: false, error: "Failed to fetch API keys from database", 
-        details: "Database query returned empty result",
-        suggestion: "Ensure database connection is available and user_api_keys table exists"
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Failed to fetch API keys from database",
+          details: "Database query returned empty result",
+          suggestion:
+            "Ensure database connection is available and user_api_keys table exists",
+        });
     }
 
-    res.status(200).json({success: true, data: result.rows.map((row) => ({
+    res.status(200).json({
+      success: true,
+      data: result.rows.map((row) => ({
         brokerName: row.broker_name,
         sandbox: row.is_sandbox,
         connected: true,
         lastUsed: row.last_used,
         createdAt: row.created_at,
-        status: 'active'
+        status: "active",
       })),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching API keys:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch connected brokers", });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch connected brokers" });
   }
 });
 
@@ -3443,18 +3737,26 @@ router.delete("/api-keys/:brokerName", async (req, res) => {
     const result = await query(deleteQuery, [userId, brokerName]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: "API key not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "API key not found" });
     }
 
     console.log(`API key deleted for user ${userId}, broker: ${brokerName}`);
 
-    res.status(200).json({success: true, message: "API key deleted successfully",
-      broker: brokerName,
-      timestamp: new Date().toISOString(),
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: "API key deleted successfully",
+        broker: brokerName,
+        timestamp: new Date().toISOString(),
+      });
   } catch (error) {
     console.error("Error deleting API key:", error);
-    return res.status(500).json({success: false, error: "Failed to delete API key", });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to delete API key" });
   }
 });
 
@@ -3477,7 +3779,13 @@ router.post("/test-connection/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "No API key found for this broker. Please connect your account first." });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          error:
+            "No API key found for this broker. Please connect your account first.",
+        });
     }
 
     const keyData = keyResult.rows[0];
@@ -3533,24 +3841,25 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       case "td_ameritrade": {
         try {
           console.log("🔗 Testing TD Ameritrade connection");
-          
+
           // TD Ameritrade API has been discontinued due to Schwab acquisition
           connectionResult = {
             valid: false,
             error: "TD Ameritrade API has been discontinued",
-            message: "TD Ameritrade was acquired by Charles Schwab. The TD Ameritrade API is no longer available.",
+            message:
+              "TD Ameritrade was acquired by Charles Schwab. The TD Ameritrade API is no longer available.",
             recommendation: {
               action: "Switch to Schwab API",
               documentation: "https://developer.schwab.com/",
-              timeline: "API discontinued as of 2023"
+              timeline: "API discontinued as of 2023",
             },
-            accountInfo: null
+            accountInfo: null,
           };
         } catch (error) {
           connectionResult = {
             valid: false,
             error: `TD Ameritrade connection failed: ${error.message}`,
-            accountInfo: null
+            accountInfo: null,
           };
         }
         break;
@@ -3559,29 +3868,30 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       case "interactive_brokers": {
         try {
           console.log("🔗 Testing Interactive Brokers connection");
-          
+
           // Interactive Brokers requires a more complex setup with TWS or IB Gateway
           // This is a placeholder for basic validation
           connectionResult = {
             valid: false,
             error: "Interactive Brokers integration not yet implemented",
-            message: "Interactive Brokers requires TWS (Trader Workstation) or IB Gateway setup for API access.",
+            message:
+              "Interactive Brokers requires TWS (Trader Workstation) or IB Gateway setup for API access.",
             recommendation: {
               action: "Set up TWS/IB Gateway first",
               documentation: "https://interactivebrokers.github.io/tws-api/",
               requirements: [
                 "Install TWS or IB Gateway",
                 "Enable API connections",
-                "Configure socket connection"
-              ]
+                "Configure socket connection",
+              ],
             },
-            accountInfo: null
+            accountInfo: null,
           };
         } catch (error) {
           connectionResult = {
             valid: false,
             error: `Interactive Brokers connection failed: ${error.message}`,
-            accountInfo: null
+            accountInfo: null,
           };
         }
         break;
@@ -3591,7 +3901,11 @@ router.post("/test-connection/:brokerName", async (req, res) => {
         return res.error(
           `Broker '${brokerName}' connection testing not yet implemented`,
           {
-            supportedBrokers: ["alpaca", "td_ameritrade", "interactive_brokers"],
+            supportedBrokers: [
+              "alpaca",
+              "td_ameritrade",
+              "interactive_brokers",
+            ],
             note: "TD Ameritrade API has been discontinued. Interactive Brokers requires additional setup.",
             timestamp: new Date().toISOString(),
           },
@@ -3607,18 +3921,26 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       );
     }
 
-    res.status(200).json({success: true, connection: connectionResult,
-      broker: brokerName,
-      timestamp: new Date().toISOString(),
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        connection: connectionResult,
+        broker: brokerName,
+        timestamp: new Date().toISOString(),
+      });
   } catch (error) {
     console.error(
       `Connection test error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res.status(500).json({success: false, error: "Failed to test broker connection", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to test broker connection",
+        details: error.message,
+      });
   }
 });
 
@@ -3643,7 +3965,13 @@ router.post("/import/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "No API key found for this broker. Please connect your account first." });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          error:
+            "No API key found for this broker. Please connect your account first.",
+        });
     }
 
     const keyData = keyResult.rows[0];
@@ -3722,7 +4050,8 @@ router.post("/import/:brokerName", async (req, res) => {
       `Portfolio import completed successfully for user ${userId}, ${portfolioData.holdings.length} positions imported`
     );
 
-    res.success({message: "Portfolio imported successfully",
+    res.success({
+      message: "Portfolio imported successfully",
       data: {
         broker: brokerName,
         holdingsCount: portfolioData.holdings.length,
@@ -3737,9 +4066,14 @@ router.post("/import/:brokerName", async (req, res) => {
       `Portfolio import error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res.status(500).json({success: false, error: "Failed to import portfolio. Please check your API credentials and try again.", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error:
+          "Failed to import portfolio. Please check your API credentials and try again.",
+        details: error.message,
+      });
   }
 });
 
@@ -3917,7 +4251,9 @@ async function storeImportedPortfolio(userId, portfolioData) {
   try {
     // Clear existing holdings for this user
     // Note: portfolio_holdings table doesn't exist - skip deletion for now
-    console.log(`Would delete existing holdings for user ${userId} (table doesn't exist)`);
+    console.log(
+      `Would delete existing holdings for user ${userId} (table doesn't exist)`
+    );
 
     // Store portfolio metadata
     const portfolioMetaQuery = `
@@ -3955,7 +4291,9 @@ async function storeImportedPortfolio(userId, portfolioData) {
     ]);
 
     // Insert new holdings with enhanced data
-    console.log(`Inserting ${portfolioData.holdings?.length || 0} holdings for user ${userId}`);
+    console.log(
+      `Inserting ${portfolioData.holdings?.length || 0} holdings for user ${userId}`
+    );
     for (const holding of portfolioData.holdings) {
       const insertHoldingQuery = `
         INSERT INTO portfolio_holdings (
@@ -3977,7 +4315,7 @@ async function storeImportedPortfolio(userId, portfolioData) {
           sector = EXCLUDED.sector,
           last_updated = CURRENT_TIMESTAMP
       `;
-      
+
       await query(insertHoldingQuery, [
         userId,
         holding.symbol,
@@ -3990,11 +4328,13 @@ async function storeImportedPortfolio(userId, portfolioData) {
         holding.pnl_percent,
         holding.day_change,
         holding.day_change_percent,
-        holding.sector || 'Unknown',
-        holding.broker || 'imported'
+        holding.sector || "Unknown",
+        holding.broker || "imported",
       ]);
-      
-      console.log(`Inserted holding: ${holding.symbol} - Qty: ${holding.quantity}, Value: ${holding.market_value}`);
+
+      console.log(
+        `Inserted holding: ${holding.symbol} - Qty: ${holding.quantity}, Value: ${holding.market_value}`
+      );
     }
 
     // Store performance history if available
@@ -4074,7 +4414,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
           var: 0,
           cvar: 0,
           message: "No portfolio holdings found",
-        }
+        },
       });
     }
 
@@ -4093,8 +4433,8 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
         confidence: confidence,
         timeHorizon: timeHorizon,
         methodology: "Monte Carlo Simulation",
-        asOfDate: new Date().toISOString().split("T")[0]
-      }
+        asOfDate: new Date().toISOString().split("T")[0],
+      },
     });
   } catch (error) {
     console.error("Portfolio VaR calculation error:", error);
@@ -4103,13 +4443,14 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
       success: false,
       error: "VaR calculation failed",
       details: error.message,
-      suggestion: "Value at Risk calculation requires portfolio positions with sufficient price history. Please ensure you have active positions and try again later.",
+      suggestion:
+        "Value at Risk calculation requires portfolio positions with sufficient price history. Please ensure you have active positions and try again later.",
       service: "portfolio-var",
       requirements: [
         "Portfolio with active positions",
         "Historical price data for risk calculations",
-        "Market volatility data access"
-      ]
+        "Market volatility data access",
+      ],
     });
   }
 });
@@ -4138,13 +4479,13 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
     if (holdings.length === 0) {
       return res.json({
         success: true,
-        data: { 
+        data: {
           stressTest: {
-            impact: 0, 
+            impact: 0,
             scenario: scenario,
-            message: "No portfolio holdings found"
-          }
-        }
+            message: "No portfolio holdings found",
+          },
+        },
       });
     }
 
@@ -4170,9 +4511,9 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
           currentValue: stressTest.currentValue,
           worstHolding: stressTest.worstHolding,
           bestHolding: stressTest.bestHolding,
-          sectorImpacts: stressTest.sectorImpacts
-        }
-      }
+          sectorImpacts: stressTest.sectorImpacts,
+        },
+      },
     });
   } catch (error) {
     console.error("Stress test error:", error);
@@ -4181,13 +4522,14 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
       success: false,
       error: "Portfolio stress test failed",
       details: error.message,
-      suggestion: "Stress testing requires portfolio positions with sector classification and market beta data. Please ensure your holdings have complete metadata.",
+      suggestion:
+        "Stress testing requires portfolio positions with sector classification and market beta data. Please ensure your holdings have complete metadata.",
       service: "portfolio-stress-test",
       requirements: [
         "Portfolio positions with sector data",
         "Historical volatility and beta calculations",
-        "Market scenario modeling data"
-      ]
+        "Market scenario modeling data",
+      ],
     });
   }
 });
@@ -4205,13 +4547,19 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
       ORDER BY symbol
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
-    const holdings = { rows: holdingsResult.rows, rowCount: holdingsResult.rowCount };
+    const holdings = {
+      rows: holdingsResult.rows,
+      rowCount: holdingsResult.rowCount,
+    };
 
     if (holdings.rows.length < 2) {
-      return res.status(200).json({success: true, 
-        correlations: [],
-        message: "Need at least 2 holdings for correlation analysis",
-      });
+      return res
+        .status(200)
+        .json({
+          success: true,
+          correlations: [],
+          message: "Need at least 2 holdings for correlation analysis",
+        });
     }
 
     // Calculate correlation matrix
@@ -4220,29 +4568,40 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
       period
     );
 
-    res.status(200).json({success: true, correlations: correlationMatrix,
-      symbols: holdings.map((h) => h.symbol),
-      period: period,
-      highCorrelations: correlationMatrix.filter(
-        (c) => Math.abs(c.correlation) > 0.7
-      ),
-      averageCorrelation:
-        correlationMatrix.reduce((sum, c) => sum + Math.abs(c.correlation), 0) /
-        correlationMatrix.length,
-    });
+    res
+      .status(200)
+      .json({
+        success: true,
+        correlations: correlationMatrix,
+        symbols: holdings.map((h) => h.symbol),
+        period: period,
+        highCorrelations: correlationMatrix.filter(
+          (c) => Math.abs(c.correlation) > 0.7
+        ),
+        averageCorrelation:
+          correlationMatrix.reduce(
+            (sum, c) => sum + Math.abs(c.correlation),
+            0
+          ) / correlationMatrix.length,
+      });
   } catch (error) {
     console.error("Correlation analysis error:", error);
 
-    return res.status(503).json({success: false, error: "Correlation analysis failed", 
-      details: error.message,
-      suggestion: "Correlation analysis requires at least 2 portfolio positions with sufficient price history. Please ensure you have multiple holdings with adequate historical data.",
-      service: "portfolio-correlation",
-      requirements: [
-        "At least 2 active portfolio positions",
-        "Historical price data for correlation calculations",
-        "Sufficient data points for statistical significance"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Correlation analysis failed",
+        details: error.message,
+        suggestion:
+          "Correlation analysis requires at least 2 portfolio positions with sufficient price history. Please ensure you have multiple holdings with adequate historical data.",
+        service: "portfolio-correlation",
+        requirements: [
+          "At least 2 active portfolio positions",
+          "Historical price data for correlation calculations",
+          "Sufficient data points for statistical significance",
+        ],
+      });
   }
 });
 
@@ -4268,15 +4627,18 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
       ORDER BY ph.market_value DESC
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
-    const holdings = { rows: holdingsResult.rows, rowCount: holdingsResult.rowCount };
+    const holdings = {
+      rows: holdingsResult.rows,
+      rowCount: holdingsResult.rowCount,
+    };
 
     if (holdings.rows.length === 0) {
       return res.json({
         success: true,
         data: {
           concentration: {},
-          message: "No portfolio holdings found"
-        }
+          message: "No portfolio holdings found",
+        },
       });
     }
 
@@ -4288,8 +4650,8 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
         ...concentrationAnalysis,
         recommendations: generateConcentrationRecommendations(
           concentrationAnalysis
-        )
-      }
+        ),
+      },
     });
   } catch (error) {
     console.error("Concentration analysis error:", error);
@@ -4298,13 +4660,14 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
       success: false,
       error: "Portfolio concentration analysis failed",
       details: error.message,
-      suggestion: "Concentration risk analysis requires portfolio positions with sector and industry classification. Please ensure your holdings have complete metadata and current market values.",
+      suggestion:
+        "Concentration risk analysis requires portfolio positions with sector and industry classification. Please ensure your holdings have complete metadata and current market values.",
       service: "portfolio-concentration",
       requirements: [
         "Portfolio holdings with sector classification",
-        "Current market values for all positions", 
-        "Industry and market cap data for risk scoring"
-      ]
+        "Current market values for all positions",
+        "Industry and market cap data for risk scoring",
+      ],
     });
   }
 });
@@ -4484,7 +4847,7 @@ function calculateConcentrationRisk(holdings) {
       top_10_concentration: 0,
       largest_position_pct: 0,
       positions_over_5_pct: 0,
-      hhi_index: 0
+      hhi_index: 0,
     };
   }
 
@@ -4591,7 +4954,6 @@ function getScenarioDescription(scenario) {
   return descriptions[scenario] || "Custom stress scenario";
 }
 
-
 // Real-time Alpaca portfolio sync function
 async function syncAlpacaPortfolio(userId, apiKey, apiSecret, sandbox) {
   try {
@@ -4653,11 +5015,11 @@ async function syncAlpacaPortfolio(userId, apiKey, apiSecret, sandbox) {
             pnl_percent = EXCLUDED.pnl_percent,
             last_updated = CURRENT_TIMESTAMP
         `;
-        
+
         const costBasis = position.quantity * position.avgEntryPrice;
         const pnl = position.marketValue - costBasis;
         const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-        
+
         await query(upsertPositionQuery, [
           userId,
           position.symbol,
@@ -4668,10 +5030,12 @@ async function syncAlpacaPortfolio(userId, apiKey, apiSecret, sandbox) {
           costBasis,
           pnl,
           pnlPercent,
-          position.sector || 'Unknown'
+          position.sector || "Unknown",
         ]);
-        
-        console.log(`Updated position: ${position.symbol} - Qty: ${position.quantity}, Value: ${position.marketValue}`);
+
+        console.log(
+          `Updated position: ${position.symbol} - Qty: ${position.quantity}, Value: ${position.marketValue}`
+        );
       }
 
       // Remove positions that are no longer held
@@ -4679,10 +5043,12 @@ async function syncAlpacaPortfolio(userId, apiKey, apiSecret, sandbox) {
       if (currentSymbols.length > 0) {
         const deleteOldPositionsQuery = `
           DELETE FROM portfolio_holdings 
-          WHERE user_id = $1 AND broker = 'alpaca' AND symbol NOT IN (${currentSymbols.map((_, i) => `$${i + 2}`).join(',')})
+          WHERE user_id = $1 AND broker = 'alpaca' AND symbol NOT IN (${currentSymbols.map((_, i) => `$${i + 2}`).join(",")})
         `;
         await query(deleteOldPositionsQuery, [userId, ...currentSymbols]);
-        console.log(`Removed old positions for user ${userId}, keeping symbols: ${currentSymbols.join(', ')}`);
+        console.log(
+          `Removed old positions for user ${userId}, keeping symbols: ${currentSymbols.join(", ")}`
+        );
       } else {
         // If no positions, delete all
         const deleteAllPositionsQuery = `DELETE FROM portfolio_holdings WHERE user_id = $1 AND broker = 'alpaca'`;
@@ -4816,8 +5182,10 @@ async function getAlpacaRealTimeValuation(userId, apiKey, apiSecret, sandbox) {
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = holdingsResult?.rows || [];
-    
-    console.log(`📊 Retrieved ${holdings.length} real Alpaca holdings for user ${userId}`);
+
+    console.log(
+      `📊 Retrieved ${holdings.length} real Alpaca holdings for user ${userId}`
+    );
 
     if (holdings.length === 0) {
       return {
@@ -4905,47 +5273,68 @@ async function getAlpacaRealTimeValuation(userId, apiKey, apiSecret, sandbox) {
   }
 }
 
-
 // Get portfolio transactions
 router.get("/transactions", async (req, res) => {
   try {
     const userId = req.user?.sub;
-    const { 
-      limit = 50, 
-      offset = 0, 
+    const {
+      limit = 50,
+      offset = 0,
       type = "all",
       symbol,
       startDate,
       endDate,
       sortBy = "date",
-      order = "desc"
+      order = "desc",
     } = req.query;
 
-    console.log(`📈 Portfolio transactions requested for user: ${userId}, type: ${type}, limit: ${limit}`);
+    console.log(
+      `📈 Portfolio transactions requested for user: ${userId}, type: ${type}, limit: ${limit}`
+    );
 
     // Validate type
-    const validTypes = ["all", "buy", "sell", "dividend", "split", "transfer", "deposit", "withdrawal"];
+    const validTypes = [
+      "all",
+      "buy",
+      "sell",
+      "dividend",
+      "split",
+      "transfer",
+      "deposit",
+      "withdrawal",
+    ];
     if (!validTypes.includes(type)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid transaction type. Must be one of: " + validTypes.join(", "),
-        requested_type: type
+        error:
+          "Invalid transaction type. Must be one of: " + validTypes.join(", "),
+        requested_type: type,
       });
     }
 
     // Validate sortBy
-    const validSortFields = ["date", "symbol", "type", "quantity", "price", "amount"];
+    const validSortFields = [
+      "date",
+      "symbol",
+      "type",
+      "quantity",
+      "price",
+      "amount",
+    ];
     if (!validSortFields.includes(sortBy)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid sortBy field. Must be one of: " + validSortFields.join(", "),
-        requested_sort: sortBy
+        error:
+          "Invalid sortBy field. Must be one of: " + validSortFields.join(", "),
+        requested_sort: sortBy,
       });
     }
 
     // Set default date range if not provided (last 3 months)
-    const defaultEndDate = new Date().toISOString().split('T')[0];
-    const defaultStartDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const defaultEndDate = new Date().toISOString().split("T")[0];
+    const defaultStartDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
     const finalStartDate = startDate || defaultStartDate;
     const finalEndDate = endDate || defaultEndDate;
 
@@ -4991,7 +5380,7 @@ router.get("/transactions", async (req, res) => {
         created_at
       FROM portfolio_transactions
       ${whereClause}
-      ORDER BY ${sortBy === 'date' ? 'transaction_date' : sortBy} ${order.toUpperCase()}
+      ORDER BY ${sortBy === "date" ? "transaction_date" : sortBy} ${order.toUpperCase()}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
@@ -5019,29 +5408,29 @@ router.get("/transactions", async (req, res) => {
               total_sales: 0,
               total_dividends: 0,
               total_commissions: 0,
-              net_cash_flow: 0
+              net_cash_flow: 0,
             },
             date_range: {
               start: finalStartDate,
-              end: finalEndDate
-            }
+              end: finalEndDate,
+            },
           },
           pagination: {
             limit: parseInt(limit),
             offset: parseInt(offset),
-            has_more: false
+            has_more: false,
           },
           filters: {
             type: type,
             symbol: symbol || null,
             sort: {
               field: sortBy,
-              order: order
-            }
-          }
+              order: order,
+            },
+          },
         },
         message: "No transactions found for the specified criteria",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -5055,15 +5444,16 @@ router.get("/transactions", async (req, res) => {
     let totalSales = 0;
     let totalDividends = 0;
 
-    transactionsData.forEach(txn => {
-      typeDistribution[txn.transaction_type] = (typeDistribution[txn.transaction_type] || 0) + 1;
+    transactionsData.forEach((txn) => {
+      typeDistribution[txn.transaction_type] =
+        (typeDistribution[txn.transaction_type] || 0) + 1;
       totalCommissions += parseFloat(txn.commission || 0);
 
-      if (txn.transaction_type === 'BUY') {
+      if (txn.transaction_type === "BUY") {
         totalPurchases += Math.abs(parseFloat(txn.amount));
-      } else if (txn.transaction_type === 'SELL') {
+      } else if (txn.transaction_type === "SELL") {
         totalSales += Math.abs(parseFloat(txn.amount));
-      } else if (txn.transaction_type === 'DIVIDEND') {
+      } else if (txn.transaction_type === "DIVIDEND") {
         totalDividends += parseFloat(txn.amount);
       }
     });
@@ -5074,44 +5464,51 @@ router.get("/transactions", async (req, res) => {
         transactions: transactionsData,
         summary: {
           total_transactions: totalTransactions,
-          symbols_traded: new Set(transactionsData.map(txn => txn.symbol)).size,
+          symbols_traded: new Set(transactionsData.map((txn) => txn.symbol))
+            .size,
           type_distribution: typeDistribution,
           financial_summary: {
             total_purchases: parseFloat(totalPurchases.toFixed(2)),
             total_sales: parseFloat(totalSales.toFixed(2)),
             total_dividends: parseFloat(totalDividends.toFixed(2)),
             total_commissions: parseFloat(totalCommissions.toFixed(2)),
-            net_cash_flow: parseFloat((totalSales + totalDividends - totalPurchases - totalCommissions).toFixed(2))
+            net_cash_flow: parseFloat(
+              (
+                totalSales +
+                totalDividends -
+                totalPurchases -
+                totalCommissions
+              ).toFixed(2)
+            ),
           },
           date_range: {
             start: finalStartDate,
-            end: finalEndDate
-          }
+            end: finalEndDate,
+          },
         },
         pagination: {
           limit: parseInt(limit),
           offset: parseInt(offset),
-          has_more: transactionsData.length === parseInt(limit)
+          has_more: transactionsData.length === parseInt(limit),
         },
         filters: {
           type: type,
           symbol: symbol || null,
           sort: {
             field: sortBy,
-            order: order
-          }
-        }
+            order: order,
+          },
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Portfolio transactions error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio transactions",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -5125,14 +5522,17 @@ router.get("/risk/analysis", async (req, res) => {
     // Query database for portfolio risk metrics
     let riskScore = null;
     try {
-      const riskResult = await query(`
+      const riskResult = await query(
+        `
         SELECT risk_score, beta, var_1d 
         FROM portfolio_risk 
         WHERE portfolio_id = $1 
         ORDER BY date DESC 
         LIMIT 1
-      `, [userId]);
-      
+      `,
+        [userId]
+      );
+
       riskScore = riskResult.rows[0]?.risk_score || null;
     } catch (error) {
       console.warn("Could not fetch risk metrics:", error.message);
@@ -5151,21 +5551,20 @@ router.get("/risk/analysis", async (req, res) => {
         healthcare: 18.4,
         financial: 15.8,
         consumer: 12.3,
-        other: 18.3
-      }
+        other: 18.3,
+      },
     };
 
     res.json({
       success: true,
       data: { risk_analysis: riskMetrics },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio risk analysis",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5191,7 +5590,7 @@ router.get("/watchlist", async (req, res) => {
       ORDER BY ph.symbol
       LIMIT 10
     `;
-    
+
     const watchlistResult = await query(watchlistQuery, [userId]);
     const watchlist = watchlistResult.rows || [];
 
@@ -5200,17 +5599,16 @@ router.get("/watchlist", async (req, res) => {
       data: { watchlist: watchlist },
       summary: {
         total_symbols: watchlist.length,
-        gainers: watchlist.filter(s => s.change > 0).length,
-        losers: watchlist.filter(s => s.change < 0).length
+        gainers: watchlist.filter((s) => s.change > 0).length,
+        losers: watchlist.filter((s) => s.change < 0).length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio watchlist",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5250,47 +5648,63 @@ router.get("/allocation", async (req, res) => {
             rebalance_needed: false,
             total_value: 0,
             last_rebalance: null,
-            message: "No portfolio holdings found"
-          }
+            message: "No portfolio holdings found",
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Calculate total portfolio value
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
 
     // Calculate asset allocation
     const assetGroups = {};
-    holdings.forEach(h => {
-      const asset_class = h.asset_class || 'Equity';
+    holdings.forEach((h) => {
+      const asset_class = h.asset_class || "Equity";
       if (!assetGroups[asset_class]) assetGroups[asset_class] = 0;
       assetGroups[asset_class] += parseFloat(h.market_value || 0);
     });
 
-    const assetAllocation = Object.entries(assetGroups).map(([asset_class, value]) => ({
-      asset_class,
-      allocation_percent: totalValue > 0 ? parseFloat(((value / totalValue) * 100).toFixed(1)) : 0,
-      target_percent: asset_class === 'Equity' ? 70 : asset_class === 'Bond' ? 20 : 10,
-      market_value: parseFloat(value.toFixed(2))
-    })).map(a => ({
-      ...a,
-      deviation: parseFloat((a.allocation_percent - a.target_percent).toFixed(1))
-    }));
+    const assetAllocation = Object.entries(assetGroups)
+      .map(([asset_class, value]) => ({
+        asset_class,
+        allocation_percent:
+          totalValue > 0
+            ? parseFloat(((value / totalValue) * 100).toFixed(1))
+            : 0,
+        target_percent:
+          asset_class === "Equity" ? 70 : asset_class === "Bond" ? 20 : 10,
+        market_value: parseFloat(value.toFixed(2)),
+      }))
+      .map((a) => ({
+        ...a,
+        deviation: parseFloat(
+          (a.allocation_percent - a.target_percent).toFixed(1)
+        ),
+      }));
 
     // Calculate sector allocation
     const sectorGroups = {};
-    holdings.forEach(h => {
-      const sector = h.sector || 'Technology';
+    holdings.forEach((h) => {
+      const sector = h.sector || "Technology";
       if (!sectorGroups[sector]) sectorGroups[sector] = 0;
       sectorGroups[sector] += parseFloat(h.market_value || 0);
     });
 
-    const sectorAllocation = Object.entries(sectorGroups).map(([sector, value]) => ({
-      sector,
-      allocation_percent: totalValue > 0 ? parseFloat(((value / totalValue) * 100).toFixed(1)) : 0,
-      market_value: parseFloat(value.toFixed(2))
-    }));
+    const sectorAllocation = Object.entries(sectorGroups).map(
+      ([sector, value]) => ({
+        sector,
+        allocation_percent:
+          totalValue > 0
+            ? parseFloat(((value / totalValue) * 100).toFixed(1))
+            : 0,
+        market_value: parseFloat(value.toFixed(2)),
+      })
+    );
 
     // Get last rebalance date from portfolio_metadata table
     let lastRebalanceDate = null;
@@ -5305,7 +5719,10 @@ router.get("/allocation", async (req, res) => {
       const metadataResult = await query(metadataQuery, [userId]);
       lastRebalanceDate = metadataResult.rows[0]?.last_rebalance_date || null;
     } catch (metadataError) {
-      console.log("Portfolio metadata query failed, using fallback:", metadataError.message);
+      console.log(
+        "Portfolio metadata query failed, using fallback:",
+        metadataError.message
+      );
     }
 
     res.json({
@@ -5314,20 +5731,23 @@ router.get("/allocation", async (req, res) => {
         allocation: {
           asset_allocation: assetAllocation,
           sector_allocation: sectorAllocation,
-          rebalance_needed: assetAllocation.some(a => Math.abs(a.deviation) > 5),
+          rebalance_needed: assetAllocation.some(
+            (a) => Math.abs(a.deviation) > 5
+          ),
           total_value: parseFloat(totalValue.toFixed(2)),
-          last_rebalance: lastRebalanceDate ? lastRebalanceDate.toISOString().split('T')[0] : null
-        }
+          last_rebalance: lastRebalanceDate
+            ? lastRebalanceDate.toISOString().split("T")[0]
+            : null,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Portfolio allocation error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio allocation",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5340,19 +5760,69 @@ router.get("/allocations", async (req, res) => {
 
     // Generate realistic portfolio allocation data
     const allocations = [
-      { asset_class: "Equities", allocation_percent: 65.5, target_percent: 70.0, deviation: -4.5 },
-      { asset_class: "Bonds", allocation_percent: 22.3, target_percent: 20.0, deviation: 2.3 },
-      { asset_class: "REITs", allocation_percent: 7.2, target_percent: 5.0, deviation: 2.2 },
-      { asset_class: "Commodities", allocation_percent: 3.1, target_percent: 3.0, deviation: 0.1 },
-      { asset_class: "Cash", allocation_percent: 1.9, target_percent: 2.0, deviation: -0.1 }
+      {
+        asset_class: "Equities",
+        allocation_percent: 65.5,
+        target_percent: 70.0,
+        deviation: -4.5,
+      },
+      {
+        asset_class: "Bonds",
+        allocation_percent: 22.3,
+        target_percent: 20.0,
+        deviation: 2.3,
+      },
+      {
+        asset_class: "REITs",
+        allocation_percent: 7.2,
+        target_percent: 5.0,
+        deviation: 2.2,
+      },
+      {
+        asset_class: "Commodities",
+        allocation_percent: 3.1,
+        target_percent: 3.0,
+        deviation: 0.1,
+      },
+      {
+        asset_class: "Cash",
+        allocation_percent: 1.9,
+        target_percent: 2.0,
+        deviation: -0.1,
+      },
     ];
 
     const sectorAllocation = [
-      { sector: "Technology", allocation_percent: 28.5, target_percent: 25.0, deviation: 3.5 },
-      { sector: "Healthcare", allocation_percent: 15.2, target_percent: 15.0, deviation: 0.2 },
-      { sector: "Financial", allocation_percent: 12.8, target_percent: 15.0, deviation: -2.2 },
-      { sector: "Consumer Discretionary", allocation_percent: 10.1, target_percent: 10.0, deviation: 0.1 },
-      { sector: "Energy", allocation_percent: 8.9, target_percent: 10.0, deviation: -1.1 }
+      {
+        sector: "Technology",
+        allocation_percent: 28.5,
+        target_percent: 25.0,
+        deviation: 3.5,
+      },
+      {
+        sector: "Healthcare",
+        allocation_percent: 15.2,
+        target_percent: 15.0,
+        deviation: 0.2,
+      },
+      {
+        sector: "Financial",
+        allocation_percent: 12.8,
+        target_percent: 15.0,
+        deviation: -2.2,
+      },
+      {
+        sector: "Consumer Discretionary",
+        allocation_percent: 10.1,
+        target_percent: 10.0,
+        deviation: 0.1,
+      },
+      {
+        sector: "Energy",
+        allocation_percent: 8.9,
+        target_percent: 10.0,
+        deviation: -1.1,
+      },
     ];
 
     res.json({
@@ -5360,17 +5830,16 @@ router.get("/allocations", async (req, res) => {
       data: {
         asset_allocation: allocations,
         sector_allocation: sectorAllocation,
-        rebalance_needed: allocations.some(a => Math.abs(a.deviation) > 5),
-        last_updated: new Date().toISOString()
-      }
+        rebalance_needed: allocations.some((a) => Math.abs(a.deviation) > 5),
+        last_updated: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     console.error("Portfolio allocations error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio allocations",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5384,54 +5853,54 @@ router.get("/value", async (req, res) => {
     const valueData = {
       user_id: userId,
       as_of_date: new Date().toISOString(),
-      
+
       portfolio_value: {
         total_value: 0,
         cash_value: 0,
         invested_value: 0,
         margin_value: 0,
-        buying_power: 0
+        buying_power: 0,
       },
-      
+
       daily_change: {
         change_amount: parseFloat((0).toFixed(2)),
         change_percent: parseFloat((0).toFixed(2)),
         unrealized_pnl: parseFloat((0).toFixed(2)),
-        realized_pnl_today: parseFloat((0).toFixed(2))
+        realized_pnl_today: parseFloat((0).toFixed(2)),
       },
-      
+
       asset_allocation: {
         equities: {
           value: 0,
-          percentage: 0
+          percentage: 0,
         },
         fixed_income: {
           value: 0,
-          percentage: 0
+          percentage: 0,
         },
         alternatives: {
           value: 0,
-          percentage: 0
+          percentage: 0,
         },
         commodities: {
           value: 0,
-          percentage: 0
+          percentage: 0,
         },
         cash: {
           value: 0,
-          percentage: 0
-        }
+          percentage: 0,
+        },
       },
-      
+
       top_holdings: [], // Will be populated from database query below
-      
+
       performance_metrics: {
         total_return_dollar: 0,
         total_return_percent: 0,
-        ytd_return: parseFloat((0).toFixed(2))
+        ytd_return: parseFloat((0).toFixed(2)),
       },
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     // Get top holdings from database
@@ -5448,7 +5917,7 @@ router.get("/value", async (req, res) => {
       ORDER BY ph.market_value DESC
       LIMIT 5
     `;
-    
+
     try {
       const topHoldingsResult = await query(topHoldingsQuery, [userId]);
       valueData.top_holdings = topHoldingsResult.rows || [];
@@ -5460,15 +5929,14 @@ router.get("/value", async (req, res) => {
     res.json({
       success: true,
       data: valueData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Portfolio value error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio value",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5478,13 +5946,15 @@ router.get("/returns", async (req, res) => {
   try {
     const userId = req.user.sub;
     const { period = "1y", benchmark = "SPY" } = req.query;
-    console.log(`📈 Portfolio returns requested for user: ${userId}, period: ${period}`);
+    console.log(
+      `📈 Portfolio returns requested for user: ${userId}, period: ${period}`
+    );
 
     const returnsData = {
       user_id: userId,
       period: period,
       benchmark: benchmark.toUpperCase(),
-      
+
       summary_metrics: {
         total_return: parseFloat((0).toFixed(2)),
         benchmark_return: parseFloat((0).toFixed(2)),
@@ -5494,17 +5964,17 @@ router.get("/returns", async (req, res) => {
         sharpe_ratio: 0,
         max_drawdown: 0,
         alpha: parseFloat((0).toFixed(2)),
-        beta: 0
+        beta: 0,
       },
-      
+
       period_breakdown: {
         win_rate: 0,
         best_period: 0,
         worst_period: 0,
         positive_periods: Math.floor(120),
-        negative_periods: Math.floor(80 + 0)
+        negative_periods: Math.floor(80 + 0),
       },
-      
+
       returns_by_period: {
         "1d": parseFloat((0).toFixed(2)),
         "1w": parseFloat((0).toFixed(2)),
@@ -5513,39 +5983,38 @@ router.get("/returns", async (req, res) => {
         "6m": parseFloat((0).toFixed(2)),
         "1y": parseFloat((0).toFixed(2)),
         "3y": parseFloat((0).toFixed(2)),
-        "5y": parseFloat((0).toFixed(2))
+        "5y": parseFloat((0).toFixed(2)),
       },
-      
+
       attribution_analysis: {
         asset_allocation_effect: parseFloat((0).toFixed(2)),
         security_selection_effect: parseFloat((0).toFixed(2)),
         interaction_effect: parseFloat((0).toFixed(2)),
-        fees_and_expenses: 0
+        fees_and_expenses: 0,
       },
-      
+
       sector_contribution: {
         technology: parseFloat((0).toFixed(2)),
         healthcare: parseFloat((0).toFixed(2)),
         financials: parseFloat((0).toFixed(2)),
         consumer_discretionary: parseFloat((0).toFixed(2)),
-        other: parseFloat((0).toFixed(2))
+        other: parseFloat((0).toFixed(2)),
       },
-      
-      last_updated: new Date().toISOString()
+
+      last_updated: new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: returnsData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Portfolio returns error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio returns",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5561,15 +6030,15 @@ router.get("/health", async (req, res) => {
       checks: {
         database: "available",
         calculations: "functional",
-        risk_engine: "operational"
-      }
+        risk_engine: "operational",
+      },
     });
   } catch (error) {
     console.error("Portfolio health check error:", error);
     res.status(500).json({
       success: false,
       error: "Portfolio health check failed",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5578,7 +6047,7 @@ router.get("/health", async (req, res) => {
 router.get("/factors", async (req, res) => {
   try {
     const userId = req.user?.sub;
-    
+
     // Get holdings for factor analysis
     const holdingsQuery = `
       SELECT 
@@ -5592,47 +6061,61 @@ router.get("/factors", async (req, res) => {
       LEFT JOIN stocks s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
-    
+
     const result = await query(holdingsQuery, [userId]);
-    
+
     if (!result || !result.rows) {
       return res.json({
         success: true,
         data: {
           factors: [],
           analysis: "No holdings data available for factor analysis",
-          total_value: 0
-        }
+          total_value: 0,
+        },
       });
     }
-    
+
     const holdings = result.rows;
-    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-    
+    const totalValue = holdings.reduce(
+      (sum, h) => sum + parseFloat(h.market_value || 0),
+      0
+    );
+
     // Calculate factor exposures
     const factors = {
-      beta_exposure: holdings.reduce((sum, h) => sum + (parseFloat(h.beta) * parseFloat(h.market_value || 0)), 0) / Math.max(totalValue, 1),
-      value_exposure: holdings.reduce((sum, h) => sum + ((1 / Math.max(parseFloat(h.pe_ratio), 1)) * parseFloat(h.market_value || 0)), 0) / Math.max(totalValue, 1),
+      beta_exposure:
+        holdings.reduce(
+          (sum, h) =>
+            sum + parseFloat(h.beta) * parseFloat(h.market_value || 0),
+          0
+        ) / Math.max(totalValue, 1),
+      value_exposure:
+        holdings.reduce(
+          (sum, h) =>
+            sum +
+            (1 / Math.max(parseFloat(h.pe_ratio), 1)) *
+              parseFloat(h.market_value || 0),
+          0
+        ) / Math.max(totalValue, 1),
       sector_concentration: calculateSectorConcentration(holdings),
-      size_bias: calculateSizeBias(holdings)
+      size_bias: calculateSizeBias(holdings),
     };
-    
+
     res.json({
       success: true,
       data: {
         factors: factors,
         total_value: totalValue,
         holdings_count: holdings.length,
-        analysis: generateFactorAnalysis(factors)
-      }
+        analysis: generateFactorAnalysis(factors),
+      },
     });
-    
   } catch (error) {
     console.error("Portfolio factors error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to analyze portfolio factors",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5641,60 +6124,73 @@ router.get("/factors", async (req, res) => {
 function calculateSectorConcentration(holdings) {
   const sectorMap = {};
   let totalValue = 0;
-  
-  holdings.forEach(h => {
-    const sector = h.sector || 'Unknown';
+
+  holdings.forEach((h) => {
+    const sector = h.sector || "Unknown";
     const value = parseFloat(h.market_value || 0);
     sectorMap[sector] = (sectorMap[sector] || 0) + value;
     totalValue += value;
   });
-  
+
   const concentrations = Object.entries(sectorMap).map(([sector, value]) => ({
     sector,
-    percentage: totalValue > 0 ? (value / totalValue) * 100 : 0
+    percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
   }));
-  
+
   return concentrations.sort((a, b) => b.percentage - a.percentage);
 }
 
 function calculateSizeBias(holdings) {
-  const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+  const totalValue = holdings.reduce(
+    (sum, h) => sum + parseFloat(h.market_value || 0),
+    0
+  );
   const avgPosition = totalValue / Math.max(holdings.length, 1);
   return avgPosition;
 }
 
 function generateFactorAnalysis(factors) {
   let analysis = [];
-  
+
   if (factors.beta_exposure > 1.2) {
     analysis.push("High market beta exposure - portfolio is aggressive");
   } else if (factors.beta_exposure < 0.8) {
     analysis.push("Low market beta exposure - portfolio is defensive");
   }
-  
+
   if (factors.value_exposure > 0.1) {
     analysis.push("Strong value factor exposure");
   }
-  
-  return analysis.length > 0 ? analysis.join('; ') : "Portfolio shows balanced factor exposures";
+
+  return analysis.length > 0
+    ? analysis.join("; ")
+    : "Portfolio shows balanced factor exposures";
 }
 
 // Advanced Portfolio Analytics Functions
 
 function calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
-  if (!portfolioReturns || !benchmarkReturns || portfolioReturns.length === 0 || benchmarkReturns.length === 0) {
+  if (
+    !portfolioReturns ||
+    !benchmarkReturns ||
+    portfolioReturns.length === 0 ||
+    benchmarkReturns.length === 0
+  ) {
     return {
       correlation: null,
       beta: null,
       alpha: null,
       tracking_error: null,
       information_ratio: null,
-      excess_return: null
+      excess_return: null,
     };
   }
 
   try {
-    const minLength = Math.min(portfolioReturns.length, benchmarkReturns.length);
+    const minLength = Math.min(
+      portfolioReturns.length,
+      benchmarkReturns.length
+    );
     const portfolioSlice = portfolioReturns.slice(0, minLength);
     const benchmarkSlice = benchmarkReturns.slice(0, minLength);
 
@@ -5706,13 +6202,15 @@ function calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
 
     // Calculate excess returns
     const excessReturns = portfolioSlice.map((p, i) => p - benchmarkSlice[i]);
-    const avgExcessReturn = excessReturns.reduce((sum, ret) => sum + ret, 0) / excessReturns.length;
+    const avgExcessReturn =
+      excessReturns.reduce((sum, ret) => sum + ret, 0) / excessReturns.length;
 
     // Calculate tracking error (standard deviation of excess returns)
     const trackingError = calculateStandardDeviation(excessReturns);
 
     // Calculate information ratio
-    const informationRatio = trackingError > 0 ? avgExcessReturn / trackingError : null;
+    const informationRatio =
+      trackingError > 0 ? avgExcessReturn / trackingError : null;
 
     // Calculate annualized metrics
     const annualizedExcessReturn = avgExcessReturn * 252; // 252 trading days
@@ -5723,19 +6221,20 @@ function calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
       beta: Math.round(beta * 1000) / 1000,
       alpha: Math.round(alpha * 10000) / 10000,
       tracking_error: Math.round(annualizedTrackingError * 10000) / 10000,
-      information_ratio: informationRatio ? Math.round(informationRatio * 1000) / 1000 : null,
-      excess_return: Math.round(annualizedExcessReturn * 10000) / 10000
+      information_ratio: informationRatio
+        ? Math.round(informationRatio * 1000) / 1000
+        : null,
+      excess_return: Math.round(annualizedExcessReturn * 10000) / 10000,
     };
-
   } catch (error) {
-    console.error('Error calculating benchmark metrics:', error);
+    console.error("Error calculating benchmark metrics:", error);
     return {
       correlation: null,
       beta: null,
       alpha: null,
       tracking_error: null,
       information_ratio: null,
-      excess_return: null
+      excess_return: null,
     };
   }
 }
@@ -5751,7 +6250,9 @@ function calculateCorrelation(x, y) {
   const sumYY = y.reduce((sum, val) => sum + val * val, 0);
 
   const numerator = n * sumXY - sumX * sumY;
-  const denominator = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+  const denominator = Math.sqrt(
+    (n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY)
+  );
 
   return denominator === 0 ? 0 : numerator / denominator;
 }
@@ -5760,9 +6261,10 @@ function calculateStandardDeviation(values) {
   if (!values || values.length === 0) return 0;
 
   const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDeviations = values.map(val => Math.pow(val - mean, 2));
-  const variance = squaredDeviations.reduce((sum, val) => sum + val, 0) / values.length;
-  
+  const squaredDeviations = values.map((val) => Math.pow(val - mean, 2));
+  const variance =
+    squaredDeviations.reduce((sum, val) => sum + val, 0) / values.length;
+
   return Math.sqrt(variance);
 }
 
@@ -5779,13 +6281,12 @@ function calculateAdvancedRiskMetrics(holdings, performance) {
       expected_shortfall: calculateExpectedShortfall(performance),
       downside_deviation: calculateDownsideDeviation(performance),
       sortino_ratio: calculateSortinoRatio(performance),
-      calmar_ratio: calculateCalmarRatio(performance)
+      calmar_ratio: calculateCalmarRatio(performance),
     };
 
     return metrics;
-
   } catch (error) {
-    console.error('Error calculating advanced risk metrics:', error);
+    console.error("Error calculating advanced risk metrics:", error);
     return {
       portfolio_beta: null,
       concentration_risk: null,
@@ -5797,14 +6298,17 @@ function calculateAdvancedRiskMetrics(holdings, performance) {
       expected_shortfall: null,
       downside_deviation: null,
       sortino_ratio: null,
-      calmar_ratio: null
+      calmar_ratio: null,
     };
   }
 }
 
 function calculatePortfolioBeta(holdings) {
   // Calculate weighted average beta based on individual stock betas
-  const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+  const totalValue = holdings.reduce(
+    (sum, h) => sum + parseFloat(h.market_value || 0),
+    0
+  );
   if (totalValue === 0) return 1.0;
 
   let weightedBeta = 0;
@@ -5821,81 +6325,92 @@ function calculatePortfolioBeta(holdings) {
 function getEstimatedBeta(symbol, sector) {
   // Sector-based beta estimates (based on historical data)
   const sectorBetas = {
-    'Technology': 1.3,
-    'Healthcare': 1.1,
-    'Financials': 1.2,
-    'Consumer Discretionary': 1.1,
-    'Consumer Staples': 0.8,
-    'Energy': 1.4,
-    'Industrials': 1.0,
-    'Materials': 1.1,
-    'Real Estate': 0.9,
-    'Utilities': 0.7,
-    'Communication Services': 1.0,
-    'Unknown': 1.0
+    Technology: 1.3,
+    Healthcare: 1.1,
+    Financials: 1.2,
+    "Consumer Discretionary": 1.1,
+    "Consumer Staples": 0.8,
+    Energy: 1.4,
+    Industrials: 1.0,
+    Materials: 1.1,
+    "Real Estate": 0.9,
+    Utilities: 0.7,
+    "Communication Services": 1.0,
+    Unknown: 1.0,
   };
 
   // Individual stock beta overrides for major stocks
   const stockBetas = {
-    'AAPL': 1.2,
-    'MSFT': 1.0,
-    'GOOGL': 1.1,
-    'AMZN': 1.3,
-    'TSLA': 2.0,
-    'META': 1.4,
-    'NVDA': 1.8,
-    'SPY': 1.0,
-    'QQQ': 1.2
+    AAPL: 1.2,
+    MSFT: 1.0,
+    GOOGL: 1.1,
+    AMZN: 1.3,
+    TSLA: 2.0,
+    META: 1.4,
+    NVDA: 1.8,
+    SPY: 1.0,
+    QQQ: 1.2,
   };
 
-  return stockBetas[symbol] || sectorBetas[sector] || sectorBetas['Unknown'];
+  return stockBetas[symbol] || sectorBetas[sector] || sectorBetas["Unknown"];
 }
-
 
 function calculateVaR(performance, confidenceLevel = 0.05) {
   if (!performance || performance.length < 30) return null;
 
   try {
-    const returns = performance.map(p => parseFloat(p.daily_pnl_percent || 0)).filter(r => !isNaN(r));
+    const returns = performance
+      .map((p) => parseFloat(p.daily_pnl_percent || 0))
+      .filter((r) => !isNaN(r));
     if (returns.length < 30) return null;
 
     returns.sort((a, b) => a - b);
     const index = Math.floor(returns.length * confidenceLevel);
-    
+
     return Math.round(Math.abs(returns[index]) * 100) / 100; // Return as positive percentage
-    
   } catch (error) {
-    console.error('Error calculating VaR:', error);
+    console.error("Error calculating VaR:", error);
     return null;
   }
 }
 
-function calculateSortinoRatio(performance, targetReturn = 0, riskFreeRate = 0.02) {
+function calculateSortinoRatio(
+  performance,
+  targetReturn = 0,
+  riskFreeRate = 0.02
+) {
   if (!performance || performance.length < 10) return null;
 
   try {
-    const returns = performance.map(p => parseFloat(p.daily_pnl_percent || 0)).filter(r => !isNaN(r));
+    const returns = performance
+      .map((p) => parseFloat(p.daily_pnl_percent || 0))
+      .filter((r) => !isNaN(r));
     if (returns.length < 10) return null;
 
-    const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+    const avgReturn =
+      returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
     const annualizedReturn = avgReturn * 252;
-    
+
     // Calculate downside deviation
-    const downsideReturns = returns.filter(r => r < targetReturn);
+    const downsideReturns = returns.filter((r) => r < targetReturn);
     if (downsideReturns.length === 0) return null;
 
-    const downsideVariance = downsideReturns.reduce((sum, ret) => {
-      return sum + Math.pow(ret - targetReturn, 2);
-    }, 0) / returns.length;
+    const downsideVariance =
+      downsideReturns.reduce((sum, ret) => {
+        return sum + Math.pow(ret - targetReturn, 2);
+      }, 0) / returns.length;
 
     const downsideDeviation = Math.sqrt(downsideVariance) * Math.sqrt(252);
-    
+
     if (downsideDeviation === 0) return null;
-    
-    return Math.round(((annualizedReturn - riskFreeRate) / downsideDeviation) * 1000) / 1000;
-    
+
+    return (
+      Math.round(
+        ((annualizedReturn - riskFreeRate) / downsideDeviation) * 1000
+      ) / 1000
+    );
   } catch (error) {
-    console.error('Error calculating Sortino ratio:', error);
+    console.error("Error calculating Sortino ratio:", error);
     return null;
   }
 }
@@ -5903,20 +6418,23 @@ function calculateSortinoRatio(performance, targetReturn = 0, riskFreeRate = 0.0
 function calculateLiquidityRisk(holdings) {
   try {
     if (!holdings || holdings.length === 0) return 0;
-    
+
     // Simple liquidity risk calculation based on position size
-    const totalValue = holdings.reduce((sum, holding) => sum + (holding.market_value || 0), 0);
+    const totalValue = holdings.reduce(
+      (sum, holding) => sum + (holding.market_value || 0),
+      0
+    );
     let liquidityScore = 0;
-    
-    holdings.forEach(holding => {
+
+    holdings.forEach((holding) => {
       const positionWeight = (holding.market_value || 0) / totalValue;
       // Assume larger positions have higher liquidity risk
       liquidityScore += positionWeight * Math.min(positionWeight * 10, 1);
     });
-    
+
     return Math.round(liquidityScore * 1000) / 1000;
   } catch (error) {
-    console.error('Error calculating liquidity risk:', error);
+    console.error("Error calculating liquidity risk:", error);
     return 0;
   }
 }
@@ -5924,14 +6442,14 @@ function calculateLiquidityRisk(holdings) {
 function calculateCurrencyExposure(holdings) {
   try {
     if (!holdings || holdings.length === 0) return {};
-    
+
     // Simple currency exposure - assume all USD for now
     return {
       USD: 1.0,
-      exposure_risk: 0
+      exposure_risk: 0,
     };
   } catch (error) {
-    console.error('Error calculating currency exposure:', error);
+    console.error("Error calculating currency exposure:", error);
     return { USD: 1.0, exposure_risk: 0 };
   }
 }
@@ -5939,71 +6457,96 @@ function calculateCurrencyExposure(holdings) {
 function calculateMarketCapExposure(holdings) {
   try {
     if (!holdings || holdings.length === 0) return {};
-    
+
     // Simple market cap exposure calculation
-    const totalValue = holdings.reduce((sum, holding) => sum + (holding.market_value || 0), 0);
-    
+    const totalValue = holdings.reduce(
+      (sum, holding) => sum + (holding.market_value || 0),
+      0
+    );
+
     return {
       large_cap: 0.6,
       mid_cap: 0.3,
       small_cap: 0.1,
-      concentration_risk: 0.2
+      concentration_risk: 0.2,
     };
   } catch (error) {
-    console.error('Error calculating market cap exposure:', error);
-    return { large_cap: 0.6, mid_cap: 0.3, small_cap: 0.1, concentration_risk: 0.2 };
+    console.error("Error calculating market cap exposure:", error);
+    return {
+      large_cap: 0.6,
+      mid_cap: 0.3,
+      small_cap: 0.1,
+      concentration_risk: 0.2,
+    };
   }
 }
 
 function calculateExpectedShortfall(performance) {
   try {
-    if (!performance || !performance.daily_returns || performance.daily_returns.length === 0) return null;
-    
+    if (
+      !performance ||
+      !performance.daily_returns ||
+      performance.daily_returns.length === 0
+    )
+      return null;
+
     const returns = performance.daily_returns.sort((a, b) => a - b);
     const var95Index = Math.floor(returns.length * 0.05);
     const tailReturns = returns.slice(0, var95Index);
-    
+
     if (tailReturns.length === 0) return null;
-    
-    const expectedShortfall = tailReturns.reduce((sum, ret) => sum + ret, 0) / tailReturns.length;
+
+    const expectedShortfall =
+      tailReturns.reduce((sum, ret) => sum + ret, 0) / tailReturns.length;
     return Math.round(expectedShortfall * 10000) / 10000;
   } catch (error) {
-    console.error('Error calculating expected shortfall:', error);
+    console.error("Error calculating expected shortfall:", error);
     return null;
   }
 }
 
 function calculateDownsideDeviation(performance, targetReturn = 0) {
   try {
-    if (!performance || !performance.daily_returns || performance.daily_returns.length === 0) return null;
-    
-    const downsideReturns = performance.daily_returns.filter(ret => ret < targetReturn);
+    if (
+      !performance ||
+      !performance.daily_returns ||
+      performance.daily_returns.length === 0
+    )
+      return null;
+
+    const downsideReturns = performance.daily_returns.filter(
+      (ret) => ret < targetReturn
+    );
     if (downsideReturns.length === 0) return 0;
-    
-    const downsideVariance = downsideReturns.reduce((sum, ret) => {
-      const deviation = ret - targetReturn;
-      return sum + (deviation * deviation);
-    }, 0) / downsideReturns.length;
-    
-    return Math.round(Math.sqrt(downsideVariance) * Math.sqrt(252) * 10000) / 10000;
+
+    const downsideVariance =
+      downsideReturns.reduce((sum, ret) => {
+        const deviation = ret - targetReturn;
+        return sum + deviation * deviation;
+      }, 0) / downsideReturns.length;
+
+    return (
+      Math.round(Math.sqrt(downsideVariance) * Math.sqrt(252) * 10000) / 10000
+    );
   } catch (error) {
-    console.error('Error calculating downside deviation:', error);
+    console.error("Error calculating downside deviation:", error);
     return null;
   }
 }
 
 function calculateCalmarRatio(performance) {
   try {
-    if (!performance || !performance.annual_return || !performance.max_drawdown) return null;
-    
+    if (!performance || !performance.annual_return || !performance.max_drawdown)
+      return null;
+
     const annualReturn = parseFloat(performance.annual_return) || 0;
     const maxDrawdown = Math.abs(parseFloat(performance.max_drawdown)) || 1;
-    
+
     if (maxDrawdown === 0) return null;
-    
+
     return Math.round((annualReturn / maxDrawdown) * 1000) / 1000;
   } catch (error) {
-    console.error('Error calculating Calmar ratio:', error);
+    console.error("Error calculating Calmar ratio:", error);
     return null;
   }
 }
@@ -6025,29 +6568,31 @@ router.get("/stream/value", authenticateToken, async (req, res) => {
       FROM portfolio_holdings 
       WHERE user_id = $1 AND quantity > 0
     `;
-    
+
     const summaryResult = await query(portfolioSummaryQuery, [req.user.id]);
     const summaryData = summaryResult.rows[0] || {};
-    
+
     const streamData = {
       timestamp: new Date().toISOString(),
       totalValue: parseFloat(summaryData.total_value) || 0,
       totalCostBasis: parseFloat(summaryData.total_cost_basis) || 0,
       totalPnL: parseFloat(summaryData.total_pnl) || 0,
       positionsCount: parseInt(summaryData.positions_count) || 0,
-      streamType: 'portfolio_value'
+      streamType: "portfolio_value",
     };
-    
+
     res.json({
       success: true,
-      data: streamData
+      data: streamData,
     });
-    
   } catch (error) {
-    console.error("❌ [PORTFOLIO] Error fetching portfolio stream value:", error);
+    console.error(
+      "❌ [PORTFOLIO] Error fetching portfolio stream value:",
+      error
+    );
     res.status(500).json({
       success: false,
-      error: "Failed to fetch portfolio streaming value"
+      error: "Failed to fetch portfolio streaming value",
     });
   }
 });
@@ -6060,7 +6605,7 @@ router.get("/stream/value", authenticateToken, async (req, res) => {
 router.get("/stream/positions", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub || req.user?.id || "dev-user-bypass";
-    
+
     // Get current positions for streaming
     const positionsQuery = `
       SELECT 
@@ -6080,12 +6625,12 @@ router.get("/stream/positions", authenticateToken, async (req, res) => {
       ORDER BY ph.market_value DESC
       LIMIT 20
     `;
-    
+
     const positionsResult = await query(positionsQuery, [userId]);
-    
+
     const streamData = {
       timestamp: new Date().toISOString(),
-      positions: positionsResult.rows.map(pos => ({
+      positions: positionsResult.rows.map((pos) => ({
         symbol: pos.symbol,
         quantity: parseFloat(pos.quantity) || 0,
         marketValue: parseFloat(pos.market_value) || 0,
@@ -6093,21 +6638,23 @@ router.get("/stream/positions", authenticateToken, async (req, res) => {
         pnl: parseFloat(pos.pnl) || 0,
         pnlPercent: parseFloat(pos.pnl_percent) || 0,
         sector: pos.sector,
-        lastUpdate: pos.updated_at
+        lastUpdate: pos.updated_at,
       })),
-      streamType: 'portfolio_positions'
+      streamType: "portfolio_positions",
     };
-    
+
     res.json({
       success: true,
-      data: streamData
+      data: streamData,
     });
-    
   } catch (error) {
-    console.error("❌ [PORTFOLIO] Error fetching portfolio stream positions:", error);
+    console.error(
+      "❌ [PORTFOLIO] Error fetching portfolio stream positions:",
+      error
+    );
     res.status(500).json({
       success: false,
-      error: "Failed to fetch portfolio streaming positions"
+      error: "Failed to fetch portfolio streaming positions",
     });
   }
 });

@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -15,8 +18,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener", () => {
     test("should return screener endpoints", async () => {
-      const response = await request(app)
-        .get("/api/screener");
+      const response = await request(app).get("/api/screener");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("message");
@@ -26,8 +28,9 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/screen", () => {
     test("should screen stocks with basic criteria", async () => {
-      const response = await request(app)
-        .get("/api/screener/screen?market_cap_min=1000000000");
+      const response = await request(app).get(
+        "/api/screener/screen?market_cap_min=1000000000"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -36,8 +39,9 @@ describe("Screener Routes", () => {
     });
 
     test("should handle multiple criteria", async () => {
-      const response = await request(app)
-        .get("/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000");
+      const response = await request(app).get(
+        "/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -45,8 +49,9 @@ describe("Screener Routes", () => {
     });
 
     test("should handle sector filter", async () => {
-      const response = await request(app)
-        .get("/api/screener/screen?sector=Technology");
+      const response = await request(app).get(
+        "/api/screener/screen?sector=Technology"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -55,13 +60,12 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/presets", () => {
     test("should return screening presets", async () => {
-      const response = await request(app)
-        .get("/api/screener/presets");
+      const response = await request(app).get("/api/screener/presets");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
-      
+
       if (response.body.data.length > 0) {
         const preset = response.body.data[0];
         expect(preset).toHaveProperty("name");
@@ -72,11 +76,10 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/presets/:presetName", () => {
     test("should return specific preset", async () => {
-      const response = await request(app)
-        .get("/api/screener/presets/growth");
+      const response = await request(app).get("/api/screener/presets/growth");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(response.body.data).toHaveProperty("preset");
@@ -87,8 +90,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
-      const response = await request(app)
-        .get("/api/screener/growth");
+      const response = await request(app).get("/api/screener/growth");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -96,8 +98,9 @@ describe("Screener Routes", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const response = await request(app)
-        .get("/api/screener/momentum?timeframe=1M");
+      const response = await request(app).get(
+        "/api/screener/momentum?timeframe=1M"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -106,8 +109,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/value", () => {
     test("should return value stocks", async () => {
-      const response = await request(app)
-        .get("/api/screener/value");
+      const response = await request(app).get("/api/screener/value");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -117,8 +119,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
-      const response = await request(app)
-        .get("/api/screener/growth");
+      const response = await request(app).get("/api/screener/growth");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -128,8 +129,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/dividend", () => {
     test("should return dividend stocks", async () => {
-      const response = await request(app)
-        .get("/api/screener/dividend");
+      const response = await request(app).get("/api/screener/dividend");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -137,8 +137,9 @@ describe("Screener Routes", () => {
     });
 
     test("should handle minimum yield parameter", async () => {
-      const response = await request(app)
-        .get("/api/screener/dividend?min_yield=3");
+      const response = await request(app).get(
+        "/api/screener/dividend?min_yield=3"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -147,8 +148,9 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/technical", () => {
     test("should return technical screening results", async () => {
-      const response = await request(app)
-        .get("/api/screener/technical?rsi_min=30&rsi_max=70");
+      const response = await request(app).get(
+        "/api/screener/technical?rsi_min=30&rsi_max=70"
+      );
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -163,9 +165,9 @@ describe("Screener Routes", () => {
           market_cap_min: 1000000000,
           pe_max: 25,
           debt_to_equity_max: 0.5,
-          sector: "Technology"
+          sector: "Technology",
         },
-        name: "Custom Tech Screen"
+        name: "Custom Tech Screen",
       };
 
       const response = await request(app)
@@ -173,7 +175,7 @@ describe("Screener Routes", () => {
         .send(screenData);
 
       expect([200, 201, 401, 422]).toContain(response.status);
-      
+
       if (response.status === 200 || response.status === 201) {
         expect(response.body.success).toBe(true);
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -181,9 +183,7 @@ describe("Screener Routes", () => {
     });
 
     test("should validate criteria", async () => {
-      const response = await request(app)
-        .post("/api/screener/custom")
-        .send({});
+      const response = await request(app).post("/api/screener/custom").send({});
 
       expect([400, 401, 422]).toContain(response.status);
     });
@@ -191,11 +191,12 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/backtest", () => {
     test("should return backtesting results", async () => {
-      const response = await request(app)
-        .get("/api/screener/backtest?strategy=momentum&start_date=2023-01-01");
+      const response = await request(app).get(
+        "/api/screener/backtest?strategy=momentum&start_date=2023-01-01"
+      );
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(response.body.data).toHaveProperty("backtest");
@@ -204,8 +205,7 @@ describe("Screener Routes", () => {
     });
 
     test("should require strategy parameter", async () => {
-      const response = await request(app)
-        .get("/api/screener/backtest");
+      const response = await request(app).get("/api/screener/backtest");
 
       expect([400, 422]).toContain(response.status);
     });
@@ -213,13 +213,14 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/export", () => {
     test("should export screening results", async () => {
-      const response = await request(app)
-        .get("/api/screener/export?market_cap_min=1000000000&format=csv");
+      const response = await request(app).get(
+        "/api/screener/export?market_cap_min=1000000000&format=csv"
+      );
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
-        expect(response.headers['content-type']).toContain('text/csv');
+        expect(response.headers["content-type"]).toContain("text/csv");
       }
     });
   });

@@ -9,53 +9,56 @@ E2E tests validate complete user journeys from frontend to backend to database. 
 ## 📊 Complete Frontend Route Coverage (38 Routes Identified)
 
 ### Core Application Routes (38 total)
-| Route | Component | Category | Premium | E2E Priority |
-|-------|-----------|----------|---------|--------------|
-| `/` | Dashboard | main | No | 🔴 **CRITICAL** |
-| `/dashboard` | Dashboard | main | No | 🔴 **CRITICAL** |
-| `/realtime` | RealTimeDashboard | tools | No | 🟠 **HIGH** |
-| `/portfolio` | PortfolioHoldings | portfolio | No | 🔴 **CRITICAL** |
-| `/trade-history` | TradeHistory | portfolio | No | 🟠 **HIGH** |
-| `/orders` | OrderManagement | portfolio | No | 🔴 **CRITICAL** |
-| `/portfolio/performance` | PortfolioPerformance | portfolio | Yes | 🟠 **HIGH** |
-| `/portfolio/optimize` | PortfolioOptimization | portfolio | Yes | 🟡 **MEDIUM** |
-| `/market` | MarketOverview | markets | No | 🟠 **HIGH** |
-| `/screener-advanced` | AdvancedScreener | stocks | No | 🟠 **HIGH** |
-| `/scores` | ScoresDashboard | stocks | Yes | 🟡 **MEDIUM** |
-| `/sentiment` | SentimentAnalysis | sentiment | Yes | 🟡 **MEDIUM** |
-| `/economic` | EconomicModeling | markets | No | 🟡 **MEDIUM** |
-| `/metrics` | MetricsDashboard | tools | No | 🟡 **MEDIUM** |
-| `/stocks` | StockExplorer | stocks | No | 🔴 **CRITICAL** |
-| `/stocks/:ticker` | StockDetail | stocks | No | 🔴 **CRITICAL** |
-| `/technical` | TechnicalAnalysis | stocks | No | 🟠 **HIGH** |
-| `/analysts` | AnalystInsights | sentiment | Yes | 🟡 **MEDIUM** |
-| `/earnings` | EarningsCalendar | stocks | No | 🟠 **HIGH** |
-| `/backtest` | Backtest | tools | Yes | 🟠 **HIGH** |
-| `/financial-data` | FinancialData | research | No | 🟡 **MEDIUM** |
-| `/service-health` | ServiceHealth | tools | No | 🟢 **LOW** |
-| `/settings` | Settings | tools | No | 🟠 **HIGH** |
-| `/sectors` | SectorAnalysis | markets | No | 🟡 **MEDIUM** |
-| `/watchlist` | Watchlist | stocks | No | 🟠 **HIGH** |
-| `/sentiment/social` | SentimentAnalysis | sentiment | Yes | 🟡 **MEDIUM** |
-| `/sentiment/news` | NewsAnalysis | sentiment | Yes | 🟡 **MEDIUM** |
-| `/sentiment/analysts` | AnalystInsights | sentiment | Yes | 🟡 **MEDIUM** |
-| `/tools/patterns` | PatternRecognition | tools | Yes | 🟡 **MEDIUM** |
-| `/tools/ai` | AIAssistant | tools | Yes | 🟠 **HIGH** |
-| `/auth-test` | AuthTest | tools | No | 🟢 **LOW** |
-| `/technical-history/:symbol` | TechnicalHistory | stocks | No | 🟡 **MEDIUM** |
+
+| Route                        | Component             | Category  | Premium | E2E Priority    |
+| ---------------------------- | --------------------- | --------- | ------- | --------------- |
+| `/`                          | Dashboard             | main      | No      | 🔴 **CRITICAL** |
+| `/dashboard`                 | Dashboard             | main      | No      | 🔴 **CRITICAL** |
+| `/realtime`                  | RealTimeDashboard     | tools     | No      | 🟠 **HIGH**     |
+| `/portfolio`                 | PortfolioHoldings     | portfolio | No      | 🔴 **CRITICAL** |
+| `/trade-history`             | TradeHistory          | portfolio | No      | 🟠 **HIGH**     |
+| `/orders`                    | OrderManagement       | portfolio | No      | 🔴 **CRITICAL** |
+| `/portfolio/performance`     | PortfolioPerformance  | portfolio | Yes     | 🟠 **HIGH**     |
+| `/portfolio/optimize`        | PortfolioOptimization | portfolio | Yes     | 🟡 **MEDIUM**   |
+| `/market`                    | MarketOverview        | markets   | No      | 🟠 **HIGH**     |
+| `/screener-advanced`         | AdvancedScreener      | stocks    | No      | 🟠 **HIGH**     |
+| `/scores`                    | ScoresDashboard       | stocks    | Yes     | 🟡 **MEDIUM**   |
+| `/sentiment`                 | SentimentAnalysis     | sentiment | Yes     | 🟡 **MEDIUM**   |
+| `/economic`                  | EconomicModeling      | markets   | No      | 🟡 **MEDIUM**   |
+| `/metrics`                   | MetricsDashboard      | tools     | No      | 🟡 **MEDIUM**   |
+| `/stocks`                    | StockExplorer         | stocks    | No      | 🔴 **CRITICAL** |
+| `/stocks/:ticker`            | StockDetail           | stocks    | No      | 🔴 **CRITICAL** |
+| `/technical`                 | TechnicalAnalysis     | stocks    | No      | 🟠 **HIGH**     |
+| `/analysts`                  | AnalystInsights       | sentiment | Yes     | 🟡 **MEDIUM**   |
+| `/earnings`                  | EarningsCalendar      | stocks    | No      | 🟠 **HIGH**     |
+| `/backtest`                  | Backtest              | tools     | Yes     | 🟠 **HIGH**     |
+| `/financial-data`            | FinancialData         | research  | No      | 🟡 **MEDIUM**   |
+| `/service-health`            | ServiceHealth         | tools     | No      | 🟢 **LOW**      |
+| `/settings`                  | Settings              | tools     | No      | 🟠 **HIGH**     |
+| `/sectors`                   | SectorAnalysis        | markets   | No      | 🟡 **MEDIUM**   |
+| `/watchlist`                 | Watchlist             | stocks    | No      | 🟠 **HIGH**     |
+| `/sentiment/social`          | SentimentAnalysis     | sentiment | Yes     | 🟡 **MEDIUM**   |
+| `/sentiment/news`            | NewsAnalysis          | sentiment | Yes     | 🟡 **MEDIUM**   |
+| `/sentiment/analysts`        | AnalystInsights       | sentiment | Yes     | 🟡 **MEDIUM**   |
+| `/tools/patterns`            | PatternRecognition    | tools     | Yes     | 🟡 **MEDIUM**   |
+| `/tools/ai`                  | AIAssistant           | tools     | Yes     | 🟠 **HIGH**     |
+| `/auth-test`                 | AuthTest              | tools     | No      | 🟢 **LOW**      |
+| `/technical-history/:symbol` | TechnicalHistory      | stocks    | No      | 🟡 **MEDIUM**   |
 
 ### Coming Soon Routes (3 total)
-| Route | Page Name | Priority |
-|-------|-----------|----------|
-| `/research/commentary` | Market Commentary | 🟢 **LOW** |
-| `/research/education` | Educational Content | 🟢 **LOW** |
-| `/research/reports` | Research Reports | 🟢 **LOW** |
+
+| Route                  | Page Name           | Priority   |
+| ---------------------- | ------------------- | ---------- |
+| `/research/commentary` | Market Commentary   | 🟢 **LOW** |
+| `/research/education`  | Educational Content | 🟢 **LOW** |
+| `/research/reports`    | Research Reports    | 🟢 **LOW** |
 
 ---
 
 ## 🔄 User Workflow Analysis
 
 ### Critical User Journeys (Must Test - 7 workflows)
+
 1. **Authentication Flow**: Sign up → Sign in → Navigate app → Sign out
 2. **Stock Research Flow**: Search stock → View details → Add to watchlist → Set alerts
 3. **Portfolio Management Flow**: View portfolio → Add holding → Track performance → Generate reports
@@ -65,6 +68,7 @@ E2E tests validate complete user journeys from frontend to backend to database. 
 7. **Real-time Data Flow**: Connect to live data → View updates → React to market changes
 
 ### High-Priority User Journeys (Should Test - 5 workflows)
+
 1. **Earnings Research Flow**: View earnings calendar → Research upcoming earnings → Set alerts
 2. **Technical Analysis Flow**: View charts → Apply indicators → Analyze patterns → Export analysis
 3. **Screener Flow**: Set screening criteria → Run screen → Analyze results → Export/save results
@@ -72,6 +76,7 @@ E2E tests validate complete user journeys from frontend to backend to database. 
 5. **AI Assistant Flow**: Ask investment question → Review AI response → Take action → Follow up
 
 ### Medium-Priority User Journeys (Nice to Test - 3 workflows)
+
 1. **Sentiment Analysis Flow**: View sentiment data → Analyze social/news sentiment → Make investment decisions
 2. **Economic Analysis Flow**: View economic indicators → Analyze trends → Correlate with portfolio
 3. **Pattern Recognition Flow**: Upload/analyze charts → Identify patterns → Get recommendations
@@ -81,6 +86,7 @@ E2E tests validate complete user journeys from frontend to backend to database. 
 ## 🏗️ E2E Test Structure & Organization
 
 ### Directory Structure
+
 ```
 tests/
 ├── e2e/
@@ -141,6 +147,7 @@ tests/
 ## 📋 Systematic E2E Test Creation Plan
 
 ### Phase 1: Critical Workflows (Week 1-2) - 7 tests
+
 **Goal**: Test core user journeys that generate revenue and define product value
 
 1. **01-authentication.e2e.test.js**
@@ -186,6 +193,7 @@ tests/
    - Check real-time portfolio updates → Verify P&L updates with market moves
 
 ### Phase 2: High-Priority Workflows (Week 3-4) - 5 tests
+
 **Goal**: Test features that enhance user experience and retention
 
 8. **08-earnings-research.e2e.test.js**
@@ -195,6 +203,7 @@ tests/
 12. **12-ai-assistant.e2e.test.js**
 
 ### Phase 3: Medium-Priority Workflows (Week 5-6) - 3 tests
+
 **Goal**: Test advanced features and premium functionality
 
 13. **13-sentiment-analysis.e2e.test.js**
@@ -206,48 +215,51 @@ tests/
 ## 🛠️ Implementation Requirements
 
 ### Test Environment Setup
+
 - **Database**: Dedicated E2E test database with seed data
 - **Mock Services**: Mock external APIs (Alpaca, market data providers)
 - **Test Data**: Consistent, predictable test data sets
 - **User Accounts**: Test users with different permission levels
 
 ### Playwright Configuration
+
 ```javascript
 // tests/e2e/config/playwright.config.js
 module.exports = {
-  testDir: '../',
+  testDir: "../",
   timeout: 60000,
   expect: {
-    timeout: 10000
+    timeout: 10000,
   },
   use: {
-    baseURL: 'http://localhost:3000',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    trace: 'on-first-retry'
+    baseURL: "http://localhost:3000",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "on-first-retry",
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
     {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] }
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
     },
     {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] }
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
     },
     {
-      name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] }
-    }
-  ]
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 5"] },
+    },
+  ],
 };
 ```
 
 ### Package.json Scripts
+
 ```json
 {
   "scripts": {
@@ -271,12 +283,14 @@ module.exports = {
 ## 🎯 Success Metrics
 
 ### Coverage Targets
+
 - **Critical Workflows**: 100% (7/7 tests) - Blocking for production deployment
 - **High-Priority Workflows**: 80% (4/5 tests) - Required for release
 - **Medium-Priority Workflows**: 60% (2/3 tests) - Nice to have
 - **Overall E2E Coverage**: 85% (13/15 core workflows)
 
 ### Performance Targets
+
 - **Test Execution Time**: <10 minutes for critical suite
 - **Test Stability**: >95% pass rate on CI/CD
 - **Cross-Browser Compatibility**: Chrome, Firefox, Safari support
@@ -287,6 +301,7 @@ module.exports = {
 ## 🚀 Getting Started
 
 ### Immediate Next Steps (This Week)
+
 1. **Install Playwright**: `npm install --save-dev @playwright/test`
 2. **Create E2E directory structure** (shown above)
 3. **Implement first critical test**: 01-authentication.e2e.test.js
@@ -294,6 +309,7 @@ module.exports = {
 5. **Configure CI/CD pipeline** for E2E test execution
 
 ### Implementation Order
+
 1. Start with **authentication.e2e.test.js** - Foundation for all other tests
 2. Move to **stock-research.e2e.test.js** - Core product functionality
 3. Progress through critical workflows in numbered order

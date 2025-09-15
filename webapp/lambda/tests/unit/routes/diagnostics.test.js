@@ -28,7 +28,7 @@ jest.mock("../../../utils/database", () => ({
     connections: 5,
     idle: 3,
     waiting: 0,
-  })
+  }),
 }));
 
 jest.mock("../../../utils/apiKeyService", () => ({
@@ -87,7 +87,7 @@ describe("Diagnostics Routes", () => {
           version: expect.any(String),
           connections: expect.any(Number),
           idle: expect.any(Number),
-          waiting: expect.any(Number)
+          waiting: expect.any(Number),
         }),
         report: expect.any(String),
         timestamp: expect.any(String),
@@ -117,7 +117,9 @@ describe("Diagnostics Routes", () => {
     test("should handle database connectivity test errors", async () => {
       // Mock the database module to simulate timeout error
       const { healthCheck } = require("../../../utils/database");
-      healthCheck.mockRejectedValueOnce(new Error("Query timeout after 5000ms"));
+      healthCheck.mockRejectedValueOnce(
+        new Error("Query timeout after 5000ms")
+      );
 
       const response = await request(app)
         .get("/diagnostics/database-connectivity")
@@ -242,12 +244,12 @@ describe("Diagnostics Routes", () => {
           summary: expect.objectContaining({
             passed: expect.any(Number),
             failed: expect.any(Number),
-            total: expect.any(Number)
-          })
+            total: expect.any(Number),
+          }),
         }),
         connectionInfo: expect.objectContaining({
           successful: true,
-          config: expect.any(String)
+          config: expect.any(String),
         }),
         timestamp: expect.any(String),
       });
@@ -479,31 +481,31 @@ describe("Diagnostics Routes", () => {
             memory: expect.objectContaining({
               usage_percentage: expect.any(Number),
               total_mb: expect.any(Number),
-              available_mb: expect.any(Number)
+              available_mb: expect.any(Number),
             }),
             cpu: expect.objectContaining({
               usage_percentage: expect.any(Number),
-              load_average: expect.any(Array)
-            })
+              load_average: expect.any(Array),
+            }),
           }),
           application_performance: expect.objectContaining({
             request_metrics: expect.objectContaining({
               average_response_time_ms: expect.any(Number),
-              error_rate_percentage: expect.any(Number)
-            })
+              error_rate_percentage: expect.any(Number),
+            }),
           }),
           performance_score: expect.objectContaining({
             overall_score: expect.any(Number),
             memory_score: expect.any(Number),
             response_time_score: expect.any(Number),
             error_rate_score: expect.any(Number),
-            grade: expect.stringMatching(/^[ABCDF]$/)
-          })
-        })
+            grade: expect.stringMatching(/^[ABCDF]$/),
+          }),
+        }),
       });
 
       // Should not have historical data when history=false (default)
-      expect(response.body.data).not.toHaveProperty('historical_data');
+      expect(response.body.data).not.toHaveProperty("historical_data");
     });
 
     test("should return performance metrics with historical data when history=true", async () => {
@@ -522,7 +524,7 @@ describe("Diagnostics Routes", () => {
               period: expect.objectContaining({
                 start_date: expect.any(String),
                 end_date: expect.any(String),
-                total_days: expect.any(Number)
+                total_days: expect.any(Number),
               }),
               performance_summary: expect.objectContaining({
                 average_score: expect.any(Number),
@@ -530,31 +532,31 @@ describe("Diagnostics Routes", () => {
                 worst_score: expect.any(Number),
                 days_above_90: expect.any(Number),
                 days_below_60: expect.any(Number),
-                score_trend: expect.stringMatching(/^(improving|declining)$/)
+                score_trend: expect.stringMatching(/^(improving|declining)$/),
               }),
               resource_trends: expect.objectContaining({
                 memory: expect.objectContaining({
                   average: expect.any(Number),
                   peak: expect.any(Number),
-                  trend: expect.stringMatching(/^(increasing|decreasing)$/)
+                  trend: expect.stringMatching(/^(increasing|decreasing)$/),
                 }),
                 response_time: expect.objectContaining({
                   average: expect.any(Number),
                   peak: expect.any(Number),
-                  trend: expect.stringMatching(/^(increasing|decreasing)$/)
+                  trend: expect.stringMatching(/^(increasing|decreasing)$/),
                 }),
                 error_rate: expect.objectContaining({
                   average: expect.any(Number),
                   peak: expect.any(Number),
-                  trend: expect.stringMatching(/^(increasing|decreasing)$/)
-                })
+                  trend: expect.stringMatching(/^(increasing|decreasing)$/),
+                }),
               }),
               system_stability: expect.objectContaining({
                 total_restarts: expect.any(Number),
                 total_alerts: expect.any(Number),
                 maintenance_windows: expect.any(Number),
-                uptime_percentage: expect.any(Number)
-              })
+                uptime_percentage: expect.any(Number),
+              }),
             }),
             daily_metrics: expect.arrayContaining([
               expect.objectContaining({
@@ -566,7 +568,7 @@ describe("Diagnostics Routes", () => {
                   average_response_time_ms: expect.any(Number),
                   error_rate_percentage: expect.any(Number),
                   request_count: expect.any(Number),
-                  concurrent_connections: expect.any(Number)
+                  concurrent_connections: expect.any(Number),
                 }),
                 performance_score: expect.objectContaining({
                   overall_score: expect.any(Number),
@@ -574,25 +576,25 @@ describe("Diagnostics Routes", () => {
                   response_time_score: expect.any(Number),
                   error_rate_score: expect.any(Number),
                   cpu_score: expect.any(Number),
-                  grade: expect.stringMatching(/^[ABCDF]$/)
+                  grade: expect.stringMatching(/^[ABCDF]$/),
                 }),
                 system_events: expect.objectContaining({
                   restarts: expect.any(Number),
                   alerts_triggered: expect.any(Number),
-                  maintenance_windows: expect.any(Number)
-                })
-              })
+                  maintenance_windows: expect.any(Number),
+                }),
+              }),
             ]),
-            recommendations: expect.arrayContaining([
-              expect.any(String)
-            ])
-          })
-        })
+            recommendations: expect.arrayContaining([expect.any(String)]),
+          }),
+        }),
       });
 
       // Verify historical data has exactly 30 days
       expect(response.body.data.historical_data.daily_metrics).toHaveLength(30);
-      expect(response.body.data.historical_data.summary.period.total_days).toBe(30);
+      expect(response.body.data.historical_data.summary.period.total_days).toBe(
+        30
+      );
 
       // Verify date format and chronological order
       const dailyMetrics = response.body.data.historical_data.daily_metrics;
@@ -601,13 +603,23 @@ describe("Diagnostics Routes", () => {
       expect(lastDate.getTime()).toBeGreaterThan(firstDate.getTime());
 
       // Verify performance scores are within valid range
-      dailyMetrics.forEach(metric => {
-        expect(metric.performance_score.overall_score).toBeGreaterThanOrEqual(0);
+      dailyMetrics.forEach((metric) => {
+        expect(metric.performance_score.overall_score).toBeGreaterThanOrEqual(
+          0
+        );
         expect(metric.performance_score.overall_score).toBeLessThanOrEqual(100);
-        expect(metric.performance_metrics.memory_usage_percentage).toBeGreaterThanOrEqual(0);
-        expect(metric.performance_metrics.memory_usage_percentage).toBeLessThanOrEqual(100);
-        expect(metric.performance_metrics.error_rate_percentage).toBeGreaterThanOrEqual(0);
-        expect(metric.performance_metrics.error_rate_percentage).toBeLessThanOrEqual(100);
+        expect(
+          metric.performance_metrics.memory_usage_percentage
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+          metric.performance_metrics.memory_usage_percentage
+        ).toBeLessThanOrEqual(100);
+        expect(
+          metric.performance_metrics.error_rate_percentage
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+          metric.performance_metrics.error_rate_percentage
+        ).toBeLessThanOrEqual(100);
       });
     });
 
@@ -622,14 +634,14 @@ describe("Diagnostics Routes", () => {
           historical_data: expect.objectContaining({
             summary: expect.any(Object),
             daily_metrics: expect.any(Array),
-            recommendations: expect.any(Array)
-          })
-        })
+            recommendations: expect.any(Array),
+          }),
+        }),
       });
 
       // Should include detailed performance data even with detailed=true parameter
-      expect(response.body.data).toHaveProperty('node_performance');
-      expect(response.body.data).toHaveProperty('module_performance');
+      expect(response.body.data).toHaveProperty("node_performance");
+      expect(response.body.data).toHaveProperty("module_performance");
     });
 
     test("should handle historical data generation errors gracefully", async () => {
@@ -651,12 +663,13 @@ describe("Diagnostics Routes", () => {
           system_performance: expect.any(Object),
           application_performance: expect.any(Object),
           performance_score: expect.any(Object),
-          historical_data_error: "Unable to generate historical performance data"
-        })
+          historical_data_error:
+            "Unable to generate historical performance data",
+        }),
       });
 
       // Should not have historical_data property when error occurs
-      expect(response.body.data).not.toHaveProperty('historical_data');
+      expect(response.body.data).not.toHaveProperty("historical_data");
 
       // Restore original Date
       global.Date = originalDate;
@@ -672,23 +685,42 @@ describe("Diagnostics Routes", () => {
       const summary = historicalData.summary;
 
       // Verify calculated averages match manual calculation
-      const manualAverageScore = dailyMetrics.reduce((sum, day) => sum + day.performance_score.overall_score, 0) / dailyMetrics.length;
-      expect(Math.abs(summary.performance_summary.average_score - manualAverageScore)).toBeLessThan(1); // Allow for rounding
+      const manualAverageScore =
+        dailyMetrics.reduce(
+          (sum, day) => sum + day.performance_score.overall_score,
+          0
+        ) / dailyMetrics.length;
+      expect(
+        Math.abs(summary.performance_summary.average_score - manualAverageScore)
+      ).toBeLessThan(1); // Allow for rounding
 
-      const manualBestScore = Math.max(...dailyMetrics.map(d => d.performance_score.overall_score));
+      const manualBestScore = Math.max(
+        ...dailyMetrics.map((d) => d.performance_score.overall_score)
+      );
       expect(summary.performance_summary.best_score).toBe(manualBestScore);
 
-      const manualWorstScore = Math.min(...dailyMetrics.map(d => d.performance_score.overall_score));
+      const manualWorstScore = Math.min(
+        ...dailyMetrics.map((d) => d.performance_score.overall_score)
+      );
       expect(summary.performance_summary.worst_score).toBe(manualWorstScore);
 
       // Verify uptime percentage calculation
-      const totalRestarts = dailyMetrics.reduce((sum, d) => sum + d.system_events.restarts, 0);
-      const expectedUptime = Math.round((1 - totalRestarts / dailyMetrics.length) * 10000) / 100;
+      const totalRestarts = dailyMetrics.reduce(
+        (sum, d) => sum + d.system_events.restarts,
+        0
+      );
+      const expectedUptime =
+        Math.round((1 - totalRestarts / dailyMetrics.length) * 10000) / 100;
       expect(summary.system_stability.uptime_percentage).toBe(expectedUptime);
 
       // Verify trend calculations
-      const memoryValues = dailyMetrics.map(d => d.performance_metrics.memory_usage_percentage);
-      const expectedMemoryTrend = memoryValues[memoryValues.length - 1] > memoryValues[0] ? "increasing" : "decreasing";
+      const memoryValues = dailyMetrics.map(
+        (d) => d.performance_metrics.memory_usage_percentage
+      );
+      const expectedMemoryTrend =
+        memoryValues[memoryValues.length - 1] > memoryValues[0]
+          ? "increasing"
+          : "decreasing";
       expect(summary.resource_trends.memory.trend).toBe(expectedMemoryTrend);
     });
 
@@ -697,34 +729,45 @@ describe("Diagnostics Routes", () => {
         .get("/diagnostics/performance?history=true")
         .expect(200);
 
-      const recommendations = response.body.data.historical_data.recommendations;
-      
+      const recommendations =
+        response.body.data.historical_data.recommendations;
+
       // Should always include at least the base recommendation
-      expect(recommendations).toContain("Historical data tracking is now active - monitor trends for optimization opportunities");
+      expect(recommendations).toContain(
+        "Historical data tracking is now active - monitor trends for optimization opportunities"
+      );
 
       // Each recommendation should be a non-empty string
-      recommendations.forEach(rec => {
-        expect(typeof rec).toBe('string');
+      recommendations.forEach((rec) => {
+        expect(typeof rec).toBe("string");
         expect(rec.length).toBeGreaterThan(0);
       });
 
       // Verify recommendations are relevant to detected issues
       const summary = response.body.data.historical_data.summary;
-      
+
       if (summary.resource_trends.memory.trend === "increasing") {
-        expect(recommendations.some(rec => rec.includes("memory optimization"))).toBe(true);
+        expect(
+          recommendations.some((rec) => rec.includes("memory optimization"))
+        ).toBe(true);
       }
-      
+
       if (summary.resource_trends.response_time.trend === "increasing") {
-        expect(recommendations.some(rec => rec.includes("performance bottlenecks"))).toBe(true);
+        expect(
+          recommendations.some((rec) => rec.includes("performance bottlenecks"))
+        ).toBe(true);
       }
-      
+
       if (summary.performance_summary.days_below_60 > 5) {
-        expect(recommendations.some(rec => rec.includes("system health review"))).toBe(true);
+        expect(
+          recommendations.some((rec) => rec.includes("system health review"))
+        ).toBe(true);
       }
-      
+
       if (summary.system_stability.uptime_percentage < 99.0) {
-        expect(recommendations.some(rec => rec.includes("restart patterns"))).toBe(true);
+        expect(
+          recommendations.some((rec) => rec.includes("restart patterns"))
+        ).toBe(true);
       }
     });
 
@@ -763,9 +806,7 @@ describe("Diagnostics Routes", () => {
 
       testApp.use("/diagnostics", router);
 
-      await request(testApp)
-        .get("/diagnostics/performance")
-        .expect(403);
+      await request(testApp).get("/diagnostics/performance").expect(403);
     });
   });
 

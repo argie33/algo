@@ -7,7 +7,7 @@ const logger = require("../../../utils/logger");
 
 // Mock crypto
 jest.mock("crypto", () => ({
-  randomUUID: jest.fn(() => "12345678-1234-1234-1234-123456789012")
+  randomUUID: jest.fn(() => "12345678-1234-1234-1234-123456789012"),
 }));
 
 describe("Logger", () => {
@@ -37,11 +37,11 @@ describe("Logger", () => {
       process.env.LOG_LEVEL = "DEBUG";
       process.env.SERVICE_NAME = "test-service";
       process.env.APP_VERSION = "2.0.0";
-      
+
       // Create new logger instance
       delete require.cache[require.resolve("../../../utils/logger")];
       const newLogger = require("../../../utils/logger");
-      
+
       expect(newLogger.currentLevel).toBe(3); // DEBUG level
       expect(newLogger.serviceName).toBe("test-service");
       expect(newLogger.version).toBe("2.0.0");
@@ -80,7 +80,7 @@ describe("Logger", () => {
   describe("Base Entry Creation", () => {
     test("should create base log entry with required fields", () => {
       const entry = logger.createBaseEntry(2, "Test message");
-      
+
       expect(entry).toHaveProperty("timestamp");
       expect(entry).toHaveProperty("level", "INFO");
       expect(entry).toHaveProperty("service", "financial-platform-api");
@@ -93,7 +93,7 @@ describe("Logger", () => {
     test("should include additional context", () => {
       const context = { userId: "123", operation: "test" };
       const entry = logger.createBaseEntry(2, "Test message", context);
-      
+
       expect(entry.userId).toBe("123");
       expect(entry.operation).toBe("test");
     });
@@ -101,7 +101,7 @@ describe("Logger", () => {
     test("should use provided correlation ID", () => {
       const context = { correlationId: "custom-id" };
       const entry = logger.createBaseEntry(2, "Test message", context);
-      
+
       expect(entry.correlationId).toBe("custom-id");
     });
   });
@@ -109,9 +109,9 @@ describe("Logger", () => {
   describe("Log Level Checking", () => {
     test("should check if level should be logged", () => {
       // Default is INFO (level 2)
-      expect(logger.shouldLog(0)).toBe(true);  // ERROR
-      expect(logger.shouldLog(1)).toBe(true);  // WARN
-      expect(logger.shouldLog(2)).toBe(true);  // INFO
+      expect(logger.shouldLog(0)).toBe(true); // ERROR
+      expect(logger.shouldLog(1)).toBe(true); // WARN
+      expect(logger.shouldLog(2)).toBe(true); // INFO
       expect(logger.shouldLog(3)).toBe(false); // DEBUG
     });
   });
@@ -119,67 +119,76 @@ describe("Logger", () => {
   describe("Output Formatting", () => {
     test("should format output for development environment", () => {
       process.env.NODE_ENV = "development";
-      
+
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
         level: "INFO",
         message: "Test message",
         correlationId: "12345",
-        extra: "data"
+        extra: "data",
       };
-      
+
       logger.output(logEntry);
-      
+
       expect(consoleSpy).toHaveBeenCalledTimes(2);
-      expect(consoleSpy).toHaveBeenNthCalledWith(1, "[2023-01-01T00:00:00.000Z] [INFO] [12345] Test message");
-      expect(consoleSpy).toHaveBeenNthCalledWith(2, "Context:", JSON.stringify({ extra: "data" }, null, 2));
+      expect(consoleSpy).toHaveBeenNthCalledWith(
+        1,
+        "[2023-01-01T00:00:00.000Z] [INFO] [12345] Test message"
+      );
+      expect(consoleSpy).toHaveBeenNthCalledWith(
+        2,
+        "Context:",
+        JSON.stringify({ extra: "data" }, null, 2)
+      );
     });
 
     test("should format output for production environment", () => {
       process.env.NODE_ENV = "production";
-      
+
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
         level: "INFO",
         message: "Test message",
-        correlationId: "12345"
+        correlationId: "12345",
       };
-      
+
       logger.output(logEntry);
-      
+
       expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(logEntry));
     });
 
     test("should handle development output without extra context", () => {
       process.env.NODE_ENV = "development";
-      
+
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
         level: "INFO",
         message: "Test message",
-        correlationId: "12345"
+        correlationId: "12345",
       };
-      
+
       logger.output(logEntry);
-      
+
       expect(consoleSpy).toHaveBeenCalledTimes(1);
-      expect(consoleSpy).toHaveBeenCalledWith("[2023-01-01T00:00:00.000Z] [INFO] [12345] Test message");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[2023-01-01T00:00:00.000Z] [INFO] [12345] Test message"
+      );
     });
   });
 
   describe("Error Logging", () => {
     test("should log error messages", () => {
       logger.error("Error message");
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log error with Error object", () => {
       const error = new Error("Test error");
       error.code = "TEST_CODE";
-      
+
       logger.error("Error occurred", { error });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
@@ -188,9 +197,9 @@ describe("Logger", () => {
       delete require.cache[require.resolve("../../../utils/logger")];
       const quietLogger = require("../../../utils/logger");
       quietLogger.currentLevel = -1;
-      
+
       quietLogger.error("Should not log");
-      
+
       // Console spy should not be called for this logger instance
     });
   });
@@ -198,13 +207,13 @@ describe("Logger", () => {
   describe("Warning Logging", () => {
     test("should log warning messages", () => {
       logger.warn("Warning message");
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log warning with context", () => {
       logger.warn("Warning message", { component: "test" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
@@ -212,13 +221,13 @@ describe("Logger", () => {
   describe("Info Logging", () => {
     test("should log info messages", () => {
       logger.info("Info message");
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log info with context", () => {
       logger.info("Info message", { operation: "test" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
@@ -226,7 +235,7 @@ describe("Logger", () => {
   describe("Debug Logging", () => {
     test("should not log debug messages with default level", () => {
       logger.debug("Debug message");
-      
+
       expect(consoleSpy).not.toHaveBeenCalled();
     });
 
@@ -234,9 +243,9 @@ describe("Logger", () => {
       process.env.LOG_LEVEL = "DEBUG";
       delete require.cache[require.resolve("../../../utils/logger")];
       const debugLogger = require("../../../utils/logger");
-      
+
       debugLogger.debug("Debug message");
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
@@ -244,49 +253,49 @@ describe("Logger", () => {
   describe("Specialized Logging Methods", () => {
     test("should log database operations", () => {
       logger.database("SELECT * FROM stocks", { table: "stocks" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log API calls", () => {
       logger.apiCall("GET", "/api/stocks", { statusCode: 200 });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log authentication events", () => {
       logger.auth("login_attempt", { userId: "123" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log performance with normal duration", () => {
       logger.performance("database_query", 1000, { table: "stocks" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log performance warning for slow operations", () => {
       logger.performance("slow_query", 6000, { table: "stocks" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log security events", () => {
       logger.security("unauthorized_access", { ip: "192.168.1.1" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log user actions", () => {
       logger.userAction("user123456789", "login", { method: "oauth" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log user actions for anonymous users", () => {
       logger.userAction(null, "view_page", { page: "home" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
@@ -304,10 +313,10 @@ describe("Logger", () => {
         url: "/api/test",
         path: "/api/test",
         headers: { "user-agent": "test-agent" },
-        ip: "127.0.0.1"
+        ip: "127.0.0.1",
       };
       const res = {
-        json: jest.fn()
+        json: jest.fn(),
       };
       const next = jest.fn();
 
@@ -325,11 +334,11 @@ describe("Logger", () => {
         method: "POST",
         url: "/api/test",
         path: "/api/test",
-        headers: { 
+        headers: {
           "user-agent": "test-agent",
-          authorization: "Bearer token"
+          authorization: "Bearer token",
         },
-        ip: "127.0.0.1"
+        ip: "127.0.0.1",
       };
       const res = { json: jest.fn() };
       const next = jest.fn();
@@ -348,12 +357,12 @@ describe("Logger", () => {
         path: "/api/test",
         headers: { "user-agent": "test-agent" },
         ip: "127.0.0.1",
-        logger: logger
+        logger: logger,
       };
       const originalJson = jest.fn();
       const res = {
         json: originalJson,
-        statusCode: 200
+        statusCode: 200,
       };
       const next = jest.fn();
 
@@ -380,7 +389,7 @@ describe("Logger", () => {
         method: "GET",
         url: "/api/test",
         headers: { "user-agent": "test-agent" },
-        ip: "127.0.0.1"
+        ip: "127.0.0.1",
       };
       const res = {};
       const next = jest.fn();
@@ -395,15 +404,15 @@ describe("Logger", () => {
   describe("Child Logger", () => {
     test("should create child logger with additional context", () => {
       const childLogger = logger.child({ component: "test" });
-      
+
       expect(childLogger.defaultContext).toEqual({ component: "test" });
     });
 
     test("should use child logger context in logs", () => {
       const childLogger = logger.child({ component: "test" });
-      
+
       childLogger.info("Test message", { extra: "data" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
@@ -411,13 +420,13 @@ describe("Logger", () => {
   describe("Application Lifecycle Logging", () => {
     test("should log application startup", () => {
       logger.startup({ port: 3000 });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log application shutdown", () => {
       logger.shutdown({ reason: "SIGTERM" });
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
 
@@ -425,11 +434,11 @@ describe("Logger", () => {
       const config = {
         port: 3000,
         database: "test",
-        apiKey: "secret123"
+        apiKey: "secret123",
       };
-      
+
       logger.configLoaded(config);
-      
+
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
@@ -444,11 +453,11 @@ describe("Logger", () => {
         jwt_secret: "jwtsecret",
         access_token: "token123",
         credential: "cred123",
-        normal_value: "safe"
+        normal_value: "safe",
       };
-      
+
       const sanitized = logger.sanitizeConfig(config);
-      
+
       expect(sanitized.port).toBe(3000);
       expect(sanitized.database_url).toBe("postgres://localhost");
       expect(sanitized.api_key).toBe("[REDACTED]");
@@ -465,17 +474,17 @@ describe("Logger", () => {
           host: "localhost",
           password: "secret123",
           nested: {
-            api_key: "nested_secret"
-          }
+            api_key: "nested_secret",
+          },
         },
         server: {
           port: 3000,
-          jwt_secret: "jwt123"
-        }
+          jwt_secret: "jwt123",
+        },
       };
-      
+
       const sanitized = logger.sanitizeConfig(config);
-      
+
       expect(sanitized.database.host).toBe("localhost");
       expect(sanitized.database.password).toBe("[REDACTED]");
       expect(sanitized.database.nested.api_key).toBe("[REDACTED]");
@@ -486,11 +495,11 @@ describe("Logger", () => {
     test("should handle null values in configuration", () => {
       const config = {
         value: null,
-        password: null
+        password: null,
       };
-      
+
       const sanitized = logger.sanitizeConfig(config);
-      
+
       expect(sanitized.value).toBe(null);
       expect(sanitized.password).toBe("[REDACTED]");
     });

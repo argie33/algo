@@ -12,7 +12,8 @@ const { query } = require("../utils/database");
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({status: "operational",
+  res.json({
+    status: "operational",
     service: "performance-analytics",
     timestamp: new Date().toISOString(),
     message: "Performance Analytics service is running",
@@ -27,7 +28,7 @@ router.get("/", (req, res) => {
       message: "Performance Analytics API - Ready",
       timestamp: new Date().toISOString(),
       status: "operational",
-    }
+    },
   });
 });
 
@@ -39,39 +40,51 @@ router.get("/api", async (req, res) => {
         average: Math.floor(Math.random() * 100) + 50,
         median: Math.floor(Math.random() * 80) + 40,
         p95: Math.floor(Math.random() * 200) + 100,
-        p99: Math.floor(Math.random() * 500) + 200
+        p99: Math.floor(Math.random() * 500) + 200,
       },
       throughput: {
         requests_per_second: Math.floor(Math.random() * 100) + 50,
         requests_per_minute: Math.floor(Math.random() * 5000) + 2000,
-        peak_rps: Math.floor(Math.random() * 200) + 150
+        peak_rps: Math.floor(Math.random() * 200) + 150,
       },
       error_rates: {
-        total_error_rate: (Math.random() * 2).toFixed(2) + '%',
-        client_errors_4xx: (Math.random() * 1).toFixed(2) + '%',
-        server_errors_5xx: (Math.random() * 0.5).toFixed(2) + '%'
+        total_error_rate: (Math.random() * 2).toFixed(2) + "%",
+        client_errors_4xx: (Math.random() * 1).toFixed(2) + "%",
+        server_errors_5xx: (Math.random() * 0.5).toFixed(2) + "%",
       },
       endpoint_performance: [
-        { endpoint: '/api/stocks/*', avg_response_time: Math.floor(Math.random() * 50) + 30 },
-        { endpoint: '/api/market/*', avg_response_time: Math.floor(Math.random() * 40) + 25 },
-        { endpoint: '/api/portfolio/*', avg_response_time: Math.floor(Math.random() * 80) + 60 },
-        { endpoint: '/api/technical/*', avg_response_time: Math.floor(Math.random() * 60) + 40 }
+        {
+          endpoint: "/api/stocks/*",
+          avg_response_time: Math.floor(Math.random() * 50) + 30,
+        },
+        {
+          endpoint: "/api/market/*",
+          avg_response_time: Math.floor(Math.random() * 40) + 25,
+        },
+        {
+          endpoint: "/api/portfolio/*",
+          avg_response_time: Math.floor(Math.random() * 80) + 60,
+        },
+        {
+          endpoint: "/api/technical/*",
+          avg_response_time: Math.floor(Math.random() * 60) + 40,
+        },
       ],
-      uptime: Math.floor(process.uptime())
+      uptime: Math.floor(process.uptime()),
     };
 
     res.json({
       success: true,
       data: { api_performance: apiMetrics },
-      message: 'API performance metrics retrieved successfully',
-      timestamp: new Date().toISOString()
+      message: "API performance metrics retrieved successfully",
+      timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('API performance metrics error:', err);
+    console.error("API performance metrics error:", err);
     res.status(500).json({
       success: false,
-      error: 'Failed to retrieve API performance metrics',
-      message: err.message
+      error: "Failed to retrieve API performance metrics",
+      message: err.message,
     });
   }
 });
@@ -81,21 +94,23 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { benchmark = "SPY", period = "1y" } = req.query;
-    console.log(`📈 Performance benchmark requested for user: ${userId}, benchmark: ${benchmark}, period: ${period}`);
-    
+    console.log(
+      `📈 Performance benchmark requested for user: ${userId}, benchmark: ${benchmark}, period: ${period}`
+    );
+
     // Convert period to days
     const periodDays = {
       "1d": 1,
-      "1w": 7, 
+      "1w": 7,
       "1m": 30,
       "3m": 90,
       "6m": 180,
       "1y": 365,
-      "2y": 730
+      "2y": 730,
     };
-    
+
     const days = periodDays[period] || 365;
-    
+
     // Get portfolio performance data
     const portfolioResult = await query(
       `
@@ -111,7 +126,7 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
       `,
       [userId]
     );
-    
+
     // Get benchmark data
     const benchmarkResult = await query(
       `
@@ -126,47 +141,49 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
       `,
       [benchmark.toUpperCase()]
     );
-    
+
     const portfolioData = portfolioResult.rows;
     const benchmarkData = benchmarkResult.rows;
-    
+
     // Calculate cumulative returns for both portfolio and benchmark
     let portfolioCumulative = 0;
     let benchmarkCumulative = 0;
-    
+
     const portfolioReturns = [];
     const benchmarkReturns = [];
     const comparisonData = [];
-    
+
     // Process portfolio data
     if (portfolioData.length > 0) {
       portfolioData.forEach((row, index) => {
         const dailyReturn = parseFloat(row.daily_pnl_percent) || 0;
         portfolioCumulative += dailyReturn;
-        
+
         portfolioReturns.push(dailyReturn);
         comparisonData.push({
           date: row.date,
           portfolio_value: parseFloat(row.total_value),
           portfolio_return: dailyReturn,
-          portfolio_cumulative: portfolioCumulative
+          portfolio_cumulative: portfolioCumulative,
         });
       });
     }
-    
+
     // Process benchmark data
     if (benchmarkData.length > 0) {
       benchmarkData.forEach((row, index) => {
         const dailyReturn = parseFloat(row.daily_return) || 0;
         benchmarkCumulative += dailyReturn;
-        
+
         benchmarkReturns.push(dailyReturn);
-        
+
         // Find matching comparison data entry
-        const existingEntry = comparisonData.find(entry => 
-          new Date(entry.date).toDateString() === new Date(row.date).toDateString()
+        const existingEntry = comparisonData.find(
+          (entry) =>
+            new Date(entry.date).toDateString() ===
+            new Date(row.date).toDateString()
         );
-        
+
         if (existingEntry) {
           existingEntry.benchmark_price = parseFloat(row.close);
           existingEntry.benchmark_return = dailyReturn;
@@ -176,23 +193,28 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
             date: row.date,
             benchmark_price: parseFloat(row.close),
             benchmark_return: dailyReturn,
-            benchmark_cumulative: benchmarkCumulative
+            benchmark_cumulative: benchmarkCumulative,
           });
         }
       });
     }
-    
+
     // Calculate performance metrics
     const calculateMetrics = (returns) => {
       if (returns.length === 0) return {};
-      
+
       const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-      const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+      const variance =
+        returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+        returns.length;
       const volatility = Math.sqrt(variance);
       const annualizedReturn = avgReturn * 252; // 252 trading days
       const annualizedVolatility = volatility * Math.sqrt(252);
-      const sharpeRatio = annualizedVolatility !== 0 ? (annualizedReturn - 2) / annualizedVolatility : 0; // 2% risk-free rate
-      
+      const sharpeRatio =
+        annualizedVolatility !== 0
+          ? (annualizedReturn - 2) / annualizedVolatility
+          : 0; // 2% risk-free rate
+
       return {
         total_return: returns.reduce((sum, r) => sum + r, 0),
         annualized_return: annualizedReturn,
@@ -200,68 +222,86 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
         sharpe_ratio: sharpeRatio,
         best_day: Math.max(...returns),
         worst_day: Math.min(...returns),
-        positive_days: returns.filter(r => r > 0).length,
-        total_days: returns.length
+        positive_days: returns.filter((r) => r > 0).length,
+        total_days: returns.length,
       };
     };
-    
+
     const portfolioMetrics = calculateMetrics(portfolioReturns);
     const benchmarkMetrics = calculateMetrics(benchmarkReturns);
-    
+
     // Calculate beta (portfolio volatility relative to benchmark)
     let beta = 0;
     if (portfolioReturns.length > 0 && benchmarkReturns.length > 0) {
-      const minLength = Math.min(portfolioReturns.length, benchmarkReturns.length);
+      const minLength = Math.min(
+        portfolioReturns.length,
+        benchmarkReturns.length
+      );
       const portfolioSubset = portfolioReturns.slice(0, minLength);
       const benchmarkSubset = benchmarkReturns.slice(0, minLength);
-      
-      const portfolioAvg = portfolioSubset.reduce((sum, r) => sum + r, 0) / minLength;
-      const benchmarkAvg = benchmarkSubset.reduce((sum, r) => sum + r, 0) / minLength;
-      
+
+      const portfolioAvg =
+        portfolioSubset.reduce((sum, r) => sum + r, 0) / minLength;
+      const benchmarkAvg =
+        benchmarkSubset.reduce((sum, r) => sum + r, 0) / minLength;
+
       let covariance = 0;
       let benchmarkVariance = 0;
-      
+
       for (let i = 0; i < minLength; i++) {
         const portfolioDeviation = portfolioSubset[i] - portfolioAvg;
         const benchmarkDeviation = benchmarkSubset[i] - benchmarkAvg;
         covariance += portfolioDeviation * benchmarkDeviation;
         benchmarkVariance += benchmarkDeviation * benchmarkDeviation;
       }
-      
+
       beta = benchmarkVariance !== 0 ? covariance / benchmarkVariance : 0;
     }
-    
+
     res.json({
       success: true,
       data: {
         benchmark_symbol: benchmark.toUpperCase(),
         period: period,
-        comparison_data: comparisonData.sort((a, b) => new Date(a.date) - new Date(b.date)),
+        comparison_data: comparisonData.sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        ),
         portfolio_metrics: portfolioMetrics,
         benchmark_metrics: benchmarkMetrics,
         relative_performance: {
-          excess_return: portfolioMetrics.total_return - benchmarkMetrics.total_return,
+          excess_return:
+            portfolioMetrics.total_return - benchmarkMetrics.total_return,
           beta: beta,
-          alpha: portfolioMetrics.total_return - (beta * benchmarkMetrics.total_return),
-          information_ratio: portfolioMetrics.volatility !== 0 ? 
-            (portfolioMetrics.total_return - benchmarkMetrics.total_return) / portfolioMetrics.volatility : 0,
-          tracking_error: Math.abs(portfolioMetrics.volatility - benchmarkMetrics.volatility)
+          alpha:
+            portfolioMetrics.total_return -
+            beta * benchmarkMetrics.total_return,
+          information_ratio:
+            portfolioMetrics.volatility !== 0
+              ? (portfolioMetrics.total_return -
+                  benchmarkMetrics.total_return) /
+                portfolioMetrics.volatility
+              : 0,
+          tracking_error: Math.abs(
+            portfolioMetrics.volatility - benchmarkMetrics.volatility
+          ),
         },
         summary: {
-          portfolio_outperformed: portfolioMetrics.total_return > benchmarkMetrics.total_return,
-          outperformance_amount: portfolioMetrics.total_return - benchmarkMetrics.total_return,
+          portfolio_outperformed:
+            portfolioMetrics.total_return > benchmarkMetrics.total_return,
+          outperformance_amount:
+            portfolioMetrics.total_return - benchmarkMetrics.total_return,
           data_points: comparisonData.length,
-          period_analyzed: `${days} days`
-        }
+          period_analyzed: `${days} days`,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Performance benchmark error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch performance benchmark data",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -271,7 +311,7 @@ router.get("/risk-adjusted", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { period = "1y" } = req.query;
-    
+
     // Get portfolio performance data from database
     const performanceQuery = `
       SELECT 
@@ -293,26 +333,34 @@ router.get("/risk-adjusted", authenticateToken, async (req, res) => {
     `;
 
     const result = await query(performanceQuery, [userId, period]);
-    
+
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No risk-adjusted performance data available",
         message: `No performance data found for period: ${period}`,
-        suggestions: ["Ensure portfolio has sufficient trading history", "Try a different time period"]
+        suggestions: [
+          "Ensure portfolio has sufficient trading history",
+          "Try a different time period",
+        ],
       });
     }
 
     const performance = result.rows[0];
-    
+
     // Calculate additional risk-adjusted metrics
-    const sharpeRatio = performance.portfolio_return && performance.portfolio_volatility 
-      ? ((performance.portfolio_return - 0.02) / performance.portfolio_volatility).toFixed(4)
-      : null;
-    
-    const treynorRatio = performance.portfolio_return && performance.beta
-      ? ((performance.portfolio_return - 0.02) / performance.beta).toFixed(4)
-      : null;
+    const sharpeRatio =
+      performance.portfolio_return && performance.portfolio_volatility
+        ? (
+            (performance.portfolio_return - 0.02) /
+            performance.portfolio_volatility
+          ).toFixed(4)
+        : null;
+
+    const treynorRatio =
+      performance.portfolio_return && performance.beta
+        ? ((performance.portfolio_return - 0.02) / performance.beta).toFixed(4)
+        : null;
 
     res.json({
       success: true,
@@ -330,19 +378,18 @@ router.get("/risk-adjusted", authenticateToken, async (req, res) => {
           portfolioVolatility: performance.portfolio_volatility,
           benchmarkReturn: performance.benchmark_return,
           benchmarkVolatility: performance.benchmark_volatility,
-          calculatedAt: performance.calculated_at
-        }
+          calculatedAt: performance.calculated_at,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Risk-adjusted performance error:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to calculate risk-adjusted performance",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -352,7 +399,7 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { period = "1y", benchmark = "SPY" } = req.query;
-    
+
     // Get portfolio holdings from database
     const holdingsQuery = `
       SELECT ph.symbol, ph.quantity as shares, ph.average_cost as cost_basis, ph.current_price, 
@@ -364,9 +411,9 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
       WHERE ph.user_id = $1 AND ph.quantity > 0
       ORDER BY ph.current_price * ph.quantity DESC
     `;
-    
+
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
+
     if (holdingsResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -376,11 +423,11 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
           user_id: userId,
           checked_tables: ["portfolio_holdings"],
           period: period,
-          benchmark: benchmark
-        }
+          benchmark: benchmark,
+        },
       });
     }
-    
+
     // Get portfolio performance from database
     const performanceQuery = `
       SELECT total_value, daily_pnl, total_pnl, total_pnl_percent, date, created_at
@@ -388,9 +435,9 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
       WHERE user_id = $1
       ORDER BY date DESC LIMIT 30
     `;
-    
+
     const performanceResult = await query(performanceQuery, [userId]);
-    
+
     if (performanceResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -401,69 +448,90 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
           period: period,
           benchmark: benchmark,
           available_holdings: holdingsResult.rows.length,
-          suggestion: "Performance calculations may need to be triggered or the specified period/benchmark combination may not exist"
-        }
+          suggestion:
+            "Performance calculations may need to be triggered or the specified period/benchmark combination may not exist",
+        },
       });
     }
-    
+
     // Use the performance data we already have since portfolio_daily_returns doesn't exist
-    const dailyReturnsResult = { rows: performanceResult.rows.map(row => ({ 
-      daily_pnl: row.daily_pnl,
-      date: row.date 
-    })) };
-    
+    const dailyReturnsResult = {
+      rows: performanceResult.rows.map((row) => ({
+        daily_pnl: row.daily_pnl,
+        date: row.date,
+      })),
+    };
+
     const performanceRow = performanceResult.rows[0];
-    const currentValue = holdingsResult.rows.reduce((sum, holding) => sum + (parseFloat(holding.market_value) || 0), 0);
-    const costBasis = holdingsResult.rows.reduce((sum, holding) => sum + (parseFloat(holding.cost_basis) * parseFloat(holding.shares)), 0);
-    const unrealizedPnL = holdingsResult.rows.reduce((sum, holding) => sum + (parseFloat(holding.unrealized_gain_loss) || 0), 0);
-    
+    const currentValue = holdingsResult.rows.reduce(
+      (sum, holding) => sum + (parseFloat(holding.market_value) || 0),
+      0
+    );
+    const costBasis = holdingsResult.rows.reduce(
+      (sum, holding) =>
+        sum + parseFloat(holding.cost_basis) * parseFloat(holding.shares),
+      0
+    );
+    const unrealizedPnL = holdingsResult.rows.reduce(
+      (sum, holding) => sum + (parseFloat(holding.unrealized_gain_loss) || 0),
+      0
+    );
+
     const performanceData = {
       total_return: parseFloat(performanceRow.total_pnl_percent) || 0,
-      daily_returns: dailyReturnsResult.rows.map(row => parseFloat(row.daily_pnl) || 0),
+      daily_returns: dailyReturnsResult.rows.map(
+        (row) => parseFloat(row.daily_pnl) || 0
+      ),
       portfolio_value: {
         current: currentValue,
         initial: costBasis,
-        unrealized_gain_loss: unrealizedPnL
+        unrealized_gain_loss: unrealizedPnL,
       },
       total_pnl: parseFloat(performanceRow.total_pnl) || 0,
       total_value: parseFloat(performanceRow.total_value) || currentValue,
       daily_pnl: parseFloat(performanceRow.daily_pnl) || 0,
       benchmark: {
         symbol: benchmark,
-        total_return: 0 // Not available in current schema
+        total_return: 0, // Not available in current schema
       },
       period: period,
       start_date: performanceRow.date,
-      end_date: new Date().toISOString().split('T')[0],
+      end_date: new Date().toISOString().split("T")[0],
       last_updated: performanceRow.created_at || new Date().toISOString(),
-      holdings_count: holdingsResult.rows.length
+      holdings_count: holdingsResult.rows.length,
     };
-    
+
     res.json({
       success: true,
       data: {
-        performance: performanceData
+        performance: performanceData,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Portfolio performance database error:", error);
-    
+
     // Provide specific error messages based on error type
     let errorMessage = "Failed to fetch portfolio performance data";
     let errorCode = 500;
-    
-    if (error.message.includes('relation') && error.message.includes('does not exist')) {
+
+    if (
+      error.message.includes("relation") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database table missing: ${error.message}. Please ensure portfolio database schema is properly initialized.`;
       errorCode = 503;
-    } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+    } else if (
+      error.message.includes("column") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database schema mismatch: ${error.message}. Database schema may need to be updated.`;
       errorCode = 503;
-    } else if (error.message.includes('connection')) {
+    } else if (error.message.includes("connection")) {
       errorMessage = `Database connection error: ${error.message}. Please check database availability.`;
       errorCode = 503;
     }
-    
+
     res.status(errorCode).json({
       success: false,
       error: "Portfolio performance calculation failed",
@@ -471,14 +539,15 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
       details: {
         error_type: error.name,
         database_error: error.message,
-        query_attempted: "portfolio_holdings, portfolio_performance, portfolio_daily_returns",
+        query_attempted:
+          "portfolio_holdings, portfolio_performance, portfolio_daily_returns",
         troubleshooting: [
           "Check if portfolio database tables exist",
           "Verify user has portfolio holdings",
           "Ensure performance calculations have been run",
-          "Check database connection and permissions"
-        ]
-      }
+          "Check database connection and permissions",
+        ],
+      },
     });
   }
 });
@@ -489,9 +558,11 @@ router.get("/portfolio/:symbol", authenticateToken, async (req, res) => {
     const userId = req.user.sub;
     const symbol = req.params.symbol.toUpperCase();
     const { period = "1y" } = req.query;
-    
-    console.log(`📊 Symbol-specific performance requested for user: ${userId}, symbol: ${symbol}, period: ${period}`);
-    
+
+    console.log(
+      `📊 Symbol-specific performance requested for user: ${userId}, symbol: ${symbol}, period: ${period}`
+    );
+
     // Get symbol-specific performance data from database
     const symbolPerformanceQuery = `
       SELECT 
@@ -508,9 +579,9 @@ router.get("/portfolio/:symbol", authenticateToken, async (req, res) => {
       GROUP BY th.symbol
       HAVING COUNT(*) > 0
     `;
-    
+
     const result = await query(symbolPerformanceQuery, [userId, symbol]);
-    
+
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -520,22 +591,24 @@ router.get("/portfolio/:symbol", authenticateToken, async (req, res) => {
           user_id: userId,
           symbol: symbol,
           period: period,
-          suggestion: "Ensure you have trades for this symbol in the selected time period"
-        }
+          suggestion:
+            "Ensure you have trades for this symbol in the selected time period",
+        },
       });
     }
-    
+
     const symbolData = result.rows[0];
     const currentPrice = parseFloat(symbolData.current_price) || 0;
     const avgPrice = parseFloat(symbolData.avg_price) || 0;
     const positionSize = parseFloat(symbolData.position_size) || 0;
     const totalInvestment = parseFloat(symbolData.total_investment) || 0;
-    
+
     // Calculate performance metrics
     const currentValue = positionSize * currentPrice;
     const unrealizedPnl = currentValue - totalInvestment;
-    const totalReturn = totalInvestment !== 0 ? unrealizedPnl / Math.abs(totalInvestment) : 0;
-    
+    const totalReturn =
+      totalInvestment !== 0 ? unrealizedPnl / Math.abs(totalInvestment) : 0;
+
     // Get additional performance metrics from portfolio performance if available
     const performanceMetricsQuery = `
       SELECT realized_pnl, win_rate, avg_hold_time_days
@@ -543,10 +616,14 @@ router.get("/portfolio/:symbol", authenticateToken, async (req, res) => {
       WHERE user_id = $1 AND symbol = $2 AND period = $3
       ORDER BY calculation_date DESC LIMIT 1
     `;
-    
-    const metricsResult = await query(performanceMetricsQuery, [userId, symbol, period]);
+
+    const metricsResult = await query(performanceMetricsQuery, [
+      userId,
+      symbol,
+      period,
+    ]);
     const metrics = metricsResult.rows[0] || {};
-    
+
     const performanceData = {
       symbol: symbol,
       total_return: totalReturn,
@@ -561,32 +638,38 @@ router.get("/portfolio/:symbol", authenticateToken, async (req, res) => {
       total_investment: Math.abs(totalInvestment),
       current_value: currentValue,
       period: period,
-      calculation_date: new Date().toISOString()
+      calculation_date: new Date().toISOString(),
     };
-    
+
     res.json({
       success: true,
       data: performanceData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Symbol performance database error:", error);
-    
+
     // Provide specific error messages based on error type
     let errorMessage = "Failed to fetch symbol performance data";
     let errorCode = 500;
-    
-    if (error.message.includes('relation') && error.message.includes('does not exist')) {
+
+    if (
+      error.message.includes("relation") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database table missing: ${error.message}. Please ensure portfolio database schema is properly initialized.`;
       errorCode = 503;
-    } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+    } else if (
+      error.message.includes("column") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database schema mismatch: ${error.message}. Database schema may need to be updated.`;
       errorCode = 503;
-    } else if (error.message.includes('connection')) {
+    } else if (error.message.includes("connection")) {
       errorMessage = `Database connection error: ${error.message}. Please check database availability.`;
       errorCode = 503;
     }
-    
+
     res.status(errorCode).json({
       success: false,
       error: "Symbol performance calculation failed",
@@ -600,9 +683,9 @@ router.get("/portfolio/:symbol", authenticateToken, async (req, res) => {
           "Check if portfolio database tables exist",
           "Verify user has trades for the requested symbol",
           "Ensure symbol exists in trade history",
-          "Check database connection and permissions"
-        ]
-      }
+          "Check database connection and permissions",
+        ],
+      },
     });
   }
 });
@@ -612,9 +695,9 @@ router.get("/returns", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { type = "time_weighted", period = "1y" } = req.query;
-    
+
     let transactionCount = 0;
-    
+
     try {
       // Check if user has portfolio transactions for returns calculation
       const transactionsQuery = `
@@ -622,27 +705,32 @@ router.get("/returns", authenticateToken, async (req, res) => {
         FROM portfolio_transactions 
         WHERE user_id = $1
       `;
-      
+
       const transactionsResult = await query(transactionsQuery, [userId]);
-      transactionCount = parseInt(transactionsResult.rows[0]?.transaction_count) || 0;
+      transactionCount =
+        parseInt(transactionsResult.rows[0]?.transaction_count) || 0;
     } catch (dbError) {
       // Database schema issue, assume no transactions
-      console.log("Database schema error, using fallback data:", dbError.message);
+      console.log(
+        "Database schema error, using fallback data:",
+        dbError.message
+      );
       transactionCount = 0;
     }
-    
+
     if (transactionCount === 0) {
       return res.status(404).json({
         success: false,
         error: "No portfolio transactions found",
-        message: "Cannot calculate returns without portfolio transactions. Please add transactions to your portfolio.",
+        message:
+          "Cannot calculate returns without portfolio transactions. Please add transactions to your portfolio.",
         metadata: {
           user_id: userId,
-          transaction_count: 0
-        }
+          transaction_count: 0,
+        },
       });
     }
-    
+
     try {
       // Get return calculations from database for different periods
       const returnsQuery = `
@@ -653,62 +741,72 @@ router.get("/returns", authenticateToken, async (req, res) => {
         WHERE user_id = $1 AND calculation_type = $2
         ORDER BY calculation_date DESC
       `;
-      
+
       const returnsResult = await query(returnsQuery, [userId, type]);
-      
+
       if (returnsResult.rows.length === 0) {
         return res.status(404).json({
           success: false,
           error: "No return calculations found",
-          message: "Portfolio return calculations have not been computed yet. Please ensure the portfolio_returns table is populated.",
+          message:
+            "Portfolio return calculations have not been computed yet. Please ensure the portfolio_returns table is populated.",
           metadata: {
             user_id: userId,
-            transaction_count: transactionCount
-          }
+            transaction_count: transactionCount,
+          },
         });
       }
-      
+
       // Process the returns data into the expected format
       const timeWeightedReturns = {};
       const dollarWeightedReturns = {};
       let annualizedData = {};
       let latestCalculation = null;
-      
+
       for (const row of returnsResult.rows) {
         const periodKey = row.period;
-        timeWeightedReturns[periodKey] = parseFloat(row.time_weighted_return) || 0;
-        dollarWeightedReturns[periodKey] = parseFloat(row.dollar_weighted_return) || 0;
-        
-        if (!latestCalculation || new Date(row.calculation_date) > new Date(latestCalculation)) {
+        timeWeightedReturns[periodKey] =
+          parseFloat(row.time_weighted_return) || 0;
+        dollarWeightedReturns[periodKey] =
+          parseFloat(row.dollar_weighted_return) || 0;
+
+        if (
+          !latestCalculation ||
+          new Date(row.calculation_date) > new Date(latestCalculation)
+        ) {
           latestCalculation = row.calculation_date;
           annualizedData = {
             time_weighted: parseFloat(row.annualized_time_weighted) || 0,
             dollar_weighted: parseFloat(row.annualized_dollar_weighted) || 0,
-            excess_return: parseFloat(row.excess_return) || 0
+            excess_return: parseFloat(row.excess_return) || 0,
           };
         }
       }
-      
+
       const returnData = {
         time_weighted: timeWeightedReturns,
         dollar_weighted: dollarWeightedReturns,
         annualized: annualizedData,
         period: period,
         calculation_date: latestCalculation || new Date().toISOString(),
-        methodology: type === "both" ? "time_weighted_and_dollar_weighted" : type,
-        transaction_count: transactionCount
+        methodology:
+          type === "both" ? "time_weighted_and_dollar_weighted" : type,
+        transaction_count: transactionCount,
       };
-      
+
       res.json({
         success: true,
         data: {
-          returns: returnData
+          returns: returnData,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (dbError) {
       // Database schema issue with portfolio_returns table, return sample data
-      console.log("Database schema error with returns table, using fallback data:", dbError.message);
+      console.log(
+        "Database schema error with returns table, using fallback data:",
+        dbError.message
+      );
       return res.json({
         success: true,
         data: {
@@ -722,33 +820,39 @@ router.get("/returns", authenticateToken, async (req, res) => {
           max_drawdown: -5.2,
           calculation_method: "sample_data",
           data_source: "Database schema error, showing sample data",
-          note: "Portfolio database tables may need to be created/updated"
+          note: "Portfolio database tables may need to be created/updated",
         },
         metadata: {
           user_id: userId,
           calculation_date: new Date().toISOString(),
-          transaction_count: transactionCount
-        }
+          transaction_count: transactionCount,
+        },
       });
     }
   } catch (error) {
     console.error("Return calculations database error:", error);
-    
+
     // Provide specific error messages based on error type
     let errorMessage = "Failed to calculate portfolio returns";
     let errorCode = 500;
-    
-    if (error.message.includes('relation') && error.message.includes('does not exist')) {
+
+    if (
+      error.message.includes("relation") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database table missing: ${error.message}. Please ensure portfolio database schema is properly initialized.`;
       errorCode = 503;
-    } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+    } else if (
+      error.message.includes("column") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database schema mismatch: ${error.message}. Database schema may need to be updated.`;
       errorCode = 503;
-    } else if (error.message.includes('connection')) {
+    } else if (error.message.includes("connection")) {
       errorMessage = `Database connection error: ${error.message}. Please check database availability.`;
       errorCode = 503;
     }
-    
+
     res.status(errorCode).json({
       success: false,
       error: "Portfolio returns calculation failed",
@@ -761,9 +865,9 @@ router.get("/returns", authenticateToken, async (req, res) => {
           "Check if portfolio database tables exist",
           "Verify user has transaction history",
           "Ensure return calculations have been computed",
-          "Check database connection and permissions"
-        ]
-      }
+          "Check database connection and permissions",
+        ],
+      },
     });
   }
 });
@@ -773,7 +877,7 @@ router.get("/risk", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { period = "1y" } = req.query;
-    
+
     let riskResult;
     try {
       // Get portfolio risk metrics from database
@@ -786,26 +890,30 @@ router.get("/risk", authenticateToken, async (req, res) => {
         WHERE user_id = $1 AND period = $2
         ORDER BY calculation_date DESC LIMIT 1
       `;
-      
+
       riskResult = await query(riskQuery, [userId, period]);
     } catch (dbError) {
       // Database schema issue, return sample data
-      console.log("Database schema error with risk table, using fallback data:", dbError.message);
+      console.log(
+        "Database schema error with risk table, using fallback data:",
+        dbError.message
+      );
       riskResult = { rows: [] };
     }
-    
+
     if (riskResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No risk metrics found",
-        message: "Portfolio risk metrics have not been calculated yet. Please ensure the portfolio_risk table is populated.",
+        message:
+          "Portfolio risk metrics have not been calculated yet. Please ensure the portfolio_risk table is populated.",
         metadata: {
           user_id: userId,
-          period: period
-        }
+          period: period,
+        },
       });
     }
-    
+
     const riskRow = riskResult.rows[0];
     const riskData = {
       portfolio_risk: {
@@ -815,48 +923,54 @@ router.get("/risk", authenticateToken, async (req, res) => {
         expected_shortfall_95: parseFloat(riskRow.expected_shortfall_95) || 0,
         expected_shortfall_99: parseFloat(riskRow.expected_shortfall_99) || 0,
         maximum_drawdown: parseFloat(riskRow.maximum_drawdown) || 0,
-        calmar_ratio: parseFloat(riskRow.calmar_ratio) || 0
+        calmar_ratio: parseFloat(riskRow.calmar_ratio) || 0,
       },
       risk_attribution: {
         systematic_risk: parseFloat(riskRow.systematic_risk) || 0,
         idiosyncratic_risk: parseFloat(riskRow.idiosyncratic_risk) || 0,
         concentration_risk: parseFloat(riskRow.concentration_risk) || 0,
-        liquidity_risk: parseFloat(riskRow.liquidity_risk) || 0
+        liquidity_risk: parseFloat(riskRow.liquidity_risk) || 0,
       },
       risk_measures: {
         beta: parseFloat(riskRow.beta) || 1.0,
         correlation_to_market: parseFloat(riskRow.correlation_to_market) || 0,
         tracking_error: parseFloat(riskRow.tracking_error) || 0,
-        active_risk: parseFloat(riskRow.active_risk) || 0
+        active_risk: parseFloat(riskRow.active_risk) || 0,
       },
       period: period,
       calculation_date: riskRow.calculation_date || new Date().toISOString(),
-      confidence_levels: ["95%", "99%"]
+      confidence_levels: ["95%", "99%"],
     };
-    
+
     res.json({
       success: true,
       data: riskData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Risk metrics database error:", error);
-    
+
     // Provide specific error messages based on error type
     let errorMessage = "Failed to fetch portfolio risk metrics";
     let errorCode = 500;
-    
-    if (error.message.includes('relation') && error.message.includes('does not exist')) {
+
+    if (
+      error.message.includes("relation") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database table missing: ${error.message}. Please ensure portfolio database schema is properly initialized.`;
       errorCode = 503;
-    } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+    } else if (
+      error.message.includes("column") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database schema mismatch: ${error.message}. Database schema may need to be updated.`;
       errorCode = 503;
-    } else if (error.message.includes('connection')) {
+    } else if (error.message.includes("connection")) {
       errorMessage = `Database connection error: ${error.message}. Please check database availability.`;
       errorCode = 503;
     }
-    
+
     res.status(errorCode).json({
       success: false,
       error: "Portfolio risk analysis failed",
@@ -869,9 +983,9 @@ router.get("/risk", authenticateToken, async (req, res) => {
           "Check if portfolio database tables exist",
           "Verify risk calculations have been computed",
           "Ensure sufficient portfolio data for risk analysis",
-          "Check database connection and permissions"
-        ]
-      }
+          "Check database connection and permissions",
+        ],
+      },
     });
   }
 });
@@ -909,14 +1023,16 @@ router.get("/metrics", authenticateToken, async (req, res) => {
 router.get("/attribution", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
-      period = "1y", 
-      level = "sector", 
+    const {
+      period = "1y",
+      level = "sector",
       include_holdings = "true",
-      attribution_method = "brinson" 
+      attribution_method = "brinson",
     } = req.query;
 
-    console.log(`📊 Performance attribution endpoint accessed - user: ${userId}, period: ${period}, level: ${level}, method: ${attribution_method}`);
+    console.log(
+      `📊 Performance attribution endpoint accessed - user: ${userId}, period: ${period}, level: ${level}, method: ${attribution_method}`
+    );
 
     // Build comprehensive performance attribution analysis
     const attributionQuery = `
@@ -1033,7 +1149,10 @@ router.get("/attribution", authenticateToken, async (req, res) => {
       result = await query(attributionQuery, [userId]);
     } catch (dbError) {
       // Database schema issue, return sample data
-      console.log("Database schema error with attribution tables, using fallback data:", dbError.message);
+      console.log(
+        "Database schema error with attribution tables, using fallback data:",
+        dbError.message
+      );
       result = { rows: [] };
     }
 
@@ -1041,17 +1160,18 @@ router.get("/attribution", authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No attribution data found",
-        message: "Portfolio attribution analysis data is not available. Please ensure portfolio holdings and attribution calculations are properly configured.",
+        message:
+          "Portfolio attribution analysis data is not available. Please ensure portfolio holdings and attribution calculations are properly configured.",
         metadata: {
           user_id: userId,
           period: period,
-          attribution_level: level
-        }
+          attribution_level: level,
+        },
       });
     }
 
     // Process attribution results
-    const attributionData = result.rows.map(row => ({
+    const attributionData = result.rows.map((row) => ({
       sector: row.sector,
       portfolio_weight: parseFloat(row.portfolio_weight_pct),
       benchmark_weight: parseFloat(row.benchmark_weight_pct),
@@ -1062,23 +1182,47 @@ router.get("/attribution", authenticateToken, async (req, res) => {
       interaction_effect: parseFloat(row.interaction_effect_bps),
       total_effect: parseFloat(row.total_effect_bps),
       holdings_count: parseInt(row.holdings_count),
-      sector_value: parseFloat(row.sector_value)
+      sector_value: parseFloat(row.sector_value),
     }));
 
     // Calculate summary metrics
     const summary = {
-      total_allocation_effect: attributionData.reduce((sum, s) => sum + s.allocation_effect, 0),
-      total_selection_effect: attributionData.reduce((sum, s) => sum + s.selection_effect, 0),
-      total_interaction_effect: attributionData.reduce((sum, s) => sum + s.interaction_effect, 0),
-      total_active_return: attributionData.reduce((sum, s) => sum + s.total_effect, 0),
-      best_sector: attributionData.length > 0 ? attributionData[0].sector : null,
-      worst_sector: attributionData.length > 0 ? attributionData[attributionData.length - 1].sector : null,
+      total_allocation_effect: attributionData.reduce(
+        (sum, s) => sum + s.allocation_effect,
+        0
+      ),
+      total_selection_effect: attributionData.reduce(
+        (sum, s) => sum + s.selection_effect,
+        0
+      ),
+      total_interaction_effect: attributionData.reduce(
+        (sum, s) => sum + s.interaction_effect,
+        0
+      ),
+      total_active_return: attributionData.reduce(
+        (sum, s) => sum + s.total_effect,
+        0
+      ),
+      best_sector:
+        attributionData.length > 0 ? attributionData[0].sector : null,
+      worst_sector:
+        attributionData.length > 0
+          ? attributionData[attributionData.length - 1].sector
+          : null,
       total_sectors: attributionData.length,
-      total_holdings: attributionData.reduce((sum, s) => sum + s.holdings_count, 0),
-      portfolio_value: attributionData.reduce((sum, s) => sum + s.sector_value, 0)
+      total_holdings: attributionData.reduce(
+        (sum, s) => sum + s.holdings_count,
+        0
+      ),
+      portfolio_value: attributionData.reduce(
+        (sum, s) => sum + s.sector_value,
+        0
+      ),
     };
 
-    console.log(`📊 Performance attribution calculated: ${attributionData.length} sectors, ${summary.total_active_return.toFixed(2)}bps active return`);
+    console.log(
+      `📊 Performance attribution calculated: ${attributionData.length} sectors, ${summary.total_active_return.toFixed(2)}bps active return`
+    );
 
     res.json({
       success: true,
@@ -1089,29 +1233,30 @@ router.get("/attribution", authenticateToken, async (req, res) => {
         components: {
           allocation_effect: "Impact of sector weight differences vs benchmark",
           selection_effect: "Impact of security selection within sectors",
-          interaction_effect: "Combined impact of allocation and selection decisions"
+          interaction_effect:
+            "Combined impact of allocation and selection decisions",
         },
-        calculation: "Active Return = Allocation Effect + Selection Effect + Interaction Effect",
+        calculation:
+          "Active Return = Allocation Effect + Selection Effect + Interaction Effect",
         period: period,
         level: level,
-        method: attribution_method
+        method: attribution_method,
       },
       filters: {
         user_id: userId,
         period: period,
         level: level,
-        attribution_method: attribution_method
+        attribution_method: attribution_method,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Performance attribution endpoint error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to process performance attribution request",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1390,7 +1535,8 @@ router.post("/clear-metrics", authenticateToken, async (req, res) => {
       clearedBy: req.user?.sub,
     });
 
-    res.json({message: "Performance metrics cleared successfully",
+    res.json({
+      message: "Performance metrics cleared successfully",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -1407,30 +1553,32 @@ router.post("/clear-metrics", authenticateToken, async (req, res) => {
 router.get("/comparison", async (req, res) => {
   try {
     const { symbol, benchmark = "SPY", period = "1y" } = req.query;
-    
+
     if (!symbol) {
       return res.status(400).json({
         success: false,
         error: "Symbol parameter required",
-        message: "Please provide a symbol using ?symbol=TICKER"
+        message: "Please provide a symbol using ?symbol=TICKER",
       });
     }
-    
-    console.log(`📊 Performance comparison requested - symbol: ${symbol}, benchmark: ${benchmark}, period: ${period}`);
-    
+
+    console.log(
+      `📊 Performance comparison requested - symbol: ${symbol}, benchmark: ${benchmark}, period: ${period}`
+    );
+
     // Convert period to days
     const periodDays = {
       "1d": 1,
-      "1w": 7, 
+      "1w": 7,
       "1m": 30,
       "3m": 90,
       "6m": 180,
       "1y": 365,
-      "2y": 730
+      "2y": 730,
     };
-    
+
     const days = periodDays[period] || 365;
-    
+
     // Get symbol price data
     const symbolResult = await query(
       `
@@ -1445,7 +1593,7 @@ router.get("/comparison", async (req, res) => {
       `,
       [symbol.toUpperCase()]
     );
-    
+
     // Get benchmark data
     const benchmarkResult = await query(
       `
@@ -1460,10 +1608,10 @@ router.get("/comparison", async (req, res) => {
       `,
       [benchmark.toUpperCase()]
     );
-    
+
     const symbolData = symbolResult.rows;
     const benchmarkData = benchmarkResult.rows;
-    
+
     if (symbolData.length === 0 || benchmarkData.length === 0) {
       return res.json({
         success: true,
@@ -1474,34 +1622,40 @@ router.get("/comparison", async (req, res) => {
           message: "Limited data available for comparison",
           symbol_data_points: symbolData.length,
           benchmark_data_points: benchmarkData.length,
-          comparison: []
+          comparison: [],
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Calculate performance metrics
     let symbolCumulative = 0;
     let benchmarkCumulative = 0;
     const comparisonData = [];
-    
+
     // Create date-aligned comparison data
-    const symbolMap = new Map(symbolData.map(row => [row.date.toISOString().split('T')[0], row]));
-    const benchmarkMap = new Map(benchmarkData.map(row => [row.date.toISOString().split('T')[0], row]));
-    
+    const symbolMap = new Map(
+      symbolData.map((row) => [row.date.toISOString().split("T")[0], row])
+    );
+    const benchmarkMap = new Map(
+      benchmarkData.map((row) => [row.date.toISOString().split("T")[0], row])
+    );
+
     // Get common dates
-    const commonDates = [...symbolMap.keys()].filter(date => benchmarkMap.has(date)).sort();
-    
-    commonDates.forEach(date => {
+    const commonDates = [...symbolMap.keys()]
+      .filter((date) => benchmarkMap.has(date))
+      .sort();
+
+    commonDates.forEach((date) => {
       const symbolRow = symbolMap.get(date);
       const benchmarkRow = benchmarkMap.get(date);
-      
+
       const symbolReturn = parseFloat(symbolRow.daily_return) || 0;
       const benchmarkReturn = parseFloat(benchmarkRow.daily_return) || 0;
-      
+
       symbolCumulative += symbolReturn;
       benchmarkCumulative += benchmarkReturn;
-      
+
       comparisonData.push({
         date: date,
         symbol_price: parseFloat(symbolRow.close) || 0,
@@ -1510,19 +1664,33 @@ router.get("/comparison", async (req, res) => {
         benchmark_daily_return: benchmarkReturn,
         symbol_cumulative_return: symbolCumulative,
         benchmark_cumulative_return: benchmarkCumulative,
-        relative_performance: symbolCumulative - benchmarkCumulative
+        relative_performance: symbolCumulative - benchmarkCumulative,
       });
     });
-    
+
     // Calculate summary statistics
     const latestData = comparisonData[comparisonData.length - 1] || {};
-    const symbolReturns = comparisonData.map(d => d.symbol_daily_return);
-    const benchmarkReturns = comparisonData.map(d => d.benchmark_daily_return);
-    
+    const symbolReturns = comparisonData.map((d) => d.symbol_daily_return);
+    const benchmarkReturns = comparisonData.map(
+      (d) => d.benchmark_daily_return
+    );
+
     // Calculate volatility (standard deviation)
-    const symbolVolatility = Math.sqrt(symbolReturns.reduce((sum, r) => sum + Math.pow(r - (symbolCumulative / symbolReturns.length), 2), 0) / symbolReturns.length);
-    const benchmarkVolatility = Math.sqrt(benchmarkReturns.reduce((sum, r) => sum + Math.pow(r - (benchmarkCumulative / benchmarkReturns.length), 2), 0) / benchmarkReturns.length);
-    
+    const symbolVolatility = Math.sqrt(
+      symbolReturns.reduce(
+        (sum, r) =>
+          sum + Math.pow(r - symbolCumulative / symbolReturns.length, 2),
+        0
+      ) / symbolReturns.length
+    );
+    const benchmarkVolatility = Math.sqrt(
+      benchmarkReturns.reduce(
+        (sum, r) =>
+          sum + Math.pow(r - benchmarkCumulative / benchmarkReturns.length, 2),
+        0
+      ) / benchmarkReturns.length
+    );
+
     res.json({
       success: true,
       data: {
@@ -1537,18 +1705,18 @@ router.get("/comparison", async (req, res) => {
           benchmark_volatility: benchmarkVolatility,
           data_points: comparisonData.length,
           start_date: comparisonData[0]?.date || null,
-          end_date: comparisonData[comparisonData.length - 1]?.date || null
+          end_date: comparisonData[comparisonData.length - 1]?.date || null,
         },
-        comparison_data: comparisonData
+        comparison_data: comparisonData,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Performance comparison error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch performance comparison",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1558,8 +1726,10 @@ router.get("/analytics", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { period = "1y" } = req.query;
-    
-    console.log(`📊 Performance analytics requested for user: ${userId}, period: ${period}`);
+
+    console.log(
+      `📊 Performance analytics requested for user: ${userId}, period: ${period}`
+    );
 
     // Get comprehensive portfolio analytics from database
     const analyticsQuery = `
@@ -1572,10 +1742,14 @@ router.get("/analytics", authenticateToken, async (req, res) => {
       WHERE pa.user_id = $1 AND pa.period = $2
       ORDER BY pa.calculation_date DESC LIMIT 1
     `;
-    
+
     const analyticsResult = await query(analyticsQuery, [userId, period]);
-    
-    if (!analyticsResult || !analyticsResult.rows || analyticsResult.rows.length === 0) {
+
+    if (
+      !analyticsResult ||
+      !analyticsResult.rows ||
+      analyticsResult.rows.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         error: "Performance analytics not available",
@@ -1584,11 +1758,12 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           user_id: userId,
           period: period,
           required_data: "portfolio_analytics",
-          suggestion: "Performance analytics calculations may need to be triggered. Ensure you have sufficient portfolio data and transaction history."
-        }
+          suggestion:
+            "Performance analytics calculations may need to be triggered. Ensure you have sufficient portfolio data and transaction history.",
+        },
       });
     }
-    
+
     const analyticsRow = analyticsResult.rows[0];
     const analyticsData = {
       total_return: parseFloat(analyticsRow.total_return) || 0,
@@ -1607,33 +1782,39 @@ router.get("/analytics", authenticateToken, async (req, res) => {
       profit_factor: parseFloat(analyticsRow.profit_factor) || 0,
       recovery_factor: parseFloat(analyticsRow.recovery_factor) || 0,
       period: period,
-      calculation_date: analyticsRow.calculation_date || new Date().toISOString()
+      calculation_date:
+        analyticsRow.calculation_date || new Date().toISOString(),
     };
 
     res.json({
       success: true,
       data: analyticsData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Performance analytics database error:", error);
-    
+
     // Provide specific error messages based on error type
     let errorMessage = "Failed to fetch performance analytics";
     let errorCode = 500;
-    
-    if (error.message.includes('relation') && error.message.includes('does not exist')) {
+
+    if (
+      error.message.includes("relation") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database table missing: ${error.message}. Please ensure portfolio database schema is properly initialized.`;
       errorCode = 503;
-    } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+    } else if (
+      error.message.includes("column") &&
+      error.message.includes("does not exist")
+    ) {
       errorMessage = `Database schema mismatch: ${error.message}. Database schema may need to be updated.`;
       errorCode = 503;
-    } else if (error.message.includes('connection')) {
+    } else if (error.message.includes("connection")) {
       errorMessage = `Database connection error: ${error.message}. Please check database availability.`;
       errorCode = 503;
     }
-    
+
     res.status(errorCode).json({
       success: false,
       error: "Performance analytics calculation failed",
@@ -1646,9 +1827,9 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           "Check if portfolio database tables exist",
           "Verify analytics calculations have been computed",
           "Ensure sufficient portfolio data for analytics",
-          "Check database connection and permissions"
-        ]
-      }
+          "Check database connection and permissions",
+        ],
+      },
     });
   }
 });

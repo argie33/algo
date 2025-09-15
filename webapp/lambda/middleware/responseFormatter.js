@@ -3,17 +3,17 @@
  * Adds standard response formatting methods to Express res object
  */
 
-const responseFormatter = require('../utils/responseFormatter');
+const responseFormatter = require("../utils/responseFormatter");
 
 /**
  * Middleware to add standard response methods to res object
  * @param {Object} req - Express request object
- * @param {Object} res - Express response object  
+ * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
 const responseFormatterMiddleware = (req, res, next) => {
   // Add API version header
-  res.set('Api-Version', 'v1.0');
+  res.set("Api-Version", "v1.0");
 
   // Add success method
   res.success = (data, statusCode = 200, meta = {}) => {

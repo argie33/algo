@@ -6,14 +6,14 @@ const router = express.Router();
 
 // Helper function to convert sentiment text to numeric score
 function convertSentimentToScore(sentiment) {
-  if (typeof sentiment === 'number') return sentiment;
+  if (typeof sentiment === "number") return sentiment;
   if (!sentiment) return 0;
-  
+
   const sentimentLower = sentiment.toLowerCase();
-  if (sentimentLower === 'positive') return 0.7;
-  if (sentimentLower === 'negative') return -0.7;
-  if (sentimentLower === 'neutral') return 0;
-  
+  if (sentimentLower === "positive") return 0.7;
+  if (sentimentLower === "negative") return -0.7;
+  if (sentimentLower === "neutral") return 0;
+
   // Try parsing as number in case it's already numeric
   const parsed = parseFloat(sentiment);
   return isNaN(parsed) ? 0 : parsed;
@@ -78,7 +78,7 @@ router.get("/", async (req, res) => {
     const validSortColumns = [
       "symbol",
       "composite_score",
-      "overall_score", 
+      "overall_score",
       "fundamental_score",
       "technical_score",
       "sentiment_score",
@@ -88,13 +88,13 @@ router.get("/", async (req, res) => {
 
     // Map frontend sort names to actual database columns
     const sortMapping = {
-      "composite_score": "overall_score",
-      "quality_score": "fundamental_score", 
-      "value_score": "fundamental_score",
-      "growth_score": "technical_score",
-      "momentum_score": "technical_score",
-      "sentiment": "sentiment_score",
-      "positioning_score": "fundamental_score"
+      composite_score: "overall_score",
+      quality_score: "fundamental_score",
+      value_score: "fundamental_score",
+      growth_score: "technical_score",
+      momentum_score: "technical_score",
+      sentiment: "sentiment_score",
+      positioning_score: "fundamental_score",
     };
 
     const mappedSort = sortMapping[sortBy] || sortBy;
@@ -205,7 +205,8 @@ router.get("/", async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Stock scores temporarily unavailable - database connection issue",
+        message:
+          "Stock scores temporarily unavailable - database connection issue",
         data: {
           stocks: [],
           pagination: {
@@ -214,13 +215,16 @@ router.get("/", async (req, res) => {
             total: 0,
             totalPages: 0,
             hasNext: false,
-            hasPrev: false
-          }
-        }
+            hasPrev: false,
+          },
+        },
       });
     }
 
-    const totalStocks = parseInt((countResult.rows && countResult.rows[0] && countResult.rows[0].total) || 0);
+    const totalStocks = parseInt(
+      (countResult.rows && countResult.rows[0] && countResult.rows[0].total) ||
+        0
+    );
 
     // Format the response
     const stocks = (stocksResult.rows || []).map((row) => ({
@@ -271,7 +275,7 @@ router.get("/", async (req, res) => {
       success: true,
       data: {
         scores: stocks,
-        count: stocks.length
+        count: stocks.length,
       },
       pagination: {
         currentPage: page,
@@ -313,7 +317,9 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in scores endpoint:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch scores"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch scores" });
   }
 });
 
@@ -329,7 +335,7 @@ router.get("/latest", async (req, res) => {
 
     let whereClause = "";
     let params = [limit];
-    
+
     if (sector) {
       whereClause = "WHERE s.sector = $2";
       params.push(sector);
@@ -356,17 +362,16 @@ router.get("/latest", async (req, res) => {
       total: result.rows.length,
       filters: {
         limit: parseInt(limit),
-        sector: sector || null
+        sector: sector || null,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Latest scores error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch latest scores",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -374,17 +379,18 @@ router.get("/latest", async (req, res) => {
 // Get composite scores - comprehensive scoring system with multiple factors
 router.get("/composite", async (req, res) => {
   try {
-    const { 
-      limit = 50, 
-      offset = 0, 
+    const {
+      limit = 50,
+      offset = 0,
       sector,
       min_score = 0,
       sort = "score",
-      order = "desc"
+      order = "desc",
     } = req.query;
 
     // Build comprehensive composite scoring query
-    const sectorFilter = sector ? `AND pd.symbol IN (
+    const sectorFilter = sector
+      ? `AND pd.symbol IN (
       SELECT DISTINCT symbol FROM price_daily 
       WHERE symbol ~ CASE 
         WHEN $2 = 'tech' THEN '^(AAPL|MSFT|GOOGL|AMZN|META|NVDA|NFLX|CRM|ORCL|ADBE)$'
@@ -393,7 +399,8 @@ router.get("/composite", async (req, res) => {
         WHEN $2 = 'energy' THEN '^(XOM|CVX|COP|EOG|SLB|PSX|VLO|MPC|OXY|DVN)$'
         ELSE '.*'
       END
-    )` : '';
+    )`
+      : "";
 
     const params = [limit, offset];
     if (sector) params.push(sector);
@@ -565,7 +572,7 @@ router.get("/composite", async (req, res) => {
       WHERE composite_score >= ${min_score}
       ORDER BY 
         CASE WHEN '${sort}' = 'symbol' THEN symbol END ${order},
-        CASE WHEN '${sort}' = 'score' THEN composite_score END ${order === 'desc' ? 'DESC' : 'ASC'},
+        CASE WHEN '${sort}' = 'score' THEN composite_score END ${order === "desc" ? "DESC" : "ASC"},
         composite_score DESC
       LIMIT $1 OFFSET $2
     `;
@@ -576,12 +583,12 @@ router.get("/composite", async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "Failed to calculate composite scores",
-        details: "Database query failed"
+        details: "Database query failed",
       });
     }
 
     // Process results and add metadata
-    const scores = result.rows.map(row => ({
+    const scores = result.rows.map((row) => ({
       symbol: row.symbol,
       composite_score: parseFloat(row.composite_score),
       rating: row.rating,
@@ -591,27 +598,43 @@ router.get("/composite", async (req, res) => {
         fundamental: parseFloat(row.fundamental_component),
         market: parseFloat(row.market_component),
         esg: parseFloat(row.esg_component),
-        risk: parseFloat(row.risk_component)
+        risk: parseFloat(row.risk_component),
       },
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     }));
 
     // Generate summary statistics
     const summary = {
       total_analyzed: scores.length,
-      average_score: scores.length > 0 ? 
-        Math.round(scores.reduce((sum, s) => sum + s.composite_score, 0) / scores.length * 100) / 100 : 0,
+      average_score:
+        scores.length > 0
+          ? Math.round(
+              (scores.reduce((sum, s) => sum + s.composite_score, 0) /
+                scores.length) *
+                100
+            ) / 100
+          : 0,
       rating_distribution: {
-        excellent: scores.filter(s => s.composite_score >= 80).length,
-        good: scores.filter(s => s.composite_score >= 70 && s.composite_score < 80).length,
-        fair: scores.filter(s => s.composite_score >= 60 && s.composite_score < 70).length,
-        below_average: scores.filter(s => s.composite_score >= 50 && s.composite_score < 60).length,
-        poor: scores.filter(s => s.composite_score < 50).length
+        excellent: scores.filter((s) => s.composite_score >= 80).length,
+        good: scores.filter(
+          (s) => s.composite_score >= 70 && s.composite_score < 80
+        ).length,
+        fair: scores.filter(
+          (s) => s.composite_score >= 60 && s.composite_score < 70
+        ).length,
+        below_average: scores.filter(
+          (s) => s.composite_score >= 50 && s.composite_score < 60
+        ).length,
+        poor: scores.filter((s) => s.composite_score < 50).length,
       },
-      top_performers: scores.slice(0, 5).map(s => ({ symbol: s.symbol, score: s.composite_score }))
+      top_performers: scores
+        .slice(0, 5)
+        .map((s) => ({ symbol: s.symbol, score: s.composite_score })),
     };
 
-    console.log(`📊 Composite scores calculated: ${scores.length} stocks, avg score: ${summary.average_score}`);
+    console.log(
+      `📊 Composite scores calculated: ${scores.length} stocks, avg score: ${summary.average_score}`
+    );
 
     res.json({
       success: true,
@@ -620,29 +643,52 @@ router.get("/composite", async (req, res) => {
       methodology: {
         description: "Multi-factor composite scoring system",
         components: {
-          technical: { weight: "30%", factors: ["RSI momentum", "Price trend", "Volume strength"] },
-          fundamental: { weight: "25%", factors: ["Valuation metrics", "Growth indicators", "Quality measures"] },
-          market: { weight: "20%", factors: ["Market cap tier", "Liquidity", "Analyst sentiment"] },
-          esg: { weight: "15%", factors: ["Environmental impact", "Social responsibility", "Governance quality"] },
-          risk: { weight: "10%", factors: ["Volatility assessment", "Drawdown resistance"] }
-        }
+          technical: {
+            weight: "30%",
+            factors: ["RSI momentum", "Price trend", "Volume strength"],
+          },
+          fundamental: {
+            weight: "25%",
+            factors: [
+              "Valuation metrics",
+              "Growth indicators",
+              "Quality measures",
+            ],
+          },
+          market: {
+            weight: "20%",
+            factors: ["Market cap tier", "Liquidity", "Analyst sentiment"],
+          },
+          esg: {
+            weight: "15%",
+            factors: [
+              "Environmental impact",
+              "Social responsibility",
+              "Governance quality",
+            ],
+          },
+          risk: {
+            weight: "10%",
+            factors: ["Volatility assessment", "Drawdown resistance"],
+          },
+        },
       },
       filters: {
-        sector: sector || 'all',
+        sector: sector || "all",
         min_score: parseInt(min_score),
         sort: sort,
         order: order,
         limit: parseInt(limit),
-        offset: parseInt(offset)
+        offset: parseInt(offset),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Composite scores error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch composite scores",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -650,30 +696,34 @@ router.get("/composite", async (req, res) => {
 // ESG (Environmental, Social, Governance) scores endpoint
 router.get("/esg", async (req, res) => {
   try {
-    const { 
-      symbol, 
-      sector, 
-      limit = 50, 
+    const {
+      symbol,
+      sector,
+      limit = 50,
       page = 1,
       sortBy = "overall_esg_score",
-      sortOrder = "desc"
+      sortOrder = "desc",
     } = req.query;
-    
-    console.log(`🌱 ESG scores requested - symbol: ${symbol || 'all'}, sector: ${sector || 'all'}`);
+
+    console.log(
+      `🌱 ESG scores requested - symbol: ${symbol || "all"}, sector: ${sector || "all"}`
+    );
 
     // Build comprehensive ESG scoring query
-    const symbolFilter = symbol ? 'AND pd.symbol = $2' : '';
-    const sectorFilter = sector ? `AND pd.symbol IN (
+    const symbolFilter = symbol ? "AND pd.symbol = $2" : "";
+    const sectorFilter = sector
+      ? `AND pd.symbol IN (
       SELECT DISTINCT symbol FROM price_daily 
       WHERE symbol ~ CASE 
-        WHEN $${symbol ? '3' : '2'} = 'tech' THEN '^(AAPL|MSFT|GOOGL|AMZN|META|NVDA|NFLX|CRM|ORCL|ADBE)$'
-        WHEN $${symbol ? '3' : '2'} = 'healthcare' THEN '^(JNJ|UNH|PFE|ABT|TMO|DHR|BMY|AMGN|GILD|CVS)$'
-        WHEN $${symbol ? '3' : '2'} = 'finance' THEN '^(JPM|BAC|WFC|GS|MS|C|USB|PNC|TFC|COF)$'
-        WHEN $${symbol ? '3' : '2'} = 'energy' THEN '^(XOM|CVX|COP|EOG|SLB|PSX|VLO|MPC|OXY|DVN)$'
-        WHEN $${symbol ? '3' : '2'} = 'consumer' THEN '^(AMZN|TSLA|NKE|SBUX|MCD|KO|PEP|WMT|TGT|HD)$'
+        WHEN $${symbol ? "3" : "2"} = 'tech' THEN '^(AAPL|MSFT|GOOGL|AMZN|META|NVDA|NFLX|CRM|ORCL|ADBE)$'
+        WHEN $${symbol ? "3" : "2"} = 'healthcare' THEN '^(JNJ|UNH|PFE|ABT|TMO|DHR|BMY|AMGN|GILD|CVS)$'
+        WHEN $${symbol ? "3" : "2"} = 'finance' THEN '^(JPM|BAC|WFC|GS|MS|C|USB|PNC|TFC|COF)$'
+        WHEN $${symbol ? "3" : "2"} = 'energy' THEN '^(XOM|CVX|COP|EOG|SLB|PSX|VLO|MPC|OXY|DVN)$'
+        WHEN $${symbol ? "3" : "2"} = 'consumer' THEN '^(AMZN|TSLA|NKE|SBUX|MCD|KO|PEP|WMT|TGT|HD)$'
         ELSE '.*'
       END
-    )` : '';
+    )`
+      : "";
 
     const params = [limit, (page - 1) * limit];
     if (symbol) params.push(symbol.toUpperCase());
@@ -834,10 +884,10 @@ router.get("/esg", async (req, res) => {
       FROM final_esg
       ORDER BY 
         CASE WHEN '${sortBy}' = 'symbol' THEN symbol END ${sortOrder},
-        CASE WHEN '${sortBy}' = 'overall_esg_score' THEN overall_esg_score END ${sortOrder === 'desc' ? 'DESC' : 'ASC'},
-        CASE WHEN '${sortBy}' = 'environmental_score' THEN environmental_score END ${sortOrder === 'desc' ? 'DESC' : 'ASC'},
-        CASE WHEN '${sortBy}' = 'social_score' THEN social_score END ${sortOrder === 'desc' ? 'DESC' : 'ASC'},
-        CASE WHEN '${sortBy}' = 'governance_score' THEN governance_score END ${sortOrder === 'desc' ? 'DESC' : 'ASC'},
+        CASE WHEN '${sortBy}' = 'overall_esg_score' THEN overall_esg_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
+        CASE WHEN '${sortBy}' = 'environmental_score' THEN environmental_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
+        CASE WHEN '${sortBy}' = 'social_score' THEN social_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
+        CASE WHEN '${sortBy}' = 'governance_score' THEN governance_score END ${sortOrder === "desc" ? "DESC" : "ASC"},
         overall_esg_score DESC
       LIMIT $1 OFFSET $2
     `;
@@ -848,12 +898,12 @@ router.get("/esg", async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "Failed to calculate ESG scores",
-        details: "Database query failed"
+        details: "Database query failed",
       });
     }
 
     // Process ESG results with detailed breakdowns
-    const esgScores = result.rows.map(row => ({
+    const esgScores = result.rows.map((row) => ({
       symbol: row.symbol,
       overall_esg_score: parseFloat(row.overall_esg_score),
       esg_rating: row.esg_rating,
@@ -864,8 +914,8 @@ router.get("/esg", async (req, res) => {
           breakdown: {
             carbon_footprint: parseFloat(row.carbon_score),
             resource_efficiency: parseFloat(row.resource_efficiency_score),
-            environmental_innovation: parseFloat(row.innovation_score)
-          }
+            environmental_innovation: parseFloat(row.innovation_score),
+          },
         },
         social: {
           score: parseFloat(row.social_score),
@@ -873,8 +923,8 @@ router.get("/esg", async (req, res) => {
             diversity_inclusion: parseFloat(row.diversity_score),
             employee_relations: parseFloat(row.employee_score),
             community_engagement: parseFloat(row.community_score),
-            product_safety: parseFloat(row.safety_score)
-          }
+            product_safety: parseFloat(row.safety_score),
+          },
         },
         governance: {
           score: parseFloat(row.governance_score),
@@ -882,57 +932,93 @@ router.get("/esg", async (req, res) => {
             board_composition: parseFloat(row.board_score),
             executive_compensation: parseFloat(row.compensation_score),
             transparency: parseFloat(row.transparency_score),
-            business_ethics: parseFloat(row.ethics_score)
-          }
-        }
+            business_ethics: parseFloat(row.ethics_score),
+          },
+        },
       },
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     }));
 
     // Generate ESG summary analytics
     const summary = {
       total_companies: esgScores.length,
-      average_esg_score: esgScores.length > 0 ? 
-        Math.round(esgScores.reduce((sum, s) => sum + s.overall_esg_score, 0) / esgScores.length * 100) / 100 : 0,
+      average_esg_score:
+        esgScores.length > 0
+          ? Math.round(
+              (esgScores.reduce((sum, s) => sum + s.overall_esg_score, 0) /
+                esgScores.length) *
+                100
+            ) / 100
+          : 0,
       rating_distribution: {
-        AAA: esgScores.filter(s => s.esg_rating === 'AAA').length,
-        AA: esgScores.filter(s => s.esg_rating === 'AA').length,
-        A: esgScores.filter(s => s.esg_rating === 'A').length,
-        BBB: esgScores.filter(s => s.esg_rating === 'BBB').length,
-        BB: esgScores.filter(s => s.esg_rating === 'BB').length,
-        B: esgScores.filter(s => s.esg_rating === 'B').length
+        AAA: esgScores.filter((s) => s.esg_rating === "AAA").length,
+        AA: esgScores.filter((s) => s.esg_rating === "AA").length,
+        A: esgScores.filter((s) => s.esg_rating === "A").length,
+        BBB: esgScores.filter((s) => s.esg_rating === "BBB").length,
+        BB: esgScores.filter((s) => s.esg_rating === "BB").length,
+        B: esgScores.filter((s) => s.esg_rating === "B").length,
       },
       component_averages: {
-        environmental: esgScores.length > 0 ? 
-          Math.round(esgScores.reduce((sum, s) => sum + s.components.environmental.score, 0) / esgScores.length * 100) / 100 : 0,
-        social: esgScores.length > 0 ? 
-          Math.round(esgScores.reduce((sum, s) => sum + s.components.social.score, 0) / esgScores.length * 100) / 100 : 0,
-        governance: esgScores.length > 0 ? 
-          Math.round(esgScores.reduce((sum, s) => sum + s.components.governance.score, 0) / esgScores.length * 100) / 100 : 0
+        environmental:
+          esgScores.length > 0
+            ? Math.round(
+                (esgScores.reduce(
+                  (sum, s) => sum + s.components.environmental.score,
+                  0
+                ) /
+                  esgScores.length) *
+                  100
+              ) / 100
+            : 0,
+        social:
+          esgScores.length > 0
+            ? Math.round(
+                (esgScores.reduce(
+                  (sum, s) => sum + s.components.social.score,
+                  0
+                ) /
+                  esgScores.length) *
+                  100
+              ) / 100
+            : 0,
+        governance:
+          esgScores.length > 0
+            ? Math.round(
+                (esgScores.reduce(
+                  (sum, s) => sum + s.components.governance.score,
+                  0
+                ) /
+                  esgScores.length) *
+                  100
+              ) / 100
+            : 0,
       },
-      top_esg_performers: esgScores.slice(0, 5).map(s => ({ 
-        symbol: s.symbol, 
-        score: s.overall_esg_score, 
-        rating: s.esg_rating 
-      }))
+      top_esg_performers: esgScores.slice(0, 5).map((s) => ({
+        symbol: s.symbol,
+        score: s.overall_esg_score,
+        rating: s.esg_rating,
+      })),
     };
 
-    console.log(`🌱 ESG scores calculated: ${esgScores.length} companies, avg score: ${summary.average_esg_score}`);
+    console.log(
+      `🌱 ESG scores calculated: ${esgScores.length} companies, avg score: ${summary.average_esg_score}`
+    );
 
     res.json({
       success: true,
       esg_scores: esgScores,
       summary: summary,
       methodology: {
-        description: "Comprehensive Environmental, Social, and Governance scoring framework",
+        description:
+          "Comprehensive Environmental, Social, and Governance scoring framework",
         components: {
           environmental: {
             weight: "35%",
             factors: [
               "Carbon footprint and emissions (40%)",
-              "Resource efficiency and waste management (35%)", 
-              "Environmental innovation and sustainability (25%)"
-            ]
+              "Resource efficiency and waste management (35%)",
+              "Environmental innovation and sustainability (25%)",
+            ],
           },
           social: {
             weight: "35%",
@@ -940,8 +1026,8 @@ router.get("/esg", async (req, res) => {
               "Workforce diversity and inclusion (25%)",
               "Employee relations and satisfaction (30%)",
               "Community engagement and social impact (25%)",
-              "Product safety and quality (20%)"
-            ]
+              "Product safety and quality (20%)",
+            ],
           },
           governance: {
             weight: "30%",
@@ -949,36 +1035,35 @@ router.get("/esg", async (req, res) => {
               "Board composition and independence (30%)",
               "Executive compensation alignment (25%)",
               "Transparency and disclosure quality (25%)",
-              "Business ethics and compliance (20%)"
-            ]
-          }
+              "Business ethics and compliance (20%)",
+            ],
+          },
         },
         rating_scale: {
           AAA: "80-100 (Leader)",
-          AA: "70-79 (Above Average)",  
+          AA: "70-79 (Above Average)",
           A: "60-69 (Average)",
           BBB: "50-59 (Below Average)",
           BB: "40-49 (Laggard)",
-          B: "Below 40 (Poor)"
-        }
+          B: "Below 40 (Poor)",
+        },
       },
       filters: {
         symbol: symbol || null,
-        sector: sector || 'all',
+        sector: sector || "all",
         limit: parseInt(limit),
         page: parseInt(page),
         sort_by: sortBy,
-        sort_order: sortOrder
+        sort_order: sortOrder,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("ESG scores error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch ESG scores",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -986,17 +1071,19 @@ router.get("/esg", async (req, res) => {
 // Get momentum scores endpoint - MUST be before /:symbol route
 router.get("/momentum", async (req, res) => {
   try {
-    const { 
+    const {
       symbol,
       timeframe = "daily",
       period = 14,
       limit = 50,
       threshold = 50,
       sortBy = "momentum_score",
-      sortOrder = "desc"
+      sortOrder = "desc",
     } = req.query;
 
-    console.log(`⚡ Momentum scores requested - symbol: ${symbol || 'all'}, timeframe: ${timeframe}, period: ${period}`);
+    console.log(
+      `⚡ Momentum scores requested - symbol: ${symbol || "all"}, timeframe: ${timeframe}, period: ${period}`
+    );
 
     // Get momentum scores from database - no mock data
     return res.status(503).json({
@@ -1004,25 +1091,30 @@ router.get("/momentum", async (req, res) => {
       error: "Service unavailable",
       message: "Momentum scores calculation requires real market data analysis",
       details: {
-        required_tables: ["technical_scores", "price_daily", "technical_indicators"],
-        required_functionality: "Technical analysis calculations for momentum and RSI",
-        suggestion: "Implement technical analysis engine to calculate real momentum scores",
+        required_tables: [
+          "technical_scores",
+          "price_daily",
+          "technical_indicators",
+        ],
+        required_functionality:
+          "Technical analysis calculations for momentum and RSI",
+        suggestion:
+          "Implement technical analysis engine to calculate real momentum scores",
         troubleshooting: [
           "1. Set up technical analysis calculation pipeline",
           "2. Populate technical_scores table with real RSI and momentum calculations",
           "3. Connect to live market data feeds for real-time analysis",
-          "4. Replace this endpoint with real technical analysis results"
-        ]
+          "4. Replace this endpoint with real technical analysis results",
+        ],
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Momentum scores error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch momentum scores",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1049,13 +1141,16 @@ router.get("/:symbol", async (req, res) => {
 
     // Add null checking for database availability
     if (!scoresResult || !scoresResult.rows) {
-      console.warn("Scores query returned null result, database may be unavailable");
+      console.warn(
+        "Scores query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Stock scores temporarily unavailable - database connection issue",
+        message:
+          "Stock scores temporarily unavailable - database connection issue",
         symbol,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1094,7 +1189,7 @@ router.get("/:symbol", async (req, res) => {
         avg_composite: 0,
         avg_quality: 0,
         avg_value: 0,
-        peer_count: 0
+        peer_count: 0,
       };
     } else {
       sectorBenchmark = sectorResult.rows[0];
@@ -1256,7 +1351,9 @@ router.get("/:symbol", async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Error getting detailed scores:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch detailed scores"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch detailed scores" });
   }
 });
 
@@ -1345,7 +1442,9 @@ router.get("/sectors/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sector analysis:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch sector analysis"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch sector analysis" });
   }
 });
 
@@ -1365,17 +1464,25 @@ router.get("/top/:category", async (req, res) => {
       "positioning",
     ];
     if (!validCategories.includes(category)) {
-      return res.status(400).json({success: false, error: "Invalid category"});
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid category" });
     }
 
     const scoreColumn =
-      category === "composite" ? "overall_score" : 
-      category === "quality" ? "fundamental_score" :
-      category === "value" ? "fundamental_score" :
-      category === "growth" ? "technical_score" :
-      category === "momentum" ? "technical_score" :
-      category === "sentiment" ? "sentiment" :
-      "overall_score";
+      category === "composite"
+        ? "overall_score"
+        : category === "quality"
+          ? "fundamental_score"
+          : category === "value"
+            ? "fundamental_score"
+            : category === "growth"
+              ? "technical_score"
+              : category === "momentum"
+                ? "technical_score"
+                : category === "sentiment"
+                  ? "sentiment"
+                  : "overall_score";
 
     const topStocksQuery = `
       SELECT 
@@ -1438,7 +1545,9 @@ router.get("/top/:category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting top stocks:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch top stocks"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch top stocks" });
   }
 });
 
@@ -1510,35 +1619,47 @@ function generateScoreInterpretation(scoreData) {
 // Get technical scores for stocks
 router.get("/technical", async (req, res) => {
   try {
-    const { 
-      symbol, 
+    const {
+      symbol,
       timeframe = "daily",
       limit = 50,
       minScore = 0,
       maxScore = 100,
       sortBy = "score",
-      order = "desc"
+      order = "desc",
     } = req.query;
 
-    console.log(`📊 Technical scores requested for symbol: ${symbol || 'all'}, timeframe: ${timeframe}`);
+    console.log(
+      `📊 Technical scores requested for symbol: ${symbol || "all"}, timeframe: ${timeframe}`
+    );
 
     // Validate timeframe
     const validTimeframes = ["1m", "5m", "15m", "1h", "4h", "daily", "weekly"];
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid timeframe. Must be one of: " + validTimeframes.join(", "),
-        requested_timeframe: timeframe
+        error:
+          "Invalid timeframe. Must be one of: " + validTimeframes.join(", "),
+        requested_timeframe: timeframe,
       });
     }
 
     // Validate sortBy
-    const validSortFields = ["score", "symbol", "momentum", "trend", "volatility", "volume", "date"];
+    const validSortFields = [
+      "score",
+      "symbol",
+      "momentum",
+      "trend",
+      "volatility",
+      "volume",
+      "date",
+    ];
     if (!validSortFields.includes(sortBy)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid sortBy field. Must be one of: " + validSortFields.join(", "),
-        requested_sort: sortBy
+        error:
+          "Invalid sortBy field. Must be one of: " + validSortFields.join(", "),
+        requested_sort: sortBy,
       });
     }
 
@@ -1547,7 +1668,7 @@ router.get("/technical", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Invalid order. Must be 'asc' or 'desc'",
-        requested_order: order
+        requested_order: order,
       });
     }
 
@@ -1618,21 +1739,23 @@ router.get("/technical", async (req, res) => {
         details: {
           table_checked: "technical_scores",
           symbol_requested: symbol || "all symbols",
-          required_functionality: "Technical analysis calculations and score computation",
-          suggestion: "Implement technical analysis engine to calculate real scores",
+          required_functionality:
+            "Technical analysis calculations and score computation",
+          suggestion:
+            "Implement technical analysis engine to calculate real scores",
           troubleshooting: [
             "1. Set up technical analysis calculation pipeline",
             "2. Populate technical_scores table with real calculations",
             "3. Connect to price data feeds for technical indicator computation",
-            "4. Verify technical analysis algorithms are running"
-          ]
+            "4. Verify technical analysis algorithms are running",
+          ],
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Process real technical scores data from database
-    const technicalData = result.rows.map(row => ({
+    const technicalData = result.rows.map((row) => ({
       symbol: row.symbol,
       technical_score: parseFloat(row.technical_score) || 0,
       momentum_score: parseFloat(row.momentum_score) || 0,
@@ -1640,40 +1763,51 @@ router.get("/technical", async (req, res) => {
       volatility_score: parseFloat(row.volatility_score) || 0,
       volume_score: parseFloat(row.volume_score) || 0,
       rsi_14: parseFloat(row.rsi_14) || 50,
-      macd_signal: row.macd_signal || 'NEUTRAL',
+      macd_signal: row.macd_signal || "NEUTRAL",
       bollinger_position: parseFloat(row.bollinger_position) || 0,
-      moving_avg_signal: row.moving_avg_signal || 'NEUTRAL',
-      volume_trend: row.volume_trend || 'STABLE',
+      moving_avg_signal: row.moving_avg_signal || "NEUTRAL",
+      volume_trend: row.volume_trend || "STABLE",
       support_level: parseFloat(row.support_level) || 0,
       resistance_level: parseFloat(row.resistance_level) || 0,
       breakout_probability: parseFloat(row.breakout_probability) || 0,
       timeframe: row.timeframe || timeframe,
       calculated_at: row.calculated_at,
-      recommendation: row.recommendation || 'HOLD'
+      recommendation: row.recommendation || "HOLD",
     }));
 
     // Apply sorting
     technicalData.sort((a, b) => {
       const aVal = a[sortBy];
       const bVal = b[sortBy];
-      if (typeof aVal === 'string') {
-        return order === 'desc' ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+      if (typeof aVal === "string") {
+        return order === "desc"
+          ? bVal.localeCompare(aVal)
+          : aVal.localeCompare(bVal);
       }
-      return order === 'desc' ? bVal - aVal : aVal - bVal;
+      return order === "desc" ? bVal - aVal : aVal - bVal;
     });
 
     // Apply limit
     const limitedData = technicalData.slice(0, parseInt(limit));
 
     // Calculate summary statistics
-    const avgScore = limitedData.reduce((sum, item) => sum + item.technical_score, 0) / limitedData.length;
+    const avgScore =
+      limitedData.reduce((sum, item) => sum + item.technical_score, 0) /
+      limitedData.length;
     const topScorer = limitedData[0];
     const scoreDistribution = {
-      strong_buy: limitedData.filter(item => item.technical_score >= 80).length,
-      buy: limitedData.filter(item => item.technical_score >= 70 && item.technical_score < 80).length,
-      hold: limitedData.filter(item => item.technical_score >= 55 && item.technical_score < 70).length,
-      weak_hold: limitedData.filter(item => item.technical_score >= 45 && item.technical_score < 55).length,
-      sell: limitedData.filter(item => item.technical_score < 45).length
+      strong_buy: limitedData.filter((item) => item.technical_score >= 80)
+        .length,
+      buy: limitedData.filter(
+        (item) => item.technical_score >= 70 && item.technical_score < 80
+      ).length,
+      hold: limitedData.filter(
+        (item) => item.technical_score >= 55 && item.technical_score < 70
+      ).length,
+      weak_hold: limitedData.filter(
+        (item) => item.technical_score >= 45 && item.technical_score < 55
+      ).length,
+      sell: limitedData.filter((item) => item.technical_score < 45).length,
     };
 
     res.json({
@@ -1683,29 +1817,31 @@ router.get("/technical", async (req, res) => {
         summary: {
           total_symbols: limitedData.length,
           average_score: avgScore.toFixed(2),
-          top_performer: topScorer ? {
-            symbol: topScorer.symbol,
-            score: topScorer.technical_score,
-            recommendation: topScorer.recommendation
-          } : null,
+          top_performer: topScorer
+            ? {
+                symbol: topScorer.symbol,
+                score: topScorer.technical_score,
+                recommendation: topScorer.recommendation,
+              }
+            : null,
           score_distribution: scoreDistribution,
-          timeframe: timeframe
+          timeframe: timeframe,
         },
         filters: {
-          symbol: symbol || 'all',
+          symbol: symbol || "all",
           timeframe: timeframe,
           score_range: {
             min: parseFloat(minScore),
-            max: parseFloat(maxScore)
+            max: parseFloat(maxScore),
           },
           sort: {
             field: sortBy,
-            order: order
+            order: order,
           },
-          limit: parseInt(limit)
-        }
+          limit: parseInt(limit),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Technical scores error:", error);
@@ -1713,7 +1849,7 @@ router.get("/technical", async (req, res) => {
       success: false,
       error: "Failed to fetch technical scores",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

@@ -41,7 +41,11 @@ describe("AIStrategyGenerator Service", () => {
       expect(generator.assetTypePatterns.stock.indicators).toContain("sma");
       expect(generator.assetTypePatterns.stock.indicators).toContain("rsi");
       expect(generator.assetTypePatterns.stock.timeframes).toContain("1day");
-      expect(generator.assetTypePatterns.stock.actions).toEqual(["buy", "sell", "hold"]);
+      expect(generator.assetTypePatterns.stock.actions).toEqual([
+        "buy",
+        "sell",
+        "hold",
+      ]);
     });
 
     test("should have strategy templates", () => {
@@ -49,7 +53,9 @@ describe("AIStrategyGenerator Service", () => {
       expect(generator.strategyTemplates).toHaveProperty("mean_reversion");
       expect(generator.strategyTemplates).toHaveProperty("breakout");
 
-      expect(generator.strategyTemplates.momentum).toHaveProperty("description");
+      expect(generator.strategyTemplates.momentum).toHaveProperty(
+        "description"
+      );
       expect(generator.strategyTemplates.momentum).toHaveProperty("code");
       expect(generator.strategyTemplates.momentum).toHaveProperty("parameters");
     });
@@ -87,7 +93,11 @@ describe("AIStrategyGenerator Service", () => {
         },
       });
 
-      const result = await generator.generateFromNaturalLanguage(prompt, symbols, options);
+      const result = await generator.generateFromNaturalLanguage(
+        prompt,
+        symbols,
+        options
+      );
 
       expect(result.success).toBe(true);
       expect(result.strategy.name).toBe("AI Momentum Strategy");
@@ -123,7 +133,10 @@ describe("AIStrategyGenerator Service", () => {
         source: "template",
       });
 
-      const result = await generator.generateFromNaturalLanguage(prompt, symbols);
+      const result = await generator.generateFromNaturalLanguage(
+        prompt,
+        symbols
+      );
 
       expect(result.success).toBe(true);
       expect(result.strategy.name).toBe("Template Momentum Strategy");
@@ -140,8 +153,12 @@ describe("AIStrategyGenerator Service", () => {
       const prompt = "Invalid prompt";
 
       // Mock both AI and template failure
-      jest.spyOn(generator, "generateWithClaude").mockRejectedValue(new Error("Service error"));
-      jest.spyOn(generator, "generateWithTemplates").mockRejectedValue(new Error("Template error"));
+      jest
+        .spyOn(generator, "generateWithClaude")
+        .mockRejectedValue(new Error("Service error"));
+      jest
+        .spyOn(generator, "generateWithTemplates")
+        .mockRejectedValue(new Error("Template error"));
 
       const result = await generator.generateFromNaturalLanguage(prompt);
 
@@ -270,9 +287,15 @@ describe("AIStrategyGenerator Service", () => {
 
     test("should parse strategy types correctly", async () => {
       const testCases = [
-        { prompt: "momentum strategy with moving averages", expectedType: "momentum" },
+        {
+          prompt: "momentum strategy with moving averages",
+          expectedType: "momentum",
+        },
         { prompt: "mean reversion using RSI", expectedType: "mean_reversion" },
-        { prompt: "breakout trading with bollinger bands", expectedType: "breakout" },
+        {
+          prompt: "breakout trading with bollinger bands",
+          expectedType: "breakout",
+        },
         { prompt: "trend following approach", expectedType: "momentum" },
       ];
 
@@ -323,7 +346,11 @@ describe("AIStrategyGenerator Service", () => {
       };
       const symbols = ["AAPL"];
 
-      const code = await generator.generateStrategyCode(intent, "momentum", symbols);
+      const code = await generator.generateStrategyCode(
+        intent,
+        "momentum",
+        symbols
+      );
 
       expect(code).toContain("def momentum_strategy");
       expect(code).toContain("short_window");
@@ -342,7 +369,11 @@ describe("AIStrategyGenerator Service", () => {
       };
       const symbols = ["MSFT"];
 
-      const code = await generator.generateStrategyCode(intent, "mean_reversion", symbols);
+      const code = await generator.generateStrategyCode(
+        intent,
+        "mean_reversion",
+        symbols
+      );
 
       expect(code).toContain("def mean_reversion_strategy");
       expect(code).toContain("rsi_period");
@@ -360,7 +391,11 @@ describe("AIStrategyGenerator Service", () => {
       };
       const symbols = ["GOOGL"];
 
-      const code = await generator.generateStrategyCode(intent, "breakout", symbols);
+      const code = await generator.generateStrategyCode(
+        intent,
+        "breakout",
+        symbols
+      );
 
       expect(code).toContain("def breakout_strategy");
       expect(code).toContain("bb_period");
@@ -373,9 +408,13 @@ describe("AIStrategyGenerator Service", () => {
       const intent = { action: "buy", strategyType: "momentum" };
       const symbols = ["AAPL", "MSFT", "GOOGL"];
 
-      const code = await generator.generateStrategyCode(intent, "momentum", symbols);
+      const code = await generator.generateStrategyCode(
+        intent,
+        "momentum",
+        symbols
+      );
 
-      symbols.forEach(symbol => {
+      symbols.forEach((symbol) => {
         expect(code).toContain(symbol);
       });
     });
@@ -384,11 +423,15 @@ describe("AIStrategyGenerator Service", () => {
       const intent = { action: "buy", strategyType: "momentum" };
       const symbols = ["SPY"];
 
-      const code = await generator.generateStrategyCode(intent, "momentum", symbols);
+      const code = await generator.generateStrategyCode(
+        intent,
+        "momentum",
+        symbols
+      );
 
       expect(code).toContain("try:");
       expect(code).toContain("except Exception as e:");
-      expect(code).toContain("print(f\"Error: {e}\")");
+      expect(code).toContain('print(f"Error: {e}")');
     });
   });
 
@@ -440,9 +483,7 @@ describe("AIStrategyGenerator Service", () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
-        expect.arrayContaining([
-          expect.stringContaining("syntax"),
-        ])
+        expect.arrayContaining([expect.stringContaining("syntax")])
       );
     });
 
@@ -530,7 +571,11 @@ describe("AIStrategyGenerator Service", () => {
       const symbols = ["AAPL"];
       const options = { risk: "low" };
 
-      const userPrompt = await generator.buildUserPrompt(prompt, symbols, options);
+      const userPrompt = await generator.buildUserPrompt(
+        prompt,
+        symbols,
+        options
+      );
 
       expect(typeof userPrompt).toBe("string");
       expect(userPrompt).toContain(prompt);
@@ -570,7 +615,7 @@ describe("AIStrategyGenerator Service", () => {
         generator.generateFromNaturalLanguage(""),
       ]);
 
-      results.forEach(result => {
+      results.forEach((result) => {
         expect(result.status).toBe("fulfilled");
         expect(result.value.success).toBe(false);
       });
@@ -586,7 +631,8 @@ describe("AIStrategyGenerator Service", () => {
     });
 
     test("should handle special characters in prompts", async () => {
-      const specialPrompt = "Create strategy with symbols: $AAPL, @MSFT, #GOOGL!";
+      const specialPrompt =
+        "Create strategy with symbols: $AAPL, @MSFT, #GOOGL!";
 
       const result = await generator.generateFromNaturalLanguage(specialPrompt);
 
@@ -603,9 +649,14 @@ describe("AIStrategyGenerator Service", () => {
 
     test("should handle very large symbols array", async () => {
       const prompt = "momentum strategy";
-      const manySymbols = Array(1000).fill().map((_, i) => `STOCK${i}`);
+      const manySymbols = Array(1000)
+        .fill()
+        .map((_, i) => `STOCK${i}`);
 
-      const result = await generator.generateFromNaturalLanguage(prompt, manySymbols);
+      const result = await generator.generateFromNaturalLanguage(
+        prompt,
+        manySymbols
+      );
 
       expect(result).toHaveProperty("success");
     });
@@ -618,30 +669,36 @@ describe("AIStrategyGenerator Service", () => {
         nested: { invalid: true },
       };
 
-      const result = await generator.generateFromNaturalLanguage(prompt, ["AAPL"], invalidOptions);
+      const result = await generator.generateFromNaturalLanguage(
+        prompt,
+        ["AAPL"],
+        invalidOptions
+      );
 
       expect(result).toHaveProperty("success");
     });
 
     test("should maintain correlation ID consistency", () => {
       const initialId = generator.correlationId;
-      
+
       // Should maintain same ID throughout instance lifecycle
       expect(generator.correlationId).toBe(initialId);
-      
+
       // New instance should have different ID
       const newGenerator = new AIStrategyGenerator();
       expect(newGenerator.correlationId).not.toBe(initialId);
     });
 
     test("should handle concurrent strategy generation requests", async () => {
-      const promises = Array(5).fill().map(() =>
-        generator.generateFromNaturalLanguage("momentum strategy", ["AAPL"])
-      );
+      const promises = Array(5)
+        .fill()
+        .map(() =>
+          generator.generateFromNaturalLanguage("momentum strategy", ["AAPL"])
+        );
 
       const results = await Promise.all(promises);
 
-      results.forEach(result => {
+      results.forEach((result) => {
         expect(result).toHaveProperty("success");
       });
     });
@@ -661,7 +718,9 @@ describe("AIStrategyGenerator Service", () => {
 
     test("should log errors appropriately", async () => {
       // Force an error by mocking template generation to fail
-      jest.spyOn(generator, "generateWithTemplates").mockRejectedValue(new Error("Template error"));
+      jest
+        .spyOn(generator, "generateWithTemplates")
+        .mockRejectedValue(new Error("Template error"));
 
       await generator.generateFromNaturalLanguage("test strategy");
 

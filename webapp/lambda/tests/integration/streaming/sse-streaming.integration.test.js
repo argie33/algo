@@ -4,7 +4,10 @@
  */
 
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -28,10 +31,10 @@ describe("SSE Streaming Integration Tests", () => {
 
       if (response.status === 200) {
         // SSE connection should set proper headers
-        expect(response.headers['content-type']).toBe('text/event-stream');
-        expect(response.headers['cache-control']).toBe('no-cache');
-        expect(response.headers['connection']).toBe('keep-alive');
-        expect(response.headers['access-control-allow-origin']).toBe('*');
+        expect(response.headers["content-type"]).toBe("text/event-stream");
+        expect(response.headers["cache-control"]).toBe("no-cache");
+        expect(response.headers["connection"]).toBe("keep-alive");
+        expect(response.headers["access-control-allow-origin"]).toBe("*");
 
         // Response should be streaming data
         if (response.text) {
@@ -43,15 +46,15 @@ describe("SSE Streaming Integration Tests", () => {
         // Handle auth or implementation status
         expect([401, 404, 501]).toContain(response.status);
         if (response.status === 501) {
-          expect(response.body).toHaveProperty('success', false);
-          expect(response.body.error).toContain('not implemented');
+          expect(response.body).toHaveProperty("success", false);
+          expect(response.body.error).toContain("not implemented");
         }
       }
     });
 
     test("should handle SSE streaming with symbol filters", async () => {
       const symbols = "AAPL,MSFT,GOOGL";
-      
+
       const response = await request(app)
         .get("/live-data/stream")
         .set("Authorization", "Bearer dev-bypass-token")
@@ -60,8 +63,8 @@ describe("SSE Streaming Integration Tests", () => {
         .timeout(2000);
 
       if (response.status === 200) {
-        expect(response.headers['content-type']).toBe('text/event-stream');
-        
+        expect(response.headers["content-type"]).toBe("text/event-stream");
+
         // Should include requested symbols in stream
         if (response.text) {
           const hasSymbolData = /AAPL|MSFT|GOOGL/.test(response.text);
@@ -81,11 +84,11 @@ describe("SSE Streaming Integration Tests", () => {
         .timeout(2500); // Allow for at least 2 updates
 
       if (response.status === 200) {
-        expect(response.headers['content-type']).toBe('text/event-stream');
-        
+        expect(response.headers["content-type"]).toBe("text/event-stream");
+
         // Should receive multiple updates
         if (response.text) {
-          const dataEvents = response.text.split('data:').length - 1;
+          const dataEvents = response.text.split("data:").length - 1;
           expect(dataEvents).toBeGreaterThan(0);
         }
       } else {
@@ -101,36 +104,36 @@ describe("SSE Streaming Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('success', true);
-        expect(response.body).toHaveProperty('data');
-        expect(response.body.data).toHaveProperty('quotes');
-        expect(response.body.data).toHaveProperty('summary');
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body.data).toHaveProperty("quotes");
+        expect(response.body.data).toHaveProperty("summary");
 
         // Check quotes structure
         expect(Array.isArray(response.body.data.quotes)).toBe(true);
         if (response.body.data.quotes.length > 0) {
           const quote = response.body.data.quotes[0];
-          expect(quote).toHaveProperty('symbol');
-          expect(quote).toHaveProperty('current_price');
-          expect(quote).toHaveProperty('change_amount');
-          expect(quote).toHaveProperty('change_percent');
-          expect(quote).toHaveProperty('volume');
-          expect(quote).toHaveProperty('market_status');
-          expect(quote).toHaveProperty('last_updated');
-          
+          expect(quote).toHaveProperty("symbol");
+          expect(quote).toHaveProperty("current_price");
+          expect(quote).toHaveProperty("change_amount");
+          expect(quote).toHaveProperty("change_percent");
+          expect(quote).toHaveProperty("volume");
+          expect(quote).toHaveProperty("market_status");
+          expect(quote).toHaveProperty("last_updated");
+
           // Validate data types
-          expect(typeof quote.current_price).toBe('number');
-          expect(typeof quote.change_amount).toBe('number');
-          expect(typeof quote.change_percent).toBe('number');
-          expect(typeof quote.volume).toBe('number');
+          expect(typeof quote.current_price).toBe("number");
+          expect(typeof quote.change_amount).toBe("number");
+          expect(typeof quote.change_percent).toBe("number");
+          expect(typeof quote.volume).toBe("number");
         }
 
         // Check summary structure
-        expect(response.body.data.summary).toHaveProperty('total_symbols');
-        expect(response.body.data.summary).toHaveProperty('market_status');
-        expect(response.body.data.summary).toHaveProperty('gainers');
-        expect(response.body.data.summary).toHaveProperty('losers');
-        expect(response.body.data.summary).toHaveProperty('last_updated');
+        expect(response.body.data.summary).toHaveProperty("total_symbols");
+        expect(response.body.data.summary).toHaveProperty("market_status");
+        expect(response.body.data.summary).toHaveProperty("gainers");
+        expect(response.body.data.summary).toHaveProperty("losers");
+        expect(response.body.data.summary).toHaveProperty("last_updated");
       } else {
         expect([401, 404, 501]).toContain(response.status);
       }
@@ -138,7 +141,7 @@ describe("SSE Streaming Integration Tests", () => {
 
     test("should handle symbol filtering for live quotes", async () => {
       const testSymbols = "AAPL,MSFT";
-      
+
       const response = await request(app)
         .get("/live-data/quotes")
         .set("Authorization", "Bearer dev-bypass-token")
@@ -146,10 +149,10 @@ describe("SSE Streaming Integration Tests", () => {
 
       if (response.status === 200) {
         expect(response.body.data.quotes.length).toBeLessThanOrEqual(2);
-        
+
         // All returned quotes should be from requested symbols
-        response.body.data.quotes.forEach(quote => {
-          expect(['AAPL', 'MSFT']).toContain(quote.symbol);
+        response.body.data.quotes.forEach((quote) => {
+          expect(["AAPL", "MSFT"]).toContain(quote.symbol);
         });
       }
     });
@@ -162,11 +165,11 @@ describe("SSE Streaming Integration Tests", () => {
 
       if (response.status === 200) {
         expect(response.body.data.quotes.length).toBeLessThanOrEqual(5);
-        
+
         // Should include pagination metadata
         if (response.body.data.pagination) {
-          expect(response.body.data.pagination).toHaveProperty('offset', 10);
-          expect(response.body.data.pagination).toHaveProperty('limit', 5);
+          expect(response.body.data.pagination).toHaveProperty("offset", 10);
+          expect(response.body.data.pagination).toHaveProperty("limit", 5);
         }
       }
     });
@@ -179,18 +182,20 @@ describe("SSE Streaming Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('success', true);
-        expect(response.body).toHaveProperty('data');
-        expect(response.body.data).toHaveProperty('status');
-        expect(response.body.data).toHaveProperty('metrics');
-        expect(response.body.data).toHaveProperty('recommendations');
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body.data).toHaveProperty("status");
+        expect(response.body.data).toHaveProperty("metrics");
+        expect(response.body.data).toHaveProperty("recommendations");
 
         // Check metrics structure
-        expect(response.body.data.metrics).toHaveProperty('active_connections');
-        expect(response.body.data.metrics).toHaveProperty('queries_per_minute');
-        expect(response.body.data.metrics).toHaveProperty('average_response_time');
-        expect(response.body.data.metrics).toHaveProperty('memory_usage');
-        expect(response.body.data.metrics).toHaveProperty('uptime_seconds');
+        expect(response.body.data.metrics).toHaveProperty("active_connections");
+        expect(response.body.data.metrics).toHaveProperty("queries_per_minute");
+        expect(response.body.data.metrics).toHaveProperty(
+          "average_response_time"
+        );
+        expect(response.body.data.metrics).toHaveProperty("memory_usage");
+        expect(response.body.data.metrics).toHaveProperty("uptime_seconds");
 
         // Check recommendations are array
         expect(Array.isArray(response.body.data.recommendations)).toBe(true);
@@ -206,11 +211,11 @@ describe("SSE Streaming Integration Tests", () => {
         .send({ enabled: true });
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('success', true);
-        expect(response.body).toHaveProperty('data');
-        expect(response.body.data).toHaveProperty('streaming_enabled');
-        expect(response.body.data).toHaveProperty('active_connections');
-        expect(response.body.data).toHaveProperty('timestamp');
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body.data).toHaveProperty("streaming_enabled");
+        expect(response.body.data).toHaveProperty("active_connections");
+        expect(response.body.data).toHaveProperty("timestamp");
       } else {
         // Admin functions may require special permissions
         expect([401, 403, 404, 501]).toContain(response.status);
@@ -223,14 +228,14 @@ describe("SSE Streaming Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('success', true);
-        expect(response.body).toHaveProperty('message');
-        expect(response.body.data).toHaveProperty('cache_status');
-        expect(response.body.data).toHaveProperty('cleared_entries');
-        expect(response.body.data).toHaveProperty('timestamp');
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("message");
+        expect(response.body.data).toHaveProperty("cache_status");
+        expect(response.body.data).toHaveProperty("cleared_entries");
+        expect(response.body.data).toHaveProperty("timestamp");
 
         // Validate cleared_entries is a number
-        expect(typeof response.body.data.cleared_entries).toBe('number');
+        expect(typeof response.body.data.cleared_entries).toBe("number");
       } else {
         expect([401, 403, 404, 501]).toContain(response.status);
       }
@@ -244,18 +249,22 @@ describe("SSE Streaming Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('success', true);
-        expect(response.body).toHaveProperty('data');
-        expect(response.body.data).toHaveProperty('status');
-        expect(response.body.data).toHaveProperty('uptime');
-        expect(response.body.data).toHaveProperty('database_connection');
-        expect(response.body.data).toHaveProperty('streaming_status');
-        expect(response.body.data).toHaveProperty('cache_status');
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body.data).toHaveProperty("status");
+        expect(response.body.data).toHaveProperty("uptime");
+        expect(response.body.data).toHaveProperty("database_connection");
+        expect(response.body.data).toHaveProperty("streaming_status");
+        expect(response.body.data).toHaveProperty("cache_status");
 
         // Validate health status values
-        expect(['healthy', 'degraded', 'down']).toContain(response.body.data.status);
-        expect(typeof response.body.data.uptime).toBe('number');
-        expect(['connected', 'disconnected', 'error']).toContain(response.body.data.database_connection);
+        expect(["healthy", "degraded", "down"]).toContain(
+          response.body.data.status
+        );
+        expect(typeof response.body.data.uptime).toBe("number");
+        expect(["connected", "disconnected", "error"]).toContain(
+          response.body.data.database_connection
+        );
       } else {
         expect([401, 404, 501]).toContain(response.status);
       }
@@ -268,7 +277,7 @@ describe("SSE Streaming Integration Tests", () => {
 
       if (response.status === 200 && response.body.data) {
         const healthData = response.body.data;
-        
+
         // Uptime should be reasonable
         if (healthData.uptime) {
           expect(healthData.uptime).toBeGreaterThan(0);
@@ -277,12 +286,16 @@ describe("SSE Streaming Integration Tests", () => {
 
         // Streaming status should be valid
         if (healthData.streaming_status) {
-          expect(['active', 'inactive', 'error']).toContain(healthData.streaming_status);
+          expect(["active", "inactive", "error"]).toContain(
+            healthData.streaming_status
+          );
         }
 
         // Cache status should be valid
         if (healthData.cache_status) {
-          expect(['active', 'disabled', 'error']).toContain(healthData.cache_status);
+          expect(["active", "disabled", "error"]).toContain(
+            healthData.cache_status
+          );
         }
       }
     });
@@ -296,9 +309,12 @@ describe("SSE Streaming Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .query({ symbols: "AAPL", limit: 1 });
 
-      if (apiResponse.status === 200 && apiResponse.body.data.quotes.length > 0) {
+      if (
+        apiResponse.status === 200 &&
+        apiResponse.body.data.quotes.length > 0
+      ) {
         const apiQuote = apiResponse.body.data.quotes[0];
-        
+
         // Get SSE stream (limited time)
         const sseResponse = await request(app)
           .get("/live-data/stream")
@@ -311,35 +327,45 @@ describe("SSE Streaming Integration Tests", () => {
           // Parse SSE data for AAPL
           const sseDataPattern = /data:\s*({.*})/g;
           const matches = sseResponse.text.match(sseDataPattern);
-          
-          if (matches) {
-            const sseData = matches.map(match => {
-              try {
-                return JSON.parse(match.replace(/^data:\s*/, ''));
-              } catch {
-                return null;
-              }
-            }).filter(Boolean);
 
-            const appleData = sseData.find(data => 
-              data.symbol === 'AAPL' || 
-              (Array.isArray(data) && data.some(item => item.symbol === 'AAPL'))
+          if (matches) {
+            const sseData = matches
+              .map((match) => {
+                try {
+                  return JSON.parse(match.replace(/^data:\s*/, ""));
+                } catch {
+                  return null;
+                }
+              })
+              .filter(Boolean);
+
+            const appleData = sseData.find(
+              (data) =>
+                data.symbol === "AAPL" ||
+                (Array.isArray(data) &&
+                  data.some((item) => item.symbol === "AAPL"))
             );
 
             if (appleData) {
               // Prices should be in reasonable range (within 50% of each other)
               const apiPrice = apiQuote.current_price;
               let ssePrice;
-              
+
               if (Array.isArray(appleData)) {
-                const appleItem = appleData.find(item => item.symbol === 'AAPL');
+                const appleItem = appleData.find(
+                  (item) => item.symbol === "AAPL"
+                );
                 ssePrice = appleItem ? appleItem.price : null;
               } else {
                 ssePrice = appleData.price;
               }
 
-              if (typeof apiPrice === 'number' && typeof ssePrice === 'number') {
-                const priceDifference = Math.abs(apiPrice - ssePrice) / apiPrice;
+              if (
+                typeof apiPrice === "number" &&
+                typeof ssePrice === "number"
+              ) {
+                const priceDifference =
+                  Math.abs(apiPrice - ssePrice) / apiPrice;
                 expect(priceDifference).toBeLessThan(0.5); // Within 50%
               }
             }
@@ -350,25 +376,27 @@ describe("SSE Streaming Integration Tests", () => {
 
     test("should handle concurrent SSE connections", async () => {
       const connectionCount = 3;
-      const symbols = ['AAPL', 'MSFT', 'GOOGL'];
-      
-      const connections = symbols.slice(0, connectionCount).map((symbol, index) =>
-        request(app)
-          .get("/live-data/stream")
-          .set("Authorization", "Bearer dev-bypass-token")
-          .set("Accept", "text/event-stream")
-          .query({ symbols: symbol })
-          .timeout(1500)
-          .then(response => ({ symbol, status: response.status, index }))
-          .catch(error => ({ symbol, error: error.message, index }))
-      );
+      const symbols = ["AAPL", "MSFT", "GOOGL"];
+
+      const connections = symbols
+        .slice(0, connectionCount)
+        .map((symbol, index) =>
+          request(app)
+            .get("/live-data/stream")
+            .set("Authorization", "Bearer dev-bypass-token")
+            .set("Accept", "text/event-stream")
+            .query({ symbols: symbol })
+            .timeout(1500)
+            .then((response) => ({ symbol, status: response.status, index }))
+            .catch((error) => ({ symbol, error: error.message, index }))
+        );
 
       const results = await Promise.all(connections);
-      
+
       expect(results.length).toBe(connectionCount);
-      
+
       // All connections should either succeed or fail consistently
-      results.forEach(result => {
+      results.forEach((result) => {
         if (result.status) {
           expect([200, 401, 404, 501]).toContain(result.status);
         }
@@ -382,7 +410,7 @@ describe("SSE Streaming Integration Tests", () => {
       const malformedRequests = [
         { query: { symbols: "", interval: -1000 } },
         { query: { symbols: "A".repeat(1000) } },
-        { query: { interval: "invalid" } }
+        { query: { interval: "invalid" } },
       ];
 
       for (const malformedRequest of malformedRequests) {
@@ -395,7 +423,7 @@ describe("SSE Streaming Integration Tests", () => {
         if (response.status >= 400) {
           expect([400, 401, 404, 500, 501]).toContain(response.status);
           if (response.body) {
-            expect(response.body).toHaveProperty('success', false);
+            expect(response.body).toHaveProperty("success", false);
           }
         }
       }
@@ -404,7 +432,7 @@ describe("SSE Streaming Integration Tests", () => {
     test("should handle SSE connection interruptions", async () => {
       // Start SSE connection and interrupt it
       const controller = new AbortController();
-      
+
       setTimeout(() => {
         controller.abort();
       }, 500);
@@ -418,13 +446,15 @@ describe("SSE Streaming Integration Tests", () => {
 
         // If response completes, it should be valid
         if (response.status === 200) {
-          expect(response.headers['content-type']).toBe('text/event-stream');
+          expect(response.headers["content-type"]).toBe("text/event-stream");
         }
       } catch (error) {
         // Timeout or abort is expected behavior
-        expect(['ECONNABORTED', 'ABORT_ERR'].some(code => 
-          error.code === code || error.name === code
-        )).toBe(true);
+        expect(
+          ["ECONNABORTED", "ABORT_ERR"].some(
+            (code) => error.code === code || error.name === code
+          )
+        ).toBe(true);
       }
     });
   });

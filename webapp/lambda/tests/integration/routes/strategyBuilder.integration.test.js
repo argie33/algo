@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -20,7 +23,7 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/ai-generate")
         .send({
           prompt: "Create a momentum trading strategy",
-          symbols: ["AAPL"]
+          symbols: ["AAPL"],
         });
 
       expect([401].includes(response.status)).toBe(true);
@@ -31,7 +34,7 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
-          symbols: ["AAPL"]
+          symbols: ["AAPL"],
         });
 
       expect([400, 422]).toContain(response.status);
@@ -45,7 +48,7 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
-          prompt: "Create a momentum trading strategy for high-volume stocks"
+          prompt: "Create a momentum trading strategy for high-volume stocks",
         });
 
       expect([400, 422]).toContain(response.status);
@@ -60,7 +63,7 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
           prompt: "short",
-          symbols: ["AAPL"]
+          symbols: ["AAPL"],
         });
 
       expect([400, 422]).toContain(response.status);
@@ -74,16 +77,17 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
-          prompt: "Create a momentum trading strategy based on RSI and moving averages",
+          prompt:
+            "Create a momentum trading strategy based on RSI and moving averages",
           symbols: ["AAPL", "MSFT"],
           preferences: {
             riskLevel: "medium",
-            timeframe: "5m"
-          }
+            timeframe: "5m",
+          },
         });
 
       expect([200, 400, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("strategy");
@@ -100,7 +104,7 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
           prompt: "Create a momentum trading strategy",
-          symbols: []
+          symbols: [],
         });
 
       expect([400, 422]).toContain(response.status);
@@ -119,8 +123,8 @@ describe("Strategy Builder Routes", () => {
           preferences: {
             riskLevel: "high",
             timeframe: "1m",
-            maxPositions: 5
-          }
+            maxPositions: 5,
+          },
         });
 
       expect([200, 400, 500].includes(response.status)).toBe(true);
@@ -134,8 +138,8 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "Test Strategy",
-            code: "function strategy() { return true; }"
-          }
+            code: "function strategy() { return true; }",
+          },
         });
 
       expect([401].includes(response.status)).toBe(true);
@@ -159,8 +163,8 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
           strategy: {
-            name: "Test Strategy"
-          }
+            name: "Test Strategy",
+          },
         });
 
       expect([400, 422]).toContain(response.status);
@@ -185,12 +189,12 @@ describe("Strategy Builder Routes", () => {
               }
             `,
             symbols: ["AAPL"],
-            timeframe: "5m"
-          }
+            timeframe: "5m",
+          },
         });
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("validation");
@@ -205,8 +209,8 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "Empty Strategy",
-            code: ""
-          }
+            code: "",
+          },
         });
 
       expect([400, 422]).toContain(response.status);
@@ -222,8 +226,8 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "Test Strategy",
-            code: "function strategy() { return true; }"
-          }
+            code: "function strategy() { return true; }",
+          },
         });
 
       expect([401].includes(response.status)).toBe(true);
@@ -237,14 +241,14 @@ describe("Strategy Builder Routes", () => {
           strategy: {
             name: "Test Strategy",
             code: "function onTick(data) { return 'HOLD'; }",
-            symbols: ["AAPL"]
+            symbols: ["AAPL"],
           },
           symbols: ["AAPL"],
           config: {
             startDate: "2023-01-01",
             endDate: "2023-12-31",
-            initialCapital: 100000
-          }
+            initialCapital: 100000,
+          },
         });
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -271,8 +275,8 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
           strategy: {
-            name: "Test Strategy"
-          }
+            name: "Test Strategy",
+          },
         });
 
       expect([400, 422]).toContain(response.status);
@@ -289,16 +293,16 @@ describe("Strategy Builder Routes", () => {
           strategy: {
             name: "Test Strategy",
             code: "function onTick() { return 'HOLD'; }",
-            symbols: ["AAPL"]
+            symbols: ["AAPL"],
           },
           config: {
             startDate: "2023-01-01",
             endDate: "2023-06-30",
             initialCapital: 50000,
             commission: 0.002,
-            slippage: 0.001
+            slippage: 0.001,
           },
-          symbols: ["AAPL", "MSFT"]
+          symbols: ["AAPL", "MSFT"],
         });
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -312,9 +316,9 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "Test Strategy",
-            code: "function onTick() { return 'HOLD'; }"
+            code: "function onTick() { return 'HOLD'; }",
           },
-          symbols: []
+          symbols: [],
         });
 
       expect([400, 422]).toContain(response.status);
@@ -330,7 +334,7 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/deploy-hft")
         .send({
           strategy: { name: "Test" },
-          backtestResults: { metrics: { sharpeRatio: 1.5 } }
+          backtestResults: { metrics: { sharpeRatio: 1.5 } },
         });
 
       expect([401].includes(response.status)).toBe(true);
@@ -343,19 +347,19 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "High Performance Strategy",
-            code: "function onTick() { return 'BUY'; }"
+            code: "function onTick() { return 'BUY'; }",
           },
           backtestResults: {
             metrics: {
               sharpeRatio: 1.5,
               maxDrawdown: 0.15,
-              winRate: 0.55
-            }
+              winRate: 0.55,
+            },
           },
           hftConfig: {
             positionSize: 0.1,
-            stopLoss: 0.02
-          }
+            stopLoss: 0.02,
+          },
         });
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -383,21 +387,23 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "Poor Performance Strategy",
-            code: "function onTick() { return 'HOLD'; }"
+            code: "function onTick() { return 'HOLD'; }",
           },
           backtestResults: {
             metrics: {
               sharpeRatio: 0.5,
               maxDrawdown: 0.35,
-              winRate: 0.35
-            }
-          }
+              winRate: 0.35,
+            },
+          },
         });
 
       expect([400, 422]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("does not meet HFT deployment requirements");
+      expect(response.body.error).toContain(
+        "does not meet HFT deployment requirements"
+      );
       expect(response.body).toHaveProperty("requirements");
       expect(response.body.requirements).toHaveProperty("sharpeRatio");
       expect(response.body.requirements).toHaveProperty("maxDrawdown");
@@ -411,15 +417,15 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "High Performance Strategy",
-            code: "function onTick() { return 'BUY'; }"
+            code: "function onTick() { return 'BUY'; }",
           },
           backtestResults: {
             metrics: {
               sharpeRatio: 1.5,
-              maxDrawdown: 0.20,
-              winRate: 0.50
-            }
-          }
+              maxDrawdown: 0.2,
+              winRate: 0.5,
+            },
+          },
         });
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -433,15 +439,15 @@ describe("Strategy Builder Routes", () => {
         .send({
           strategy: {
             name: "Edge Case Strategy",
-            code: "function onTick() { return 'HOLD'; }"
+            code: "function onTick() { return 'HOLD'; }",
           },
           backtestResults: {
             metrics: {
               sharpeRatio: 1.0,
               maxDrawdown: 0.25,
-              winRate: 0.45
-            }
-          }
+              winRate: 0.45,
+            },
+          },
         });
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -451,8 +457,9 @@ describe("Strategy Builder Routes", () => {
 
   describe("GET /api/strategies/available-symbols", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/strategies/available-symbols");
+      const response = await request(app).get(
+        "/api/strategies/available-symbols"
+      );
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -463,7 +470,7 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("symbols");
@@ -488,8 +495,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("GET /api/strategies/list", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/strategies/list");
+      const response = await request(app).get("/api/strategies/list");
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -507,7 +513,9 @@ describe("Strategy Builder Routes", () => {
 
     test("should handle query parameters", async () => {
       const response = await request(app)
-        .get("/api/strategies/list?includeBacktests=true&includeDeployments=true")
+        .get(
+          "/api/strategies/list?includeBacktests=true&includeDeployments=true"
+        )
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -516,7 +524,9 @@ describe("Strategy Builder Routes", () => {
 
     test("should handle boolean query parameters", async () => {
       const response = await request(app)
-        .get("/api/strategies/list?includeBacktests=false&includeDeployments=false")
+        .get(
+          "/api/strategies/list?includeBacktests=false&includeDeployments=false"
+        )
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
@@ -526,8 +536,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("GET /api/strategies/templates", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/strategies/templates");
+      const response = await request(app).get("/api/strategies/templates");
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -538,7 +547,7 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("templates");
@@ -546,14 +555,18 @@ describe("Strategy Builder Routes", () => {
         expect(response.body).toHaveProperty("aiFeatures");
         expect(Array.isArray(response.body.templates)).toBe(true);
         expect(typeof response.body.count).toBe("number");
-        
+
         // Validate AI features structure
         expect(response.body.aiFeatures).toHaveProperty("streamingEnabled");
-        expect(response.body.aiFeatures).toHaveProperty("optimizationSupported");
+        expect(response.body.aiFeatures).toHaveProperty(
+          "optimizationSupported"
+        );
         expect(response.body.aiFeatures).toHaveProperty("insightsGeneration");
         expect(response.body.aiFeatures).toHaveProperty("explanationLevels");
-        expect(Array.isArray(response.body.aiFeatures.explanationLevels)).toBe(true);
-        
+        expect(Array.isArray(response.body.aiFeatures.explanationLevels)).toBe(
+          true
+        );
+
         // Validate template structure if templates exist
         if (response.body.templates.length > 0) {
           const template = response.body.templates[0];
@@ -571,7 +584,7 @@ describe("Strategy Builder Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.templates).toBeDefined();
         expect(Array.isArray(response.body.templates)).toBe(true);
@@ -594,7 +607,7 @@ describe("Strategy Builder Routes", () => {
         .post("/api/strategies/ai-generate")
         .send({
           prompt: "Create a strategy",
-          symbols: ["AAPL"]
+          symbols: ["AAPL"],
         });
 
       expect([401].includes(response.status)).toBe(true);
@@ -623,27 +636,33 @@ describe("Strategy Builder Routes", () => {
   describe("Performance and Concurrency", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(5000);
       expect([200, 404]).toContain(response.status);
     });
 
     test("should handle concurrent requests", async () => {
       const requests = [
-        request(app).get("/api/strategies/templates").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/strategies/available-symbols").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/strategies/list").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/strategies/templates")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/strategies/available-symbols")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/strategies/list")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
 
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 501, 503, 500].includes(response.status)).toBe(true);
       });
     });

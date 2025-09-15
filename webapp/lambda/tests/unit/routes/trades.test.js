@@ -162,33 +162,31 @@ describe("Trades Routes - Testing Your Actual Site", () => {
           symbol: "AAPL",
           side: "buy",
           quantity: 100,
-          price: 150.00,
+          price: 150.0,
           executed_at: "2024-01-15T10:30:00Z",
-          status: "filled"
+          status: "filled",
         },
         {
           id: 2,
           symbol: "MSFT",
           side: "sell",
           quantity: 50,
-          price: 300.00,
+          price: 300.0,
           executed_at: "2024-01-16T14:20:00Z",
-          status: "filled"
-        }
+          status: "filled",
+        },
       ];
 
       query.mockResolvedValue({ rows: mockTrades });
 
-      const response = await request(app)
-        .get("/trades/history")
-        .expect(200);
+      const response = await request(app).get("/trades/history").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("trades");
       expect(response.body.data).toHaveProperty("pagination");
       expect(Array.isArray(response.body.data.trades)).toBe(true);
-      
+
       if (response.body.data.trades.length > 0) {
         const trade = response.body.data.trades[0];
         expect(trade).toHaveProperty("symbol");
@@ -240,24 +238,22 @@ describe("Trades Routes - Testing Your Actual Site", () => {
         winning_trades: 95,
         losing_trades: 55,
         win_rate: 0.633,
-        average_win: 125.50,
+        average_win: 125.5,
         average_loss: -85.25,
         profit_factor: 1.47,
         total_pnl: 5420.75,
-        largest_win: 850.00,
-        largest_loss: -420.00
+        largest_win: 850.0,
+        largest_loss: -420.0,
       };
 
       query.mockResolvedValue({ rows: [mockAnalytics] });
 
-      const response = await request(app)
-        .get("/trades/analytics")
-        .expect(200);
+      const response = await request(app).get("/trades/analytics").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("analytics");
-      
+
       const analytics = response.body.data.analytics;
       expect(analytics).toHaveProperty("total_trades");
       expect(analytics).toHaveProperty("win_rate");
@@ -297,7 +293,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       const csvData = `symbol,side,quantity,price,date
 AAPL,buy,100,150.00,2024-01-15
 MSFT,sell,50,300.00,2024-01-16`;
-      
+
       query.mockResolvedValue({ rows: [{ imported: 2 }] });
       _transaction.mockImplementation(async (callback) => {
         return await callback({ query });
@@ -333,11 +329,11 @@ MSFT,sell,50,300.00,2024-01-16`;
             symbol: "AAPL",
             side: "buy",
             quantity: 100,
-            price: 150.00,
+            price: 150.0,
             date: "2024-01-15",
-            external_id: "duplicate-123"
-          }
-        ]
+            external_id: "duplicate-123",
+          },
+        ],
       };
 
       query.mockResolvedValue({ rows: [{ imported: 0, duplicates: 1 }] });
@@ -372,9 +368,9 @@ MSFT,sell,50,300.00,2024-01-16`;
           symbol: "AAPL",
           side: "buy",
           quantity: 100,
-          price: 150.00,
-          executed_at: "2024-01-15T10:30:00Z"
-        }
+          price: 150.0,
+          executed_at: "2024-01-15T10:30:00Z",
+        },
       ];
 
       query.mockResolvedValue({ rows: mockTrades });
@@ -395,9 +391,9 @@ MSFT,sell,50,300.00,2024-01-16`;
           symbol: "MSFT",
           side: "sell",
           quantity: 50,
-          price: 300.00,
-          executed_at: "2024-01-16T14:20:00Z"
-        }
+          price: 300.0,
+          executed_at: "2024-01-16T14:20:00Z",
+        },
       ];
 
       query.mockResolvedValue({ rows: mockTrades });
@@ -415,7 +411,9 @@ MSFT,sell,50,300.00,2024-01-16`;
       query.mockResolvedValue({ rows: [] });
 
       const response = await request(app)
-        .get("/trades/export?format=csv&start_date=2024-01-01&end_date=2024-01-31")
+        .get(
+          "/trades/export?format=csv&start_date=2024-01-01&end_date=2024-01-31"
+        )
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -434,27 +432,25 @@ MSFT,sell,50,300.00,2024-01-16`;
           broker_name: "alpaca",
           status: "connected",
           last_sync: "2024-01-15T10:00:00Z",
-          trade_count: 50
+          trade_count: 50,
         },
         {
           broker_name: "interactive_brokers",
           status: "disconnected",
           last_sync: null,
-          trade_count: 0
-        }
+          trade_count: 0,
+        },
       ];
 
       query.mockResolvedValue({ rows: mockBrokers });
 
-      const response = await request(app)
-        .get("/trades/brokers")
-        .expect(200);
+      const response = await request(app).get("/trades/brokers").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("brokers");
       expect(Array.isArray(response.body.data.brokers)).toBe(true);
-      
+
       if (response.body.data.brokers.length > 0) {
         const broker = response.body.data.brokers[0];
         expect(broker).toHaveProperty("broker_name");
@@ -471,7 +467,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         new_trades: 15,
         updated_trades: 10,
         errors: 0,
-        last_sync: "2024-01-15T15:30:00Z"
+        last_sync: "2024-01-15T15:30:00Z",
       };
 
       query.mockResolvedValue({ rows: [mockSyncResult] });
@@ -527,7 +523,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         profit_factor: 1.45,
         average_trade_duration: 3.2,
         largest_winning_streak: 8,
-        largest_losing_streak: 3
+        largest_losing_streak: 3,
       };
 
       query.mockResolvedValue({ rows: [mockPerformance] });
@@ -539,7 +535,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("performance");
-      
+
       const performance = response.body.data.performance;
       expect(performance).toHaveProperty("total_return");
       expect(performance).toHaveProperty("sharpe_ratio");
@@ -581,16 +577,16 @@ MSFT,sell,50,300.00,2024-01-16`;
         by_symbol: [
           { symbol: "AAPL", contribution: 5.2, weight: 0.25 },
           { symbol: "MSFT", contribution: 3.1, weight: 0.15 },
-          { symbol: "GOOGL", contribution: 2.8, weight: 0.20 }
+          { symbol: "GOOGL", contribution: 2.8, weight: 0.2 },
         ],
         by_sector: [
-          { sector: "Technology", contribution: 8.5, weight: 0.60 },
-          { sector: "Healthcare", contribution: 2.1, weight: 0.25 }
+          { sector: "Technology", contribution: 8.5, weight: 0.6 },
+          { sector: "Healthcare", contribution: 2.1, weight: 0.25 },
         ],
         by_strategy: [
           { strategy: "momentum", contribution: 6.2, trade_count: 45 },
-          { strategy: "mean_reversion", contribution: 4.3, trade_count: 32 }
-        ]
+          { strategy: "mean_reversion", contribution: 4.3, trade_count: 32 },
+        ],
       };
 
       query.mockResolvedValue({ rows: [mockAttribution] });
@@ -602,7 +598,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("attribution");
-      
+
       const attribution = response.body.data.attribution;
       expect(attribution).toHaveProperty("by_symbol");
       expect(attribution).toHaveProperty("by_sector");
@@ -619,26 +615,24 @@ MSFT,sell,50,300.00,2024-01-16`;
       const mockStats = {
         total_trades: 256,
         total_volume: 125000,
-        total_fees: 245.80,
+        total_fees: 245.8,
         average_trade_size: 488.28,
-        largest_trade: 2500.00,
-        smallest_trade: 50.00,
+        largest_trade: 2500.0,
+        smallest_trade: 50.0,
         most_traded_symbol: "AAPL",
         most_traded_sector: "Technology",
         trading_days_active: 89,
-        average_trades_per_day: 2.87
+        average_trades_per_day: 2.87,
       };
 
       query.mockResolvedValue({ rows: [mockStats] });
 
-      const response = await request(app)
-        .get("/trades/stats")
-        .expect(200);
+      const response = await request(app).get("/trades/stats").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("statistics");
-      
+
       const stats = response.body.data.statistics;
       expect(stats).toHaveProperty("total_trades");
       expect(stats).toHaveProperty("total_volume");
@@ -679,8 +673,8 @@ MSFT,sell,50,300.00,2024-01-16`;
         symbol: "AAPL",
         side: "buy",
         quantity: 100,
-        price: 150.00,
-        date: "2024-01-15T10:30:00Z"
+        price: 150.0,
+        date: "2024-01-15T10:30:00Z",
       };
 
       const response = await request(app)
@@ -701,7 +695,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         side: "invalid", // Invalid side
         quantity: -10, // Negative quantity
         price: 0, // Zero price
-        date: "invalid-date"
+        date: "invalid-date",
       };
 
       const response = await request(app)
@@ -711,7 +705,9 @@ MSFT,sell,50,300.00,2024-01-16`;
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.invalid_trades.length).toBeGreaterThan(0);
-      expect(response.body.data.validation_results.errors.length).toBeGreaterThan(0);
+      expect(
+        response.body.data.validation_results.errors.length
+      ).toBeGreaterThan(0);
     });
   });
 
@@ -726,10 +722,10 @@ MSFT,sell,50,300.00,2024-01-16`;
         sides: ["buy"],
         min_quantity: 50,
         max_quantity: 500,
-        min_price: 100.00,
-        max_price: 200.00,
+        min_price: 100.0,
+        max_price: 200.0,
         start_date: "2024-01-01",
-        end_date: "2024-01-31"
+        end_date: "2024-01-31",
       };
 
       query.mockResolvedValue({ rows: [] });
@@ -765,9 +761,7 @@ MSFT,sell,50,300.00,2024-01-16`;
     test("should handle database connection errors", async () => {
       query.mockRejectedValue(new Error("Connection timeout"));
 
-      const response = await request(app)
-        .get("/trades/history")
-        .expect(500);
+      const response = await request(app).get("/trades/history").expect(500);
 
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
@@ -799,9 +793,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
 
-      const response = await request(app)
-        .get("/trades/history")
-        .expect(401);
+      const response = await request(app).get("/trades/history").expect(401);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Unauthorized");

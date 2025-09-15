@@ -67,11 +67,11 @@ class PerformanceMonitor {
 
     // Handle clock skew - ensure duration is never negative
     if (duration < 0) {
-      logger.warn("Clock skew detected in performance monitoring", { 
-        operationId, 
-        duration, 
-        startTime: operation.startTime, 
-        endTime 
+      logger.warn("Clock skew detected in performance monitoring", {
+        operationId,
+        duration,
+        startTime: operation.startTime,
+        endTime,
       });
       duration = Math.abs(duration);
     }
@@ -117,8 +117,8 @@ class PerformanceMonitor {
    */
   recordMetric(metric) {
     // Handle null or invalid metrics
-    if (!metric || typeof metric !== 'object') {
-      logger.warn('Invalid metric provided to recordMetric', { metric });
+    if (!metric || typeof metric !== "object") {
+      logger.warn("Invalid metric provided to recordMetric", { metric });
       return;
     }
     // Add to history
@@ -260,7 +260,7 @@ class PerformanceMonitor {
     if (durations.length === 0) return 0;
 
     const sorted = durations.slice().sort((a, b) => a - b);
-    
+
     // Use the "nearest rank" method which is more intuitive
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
     return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
@@ -379,7 +379,8 @@ class PerformanceMonitor {
     if (path.includes("/api/live-data") || path.includes("/api/stocks"))
       return "dashboard";
     if (path.includes("/api/database")) return "database";
-    if (path.includes("/api/health") || path.includes("/health")) return "health_check";
+    if (path.includes("/api/health") || path.includes("/health"))
+      return "health_check";
     if (path.includes("/api/")) return "api_request";
 
     return "other";
@@ -392,7 +393,7 @@ class PerformanceMonitor {
     const operationId = `${category}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
 
     // If operation is a function, execute it immediately and return result
-    if (typeof operation === 'function') {
+    if (typeof operation === "function") {
       this.startOperation(operationId, category, metadata);
       try {
         const result = operation();
@@ -513,11 +514,20 @@ class PerformanceMonitor {
     const apiMetrics = {};
 
     this.performanceHistory
-      .filter((m) => m.category === "api" || m.category === "dashboard" || m.category === "api_request")
+      .filter(
+        (m) =>
+          m.category === "api" ||
+          m.category === "dashboard" ||
+          m.category === "api_request"
+      )
       .forEach((m) => {
         // For api_request category, use method + endpoint format from metadata
         let endpoint;
-        if (m.category === "api_request" && m.metadata?.method && m.metadata?.endpoint) {
+        if (
+          m.category === "api_request" &&
+          m.metadata?.method &&
+          m.metadata?.endpoint
+        ) {
           endpoint = `${m.metadata.method} ${m.metadata.endpoint}`;
         } else {
           endpoint = m.metadata?.path || "unknown";
@@ -604,7 +614,12 @@ class PerformanceMonitor {
     const externalMetrics = {};
 
     this.performanceHistory
-      .filter((m) => m.category === "external" || m.category === "external_api" || m.metadata?.external)
+      .filter(
+        (m) =>
+          m.category === "external" ||
+          m.category === "external_api" ||
+          m.metadata?.external
+      )
       .forEach((m) => {
         const service = m.metadata?.service || m.metadata?.api || "unknown";
         if (!externalMetrics[service]) {
@@ -766,7 +781,7 @@ class PerformanceMonitor {
       metrics: Object.fromEntries(this.metrics),
       performanceHistory: this.performanceHistory,
       exportedAt: new Date().toISOString(),
-      summary: this.getPerformanceSummary()
+      summary: this.getPerformanceSummary(),
     };
   }
 
@@ -803,14 +818,14 @@ class PerformanceMonitor {
   cleanupOrphanedOperations() {
     const oneMinuteAgo = Date.now() - 60000;
     const orphanedIds = [];
-    
+
     for (const [id, operation] of this.activeOperations.entries()) {
       if (operation.startTime < oneMinuteAgo) {
         orphanedIds.push(id);
       }
     }
-    
-    orphanedIds.forEach(id => {
+
+    orphanedIds.forEach((id) => {
       logger.warn("Cleaned up orphaned operation", { operationId: id });
       this.activeOperations.delete(id);
     });
@@ -820,26 +835,29 @@ class PerformanceMonitor {
    * Get performance trends for a category
    */
   getPerformanceTrends(category) {
-    const categoryMetrics = this.performanceHistory.filter(m => m.category === category);
-    
+    const categoryMetrics = this.performanceHistory.filter(
+      (m) => m.category === category
+    );
+
     if (categoryMetrics.length < 2) {
       return { direction: "stable", slope: 0 };
     }
-    
+
     // Simple linear regression to determine trend
-    const durations = categoryMetrics.map(m => m.duration);
+    const durations = categoryMetrics.map((m) => m.duration);
     const n = durations.length;
     const x = durations.map((_, i) => i);
     const sumX = x.reduce((a, b) => a + b, 0);
     const sumY = durations.reduce((a, b) => a + b, 0);
     const sumXY = x.reduce((sum, xi, i) => sum + xi * durations[i], 0);
     const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0);
-    
+
     const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    
+
     return {
-      direction: slope > 10 ? "degrading" : slope < -10 ? "improving" : "stable",
-      slope
+      direction:
+        slope > 10 ? "degrading" : slope < -10 ? "improving" : "stable",
+      slope,
     };
   }
 
@@ -847,23 +865,29 @@ class PerformanceMonitor {
    * Detect performance anomalies
    */
   detectAnomalies(category) {
-    const categoryMetrics = this.performanceHistory.filter(m => m.category === category);
-    
+    const categoryMetrics = this.performanceHistory.filter(
+      (m) => m.category === category
+    );
+
     if (categoryMetrics.length < 10) {
       return [];
     }
-    
+
     // Calculate mean and standard deviation
-    const durations = categoryMetrics.map(m => m.duration);
+    const durations = categoryMetrics.map((m) => m.duration);
     const mean = durations.reduce((a, b) => a + b, 0) / durations.length;
-    const variance = durations.reduce((sum, duration) => sum + Math.pow(duration - mean, 2), 0) / durations.length;
+    const variance =
+      durations.reduce(
+        (sum, duration) => sum + Math.pow(duration - mean, 2),
+        0
+      ) / durations.length;
     const stdDev = Math.sqrt(variance);
-    
+
     // Find anomalies (more than 3 standard deviations from mean)
     const anomalies = [];
-    const threshold = mean + (3 * stdDev);
-    
-    categoryMetrics.forEach(metric => {
+    const threshold = mean + 3 * stdDev;
+
+    categoryMetrics.forEach((metric) => {
       if (metric.duration > threshold) {
         const deviation = (metric.duration - mean) / stdDev;
         anomalies.push({
@@ -875,11 +899,11 @@ class PerformanceMonitor {
           threshold,
           deviation,
           type: "outlier", // Add type field for test compatibility
-          severity: metric.duration > (mean + 4 * stdDev) ? "high" : "medium"
+          severity: metric.duration > mean + 4 * stdDev ? "high" : "medium",
         });
       }
     });
-    
+
     return anomalies;
   }
 
@@ -888,26 +912,26 @@ class PerformanceMonitor {
    */
   getRealTimeDashboard() {
     const totalOps = this.performanceHistory.length;
-    const errorOps = this.performanceHistory.filter(m => !m.success).length;
+    const errorOps = this.performanceHistory.filter((m) => !m.success).length;
     const categoryBreakdown = {};
-    
+
     // Build category breakdown
     for (const [category, stats] of this.metrics.entries()) {
       categoryBreakdown[category] = {
         count: stats.count,
         averageDuration: stats.averageDuration,
         errorRate: stats.errorCount / stats.count,
-        successRate: stats.successCount / stats.count
+        successRate: stats.successCount / stats.count,
       };
     }
-    
+
     return {
       totalOperations: totalOps,
       activeOperations: this.activeOperations.size,
       errorRate: totalOps > 0 ? errorOps / totalOps : 0,
       alerts: this.getActiveAlerts(),
       categoryBreakdown,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 

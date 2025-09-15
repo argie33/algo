@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 const authToken = "dev-bypass-token";
@@ -16,18 +19,17 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard (Dashboard Root)", () => {
     test("should return dashboard endpoints and operational status", async () => {
-      const response = await request(app)
-        .get("/api/dashboard");
+      const response = await request(app).get("/api/dashboard");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.message).toBe("Dashboard API - Ready");
         expect(response.body.status).toBe("operational");
         expect(Array.isArray(response.body.endpoints)).toBe(true);
         expect(response.body.endpoints.length).toBeGreaterThan(0);
         expect(response.body).toHaveProperty("timestamp");
-        
+
         // Verify expected endpoints are listed
         const endpointsString = response.body.endpoints.join(" ");
         expect(endpointsString).toContain("/summary");
@@ -39,13 +41,13 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle high-frequency requests without degradation", async () => {
-      const requests = Array(5).fill().map(() => 
-        request(app).get("/api/dashboard")
-      );
-      
+      const requests = Array(5)
+        .fill()
+        .map(() => request(app).get("/api/dashboard"));
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
       });
     });
@@ -53,14 +55,13 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/summary (Dashboard Summary)", () => {
     test("should return comprehensive dashboard summary data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
-        
+
         const data = response.body.data;
         expect(data).toHaveProperty("market_overview");
         expect(data).toHaveProperty("top_gainers");
@@ -71,7 +72,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(data).toHaveProperty("volume_leaders");
         expect(data).toHaveProperty("market_breadth");
         expect(data).toHaveProperty("timestamp");
-        
+
         // Validate data structures
         expect(Array.isArray(data.market_overview)).toBe(true);
         expect(Array.isArray(data.top_gainers)).toBe(true);
@@ -83,10 +84,12 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market overview data structure", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
-      if (response.status === 200 && response.body.data.market_overview.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.market_overview.length > 0
+      ) {
         const marketItem = response.body.data.market_overview[0];
         expect(marketItem).toHaveProperty("symbol");
         expect(marketItem).toHaveProperty("current_price");
@@ -96,10 +99,12 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate sector performance data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
-      if (response.status === 200 && response.body.data.sector_performance.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.sector_performance.length > 0
+      ) {
         const sectorItem = response.body.data.sector_performance[0];
         expect(sectorItem).toHaveProperty("sector");
         expect(sectorItem).toHaveProperty("avg_change");
@@ -109,11 +114,10 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle database connectivity issues gracefully", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
         expect(response.body).toHaveProperty("message");
@@ -123,8 +127,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/holdings (Portfolio Holdings)", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/holdings");
+      const response = await request(app).get("/api/dashboard/holdings");
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -135,7 +138,7 @@ describe("Dashboard Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("holdings");
@@ -171,8 +174,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/performance (Portfolio Performance)", () => {
     test("should require authentication for performance data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/performance");
+      const response = await request(app).get("/api/dashboard/performance");
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -183,7 +185,7 @@ describe("Dashboard Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("performance");
@@ -197,7 +199,10 @@ describe("Dashboard Routes Integration Tests", () => {
         .get("/api/dashboard/performance")
         .set("Authorization", `Bearer ${authToken}`);
 
-      if (response.status === 200 && response.body.data.performance.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.performance.length > 0
+      ) {
         const perfData = response.body.data.performance[0];
         expect(perfData).toHaveProperty("date");
         expect(perfData).toHaveProperty("total_value");
@@ -217,7 +222,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(metrics).toHaveProperty("volatility");
         expect(metrics).toHaveProperty("max_return");
         expect(metrics).toHaveProperty("min_return");
-        
+
         if (metrics.avg_daily_return !== null) {
           expect(typeof metrics.avg_daily_return).toBe("number");
           expect(isFinite(metrics.avg_daily_return)).toBe(true);
@@ -228,8 +233,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/alerts (Trading Alerts)", () => {
     test("should require authentication for alerts", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/alerts");
+      const response = await request(app).get("/api/dashboard/alerts");
 
       expect([401, 403, 500, 501].includes(response.status)).toBe(true);
     });
@@ -240,7 +244,7 @@ describe("Dashboard Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("alerts");
@@ -284,29 +288,32 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/market-data (Market Data)", () => {
     test("should return comprehensive market data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/market-data");
+      const response = await request(app).get("/api/dashboard/market-data");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("economic_indicators");
         expect(response.body.data).toHaveProperty("sector_rotation");
         expect(response.body.data).toHaveProperty("market_internals");
         expect(response.body.data).toHaveProperty("timestamp");
-        
-        expect(Array.isArray(response.body.data.economic_indicators)).toBe(true);
+
+        expect(Array.isArray(response.body.data.economic_indicators)).toBe(
+          true
+        );
         expect(Array.isArray(response.body.data.sector_rotation)).toBe(true);
         expect(Array.isArray(response.body.data.market_internals)).toBe(true);
       }
     });
 
     test("should validate economic indicators structure", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/market-data");
+      const response = await request(app).get("/api/dashboard/market-data");
 
-      if (response.status === 200 && response.body.data.economic_indicators.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.economic_indicators.length > 0
+      ) {
         const indicator = response.body.data.economic_indicators[0];
         expect(indicator).toHaveProperty("indicator_name");
         expect(indicator).toHaveProperty("value");
@@ -316,10 +323,12 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate sector rotation data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/market-data");
+      const response = await request(app).get("/api/dashboard/market-data");
 
-      if (response.status === 200 && response.body.data.sector_rotation.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.sector_rotation.length > 0
+      ) {
         const sectorData = response.body.data.sector_rotation[0];
         expect(sectorData).toHaveProperty("sector");
         expect(sectorData).toHaveProperty("avg_change");
@@ -331,16 +340,18 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market internals data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/market-data");
+      const response = await request(app).get("/api/dashboard/market-data");
 
-      if (response.status === 200 && response.body.data.market_internals.length > 0) {
+      if (
+        response.status === 200 &&
+        response.body.data.market_internals.length > 0
+      ) {
         const internalData = response.body.data.market_internals[0];
         expect(internalData).toHaveProperty("type");
         expect(internalData).toHaveProperty("count");
         expect(typeof internalData.type).toBe("string");
         expect(typeof internalData.count).toBe("number");
-        
+
         // Validate expected types
         const validTypes = ["advancing", "declining", "unchanged"];
         expect(validTypes.includes(internalData.type)).toBe(true);
@@ -350,11 +361,10 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/debug (Debug Endpoint)", () => {
     test("should return debug information about database connectivity", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/debug");
+      const response = await request(app).get("/api/dashboard/debug");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("timestamp");
@@ -365,26 +375,31 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate table count information", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/debug");
+      const response = await request(app).get("/api/dashboard/debug");
 
       if (response.status === 200 && response.body.data.table_counts) {
         const tableCounts = response.body.data.table_counts;
         expect(typeof tableCounts).toBe("object");
-        
+
         // Check for expected tables
         const expectedTables = [
-          "price_daily", "earnings_history", "fear_greed_index",
-          "portfolio_holdings", "portfolio_performance", "trading_alerts",
-          "economic_data", "stocks", "technical_data_daily"
+          "price_daily",
+          "earnings_history",
+          "fear_greed_index",
+          "portfolio_holdings",
+          "portfolio_performance",
+          "trading_alerts",
+          "economic_data",
+          "stocks",
+          "technical_data_daily",
         ];
-        
-        expectedTables.forEach(table => {
+
+        expectedTables.forEach((table) => {
           if (Object.prototype.hasOwnProperty.call(tableCounts, table)) {
             // Count should be either a number or error string
             expect(
-              typeof tableCounts[table] === "number" || 
-              typeof tableCounts[table] === "string"
+              typeof tableCounts[table] === "number" ||
+                typeof tableCounts[table] === "string"
             ).toBe(true);
           }
         });
@@ -392,35 +407,30 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate database connection status", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/debug");
+      const response = await request(app).get("/api/dashboard/debug");
 
       if (response.status === 200) {
         expect(response.body.data.database_status).toBeDefined();
         expect(typeof response.body.data.database_status).toBe("string");
-        
+
         // Should be either "connected" or contain error information
         const status = response.body.data.database_status;
-        expect(
-          status === "connected" || 
-          status.includes("error")
-        ).toBe(true);
+        expect(status === "connected" || status.includes("error")).toBe(true);
       }
     });
   });
 
   describe("GET /api/dashboard/overview (Market Overview)", () => {
     test("should return market overview data", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/overview");
+      const response = await request(app).get("/api/dashboard/overview");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
         expect(response.body).toHaveProperty("timestamp");
-        
+
         const data = response.body.data;
         expect(data).toHaveProperty("market_status");
         expect(data).toHaveProperty("key_metrics");
@@ -431,8 +441,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market status information", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/overview");
+      const response = await request(app).get("/api/dashboard/overview");
 
       if (response.status === 200) {
         const marketStatus = response.body.data.market_status;
@@ -440,15 +449,14 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(marketStatus).toHaveProperty("next_open");
         expect(marketStatus).toHaveProperty("next_close");
         expect(marketStatus).toHaveProperty("timezone");
-        
+
         expect(typeof marketStatus.is_open).toBe("boolean");
         expect(typeof marketStatus.timezone).toBe("string");
       }
     });
 
     test("should validate top movers structure", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/overview");
+      const response = await request(app).get("/api/dashboard/overview");
 
       if (response.status === 200) {
         const topMovers = response.body.data.top_movers;
@@ -456,7 +464,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(topMovers).toHaveProperty("losers");
         expect(Array.isArray(topMovers.gainers)).toBe(true);
         expect(Array.isArray(topMovers.losers)).toBe(true);
-        
+
         if (topMovers.gainers.length > 0) {
           const gainer = topMovers.gainers[0];
           expect(gainer).toHaveProperty("symbol");
@@ -470,15 +478,14 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle empty market data gracefully", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/overview");
+      const response = await request(app).get("/api/dashboard/overview");
 
       if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
         expect(response.body).toHaveProperty("details");
         expect(response.body).toHaveProperty("troubleshooting");
-        
+
         // Should provide helpful troubleshooting information
         expect(response.body.troubleshooting).toHaveProperty("required_tables");
         expect(response.body.troubleshooting).toHaveProperty("check_tables");
@@ -488,29 +495,28 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("Performance and Edge Cases", () => {
     jest.setTimeout(15000);
-    
+
     test("should handle concurrent requests to dashboard endpoints", async () => {
       const requests = [
         request(app).get("/api/dashboard"),
         request(app).get("/api/dashboard/summary"),
         request(app).get("/api/dashboard/market-data"),
         request(app).get("/api/dashboard/overview"),
-        request(app).get("/api/dashboard/debug")
+        request(app).get("/api/dashboard/debug"),
       ];
-      
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
       });
     });
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
       const responseTime = Date.now() - startTime;
-      
+
       expect([200, 404]).toContain(response.status);
       expect(responseTime).toBeLessThan(15000);
     });
@@ -521,24 +527,23 @@ describe("Dashboard Routes Integration Tests", () => {
         "InvalidType token-value",
         "Bearer ",
         "Bearer invalid-format-token-with-special-chars-!@#$%",
-        ""
+        "",
       ];
-      
+
       for (const header of malformedHeaders) {
         const response = await request(app)
           .get("/api/dashboard/holdings")
           .set("Authorization", header);
-        
+
         expect([401].includes(response.status)).toBe(true);
       }
     });
 
     test("should handle database connection failures gracefully", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
         expect(response.body).toHaveProperty("message");
@@ -546,12 +551,11 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate numeric data integrity", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
       if (response.status === 200) {
         const validateNumbers = (obj) => {
-          Object.keys(obj).forEach(key => {
+          Object.keys(obj).forEach((key) => {
             const value = obj[key];
             if (typeof value === "number") {
               expect(isFinite(value)).toBe(true);
@@ -561,7 +565,7 @@ describe("Dashboard Routes Integration Tests", () => {
             }
           });
         };
-        
+
         validateNumbers(response.body.data);
       }
     });
@@ -572,20 +576,20 @@ describe("Dashboard Routes Integration Tests", () => {
         "1' OR '1'='1",
         "UNION SELECT * FROM users",
         "<script>alert('xss')</script>",
-        "../../../etc/passwd"
+        "../../../etc/passwd",
       ];
-      
+
       for (const input of maliciousInputs) {
-        const response = await request(app)
-          .get(`/api/dashboard/summary?filter=${encodeURIComponent(input)}`);
-        
+        const response = await request(app).get(
+          `/api/dashboard/summary?filter=${encodeURIComponent(input)}`
+        );
+
         expect([200, 400].includes(response.status)).toBe(true);
       }
     });
 
     test("should handle memory pressure with large data requests", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/summary");
+      const response = await request(app).get("/api/dashboard/summary");
 
       expect([200, 413, 500, 503].includes(response.status)).toBe(true);
     });
@@ -596,14 +600,14 @@ describe("Dashboard Routes Integration Tests", () => {
         "/api/dashboard/summary",
         "/api/dashboard/market-data",
         "/api/dashboard/overview",
-        "/api/dashboard/debug"
+        "/api/dashboard/debug",
       ];
-      
+
       for (const endpoint of endpoints) {
         const response = await request(app).get(endpoint);
-        
+
         if ([200].includes(response.status)) {
-          expect(response.headers['content-type']).toMatch(/application\/json/);
+          expect(response.headers["content-type"]).toMatch(/application\/json/);
         }
       }
     });
@@ -612,20 +616,22 @@ describe("Dashboard Routes Integration Tests", () => {
       const authEndpoints = [
         "/api/dashboard/holdings",
         "/api/dashboard/performance",
-        "/api/dashboard/alerts"
+        "/api/dashboard/alerts",
       ];
-      
+
       for (const endpoint of authEndpoints) {
         // Test missing authorization header
         const noAuthResponse = await request(app).get(endpoint);
         expect([401, 403, 500, 501].includes(noAuthResponse.status)).toBe(true);
-        
+
         // Test malformed token
         const badTokenResponse = await request(app)
           .get(endpoint)
           .set("Authorization", "Bearer malformed-token");
-        expect([401, 403, 500, 501].includes(badTokenResponse.status)).toBe(true);
-        
+        expect([401, 403, 500, 501].includes(badTokenResponse.status)).toBe(
+          true
+        );
+
         // Test valid token format
         const validTokenResponse = await request(app)
           .get(endpoint)

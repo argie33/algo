@@ -1,18 +1,18 @@
 /**
  * Database Population Script for Financial Data
- * 
+ *
  * This script creates missing tables and populates them with test data
  * for local development and testing purposes.
  */
 
-const { Pool } = require('pg');
-require('dotenv').config();
+const { Pool } = require("pg");
+require("dotenv").config();
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'stocks',
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "password",
+  database: process.env.DB_NAME || "stocks",
   port: process.env.DB_PORT || 5432,
 });
 
@@ -37,9 +37,9 @@ async function createCashFlowTable() {
     
     CREATE INDEX IF NOT EXISTS idx_annual_cash_flow_symbol_year ON annual_cash_flow(symbol, fiscal_year);
   `;
-  
+
   await pool.query(query);
-  console.log('✅ Created annual_cash_flow table');
+  console.log("✅ Created annual_cash_flow table");
 }
 
 async function addPriceToSalesColumn() {
@@ -47,15 +47,15 @@ async function addPriceToSalesColumn() {
     ALTER TABLE key_metrics 
     ADD COLUMN IF NOT EXISTS price_to_sales_ttm NUMERIC(5,2);
   `;
-  
+
   await pool.query(query);
-  console.log('✅ Added price_to_sales_ttm column to key_metrics table');
+  console.log("✅ Added price_to_sales_ttm column to key_metrics table");
 }
 
 async function populateBalanceSheetData() {
   const testData = [
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       fiscal_year: 2023,
       total_assets: 352755000000,
       current_assets: 143566000000,
@@ -65,10 +65,10 @@ async function populateBalanceSheetData() {
       retained_earnings: -3068000000,
       cash_and_equivalents: 29965000000,
       total_debt: 123930000000,
-      working_capital: 9593000000
+      working_capital: 9593000000,
     },
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       fiscal_year: 2022,
       total_assets: 352755000000,
       current_assets: 135405000000,
@@ -78,10 +78,10 @@ async function populateBalanceSheetData() {
       retained_earnings: -3454000000,
       cash_and_equivalents: 23646000000,
       total_debt: 120069000000,
-      working_capital: -18577000000
+      working_capital: -18577000000,
     },
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       fiscal_year: 2021,
       total_assets: 351002000000,
       current_assets: 134836000000,
@@ -91,8 +91,8 @@ async function populateBalanceSheetData() {
       retained_earnings: 5562000000,
       cash_and_equivalents: 34940000000,
       total_debt: 124719000000,
-      working_capital: 9355000000
-    }
+      working_capital: 9355000000,
+    },
   ];
 
   for (const data of testData) {
@@ -114,22 +114,29 @@ async function populateBalanceSheetData() {
         working_capital = EXCLUDED.working_capital,
         updated_at = CURRENT_TIMESTAMP
     `;
-    
+
     await pool.query(query, [
-      data.symbol, data.fiscal_year, data.total_assets, data.current_assets,
-      data.total_liabilities, data.current_liabilities, data.total_equity,
-      data.retained_earnings, data.cash_and_equivalents, data.total_debt,
-      data.working_capital
+      data.symbol,
+      data.fiscal_year,
+      data.total_assets,
+      data.current_assets,
+      data.total_liabilities,
+      data.current_liabilities,
+      data.total_equity,
+      data.retained_earnings,
+      data.cash_and_equivalents,
+      data.total_debt,
+      data.working_capital,
     ]);
   }
-  
-  console.log('✅ Populated balance sheet data for AAPL (3 years)');
+
+  console.log("✅ Populated balance sheet data for AAPL (3 years)");
 }
 
 async function populateCashFlowData() {
   const testData = [
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       fiscal_year: 2023,
       operating_cash_flow: 110543000000,
       investing_cash_flow: -10200000000,
@@ -138,10 +145,10 @@ async function populateCashFlowData() {
       capital_expenditures: -10959000000,
       free_cash_flow: 99584000000,
       dividends_paid: -14996000000,
-      stock_repurchases: -77550000000
+      stock_repurchases: -77550000000,
     },
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       fiscal_year: 2022,
       operating_cash_flow: 122151000000,
       investing_cash_flow: -22354000000,
@@ -150,10 +157,10 @@ async function populateCashFlowData() {
       capital_expenditures: -11085000000,
       free_cash_flow: 111066000000,
       dividends_paid: -14841000000,
-      stock_repurchases: -89402000000
+      stock_repurchases: -89402000000,
     },
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       fiscal_year: 2021,
       operating_cash_flow: 104038000000,
       investing_cash_flow: -14545000000,
@@ -162,8 +169,8 @@ async function populateCashFlowData() {
       capital_expenditures: -11085000000,
       free_cash_flow: 92953000000,
       dividends_paid: -14467000000,
-      stock_repurchases: -85971000000
-    }
+      stock_repurchases: -85971000000,
+    },
   ];
 
   for (const data of testData) {
@@ -184,28 +191,35 @@ async function populateCashFlowData() {
         stock_repurchases = EXCLUDED.stock_repurchases,
         updated_at = CURRENT_TIMESTAMP
     `;
-    
+
     await pool.query(query, [
-      data.symbol, data.fiscal_year, data.operating_cash_flow, data.investing_cash_flow,
-      data.financing_cash_flow, data.net_cash_flow, data.capital_expenditures,
-      data.free_cash_flow, data.dividends_paid, data.stock_repurchases
+      data.symbol,
+      data.fiscal_year,
+      data.operating_cash_flow,
+      data.investing_cash_flow,
+      data.financing_cash_flow,
+      data.net_cash_flow,
+      data.capital_expenditures,
+      data.free_cash_flow,
+      data.dividends_paid,
+      data.stock_repurchases,
     ]);
   }
-  
-  console.log('✅ Populated cash flow data for AAPL (3 years)');
+
+  console.log("✅ Populated cash flow data for AAPL (3 years)");
 }
 
 async function populateKeyMetricsData() {
   const testData = [
     {
-      ticker: 'AAPL',
+      ticker: "AAPL",
       trailing_pe: 29.55,
       forward_pe: 24.12,
       dividend_yield: 0.0043,
       peg_ratio: 2.31,
       price_to_book: 45.73,
-      price_to_sales_ttm: 7.65
-    }
+      price_to_sales_ttm: 7.65,
+    },
   ];
 
   for (const data of testData) {
@@ -221,34 +235,38 @@ async function populateKeyMetricsData() {
         price_to_book = EXCLUDED.price_to_book,
         price_to_sales_ttm = EXCLUDED.price_to_sales_ttm
     `;
-    
+
     await pool.query(query, [
-      data.ticker, data.trailing_pe, data.forward_pe, data.dividend_yield,
-      data.peg_ratio, data.price_to_book, data.price_to_sales_ttm
+      data.ticker,
+      data.trailing_pe,
+      data.forward_pe,
+      data.dividend_yield,
+      data.peg_ratio,
+      data.price_to_book,
+      data.price_to_sales_ttm,
     ]);
   }
-  
-  console.log('✅ Populated key metrics data for AAPL');
+
+  console.log("✅ Populated key metrics data for AAPL");
 }
 
 async function main() {
   try {
-    console.log('🚀 Starting financial data population...');
-    
+    console.log("🚀 Starting financial data population...");
+
     // Create missing table and columns
     await createCashFlowTable();
     await addPriceToSalesColumn();
-    
+
     // Populate test data
     await populateBalanceSheetData();
     await populateCashFlowData();
     await populateKeyMetricsData();
-    
-    console.log('✅ All financial data populated successfully!');
-    console.log('📊 Data available for AAPL across all 4 financial tabs');
-    
+
+    console.log("✅ All financial data populated successfully!");
+    console.log("📊 Data available for AAPL across all 4 financial tabs");
   } catch (error) {
-    console.error('❌ Error populating financial data:', error);
+    console.error("❌ Error populating financial data:", error);
     process.exit(1);
   } finally {
     await pool.end();

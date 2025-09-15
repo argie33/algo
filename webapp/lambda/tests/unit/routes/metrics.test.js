@@ -12,11 +12,11 @@ describe("Metrics Routes", () => {
   beforeAll(() => {
     app = express();
     app.use(express.json());
-    
+
     // Add response formatter middleware for proper res.error, res.success methods
     const responseFormatter = require("../../../middleware/responseFormatter");
     app.use(responseFormatter);
-    
+
     app.use("/metrics", metricsRoutes);
   });
 
@@ -38,23 +38,23 @@ describe("Metrics Routes", () => {
     test("should return comprehensive metrics with default pagination", async () => {
       const response = await request(app).get("/metrics/").expect(200);
 
-      expect(response.body).toHaveProperty('stocks');
-      expect(response.body).toHaveProperty('pagination');
+      expect(response.body).toHaveProperty("stocks");
+      expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toMatchObject({
         currentPage: 1,
         itemsPerPage: 50,
         totalPages: expect.any(Number),
         totalItems: expect.any(Number),
       });
-      
+
       // If we have stocks in the response, verify the structure
       if (response.body.stocks.length > 0) {
         const firstStock = response.body.stocks[0];
-        expect(firstStock).toHaveProperty('symbol');
-        expect(firstStock).toHaveProperty('companyName');
-        expect(firstStock).toHaveProperty('sector');
-        expect(firstStock).toHaveProperty('metrics');
-        expect(firstStock.metrics).toHaveProperty('composite');
+        expect(firstStock).toHaveProperty("symbol");
+        expect(firstStock).toHaveProperty("companyName");
+        expect(firstStock).toHaveProperty("sector");
+        expect(firstStock).toHaveProperty("metrics");
+        expect(firstStock.metrics).toHaveProperty("composite");
       }
     });
 
@@ -64,7 +64,7 @@ describe("Metrics Routes", () => {
         .query({ search: "AAPL", limit: 10, page: 1 })
         .expect(200);
 
-      expect(response.body).toHaveProperty('pagination');
+      expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toMatchObject({
         currentPage: 1,
         itemsPerPage: 10,
@@ -84,7 +84,7 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body.stocks).toBeDefined();
-      expect(response.body).toHaveProperty('pagination');
+      expect(response.body).toHaveProperty("pagination");
     });
 
     test("should handle metric range filtering", async () => {
@@ -94,7 +94,7 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body.stocks).toBeDefined();
-      expect(response.body).toHaveProperty('pagination');
+      expect(response.body).toHaveProperty("pagination");
     });
 
     test("should prevent SQL injection in sort parameters", async () => {
@@ -107,7 +107,7 @@ describe("Metrics Routes", () => {
         .expect(200);
 
       expect(response.body.stocks).toBeDefined();
-      expect(response.body).toHaveProperty('pagination');
+      expect(response.body).toHaveProperty("pagination");
     });
 
     test("should limit page size to maximum", async () => {

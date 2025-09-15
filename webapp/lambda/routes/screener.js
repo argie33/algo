@@ -13,13 +13,13 @@ router.get("/", (req, res) => {
     success: true,
     data: {
       system: "Stock Screener API",
-      version: "1.0.0", 
+      version: "1.0.0",
       status: "operational",
       available_endpoints: [
         "GET /screener/screen - Main stock screening with filters",
         "GET /screener/ai-scan - AI-powered market scanner",
         "GET /screener/ai-strategies - Available AI scanning strategies",
-        "GET /screener/templates - Pre-built screening templates", 
+        "GET /screener/templates - Pre-built screening templates",
         "GET /screener/factors - Available screening factors",
       ],
       timestamp: new Date().toISOString(),
@@ -251,7 +251,7 @@ router.get("/screen", async (req, res) => {
         factorScore: "50",
         volume: "pd.volume",
         rsi: "td.rsi",
-        sector: "COALESCE(cp.sector, 'Technology')"
+        sector: "COALESCE(cp.sector, 'Technology')",
       };
 
       const dbField = fieldMap[sortField] || "cp.market_cap";
@@ -330,7 +330,7 @@ router.get("/screen", async (req, res) => {
         ORDER BY symbol, date DESC
       ) sc ON s.symbol = sc.symbol
       WHERE pd.close IS NOT NULL AND pd.close > 0
-      ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
+      ${whereConditions.length > 0 ? "AND " + whereConditions.join(" AND ") : ""}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
@@ -370,12 +370,16 @@ router.get("/screen", async (req, res) => {
         ORDER BY symbol, date DESC
       ) sc ON s.symbol = sc.symbol
       WHERE pd.close IS NOT NULL AND pd.close > 0
-      ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
+      ${whereConditions.length > 0 ? "AND " + whereConditions.join(" AND ") : ""}
     `;
 
     // Execute queries with better error handling
-    console.log("Executing screener queries with params:", params.length, "parameters");
-    
+    console.log(
+      "Executing screener queries with params:",
+      params.length,
+      "parameters"
+    );
+
     let results, countResult;
     try {
       [results, countResult] = await Promise.all([
@@ -388,7 +392,10 @@ router.get("/screen", async (req, res) => {
         success: false,
         error: "Database query failed",
         message: "Unable to execute screening query",
-        details: process.env.NODE_ENV === 'development' ? queryError.message : undefined
+        details:
+          process.env.NODE_ENV === "development"
+            ? queryError.message
+            : undefined,
       });
     }
 
@@ -415,7 +422,13 @@ router.get("/screen", async (req, res) => {
     }
 
     const stocks = results.rows;
-    const totalCount = parseInt((countResult && countResult.rows && countResult.rows[0] && countResult.rows[0].total) || 0);
+    const totalCount = parseInt(
+      (countResult &&
+        countResult.rows &&
+        countResult.rows[0] &&
+        countResult.rows[0].total) ||
+        0
+    );
 
     // Calculate factor scores for stocks that don't have them
     const stocksWithScores = await Promise.all(
@@ -478,7 +491,7 @@ router.get("/screen", async (req, res) => {
 router.get("/filters", async (req, res) => {
   try {
     console.log("🔍 Fetching screener filter options");
-    
+
     // Get sectors from database
     let sectors, exchanges;
     try {
@@ -488,21 +501,25 @@ router.get("/filters", async (req, res) => {
         WHERE sector IS NOT NULL 
         ORDER BY sector
       `);
-      sectors = (sectorResult.rows || []).map(row => row.sector);
-      
+      sectors = (sectorResult.rows || []).map((row) => row.sector);
+
       const exchangeResult = await query(`
         SELECT DISTINCT exchange 
         FROM stock_symbols 
         WHERE exchange IS NOT NULL 
         ORDER BY exchange
       `);
-      exchanges = (exchangeResult.rows || []).map(row => row.exchange);
+      exchanges = (exchangeResult.rows || []).map((row) => row.exchange);
     } catch (error) {
       console.error("Failed to fetch filter options:", error);
-      return res.status(503).json({success: false, error: "Filter options not available", 
-        message: "Unable to retrieve screening filter options",
-        service: "screener-filters"
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Filter options not available",
+          message: "Unable to retrieve screening filter options",
+          service: "screener-filters",
+        });
     }
 
     // Get price ranges from price_daily table (which we know exists and works)
@@ -519,22 +536,25 @@ router.get("/filters", async (req, res) => {
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         AND close > 0
       `);
-      
+
       priceStats = (priceResult.rows && priceResult.rows[0]) || {
         min_price: 1,
         max_price: 1000,
         q1_price: 25,
         median_price: 50,
-        q3_price: 100
+        q3_price: 100,
       };
     } catch (priceError) {
-      console.warn("Could not fetch price statistics, using defaults:", priceError.message);
+      console.warn(
+        "Could not fetch price statistics, using defaults:",
+        priceError.message
+      );
       priceStats = {
         min_price: 1,
         max_price: 1000,
         q1_price: 25,
         median_price: 50,
-        q3_price: 100
+        q3_price: 100,
       };
     }
 
@@ -554,10 +574,14 @@ router.get("/filters", async (req, res) => {
       marketCapStats = (marketCapResult.rows && marketCapResult.rows[0]) || {};
     } catch (error) {
       console.error("Failed to fetch market cap stats:", error);
-      return res.status(503).json({success: false, error: "Market cap statistics not available", 
-        message: "Unable to retrieve market cap statistics",
-        service: "screener-market-cap"
-      });
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Market cap statistics not available",
+          message: "Unable to retrieve market cap statistics",
+          service: "screener-market-cap",
+        });
     }
 
     res.json({
@@ -569,23 +593,61 @@ router.get("/filters", async (req, res) => {
           price: priceStats,
         },
         filterOptions: {
-          sectors: sectors.map(sector => ({ value: sector, label: sector })),
-          exchanges: exchanges.map(exchange => ({ value: exchange, label: exchange })),
+          sectors: sectors.map((sector) => ({ value: sector, label: sector })),
+          exchanges: exchanges.map((exchange) => ({
+            value: exchange,
+            label: exchange,
+          })),
           marketCapRanges: [
-            { value: "micro", label: "Micro Cap ($10M - $300M)", min: 10000000, max: 300000000 },
-            { value: "small", label: "Small Cap ($300M - $2B)", min: 300000000, max: 2000000000 },
-            { value: "mid", label: "Mid Cap ($2B - $10B)", min: 2000000000, max: 10000000000 },
-            { value: "large", label: "Large Cap ($10B - $200B)", min: 10000000000, max: 200000000000 },
-            { value: "mega", label: "Mega Cap ($200B+)", min: 200000000000, max: null }
+            {
+              value: "micro",
+              label: "Micro Cap ($10M - $300M)",
+              min: 10000000,
+              max: 300000000,
+            },
+            {
+              value: "small",
+              label: "Small Cap ($300M - $2B)",
+              min: 300000000,
+              max: 2000000000,
+            },
+            {
+              value: "mid",
+              label: "Mid Cap ($2B - $10B)",
+              min: 2000000000,
+              max: 10000000000,
+            },
+            {
+              value: "large",
+              label: "Large Cap ($10B - $200B)",
+              min: 10000000000,
+              max: 200000000000,
+            },
+            {
+              value: "mega",
+              label: "Mega Cap ($200B+)",
+              min: 200000000000,
+              max: null,
+            },
           ],
           priceRanges: [
             { value: "penny", label: "Penny Stocks ($0 - $5)", min: 0, max: 5 },
             { value: "low", label: "Low Priced ($5 - $20)", min: 5, max: 20 },
-            { value: "medium", label: "Medium Priced ($20 - $100)", min: 20, max: 100 },
-            { value: "high", label: "High Priced ($100 - $500)", min: 100, max: 500 },
-            { value: "premium", label: "Premium ($500+)", min: 500, max: null }
-          ]
-        }
+            {
+              value: "medium",
+              label: "Medium Priced ($20 - $100)",
+              min: 20,
+              max: 100,
+            },
+            {
+              value: "high",
+              label: "High Priced ($100 - $500)",
+              min: 100,
+              max: 500,
+            },
+            { value: "premium", label: "Premium ($500+)", min: 500, max: null },
+          ],
+        },
       },
     });
   } catch (error) {
@@ -766,23 +828,25 @@ router.get("/templates", (req, res) => {
 router.get("/growth", (req, res) => {
   res.json({
     success: true,
-    data: [{
-      id: "growth_stocks",
-      name: "Growth Stocks", 
-      description: "High revenue and earnings growth stocks",
-      filters: {
-        revenueGrowthMin: 15,
-        earningsGrowthMin: 20,
-        pegRatioMax: 2,
-        marketCapMin: 2000000000,
+    data: [
+      {
+        id: "growth_stocks",
+        name: "Growth Stocks",
+        description: "High revenue and earnings growth stocks",
+        filters: {
+          revenueGrowthMin: 15,
+          earningsGrowthMin: 20,
+          pegRatioMax: 2,
+          marketCapMin: 2000000000,
+        },
+        criteria: {
+          revenueGrowth: "minimum 15%",
+          earningsGrowth: "minimum 20%",
+          pegRatio: "maximum 2.0",
+          marketCap: "minimum $2B",
+        },
       },
-      criteria: {
-        revenueGrowth: "minimum 15%",
-        earningsGrowth: "minimum 20%", 
-        pegRatio: "maximum 2.0",
-        marketCap: "minimum $2B",
-      },
-    }]
+    ],
   });
 });
 
@@ -790,26 +854,29 @@ router.get("/growth", (req, res) => {
 router.get("/results", async (req, res) => {
   try {
     console.log("📊 Screener results endpoint called");
-    const { 
-      limit = 20, 
-      offset = 0, 
-      filters: filtersParam = "{}", 
-      sortBy = "marketCap", 
+    const {
+      limit = 20,
+      offset = 0,
+      filters: filtersParam = "{}",
+      sortBy = "marketCap",
       sortOrder = "desc",
-      preset 
+      preset,
     } = req.query;
-    
+
     const parsedLimit = Math.min(parseInt(limit), 500);
     const parsedOffset = parseInt(offset);
-    
+
     // Parse filters
     let filters = {};
     try {
-      filters = typeof filtersParam === 'string' ? JSON.parse(filtersParam) : filtersParam;
+      filters =
+        typeof filtersParam === "string"
+          ? JSON.parse(filtersParam)
+          : filtersParam;
     } catch (e) {
       filters = {};
     }
-    
+
     // Apply preset if specified
     if (preset) {
       const presets = {
@@ -839,17 +906,17 @@ router.get("/results", async (req, res) => {
           netMarginMin: 10,
         },
       };
-      
+
       if (presets[preset]) {
         filters = { ...filters, ...presets[preset] };
       }
     }
-    
+
     // Build WHERE conditions
     const whereConditions = [];
     const params = [];
     let paramIndex = 1;
-    
+
     // Price filters
     if (filters.priceMin) {
       whereConditions.push(`pd.close >= $${paramIndex}`);
@@ -861,7 +928,7 @@ router.get("/results", async (req, res) => {
       params.push(parseFloat(filters.priceMax));
       paramIndex++;
     }
-    
+
     // Market cap filters
     if (filters.marketCapMin) {
       whereConditions.push(`s.market_cap >= $${paramIndex}`);
@@ -873,63 +940,75 @@ router.get("/results", async (req, res) => {
       params.push(parseFloat(filters.marketCapMax));
       paramIndex++;
     }
-    
+
     // P/E ratio filters
     if (filters.peRatioMin) {
-      whereConditions.push(`s.pe_ratio >= $${paramIndex} AND s.pe_ratio IS NOT NULL`);
+      whereConditions.push(
+        `s.pe_ratio >= $${paramIndex} AND s.pe_ratio IS NOT NULL`
+      );
       params.push(parseFloat(filters.peRatioMin));
       paramIndex++;
     }
     if (filters.peRatioMax) {
-      whereConditions.push(`s.pe_ratio <= $${paramIndex} AND s.pe_ratio IS NOT NULL`);
+      whereConditions.push(
+        `s.pe_ratio <= $${paramIndex} AND s.pe_ratio IS NOT NULL`
+      );
       params.push(parseFloat(filters.peRatioMax));
       paramIndex++;
     }
-    
-    // Dividend yield filters  
+
+    // Dividend yield filters
     if (filters.dividendYieldMin) {
-      whereConditions.push(`s.dividend_yield >= $${paramIndex} AND s.dividend_yield IS NOT NULL`);
+      whereConditions.push(
+        `s.dividend_yield >= $${paramIndex} AND s.dividend_yield IS NOT NULL`
+      );
       params.push(parseFloat(filters.dividendYieldMin) / 100);
       paramIndex++;
     }
     if (filters.dividendYieldMax) {
-      whereConditions.push(`s.dividend_yield <= $${paramIndex} AND s.dividend_yield IS NOT NULL`);
+      whereConditions.push(
+        `s.dividend_yield <= $${paramIndex} AND s.dividend_yield IS NOT NULL`
+      );
       params.push(parseFloat(filters.dividendYieldMax) / 100);
       paramIndex++;
     }
-    
+
     // Volume filter
     if (filters.volumeMin) {
       whereConditions.push(`pd.volume >= $${paramIndex}`);
       params.push(parseFloat(filters.volumeMin));
       paramIndex++;
     }
-    
+
     // Sector filter
     if (filters.sector) {
       whereConditions.push(`cp.sector = $${paramIndex}`);
       params.push(filters.sector);
       paramIndex++;
     }
-    
+
     // RSI filters
     if (filters.rsiMin) {
-      whereConditions.push(`ti.rsi_14 >= $${paramIndex} AND ti.rsi_14 IS NOT NULL`);
+      whereConditions.push(
+        `ti.rsi_14 >= $${paramIndex} AND ti.rsi_14 IS NOT NULL`
+      );
       params.push(parseFloat(filters.rsiMin));
       paramIndex++;
     }
     if (filters.rsiMax) {
-      whereConditions.push(`ti.rsi_14 <= $${paramIndex} AND ti.rsi_14 IS NOT NULL`);
+      whereConditions.push(
+        `ti.rsi_14 <= $${paramIndex} AND ti.rsi_14 IS NOT NULL`
+      );
       params.push(parseFloat(filters.rsiMax));
       paramIndex++;
     }
-    
+
     // Build WHERE clause
     let whereClause = "";
     if (whereConditions.length > 0) {
       whereClause = "WHERE " + whereConditions.join(" AND ");
     }
-    
+
     // Build ORDER BY clause
     const sortFields = {
       symbol: "s.symbol",
@@ -939,12 +1018,12 @@ router.get("/results", async (req, res) => {
       peRatio: "s.pe_ratio",
       dividendYield: "s.dividend_yield",
       volume: "pd.volume",
-      rsi: "ti.rsi_14"
+      rsi: "ti.rsi_14",
     };
-    
+
     const sortField = sortFields[sortBy] || "s.market_cap";
-    const orderBy = `ORDER BY ${sortField} ${sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'} NULLS LAST`;
-    
+    const orderBy = `ORDER BY ${sortField} ${sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC"} NULLS LAST`;
+
     // Main query
     const mainQuery = `
       SELECT 
@@ -988,9 +1067,9 @@ router.get("/results", async (req, res) => {
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    
+
     params.push(parsedLimit, parsedOffset);
-    
+
     // Count query
     const countQuery = `
       SELECT COUNT(*) as total
@@ -1007,28 +1086,34 @@ router.get("/results", async (req, res) => {
       ) ti ON s.symbol = ti.symbol
       ${whereClause}
     `;
-    
+
     // Execute queries
     const [results, countResult] = await Promise.all([
       query(mainQuery, params).catch(() => ({ rows: [] })),
-      query(countQuery, params.slice(0, -2)).catch(() => ({ rows: [{ total: 0 }] }))
+      query(countQuery, params.slice(0, -2)).catch(() => ({
+        rows: [{ total: 0 }],
+      })),
     ]);
-    
+
     const stocks = results.rows;
     const totalCount = parseInt(countResult.rows?.[0]?.total || 0);
-    
+
     // Enhanced stock data
-    const enhancedStocks = stocks.map(stock => ({
+    const enhancedStocks = stocks.map((stock) => ({
       ...stock,
       price: parseFloat(stock.price || 0).toFixed(2),
       market_cap: stock.market_cap ? parseInt(stock.market_cap) : null,
       pe_ratio: stock.pe_ratio ? parseFloat(stock.pe_ratio).toFixed(2) : null,
-      dividend_yield_percent: stock.dividend_yield_percent ? parseFloat(stock.dividend_yield_percent).toFixed(2) : null,
+      dividend_yield_percent: stock.dividend_yield_percent
+        ? parseFloat(stock.dividend_yield_percent).toFixed(2)
+        : null,
       volume: stock.volume ? parseInt(stock.volume) : null,
-      price_change_percent: stock.price_change_percent ? parseFloat(stock.price_change_percent).toFixed(2) : null,
-      rsi: stock.rsi ? parseFloat(stock.rsi).toFixed(2) : null
+      price_change_percent: stock.price_change_percent
+        ? parseFloat(stock.price_change_percent).toFixed(2)
+        : null,
+      rsi: stock.rsi ? parseFloat(stock.rsi).toFixed(2) : null,
     }));
-    
+
     res.json({
       success: true,
       data: {
@@ -1039,19 +1124,19 @@ router.get("/results", async (req, res) => {
           offset: parsedOffset,
           totalCount,
           totalPages: Math.ceil(totalCount / parsedLimit),
-          hasMore: parsedOffset + parsedLimit < totalCount
+          hasMore: parsedOffset + parsedLimit < totalCount,
         },
         filters: {
           applied: filters,
           preset: preset || null,
-          conditions_count: whereConditions.length
+          conditions_count: whereConditions.length,
         },
         sort: {
           sortBy,
-          sortOrder: sortOrder.toUpperCase()
-        }
+          sortOrder: sortOrder.toUpperCase(),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("❌ Error in screener results:", error);
@@ -1059,7 +1144,7 @@ router.get("/results", async (req, res) => {
       success: false,
       error: "Failed to fetch screener results",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1120,7 +1205,8 @@ router.post("/presets/:presetId/apply", (req, res) => {
     });
   }
 
-  res.json({data: {
+  res.json({
+    data: {
       presetId,
       filters: preset,
     },
@@ -1201,8 +1287,7 @@ router.get("/screens", async (req, res) => {
         `✅ Found ${screens.length} saved screens for user ${userId}`
       );
 
-      res.json({data: screens,
-      });
+      res.json({ data: screens });
     } catch (dbError) {
       console.log(
         "⚠️ Database query failed for saved screens, returning empty array:",
@@ -1210,7 +1295,8 @@ router.get("/screens", async (req, res) => {
       );
 
       // Return empty array if database fails
-      res.json({data: [],
+      res.json({
+        data: [],
         note: "Database unavailable - returning empty screens list",
       });
     }
@@ -1312,9 +1398,7 @@ router.post("/export", async (req, res) => {
       res.send(csvContent);
     } else {
       // JSON format
-      res.json({data: result.rows,
-        exportedAt: new Date().toISOString(),
-      });
+      res.json({ data: result.rows, exportedAt: new Date().toISOString() });
     }
   } catch (error) {
     console.error("Error exporting screen results:", error);
@@ -1341,16 +1425,21 @@ router.get("/watchlists", async (req, res) => {
 
     if (!userId) {
       console.error("❌ No user ID found in watchlists request");
-      return res.status(401).json({success: false, error: "Authentication required for watchlist access", 
-        details: "User authentication is required to access watchlists",
-        suggestion: "Please log in to view and manage your personal watchlists.",
-        service: "watchlists",
-        requirements: [
-          "Valid JWT authentication token required",
-          "User must be logged in to access watchlist functionality"
-        ],
-        authenticated: false
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          error: "Authentication required for watchlist access",
+          details: "User authentication is required to access watchlists",
+          suggestion:
+            "Please log in to view and manage your personal watchlists.",
+          service: "watchlists",
+          requirements: [
+            "Valid JWT authentication token required",
+            "User must be logged in to access watchlist functionality",
+          ],
+          authenticated: false,
+        });
     }
 
     // Try to get saved screens from database
@@ -1384,50 +1473,61 @@ router.get("/watchlists", async (req, res) => {
         type: "screen",
       }));
 
-      res.json({data: watchlists,
+      res.json({
+        data: watchlists,
         authenticated: true,
         userId: userId,
         timestamp: new Date().toISOString(),
       });
     } catch (dbError) {
       console.error("Database query failed for watchlists:", dbError.message);
-      
-      return res.status(503).json({success: false, error: "Failed to retrieve watchlists", 
-        details: dbError.message,
-        suggestion: "Database connectivity is required to access saved watchlists.",
-        service: "watchlists-database",
-        requirements: [
-          "Database connectivity must be available",
-          "saved_screens table must exist",
-          "Valid user_id mapping required"
-        ],
-        authenticated: true,
-        userId: userId,
-        troubleshooting: [
-          "Check database connection status",
-          "Verify saved_screens table schema",
-          "Ensure user_id exists in database"
-        ]
-      });
+
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to retrieve watchlists",
+          details: dbError.message,
+          suggestion:
+            "Database connectivity is required to access saved watchlists.",
+          service: "watchlists-database",
+          requirements: [
+            "Database connectivity must be available",
+            "saved_screens table must exist",
+            "Valid user_id mapping required",
+          ],
+          authenticated: true,
+          userId: userId,
+          troubleshooting: [
+            "Check database connection status",
+            "Verify saved_screens table schema",
+            "Ensure user_id exists in database",
+          ],
+        });
     }
   } catch (error) {
     console.error("Error in watchlists endpoint:", error);
 
-    return res.status(503).json({success: false, error: "Watchlists service unavailable", 
-      details: error.message,
-      suggestion: "Watchlists functionality requires system resources to be available.",
-      service: "watchlists-general",
-      requirements: [
-        "System must be operational",
-        "Database service must be running",
-        "User authentication must be functional"
-      ],
-      troubleshooting: [
-        "Check overall system health",
-        "Verify authentication service status",
-        "Review application logs for errors"
-      ]
-    });
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Watchlists service unavailable",
+        details: error.message,
+        suggestion:
+          "Watchlists functionality requires system resources to be available.",
+        service: "watchlists-general",
+        requirements: [
+          "System must be operational",
+          "Database service must be running",
+          "User authentication must be functional",
+        ],
+        troubleshooting: [
+          "Check overall system health",
+          "Verify authentication service status",
+          "Review application logs for errors",
+        ],
+      });
   }
 });
 
@@ -1467,46 +1567,54 @@ router.post("/watchlists", async (req, res) => {
         type: "watchlist",
       };
 
-      res.json({data: watchlist,
-        timestamp: new Date().toISOString(),
-      });
+      res.json({ data: watchlist, timestamp: new Date().toISOString() });
     } catch (dbError) {
       console.error("Database save failed for watchlist:", dbError.message);
-      
-      return res.status(503).json({success: false, error: "Failed to create watchlist", 
-        details: dbError.message,
-        suggestion: "Database connectivity is required to create and save watchlists.",
-        service: "watchlists-create",
-        requirements: [
-          "Database connectivity must be available",
-          "saved_screens table must exist",
-          "Valid user authentication required"
-        ],
-        troubleshooting: [
-          "Check database connection status",
-          "Verify saved_screens table schema",
-          "Ensure user_id is valid"
-        ]
-      });
+
+      return res
+        .status(503)
+        .json({
+          success: false,
+          error: "Failed to create watchlist",
+          details: dbError.message,
+          suggestion:
+            "Database connectivity is required to create and save watchlists.",
+          service: "watchlists-create",
+          requirements: [
+            "Database connectivity must be available",
+            "saved_screens table must exist",
+            "Valid user authentication required",
+          ],
+          troubleshooting: [
+            "Check database connection status",
+            "Verify saved_screens table schema",
+            "Ensure user_id is valid",
+          ],
+        });
     }
   } catch (error) {
     console.error("Error creating watchlist:", error);
-    
-    return res.status(503).json({success: false, error: "Watchlist creation service unavailable", 
-      details: error.message,
-      suggestion: "Watchlist creation requires system resources to be available.",
-      service: "watchlists-service",
-      requirements: [
-        "System must be operational",
-        "Database service must be running",
-        "User authentication must be functional"
-      ],
-      troubleshooting: [
-        "Check overall system health",
-        "Verify authentication service status", 
-        "Review application logs for errors"
-      ]
-    });
+
+    return res
+      .status(503)
+      .json({
+        success: false,
+        error: "Watchlist creation service unavailable",
+        details: error.message,
+        suggestion:
+          "Watchlist creation requires system resources to be available.",
+        service: "watchlists-service",
+        requirements: [
+          "System must be operational",
+          "Database service must be running",
+          "User authentication must be functional",
+        ],
+        troubleshooting: [
+          "Check overall system health",
+          "Verify authentication service status",
+          "Review application logs for errors",
+        ],
+      });
   }
 });
 
@@ -1516,16 +1624,20 @@ router.get("/stocks", async (req, res) => {
   // Return a graceful response indicating the feature needs database setup
   try {
     const {
-      price_min = 0,              // minimum price
-      price_max = 10000,          // maximum price  
-      volume_min = 0,             // minimum daily volume
-      sort_by = "volume",         // market_cap, price, volume, pe_ratio, dividend_yield
-      sort_order = "desc",        // asc, desc
-      limit = 50                  // number of results to return
+      price_min = 0, // minimum price
+      price_max = 10000, // maximum price
+      volume_min = 0, // minimum daily volume
+      sort_by = "volume", // market_cap, price, volume, pe_ratio, dividend_yield
+      sort_order = "desc", // asc, desc
+      limit = 50, // number of results to return
     } = req.query;
 
     console.log(`📊 Stock screening requested with filters:`, {
-      price_min, price_max, volume_min, limit, sort_by
+      price_min,
+      price_max,
+      volume_min,
+      limit,
+      sort_by,
     });
 
     // Build the WHERE clause based on filters
@@ -1599,11 +1711,11 @@ router.get("/stocks", async (req, res) => {
       ORDER BY ${orderByClause}
       LIMIT $${paramIndex}
     `;
-    
+
     queryParams.push(parseInt(limit));
 
-    console.log('🔍 Executing screener query:', sqlQuery);
-    console.log('📋 Query parameters:', queryParams);
+    console.log("🔍 Executing screener query:", sqlQuery);
+    console.log("📋 Query parameters:", queryParams);
 
     const result = await query(sqlQuery, queryParams);
 
@@ -1611,7 +1723,7 @@ router.get("/stocks", async (req, res) => {
       throw new Error("Database query failed");
     }
 
-    const stocks = result.rows.map(row => ({
+    const stocks = result.rows.map((row) => ({
       symbol: row.symbol,
       price: parseFloat(row.price) || 0,
       volume: parseInt(row.volume) || 0,
@@ -1636,23 +1748,26 @@ router.get("/stocks", async (req, res) => {
         summary: {
           total_results: stocks.length,
           filters_applied: {
-            price_min, price_max, volume_min, sort_by, sort_order
+            price_min,
+            price_max,
+            volume_min,
+            sort_by,
+            sort_order,
           },
           data_source: "price_daily and stock_scores tables",
-          last_updated: stocks.length > 0 ? stocks[0].date : null
-        }
+          last_updated: stocks.length > 0 ? stocks[0].date : null,
+        },
       },
       message: "Stock screening completed successfully",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("❌ Stock screening failed:", error);
     return res.status(500).json({
       success: false,
       error: "Stock screening failed",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -1926,7 +2041,7 @@ router.get("/stocks", async (req, res) => {
 // AI-powered market scanner endpoint
 router.get("/ai-scan", async (req, res) => {
   try {
-    const { type = 'momentum', limit = 50, min_market_cap, sector } = req.query;
+    const { type = "momentum", limit = 50, min_market_cap, sector } = req.query;
     console.log(`🤖 AI Market Scan: type=${type}, limit=${limit}`);
 
     // Build filters object
@@ -1944,26 +2059,41 @@ router.get("/ai-scan", async (req, res) => {
         aiPowered: true,
         realTimeData: true,
         availableStrategies: aiScanner.getAvailableStrategies(),
-        version: "2.0"
+        version: "2.0",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("AI Market Scan error:", error);
-    
+
     // Fallback to basic strategies if enhanced scanner fails
-    if (error.message.includes("Unknown scan type") || error.message.includes("does not exist")) {
+    if (
+      error.message.includes("Unknown scan type") ||
+      error.message.includes("does not exist")
+    ) {
       try {
         const fallbackStrategies = {
-          momentum: { name: 'Momentum Breakouts', description: 'Price and volume momentum signals' },
-          reversal: { name: 'Reversal Opportunities', description: 'Oversold reversal candidates' },
-          breakout: { name: 'Technical Breakouts', description: 'Price breakout patterns' },
-          unusual: { name: 'Unusual Activity', description: 'Unusual volume and price activity' }
+          momentum: {
+            name: "Momentum Breakouts",
+            description: "Price and volume momentum signals",
+          },
+          reversal: {
+            name: "Reversal Opportunities",
+            description: "Oversold reversal candidates",
+          },
+          breakout: {
+            name: "Technical Breakouts",
+            description: "Price breakout patterns",
+          },
+          unusual: {
+            name: "Unusual Activity",
+            description: "Unusual volume and price activity",
+          },
         };
-        
-        const strategy = fallbackStrategies[type] || fallbackStrategies.momentum;
-        
+
+        const strategy =
+          fallbackStrategies[type] || fallbackStrategies.momentum;
+
         res.json({
           success: true,
           data: {
@@ -1973,18 +2103,21 @@ router.get("/ai-scan", async (req, res) => {
             results: [],
             totalResults: 0,
             timestamp: new Date().toISOString(),
-            message: "AI scanner requires database setup - returning empty results",
+            message:
+              "AI scanner requires database setup - returning empty results",
             metadata: {
               aiPowered: true,
               fallbackMode: true,
-              availableStrategies: Object.keys(fallbackStrategies).map(key => ({
-                type: key,
-                name: fallbackStrategies[key].name,
-                description: fallbackStrategies[key].description
-              }))
-            }
+              availableStrategies: Object.keys(fallbackStrategies).map(
+                (key) => ({
+                  type: key,
+                  name: fallbackStrategies[key].name,
+                  description: fallbackStrategies[key].description,
+                })
+              ),
+            },
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       } catch (fallbackError) {
         console.error("Fallback AI scan also failed:", fallbackError);
@@ -1992,7 +2125,7 @@ router.get("/ai-scan", async (req, res) => {
           success: false,
           error: "AI market scan temporarily unavailable",
           details: "Database connectivity required for AI market scanning",
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     } else {
@@ -2000,7 +2133,7 @@ router.get("/ai-scan", async (req, res) => {
         success: false,
         error: "Failed to perform AI market scan",
         details: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -2010,7 +2143,7 @@ router.get("/ai-scan", async (req, res) => {
 router.get("/ai-strategies", (req, res) => {
   try {
     const strategies = aiScanner.getAvailableStrategies();
-    
+
     res.json({
       success: true,
       data: {
@@ -2022,17 +2155,18 @@ router.get("/ai-strategies", (req, res) => {
             type: "Strategy type (momentum, reversal, breakout, unusual, earnings, news_sentiment)",
             limit: "Number of results to return (default: 50, max: 200)",
             min_market_cap: "Minimum market cap filter (optional)",
-            sector: "Sector filter (optional)"
+            sector: "Sector filter (optional)",
           },
-          example: "/screener/ai-scan?type=momentum&limit=25&min_market_cap=1000000000"
+          example:
+            "/screener/ai-scan?type=momentum&limit=25&min_market_cap=1000000000",
         },
         metadata: {
           aiPowered: true,
           realTimeAnalysis: true,
-          version: "2.0"
-        }
+          version: "2.0",
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching AI strategies:", error);
@@ -2040,7 +2174,7 @@ router.get("/ai-strategies", (req, res) => {
       success: false,
       error: "Failed to fetch AI strategies",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2050,11 +2184,11 @@ router.post("/custom", authenticateToken, async (req, res) => {
   try {
     const { filters, sorting, analysis } = req.body;
 
-    if (!filters || typeof filters !== 'object') {
+    if (!filters || typeof filters !== "object") {
       return res.status(400).json({
         success: false,
         error: "Filters are required and must be an object",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -2069,25 +2203,29 @@ router.post("/custom", authenticateToken, async (req, res) => {
 
     // Process custom filter conditions
     if (filters.customConditions && Array.isArray(filters.customConditions)) {
-      filters.customConditions.forEach(condition => {
-        if (condition.field && condition.operator && condition.value !== undefined) {
+      filters.customConditions.forEach((condition) => {
+        if (
+          condition.field &&
+          condition.operator &&
+          condition.value !== undefined
+        ) {
           switch (condition.operator) {
-            case 'gt':
+            case "gt":
               whereConditions.push(`s.${condition.field} > $${paramIndex}`);
               break;
-            case 'gte':
+            case "gte":
               whereConditions.push(`s.${condition.field} >= $${paramIndex}`);
               break;
-            case 'lt':
+            case "lt":
               whereConditions.push(`s.${condition.field} < $${paramIndex}`);
               break;
-            case 'lte':
+            case "lte":
               whereConditions.push(`s.${condition.field} <= $${paramIndex}`);
               break;
-            case 'eq':
+            case "eq":
               whereConditions.push(`s.${condition.field} = $${paramIndex}`);
               break;
-            case 'like':
+            case "like":
               whereConditions.push(`s.${condition.field} ILIKE $${paramIndex}`);
               condition.value = `%${condition.value}%`;
               break;
@@ -2107,24 +2245,32 @@ router.post("/custom", authenticateToken, async (req, res) => {
 
     if (filters.sector && filters.sector.length > 0) {
       whereConditions.push(`s.sector = ANY($${paramIndex}::text[])`);
-      params.push(Array.isArray(filters.sector) ? filters.sector : [filters.sector]);
+      params.push(
+        Array.isArray(filters.sector) ? filters.sector : [filters.sector]
+      );
       paramIndex++;
     }
 
     if (filters.industry && filters.industry.length > 0) {
       whereConditions.push(`s.industry = ANY($${paramIndex}::text[])`);
-      params.push(Array.isArray(filters.industry) ? filters.industry : [filters.industry]);
+      params.push(
+        Array.isArray(filters.industry) ? filters.industry : [filters.industry]
+      );
       paramIndex++;
     }
 
     // Build ORDER BY clause
     let orderClause = "s.market_cap DESC";
     if (sorting && sorting.field && sorting.direction) {
-      const direction = sorting.direction.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+      const direction =
+        sorting.direction.toLowerCase() === "desc" ? "DESC" : "ASC";
       orderClause = `s.${sorting.field} ${direction}`;
     }
 
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const whereClause =
+      whereConditions.length > 0
+        ? `WHERE ${whereConditions.join(" AND ")}`
+        : "";
 
     const customQuery = `
       SELECT 
@@ -2184,32 +2330,47 @@ router.post("/custom", authenticateToken, async (req, res) => {
     let analysisResults = {};
     if (analysis && analysis.enabled) {
       const stocks = results.rows;
-      
+
       if (stocks.length > 0) {
         analysisResults = {
           summary: {
             totalStocks: stocks.length,
-            avgMarketCap: stocks.reduce((sum, s) => sum + (s.market_cap || 0), 0) / stocks.length,
-            avgPE: stocks.filter(s => s.pe_ratio > 0).reduce((sum, s) => sum + s.pe_ratio, 0) / stocks.filter(s => s.pe_ratio > 0).length,
-            avgROE: stocks.filter(s => s.roe).reduce((sum, s) => sum + (s.roe * 100), 0) / stocks.filter(s => s.roe).length,
+            avgMarketCap:
+              stocks.reduce((sum, s) => sum + (s.market_cap || 0), 0) /
+              stocks.length,
+            avgPE:
+              stocks
+                .filter((s) => s.pe_ratio > 0)
+                .reduce((sum, s) => sum + s.pe_ratio, 0) /
+              stocks.filter((s) => s.pe_ratio > 0).length,
+            avgROE:
+              stocks
+                .filter((s) => s.roe)
+                .reduce((sum, s) => sum + s.roe * 100, 0) /
+              stocks.filter((s) => s.roe).length,
           },
           sectors: {},
-          industries: {}
+          industries: {},
         };
 
         // Sector analysis
-        stocks.forEach(stock => {
+        stocks.forEach((stock) => {
           if (stock.sector) {
             if (!analysisResults.sectors[stock.sector]) {
-              analysisResults.sectors[stock.sector] = { count: 0, avgChange: 0 };
+              analysisResults.sectors[stock.sector] = {
+                count: 0,
+                avgChange: 0,
+              };
             }
             analysisResults.sectors[stock.sector].count++;
-            analysisResults.sectors[stock.sector].avgChange += (stock.change_percent || 0);
+            analysisResults.sectors[stock.sector].avgChange +=
+              stock.change_percent || 0;
           }
         });
 
-        Object.keys(analysisResults.sectors).forEach(sector => {
-          analysisResults.sectors[sector].avgChange /= analysisResults.sectors[sector].count;
+        Object.keys(analysisResults.sectors).forEach((sector) => {
+          analysisResults.sectors[sector].avgChange /=
+            analysisResults.sectors[sector].count;
         });
       }
     }
@@ -2223,21 +2384,20 @@ router.post("/custom", authenticateToken, async (req, res) => {
           limit,
           totalCount,
           totalPages,
-          hasMore: page < totalPages
+          hasMore: page < totalPages,
         },
         filters: {
           applied: whereConditions.length,
-          conditions: filters.customConditions?.length || 0
+          conditions: filters.customConditions?.length || 0,
         },
         analysis: analysisResults,
-        executionTime: new Date().toISOString()
+        executionTime: new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error in custom screener:", error);
-    
+
     // Handle database table missing error gracefully
     if (error.message.includes("does not exist")) {
       return res.json({
@@ -2254,44 +2414,44 @@ router.post("/custom", authenticateToken, async (req, res) => {
               marketCap: 2800000000000,
               sector: "Technology",
               peRatio: 28.5,
-              beta: 1.2
+              beta: 1.2,
             },
             {
-              symbol: "MSFT", 
+              symbol: "MSFT",
               name: "Microsoft Corporation",
               price: 378.85,
-              change: -1.20,
+              change: -1.2,
               changePercent: -0.32,
               volume: 23456789,
               marketCap: 2400000000000,
               sector: "Technology",
               peRatio: 32.1,
-              beta: 0.9
-            }
+              beta: 0.9,
+            },
           ],
           pagination: {
             page: 1,
             limit: 50,
             totalCount: 2,
             totalPages: 1,
-            hasMore: false
+            hasMore: false,
           },
           filters: {
             applied: 0,
-            conditions: 0
+            conditions: 0,
           },
           analysis: {},
-          note: "Using sample data - database screener table not available"
+          note: "Using sample data - database screener table not available",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: "Failed to execute custom screener",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

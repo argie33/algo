@@ -5,18 +5,21 @@
 ## 📊 Current Status Analysis
 
 ### Backend Unit Tests (Lambda)
+
 **Location**: `/home/stocks/algo/webapp/lambda/tests/unit/`
 **Current Count**: 85 test files ✅
 
 #### Coverage by Category:
-| Category | Files | Test Status |
-|----------|-------|-------------|
-| **Utils** (17 files) | 17/17 | ✅ COMPLETE |
-| **Routes** (43 files) | ~35/43 | 🟡 MOSTLY COVERED |
-| **Services** (2 files) | 2/2 | ✅ COMPLETE |
-| **Middleware** (5 files) | 5/5 | ✅ COMPLETE |
+
+| Category                 | Files  | Test Status       |
+| ------------------------ | ------ | ----------------- |
+| **Utils** (17 files)     | 17/17  | ✅ COMPLETE       |
+| **Routes** (43 files)    | ~35/43 | 🟡 MOSTLY COVERED |
+| **Services** (2 files)   | 2/2    | ✅ COMPLETE       |
+| **Middleware** (5 files) | 5/5    | ✅ COMPLETE       |
 
 ### Frontend Unit Tests (React/Vitest)
+
 **Location**: `/home/stocks/algo/webapp/frontend/src/tests/unit/`
 **Current Count**: 154 test files ✅
 
@@ -25,6 +28,7 @@
 ### Backend Files vs Unit Tests Matrix
 
 #### Utils Coverage (COMPLETE ✅)
+
 ```bash
 utils/                          tests/unit/
 ├── alertSystem.js       ✅ →   alertSystem.test.js
@@ -47,4 +51,5 @@ utils/                          tests/unit/
 ```
 
 #### Routes Coverage (GAPS IDENTIFIED 🔴)
+
 Let me check what route unit tests exist vs what routes we have...

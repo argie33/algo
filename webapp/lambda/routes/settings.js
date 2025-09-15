@@ -29,18 +29,18 @@ router.get("/", async (req, res) => {
       "POST /trading-mode - Toggle trading mode (paper/live)",
       "/api-keys - Get all API keys",
       "/api-keys/:provider - Get specific provider API key",
-      "POST /api-keys - Create new API key", 
+      "POST /api-keys - Create new API key",
       "PUT /api-keys/:provider - Update API key",
-      "DELETE /api-keys/:provider - Delete API key"
-    ]
+      "DELETE /api-keys/:provider - Delete API key",
+    ],
   });
 });
 
 // Get dashboard settings for authenticated user
 router.get("/dashboard", async (req, res) => {
   try {
-    const userId = req.user?.sub || req.user?.user_id || 'anonymous';
-    
+    const userId = req.user?.sub || req.user?.user_id || "anonymous";
+
     console.log(`⚙️ Dashboard settings requested for user: ${userId}`);
 
     // Try to get user's dashboard settings from database
@@ -52,7 +52,10 @@ router.get("/dashboard", async (req, res) => {
       );
       userSettings = result.rows[0];
     } catch (error) {
-      console.log("Dashboard settings table not found, using defaults:", error.message);
+      console.log(
+        "Dashboard settings table not found, using defaults:",
+        error.message
+      );
     }
 
     // Default dashboard settings
@@ -71,18 +74,18 @@ router.get("/dashboard", async (req, res) => {
           alerts: true,
           news_feed: true,
           performance_chart: true,
-          sector_performance: true
+          sector_performance: true,
         },
         widget_order: [
           "portfolio_overview",
-          "market_overview", 
+          "market_overview",
           "performance_chart",
           "watchlist",
           "recent_trades",
           "alerts",
           "news_feed",
-          "sector_performance"
-        ]
+          "sector_performance",
+        ],
       },
       notification_preferences: {
         email_notifications: true,
@@ -96,8 +99,8 @@ router.get("/dashboard", async (req, res) => {
           enabled: false,
           start_time: "22:00",
           end_time: "07:00",
-          timezone: "UTC"
-        }
+          timezone: "UTC",
+        },
       },
       display_preferences: {
         currency: "USD",
@@ -110,8 +113,8 @@ router.get("/dashboard", async (req, res) => {
         color_scheme: {
           gains: "#00C851",
           losses: "#FF4444",
-          neutral: "#33B5E5"
-        }
+          neutral: "#33B5E5",
+        },
       },
       trading_preferences: {
         default_order_type: "market",
@@ -123,8 +126,8 @@ router.get("/dashboard", async (req, res) => {
           max_position_size: 10000,
           stop_loss_percentage: 5,
           take_profit_percentage: 15,
-          daily_loss_limit: 500
-        }
+          daily_loss_limit: 500,
+        },
       },
       data_preferences: {
         real_time_data: false,
@@ -133,48 +136,50 @@ router.get("/dashboard", async (req, res) => {
         international_markets: false,
         crypto_data: true,
         forex_data: false,
-        futures_data: false
+        futures_data: false,
       },
       privacy_settings: {
         share_portfolio: false,
         share_trades: false,
         analytics_tracking: true,
         marketing_emails: false,
-        data_retention_period: 365 // days
+        data_retention_period: 365, // days
       },
       last_updated: new Date().toISOString(),
-      version: "1.0"
+      version: "1.0",
     };
 
     // Merge user settings with defaults if they exist
-    const settings = userSettings ? {
-      ...defaultSettings,
-      ...userSettings,
-      layout_preferences: {
-        ...defaultSettings.layout_preferences,
-        ...(userSettings.layout_preferences || {})
-      },
-      notification_preferences: {
-        ...defaultSettings.notification_preferences,
-        ...(userSettings.notification_preferences || {})
-      },
-      display_preferences: {
-        ...defaultSettings.display_preferences,
-        ...(userSettings.display_preferences || {})
-      },
-      trading_preferences: {
-        ...defaultSettings.trading_preferences,
-        ...(userSettings.trading_preferences || {})
-      },
-      data_preferences: {
-        ...defaultSettings.data_preferences,
-        ...(userSettings.data_preferences || {})
-      },
-      privacy_settings: {
-        ...defaultSettings.privacy_settings,
-        ...(userSettings.privacy_settings || {})
-      }
-    } : defaultSettings;
+    const settings = userSettings
+      ? {
+          ...defaultSettings,
+          ...userSettings,
+          layout_preferences: {
+            ...defaultSettings.layout_preferences,
+            ...(userSettings.layout_preferences || {}),
+          },
+          notification_preferences: {
+            ...defaultSettings.notification_preferences,
+            ...(userSettings.notification_preferences || {}),
+          },
+          display_preferences: {
+            ...defaultSettings.display_preferences,
+            ...(userSettings.display_preferences || {}),
+          },
+          trading_preferences: {
+            ...defaultSettings.trading_preferences,
+            ...(userSettings.trading_preferences || {}),
+          },
+          data_preferences: {
+            ...defaultSettings.data_preferences,
+            ...(userSettings.data_preferences || {}),
+          },
+          privacy_settings: {
+            ...defaultSettings.privacy_settings,
+            ...(userSettings.privacy_settings || {}),
+          },
+        }
+      : defaultSettings;
 
     res.json({
       success: true,
@@ -191,17 +196,27 @@ router.get("/dashboard", async (req, res) => {
             api_access: false,
             paper_trading: true,
             alerts: true,
-            portfolio_tracking: true
-          }
+            portfolio_tracking: true,
+          },
         },
         available_themes: ["light", "dark", "high_contrast"],
         available_chart_types: ["candlestick", "line", "bar", "area"],
-        available_timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1D", "1W", "1M"],
+        available_timeframes: [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1D",
+          "1W",
+          "1M",
+        ],
         supported_currencies: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
         available_widgets: [
           "portfolio_overview",
           "market_overview",
-          "performance_chart", 
+          "performance_chart",
           "watchlist",
           "recent_trades",
           "alerts",
@@ -209,8 +224,8 @@ router.get("/dashboard", async (req, res) => {
           "sector_performance",
           "economic_calendar",
           "earnings_calendar",
-          "heat_map"
-        ]
+          "heat_map",
+        ],
       },
       metadata: {
         settings_loaded_from: userSettings ? "database" : "defaults",
@@ -220,19 +235,18 @@ router.get("/dashboard", async (req, res) => {
           "notification_management",
           "trading_preferences",
           "data_source_selection",
-          "privacy_controls"
+          "privacy_controls",
         ],
-        update_frequency: "on_change"
+        update_frequency: "on_change",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Dashboard settings error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch dashboard settings",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -240,8 +254,8 @@ router.get("/dashboard", async (req, res) => {
 // Get current trading mode for authenticated user
 router.get("/trading-mode", async (req, res) => {
   try {
-    const userId = req.user?.sub || req.user?.user_id || 'anonymous';
-    
+    const userId = req.user?.sub || req.user?.user_id || "anonymous";
+
     console.log(`📊 Trading mode requested for user: ${userId}`);
 
     // Try to get user's trading mode from database
@@ -253,31 +267,36 @@ router.get("/trading-mode", async (req, res) => {
       );
       userSettings = result.rows[0];
     } catch (error) {
-      console.log("Trading mode table not found, using defaults:", error.message);
+      console.log(
+        "Trading mode table not found, using defaults:",
+        error.message
+      );
     }
 
     // Default to paper trading mode for safety
-    const tradingMode = userSettings?.trading_preferences?.paper_trading_mode !== false ? 'paper' : 'live';
-    const paperTradingMode = tradingMode === 'paper';
+    const tradingMode =
+      userSettings?.trading_preferences?.paper_trading_mode !== false
+        ? "paper"
+        : "live";
+    const paperTradingMode = tradingMode === "paper";
 
     res.json({
       success: true,
       trading_mode: tradingMode,
       paper_trading_mode: paperTradingMode,
       live_trading_mode: !paperTradingMode,
-      description: paperTradingMode 
-        ? "Paper trading mode - No real money at risk, simulated trades only" 
+      description: paperTradingMode
+        ? "Paper trading mode - No real money at risk, simulated trades only"
         : "Live trading mode - Real money trades with actual brokerage account",
       risk_level: paperTradingMode ? "none" : "high",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trading mode error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trading mode",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -285,26 +304,27 @@ router.get("/trading-mode", async (req, res) => {
 // Toggle trading mode (paper/live) for authenticated user
 router.post("/trading-mode", async (req, res) => {
   try {
-    const userId = req.user?.sub || req.user?.user_id || 'anonymous';
+    const userId = req.user?.sub || req.user?.user_id || "anonymous";
     const { mode, paper_trading_mode } = req.body;
-    
+
     console.log(`🔄 Trading mode toggle requested for user: ${userId}`);
 
     // Determine new mode
     let newPaperMode;
-    if (mode === 'paper' || mode === 'live') {
-      newPaperMode = mode === 'paper';
-    } else if (typeof paper_trading_mode === 'boolean') {
+    if (mode === "paper" || mode === "live") {
+      newPaperMode = mode === "paper";
+    } else if (typeof paper_trading_mode === "boolean") {
       newPaperMode = paper_trading_mode;
     } else {
       return res.status(400).json({
         success: false,
         error: "Invalid trading mode",
-        message: "Mode must be 'paper' or 'live', or paper_trading_mode must be boolean"
+        message:
+          "Mode must be 'paper' or 'live', or paper_trading_mode must be boolean",
       });
     }
 
-    const newMode = newPaperMode ? 'paper' : 'live';
+    const newMode = newPaperMode ? "paper" : "live";
 
     // Update user settings in database
     try {
@@ -331,40 +351,45 @@ router.post("/trading-mode", async (req, res) => {
       }
 
       console.log(`✅ Trading mode updated to ${newMode} for user: ${userId}`);
-
     } catch (dbError) {
-      console.log("Database update failed, returning success anyway:", dbError.message);
+      console.log(
+        "Database update failed, returning success anyway:",
+        dbError.message
+      );
       // Continue to return success even if DB update fails (settings stored in memory)
     }
 
     res.json({
       success: true,
       message: `Trading mode switched to ${newMode}`,
-      previous_mode: newPaperMode ? 'live' : 'paper',
+      previous_mode: newPaperMode ? "live" : "paper",
       current_mode: newMode,
       paper_trading_mode: newPaperMode,
       live_trading_mode: !newPaperMode,
-      description: newPaperMode 
-        ? "Paper trading mode activated - No real money at risk, simulated trades only" 
+      description: newPaperMode
+        ? "Paper trading mode activated - No real money at risk, simulated trades only"
         : "Live trading mode activated - Real money trades with actual brokerage account",
       risk_level: newPaperMode ? "none" : "high",
-      warning: newPaperMode ? null : "⚠️ CAUTION: Live trading mode uses real money. Ensure proper risk management.",
-      timestamp: new Date().toISOString()
+      warning: newPaperMode
+        ? null
+        : "⚠️ CAUTION: Live trading mode uses real money. Ensure proper risk management.",
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trading mode toggle error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to toggle trading mode",
-      details: error.message
+      details: error.message,
     });
   }
 });
 
 // Redirect /apikeys to /api-keys for backward compatibility
 router.get("/apikeys", async (req, res) => {
-  return res.redirect(`/api/settings/api-keys${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`);
+  return res.redirect(
+    `/api/settings/api-keys${req.url.includes("?") ? "?" + req.url.split("?")[1] : ""}`
+  );
 });
 
 // Get all API keys for authenticated user
@@ -674,17 +699,28 @@ router.get("/profile", async (req, res) => {
     try {
       providers = await listProviders(req.token);
     } catch (apiKeyError) {
-      console.warn("API key service unavailable for profile lookup:", apiKeyError.message);
+      console.warn(
+        "API key service unavailable for profile lookup:",
+        apiKeyError.message
+      );
       // Continue with empty providers array - graceful degradation
     }
 
     // Handle token expiration time safely
     let tokenExpiresAt = null;
-    if (user.tokenExpirationTime && typeof user.tokenExpirationTime === 'number') {
+    if (
+      user.tokenExpirationTime &&
+      typeof user.tokenExpirationTime === "number"
+    ) {
       try {
-        tokenExpiresAt = new Date(user.tokenExpirationTime * 1000).toISOString();
+        tokenExpiresAt = new Date(
+          user.tokenExpirationTime * 1000
+        ).toISOString();
       } catch (dateError) {
-        console.warn("Invalid token expiration time:", user.tokenExpirationTime);
+        console.warn(
+          "Invalid token expiration time:",
+          user.tokenExpirationTime
+        );
         tokenExpiresAt = null;
       }
     }
@@ -732,7 +768,7 @@ router.get("/onboarding-status", async (req, res) => {
     );
 
     const hasApiKeys = providers.length > 0;
-    
+
     // Handle database not available case
     let onboardingCompleted = false;
     if (userResult && userResult.rows && userResult.rows[0]) {
@@ -750,7 +786,7 @@ router.get("/onboarding-status", async (req, res) => {
         hasApiKeys: hasApiKeys,
         configuredProviders: providers.length,
         nextStep: !hasApiKeys ? "configure-api-keys" : "complete",
-        fallback: !userResult ? true : false
+        fallback: !userResult ? true : false,
       },
       timestamp: new Date().toISOString(),
     });
@@ -868,7 +904,8 @@ router.get("/alerts", async (req, res) => {
     console.log(`🔔 Alert settings requested for user: ${userId}`);
 
     // Get user's alert settings from user profiles or default settings
-    const alertsResult = await query(`
+    const alertsResult = await query(
+      `
       SELECT 
         COALESCE(
           preferences->'alerts',
@@ -877,7 +914,9 @@ router.get("/alerts", async (req, res) => {
         updated_at
       FROM user_profiles 
       WHERE user_id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     let alertSettings;
     if (alertsResult.rows.length > 0 && alertsResult.rows[0].alerts) {
@@ -894,35 +933,40 @@ router.get("/alerts", async (req, res) => {
         performance_reports: true,
         threshold_breaches: true,
         daily_summary: false,
-        weekly_digest: true
+        weekly_digest: true,
       };
     }
 
     // Get active alerts count from trading_alerts table
-    const activeAlertsResult = await query(`
+    const activeAlertsResult = await query(
+      `
       SELECT COUNT(*) as active_count
       FROM trading_alerts 
       WHERE user_id = $1 AND is_active = true
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const activeCount = activeAlertsResult.rows.length > 0 ? 
-      parseInt(activeAlertsResult.rows[0].active_count) : 0;
+    const activeCount =
+      activeAlertsResult.rows.length > 0
+        ? parseInt(activeAlertsResult.rows[0].active_count)
+        : 0;
 
     res.json({
       data: alertSettings,
       metadata: {
         active_alerts_count: activeCount,
-        last_updated: alertsResult.rows.length > 0 ? alertsResult.rows[0].updated_at : null
+        last_updated:
+          alertsResult.rows.length > 0 ? alertsResult.rows[0].updated_at : null,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching alert settings:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch alert settings",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -933,21 +977,24 @@ router.post("/alerts", async (req, res) => {
     const userId = req.user.sub;
     const alertSettings = req.body;
 
-    if (!alertSettings || typeof alertSettings !== 'object') {
+    if (!alertSettings || typeof alertSettings !== "object") {
       return res.status(400).json({
         success: false,
-        error: "Valid alert settings object is required"
+        error: "Valid alert settings object is required",
       });
     }
 
     console.log(`🔔 Updating alert settings for user: ${userId}`);
 
     // Get current preferences
-    const currentResult = await query(`
+    const currentResult = await query(
+      `
       SELECT preferences
       FROM user_profiles 
       WHERE user_id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     let currentPreferences = {};
     if (currentResult.rows.length > 0 && currentResult.rows[0].preferences) {
@@ -958,25 +1005,27 @@ router.post("/alerts", async (req, res) => {
     currentPreferences.alerts = alertSettings;
 
     // Save updated preferences
-    await query(`
+    await query(
+      `
       INSERT INTO user_profiles (user_id, preferences, created_at)
       VALUES ($1, $2, NOW())
       ON CONFLICT (user_id) 
       DO UPDATE SET preferences = $2, updated_at = NOW()
-    `, [userId, JSON.stringify(currentPreferences)]);
+    `,
+      [userId, JSON.stringify(currentPreferences)]
+    );
 
     res.json({
       message: "Alert settings updated successfully",
       data: alertSettings,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error updating alert settings:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update alert settings",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -989,7 +1038,8 @@ router.get("/notifications", async (req, res) => {
     console.log(`📨 Notification settings requested for user: ${userId}`);
 
     // Get user's notification preferences from user profiles
-    const notificationResult = await query(`
+    const notificationResult = await query(
+      `
       SELECT 
         COALESCE(
           preferences->'notifications',
@@ -1002,7 +1052,9 @@ router.get("/notifications", async (req, res) => {
         updated_at
       FROM user_profiles 
       WHERE user_id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     let notificationSettings, alertSettings;
     if (notificationResult.rows.length > 0) {
@@ -1015,26 +1067,31 @@ router.get("/notifications", async (req, res) => {
         email: true,
         push: false,
         sms: false,
-        browser_notifications: true
+        browser_notifications: true,
       };
       alertSettings = {
         email_enabled: true,
         push_enabled: false,
         price_alerts: true,
         portfolio_alerts: true,
-        news_alerts: false
+        news_alerts: false,
       };
     }
 
     // Get active notifications count
-    const activeNotificationsResult = await query(`
+    const activeNotificationsResult = await query(
+      `
       SELECT COUNT(*) as notification_count
       FROM trading_alerts 
       WHERE user_id = $1 AND is_active = true AND created_at >= NOW() - INTERVAL '24 hours'
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const notificationCount = activeNotificationsResult.rows.length > 0 ? 
-      parseInt(activeNotificationsResult.rows[0].notification_count) : 0;
+    const notificationCount =
+      activeNotificationsResult.rows.length > 0
+        ? parseInt(activeNotificationsResult.rows[0].notification_count)
+        : 0;
 
     // Comprehensive notification preferences
     const comprehensiveSettings = {
@@ -1044,98 +1101,105 @@ router.get("/notifications", async (req, res) => {
           enabled: notificationSettings.quiet_hours?.enabled || false,
           start_time: notificationSettings.quiet_hours?.start_time || "22:00",
           end_time: notificationSettings.quiet_hours?.end_time || "08:00",
-          timezone: notificationSettings.quiet_hours?.timezone || "UTC"
-        }
+          timezone: notificationSettings.quiet_hours?.timezone || "UTC",
+        },
       },
       delivery_methods: {
         email: {
-          enabled: notificationSettings.email || alertSettings.email_enabled || true,
+          enabled:
+            notificationSettings.email || alertSettings.email_enabled || true,
           address: req.user.email || "user@example.com",
-          frequency: notificationSettings.email_frequency || "immediate"
+          frequency: notificationSettings.email_frequency || "immediate",
         },
         push: {
-          enabled: notificationSettings.push || alertSettings.push_enabled || false,
-          device_tokens: notificationSettings.device_tokens
+          enabled:
+            notificationSettings.push || alertSettings.push_enabled || false,
+          device_tokens: notificationSettings.device_tokens,
         },
         sms: {
           enabled: notificationSettings.sms || false,
-          phone_number: notificationSettings.phone_number || null
+          phone_number: notificationSettings.phone_number || null,
         },
         browser: {
           enabled: notificationSettings.browser_notifications !== false,
-          permission_granted: notificationSettings.browser_permission || false
-        }
+          permission_granted: notificationSettings.browser_permission || false,
+        },
       },
       alert_categories: {
         price_alerts: {
           enabled: alertSettings.price_alerts !== false,
           threshold_percentage: alertSettings.price_threshold || 5.0,
-          sound_enabled: alertSettings.price_sound || true
+          sound_enabled: alertSettings.price_sound || true,
         },
         portfolio_alerts: {
           enabled: alertSettings.portfolio_alerts !== false,
           daily_summary: alertSettings.daily_summary || false,
           weekly_digest: alertSettings.weekly_digest || true,
-          performance_milestones: alertSettings.performance_milestones || true
+          performance_milestones: alertSettings.performance_milestones || true,
         },
         trading_signals: {
           enabled: alertSettings.trading_signals !== false,
           signal_strength_minimum: alertSettings.signal_threshold || 0.7,
-          technical_indicators: alertSettings.technical_alerts || true
+          technical_indicators: alertSettings.technical_alerts || true,
         },
         news_alerts: {
           enabled: alertSettings.news_alerts || false,
           sentiment_threshold: alertSettings.sentiment_threshold || 0.8,
-          relevant_only: alertSettings.news_relevant_only || true
+          relevant_only: alertSettings.news_relevant_only || true,
         },
         market_updates: {
           enabled: alertSettings.market_updates !== false,
           major_moves_only: alertSettings.major_moves_only || true,
-          sector_alerts: alertSettings.sector_alerts || false
+          sector_alerts: alertSettings.sector_alerts || false,
         },
         system_notifications: {
           enabled: alertSettings.system_notifications !== false,
           maintenance_alerts: alertSettings.maintenance_alerts !== false,
-          feature_updates: alertSettings.feature_updates || true
-        }
+          feature_updates: alertSettings.feature_updates || true,
+        },
       },
       advanced_settings: {
         aggregation: {
           enabled: notificationSettings.aggregation_enabled !== false,
           window_minutes: notificationSettings.aggregation_window || 15,
-          max_per_window: notificationSettings.max_notifications_per_window || 5
+          max_per_window:
+            notificationSettings.max_notifications_per_window || 5,
         },
         priority_filtering: {
           enabled: notificationSettings.priority_filtering !== false,
           high_priority_only: notificationSettings.high_priority_only || false,
-          custom_keywords: notificationSettings.custom_keywords
+          custom_keywords: notificationSettings.custom_keywords,
         },
         snooze_settings: {
           enabled: notificationSettings.snooze_enabled !== false,
-          default_duration_minutes: notificationSettings.default_snooze_duration || 60,
-          max_snooze_count: notificationSettings.max_snooze_count || 3
-        }
-      }
+          default_duration_minutes:
+            notificationSettings.default_snooze_duration || 60,
+          max_snooze_count: notificationSettings.max_snooze_count || 3,
+        },
+      },
     };
 
     res.json({
       data: comprehensiveSettings,
       metadata: {
         notifications_today: notificationCount,
-        last_updated: notificationResult.rows.length > 0 ? notificationResult.rows[0].updated_at : null,
+        last_updated:
+          notificationResult.rows.length > 0
+            ? notificationResult.rows[0].updated_at
+            : null,
         user_timezone: notificationSettings.timezone || "UTC",
-        total_categories: Object.keys(comprehensiveSettings.alert_categories).length
+        total_categories: Object.keys(comprehensiveSettings.alert_categories)
+          .length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching notification settings:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch notification settings",
       message: error.message,
-      details: "Unable to retrieve comprehensive notification preferences"
+      details: "Unable to retrieve comprehensive notification preferences",
     });
   }
 });
@@ -1144,14 +1208,14 @@ router.get("/notifications", async (req, res) => {
 router.post("/notifications", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
-      global_settings, 
-      delivery_methods, 
-      alert_categories, 
-      advanced_settings 
+    const {
+      global_settings,
+      delivery_methods,
+      alert_categories,
+      advanced_settings,
     } = req.body;
 
-    if (!req.body || typeof req.body !== 'object') {
+    if (!req.body || typeof req.body !== "object") {
       return res.status(400).json({
         success: false,
         error: "Valid notification settings object is required",
@@ -1159,19 +1223,23 @@ router.post("/notifications", async (req, res) => {
           global_settings: "Object with notifications_enabled, quiet_hours",
           delivery_methods: "Object with email, push, sms, browser settings",
           alert_categories: "Object with various alert type configurations",
-          advanced_settings: "Object with aggregation, priority_filtering, snooze_settings"
-        }
+          advanced_settings:
+            "Object with aggregation, priority_filtering, snooze_settings",
+        },
       });
     }
 
     console.log(`📨 Updating notification settings for user: ${userId}`);
 
     // Get current preferences
-    const currentResult = await query(`
+    const currentResult = await query(
+      `
       SELECT preferences
       FROM user_profiles 
       WHERE user_id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     let currentPreferences = {};
     if (currentResult.rows.length > 0 && currentResult.rows[0].preferences) {
@@ -1188,23 +1256,29 @@ router.post("/notifications", async (req, res) => {
       email_frequency: delivery_methods?.email?.frequency || "immediate",
       phone_number: delivery_methods?.sms?.phone_number,
       device_tokens: delivery_methods?.push?.device_tokens,
-      browser_permission: delivery_methods?.browser?.permission_granted || false,
+      browser_permission:
+        delivery_methods?.browser?.permission_granted || false,
       quiet_hours: global_settings?.quiet_hours || {
         enabled: false,
         start_time: "22:00",
         end_time: "08:00",
-        timezone: "UTC"
+        timezone: "UTC",
       },
       aggregation_enabled: advanced_settings?.aggregation?.enabled !== false,
       aggregation_window: advanced_settings?.aggregation?.window_minutes || 15,
-      max_notifications_per_window: advanced_settings?.aggregation?.max_per_window || 5,
-      priority_filtering: advanced_settings?.priority_filtering?.enabled !== false,
-      high_priority_only: advanced_settings?.priority_filtering?.high_priority_only || false,
+      max_notifications_per_window:
+        advanced_settings?.aggregation?.max_per_window || 5,
+      priority_filtering:
+        advanced_settings?.priority_filtering?.enabled !== false,
+      high_priority_only:
+        advanced_settings?.priority_filtering?.high_priority_only || false,
       custom_keywords: advanced_settings?.priority_filtering?.custom_keywords,
       snooze_enabled: advanced_settings?.snooze_settings?.enabled !== false,
-      default_snooze_duration: advanced_settings?.snooze_settings?.default_duration_minutes || 60,
-      max_snooze_count: advanced_settings?.snooze_settings?.max_snooze_count || 3,
-      timezone: global_settings?.quiet_hours?.timezone || "UTC"
+      default_snooze_duration:
+        advanced_settings?.snooze_settings?.default_duration_minutes || 60,
+      max_snooze_count:
+        advanced_settings?.snooze_settings?.max_snooze_count || 3,
+      timezone: global_settings?.quiet_hours?.timezone || "UTC",
     };
 
     // Build comprehensive alert settings
@@ -1216,20 +1290,31 @@ router.post("/notifications", async (req, res) => {
       news_alerts: alert_categories?.news_alerts?.enabled || false,
       trading_signals: alert_categories?.trading_signals?.enabled !== false,
       market_updates: alert_categories?.market_updates?.enabled !== false,
-      system_notifications: alert_categories?.system_notifications?.enabled !== false,
-      price_threshold: alert_categories?.price_alerts?.threshold_percentage || 5.0,
+      system_notifications:
+        alert_categories?.system_notifications?.enabled !== false,
+      price_threshold:
+        alert_categories?.price_alerts?.threshold_percentage || 5.0,
       price_sound: alert_categories?.price_alerts?.sound_enabled !== false,
       daily_summary: alert_categories?.portfolio_alerts?.daily_summary || false,
-      weekly_digest: alert_categories?.portfolio_alerts?.weekly_digest !== false,
-      performance_milestones: alert_categories?.portfolio_alerts?.performance_milestones !== false,
-      signal_threshold: alert_categories?.trading_signals?.signal_strength_minimum || 0.7,
-      technical_alerts: alert_categories?.trading_signals?.technical_indicators !== false,
-      sentiment_threshold: alert_categories?.news_alerts?.sentiment_threshold || 0.8,
-      news_relevant_only: alert_categories?.news_alerts?.relevant_only !== false,
-      major_moves_only: alert_categories?.market_updates?.major_moves_only !== false,
+      weekly_digest:
+        alert_categories?.portfolio_alerts?.weekly_digest !== false,
+      performance_milestones:
+        alert_categories?.portfolio_alerts?.performance_milestones !== false,
+      signal_threshold:
+        alert_categories?.trading_signals?.signal_strength_minimum || 0.7,
+      technical_alerts:
+        alert_categories?.trading_signals?.technical_indicators !== false,
+      sentiment_threshold:
+        alert_categories?.news_alerts?.sentiment_threshold || 0.8,
+      news_relevant_only:
+        alert_categories?.news_alerts?.relevant_only !== false,
+      major_moves_only:
+        alert_categories?.market_updates?.major_moves_only !== false,
       sector_alerts: alert_categories?.market_updates?.sector_alerts || false,
-      maintenance_alerts: alert_categories?.system_notifications?.maintenance_alerts !== false,
-      feature_updates: alert_categories?.system_notifications?.feature_updates !== false
+      maintenance_alerts:
+        alert_categories?.system_notifications?.maintenance_alerts !== false,
+      feature_updates:
+        alert_categories?.system_notifications?.feature_updates !== false,
     };
 
     // Update the notifications and alerts sections
@@ -1237,60 +1322,61 @@ router.post("/notifications", async (req, res) => {
     currentPreferences.alerts = alertSettings;
 
     // Save updated preferences
-    await query(`
+    await query(
+      `
       INSERT INTO user_profiles (user_id, preferences, created_at)
       VALUES ($1, $2, NOW())
       ON CONFLICT (user_id) 
       DO UPDATE SET preferences = $2, updated_at = NOW()
-    `, [userId, JSON.stringify(currentPreferences)]);
+    `,
+      [userId, JSON.stringify(currentPreferences)]
+    );
 
     res.json({
       message: "Notification settings updated successfully",
       data: {
         global_settings: {
           notifications_enabled: notificationSettings.enabled,
-          quiet_hours: notificationSettings.quiet_hours
+          quiet_hours: notificationSettings.quiet_hours,
         },
         delivery_methods: {
           email: { enabled: notificationSettings.email },
           push: { enabled: notificationSettings.push },
           sms: { enabled: notificationSettings.sms },
-          browser: { enabled: notificationSettings.browser_notifications }
+          browser: { enabled: notificationSettings.browser_notifications },
         },
         categories_updated: Object.keys(alert_categories || {}).length,
         advanced_features: {
           aggregation: notificationSettings.aggregation_enabled,
           priority_filtering: notificationSettings.priority_filtering,
-          snooze: notificationSettings.snooze_enabled
-        }
+          snooze: notificationSettings.snooze_enabled,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error updating notification settings:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update notification settings",
       message: error.message,
-      details: "Unable to save comprehensive notification preferences"
+      details: "Unable to save comprehensive notification preferences",
     });
   }
 });
 
 // Update settings endpoint (PUT)
 router.put("/", async (req, res) => {
-  const userId = req.user?.sub || req.user?.user_id || 'anonymous';
+  const userId = req.user?.sub || req.user?.user_id || "anonymous";
   const { settings = {}, preferences = {} } = req.body;
-  
-  try {
 
+  try {
     console.log(`⚙️ Updating settings for user: ${userId}`);
 
-    if (!settings || typeof settings !== 'object') {
+    if (!settings || typeof settings !== "object") {
       return res.status(400).json({
         success: false,
-        error: "Settings object is required"
+        error: "Settings object is required",
       });
     }
 
@@ -1311,11 +1397,15 @@ router.put("/", async (req, res) => {
 
     const result = await query(updateQuery, [
       userId,
-      settings.theme || preferences.theme || 'light',
-      JSON.stringify(settings.dashboardLayout || preferences.dashboardLayout || {}),
+      settings.theme || preferences.theme || "light",
+      JSON.stringify(
+        settings.dashboardLayout || preferences.dashboardLayout || {}
+      ),
       JSON.stringify(settings.widgets || preferences.widgets || []),
       JSON.stringify(settings.notifications || preferences.notifications || {}),
-      JSON.stringify(settings.tradingPreferences || preferences.tradingPreferences || {})
+      JSON.stringify(
+        settings.tradingPreferences || preferences.tradingPreferences || {}
+      ),
     ]);
 
     const updatedSettings = result.rows[0];
@@ -1325,50 +1415,56 @@ router.put("/", async (req, res) => {
       data: {
         userId,
         theme: updatedSettings.theme,
-        dashboardLayout: typeof updatedSettings.dashboard_layout === 'string' 
-          ? JSON.parse(updatedSettings.dashboard_layout) 
-          : updatedSettings.dashboard_layout,
-        widgets: typeof updatedSettings.widgets === 'string'
-          ? JSON.parse(updatedSettings.widgets)
-          : updatedSettings.widgets,
-        notifications: typeof updatedSettings.notifications === 'string'
-          ? JSON.parse(updatedSettings.notifications)
-          : updatedSettings.notifications,
-        tradingPreferences: typeof updatedSettings.trading_preferences === 'string'
-          ? JSON.parse(updatedSettings.trading_preferences)
-          : updatedSettings.trading_preferences,
-        updatedAt: updatedSettings.updated_at
+        dashboardLayout:
+          typeof updatedSettings.dashboard_layout === "string"
+            ? JSON.parse(updatedSettings.dashboard_layout)
+            : updatedSettings.dashboard_layout,
+        widgets:
+          typeof updatedSettings.widgets === "string"
+            ? JSON.parse(updatedSettings.widgets)
+            : updatedSettings.widgets,
+        notifications:
+          typeof updatedSettings.notifications === "string"
+            ? JSON.parse(updatedSettings.notifications)
+            : updatedSettings.notifications,
+        tradingPreferences:
+          typeof updatedSettings.trading_preferences === "string"
+            ? JSON.parse(updatedSettings.trading_preferences)
+            : updatedSettings.trading_preferences,
+        updatedAt: updatedSettings.updated_at,
       },
       message: "Settings updated successfully",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error updating settings:", error);
-    
+
     // Handle database table/column missing error gracefully
     if (error.message.includes("does not exist")) {
       return res.json({
         success: true,
         data: {
           userId,
-          theme: settings.theme || preferences.theme || 'light',
-          dashboardLayout: settings.dashboardLayout || preferences.dashboardLayout || {},
+          theme: settings.theme || preferences.theme || "light",
+          dashboardLayout:
+            settings.dashboardLayout || preferences.dashboardLayout || {},
           widgets: settings.widgets || preferences.widgets || [],
-          notifications: settings.notifications || preferences.notifications || {},
-          tradingPreferences: settings.tradingPreferences || preferences.tradingPreferences || {},
-          note: "Using mock data - database table not available"
+          notifications:
+            settings.notifications || preferences.notifications || {},
+          tradingPreferences:
+            settings.tradingPreferences || preferences.tradingPreferences || {},
+          note: "Using mock data - database table not available",
         },
         message: "Settings updated successfully (mock mode)",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: "Failed to update settings",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

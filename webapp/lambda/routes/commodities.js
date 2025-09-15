@@ -5,7 +5,8 @@ const router = express.Router();
 
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
-  res.json({status: "operational",
+  res.json({
+    status: "operational",
     service: "commodities",
     timestamp: new Date().toISOString(),
     message: "Commodities service is running",
@@ -300,32 +301,36 @@ router.get("/correlations", (req, res) => {
         pair: ["energy", "precious-metals"],
         coefficient: -0.23,
         strength: "weak_negative",
-        description: "Energy and precious metals show weak negative correlation"
+        description:
+          "Energy and precious metals show weak negative correlation",
       },
       {
         pair: ["energy", "base-metals"],
         coefficient: 0.47,
         strength: "moderate_positive",
-        description: "Energy and base metals show moderate positive correlation"
+        description:
+          "Energy and base metals show moderate positive correlation",
       },
       {
         pair: ["energy", "agriculture"],
         coefficient: 0.12,
         strength: "weak_positive",
-        description: "Energy and agriculture show weak positive correlation"
+        description: "Energy and agriculture show weak positive correlation",
       },
       {
         pair: ["precious-metals", "base-metals"],
         coefficient: 0.18,
         strength: "weak_positive",
-        description: "Precious metals and base metals show weak positive correlation"
+        description:
+          "Precious metals and base metals show weak positive correlation",
       },
       {
         pair: ["precious-metals", "agriculture"],
         coefficient: -0.05,
         strength: "very_weak_negative",
-        description: "Precious metals and agriculture show very weak negative correlation"
-      }
+        description:
+          "Precious metals and agriculture show very weak negative correlation",
+      },
     ];
 
     const correlationData = {
@@ -334,7 +339,7 @@ router.get("/correlations", (req, res) => {
         description: "Correlation matrix for major commodity sectors",
         period: "90d",
         lastUpdated: new Date().toISOString(),
-        total_pairs: correlationPairs.length
+        total_pairs: correlationPairs.length,
       },
       matrix: {
         energy: {
@@ -368,15 +373,17 @@ router.get("/correlations", (req, res) => {
   }
 });
 
-// Get commodities futures endpoint  
+// Get commodities futures endpoint
 router.get("/futures", async (req, res) => {
   try {
     const { category = "all", expiration = "all", limit = 20 } = req.query;
-    console.log(`📈 Commodities futures requested - category: ${category}, limit: ${limit}`);
+    console.log(
+      `📈 Commodities futures requested - category: ${category}, limit: ${limit}`
+    );
 
     // Import query function for database access
     const { query } = require("../utils/database");
-    
+
     // Try to fetch real futures data from database
     let whereClause = "WHERE active = true";
     const params = [parseInt(limit)];
@@ -429,30 +436,31 @@ router.get("/futures", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No futures data available",
-        details: "Futures contracts data is not currently available in the database. This may be due to missing data feeds or database connectivity issues.",
+        details:
+          "Futures contracts data is not currently available in the database. This may be due to missing data feeds or database connectivity issues.",
         troubleshooting: {
           suggestion: "Check futures data pipeline and database connectivity",
           possible_causes: [
             "Futures data feed is not configured or running",
             "Database connection issues",
             "No active futures contracts in the selected category",
-            "Data pipeline may need to be initialized with futures contract data"
-          ]
+            "Data pipeline may need to be initialized with futures contract data",
+          ],
         },
         filters: { category, expiration, limit: parseInt(limit) },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Transform database results to expected format
-    const contracts = result.rows.map(row => ({
+    const contracts = result.rows.map((row) => ({
       symbol: row.symbol,
       underlying: row.underlying_symbol,
       name: row.contract_name,
       category: row.category,
       contract_month: row.contract_month,
       expiration_date: row.expiration_date,
-      
+
       price_data: {
         last_price: parseFloat(row.last_price || 0),
         change: parseFloat(row.price_change || 0),
@@ -462,50 +470,64 @@ router.get("/futures", async (req, res) => {
         high: parseFloat(row.high_price || 0),
         low: parseFloat(row.low_price || 0),
         volume: parseInt(row.volume || 0),
-        open_interest: parseInt(row.open_interest || 0)
+        open_interest: parseInt(row.open_interest || 0),
       },
-          
+
       contract_specs: {
         tick_size: parseFloat(row.tick_size || 0.01),
         tick_value: parseFloat(row.tick_value || 10),
         contract_size: row.contract_size || "Unknown",
         currency: "USD",
         exchange: row.exchange || "Unknown",
-        settlement: row.settlement_type || "physical"
+        settlement: row.settlement_type || "physical",
       },
-      
-      last_updated: row.updated_at
+
+      last_updated: row.updated_at,
     }));
 
     // Calculate market summary from real data
-    const totalVolume = contracts.reduce((sum, c) => sum + c.price_data.volume, 0);
-    const totalOpenInterest = contracts.reduce((sum, c) => sum + c.price_data.open_interest, 0);
-    const uniqueExchanges = [...new Set(contracts.map(c => c.contract_specs.exchange).filter(e => e !== "Unknown"))];
+    const totalVolume = contracts.reduce(
+      (sum, c) => sum + c.price_data.volume,
+      0
+    );
+    const totalOpenInterest = contracts.reduce(
+      (sum, c) => sum + c.price_data.open_interest,
+      0
+    );
+    const uniqueExchanges = [
+      ...new Set(
+        contracts
+          .map((c) => c.contract_specs.exchange)
+          .filter((e) => e !== "Unknown")
+      ),
+    ];
 
     const futuresData = {
       contracts: contracts,
       market_summary: {
         total_contracts: contracts.length,
-        active_sessions: uniqueExchanges.length > 0 ? uniqueExchanges : ["NYMEX", "COMEX", "CBOT", "ICE"],
+        active_sessions:
+          uniqueExchanges.length > 0
+            ? uniqueExchanges
+            : ["NYMEX", "COMEX", "CBOT", "ICE"],
         total_volume_today: totalVolume,
         total_open_interest: totalOpenInterest,
-        data_freshness: contracts.length > 0 ? "live" : "stale"
-      }
+        data_freshness: contracts.length > 0 ? "live" : "stale",
+      },
     };
 
     res.json({
       success: true,
       data: futuresData,
       filters: { category, expiration, limit: parseInt(limit) },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Commodities futures error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch commodities futures",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -514,7 +536,9 @@ router.get("/futures", async (req, res) => {
 router.get("/trends", async (req, res) => {
   try {
     const { timeframe = "1m", category = "all" } = req.query;
-    console.log(`📊 Commodities trends requested - timeframe: ${timeframe}, category: ${category}`);
+    console.log(
+      `📊 Commodities trends requested - timeframe: ${timeframe}, category: ${category}`
+    );
 
     // Import query function
     const { query } = require("../utils/database");
@@ -525,7 +549,7 @@ router.get("/trends", async (req, res) => {
       "1m": 30,
       "3m": 90,
       "6m": 180,
-      "1y": 365
+      "1y": 365,
     };
     const days = timeframeDays[timeframe] || 30;
 
@@ -565,7 +589,7 @@ router.get("/trends", async (req, res) => {
       `;
 
       const moversResult = await query(moversQuery);
-      
+
       let trendsData;
 
       if (!trendsResult || trendsResult.rows.length === 0) {
@@ -573,27 +597,33 @@ router.get("/trends", async (req, res) => {
         return res.status(404).json({
           success: false,
           error: "No commodities trend data available",
-          details: "Commodities trend analysis data is not currently available in the database. This requires historical price data and technical analysis calculations.",
+          details:
+            "Commodities trend analysis data is not currently available in the database. This requires historical price data and technical analysis calculations.",
           troubleshooting: {
-            suggestion: "Check commodities data pipeline and ensure historical data is being loaded",
+            suggestion:
+              "Check commodities data pipeline and ensure historical data is being loaded",
             possible_causes: [
               "Commodities price data feed is not active",
               "Historical data tables are empty or not properly updated",
               "Technical analysis calculations are not running",
-              "Database connection issues or missing tables"
-            ]
+              "Database connection issues or missing tables",
+            ],
           },
           filters: { timeframe, category },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
       // Process sector trends from real data
-      const sectorTrends = trendsResult.rows.map(row => {
+      const sectorTrends = trendsResult.rows.map((row) => {
         const positiveRatio = row.positive_count / row.contract_count;
-        const trendDirection = positiveRatio > 0.6 ? "bullish" : 
-                             positiveRatio < 0.4 ? "bearish" : "sideways";
-        
+        const trendDirection =
+          positiveRatio > 0.6
+            ? "bullish"
+            : positiveRatio < 0.4
+              ? "bearish"
+              : "sideways";
+
         return {
           sector: row.sector,
           trend_direction: trendDirection,
@@ -601,56 +631,57 @@ router.get("/trends", async (req, res) => {
           contract_count: parseInt(row.contract_count || 0),
           avg_performance: parseFloat((row.avg_performance || 0).toFixed(2)),
           volatility: parseFloat((row.volatility || 0).toFixed(2)),
-          positive_contracts: parseInt(row.positive_count || 0)
+          positive_contracts: parseInt(row.positive_count || 0),
         };
       });
 
       // Process top movers from real data
-      const allMovers = moversResult && moversResult.rows ? moversResult.rows : [];
+      const allMovers =
+        moversResult && moversResult.rows ? moversResult.rows : [];
       const gainers = allMovers
-        .filter(row => parseFloat(row.change_percent || 0) > 0)
+        .filter((row) => parseFloat(row.change_percent || 0) > 0)
         .slice(0, 5)
-        .map(row => ({
+        .map((row) => ({
           symbol: row.symbol,
           name: row.name || row.symbol,
           change_percent: parseFloat((row.change_percent || 0).toFixed(2)),
-          volume: parseInt(row.volume || 0)
+          volume: parseInt(row.volume || 0),
         }));
 
       const losers = allMovers
-        .filter(row => parseFloat(row.change_percent || 0) < 0)
+        .filter((row) => parseFloat(row.change_percent || 0) < 0)
         .slice(0, 5)
-        .map(row => ({
+        .map((row) => ({
           symbol: row.symbol,
           name: row.name || row.symbol,
           change_percent: parseFloat((row.change_percent || 0).toFixed(2)),
-          volume: parseInt(row.volume || 0)
+          volume: parseInt(row.volume || 0),
         }));
 
       trendsData = {
         timeframe: timeframe,
-        analysis_date: new Date().toISOString().split('T')[0],
+        analysis_date: new Date().toISOString().split("T")[0],
         data_source: "database",
-        
+
         sector_trends: sectorTrends,
-        
+
         top_movers: {
           gainers: gainers,
-          losers: losers
-        }
+          losers: losers,
+        },
       };
 
       res.json({
         success: true,
         data: trendsData,
         metadata: {
-          data_points_analyzed: sectorTrends.length + gainers.length + losers.length,
+          data_points_analyzed:
+            sectorTrends.length + gainers.length + losers.length,
           confidence_level: sectorTrends.length > 0 ? "high" : "low",
-          last_updated: new Date().toISOString()
+          last_updated: new Date().toISOString(),
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (dbError) {
       console.error("Database error in trends:", dbError);
       return res.status(503).json({
@@ -663,20 +694,19 @@ router.get("/trends", async (req, res) => {
             "Database server is down or unreachable",
             "futures_contracts table does not exist",
             "Required columns are missing from futures_contracts table",
-            "Database connection pool exhausted"
-          ]
+            "Database connection pool exhausted",
+          ],
         },
         filters: { timeframe, category },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-
   } catch (error) {
     console.error("Commodities trends error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch commodities trends",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -704,9 +734,9 @@ router.get("/news", async (req, res) => {
       FROM news 
       WHERE 1=1
     `;
-    
+
     const queryParams = [];
-    
+
     // Filter by commodity-related categories
     if (category) {
       newsQuery += ` AND category ILIKE $${queryParams.length + 1}`;
@@ -714,9 +744,16 @@ router.get("/news", async (req, res) => {
     } else {
       // Default to commodity-related categories
       newsQuery += ` AND (category ILIKE ANY($${queryParams.length + 1}))`;
-      queryParams.push(['%energy%', '%metals%', '%commodities%', '%gold%', '%oil%', '%agricultural%']);
+      queryParams.push([
+        "%energy%",
+        "%metals%",
+        "%commodities%",
+        "%gold%",
+        "%oil%",
+        "%agricultural%",
+      ]);
     }
-    
+
     newsQuery += ` ORDER BY published_at DESC LIMIT $${queryParams.length + 1}`;
     queryParams.push(limitNum);
 
@@ -726,7 +763,7 @@ router.get("/news", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No commodity news found",
-        message: "No news articles found for the specified criteria"
+        message: "No news articles found for the specified criteria",
       });
     }
 
@@ -736,17 +773,16 @@ router.get("/news", async (req, res) => {
       pagination: {
         total: result.rows.length,
         limit: limitNum,
-        page: 1
+        page: 1,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("Commodities news error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch commodities news",
-      message: error.message
+      message: error.message,
     });
   }
 });

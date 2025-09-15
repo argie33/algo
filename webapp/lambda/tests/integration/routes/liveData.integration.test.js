@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 const authToken = "dev-bypass-token";
@@ -16,13 +19,15 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata (Root endpoint)", () => {
     test("should return live data API information", async () => {
-      const response = await request(app)
-        .get("/api/livedata");
+      const response = await request(app).get("/api/livedata");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("message", "Live Data API - Ready");
+      expect(response.body.data).toHaveProperty(
+        "message",
+        "Live Data API - Ready"
+      );
       expect(response.body.data).toHaveProperty("status", "operational");
       expect(response.body.data).toHaveProperty("endpoints");
       expect(Array.isArray(response.body.data.endpoints)).toBe(true);
@@ -30,8 +35,7 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should include timestamp in response", async () => {
-      const response = await request(app)
-        .get("/api/livedata");
+      const response = await request(app).get("/api/livedata");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("timestamp");
@@ -39,27 +43,26 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should handle concurrent requests to root endpoint", async () => {
-      const requests = Array(5).fill().map(() => 
-        request(app).get("/api/livedata")
-      );
-      
+      const requests = Array(5)
+        .fill()
+        .map(() => request(app).get("/api/livedata"));
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
         expect(response.body.success).toBe(true);
-        expect(response.headers['content-type']).toMatch(/json/);
+        expect(response.headers["content-type"]).toMatch(/json/);
       });
     });
   });
 
   describe("GET /api/livedata/status", () => {
     test("should return comprehensive service status", async () => {
-      const response = await request(app)
-        .get("/api/livedata/status");
+      const response = await request(app).get("/api/livedata/status");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("service", "live-data");
         expect(response.body).toHaveProperty("status");
@@ -83,23 +86,25 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should include component status information", async () => {
-      const response = await request(app)
-        .get("/api/livedata/status");
+      const response = await request(app).get("/api/livedata/status");
 
       if (response.status === 200) {
         expect(response.body.components).toHaveProperty("liveDataManager");
         expect(response.body.components).toHaveProperty("realTimeService");
         expect(response.body.components).toHaveProperty("cache");
-        
-        expect(response.body.components.liveDataManager).toHaveProperty("status");
-        expect(response.body.components.realTimeService).toHaveProperty("cacheEntries");
+
+        expect(response.body.components.liveDataManager).toHaveProperty(
+          "status"
+        );
+        expect(response.body.components.realTimeService).toHaveProperty(
+          "cacheEntries"
+        );
         expect(response.body.components.cache).toHaveProperty("hitRate");
       }
     });
 
     test("should include service metrics", async () => {
-      const response = await request(app)
-        .get("/api/livedata/status");
+      const response = await request(app).get("/api/livedata/status");
 
       if (response.status === 200) {
         expect(response.body.metrics).toHaveProperty("totalSymbols");
@@ -112,11 +117,10 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/symbols", () => {
     test("should return available symbols", async () => {
-      const response = await request(app)
-        .get("/api/livedata/symbols");
+      const response = await request(app).get("/api/livedata/symbols");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -127,26 +131,27 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should handle category filter", async () => {
-      const response = await request(app)
-        .get("/api/livedata/symbols?category=stocks");
+      const response = await request(app).get(
+        "/api/livedata/symbols?category=stocks"
+      );
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
 
     test("should handle limit parameter", async () => {
-      const response = await request(app)
-        .get("/api/livedata/symbols?limit=50");
+      const response = await request(app).get("/api/livedata/symbols?limit=50");
 
       expect([200, 400].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200 && response.body.data.length > 0) {
         expect(response.body.data.length).toBeLessThanOrEqual(50);
       }
     });
 
     test("should handle search parameter", async () => {
-      const response = await request(app)
-        .get("/api/livedata/symbols?search=AAPL");
+      const response = await request(app).get(
+        "/api/livedata/symbols?search=AAPL"
+      );
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
@@ -154,11 +159,10 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/providers", () => {
     test("should return data provider information", async () => {
-      const response = await request(app)
-        .get("/api/livedata/providers");
+      const response = await request(app).get("/api/livedata/providers");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("providers");
@@ -169,8 +173,7 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should include provider status and metrics", async () => {
-      const response = await request(app)
-        .get("/api/livedata/providers");
+      const response = await request(app).get("/api/livedata/providers");
 
       if (response.status === 200 && response.body.providers.length > 0) {
         const provider = response.body.providers[0];
@@ -181,8 +184,9 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should handle provider filtering by status", async () => {
-      const response = await request(app)
-        .get("/api/livedata/providers?status=active");
+      const response = await request(app).get(
+        "/api/livedata/providers?status=active"
+      );
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
@@ -190,11 +194,10 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/connections", () => {
     test("should return connection status information", async () => {
-      const response = await request(app)
-        .get("/api/livedata/connections");
+      const response = await request(app).get("/api/livedata/connections");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("connections");
@@ -204,8 +207,7 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should include connection health metrics", async () => {
-      const response = await request(app)
-        .get("/api/livedata/connections");
+      const response = await request(app).get("/api/livedata/connections");
 
       if (response.status === 200) {
         expect(response.body.summary).toHaveProperty("total");
@@ -218,8 +220,7 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/market (Authenticated)", () => {
     test("should require authentication for market data", async () => {
-      const response = await request(app)
-        .get("/api/livedata/market");
+      const response = await request(app).get("/api/livedata/market");
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -230,7 +231,7 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -259,8 +260,7 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/stream/:symbols (Authenticated)", () => {
     test("should require authentication for streaming data", async () => {
-      const response = await request(app)
-        .get("/api/livedata/stream/AAPL");
+      const response = await request(app).get("/api/livedata/stream/AAPL");
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -271,7 +271,7 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -285,10 +285,13 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 400].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
-        expect(Array.isArray(response.body.data) || typeof response.body.data === 'object').toBe(true);
+        expect(
+          Array.isArray(response.body.data) ||
+            typeof response.body.data === "object"
+        ).toBe(true);
       }
     });
 
@@ -309,7 +312,10 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should handle too many symbols request", async () => {
-      const manySymbols = Array(50).fill().map((_, i) => `SYM${i}`).join(",");
+      const manySymbols = Array(50)
+        .fill()
+        .map((_, i) => `SYM${i}`)
+        .join(",");
       const response = await request(app)
         .get(`/api/livedata/stream/${manySymbols}`)
         .set("Authorization", `Bearer ${authToken}`);
@@ -320,8 +326,7 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/latest/:symbols (Authenticated)", () => {
     test("should require authentication for latest data", async () => {
-      const response = await request(app)
-        .get("/api/livedata/latest/AAPL");
+      const response = await request(app).get("/api/livedata/latest/AAPL");
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -332,7 +337,7 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -348,7 +353,7 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 400].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -366,8 +371,7 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("POST /api/livedata/admin/restart (Admin)", () => {
     test("should require authentication for admin operations", async () => {
-      const response = await request(app)
-        .post("/api/livedata/admin/restart");
+      const response = await request(app).post("/api/livedata/admin/restart");
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -378,7 +382,7 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 400, 403, 500, 503].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success");
         expect(response.body).toHaveProperty("message");
@@ -397,8 +401,7 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("POST /api/livedata/admin/optimize (Admin)", () => {
     test("should require authentication for optimization", async () => {
-      const response = await request(app)
-        .post("/api/livedata/admin/optimize");
+      const response = await request(app).post("/api/livedata/admin/optimize");
 
       expect([401].includes(response.status)).toBe(true);
     });
@@ -409,7 +412,7 @@ describe("Live Data Routes Integration Tests", () => {
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 400, 403, 500, 503].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success");
         expect(response.body).toHaveProperty("optimizations");
@@ -419,11 +422,10 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/health", () => {
     test("should return health status without authentication", async () => {
-      const response = await request(app)
-        .get("/api/livedata/health");
+      const response = await request(app).get("/api/livedata/health");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("status");
         expect(response.body).toHaveProperty("service", "live-data");
@@ -432,8 +434,7 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should include uptime information", async () => {
-      const response = await request(app)
-        .get("/api/livedata/health");
+      const response = await request(app).get("/api/livedata/health");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("uptime");
@@ -442,8 +443,9 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should handle detailed health check", async () => {
-      const response = await request(app)
-        .get("/api/livedata/health?detailed=true");
+      const response = await request(app).get(
+        "/api/livedata/health?detailed=true"
+      );
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
@@ -451,11 +453,10 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("GET /api/livedata/metrics", () => {
     test("should return performance metrics", async () => {
-      const response = await request(app)
-        .get("/api/livedata/metrics");
+      const response = await request(app).get("/api/livedata/metrics");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("metrics");
@@ -466,15 +467,17 @@ describe("Live Data Routes Integration Tests", () => {
     });
 
     test("should handle metrics time range parameter", async () => {
-      const response = await request(app)
-        .get("/api/livedata/metrics?timeRange=1h");
+      const response = await request(app).get(
+        "/api/livedata/metrics?timeRange=1h"
+      );
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
 
     test("should handle metrics category filter", async () => {
-      const response = await request(app)
-        .get("/api/livedata/metrics?category=performance");
+      const response = await request(app).get(
+        "/api/livedata/metrics?category=performance"
+      );
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
@@ -501,53 +504,54 @@ describe("Live Data Routes Integration Tests", () => {
 
   describe("Performance and Edge Cases", () => {
     jest.setTimeout(15000);
-    
+
     test("should handle concurrent streaming requests", async () => {
-      const requests = Array(5).fill().map(() => 
-        request(app)
-          .get("/api/livedata/stream/AAPL")
-          .set("Authorization", `Bearer ${authToken}`)
-      );
-      
+      const requests = Array(5)
+        .fill()
+        .map(() =>
+          request(app)
+            .get("/api/livedata/stream/AAPL")
+            .set("Authorization", `Bearer ${authToken}`)
+        );
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
       });
     });
 
     test("should handle malformed symbol parameters", async () => {
       const malformedSymbols = ["", "AAPL@#$", "123", "a".repeat(20)];
-      
+
       for (const symbol of malformedSymbols) {
         const response = await request(app)
           .get(`/api/livedata/stream/${encodeURIComponent(symbol)}`)
           .set("Authorization", `Bearer ${authToken}`);
-        
+
         expect([200, 400].includes(response.status)).toBe(true);
       }
     });
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const response = await request(app)
-        .get("/api/livedata/status");
+      const response = await request(app).get("/api/livedata/status");
       const responseTime = Date.now() - startTime;
-      
+
       expect([200, 404]).toContain(response.status);
       expect(responseTime).toBeLessThan(10000); // 10 second timeout
     });
 
     test("should handle service overload gracefully", async () => {
-      const promises = Array(20).fill().map(() =>
-        request(app)
-          .get("/api/livedata/symbols")
-          .timeout(5000)
+      const promises = Array(20)
+        .fill()
+        .map(() => request(app).get("/api/livedata/symbols").timeout(5000));
+
+      const responses = await Promise.all(
+        promises.map((p) => p.catch((err) => ({ status: 500, error: err })))
       );
-      
-      const responses = await Promise.all(promises.map(p => p.catch(err => ({ status: 500, error: err }))));
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         if (response.status) {
           expect([200, 404]).toContain(response.status);
         }
@@ -558,24 +562,23 @@ describe("Live Data Routes Integration Tests", () => {
       const authTests = [
         { header: "Bearer ", desc: "empty token" },
         { header: "Bearer invalid-format", desc: "invalid token" },
-        { header: "InvalidAuth token", desc: "wrong auth type" }
+        { header: "InvalidAuth token", desc: "wrong auth type" },
       ];
-      
+
       for (const authTest of authTests) {
         const response = await request(app)
           .get("/api/livedata/market")
           .set("Authorization", authTest.header);
-        
+
         expect([200, 401].includes(response.status)).toBe(true);
       }
     });
 
     test("should handle database connection failures gracefully", async () => {
-      const response = await request(app)
-        .get("/api/livedata/symbols");
+      const response = await request(app).get("/api/livedata/symbols");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 503) {
         expect(response.body).toHaveProperty("message");
       }
@@ -583,7 +586,9 @@ describe("Live Data Routes Integration Tests", () => {
 
     test("should handle memory pressure scenarios", async () => {
       const response = await request(app)
-        .get("/api/livedata/stream/AAPL,MSFT,GOOGL,TSLA,NVDA,AMZN,META,NFLX,CRM,ORCL")
+        .get(
+          "/api/livedata/stream/AAPL,MSFT,GOOGL,TSLA,NVDA,AMZN,META,NFLX,CRM,ORCL"
+        )
         .set("Authorization", `Bearer ${authToken}`);
 
       expect([200, 400, 413, 500, 503].includes(response.status)).toBe(true);

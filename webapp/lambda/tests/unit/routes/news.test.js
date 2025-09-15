@@ -812,7 +812,8 @@ describe("News Routes", () => {
         {
           id: 1,
           headline: "Apple reports strong earnings",
-          summary: "Apple Inc. reported better than expected quarterly earnings",
+          summary:
+            "Apple Inc. reported better than expected quarterly earnings",
           url: "https://example.com/apple-earnings",
           source: "Reuters",
           category: "earnings",
@@ -821,8 +822,8 @@ describe("News Routes", () => {
           sentiment: "positive",
           relevance_score: 0.9,
           search_relevance_score: 15,
-          matching_snippet: "Apple reports strong earnings"
-        }
+          matching_snippet: "Apple reports strong earnings",
+        },
       ];
 
       const mockStats = {
@@ -832,7 +833,7 @@ describe("News Routes", () => {
         neutral_count: 0,
         unique_categories: 1,
         unique_sources: 1,
-        avg_relevance: 0.9
+        avg_relevance: 0.9,
       };
 
       query
@@ -853,8 +854,8 @@ describe("News Routes", () => {
               symbol: "AAPL",
               search_relevance_score: expect.any(Number),
               matching_snippet: expect.any(String),
-              time_ago: expect.any(String)
-            })
+              time_ago: expect.any(String),
+            }),
           ]),
           total_results: 1,
           estimated_total: 1,
@@ -863,36 +864,34 @@ describe("News Routes", () => {
             relevance_scores: expect.objectContaining({
               min: expect.any(Number),
               max: expect.any(Number),
-              avg: expect.any(Number)
+              avg: expect.any(Number),
             }),
-            suggestions: expect.any(Array)
+            suggestions: expect.any(Array),
           }),
           search_statistics: expect.objectContaining({
             total_matches: 1,
             sentiment_distribution: expect.any(Object),
             unique_categories: 1,
-            unique_sources: 1
-          })
+            unique_sources: 1,
+          }),
         },
         filters: expect.objectContaining({
           query: "Apple earnings",
           category: "all",
           sentiment: "all",
-          timeframe: "30d"
+          timeframe: "30d",
         }),
-        methodology: expect.any(Object)
+        methodology: expect.any(Object),
       });
     });
 
     test("should require search query parameter", async () => {
-      const response = await request(app)
-        .get("/news/search")
-        .expect(400);
+      const response = await request(app).get("/news/search").expect(400);
 
       expect(response.body).toMatchObject({
         success: false,
         error: "Search query is required",
-        message: "Please provide a search query using the 'query' parameter"
+        message: "Please provide a search query using the 'query' parameter",
       });
     });
 
@@ -914,10 +913,10 @@ describe("News Routes", () => {
             query: "nonexistent",
             suggestions: expect.arrayContaining([
               "Try broader search terms",
-              "Check spelling and try synonyms"
-            ])
-          }
-        }
+              "Check spelling and try synonyms",
+            ]),
+          },
+        },
       });
     });
 
@@ -931,7 +930,7 @@ describe("News Routes", () => {
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to search news",
-        message: "Database connection failed"
+        message: "Database connection failed",
       });
     });
 
@@ -949,16 +948,27 @@ describe("News Routes", () => {
           sentiment: "positive",
           relevance_score: 0.9,
           search_relevance_score: 12,
-          matching_snippet: "AAPL positive news"
-        }
+          matching_snippet: "AAPL positive news",
+        },
       ];
 
       query
         .mockResolvedValueOnce({ rows: mockResults })
-        .mockResolvedValueOnce({ rows: [{ total_matches: 1, positive_count: 1, negative_count: 0, neutral_count: 0 }] });
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              total_matches: 1,
+              positive_count: 1,
+              negative_count: 0,
+              neutral_count: 0,
+            },
+          ],
+        });
 
       const response = await request(app)
-        .get("/news/search?query=AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10")
+        .get(
+          "/news/search?query=AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10"
+        )
         .expect(200);
 
       expect(response.body.filters).toMatchObject({
@@ -967,7 +977,7 @@ describe("News Routes", () => {
         sentiment: "positive",
         symbol: "AAPL",
         timeframe: "7d",
-        limit: 10
+        limit: 10,
       });
     });
   });

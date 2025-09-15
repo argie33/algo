@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -20,7 +23,7 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message", "Settings API - Ready");
         expect(response.body).toHaveProperty("status", "operational");
@@ -30,8 +33,7 @@ describe("Settings Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/settings");
+      const response = await request(app).get("/api/settings");
 
       // Note: API currently returns 200 even without auth - this is a security issue to address
       expect([200, 401, 403].includes(response.status)).toBe(true);
@@ -45,7 +47,7 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("settings");
@@ -58,15 +60,14 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
       }
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/settings/dashboard");
+      const response = await request(app).get("/api/settings/dashboard");
 
       // Note: API currently returns 200 even without auth - this is a security issue to address
       expect([200, 401, 403].includes(response.status)).toBe(true);
@@ -80,16 +81,17 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("trading_mode");
-        expect(["paper", "live"].includes(response.body.trading_mode)).toBe(true);
+        expect(["paper", "live"].includes(response.body.trading_mode)).toBe(
+          true
+        );
       }
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/settings/trading-mode");
+      const response = await request(app).get("/api/settings/trading-mode");
 
       // Note: API currently returns 200 even without auth - this is a security issue to address
       expect([200, 401, 403].includes(response.status)).toBe(true);
@@ -104,10 +106,12 @@ describe("Settings Routes Integration Tests", () => {
         .send({ mode: "paper" });
 
       expect([200, 400, 401, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("current_mode");
-        expect(["paper", "live"].includes(response.body.current_mode)).toBe(true);
+        expect(["paper", "live"].includes(response.body.current_mode)).toBe(
+          true
+        );
       }
     });
 
@@ -137,7 +141,7 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("providers");
         expect(Array.isArray(response.body.providers)).toBe(true);
@@ -159,8 +163,7 @@ describe("Settings Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/settings/api-keys");
+      const response = await request(app).get("/api/settings/api-keys");
 
       // Note: API currently returns 200 even without auth - this is a security issue to address
       expect([200, 401, 403].includes(response.status)).toBe(true);
@@ -173,7 +176,7 @@ describe("Settings Routes Integration Tests", () => {
         provider: "alpaca",
         api_key: "test-api-key-123",
         api_secret: "test-api-secret-456",
-        is_sandbox: true
+        is_sandbox: true,
       };
 
       const response = await request(app)
@@ -182,7 +185,7 @@ describe("Settings Routes Integration Tests", () => {
         .send(keyRequest);
 
       expect([200, 201, 400, 401, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
       }
@@ -204,20 +207,18 @@ describe("Settings Routes Integration Tests", () => {
         .send({
           provider: "invalid-provider",
           api_key: "key",
-          api_secret: "secret"
+          api_secret: "secret",
         });
 
       expect([400, 401, 500].includes(response.status)).toBe(true);
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .post("/api/settings/api-keys")
-        .send({
-          provider: "alpaca",
-          api_key: "key",
-          api_secret: "secret"
-        });
+      const response = await request(app).post("/api/settings/api-keys").send({
+        provider: "alpaca",
+        api_key: "key",
+        api_secret: "secret",
+      });
 
       // Note: API currently returns 400 even without auth instead of 401 - may be due to validation first
       expect([400, 401, 403].includes(response.status)).toBe(true);
@@ -231,15 +232,14 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("provider", "alpaca");
       }
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/settings/api-keys/alpaca");
+      const response = await request(app).get("/api/settings/api-keys/alpaca");
 
       // Note: API currently returns 404 even without auth - this is a security issue to address
       expect([404, 401, 403].includes(response.status)).toBe(true);
@@ -250,7 +250,7 @@ describe("Settings Routes Integration Tests", () => {
     test("should update API key", async () => {
       const updateRequest = {
         api_key: "updated-key",
-        api_secret: "updated-secret"
+        api_secret: "updated-secret",
       };
 
       const response = await request(app)
@@ -266,7 +266,7 @@ describe("Settings Routes Integration Tests", () => {
         .put("/api/settings/api-keys/alpaca")
         .send({
           api_key: "key",
-          api_secret: "secret"
+          api_secret: "secret",
         });
 
       // Note: API currently returns 404 even without auth - this is a security issue to address
@@ -281,15 +281,16 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
       }
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .delete("/api/settings/api-keys/alpaca");
+      const response = await request(app).delete(
+        "/api/settings/api-keys/alpaca"
+      );
 
       // Note: API currently returns 404 even without auth - this is a security issue to address
       expect([404, 401, 403].includes(response.status)).toBe(true);
@@ -298,18 +299,26 @@ describe("Settings Routes Integration Tests", () => {
 
   describe("Performance and Edge Cases", () => {
     jest.setTimeout(10000);
-    
+
     test("should handle concurrent requests to settings endpoints", async () => {
       const requests = [
-        request(app).get("/api/settings").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/settings/dashboard").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/settings/trading-mode").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/settings/api-keys").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/settings")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/settings/dashboard")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/settings/trading-mode")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/settings/api-keys")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
-      
+
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 401, 404, 500, 503].includes(response.status)).toBe(true);
       });
     });
@@ -320,21 +329,31 @@ describe("Settings Routes Integration Tests", () => {
         .get("/api/settings/dashboard")
         .set("Authorization", "Bearer dev-bypass-token");
       const responseTime = Date.now() - startTime;
-      
+
       expect([200, 401, 500, 503].includes(response.status)).toBe(true);
       expect(responseTime).toBeLessThan(10000);
     });
 
     test("should handle invalid parameters gracefully", async () => {
       const invalidRequests = [
-        request(app).post("/api/settings/trading-mode").set("Authorization", "Bearer dev-bypass-token").send({ mode: "invalid" }),
-        request(app).get("/api/settings/api-keys/invalid-provider-name").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).post("/api/settings/api-keys").set("Authorization", "Bearer dev-bypass-token").send({ provider: "" }),
+        request(app)
+          .post("/api/settings/trading-mode")
+          .set("Authorization", "Bearer dev-bypass-token")
+          .send({ mode: "invalid" }),
+        request(app)
+          .get("/api/settings/api-keys/invalid-provider-name")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .post("/api/settings/api-keys")
+          .set("Authorization", "Bearer dev-bypass-token")
+          .send({ provider: "" }),
       ];
-      
+
       for (const req of invalidRequests) {
         const response = await req;
-        expect([200, 400, 401, 404, 500, 503].includes(response.status)).toBe(true);
+        expect([200, 400, 401, 404, 500, 503].includes(response.status)).toBe(
+          true
+        );
       }
     });
 
@@ -343,15 +362,17 @@ describe("Settings Routes Integration Tests", () => {
         "'; DROP TABLE user_api_keys; --",
         "1' OR '1'='1",
         "UNION SELECT * FROM users",
-        "<script>alert('xss')</script>"
+        "<script>alert('xss')</script>",
       ];
-      
+
       for (const input of maliciousInputs) {
         const response = await request(app)
           .get(`/api/settings/api-keys/${encodeURIComponent(input)}`)
           .set("Authorization", "Bearer dev-bypass-token");
-        
-        expect([200, 400, 401, 404, 500, 503].includes(response.status)).toBe(true);
+
+        expect([200, 400, 401, 404, 500, 503].includes(response.status)).toBe(
+          true
+        );
       }
     });
 
@@ -360,16 +381,16 @@ describe("Settings Routes Integration Tests", () => {
         "/api/settings",
         "/api/settings/dashboard",
         "/api/settings/trading-mode",
-        "/api/settings/api-keys"
+        "/api/settings/api-keys",
       ];
-      
+
       for (const endpoint of endpoints) {
         const response = await request(app)
           .get(endpoint)
           .set("Authorization", "Bearer dev-bypass-token");
-        
+
         if ([200, 401, 404, 500, 503].includes(response.status)) {
-          expect(response.headers['content-type']).toMatch(/application\/json/);
+          expect(response.headers["content-type"]).toMatch(/application\/json/);
         }
       }
     });
@@ -380,7 +401,7 @@ describe("Settings Routes Integration Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
       }

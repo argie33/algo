@@ -28,7 +28,7 @@ const {
   invalidateSession,
   clearCaches,
   getHealthStatus,
-  __getServiceInstance
+  __getServiceInstance,
 } = require("../../../utils/apiKeyService");
 
 describe("API Key Service", () => {
@@ -39,43 +39,47 @@ describe("API Key Service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     originalEnv = { ...process.env };
-    
+
     // Set test environment
     process.env.NODE_ENV = "test";
     process.env.JWT_SECRET = "test-secret";
-    
+
     // Mock AWS Secrets Manager
     mockSecretsManager = {
-      send: jest.fn()
+      send: jest.fn(),
     };
     SecretsManagerClient.mockReturnValue(mockSecretsManager);
-    
+
     // Mock JWT verifier
     mockJwtVerifier = {
-      verify: jest.fn()
+      verify: jest.fn(),
     };
     CognitoJwtVerifier.create = jest.fn().mockReturnValue(mockJwtVerifier);
-    
+
     // Mock crypto functions
-    crypto.randomBytes = jest.fn().mockReturnValue(Buffer.from("randomiv123456", "utf8"));
+    crypto.randomBytes = jest
+      .fn()
+      .mockReturnValue(Buffer.from("randomiv123456", "utf8"));
     crypto.randomUUID = jest.fn().mockReturnValue("mock-uuid-123");
-    crypto.scryptSync = jest.fn().mockReturnValue(Buffer.from("derived-key-32-bytes-long-test"));
+    crypto.scryptSync = jest
+      .fn()
+      .mockReturnValue(Buffer.from("derived-key-32-bytes-long-test"));
     crypto.createCipheriv = jest.fn().mockReturnValue({
       update: jest.fn().mockReturnValue("encrypted"),
       final: jest.fn().mockReturnValue("data"),
       setAAD: jest.fn(),
-      getAuthTag: jest.fn().mockReturnValue(Buffer.from("auth-tag"))
+      getAuthTag: jest.fn().mockReturnValue(Buffer.from("auth-tag")),
     });
     crypto.createDecipheriv = jest.fn().mockReturnValue({
       update: jest.fn().mockReturnValue("decrypted"),
       final: jest.fn().mockReturnValue("data"),
       setAAD: jest.fn(),
-      setAuthTag: jest.fn()
+      setAuthTag: jest.fn(),
     });
-    
+
     // Mock jsonwebtoken
     jwt.verify = jest.fn();
-    
+
     // Clear caches
     clearCaches();
   });
@@ -117,7 +121,7 @@ describe("API Key Service", () => {
 
     test("should accept dev-bypass-token in development", async () => {
       process.env.NODE_ENV = "development";
-      
+
       const result = await validateJwtToken("dev-bypass-token");
 
       expect(result.valid).toBe(true);
@@ -131,7 +135,10 @@ describe("API Key Service", () => {
     });
 
     test("should store API key successfully", async () => {
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
@@ -154,7 +161,11 @@ describe("API Key Service", () => {
 
     test("should validate provider name for SQL injection", async () => {
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "'; DROP TABLE users; --", apiKeyData);
+      const result = await storeApiKey(
+        "valid-jwt-token",
+        "'; DROP TABLE users; --",
+        apiKeyData
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Invalid provider name");
@@ -165,18 +176,22 @@ describe("API Key Service", () => {
       const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("API key data must include keyId and secret");
+      expect(result.error).toContain(
+        "API key data must include keyId and secret"
+      );
     });
 
     test("should validate field lengths", async () => {
-      const apiKeyData = { 
+      const apiKeyData = {
         keyId: "x".repeat(501), // Too long
-        secret: "test-secret" 
+        secret: "test-secret",
       };
       const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("API key data exceeds maximum length limits");
+      expect(result.error).toContain(
+        "API key data exceeds maximum length limits"
+      );
     });
 
     test("should handle JWT validation failure", async () => {
@@ -185,7 +200,11 @@ describe("API Key Service", () => {
       });
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("invalid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "invalid-jwt-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("JWT validation failed");
@@ -210,15 +229,17 @@ describe("API Key Service", () => {
 
     test("should retrieve API key successfully", async () => {
       const mockResult = {
-        rows: [{
-          encrypted_api_key: "stored_key",
-          encrypted_api_secret: "stored_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }],
-        rowCount: 1
+        rows: [
+          {
+            encrypted_api_key: "stored_key",
+            encrypted_api_secret: "stored_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
+        rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -226,7 +247,7 @@ describe("API Key Service", () => {
 
       expect(result).toEqual({
         keyId: "stored_key",
-        secret: "stored_secret"
+        secret: "stored_secret",
       });
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("SELECT encrypted_api_key"),
@@ -255,14 +276,16 @@ describe("API Key Service", () => {
 
     test("should update last used timestamp", async () => {
       const mockResult = {
-        rows: [{
-          encrypted_api_key: "stored_key",
-          encrypted_api_secret: "stored_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "stored_key",
+            encrypted_api_secret: "stored_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -282,14 +305,16 @@ describe("API Key Service", () => {
 
     test("should validate API key successfully", async () => {
       const mockResult = {
-        rows: [{
-          encrypted_api_key: "stored_key",
-          encrypted_api_secret: "stored_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "stored_key",
+            encrypted_api_secret: "stored_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -322,14 +347,16 @@ describe("API Key Service", () => {
 
     test("should test connection when requested", async () => {
       const mockResult = {
-        rows: [{
-          encrypted_api_key: "stored_key",
-          encrypted_api_secret: "stored_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "stored_key",
+            encrypted_api_secret: "stored_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -346,9 +373,9 @@ describe("API Key Service", () => {
     });
 
     test("should delete API key successfully", async () => {
-      const mockResult = { 
+      const mockResult = {
         rows: [{ user_id: "user123", broker_name: "alpaca" }],
-        rowCount: 1 
+        rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -407,15 +434,15 @@ describe("API Key Service", () => {
             provider: "alpaca",
             updated_at: new Date(),
             created_at: new Date(),
-            last_used: new Date()
+            last_used: new Date(),
           },
           {
             provider: "polygon",
             updated_at: new Date(),
             created_at: new Date(),
-            last_used: null
-          }
-        ]
+            last_used: null,
+          },
+        ],
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -423,12 +450,14 @@ describe("API Key Service", () => {
 
       expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual(expect.objectContaining({
-        provider: "alpaca",
-        configured: true,
-        lastUpdated: expect.any(Date),
-        createdAt: expect.any(Date)
-      }));
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          provider: "alpaca",
+          configured: true,
+          lastUpdated: expect.any(Date),
+          createdAt: expect.any(Date),
+        })
+      );
     });
 
     test("should return empty array for no providers", async () => {
@@ -462,14 +491,16 @@ describe("API Key Service", () => {
   describe("getDecryptedApiKey", () => {
     test("should retrieve API key by user ID", async () => {
       const mockResult = {
-        rows: [{
-          encrypted_api_key: "stored_key",
-          encrypted_api_secret: "stored_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "stored_key",
+            encrypted_api_secret: "stored_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
       mockQuery.mockResolvedValue(mockResult);
 
@@ -477,7 +508,7 @@ describe("API Key Service", () => {
 
       expect(result).toEqual({
         keyId: "stored_key",
-        secret: "stored_secret"
+        secret: "stored_secret",
       });
     });
 
@@ -510,24 +541,26 @@ describe("API Key Service", () => {
     test("should return health status", () => {
       const health = getHealthStatus();
 
-      expect(health).toEqual(expect.objectContaining({
-        apiKeyCircuitBreaker: expect.objectContaining({
-          state: expect.any(String),
-          failures: expect.any(Number)
-        }),
-        jwtCircuitBreaker: expect.objectContaining({
-          state: expect.any(String),
-          failures: expect.any(Number)
-        }),
-        cache: expect.objectContaining({
-          keyCache: expect.any(Number),
-          sessionCache: expect.any(Number)
-        }),
-        services: expect.objectContaining({
-          encryptionAvailable: expect.any(Boolean),
-          jwtVerifierAvailable: expect.any(Boolean)
+      expect(health).toEqual(
+        expect.objectContaining({
+          apiKeyCircuitBreaker: expect.objectContaining({
+            state: expect.any(String),
+            failures: expect.any(Number),
+          }),
+          jwtCircuitBreaker: expect.objectContaining({
+            state: expect.any(String),
+            failures: expect.any(Number),
+          }),
+          cache: expect.objectContaining({
+            keyCache: expect.any(Number),
+            sessionCache: expect.any(Number),
+          }),
+          services: expect.objectContaining({
+            encryptionAvailable: expect.any(Boolean),
+            jwtVerifierAvailable: expect.any(Boolean),
+          }),
         })
-      }));
+      );
     });
   });
 
@@ -541,13 +574,13 @@ describe("API Key Service", () => {
 
     test("should handle circuit breaker failures", async () => {
       jwt.verify.mockReturnValue({ sub: "user123" });
-      
+
       // Simulate database failure
       const dbError = new Error("Database connection failed");
       mockQuery.mockRejectedValue(dbError);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      
+
       // First few failures should return error responses (before circuit breaker opens)
       const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
@@ -561,7 +594,7 @@ describe("API Key Service", () => {
       });
 
       const result = await validateJwtToken("invalid-token");
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toContain("JWT validation failed");
     });
@@ -569,14 +602,18 @@ describe("API Key Service", () => {
 
   describe("security features", () => {
     test("should use different salts for different users", async () => {
-      jwt.verify.mockReturnValueOnce({ sub: "user1" })
-                 .mockReturnValueOnce({ sub: "user2" });
-      
-      const mockResult = { rows: [{ user_id: "user1", broker_name: "alpaca" }], rowCount: 1 };
+      jwt.verify
+        .mockReturnValueOnce({ sub: "user1" })
+        .mockReturnValueOnce({ sub: "user2" });
+
+      const mockResult = {
+        rows: [{ user_id: "user1", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      
+
       await storeApiKey("token1", "alpaca", apiKeyData);
       await storeApiKey("token2", "alpaca", apiKeyData);
 
@@ -587,17 +624,22 @@ describe("API Key Service", () => {
     test("should sanitize log output", async () => {
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
       jwt.verify.mockReturnValue({ sub: "user123" });
-      
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
-      
+
       const apiKeyData = { keyId: "SENSITIVE_KEY", secret: "SENSITIVE_SECRET" };
       await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
 
       // Ensure sensitive data not logged in console.log calls
       const logCalls = consoleSpy.mock.calls.flat();
-      const hasLeakedData = logCalls.some(call => 
-        String(call).includes("SENSITIVE_KEY") || String(call).includes("SENSITIVE_SECRET")
+      const hasLeakedData = logCalls.some(
+        (call) =>
+          String(call).includes("SENSITIVE_KEY") ||
+          String(call).includes("SENSITIVE_SECRET")
       );
       expect(hasLeakedData).toBe(false);
 
@@ -606,14 +648,14 @@ describe("API Key Service", () => {
 
     test("should validate input lengths", async () => {
       jwt.verify.mockReturnValue({ sub: "user123" });
-      
+
       const apiKeyData = {
         keyId: "x".repeat(501), // Exceeds max length
-        secret: "test-secret"
+        secret: "test-secret",
       };
-      
+
       const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toContain("exceeds maximum length limits");
     });
@@ -627,20 +669,23 @@ describe("API Key Service", () => {
     test("should handle production encryption mode", async () => {
       process.env.NODE_ENV = "production";
       process.env.API_KEY_ENCRYPTION_SECRET_ARN = "test-arn";
-      
+
       // Mock JWT verifier for production mode
       const mockJwtVerifier = {
-        verify: jest.fn().mockResolvedValue({ sub: "user123" })
+        verify: jest.fn().mockResolvedValue({ sub: "user123" }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
-      
+
       // Mock secrets manager response
       mockSecretsManager.send.mockResolvedValue({
-        SecretString: JSON.stringify({ encryptionKey: "test-encryption-key" })
+        SecretString: JSON.stringify({ encryptionKey: "test-encryption-key" }),
       });
 
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
@@ -654,15 +699,18 @@ describe("API Key Service", () => {
       process.env.NODE_ENV = "production";
       delete process.env.API_KEY_ENCRYPTION_SECRET_ARN;
       process.env.API_KEY_ENCRYPTION_SECRET = "env-encryption-key";
-      
+
       // Mock JWT verifier for production mode
       const mockJwtVerifier = {
-        verify: jest.fn().mockResolvedValue({ sub: "user123" })
+        verify: jest.fn().mockResolvedValue({ sub: "user123" }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
-      
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
@@ -674,18 +722,21 @@ describe("API Key Service", () => {
     test("should handle secrets manager errors", async () => {
       process.env.NODE_ENV = "production";
       process.env.API_KEY_ENCRYPTION_SECRET_ARN = "test-arn";
-      
+
       // Mock JWT verifier for production mode
       const mockJwtVerifier = {
-        verify: jest.fn().mockResolvedValue({ sub: "user123" })
+        verify: jest.fn().mockResolvedValue({ sub: "user123" }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
-      
+
       // Mock secrets manager failure
       mockSecretsManager.send.mockRejectedValue(new Error("Access denied"));
 
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
@@ -708,8 +759,8 @@ describe("API Key Service", () => {
         verify: jest.fn().mockResolvedValue({
           sub: "user123",
           email: "test@example.com",
-          username: "testuser"
-        })
+          username: "testuser",
+        }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
@@ -724,7 +775,7 @@ describe("API Key Service", () => {
     test("should handle Cognito JWT verification failure", async () => {
       // Mock JWT verifier on the service instance
       const mockJwtVerifier = {
-        verify: jest.fn().mockRejectedValue(new Error("Token expired"))
+        verify: jest.fn().mockRejectedValue(new Error("Token expired")),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
@@ -740,8 +791,8 @@ describe("API Key Service", () => {
       const mockJwtVerifier = {
         verify: jest.fn().mockResolvedValue({
           sub: "user123",
-          email: "test@example.com"
-        })
+          email: "test@example.com",
+        }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
@@ -752,7 +803,7 @@ describe("API Key Service", () => {
       // Second call - should use cache
       const result2 = await validateJwtToken("jwt-token");
       expect(result2.valid).toBe(true);
-      
+
       // Should only call verify once (first time)
       expect(mockJwtVerifier.verify).toHaveBeenCalledTimes(1);
     });
@@ -774,18 +825,21 @@ describe("API Key Service", () => {
     test("should handle missing required fields for provider", async () => {
       // Mock getApiKey to return incomplete data by returning empty secret
       const incompleteApiKeyMockResult = {
-        rows: [{
-          encrypted_api_key: "incomplete_key",
-          encrypted_api_secret: "", // Missing secret
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "incomplete_key",
+            encrypted_api_secret: "", // Missing secret
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
-      mockQuery.mockResolvedValueOnce(incompleteApiKeyMockResult)
-                .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-                .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      mockQuery
+        .mockResolvedValueOnce(incompleteApiKeyMockResult)
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       const result = await validateApiKey("valid-jwt-token", "alpaca", false);
 
@@ -795,22 +849,27 @@ describe("API Key Service", () => {
 
     test("should handle connection test for alpaca", async () => {
       const getApiKeyMockResult = {
-        rows: [{
-          encrypted_api_key: "alpaca_key",
-          encrypted_api_secret: "alpaca_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "alpaca_key",
+            encrypted_api_secret: "alpaca_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
-      mockQuery.mockResolvedValueOnce(getApiKeyMockResult)
-                .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-                .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      mockQuery
+        .mockResolvedValueOnce(getApiKeyMockResult)
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       // Mock AlpacaService
       const mockAlpacaService = {
-        validateCredentials: jest.fn().mockResolvedValue({ valid: true, provider: "alpaca" })
+        validateCredentials: jest
+          .fn()
+          .mockResolvedValue({ valid: true, provider: "alpaca" }),
       };
       jest.doMock("../../../utils/alpacaService", () => {
         return jest.fn().mockImplementation(() => mockAlpacaService);
@@ -828,7 +887,10 @@ describe("API Key Service", () => {
     });
 
     test("should log audit events", async () => {
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
@@ -842,9 +904,13 @@ describe("API Key Service", () => {
     });
 
     test("should handle audit logging errors gracefully", async () => {
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
-      mockQuery.mockResolvedValueOnce(mockResult)
-                .mockRejectedValueOnce(new Error("Audit log failed"));
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
+      mockQuery
+        .mockResolvedValueOnce(mockResult)
+        .mockRejectedValueOnce(new Error("Audit log failed"));
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
@@ -871,14 +937,17 @@ describe("API Key Service", () => {
     test("should reset circuit breaker in development", async () => {
       // This test verifies dev mode circuit breaker reset behavior
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      
+
       // Mock JWT validation
       jwt.verify.mockReturnValue({ sub: "user123" });
-      
+
       // Mock successful storage
-      const mockResult = { rows: [{ user_id: "user123", broker_name: "alpaca" }], rowCount: 1 };
+      const mockResult = {
+        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rowCount: 1,
+      };
       mockQuery.mockResolvedValue(mockResult);
-      
+
       const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true);
     });
@@ -887,21 +956,24 @@ describe("API Key Service", () => {
   describe("provider specific functionality", () => {
     test("should handle different provider required fields", async () => {
       jwt.verify.mockReturnValue({ sub: "user123" });
-      
+
       // Test polygon provider (only needs apiKey)
       const polygonResult = {
-        rows: [{
-          encrypted_api_key: "polygon_key",
-          encrypted_api_secret: "", // Polygon doesn't need secret
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
+        rows: [
+          {
+            encrypted_api_key: "polygon_key",
+            encrypted_api_secret: "", // Polygon doesn't need secret
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
       };
-      mockQuery.mockResolvedValueOnce(polygonResult)
-                .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-                .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      mockQuery
+        .mockResolvedValueOnce(polygonResult)
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       const result = await validateApiKey("valid-jwt-token", "polygon", false);
       expect(result.valid).toBe(true);
@@ -909,22 +981,29 @@ describe("API Key Service", () => {
 
     test("should handle unknown provider gracefully", async () => {
       jwt.verify.mockReturnValue({ sub: "user123" });
-      
-      const unknownProviderResult = {
-        rows: [{
-          encrypted_api_key: "unknown_key",
-          encrypted_api_secret: "unknown_secret",
-          key_iv: "test-iv",
-          key_auth_tag: "test-auth",
-          secret_iv: "test-iv",
-          secret_auth_tag: "test-auth"
-        }]
-      };
-      mockQuery.mockResolvedValueOnce(unknownProviderResult)
-                .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-                .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const result = await validateApiKey("valid-jwt-token", "unknown_provider", true);
+      const unknownProviderResult = {
+        rows: [
+          {
+            encrypted_api_key: "unknown_key",
+            encrypted_api_secret: "unknown_secret",
+            key_iv: "test-iv",
+            key_auth_tag: "test-auth",
+            secret_iv: "test-iv",
+            secret_auth_tag: "test-auth",
+          },
+        ],
+      };
+      mockQuery
+        .mockResolvedValueOnce(unknownProviderResult)
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const result = await validateApiKey(
+        "valid-jwt-token",
+        "unknown_provider",
+        true
+      );
       expect(result.valid).toBe(true);
       expect(result.provider).toBe("unknown_provider");
     });

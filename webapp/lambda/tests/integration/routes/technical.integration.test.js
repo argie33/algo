@@ -9,7 +9,8 @@ const { query } = require("../../../utils/database");
 // Mock response formatter middleware
 const mockResponseFormatter = (req, res, next) => {
   res.success = (data) => res.status(200).json({ success: true, ...data });
-  res.error = (message, statusCode = 500) => res.status(statusCode).json({ success: false, error: message });
+  res.error = (message, statusCode = 500) =>
+    res.status(statusCode).json({ success: false, error: message });
   next();
 };
 
@@ -51,44 +52,44 @@ describe("Technical Router", () => {
           symbol: "AAPL",
           date: "2024-01-03",
           rsi: 55.25,
-          sma_20: 175.50,
-          sma_50: 172.30,
+          sma_20: 175.5,
+          sma_50: 172.3,
           sma_200: 168.75,
-          ema_12: 176.20,
-          ema_26: 174.80,
-          macd: 1.40,
+          ema_12: 176.2,
+          ema_26: 174.8,
+          macd: 1.4,
           macd_signal: 1.15,
           macd_histogram: 0.25,
           bollinger_upper: 180.25,
-          bollinger_middle: 175.50,
+          bollinger_middle: 175.5,
           bollinger_lower: 170.75,
           stochastic_k: 65.8,
           stochastic_d: 62.3,
           williams_r: -25.4,
           volume: 45000000,
-          price: 175.50
+          price: 175.5,
         },
         {
           symbol: "AAPL",
           date: "2024-01-02",
-          rsi: 52.80,
+          rsi: 52.8,
           sma_20: 174.25,
-          sma_50: 171.90,
-          sma_200: 168.40,
-          ema_12: 175.10,
-          ema_26: 174.20,
-          macd: 0.90,
+          sma_50: 171.9,
+          sma_200: 168.4,
+          ema_12: 175.1,
+          ema_26: 174.2,
+          macd: 0.9,
           macd_signal: 1.05,
           macd_histogram: -0.15,
-          bollinger_upper: 179.80,
+          bollinger_upper: 179.8,
           bollinger_middle: 174.25,
-          bollinger_lower: 168.70,
+          bollinger_lower: 168.7,
           stochastic_k: 58.2,
           stochastic_d: 60.1,
           williams_r: -35.8,
           volume: 38000000,
-          price: 174.25
-        }
+          price: 174.25,
+        },
       ];
 
       query.mockResolvedValue({ rows: mockTechnicalData });
@@ -102,7 +103,7 @@ describe("Technical Router", () => {
       expect(response.body.data.timeframe).toBe("daily");
       expect(response.body.data.indicators).toHaveLength(2);
       expect(response.body.data.indicators[0].rsi).toBe(55.25);
-      expect(response.body.data.indicators[0].macd).toBe(1.40);
+      expect(response.body.data.indicators[0].macd).toBe(1.4);
     });
 
     test("should handle lowercase symbol input", async () => {
@@ -115,10 +116,7 @@ describe("Technical Router", () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.symbol).toBe("MSFT");
-      expect(query).toHaveBeenCalledWith(
-        expect.any(String),
-        ["MSFT"]
-      );
+      expect(query).toHaveBeenCalledWith(expect.any(String), ["MSFT"]);
     });
 
     test("should return 404 for symbol with no technical data", async () => {
@@ -141,27 +139,28 @@ describe("Technical Router", () => {
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain("Failed to fetch daily technical data");
+      expect(response.body.error).toContain(
+        "Failed to fetch daily technical data"
+      );
     });
 
     test("should limit results to 30 records", async () => {
-      const largeMockData = Array(50).fill().map((_, i) => ({
-        symbol: "AAPL",
-        date: `2024-01-${String(i + 1).padStart(2, '0')}`,
-        rsi: 50 + i,
-        sma_20: 175 + i
-      }));
+      const largeMockData = Array(50)
+        .fill()
+        .map((_, i) => ({
+          symbol: "AAPL",
+          date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+          rsi: 50 + i,
+          sma_20: 175 + i,
+        }));
 
       query.mockResolvedValue({ rows: largeMockData });
 
-      await request(app)
-        .get("/api/technical/daily/AAPL")
-        .expect(200);
+      await request(app).get("/api/technical/daily/AAPL").expect(200);
 
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT 30"),
-        ["AAPL"]
-      );
+      expect(query).toHaveBeenCalledWith(expect.stringContaining("LIMIT 30"), [
+        "AAPL",
+      ]);
     });
   });
 
@@ -172,10 +171,10 @@ describe("Technical Router", () => {
           symbol: "AAPL",
           date: "2024-01-01",
           rsi: 58.7,
-          sma_20: 175.80,
+          sma_20: 175.8,
           macd: 2.15,
-          volume: 250000000
-        }
+          volume: 250000000,
+        },
       ];
 
       query.mockResolvedValue({ rows: mockWeeklyData });
@@ -211,10 +210,10 @@ describe("Technical Router", () => {
           symbol: "AAPL",
           date: "2024-01-01",
           rsi: 62.3,
-          sma_20: 178.40,
+          sma_20: 178.4,
           macd: 3.25,
-          volume: 1200000000
-        }
+          volume: 1200000000,
+        },
       ];
 
       query.mockResolvedValue({ rows: mockMonthlyData });
@@ -240,15 +239,15 @@ describe("Technical Router", () => {
           rsi: 55.2,
           macd: 1.4,
           sma_20: 175.5,
-          date: "2024-01-01"
+          date: "2024-01-01",
         },
         {
           symbol: "MSFT",
           rsi: 48.7,
           macd: -0.8,
           sma_20: 380.2,
-          date: "2024-01-01"
-        }
+          date: "2024-01-01",
+        },
       ];
 
       query.mockResolvedValue({ rows: mockComparisonData });
@@ -273,7 +272,10 @@ describe("Technical Router", () => {
     });
 
     test("should limit number of symbols for comparison", async () => {
-      const tooManySymbols = Array(20).fill().map((_, i) => `STOCK${i}`).join(",");
+      const tooManySymbols = Array(20)
+        .fill()
+        .map((_, i) => `STOCK${i}`)
+        .join(",");
 
       const response = await request(app)
         .get(`/api/technical/compare?symbols=${tooManySymbols}`)
@@ -293,18 +295,18 @@ describe("Technical Router", () => {
           indicator: "RSI_OVERSOLD",
           strength: 0.8,
           timestamp: "2024-01-01T10:30:00Z",
-          price: 175.50,
-          description: "RSI below 30 indicates oversold condition"
+          price: 175.5,
+          description: "RSI below 30 indicates oversold condition",
         },
         {
-          symbol: "AAPL", 
+          symbol: "AAPL",
           signal_type: "SELL",
           indicator: "MACD_BEARISH_CROSSOVER",
           strength: 0.6,
           timestamp: "2024-01-01T14:15:00Z",
-          price: 174.80,
-          description: "MACD line crossed below signal line"
-        }
+          price: 174.8,
+          description: "MACD line crossed below signal line",
+        },
       ];
 
       query.mockResolvedValue({ rows: mockSignals });
@@ -355,19 +357,19 @@ describe("Technical Router", () => {
           name: "Apple Inc.",
           rsi: 25.5,
           macd: 2.1,
-          price: 175.50,
+          price: 175.5,
           volume: 45000000,
-          match_score: 0.85
+          match_score: 0.85,
         },
         {
           symbol: "MSFT",
-          name: "Microsoft Corporation", 
+          name: "Microsoft Corporation",
           rsi: 28.3,
           macd: 1.8,
           price: 380.25,
           volume: 38000000,
-          match_score: 0.78
-        }
+          match_score: 0.78,
+        },
       ];
 
       query.mockResolvedValue({ rows: mockScreenerResults });
@@ -397,10 +399,12 @@ describe("Technical Router", () => {
     });
 
     test("should limit screener results", async () => {
-      const largeResults = Array(500).fill().map((_, i) => ({
-        symbol: `STOCK${i}`,
-        rsi: 50 + i
-      }));
+      const largeResults = Array(500)
+        .fill()
+        .map((_, i) => ({
+          symbol: `STOCK${i}`,
+          rsi: 50 + i,
+        }));
 
       query.mockResolvedValue({ rows: largeResults });
 
@@ -425,7 +429,7 @@ describe("Technical Router", () => {
         indicator: "RSI",
         condition: "BELOW",
         value: 30,
-        notification_type: "EMAIL"
+        notification_type: "EMAIL",
       };
 
       const response = await request(app)
@@ -458,7 +462,7 @@ describe("Technical Router", () => {
           symbol: "AAPL",
           indicator: "INVALID_INDICATOR",
           condition: "ABOVE",
-          value: 50
+          value: 50,
         })
         .expect(400);
 
@@ -514,25 +518,27 @@ describe("Technical Router", () => {
     test("should handle concurrent requests efficiently", async () => {
       query.mockResolvedValue({ rows: [{ symbol: "AAPL", rsi: 50 }] });
 
-      const requests = Array(10).fill().map(() =>
-        request(app).get("/api/technical/daily/AAPL")
-      );
+      const requests = Array(10)
+        .fill()
+        .map(() => request(app).get("/api/technical/daily/AAPL"));
 
       const responses = await Promise.all(requests);
 
-      responses.forEach(response => {
+      responses.forEach((response) => {
         expect([200, 404]).toContain(response.status);
         expect(response.body.success).toBe(true);
       });
     });
 
     test("should handle large datasets efficiently", async () => {
-      const largeDataset = Array(1000).fill().map((_, i) => ({
-        symbol: "AAPL",
-        date: `2024-01-${String(i % 30 + 1).padStart(2, '0')}`,
-        rsi: 50 + (i % 40),
-        macd: (i % 10) - 5
-      }));
+      const largeDataset = Array(1000)
+        .fill()
+        .map((_, i) => ({
+          symbol: "AAPL",
+          date: `2024-01-${String((i % 30) + 1).padStart(2, "0")}`,
+          rsi: 50 + (i % 40),
+          macd: (i % 10) - 5,
+        }));
 
       query.mockResolvedValue({ rows: largeDataset });
 

@@ -13,9 +13,9 @@ describe("Settings Management API", () => {
       const response = await request(app)
         .get("/api/settings")
         .set("Authorization", "Bearer test-token");
-      
+
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message");
         expect(response.body).toHaveProperty("endpoints");
@@ -29,9 +29,9 @@ describe("Settings Management API", () => {
       const response = await request(app)
         .get("/api/settings/dashboard")
         .set("Authorization", "Bearer test-token");
-      
+
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
       }
@@ -43,9 +43,9 @@ describe("Settings Management API", () => {
       const response = await request(app)
         .get("/api/settings/providers")
         .set("Authorization", "Bearer test-token");
-      
+
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -56,9 +56,9 @@ describe("Settings Management API", () => {
       const response = await request(app)
         .get("/api/settings/api-keys")
         .set("Authorization", "Bearer test-token");
-      
+
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -70,16 +70,16 @@ describe("Settings Management API", () => {
         provider: "alpaca",
         keyId: "test-key-id",
         secretKey: "test-secret-key",
-        environment: "paper"
+        environment: "paper",
       };
 
       const response = await request(app)
         .post("/api/settings/api-keys")
         .set("Authorization", "Bearer test-token")
         .send(keyData);
-      
+
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("message");
@@ -92,9 +92,9 @@ describe("Settings Management API", () => {
       const response = await request(app)
         .get("/api/settings/health")
         .set("Authorization", "Bearer test-token");
-      
+
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("status");

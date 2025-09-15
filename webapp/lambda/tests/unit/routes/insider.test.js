@@ -28,18 +28,20 @@ describe("Insider Routes", () => {
       expect(response.body).toEqual({
         success: false,
         error: "Insider trading data not implemented",
-        details: "This endpoint requires SEC filing data integration which is not yet implemented.",
+        details:
+          "This endpoint requires SEC filing data integration which is not yet implemented.",
         troubleshooting: {
-          suggestion: "Insider trading data requires integration with SEC EDGAR database",
+          suggestion:
+            "Insider trading data requires integration with SEC EDGAR database",
           required_setup: [
             "SEC EDGAR API integration",
             "Insider trading database tables",
-            "Real-time filing data pipeline"
+            "Real-time filing data pipeline",
           ],
-          status: "Not implemented - requires SEC data integration"
+          status: "Not implemented - requires SEC data integration",
         },
         symbol: "AAPL",
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -52,10 +54,11 @@ describe("Insider Routes", () => {
     });
 
     it("should log the request with symbol", async () => {
-      await request(app)
-        .get("/api/insider/trades/TSLA");
+      await request(app).get("/api/insider/trades/TSLA");
 
-      expect(consoleSpy).toHaveBeenCalledWith("👥 Insider trades requested for TSLA - not implemented");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "👥 Insider trades requested for TSLA - not implemented"
+      );
     });
 
     it("should include valid ISO timestamp", async () => {
@@ -64,7 +67,9 @@ describe("Insider Routes", () => {
         .expect(501);
 
       const timestamp = response.body.timestamp;
-      expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+      );
       expect(new Date(timestamp)).toBeInstanceOf(Date);
       expect(new Date(timestamp).getTime()).not.toBeNaN();
     });
@@ -85,7 +90,9 @@ describe("Insider Routes", () => {
         .expect(501);
 
       expect(response.body.symbol).toBe(longSymbol);
-      expect(consoleSpy).toHaveBeenCalledWith(`👥 Insider trades requested for ${longSymbol} - not implemented`);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        `👥 Insider trades requested for ${longSymbol} - not implemented`
+      );
     });
 
     it("should handle empty symbol gracefully", async () => {
@@ -107,15 +114,18 @@ describe("Insider Routes", () => {
       expect(response.body).toEqual({
         success: false,
         error: "Failed to fetch insider trades",
-        message: "Console logging failed"
+        message: "Console logging failed",
       });
 
-      expect(console.error).toHaveBeenCalledWith("Insider trades error:", expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith(
+        "Insider trades error:",
+        expect.any(Error)
+      );
     });
 
     it("should maintain consistent response structure for different symbols", async () => {
       const symbols = ["AAPL", "GOOGL", "MSFT", "AMZN"];
-      
+
       for (const symbol of symbols) {
         const response = await request(app)
           .get(`/api/insider/trades/${symbol}`)
@@ -128,7 +138,9 @@ describe("Insider Routes", () => {
         expect(response.body).toHaveProperty("symbol", symbol);
         expect(response.body).toHaveProperty("timestamp");
         expect(response.body.troubleshooting).toHaveProperty("required_setup");
-        expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(true);
+        expect(
+          Array.isArray(response.body.troubleshooting.required_setup)
+        ).toBe(true);
       }
     });
 
@@ -138,9 +150,15 @@ describe("Insider Routes", () => {
         .expect(501);
 
       expect(response.body.troubleshooting.required_setup).toHaveLength(3);
-      expect(response.body.troubleshooting.required_setup).toContain("SEC EDGAR API integration");
-      expect(response.body.troubleshooting.required_setup).toContain("Insider trading database tables");
-      expect(response.body.troubleshooting.required_setup).toContain("Real-time filing data pipeline");
+      expect(response.body.troubleshooting.required_setup).toContain(
+        "SEC EDGAR API integration"
+      );
+      expect(response.body.troubleshooting.required_setup).toContain(
+        "Insider trading database tables"
+      );
+      expect(response.body.troubleshooting.required_setup).toContain(
+        "Real-time filing data pipeline"
+      );
     });
 
     it("should handle numeric symbol inputs", async () => {

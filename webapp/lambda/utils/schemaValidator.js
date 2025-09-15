@@ -223,7 +223,6 @@ const tableSchemas = {
     primaryKey: ["symbol", "report_date"],
   },
 
-
   price_daily: {
     required: ["symbol", "date"],
     columns: {
@@ -460,7 +459,6 @@ const tableSchemas = {
     indexes: ["symbol", "date"],
   },
 
-
   company_profile: {
     required: ["ticker"],
     columns: {
@@ -483,7 +481,6 @@ const tableSchemas = {
     },
     indexes: ["ticker", "sector", "exchange"],
   },
-
 
   fear_greed_index: {
     required: ["value"],
@@ -520,7 +517,6 @@ const tableSchemas = {
     },
     indexes: ["date", "created_at"],
   },
-
 
   comprehensive_scores: {
     required: ["symbol"],
@@ -676,7 +672,7 @@ class SchemaValidator {
     return {
       valid: errors.length === 0,
       isValid: errors.length === 0, // Add alias for backwards compatibility
-      errors: errors.map(err => err.message), // Convert to string array for tests
+      errors: errors.map((err) => err.message), // Convert to string array for tests
       errorDetails: errors, // Keep detailed errors for advanced usage
       data: validatedData,
     };
@@ -780,17 +776,20 @@ class SchemaValidator {
               code: "ABOVE_MAXIMUM",
             });
           }
-          
+
           // Check precision constraints
           if (columnDef.precision && columnDef.scale !== undefined) {
             const valueStr = String(value);
-            const decimalParts = valueStr.split('.');
+            const decimalParts = valueStr.split(".");
             const integerPart = decimalParts[0];
-            const decimalPart = decimalParts[1] || '';
-            
+            const decimalPart = decimalParts[1] || "";
+
             const maxIntegerDigits = columnDef.precision - columnDef.scale;
-            
-            if (integerPart.length > maxIntegerDigits || decimalPart.length > columnDef.scale) {
+
+            if (
+              integerPart.length > maxIntegerDigits ||
+              decimalPart.length > columnDef.scale
+            ) {
               errors.push({
                 field: fieldName,
                 message: `Field "${fieldName}" exceeds precision constraints (${columnDef.precision},${columnDef.scale})`,
@@ -1024,7 +1023,10 @@ class SchemaValidator {
         definition += " UNIQUE";
       }
 
-      if ((schema.required && schema.required.includes(columnName)) || (columnDef.nullable === false && columnDef.type !== "SERIAL")) {
+      if (
+        (schema.required && schema.required.includes(columnName)) ||
+        (columnDef.nullable === false && columnDef.type !== "SERIAL")
+      ) {
         definition += " NOT NULL";
       }
 
@@ -1033,7 +1035,7 @@ class SchemaValidator {
       }
 
       if (columnDef.default !== undefined) {
-        if (typeof columnDef.default === 'boolean') {
+        if (typeof columnDef.default === "boolean") {
           definition += ` DEFAULT ${columnDef.default}`;
         } else {
           definition += ` DEFAULT ${columnDef.default}`;
@@ -1041,7 +1043,12 @@ class SchemaValidator {
       }
 
       // Add CHECK constraints for min values
-      if (columnDef.min !== undefined && (columnDef.type === "BIGINT" || columnDef.type === "DECIMAL" || columnDef.type === "INTEGER")) {
+      if (
+        columnDef.min !== undefined &&
+        (columnDef.type === "BIGINT" ||
+          columnDef.type === "DECIMAL" ||
+          columnDef.type === "INTEGER")
+      ) {
         definition += ` CHECK (${columnName} >= ${columnDef.min})`;
       }
 
@@ -1091,10 +1098,10 @@ class SchemaValidator {
     }
 
     if (Array.isArray(input)) {
-      return input.map(item => this.sanitizeInput(item));
+      return input.map((item) => this.sanitizeInput(item));
     }
 
-    if (typeof input === 'object') {
+    if (typeof input === "object") {
       const sanitized = {};
       for (const [key, value] of Object.entries(input)) {
         sanitized[key] = this.sanitizeInput(value);
@@ -1102,13 +1109,16 @@ class SchemaValidator {
       return sanitized;
     }
 
-    if (typeof input === 'string') {
+    if (typeof input === "string") {
       // Remove potential SQL injection attempts
       return input
         .trim()
-        .replace(/['"`;\\]/g, '') // Remove quotes, semicolons, backslashes
-        .replace(/--/g, '') // Remove SQL comment syntax
-        .replace(/\b(DROP|DELETE|INSERT|UPDATE|SELECT|UNION|EXEC|EXECUTE)\b/gi, ''); // Remove SQL keywords
+        .replace(/['"`;\\]/g, "") // Remove quotes, semicolons, backslashes
+        .replace(/--/g, "") // Remove SQL comment syntax
+        .replace(
+          /\b(DROP|DELETE|INSERT|UPDATE|SELECT|UNION|EXEC|EXECUTE)\b/gi,
+          ""
+        ); // Remove SQL keywords
     }
 
     // Preserve numbers and booleans as-is
@@ -1120,15 +1130,15 @@ class SchemaValidator {
    */
   mapSchemaTypeToPostgresType(schemaType) {
     const typeMap = {
-      'VARCHAR': 'character varying',
-      'TEXT': 'text',
-      'INTEGER': 'integer',
-      'BIGINT': 'bigint',
-      'DECIMAL': 'numeric',
-      'BOOLEAN': 'boolean',
-      'DATE': 'date',
-      'TIMESTAMP': 'timestamp without time zone',
-      'SERIAL': 'integer'
+      VARCHAR: "character varying",
+      TEXT: "text",
+      INTEGER: "integer",
+      BIGINT: "bigint",
+      DECIMAL: "numeric",
+      BOOLEAN: "boolean",
+      DATE: "date",
+      TIMESTAMP: "timestamp without time zone",
+      SERIAL: "integer",
     };
     return typeMap[schemaType];
   }
@@ -1181,8 +1191,10 @@ class SchemaValidator {
 
       // Check for extra columns (excluding common auto-generated columns)
       for (const actualCol of actualColumns) {
-        if (!expectedColumns.has(actualCol) && 
-            !['id', 'created_at', 'updated_at'].includes(actualCol)) {
+        if (
+          !expectedColumns.has(actualCol) &&
+          !["id", "created_at", "updated_at"].includes(actualCol)
+        ) {
           extraColumns.push(actualCol);
         }
       }
@@ -1191,7 +1203,9 @@ class SchemaValidator {
       for (const column of columns.rows) {
         const expectedColumnDef = schema.columns[column.column_name];
         if (expectedColumnDef) {
-          const expectedType = this.mapSchemaTypeToPostgresType(expectedColumnDef.type);
+          const expectedType = this.mapSchemaTypeToPostgresType(
+            expectedColumnDef.type
+          );
           if (expectedType && column.data_type !== expectedType) {
             mismatchedTypes.push({
               column: column.column_name,
@@ -1209,7 +1223,7 @@ class SchemaValidator {
         mismatchedTypes,
         extraColumns,
         actualColumns: Array.from(actualColumns),
-        expectedColumns: Array.from(expectedColumns)
+        expectedColumns: Array.from(expectedColumns),
       };
     } catch (error) {
       logger.error(`Error validating columns for ${tableName}:`, error);
@@ -1232,13 +1246,20 @@ class SchemaValidator {
         [tableName]
       );
 
-      const actualIndexes = indexes.rows.map(row => row.indexname);
-      const expectedIndexes = schema.indexes.map(index => 
-        Array.isArray(index) ? `${tableName}_${index.join('_')}_idx` : `${tableName}_${index}_idx`
+      const actualIndexes = indexes.rows.map((row) => row.indexname);
+      const expectedIndexes = schema.indexes.map((index) =>
+        Array.isArray(index)
+          ? `${tableName}_${index.join("_")}_idx`
+          : `${tableName}_${index}_idx`
       );
-      
-      const missingIndexes = expectedIndexes.filter(expected => 
-        !actualIndexes.some(actual => actual.includes(expected.replace(`${tableName}_`, '').replace('_idx', '')))
+
+      const missingIndexes = expectedIndexes.filter(
+        (expected) =>
+          !actualIndexes.some((actual) =>
+            actual.includes(
+              expected.replace(`${tableName}_`, "").replace("_idx", "")
+            )
+          )
       );
 
       return {
@@ -1246,7 +1267,7 @@ class SchemaValidator {
         isValid: missingIndexes.length === 0,
         missingIndexes,
         actualIndexes,
-        expectedIndexes
+        expectedIndexes,
       };
     } catch (error) {
       logger.error(`Error validating indexes for ${tableName}:`, error);
@@ -1263,9 +1284,10 @@ class SchemaValidator {
       const result = await query(queryText, params);
       return result;
     } catch (error) {
-      logger.warn("Safe query failed, database may be unavailable", { 
-        error: error.message, 
-        queryText: queryText.substring(0, 100) + (queryText.length > 100 ? '...' : '')
+      logger.warn("Safe query failed, database may be unavailable", {
+        error: error.message,
+        queryText:
+          queryText.substring(0, 100) + (queryText.length > 100 ? "..." : ""),
       });
       // Return null when database is unavailable - caller should handle gracefully
       return null;
@@ -1287,9 +1309,11 @@ module.exports = {
   getTableSchema: (tableName) => schemaValidator.getTableSchema(tableName),
   listTables: () => schemaValidator.listTables(),
   sanitizeInput: (input) => schemaValidator.sanitizeInput(input),
-  validateTableExists: (tableName) => schemaValidator.validateTableExists(tableName),
+  validateTableExists: (tableName) =>
+    schemaValidator.validateTableExists(tableName),
   validateColumns: (tableName) => schemaValidator.validateColumns(tableName),
   validateIndexes: (tableName) => schemaValidator.validateIndexes(tableName),
-  safeQuery: (queryText, params) => schemaValidator.safeQuery(queryText, params),
+  safeQuery: (queryText, params) =>
+    schemaValidator.safeQuery(queryText, params),
   schemas: tableSchemas,
 };

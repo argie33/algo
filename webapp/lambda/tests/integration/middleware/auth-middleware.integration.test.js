@@ -5,7 +5,10 @@
  */
 
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -26,7 +29,7 @@ describe("Auth Middleware with Service Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("status", "operational");
         expect(response.body).toHaveProperty("message");
@@ -50,16 +53,16 @@ describe("Auth Middleware with Service Integration", () => {
         "InvalidFormat token",
         "Bearer",
         "bearer  ",
-        "Bearer    multiple   spaces   token"
+        "Bearer    multiple   spaces   token",
       ];
 
       for (const authHeader of testCases) {
         const response = await request(app)
           .get("/api/portfolio")
           .set("Authorization", authHeader);
-        
+
         expect([401, 403, 500]).toContain(response.status);
-        
+
         if (response.status === 401 || response.status === 403) {
           expect(response.body).toHaveProperty("success", false);
           expect(response.body).toHaveProperty("error");
@@ -76,7 +79,7 @@ describe("Auth Middleware with Service Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body.data).toBeDefined();
@@ -91,7 +94,7 @@ describe("Auth Middleware with Service Integration", () => {
         .send({ symbols: ["AAPL", "GOOGL"] });
 
       expect([200, 404, 500, 501]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
       }
@@ -117,14 +120,14 @@ describe("Auth Middleware with Service Integration", () => {
         "/api/portfolio",
         "/api/alerts/active",
         "/api/trades",
-        "/api/portfolio/summary"
+        "/api/portfolio/summary",
       ];
 
       for (const route of protectedRoutes) {
         const response = await request(app).get(route);
-        
+
         expect([401, 403, 500]).toContain(response.status);
-        
+
         if (response.status === 401 || response.status === 403) {
           expect(response.body).toHaveProperty("success", false);
           expect(response.body).toHaveProperty("error");
@@ -133,14 +136,11 @@ describe("Auth Middleware with Service Integration", () => {
     });
 
     test("should allow public routes without authentication", async () => {
-      const publicRoutes = [
-        "/api/health",
-        "/api/market/overview"
-      ];
+      const publicRoutes = ["/api/health", "/api/market/overview"];
 
       for (const route of publicRoutes) {
         const response = await request(app).get(route);
-        
+
         expect([401, 500]).toContain(response.status);
       }
     });
@@ -163,22 +163,22 @@ describe("Auth Middleware with Service Integration", () => {
       const errorScenarios = [
         { header: "", expectedStatus: [401, 403] },
         { header: "Bearer invalid", expectedStatus: [401, 403] },
-        { header: "InvalidFormat", expectedStatus: [401, 403] }
+        { header: "InvalidFormat", expectedStatus: [401, 403] },
       ];
 
       for (const scenario of errorScenarios) {
         let requestBuilder = request(app).get("/api/portfolio");
-        
+
         if (scenario.header) {
           requestBuilder = requestBuilder.set("Authorization", scenario.header);
         }
 
         const response = await requestBuilder;
-        
+
         expect(scenario.expectedStatus).toContain(response.status);
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
-        expect(response.headers['content-type']).toMatch(/application\/json/);
+        expect(response.headers["content-type"]).toMatch(/application\/json/);
       }
     });
   });

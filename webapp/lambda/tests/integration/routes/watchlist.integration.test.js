@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -20,7 +23,7 @@ describe("Watchlist Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -60,7 +63,9 @@ describe("Watchlist Routes", () => {
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Invalid watchlist ID format");
       expect(response.body.message).toContain("Watchlist ID must be a number");
-      expect(response.body.hint).toContain("DELETE /api/watchlist/{id}/items/{symbol}");
+      expect(response.body.hint).toContain(
+        "DELETE /api/watchlist/{id}/items/{symbol}"
+      );
     });
   });
 
@@ -71,7 +76,7 @@ describe("Watchlist Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(response.body.data).toHaveProperty("watchlist");
@@ -100,7 +105,7 @@ describe("Watchlist Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(response.body.data).toHaveProperty("performance");
@@ -115,7 +120,7 @@ describe("Watchlist Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
         expect(Array.isArray(response.body.data)).toBe(true);
@@ -126,14 +131,14 @@ describe("Watchlist Routes", () => {
   describe("POST /api/watchlist/import", () => {
     test("should import watchlist from CSV", async () => {
       const csvData = "symbol,notes\nAAPL,Apple Inc\nMSFT,Microsoft";
-      
+
       const response = await request(app)
         .post("/api/watchlist/import")
         .set("Authorization", "Bearer dev-bypass-token")
-        .attach('file', Buffer.from(csvData), 'watchlist.csv');
+        .attach("file", Buffer.from(csvData), "watchlist.csv");
 
       expect([200, 401, 422]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
       }
@@ -147,9 +152,9 @@ describe("Watchlist Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
-        expect(response.headers['content-type']).toContain('text/csv');
+        expect(response.headers["content-type"]).toContain("text/csv");
       }
     });
   });

@@ -40,7 +40,10 @@ jest.mock("../../utils/database", () => ({
 }));
 
 const crypto = require("crypto");
-const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
+const {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} = require("@aws-sdk/client-secrets-manager");
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
 const { query } = require("../../utils/database");
 
@@ -51,10 +54,10 @@ describe("ApiKeyService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Store original environment
     originalEnv = { ...process.env };
-    
+
     // Setup test environment
     process.env.NODE_ENV = "test";
     process.env.COGNITO_USER_POOL_ID = "us-east-1_testpool";
@@ -76,23 +79,23 @@ describe("ApiKeyService", () => {
     // Mock crypto functions
     crypto.scryptSync.mockReturnValue(Buffer.from("test-key"));
     crypto.randomBytes.mockReturnValue(Buffer.from("test-iv"));
-    
+
     const mockCipher = {
       update: jest.fn().mockReturnValue(Buffer.from("encrypted")),
       final: jest.fn().mockReturnValue(Buffer.from("")),
     };
-    
+
     const mockDecipher = {
       update: jest.fn().mockReturnValue(Buffer.from("decrypted")),
       final: jest.fn().mockReturnValue(Buffer.from("")),
     };
-    
+
     crypto.createCipheriv.mockReturnValue(mockCipher);
     crypto.createDecipheriv.mockReturnValue(mockDecipher);
 
     // Clear caches between tests
     clearCaches();
-    
+
     // Reinitialize the service with mocked dependencies
     __reinitializeForTests();
   });
@@ -150,10 +153,12 @@ describe("ApiKeyService", () => {
 
     test("should handle JWT verifier not initialized", async () => {
       delete process.env.COGNITO_USER_POOL_ID;
-      
+
       // Reset module to reinitialize without Cognito config
       jest.resetModules();
-      const { validateJwtToken: newValidateJwtToken } = require("../../utils/apiKeyService");
+      const {
+        validateJwtToken: newValidateJwtToken,
+      } = require("../../utils/apiKeyService");
 
       const result = await newValidateJwtToken("test.jwt.token");
 
@@ -215,8 +220,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(storeApiKey("valid.jwt.token", "alpaca", invalidApiKeyData))
-        .rejects.toThrow("Missing required API key fields");
+      await expect(
+        storeApiKey("valid.jwt.token", "alpaca", invalidApiKeyData)
+      ).rejects.toThrow("Missing required API key fields");
     });
 
     test("should validate provider name", async () => {
@@ -225,8 +231,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(storeApiKey("valid.jwt.token", "invalid-provider", apiKeyData))
-        .rejects.toThrow("Invalid provider");
+      await expect(
+        storeApiKey("valid.jwt.token", "invalid-provider", apiKeyData)
+      ).rejects.toThrow("Invalid provider");
     });
 
     test("should handle database storage errors", async () => {
@@ -237,8 +244,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(storeApiKey("valid.jwt.token", "alpaca", apiKeyData))
-        .rejects.toThrow("Database error");
+      await expect(
+        storeApiKey("valid.jwt.token", "alpaca", apiKeyData)
+      ).rejects.toThrow("Database error");
     });
 
     test("should update existing API key", async () => {
@@ -268,8 +276,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(storeApiKey("invalid.jwt.token", "alpaca", apiKeyData))
-        .rejects.toThrow("Invalid token");
+      await expect(
+        storeApiKey("invalid.jwt.token", "alpaca", apiKeyData)
+      ).rejects.toThrow("Invalid token");
     });
   });
 
@@ -289,10 +298,12 @@ describe("ApiKeyService", () => {
     test("should retrieve API key successfully", async () => {
       const encryptedData = Buffer.from("encrypted-data").toString("base64");
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: encryptedData,
-          iv: Buffer.from("test-iv").toString("base64"),
-        }],
+        rows: [
+          {
+            encrypted_data: encryptedData,
+            iv: Buffer.from("test-iv").toString("base64"),
+          },
+        ],
       });
 
       const result = await getApiKey("valid.jwt.token", "alpaca");
@@ -314,10 +325,12 @@ describe("ApiKeyService", () => {
 
     test("should handle decryption errors gracefully", async () => {
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: "invalid-encrypted-data",
-          iv: "invalid-iv",
-        }],
+        rows: [
+          {
+            encrypted_data: "invalid-encrypted-data",
+            iv: "invalid-iv",
+          },
+        ],
       });
 
       crypto.createDecipheriv.mockImplementation(() => {
@@ -332,10 +345,12 @@ describe("ApiKeyService", () => {
     test("should use cache for repeated requests", async () => {
       const encryptedData = Buffer.from("encrypted-data").toString("base64");
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: encryptedData,
-          iv: Buffer.from("test-iv").toString("base64"),
-        }],
+        rows: [
+          {
+            encrypted_data: encryptedData,
+            iv: Buffer.from("test-iv").toString("base64"),
+          },
+        ],
       });
 
       await getApiKey("valid.jwt.token", "alpaca");
@@ -358,8 +373,9 @@ describe("ApiKeyService", () => {
       }
 
       // Next call should be circuit breaker error
-      await expect(getApiKey("valid.jwt.token", "alpaca"))
-        .rejects.toThrow("circuit breaker");
+      await expect(getApiKey("valid.jwt.token", "alpaca")).rejects.toThrow(
+        "circuit breaker"
+      );
     });
   });
 
@@ -378,15 +394,21 @@ describe("ApiKeyService", () => {
     test("should validate API key with test connection", async () => {
       const encryptedData = Buffer.from("encrypted-data").toString("base64");
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: encryptedData,
-          iv: Buffer.from("test-iv").toString("base64"),
-        }],
+        rows: [
+          {
+            encrypted_data: encryptedData,
+            iv: Buffer.from("test-iv").toString("base64"),
+          },
+        ],
       });
 
       const mockTestConnection = jest.fn().mockResolvedValue(true);
 
-      const result = await validateApiKey("valid.jwt.token", "alpaca", mockTestConnection);
+      const result = await validateApiKey(
+        "valid.jwt.token",
+        "alpaca",
+        mockTestConnection
+      );
 
       expect(result.valid).toBe(true);
       expect(mockTestConnection).toHaveBeenCalled();
@@ -395,15 +417,21 @@ describe("ApiKeyService", () => {
     test("should handle validation failure", async () => {
       const encryptedData = Buffer.from("encrypted-data").toString("base64");
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: encryptedData,
-          iv: Buffer.from("test-iv").toString("base64"),
-        }],
+        rows: [
+          {
+            encrypted_data: encryptedData,
+            iv: Buffer.from("test-iv").toString("base64"),
+          },
+        ],
       });
 
       const mockTestConnection = jest.fn().mockResolvedValue(false);
 
-      const result = await validateApiKey("valid.jwt.token", "alpaca", mockTestConnection);
+      const result = await validateApiKey(
+        "valid.jwt.token",
+        "alpaca",
+        mockTestConnection
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("API key validation failed");
@@ -414,7 +442,11 @@ describe("ApiKeyService", () => {
 
       const mockTestConnection = jest.fn();
 
-      const result = await validateApiKey("valid.jwt.token", "alpaca", mockTestConnection);
+      const result = await validateApiKey(
+        "valid.jwt.token",
+        "alpaca",
+        mockTestConnection
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe("API key not found");
@@ -424,15 +456,23 @@ describe("ApiKeyService", () => {
     test("should handle test connection errors", async () => {
       const encryptedData = Buffer.from("encrypted-data").toString("base64");
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: encryptedData,
-          iv: Buffer.from("test-iv").toString("base64"),
-        }],
+        rows: [
+          {
+            encrypted_data: encryptedData,
+            iv: Buffer.from("test-iv").toString("base64"),
+          },
+        ],
       });
 
-      const mockTestConnection = jest.fn().mockRejectedValue(new Error("Connection test failed"));
+      const mockTestConnection = jest
+        .fn()
+        .mockRejectedValue(new Error("Connection test failed"));
 
-      const result = await validateApiKey("valid.jwt.token", "alpaca", mockTestConnection);
+      const result = await validateApiKey(
+        "valid.jwt.token",
+        "alpaca",
+        mockTestConnection
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Connection test failed");
@@ -471,8 +511,9 @@ describe("ApiKeyService", () => {
     test("should handle database deletion errors", async () => {
       query.mockRejectedValue(new Error("Database error"));
 
-      await expect(deleteApiKey("valid.jwt.token", "alpaca"))
-        .rejects.toThrow("Database error");
+      await expect(deleteApiKey("valid.jwt.token", "alpaca")).rejects.toThrow(
+        "Database error"
+      );
     });
   });
 
@@ -510,8 +551,9 @@ describe("ApiKeyService", () => {
     test("should handle database errors during listing", async () => {
       query.mockRejectedValue(new Error("Database error"));
 
-      await expect(listProviders("valid.jwt.token"))
-        .rejects.toThrow("Database error");
+      await expect(listProviders("valid.jwt.token")).rejects.toThrow(
+        "Database error"
+      );
     });
   });
 
@@ -543,8 +585,12 @@ describe("ApiKeyService", () => {
     test("should show circuit breaker states", () => {
       const health = getHealthStatus();
 
-      expect(["CLOSED", "OPEN", "HALF_OPEN"]).toContain(health.circuitBreaker.state);
-      expect(["CLOSED", "OPEN", "HALF_OPEN"]).toContain(health.jwtCircuitBreaker.state);
+      expect(["CLOSED", "OPEN", "HALF_OPEN"]).toContain(
+        health.circuitBreaker.state
+      );
+      expect(["CLOSED", "OPEN", "HALF_OPEN"]).toContain(
+        health.jwtCircuitBreaker.state
+      );
     });
   });
 
@@ -558,10 +604,12 @@ describe("ApiKeyService", () => {
     test("should get decrypted API key by user ID", async () => {
       const encryptedData = Buffer.from("encrypted-data").toString("base64");
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: encryptedData,
-          iv: Buffer.from("test-iv").toString("base64"),
-        }],
+        rows: [
+          {
+            encrypted_data: encryptedData,
+            iv: Buffer.from("test-iv").toString("base64"),
+          },
+        ],
       });
 
       const result = await getDecryptedApiKey("test-user-id", "alpaca");
@@ -583,10 +631,12 @@ describe("ApiKeyService", () => {
 
     test("should handle decryption errors in direct access", async () => {
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: "invalid-data",
-          iv: "invalid-iv",
-        }],
+        rows: [
+          {
+            encrypted_data: "invalid-data",
+            iv: "invalid-iv",
+          },
+        ],
       });
 
       crypto.createDecipheriv.mockImplementation(() => {
@@ -601,7 +651,9 @@ describe("ApiKeyService", () => {
 
   describe("Error Handling and Edge Cases", () => {
     test("should handle AWS Secrets Manager errors", async () => {
-      mockSecretsManager.send.mockRejectedValue(new Error("Secrets Manager error"));
+      mockSecretsManager.send.mockRejectedValue(
+        new Error("Secrets Manager error")
+      );
 
       mockJwtVerifier.verify.mockResolvedValue({
         sub: "test-user-id",
@@ -609,10 +661,12 @@ describe("ApiKeyService", () => {
       });
 
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: "test",
-          iv: "test",
-        }],
+        rows: [
+          {
+            encrypted_data: "test",
+            iv: "test",
+          },
+        ],
       });
 
       const result = await getApiKey("valid.jwt.token", "alpaca");
@@ -628,14 +682,17 @@ describe("ApiKeyService", () => {
 
       const apiKeyData = { apiKey: "test", apiSecret: "test" };
 
-      await expect(storeApiKey("valid.jwt.token", "", apiKeyData))
-        .rejects.toThrow("Invalid provider");
+      await expect(
+        storeApiKey("valid.jwt.token", "", apiKeyData)
+      ).rejects.toThrow("Invalid provider");
 
-      await expect(storeApiKey("valid.jwt.token", null, apiKeyData))
-        .rejects.toThrow("Invalid provider");
+      await expect(
+        storeApiKey("valid.jwt.token", null, apiKeyData)
+      ).rejects.toThrow("Invalid provider");
 
-      await expect(storeApiKey("valid.jwt.token", "   ", apiKeyData))
-        .rejects.toThrow("Invalid provider");
+      await expect(
+        storeApiKey("valid.jwt.token", "   ", apiKeyData)
+      ).rejects.toThrow("Invalid provider");
     });
 
     test("should handle concurrent API key operations", async () => {
@@ -646,14 +703,14 @@ describe("ApiKeyService", () => {
 
       query.mockResolvedValue({ rows: [] });
 
-      const promises = Array(10).fill().map(() => 
-        getApiKey("valid.jwt.token", "alpaca")
-      );
+      const promises = Array(10)
+        .fill()
+        .map(() => getApiKey("valid.jwt.token", "alpaca"));
 
       const results = await Promise.all(promises);
 
       expect(results).toHaveLength(10);
-      results.forEach(result => expect(result).toBeNull());
+      results.forEach((result) => expect(result).toBeNull());
     });
 
     test("should handle very large API key data", async () => {
@@ -670,7 +727,11 @@ describe("ApiKeyService", () => {
         additionalData: "z".repeat(10000),
       };
 
-      const result = await storeApiKey("valid.jwt.token", "alpaca", largeApiKeyData);
+      const result = await storeApiKey(
+        "valid.jwt.token",
+        "alpaca",
+        largeApiKeyData
+      );
 
       expect(result.success).toBe(true);
     });
@@ -686,10 +747,12 @@ describe("ApiKeyService", () => {
       });
 
       query.mockResolvedValue({
-        rows: [{
-          encrypted_data: "not-base64-data!@#$",
-          iv: "also-not-base64!@#$",
-        }],
+        rows: [
+          {
+            encrypted_data: "not-base64-data!@#$",
+            iv: "also-not-base64!@#$",
+          },
+        ],
       });
 
       const result = await getApiKey("valid.jwt.token", "alpaca");

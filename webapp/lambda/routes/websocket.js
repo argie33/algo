@@ -29,13 +29,13 @@ router.get("/", async (req, res) => {
       status: "operational",
       endpoints: [
         "/test - Debug test endpoint",
-        "/health - WebSocket service health check", 
+        "/health - WebSocket service health check",
         "/stream/:symbols - Stream real-time data for symbols",
         "/stream/?symbols= - Stream real-time data using query parameter",
-        "/connect - WebSocket connection endpoint"
-      ]
+        "/connect - WebSocket connection endpoint",
+      ],
     },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -60,7 +60,8 @@ router.get("/health", (req, res) => {
   try {
     // Check if responseFormatter is available
     if (typeof success !== "function") {
-      return res.json({status: "operational",
+      return res.json({
+        status: "operational",
         service: "websocket",
         timestamp: new Date().toISOString(),
         message: "WebSocket service is running",
@@ -618,16 +619,17 @@ router.get("/stream/", authenticateToken, async (req, res) => {
     return res.status(400).json({
       success: false,
       error: "Missing symbols parameter",
-      message: "Please provide symbols as a query parameter: ?symbols=AAPL,MSFT"
+      message:
+        "Please provide symbols as a query parameter: ?symbols=AAPL,MSFT",
     });
   }
-  
+
   // Forward to the main stream handler by modifying the request
   req.params.symbols = symbols;
 
   // Get the main handler and call the actual route handler (not the auth middleware)
-  const mainHandler = router.stack.find(layer =>
-    layer.route && layer.route.path === '/stream/:symbols'
+  const mainHandler = router.stack.find(
+    (layer) => layer.route && layer.route.path === "/stream/:symbols"
   );
 
   if (mainHandler && mainHandler.route.stack[1]) {
@@ -635,18 +637,18 @@ router.get("/stream/", authenticateToken, async (req, res) => {
       // Call the actual route handler (skip the authentication middleware at index 0)
       await mainHandler.route.stack[1].handle(req, res);
     } catch (error) {
-      console.error('Error in stream query parameter handler:', error);
+      console.error("Error in stream query parameter handler:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        message: "Failed to process streaming request"
+        message: "Failed to process streaming request",
       });
     }
   } else {
     res.status(500).json({
       success: false,
       error: "Stream handler not found",
-      message: "Unable to locate main streaming functionality"
+      message: "Unable to locate main streaming functionality",
     });
   }
 });
@@ -862,12 +864,12 @@ router.get("/connections", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const now = Date.now();
-    
+
     console.log(`📡 WebSocket connections requested for user: ${userId}`);
-    
+
     // Get user's active subscriptions
     const userSymbols = Array.from(userSubscriptions.get(userId));
-    
+
     // Get connection statistics
     const connectionStats = {
       user_id: userId,
@@ -877,29 +879,29 @@ router.get("/connections", authenticateToken, async (req, res) => {
         cached_symbols: realtimeDataCache.size,
         user_cache_entries: 0,
         fresh_data_count: 0,
-        stale_data_count: 0
+        stale_data_count: 0,
       },
       connection_info: {
         connected_at: new Date().toISOString(),
         last_activity: new Date().toISOString(),
         status: "active",
         data_source: "alpaca",
-        environment: process.env.NODE_ENV || "development"
+        environment: process.env.NODE_ENV || "development",
       },
       performance: {
         cache_ttl: CACHE_TTL,
         update_interval: UPDATE_INTERVAL,
-        uptime: Math.round(process.uptime())
-      }
+        uptime: Math.round(process.uptime()),
+      },
     };
-    
+
     // Analyze user's cached data
     for (const symbol of userSymbols) {
       const cacheKey = `quote:${symbol}`;
       const cachedData = realtimeDataCache.get(cacheKey);
       const lastUpdate = lastUpdateTime.get(symbol) || 0;
       const dataAge = now - lastUpdate;
-      
+
       if (cachedData) {
         connectionStats.cache_status.user_cache_entries++;
         if (dataAge < CACHE_TTL) {
@@ -909,15 +911,15 @@ router.get("/connections", authenticateToken, async (req, res) => {
         }
       }
     }
-    
+
     // Add detailed symbol information if requested
-    if (req.query.details === 'true') {
-      connectionStats.symbol_details = userSymbols.map(symbol => {
+    if (req.query.details === "true") {
+      connectionStats.symbol_details = userSymbols.map((symbol) => {
         const cacheKey = `quote:${symbol}`;
         const cachedData = realtimeDataCache.get(cacheKey);
         const lastUpdate = lastUpdateTime.get(symbol) || 0;
         const dataAge = now - lastUpdate;
-        
+
         return {
           symbol,
           has_cached_data: !!cachedData,
@@ -925,24 +927,23 @@ router.get("/connections", authenticateToken, async (req, res) => {
           is_fresh: dataAge < CACHE_TTL,
           last_update: lastUpdate ? new Date(lastUpdate).toISOString() : null,
           bid_price: cachedData?.bidPrice || null,
-          ask_price: cachedData?.askPrice || null
+          ask_price: cachedData?.askPrice || null,
         };
       });
     }
-    
+
     res.json({
       success: true,
       data: connectionStats,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("WebSocket connections endpoint error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to get connection information",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -36,16 +39,19 @@ describe("Diagnostics Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       const endpoints = response.body.endpoints;
-      expect(endpoints).toContain("/database-connectivity - Test database connectivity (admin only)");
-      expect(endpoints).toContain("/api-key-service - Get API key service health status");
+      expect(endpoints).toContain(
+        "/database-connectivity - Test database connectivity (admin only)"
+      );
+      expect(endpoints).toContain(
+        "/api-key-service - Get API key service health status"
+      );
       expect(endpoints).toContain("/system-info - Get system information");
       expect(endpoints).toContain("/health - Comprehensive health check");
     });
 
     test("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/diagnostics");
-        // No auth header
+      const response = await request(app).get("/api/diagnostics");
+      // No auth header
 
       // Diagnostics endpoint may be public - check actual response
       expect([200, 401].includes(response.status)).toBe(true);
@@ -60,7 +66,7 @@ describe("Diagnostics Routes", () => {
 
       // Admin endpoint - may work with dev bypass or require specific role
       expect([200, 403, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success");
         expect(response.body).toHaveProperty("results");
@@ -92,7 +98,7 @@ describe("Diagnostics Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("health");
         expect(response.body).toHaveProperty("timestamp");
@@ -111,7 +117,7 @@ describe("Diagnostics Routes", () => {
         .send({});
 
       expect([200, 403, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success");
         expect(response.body).toHaveProperty("results");
@@ -141,7 +147,7 @@ describe("Diagnostics Routes", () => {
     test("should reject requests without authentication", async () => {
       const endpoints = [
         "/api/diagnostics/api-key-service",
-        "/api/diagnostics/database-connectivity"
+        "/api/diagnostics/database-connectivity",
       ];
 
       for (const endpoint of endpoints) {
@@ -167,7 +173,7 @@ describe("Diagnostics Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
@@ -191,13 +197,13 @@ describe("Diagnostics Routes", () => {
   describe("Diagnostics Performance", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/diagnostics")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(3000);
       expect([200, 404]).toContain(response.status);
     });
@@ -205,18 +211,18 @@ describe("Diagnostics Routes", () => {
     test("should handle concurrent diagnostic requests", async () => {
       const endpoints = [
         "/api/diagnostics",
-        "/api/diagnostics/api-key-service"
+        "/api/diagnostics/api-key-service",
       ];
-      
-      const promises = endpoints.map(endpoint => 
+
+      const promises = endpoints.map((endpoint) =>
         request(app)
           .get(endpoint)
           .set("Authorization", "Bearer dev-bypass-token")
       );
 
       const responses = await Promise.all(promises);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 403, 500].includes(response.status)).toBe(true);
       });
     });

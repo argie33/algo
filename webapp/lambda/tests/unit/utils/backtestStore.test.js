@@ -6,26 +6,29 @@ const backtestStore = require("../../../utils/backtestStore");
 jest.mock("fs");
 
 describe("BacktestStore", () => {
-  const mockStoreFile = path.join(__dirname, "../../../user_backtest_store.json");
+  const mockStoreFile = path.join(
+    __dirname,
+    "../../../user_backtest_store.json"
+  );
   const mockStrategies = [
     {
       id: "1",
       name: "Test Strategy 1",
       code: "strategy code 1",
-      createdAt: "2023-01-01T00:00:00Z"
+      createdAt: "2023-01-01T00:00:00Z",
     },
     {
-      id: "2", 
+      id: "2",
       name: "Test Strategy 2",
       code: "strategy code 2",
-      createdAt: "2023-01-02T00:00:00Z"
-    }
+      createdAt: "2023-01-02T00:00:00Z",
+    },
   ];
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Date, "now").mockReturnValue(1234567890);
-    
+
     // Ensure fs mocks have consistent default behavior
     fs.writeFileSync.mockImplementation(() => {});
     fs.readFileSync.mockReturnValue(JSON.stringify([]));
@@ -99,14 +102,16 @@ describe("BacktestStore", () => {
     it("should handle file write errors", () => {
       // Store the original mock implementation
       const originalWriteFileSync = fs.writeFileSync;
-      
+
       // Set up error-throwing mock
       fs.writeFileSync.mockImplementation(() => {
         throw new Error("File write error");
       });
 
-      expect(() => backtestStore.saveStrategies(mockStrategies)).toThrow("File write error");
-      
+      expect(() => backtestStore.saveStrategies(mockStrategies)).toThrow(
+        "File write error"
+      );
+
       // Restore the normal mock behavior immediately
       fs.writeFileSync.mockImplementation(() => {});
     });
@@ -139,19 +144,23 @@ describe("BacktestStore", () => {
       const newStrategy = {
         name: "New Strategy",
         code: "new strategy code",
-        createdAt: "2023-01-03T00:00:00Z"
+        createdAt: "2023-01-03T00:00:00Z",
       };
 
       const result = backtestStore.addStrategy(newStrategy);
 
       expect(result).toEqual({
         ...newStrategy,
-        id: "1234567890"
+        id: "1234567890",
       });
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         mockStoreFile,
-        JSON.stringify([...mockStrategies, { ...newStrategy, id: "1234567890" }], null, 2)
+        JSON.stringify(
+          [...mockStrategies, { ...newStrategy, id: "1234567890" }],
+          null,
+          2
+        )
       );
     });
 
@@ -160,14 +169,14 @@ describe("BacktestStore", () => {
 
       const newStrategy = {
         name: "First Strategy",
-        code: "first strategy code"
+        code: "first strategy code",
       };
 
       const result = backtestStore.addStrategy(newStrategy);
 
       expect(result).toEqual({
         ...newStrategy,
-        id: "1234567890"
+        id: "1234567890",
       });
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
@@ -183,24 +192,22 @@ describe("BacktestStore", () => {
         name: "Complex Strategy",
         code: "complex code",
         parameters: { param1: "value1" },
-        metadata: { author: "test" }
+        metadata: { author: "test" },
       };
 
       const result = backtestStore.addStrategy(strategyWithExtraProps);
 
       expect(result).toEqual({
         ...strategyWithExtraProps,
-        id: "1234567890"
+        id: "1234567890",
       });
     });
 
     it("should generate unique IDs for multiple strategies", () => {
       fs.existsSync.mockReturnValue(false);
-      
+
       // Mock different timestamps
-      Date.now
-        .mockReturnValueOnce(1111111111)
-        .mockReturnValueOnce(2222222222);
+      Date.now.mockReturnValueOnce(1111111111).mockReturnValueOnce(2222222222);
 
       const strategy1 = { name: "Strategy 1", code: "code 1" };
       const strategy2 = { name: "Strategy 2", code: "code 2" };
@@ -216,7 +223,7 @@ describe("BacktestStore", () => {
       fs.existsSync.mockReturnValue(false);
 
       const strategyWithoutName = {
-        code: "code without name"
+        code: "code without name",
       };
 
       const result = backtestStore.addStrategy(strategyWithoutName);
@@ -409,7 +416,7 @@ describe("BacktestStore", () => {
       // Mock store now has both strategies
       const storeAfterSecond = [
         { ...strategy1, id: "1111111111" },
-        { ...strategy2, id: "2222222222" }
+        { ...strategy2, id: "2222222222" },
       ];
       fs.readFileSync.mockReturnValue(JSON.stringify(storeAfterSecond));
 
@@ -428,11 +435,15 @@ describe("BacktestStore", () => {
 
     it("should handle concurrent access scenarios", () => {
       fs.existsSync.mockReturnValue(true);
-      
+
       // Simulate file change between read operations
       fs.readFileSync
-        .mockReturnValueOnce(JSON.stringify([{ id: "1", name: "Old Strategy" }]))
-        .mockReturnValueOnce(JSON.stringify([{ id: "1", name: "New Strategy" }]));
+        .mockReturnValueOnce(
+          JSON.stringify([{ id: "1", name: "Old Strategy" }])
+        )
+        .mockReturnValueOnce(
+          JSON.stringify([{ id: "1", name: "New Strategy" }])
+        );
 
       const result1 = backtestStore.getStrategy("1");
       const result2 = backtestStore.getStrategy("1");
@@ -445,7 +456,7 @@ describe("BacktestStore", () => {
       // Start with existing data
       const initialStrategies = [
         { id: "1", name: "Strategy 1" },
-        { id: "2", name: "Strategy 2" }
+        { id: "2", name: "Strategy 2" },
       ];
 
       fs.existsSync.mockReturnValue(true);
@@ -461,7 +472,9 @@ describe("BacktestStore", () => {
       );
 
       // Mock the store state after deletion
-      fs.readFileSync.mockReturnValue(JSON.stringify([{ id: "2", name: "Strategy 2" }]));
+      fs.readFileSync.mockReturnValue(
+        JSON.stringify([{ id: "2", name: "Strategy 2" }])
+      );
 
       // Add new strategy
       Date.now.mockReturnValue(3333333333);
@@ -472,7 +485,7 @@ describe("BacktestStore", () => {
       // Note: Property order matches actual insertion order (name first, then id added)
       const expected = [
         { id: "2", name: "Strategy 2" },
-        { name: "Strategy 3", id: "3333333333" }
+        { name: "Strategy 3", id: "3333333333" },
       ];
       expect(fs.writeFileSync).toHaveBeenLastCalledWith(
         mockStoreFile,

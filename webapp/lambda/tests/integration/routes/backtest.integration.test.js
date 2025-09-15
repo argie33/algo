@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -43,10 +46,10 @@ describe("Backtest Routes", () => {
     test("should create new backtest", async () => {
       const backtestData = {
         name: "Test Strategy",
-        strategy: "buy_and_hold", 
+        strategy: "buy_and_hold",
         symbols: ["AAPL", "MSFT"],
         startDate: "2023-01-01",
-        endDate: "2023-12-31"
+        endDate: "2023-12-31",
       };
 
       const response = await request(app)
@@ -56,13 +59,16 @@ describe("Backtest Routes", () => {
 
       // POST endpoints may return 500 due to missing dependencies
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
         expect(response.body).toHaveProperty("message");
         expect(response.body.data).toHaveProperty("id");
         expect(response.body.data).toHaveProperty("name", backtestData.name);
-        expect(response.body.data).toHaveProperty("strategy", backtestData.strategy);
+        expect(response.body.data).toHaveProperty(
+          "strategy",
+          backtestData.strategy
+        );
         expect(response.body.data).toHaveProperty("symbols");
         expect(response.body.data).toHaveProperty("status", "created");
       }
@@ -75,7 +81,7 @@ describe("Backtest Routes", () => {
         .send({});
 
       expect([200, 404]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("name", "Test Backtest");
         expect(response.body.data).toHaveProperty("strategy", "buy_and_hold");
@@ -102,7 +108,7 @@ describe("Backtest Routes", () => {
           .set("Authorization", "Bearer dev-bypass-token");
 
         expect([200, 404, 500].includes(response.status)).toBe(true);
-        
+
         if (response.status === 200) {
           expect(response.body).toHaveProperty("data");
           expect(response.body.data).toHaveProperty("id");
@@ -112,7 +118,7 @@ describe("Backtest Routes", () => {
         const response = await request(app)
           .get("/api/backtest/test-id")
           .set("Authorization", "Bearer dev-bypass-token");
-        
+
         expect([200, 404, 500].includes(response.status)).toBe(true);
       }
     });
@@ -145,7 +151,7 @@ describe("Backtest Routes", () => {
           .set("Authorization", "Bearer dev-bypass-token");
 
         expect([200, 404].includes(response.status)).toBe(true);
-        
+
         if (response.status === 200) {
           expect(response.body).toHaveProperty("message");
           expect(response.body).toHaveProperty("deletedId", backtestId);
@@ -155,7 +161,7 @@ describe("Backtest Routes", () => {
         const response = await request(app)
           .delete("/api/backtest/test-delete-id")
           .set("Authorization", "Bearer dev-bypass-token");
-          
+
         expect([404, 500]).toContain(response.status);
       }
     });
@@ -223,7 +229,7 @@ describe("Backtest Routes", () => {
 
       // May return 200 with data, 404 if no symbols, or 500 if database issues
       expect([200, 404, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("symbols");
         expect(Array.isArray(response.body.symbols)).toBe(true);
@@ -257,7 +263,7 @@ describe("Backtest Routes", () => {
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("templates");
       expect(Array.isArray(response.body.templates)).toBe(true);
-      
+
       if (response.body.templates.length > 0) {
         const template = response.body.templates[0];
         expect(template).toHaveProperty("id");
@@ -273,7 +279,7 @@ describe("Backtest Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404]).toContain(response.status);
-      const templateIds = response.body.templates.map(t => t.id);
+      const templateIds = response.body.templates.map((t) => t.id);
       expect(templateIds).toContain("buy_and_hold");
       expect(templateIds).toContain("moving_average_crossover");
       expect(templateIds).toContain("rsi_strategy");
@@ -316,7 +322,7 @@ describe("Backtest Routes", () => {
 
       expect([200, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("valid");
-      
+
       if (!response.body.valid) {
         expect(response.body).toHaveProperty("error");
         expect(response.body).toHaveProperty("type");
@@ -342,7 +348,7 @@ describe("Backtest Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([501, 404].includes(response.status)).toBe(true);
-      
+
       if (response.status === 501) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body).toHaveProperty("error");
@@ -371,7 +377,7 @@ describe("Backtest Routes", () => {
         const strategy = {
           name: "Test Strategy",
           code: "buy('AAPL', 100, data['AAPL'].close);",
-          language: "javascript"
+          language: "javascript",
         };
 
         const response = await request(app)
@@ -418,7 +424,7 @@ describe("Backtest Routes", () => {
           .send({ strategy: "buy('AAPL', 100, 150);" });
 
         expect([400].includes(response.status)).toBe(true);
-        
+
         if (response.status === 400) {
           expect(response.body).toHaveProperty("error");
         }
@@ -432,12 +438,14 @@ describe("Backtest Routes", () => {
             strategy: "buy('AAPL', 100, 150);",
             startDate: "2023-01-01",
             endDate: "2023-12-31",
-            symbols: []
+            symbols: [],
           });
 
         expect([400, 422]).toContain(response.status);
         expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toContain("At least one symbol is required");
+        expect(response.body.error).toContain(
+          "At least one symbol is required"
+        );
       });
     });
 
@@ -450,12 +458,14 @@ describe("Backtest Routes", () => {
 
         expect([400, 422]).toContain(response.status);
         expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toContain("Python strategy code is required");
+        expect(response.body.error).toContain(
+          "Python strategy code is required"
+        );
       });
 
       test("should handle Python code execution", async () => {
         const pythonCode = "print('Hello from backtest')";
-        
+
         const response = await request(app)
           .post("/api/backtest/run-python")
           .set("Authorization", "Bearer dev-bypass-token")
@@ -471,9 +481,9 @@ describe("Backtest Routes", () => {
     test("should require authentication for protected endpoints", async () => {
       const protectedEndpoints = [
         "/api/backtest",
-        "/api/backtest/results", 
+        "/api/backtest/results",
         "/api/backtest/strategies",
-        "/api/backtest/templates"
+        "/api/backtest/templates",
       ];
 
       for (const endpoint of protectedEndpoints) {
@@ -491,7 +501,7 @@ describe("Backtest Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 500) {
         expect(response.body).toHaveProperty("error");
       }
@@ -535,7 +545,7 @@ describe("Backtest Routes", () => {
       expect(response.body.parameters).toHaveProperty("startDate");
       expect(response.body.parameters).toHaveProperty("endDate");
       expect(response.body.parameters).toHaveProperty("initialCapital");
-      
+
       expect(response.body.example).toHaveProperty("strategy");
       expect(response.body.example).toHaveProperty("config");
       expect(response.body.example).toHaveProperty("symbols");
@@ -546,13 +556,13 @@ describe("Backtest Routes", () => {
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/backtest")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(5000); // 5 second timeout
       expect([200, 404, 500].includes(response.status)).toBe(true);
     });

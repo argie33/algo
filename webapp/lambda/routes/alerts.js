@@ -8,14 +8,16 @@ const router = express.Router();
 // Apply authentication to most alert routes (some endpoints are public)
 router.use((req, res, next) => {
   // Public endpoints that don't need authentication
-  const publicEndpoints = ['/summary', '/settings', '/rules', '/price'];
-  const isPublic = publicEndpoints.some(endpoint => req.path === endpoint || req.path.startsWith(endpoint));
-  
+  const publicEndpoints = ["/summary", "/settings", "/rules", "/price"];
+  const isPublic = publicEndpoints.some(
+    (endpoint) => req.path === endpoint || req.path.startsWith(endpoint)
+  );
+
   if (isPublic) {
     // For public endpoints, make user optional
     return next();
   }
-  
+
   // For other endpoints, require authentication
   return authenticateToken(req, res, next);
 });
@@ -24,16 +26,18 @@ router.use((req, res, next) => {
 router.get("/active", async (req, res) => {
   try {
     const userId = req.user?.sub || "dev-user-bypass";
-    const { 
-      limit = 50, 
-      offset = 0, 
-      status = "active", 
-      symbol, 
+    const {
+      limit = 50,
+      offset = 0,
+      status = "active",
+      symbol,
       alert_type = "all",
-      severity = "all" 
+      severity = "all",
     } = req.query;
 
-    console.log(`🔔 Active alerts requested for user: ${userId}, status: ${status}`);
+    console.log(
+      `🔔 Active alerts requested for user: ${userId}, status: ${status}`
+    );
 
     // Build query for active alerts from price_alerts and risk_alerts tables
     let baseQuery = `
@@ -174,60 +178,67 @@ router.get("/active", async (req, res) => {
             page: Math.ceil(offset / limit) + 1,
             limit: parseInt(limit),
             offset: parseInt(offset),
-            hasMore: false
+            hasMore: false,
           },
           filters: { status, symbol, alert_type, severity },
-          message: "No alerts found or database query returned invalid format"
+          message: "No alerts found or database query returned invalid format",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Calculate real-time alert status updates
-    const processedAlerts = results.rows.map(alert => {
-      const isTriggered = alert.computed_status === 'triggered';
+    const processedAlerts = results.rows.map((alert) => {
+      const isTriggered = alert.computed_status === "triggered";
       const timeSinceCreated = parseFloat(alert.hours_since_created || 0);
-      
+
       return {
         id: alert.id,
         symbol: alert.symbol,
         type: alert.alert_type,
         condition: alert.condition,
         target_price: parseFloat(alert.target_price || 0),
-        current_price: parseFloat(alert.latest_price || alert.current_price || 0),
+        current_price: parseFloat(
+          alert.latest_price || alert.current_price || 0
+        ),
         status: alert.computed_status,
         severity: alert.severity,
         category: alert.alert_category,
         created_at: alert.created_at,
         triggered_at: alert.triggered_at,
         notification_methods: alert.notification_methods,
-        
+
         // Real-time metrics
-        price_difference_percent: parseFloat(alert.price_diff_pct || 0).toFixed(2),
+        price_difference_percent: parseFloat(alert.price_diff_pct || 0).toFixed(
+          2
+        ),
         daily_change: parseFloat(alert.daily_change || 0).toFixed(2),
         hours_active: timeSinceCreated.toFixed(1),
         priority_score: alert.priority_score,
-        
+
         // Status indicators
         is_triggered: isTriggered,
-        is_urgent: alert.severity === 'high' && isTriggered,
-        needs_attention: timeSinceCreated > 24 && alert.computed_status === 'active',
-        
+        is_urgent: alert.severity === "high" && isTriggered,
+        needs_attention:
+          timeSinceCreated > 24 && alert.computed_status === "active",
+
         // Actions available
         actions: {
-          can_modify: alert.computed_status === 'active',
+          can_modify: alert.computed_status === "active",
           can_disable: true,
           can_delete: true,
-          can_snooze: alert.computed_status === 'active'
-        }
+          can_snooze: alert.computed_status === "active",
+        },
       };
     });
 
     // Calculate summary statistics
     const totalAlerts = processedAlerts.length;
-    const triggeredCount = processedAlerts.filter(a => a.is_triggered).length;
-    const urgentCount = processedAlerts.filter(a => a.is_urgent).length;
-    const activeCount = processedAlerts.filter(a => a.status === 'active').length;
+    const triggeredCount = processedAlerts.filter((a) => a.is_triggered).length;
+    const urgentCount = processedAlerts.filter((a) => a.is_urgent).length;
+    const activeCount = processedAlerts.filter(
+      (a) => a.status === "active"
+    ).length;
 
     return res.json({
       success: true,
@@ -239,15 +250,20 @@ router.get("/active", async (req, res) => {
           triggered_alerts: triggeredCount,
           urgent_alerts: urgentCount,
           alert_categories: {
-            price_alerts: processedAlerts.filter(a => a.category === 'price_alert').length,
-            risk_alerts: processedAlerts.filter(a => a.category === 'risk_alert').length
+            price_alerts: processedAlerts.filter(
+              (a) => a.category === "price_alert"
+            ).length,
+            risk_alerts: processedAlerts.filter(
+              (a) => a.category === "risk_alert"
+            ).length,
           },
           severity_breakdown: {
-            high: processedAlerts.filter(a => a.severity === 'high').length,
-            medium: processedAlerts.filter(a => a.severity === 'medium').length,
-            low: processedAlerts.filter(a => a.severity === 'low').length
-          }
-        }
+            high: processedAlerts.filter((a) => a.severity === "high").length,
+            medium: processedAlerts.filter((a) => a.severity === "medium")
+              .length,
+            low: processedAlerts.filter((a) => a.severity === "low").length,
+          },
+        },
       },
       filters: {
         user_id: userId,
@@ -256,16 +272,15 @@ router.get("/active", async (req, res) => {
         alert_type,
         severity,
         limit: parseInt(limit),
-        offset: parseInt(offset)
+        offset: parseInt(offset),
       },
       real_time: {
         last_updated: new Date().toISOString(),
         refresh_interval: "30s",
-        monitoring_active: true
+        monitoring_active: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("❌ Error fetching active alerts:", error);
     return res.status(500).json({
@@ -273,11 +288,13 @@ router.get("/active", async (req, res) => {
       error: "Failed to fetch active alerts",
       message: error.message,
       troubleshooting: {
-        suggestion: "Check database connection and ensure alert tables have data",
+        suggestion:
+          "Check database connection and ensure alert tables have data",
         required_tables: ["price_alerts", "risk_alerts", "price_daily"],
-        error_details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error_details:
+          process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -288,15 +305,23 @@ router.get("/", async (req, res) => {
     const userId = req.user.sub;
     const { limit = 100, offset: _offset = 0, status = "all" } = req.query;
 
-    console.log(`📋 All alerts requested for user: ${userId}, status: ${status}`);
+    console.log(
+      `📋 All alerts requested for user: ${userId}, status: ${status}`
+    );
 
     // For simplicity, redirect to active alerts with include_resolved=true
     req.query.include_resolved = "true";
     req.query.limit = limit;
-    
+
     // Call the active alerts handler
     return router.handle(
-      { ...req, path: '/active', url: '/active' + (req.url.includes('?') ? '&' + req.url.split('?')[1] : '') },
+      {
+        ...req,
+        path: "/active",
+        url:
+          "/active" +
+          (req.url.includes("?") ? "&" + req.url.split("?")[1] : ""),
+      },
       res
     );
   } catch (error) {
@@ -304,7 +329,7 @@ router.get("/", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch alerts",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -326,17 +351,17 @@ router.put("/:alertId/acknowledge", async (req, res) => {
         action: action,
         acknowledged_at: new Date().toISOString(),
         acknowledged_by: userId,
-        status: "acknowledged"
+        status: "acknowledged",
       },
       message: `Alert ${alertId} has been ${action}d successfully`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(`Alert ${action} error:`, error);
     res.status(500).json({
       success: false,
       error: `Failed to ${action} alert`,
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -348,9 +373,13 @@ router.put("/:alertId/snooze", async (req, res) => {
     const { alertId } = req.params;
     const { duration_minutes = 60 } = req.body;
 
-    console.log(`😴 Alert ${alertId} snooze requested by user: ${userId} for ${duration_minutes} minutes`);
+    console.log(
+      `😴 Alert ${alertId} snooze requested by user: ${userId} for ${duration_minutes} minutes`
+    );
 
-    const snoozeUntil = new Date(Date.now() + parseInt(duration_minutes) * 60 * 1000);
+    const snoozeUntil = new Date(
+      Date.now() + parseInt(duration_minutes) * 60 * 1000
+    );
 
     res.json({
       success: true,
@@ -359,17 +388,17 @@ router.put("/:alertId/snooze", async (req, res) => {
         snooze_until: snoozeUntil.toISOString(),
         duration_minutes: parseInt(duration_minutes),
         snoozed_by: userId,
-        status: "snoozed"
+        status: "snoozed",
       },
       message: `Alert ${alertId} has been snoozed for ${duration_minutes} minutes`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Alert snooze error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to snooze alert",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -378,16 +407,18 @@ router.put("/:alertId/snooze", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
-      symbol, 
-      category, 
-      condition, 
-      threshold, 
+    const {
+      symbol,
+      category,
+      condition,
+      threshold,
       priority = "Medium",
-      notification_methods = ["email"]
+      notification_methods = ["email"],
     } = req.body;
 
-    console.log(`🆕 New alert creation requested by user: ${userId} for ${symbol}`);
+    console.log(
+      `🆕 New alert creation requested by user: ${userId} for ${symbol}`
+    );
 
     const newAlert = {
       id: `alert_${Date.now()}`,
@@ -400,21 +431,21 @@ router.post("/", async (req, res) => {
       threshold: threshold,
       notification_methods: notification_methods,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
     res.status(201).json({
       success: true,
       data: newAlert,
       message: "Alert created successfully",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Create alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to create alert",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -423,21 +454,24 @@ router.post("/", async (req, res) => {
 router.get("/summary", async (req, res) => {
   try {
     const userId = req.user?.sub;
-    const { 
+    const {
       timeframe = "24h",
       include_trends = "true",
-      include_stats = "true"
+      include_stats = "true",
     } = req.query;
 
-    console.log(`📊 Alerts summary requested for user: ${userId}, timeframe: ${timeframe}`);
+    console.log(
+      `📊 Alerts summary requested for user: ${userId}, timeframe: ${timeframe}`
+    );
 
     // Validate timeframe
     const validTimeframes = ["1h", "6h", "24h", "7d", "30d"];
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid timeframe. Must be one of: " + validTimeframes.join(", "),
-        requested_timeframe: timeframe
+        error:
+          "Invalid timeframe. Must be one of: " + validTimeframes.join(", "),
+        requested_timeframe: timeframe,
       });
     }
 
@@ -447,7 +481,7 @@ router.get("/summary", async (req, res) => {
       "6h": 6,
       "24h": 24,
       "7d": 168,
-      "30d": 720
+      "30d": 720,
     };
 
     const hours = timeframeHours[timeframe];
@@ -482,7 +516,12 @@ router.get("/summary", async (req, res) => {
 
     let summaryData;
 
-    if (!result || !result.rows || result.rows.length === 0 || result.rows[0].total_alerts === '0') {
+    if (
+      !result ||
+      !result.rows ||
+      result.rows.length === 0 ||
+      result.rows[0].total_alerts === "0"
+    ) {
       // No alert data available in database
       summaryData = {
         total_alerts: 0,
@@ -495,7 +534,7 @@ router.get("/summary", async (req, res) => {
         price_alerts: 0,
         volume_alerts: 0,
         technical_alerts: 0,
-        acknowledged_alerts: 0
+        acknowledged_alerts: 0,
       };
     } else {
       // Process database results
@@ -511,15 +550,24 @@ router.get("/summary", async (req, res) => {
         price_alerts: parseInt(dbData.price_alerts),
         volume_alerts: parseInt(dbData.volume_alerts),
         technical_alerts: parseInt(dbData.technical_alerts),
-        acknowledged_alerts: parseInt(dbData.acknowledged_alerts)
+        acknowledged_alerts: parseInt(dbData.acknowledged_alerts),
       };
     }
 
     // Calculate percentages and response times
     const totalAlerts = summaryData.total_alerts;
-    const activePercent = totalAlerts > 0 ? ((summaryData.active_alerts / totalAlerts) * 100).toFixed(1) : '0.0';
-    const criticalPercent = totalAlerts > 0 ? ((summaryData.critical_alerts / totalAlerts) * 100).toFixed(1) : '0.0';
-    const ackPercent = totalAlerts > 0 ? ((summaryData.acknowledged_alerts / totalAlerts) * 100).toFixed(1) : '0.0';
+    const activePercent =
+      totalAlerts > 0
+        ? ((summaryData.active_alerts / totalAlerts) * 100).toFixed(1)
+        : "0.0";
+    const criticalPercent =
+      totalAlerts > 0
+        ? ((summaryData.critical_alerts / totalAlerts) * 100).toFixed(1)
+        : "0.0";
+    const ackPercent =
+      totalAlerts > 0
+        ? ((summaryData.acknowledged_alerts / totalAlerts) * 100).toFixed(1)
+        : "0.0";
 
     // No trends available without alert data
     let trends = null;
@@ -529,7 +577,7 @@ router.get("/summary", async (req, res) => {
         severity_trend: "no_data",
         response_time_trend: "no_data",
         top_alert_types: [],
-        hourly_distribution: []
+        hourly_distribution: [],
       };
     }
 
@@ -541,14 +589,14 @@ router.get("/summary", async (req, res) => {
           avg_response_time_minutes: 0,
           fastest_response_minutes: 0,
           slowest_response_minutes: 0,
-          sla_compliance_percent: 0
+          sla_compliance_percent: 0,
         },
         alert_effectiveness: {
           true_positive_rate: 0,
           false_positive_rate: 0,
-          resolution_rate: 0
+          resolution_rate: 0,
         },
-        symbol_breakdown: []
+        symbol_breakdown: [],
       };
     }
 
@@ -562,47 +610,95 @@ router.get("/summary", async (req, res) => {
         active_alerts: summaryData.active_alerts,
         triggered_alerts: summaryData.triggered_alerts,
         acknowledged_alerts: summaryData.acknowledged_alerts,
-        unacknowledged_alerts: summaryData.total_alerts - summaryData.acknowledged_alerts
+        unacknowledged_alerts:
+          summaryData.total_alerts - summaryData.acknowledged_alerts,
       },
       severity_breakdown: {
         critical: {
           count: summaryData.critical_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.critical_alerts / totalAlerts) * 100).toFixed(1)) : 0
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.critical_alerts / totalAlerts) * 100).toFixed(1)
+                )
+              : 0,
         },
         high: {
           count: summaryData.high_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.high_alerts / totalAlerts) * 100).toFixed(1)) : 0
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.high_alerts / totalAlerts) * 100).toFixed(1)
+                )
+              : 0,
         },
         medium: {
           count: summaryData.medium_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.medium_alerts / totalAlerts) * 100).toFixed(1)) : 0
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.medium_alerts / totalAlerts) * 100).toFixed(1)
+                )
+              : 0,
         },
         low: {
           count: summaryData.low_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.low_alerts / totalAlerts) * 100).toFixed(1)) : 0
-        }
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.low_alerts / totalAlerts) * 100).toFixed(1)
+                )
+              : 0,
+        },
       },
       type_breakdown: {
         price: {
           count: summaryData.price_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.price_alerts / totalAlerts) * 100).toFixed(1)) : 0
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.price_alerts / totalAlerts) * 100).toFixed(1)
+                )
+              : 0,
         },
         volume: {
           count: summaryData.volume_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.volume_alerts / totalAlerts) * 100).toFixed(1)) : 0
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.volume_alerts / totalAlerts) * 100).toFixed(1)
+                )
+              : 0,
         },
         technical: {
           count: summaryData.technical_alerts,
-          percentage: totalAlerts > 0 ? parseFloat(((summaryData.technical_alerts / totalAlerts) * 100).toFixed(1)) : 0
-        }
+          percentage:
+            totalAlerts > 0
+              ? parseFloat(
+                  ((summaryData.technical_alerts / totalAlerts) * 100).toFixed(
+                    1
+                  )
+                )
+              : 0,
+        },
       },
       key_metrics: {
-        active_alert_percentage: activePercent + '%',
-        critical_alert_percentage: criticalPercent + '%',
-        acknowledgment_rate: ackPercent + '%',
-        alert_density: parseFloat((summaryData.total_alerts / hours).toFixed(2)), // Alerts per hour
-        priority_score: parseFloat(((summaryData.critical_alerts * 4 + summaryData.high_alerts * 3 + summaryData.medium_alerts * 2 + summaryData.low_alerts * 1) / Math.max(summaryData.total_alerts, 1)).toFixed(2))
-      }
+        active_alert_percentage: activePercent + "%",
+        critical_alert_percentage: criticalPercent + "%",
+        acknowledgment_rate: ackPercent + "%",
+        alert_density: parseFloat(
+          (summaryData.total_alerts / hours).toFixed(2)
+        ), // Alerts per hour
+        priority_score: parseFloat(
+          (
+            (summaryData.critical_alerts * 4 +
+              summaryData.high_alerts * 3 +
+              summaryData.medium_alerts * 2 +
+              summaryData.low_alerts * 1) /
+            Math.max(summaryData.total_alerts, 1)
+          ).toFixed(2)
+        ),
+      },
     };
 
     if (trends) {
@@ -618,22 +714,21 @@ router.get("/summary", async (req, res) => {
       note: "Alert summary with comprehensive metrics and optional trend analysis",
       generated_at: new Date().toISOString(),
       includes_trends: include_trends === "true",
-      includes_stats: include_stats === "true"
+      includes_stats: include_stats === "true",
     };
 
     res.json({
       success: true,
       data: responseData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Alerts summary error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch alerts summary",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -649,24 +744,25 @@ router.get("/settings", async (req, res) => {
       `SELECT * FROM alert_settings WHERE user_id = $1`,
       [userId]
     );
-    
+
     if (settingsResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Alert settings not found for user",
-        message: "No alert settings configured for this user"
+        message: "No alert settings configured for this user",
       });
     }
-    
+
     const alertSettings = {
       user_id: userId,
-      notification_preferences: settingsResult.rows[0].notification_preferences || {
+      notification_preferences: settingsResult.rows[0]
+        .notification_preferences || {
         email_enabled: false,
         sms_enabled: false,
         push_enabled: false,
         browser_enabled: false,
         slack_enabled: false,
-        discord_enabled: false
+        discord_enabled: false,
       },
       delivery_settings: {
         email_address: "user@example.com",
@@ -679,34 +775,34 @@ router.get("/settings", async (req, res) => {
           enabled: true,
           start_time: "22:00",
           end_time: "07:00",
-          days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
-        }
+          days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        },
       },
       alert_categories: {
         price_alerts: {
           enabled: true,
           threshold_percentage: 5.0, // Alert on 5%+ price moves
           frequency: "immediate", // immediate, hourly, daily
-          include_after_hours: false
+          include_after_hours: false,
         },
         volume_alerts: {
           enabled: true,
           threshold_multiplier: 2.0, // Alert when volume is 2x average
           frequency: "immediate",
-          minimum_volume: 1000000 // Only alert if volume > 1M
+          minimum_volume: 1000000, // Only alert if volume > 1M
         },
         earnings_alerts: {
           enabled: true,
           pre_earnings_days: 3, // Alert 3 days before earnings
           post_earnings_enabled: true,
-          surprise_threshold: 10.0 // Alert on 10%+ earnings surprise
+          surprise_threshold: 10.0, // Alert on 10%+ earnings surprise
         },
         news_alerts: {
           enabled: true,
           sentiment_threshold: 0.7, // Alert on highly positive/negative news
           sources: ["reuters", "bloomberg", "cnbc", "marketwatch"],
           keywords_blacklist: ["crypto", "bitcoin"], // Skip these topics
-          keywords_whitelist: [] // Empty = all topics
+          keywords_whitelist: [], // Empty = all topics
         },
         technical_alerts: {
           enabled: true,
@@ -715,20 +811,20 @@ router.get("/settings", async (req, res) => {
             rsi_oversold: { enabled: true, threshold: 20 },
             macd_crossover: { enabled: true },
             bollinger_bands: { enabled: true },
-            moving_average_cross: { enabled: true, periods: [20, 50] }
+            moving_average_cross: { enabled: true, periods: [20, 50] },
           },
           pattern_alerts: {
             breakouts: true,
             reversals: true,
-            support_resistance: true
-          }
+            support_resistance: true,
+          },
         },
         social_sentiment_alerts: {
           enabled: false,
           platforms: ["twitter", "reddit", "stocktwits"],
           sentiment_threshold: 0.8, // Alert on very strong sentiment
           mention_threshold: 1000, // Minimum mentions to trigger
-          influencer_mentions: true
+          influencer_mentions: true,
         },
         portfolio_alerts: {
           enabled: true,
@@ -736,7 +832,7 @@ router.get("/settings", async (req, res) => {
           position_change_threshold: 10.0, // Alert on 10%+ position moves
           margin_alerts: true,
           dividend_announcements: true,
-          corporate_actions: true
+          corporate_actions: true,
         },
         market_alerts: {
           enabled: true,
@@ -744,29 +840,29 @@ router.get("/settings", async (req, res) => {
           circuit_breakers: true,
           vix_threshold: 30.0, // Alert when VIX > 30
           sector_rotation: true,
-          economic_events: true
-        }
+          economic_events: true,
+        },
       },
       watchlist_settings: {
         default_watchlist_alerts: true,
         per_symbol_settings: {
-          "AAPL": {
+          AAPL: {
             price_threshold: 2.5, // Custom 2.5% threshold for AAPL
             volume_multiplier: 1.5,
-            earnings_priority: "high"
+            earnings_priority: "high",
           },
-          "TSLA": {
+          TSLA: {
             price_threshold: 7.5, // Higher threshold for volatile stocks
             volume_multiplier: 3.0,
-            social_sentiment: true // Enable for meme stocks
-          }
-        }
+            social_sentiment: true, // Enable for meme stocks
+          },
+        },
       },
       alert_history: {
         retention_days: 30,
         max_alerts_per_day: 100,
         duplicate_suppression: true,
-        suppression_window_minutes: 15
+        suppression_window_minutes: 15,
       },
       advanced_settings: {
         batch_alerts: false, // Send individual alerts vs batched
@@ -776,15 +872,15 @@ router.get("/settings", async (req, res) => {
           vacation_mode: false,
           vacation_start: null,
           vacation_end: null,
-          auto_resume: true
+          auto_resume: true,
         },
         risk_management: {
           max_daily_alerts: 50,
           cool_down_periods: {
             high_frequency_symbols: 5, // 5 min cooldown for active stocks
-            low_frequency_symbols: 1 // 1 min cooldown for stable stocks
-          }
-        }
+            low_frequency_symbols: 1, // 1 min cooldown for stable stocks
+          },
+        },
       },
       subscription_info: {
         plan: "premium", // free, basic, premium, enterprise
@@ -792,35 +888,41 @@ router.get("/settings", async (req, res) => {
         alerts_limit_daily: 100,
         premium_features: [
           "unlimited_alerts",
-          "advanced_indicators", 
+          "advanced_indicators",
           "social_sentiment",
           "custom_webhooks",
-          "alert_backtesting"
+          "alert_backtesting",
         ],
-        plan_expires: "2025-12-31T23:59:59Z"
+        plan_expires: "2025-12-31T23:59:59Z",
       },
       integrations: {
         trading_platforms: {
           alpaca: { enabled: false, api_key_set: false },
           interactive_brokers: { enabled: false, api_key_set: false },
-          td_ameritrade: { enabled: false, api_key_set: false }
+          td_ameritrade: { enabled: false, api_key_set: false },
         },
         third_party_services: {
           zapier: { enabled: false, webhook_url: null },
           ifttt: { enabled: false, webhook_url: null },
-          custom_webhooks: []
-        }
+          custom_webhooks: [],
+        },
       },
       created_at: "2025-01-15T10:30:00Z",
       updated_at: new Date().toISOString(),
       last_settings_change: new Date().toISOString(),
-      version: "2.1.0" // Settings schema version
+      version: "2.1.0", // Settings schema version
     };
 
     // Calculate some summary statistics
-    const totalCategoriesEnabled = Object.values(alertSettings.alert_categories).filter(cat => cat.enabled).length;
-    const totalNotificationChannels = Object.values(alertSettings.notification_preferences).filter(pref => pref).length;
-    const watchlistSymbolsCount = Object.keys(alertSettings.watchlist_settings.per_symbol_settings).length;
+    const totalCategoriesEnabled = Object.values(
+      alertSettings.alert_categories
+    ).filter((cat) => cat.enabled).length;
+    const totalNotificationChannels = Object.values(
+      alertSettings.notification_preferences
+    ).filter((pref) => pref).length;
+    const watchlistSymbolsCount = Object.keys(
+      alertSettings.watchlist_settings.per_symbol_settings
+    ).length;
 
     res.json({
       success: true,
@@ -831,51 +933,57 @@ router.get("/settings", async (req, res) => {
           total_notification_channels: totalNotificationChannels,
           watchlist_symbols_with_custom_settings: watchlistSymbolsCount,
           alerts_used_today: alertSettings.subscription_info.alerts_used_today,
-          alerts_remaining_today: alertSettings.subscription_info.alerts_limit_daily - alertSettings.subscription_info.alerts_used_today,
+          alerts_remaining_today:
+            alertSettings.subscription_info.alerts_limit_daily -
+            alertSettings.subscription_info.alerts_used_today,
           subscription_plan: alertSettings.subscription_info.plan,
-          settings_last_modified: alertSettings.last_settings_change
+          settings_last_modified: alertSettings.last_settings_change,
         },
         quick_actions: [
           {
             action: "enable_all_notifications",
             description: "Enable all notification channels",
-            endpoint: "PUT /api/alerts/settings/notifications"
+            endpoint: "PUT /api/alerts/settings/notifications",
           },
           {
-            action: "pause_all_alerts", 
+            action: "pause_all_alerts",
             description: "Temporarily pause all alert delivery",
-            endpoint: "PUT /api/alerts/settings/pause"
+            endpoint: "PUT /api/alerts/settings/pause",
           },
           {
             action: "reset_to_defaults",
             description: "Reset all settings to recommended defaults",
-            endpoint: "PUT /api/alerts/settings/reset"
+            endpoint: "PUT /api/alerts/settings/reset",
           },
           {
             action: "export_settings",
             description: "Export current settings as JSON",
-            endpoint: "GET /api/alerts/settings/export"
-          }
-        ]
+            endpoint: "GET /api/alerts/settings/export",
+          },
+        ],
       },
       metadata: {
         settings_categories: Object.keys(alertSettings.alert_categories),
-        notification_channels: Object.keys(alertSettings.notification_preferences),
-        supported_indicators: Object.keys(alertSettings.alert_categories.technical_alerts.indicators),
-        supported_platforms: alertSettings.alert_categories.social_sentiment_alerts.platforms,
+        notification_channels: Object.keys(
+          alertSettings.notification_preferences
+        ),
+        supported_indicators: Object.keys(
+          alertSettings.alert_categories.technical_alerts.indicators
+        ),
+        supported_platforms:
+          alertSettings.alert_categories.social_sentiment_alerts.platforms,
         data_source: "user_alert_preferences",
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Alert settings error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch alert settings",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -884,7 +992,13 @@ router.get("/settings", async (req, res) => {
 router.get("/history", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { limit: _limit = 100, status: _status = "all", category: _category = "all", startDate: _startDate, endDate: _endDate } = req.query;
+    const {
+      limit: _limit = 100,
+      status: _status = "all",
+      category: _category = "all",
+      startDate: _startDate,
+      endDate: _endDate,
+    } = req.query;
     console.log(`📋 Alert history requested for user: ${userId}`);
 
     // Get alert history from database
@@ -893,13 +1007,13 @@ router.get("/history", async (req, res) => {
     let paramIndex = 2;
 
     // Add filters
-    if (_status && _status !== 'all') {
+    if (_status && _status !== "all") {
       whereClause += ` AND status = $${paramIndex}`;
       params.push(_status);
       paramIndex++;
     }
 
-    if (_category && _category !== 'all') {
+    if (_category && _category !== "all") {
       whereClause += ` AND alert_type = $${paramIndex}`;
       params.push(_category);
       paramIndex++;
@@ -941,20 +1055,25 @@ router.get("/history", async (req, res) => {
 
     const result = await query(historyQuery, params);
 
-    const alerts = result && result.rows ? result.rows.map(alert => ({
-      id: alert.id,
-      symbol: alert.symbol,
-      type: alert.alert_type,
-      condition: alert.condition_type,
-      threshold: parseFloat(alert.threshold_value),
-      current_value: alert.current_value ? parseFloat(alert.current_value) : null,
-      priority: alert.priority,
-      status: alert.status,
-      message: alert.message,
-      created_at: alert.created_at,
-      last_triggered: alert.last_triggered,
-      trigger_count: alert.trigger_count
-    })) : [];
+    const alerts =
+      result && result.rows
+        ? result.rows.map((alert) => ({
+            id: alert.id,
+            symbol: alert.symbol,
+            type: alert.alert_type,
+            condition: alert.condition_type,
+            threshold: parseFloat(alert.threshold_value),
+            current_value: alert.current_value
+              ? parseFloat(alert.current_value)
+              : null,
+            priority: alert.priority,
+            status: alert.status,
+            message: alert.message,
+            created_at: alert.created_at,
+            last_triggered: alert.last_triggered,
+            trigger_count: alert.trigger_count,
+          }))
+        : [];
 
     // Categorize by status
     const by_status = alerts.reduce((acc, alert) => {
@@ -971,26 +1090,25 @@ router.get("/history", async (req, res) => {
         by_status,
         summary: {
           total_alerts: alerts.length,
-          active: alerts.filter(a => a.status === 'active').length,
-          triggered: alerts.filter(a => a.status === 'triggered').length,
-          inactive: alerts.filter(a => a.status === 'inactive').length
+          active: alerts.filter((a) => a.status === "active").length,
+          triggered: alerts.filter((a) => a.status === "triggered").length,
+          inactive: alerts.filter((a) => a.status === "inactive").length,
         },
         filters: {
           limit: parseInt(_limit),
           status: _status,
           category: _category,
           start_date: _startDate,
-          end_date: _endDate
-        }
+          end_date: _endDate,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch alert history",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1008,9 +1126,9 @@ router.get("/rules", async (req, res) => {
         type: "price_threshold",
         symbol: "AAPL",
         condition: "price_below",
-        threshold: 150.00,
+        threshold: 150.0,
         enabled: true,
-        created_at: "2025-01-01T00:00:00Z"
+        created_at: "2025-01-01T00:00:00Z",
       },
       {
         rule_id: "RULE_002",
@@ -1020,8 +1138,8 @@ router.get("/rules", async (req, res) => {
         condition: "volume_above_avg",
         threshold: 200, // 200% of average
         enabled: true,
-        created_at: "2025-01-02T00:00:00Z"
-      }
+        created_at: "2025-01-02T00:00:00Z",
+      },
     ];
 
     res.json({
@@ -1029,17 +1147,16 @@ router.get("/rules", async (req, res) => {
       data: { rules: alertRules },
       summary: {
         total_rules: alertRules.length,
-        active_rules: alertRules.filter(r => r.enabled).length,
-        inactive_rules: alertRules.filter(r => !r.enabled).length
+        active_rules: alertRules.filter((r) => r.enabled).length,
+        inactive_rules: alertRules.filter((r) => !r.enabled).length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch alert rules",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1048,35 +1165,41 @@ router.get("/rules", async (req, res) => {
 router.get("/webhooks", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
+    const {
       status = "all",
       webhook_type = "all",
       limit: _limit = 25,
-      include_config: _include_config = "true"
+      include_config: _include_config = "true",
     } = req.query;
 
-    console.log(`🔗 Alert webhooks requested for user: ${userId}, status: ${status}, type: ${webhook_type}`);
+    console.log(
+      `🔗 Alert webhooks requested for user: ${userId}, status: ${status}, type: ${webhook_type}`
+    );
 
     // Handle webhook management functionality
-    
-    if (req.method === 'GET') {
+
+    if (req.method === "GET") {
       // Get user's configured webhooks
       console.log(`🔗 Fetching webhook configurations for user: ${userId}`);
-      
+
       // In production, this would query the database for user's webhooks
       // Get webhook configurations from environment variables or database
       const getWebhookConfigurations = () => {
         try {
           const webhooks = [];
-          
+
           // Check for configured webhook URLs from environment
           const slackWebhook = process.env.SLACK_WEBHOOK_URL;
           const discordWebhook = process.env.DISCORD_WEBHOOK_URL;
           const customWebhook = process.env.CUSTOM_WEBHOOK_URL;
           const customAuth = process.env.CUSTOM_WEBHOOK_AUTH;
-          
+
           // Add Slack webhook if properly configured
-          if (slackWebhook && slackWebhook.startsWith('https://hooks.slack.com/services/') && !slackWebhook.includes('T00000000')) {
+          if (
+            slackWebhook &&
+            slackWebhook.startsWith("https://hooks.slack.com/services/") &&
+            !slackWebhook.includes("T00000000")
+          ) {
             webhooks.push({
               id: "slack_webhook",
               name: "Slack Trading Alerts",
@@ -1088,14 +1211,18 @@ router.get("/webhooks", async (req, res) => {
               last_triggered: null,
               success_count: 0,
               failure_count: 0,
-              description: "Sends formatted trading alerts to Slack channel"
+              description: "Sends formatted trading alerts to Slack channel",
             });
           }
-          
+
           // Add Discord webhook if properly configured
-          if (discordWebhook && discordWebhook.startsWith('https://discord.com/api/webhooks/') && discordWebhook.length > 50) {
+          if (
+            discordWebhook &&
+            discordWebhook.startsWith("https://discord.com/api/webhooks/") &&
+            discordWebhook.length > 50
+          ) {
             webhooks.push({
-              id: "discord_webhook", 
+              id: "discord_webhook",
               name: "Discord Trading Alerts",
               url: discordWebhook,
               type: "discord",
@@ -1105,37 +1232,52 @@ router.get("/webhooks", async (req, res) => {
               last_triggered: null,
               success_count: 0,
               failure_count: 0,
-              description: "Sends trading alerts to Discord channel"
+              description: "Sends trading alerts to Discord channel",
             });
           }
-          
+
           // Add custom webhook if properly configured
-          if (customWebhook && customWebhook.startsWith('https://') && !customWebhook.includes('myservice.com')) {
+          if (
+            customWebhook &&
+            customWebhook.startsWith("https://") &&
+            !customWebhook.includes("myservice.com")
+          ) {
             const headers = {
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
             };
-            
+
             // Add authorization header if provided and not placeholder
-            if (customAuth && !customAuth.includes('xxx') && customAuth.length > 10) {
-              headers.Authorization = customAuth.startsWith('Bearer ') ? customAuth : `Bearer ${customAuth}`;
+            if (
+              customAuth &&
+              !customAuth.includes("xxx") &&
+              customAuth.length > 10
+            ) {
+              headers.Authorization = customAuth.startsWith("Bearer ")
+                ? customAuth
+                : `Bearer ${customAuth}`;
             }
-            
+
             webhooks.push({
               id: "custom_webhook",
               name: "Custom API Webhook",
               url: customWebhook,
               type: "custom",
-              events: ["price_alert", "volume_alert", "portfolio_alert", "risk_alert"],
+              events: [
+                "price_alert",
+                "volume_alert",
+                "portfolio_alert",
+                "risk_alert",
+              ],
               enabled: true,
               created_at: new Date().toISOString(),
               last_triggered: null,
               success_count: 0,
               failure_count: 0,
               headers: headers,
-              description: "Sends alerts to custom API endpoint"
+              description: "Sends alerts to custom API endpoint",
             });
           }
-          
+
           // If no webhooks are configured, return example configurations
           if (webhooks.length === 0) {
             webhooks.push({
@@ -1149,39 +1291,49 @@ router.get("/webhooks", async (req, res) => {
               last_triggered: null,
               success_count: 0,
               failure_count: 0,
-              description: "Configure webhooks by setting environment variables: SLACK_WEBHOOK_URL, DISCORD_WEBHOOK_URL, CUSTOM_WEBHOOK_URL, CUSTOM_WEBHOOK_AUTH"
+              description:
+                "Configure webhooks by setting environment variables: SLACK_WEBHOOK_URL, DISCORD_WEBHOOK_URL, CUSTOM_WEBHOOK_URL, CUSTOM_WEBHOOK_AUTH",
             });
           }
-          
+
           return webhooks;
-          
         } catch (error) {
-          console.error('❌ [ALERTS] Error loading webhook configurations:', error);
-          return [{
-            id: "error_config",
-            name: "Configuration Error",
-            url: null,
-            type: "error",
-            events: [],
-            enabled: false,
-            created_at: new Date().toISOString(),
-            last_triggered: null,
-            success_count: 0,
-            failure_count: 0,
-            description: "Error loading webhook configurations - check server logs"
-          }];
+          console.error(
+            "❌ [ALERTS] Error loading webhook configurations:",
+            error
+          );
+          return [
+            {
+              id: "error_config",
+              name: "Configuration Error",
+              url: null,
+              type: "error",
+              events: [],
+              enabled: false,
+              created_at: new Date().toISOString(),
+              last_triggered: null,
+              success_count: 0,
+              failure_count: 0,
+              description:
+                "Error loading webhook configurations - check server logs",
+            },
+          ];
         }
       };
-      
+
       const userWebhooks = getWebhookConfigurations();
 
-      const filteredWebhooks = webhook_type === "all" ? 
-        userWebhooks : 
-        userWebhooks.filter(wh => wh.type === webhook_type);
+      const filteredWebhooks =
+        webhook_type === "all"
+          ? userWebhooks
+          : userWebhooks.filter((wh) => wh.type === webhook_type);
 
-      const statusFilteredWebhooks = status === "all" ?
-        filteredWebhooks :
-        filteredWebhooks.filter(wh => status === "enabled" ? wh.enabled : !wh.enabled);
+      const statusFilteredWebhooks =
+        status === "all"
+          ? filteredWebhooks
+          : filteredWebhooks.filter((wh) =>
+              status === "enabled" ? wh.enabled : !wh.enabled
+            );
 
       return res.json({
         success: true,
@@ -1189,28 +1341,46 @@ router.get("/webhooks", async (req, res) => {
           webhooks: statusFilteredWebhooks,
           summary: {
             total_webhooks: userWebhooks.length,
-            enabled_webhooks: userWebhooks.filter(wh => wh.enabled).length,
-            webhook_types: [...new Set(userWebhooks.map(wh => wh.type))],
-            total_deliveries: userWebhooks.reduce((sum, wh) => sum + wh.success_count + wh.failure_count, 0),
-            success_rate: Math.round((userWebhooks.reduce((sum, wh) => sum + wh.success_count, 0) / 
-                         Math.max(1, userWebhooks.reduce((sum, wh) => sum + wh.success_count + wh.failure_count, 0))) * 100)
+            enabled_webhooks: userWebhooks.filter((wh) => wh.enabled).length,
+            webhook_types: [...new Set(userWebhooks.map((wh) => wh.type))],
+            total_deliveries: userWebhooks.reduce(
+              (sum, wh) => sum + wh.success_count + wh.failure_count,
+              0
+            ),
+            success_rate: Math.round(
+              (userWebhooks.reduce((sum, wh) => sum + wh.success_count, 0) /
+                Math.max(
+                  1,
+                  userWebhooks.reduce(
+                    (sum, wh) => sum + wh.success_count + wh.failure_count,
+                    0
+                  )
+                )) *
+                100
+            ),
           },
           supported_types: ["slack", "discord", "teams", "custom", "email"],
-          available_events: ["price_alert", "volume_alert", "portfolio_alert", "risk_alert", "news_alert", "technical_alert"]
+          available_events: [
+            "price_alert",
+            "volume_alert",
+            "portfolio_alert",
+            "risk_alert",
+            "news_alert",
+            "technical_alert",
+          ],
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
-    } else if (req.method === 'POST') {
+    } else if (req.method === "POST") {
       // Create new webhook
       const { name, url, type, events, headers } = req.body;
-      
+
       if (!name || !url || !type) {
         return res.status(400).json({
           success: false,
           error: "Missing required fields",
           details: "name, url, and type are required",
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -1222,7 +1392,7 @@ router.get("/webhooks", async (req, res) => {
           success: false,
           error: "Invalid webhook URL",
           details: "Please provide a valid HTTP/HTTPS URL",
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -1233,15 +1403,15 @@ router.get("/webhooks", async (req, res) => {
           success: false,
           error: "Unsupported webhook type",
           supported_types: supportedTypes,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
       // Generate new webhook ID
       const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       console.log(`🔗 Creating webhook: ${name} (${type}) for user: ${userId}`);
-      
+
       // In production, this would save to database
       const newWebhook = {
         id: webhookId,
@@ -1255,7 +1425,7 @@ router.get("/webhooks", async (req, res) => {
         success_count: 0,
         failure_count: 0,
         user_id: userId,
-        ...(headers && { headers: headers })
+        ...(headers && { headers: headers }),
       };
 
       return res.status(201).json({
@@ -1265,18 +1435,17 @@ router.get("/webhooks", async (req, res) => {
         next_steps: [
           "Test the webhook using POST /alerts/webhooks/{id}/test",
           "Configure which alert events should trigger this webhook",
-          "Monitor webhook delivery status in the dashboard"
+          "Monitor webhook delivery status in the dashboard",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
-    } else if (req.method === 'PUT' || req.method === 'PATCH') {
+    } else if (req.method === "PUT" || req.method === "PATCH") {
       // Update existing webhook
       const { webhook_id } = req.params;
       const updates = req.body;
-      
+
       console.log(`🔗 Updating webhook: ${webhook_id} for user: ${userId}`);
-      
+
       // In production, this would update the database record
       return res.json({
         success: true,
@@ -1284,26 +1453,25 @@ router.get("/webhooks", async (req, res) => {
         data: {
           webhook_id: webhook_id,
           updated_fields: Object.keys(updates),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
-    } else if (req.method === 'DELETE') {
+    } else if (req.method === "DELETE") {
       // Delete webhook
       const { webhook_id } = req.params;
-      
+
       console.log(`🔗 Deleting webhook: ${webhook_id} for user: ${userId}`);
-      
+
       // In production, this would delete from database
       return res.json({
         success: true,
         message: "Webhook deleted successfully",
         data: {
           webhook_id: webhook_id,
-          deleted_at: new Date().toISOString()
+          deleted_at: new Date().toISOString(),
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1311,14 +1479,14 @@ router.get("/webhooks", async (req, res) => {
       success: false,
       error: "Method not allowed",
       allowed_methods: ["GET", "POST", "PUT", "DELETE"],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Alert webhooks error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch alert webhooks",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1327,14 +1495,14 @@ router.get("/webhooks", async (req, res) => {
 router.post("/create", async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
-      symbol, 
+    const {
+      symbol,
       alert_type = "price",
       condition = "above",
       threshold,
       priority = "medium",
       enabled = true,
-      notification_methods = ["email", "push"]
+      notification_methods = ["email", "push"],
     } = req.body;
 
     console.log(`🚨 Creating new alert for user: ${userId}, symbol: ${symbol}`);
@@ -1344,12 +1512,12 @@ router.post("/create", async (req, res) => {
         success: false,
         error: "Missing required fields",
         required: ["symbol", "threshold"],
-        received: req.body
+        received: req.body,
       });
     }
 
     const alertId = `alert_${Date.now()}_${Date.now().toString(36)}`;
-    
+
     const newAlert = {
       alert_id: alertId,
       user_id: userId,
@@ -1364,7 +1532,7 @@ router.post("/create", async (req, res) => {
       last_triggered: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      status: "active"
+      status: "active",
     };
 
     res.status(201).json({
@@ -1375,18 +1543,17 @@ router.post("/create", async (req, res) => {
         next_actions: [
           "Alert will monitor price changes",
           "Notifications will be sent via configured methods",
-          "Alert can be modified or deleted anytime"
-        ]
+          "Alert can be modified or deleted anytime",
+        ],
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Create alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to create alert",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1404,7 +1571,7 @@ router.delete("/delete/:alertId", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Alert ID is required",
-        alert_id: alertId
+        alert_id: alertId,
       });
     }
 
@@ -1414,7 +1581,7 @@ router.delete("/delete/:alertId", async (req, res) => {
       user_id: userId,
       status: "deleted",
       deleted_at: new Date().toISOString(),
-      deletion_reason: reason
+      deletion_reason: reason,
     };
 
     res.json({
@@ -1425,18 +1592,17 @@ router.delete("/delete/:alertId", async (req, res) => {
         cleanup_actions: [
           "Alert removed from active monitoring",
           "Future notifications disabled",
-          "Alert history preserved for 30 days"
-        ]
+          "Alert history preserved for 30 days",
+        ],
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Delete alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to delete alert",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1445,23 +1611,25 @@ router.delete("/delete/:alertId", async (req, res) => {
 router.get("/price", async (req, res) => {
   try {
     const userId = req.user?.sub || "dev-user-bypass";
-    const { 
-      status = "active", 
-      symbol, 
-      limit = 50, 
+    const {
+      status = "active",
+      symbol,
+      limit = 50,
       offset = 0,
       sort_by = "created_at",
-      sort_order = "desc"
+      sort_order = "desc",
     } = req.query;
 
-    console.log(`💰 Price alerts requested for user: ${userId}, status: ${status}`);
+    console.log(
+      `💰 Price alerts requested for user: ${userId}, status: ${status}`
+    );
 
     // Build query conditions
     let whereClause = "WHERE user_id = $1";
     const queryParams = [userId];
     let paramCount = 1;
 
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       paramCount++;
       whereClause += ` AND status = $${paramCount}`;
       queryParams.push(status);
@@ -1491,12 +1659,15 @@ router.get("/price", async (req, res) => {
     const alerts = await query(alertsQuery, queryParams);
 
     // Get current prices for active alerts to check triggers
-    const activeAlerts = alerts.rows.filter(alert => alert.status === 'active');
-    const symbols = [...new Set(activeAlerts.map(alert => alert.symbol))];
-    
+    const activeAlerts = alerts.rows.filter(
+      (alert) => alert.status === "active"
+    );
+    const symbols = [...new Set(activeAlerts.map((alert) => alert.symbol))];
+
     let currentPrices = {};
     if (symbols.length > 0) {
-      const pricesQuery = await query(`
+      const pricesQuery = await query(
+        `
         SELECT symbol, close_price as current_price, date
         FROM price_daily 
         WHERE symbol = ANY($1)
@@ -1504,34 +1675,39 @@ router.get("/price", async (req, res) => {
           SELECT MAX(date) FROM price_daily 
           WHERE symbol = price_daily.symbol
         )
-      `, [symbols]);
+      `,
+        [symbols]
+      );
 
-      pricesQuery.rows.forEach(row => {
+      pricesQuery.rows.forEach((row) => {
         currentPrices[row.symbol] = parseFloat(row.current_price);
       });
     }
 
     // Update alerts with current prices and check for triggers
-    const updatedAlerts = alerts.rows.map(alert => {
+    const updatedAlerts = alerts.rows.map((alert) => {
       const currentPrice = currentPrices[alert.symbol];
-      
-      if (currentPrice && alert.status === 'active') {
+
+      if (currentPrice && alert.status === "active") {
         alert.current_price = currentPrice;
-        
+
         // Calculate percentage change
         if (alert.target_price) {
-          alert.percentage_change = ((currentPrice - parseFloat(alert.target_price)) / parseFloat(alert.target_price)) * 100;
+          alert.percentage_change =
+            ((currentPrice - parseFloat(alert.target_price)) /
+              parseFloat(alert.target_price)) *
+            100;
         }
 
         // Check if alert should be triggered
         const shouldTrigger = checkAlertTrigger(alert, currentPrice);
         if (shouldTrigger && !alert.triggered_at) {
           // Mark alert as triggered (this would normally trigger notifications)
-          alert.status = 'triggered';
+          alert.status = "triggered";
           alert.triggered_at = new Date().toISOString();
-          
+
           // Update in database asynchronously
-          updateAlertStatus(alert.id, 'triggered', new Date().toISOString());
+          updateAlertStatus(alert.id, "triggered", new Date().toISOString());
         }
       }
 
@@ -1550,7 +1726,7 @@ router.get("/price", async (req, res) => {
         triggeredAt: alert.triggered_at,
         expiresAt: alert.expires_at,
         createdAt: alert.created_at,
-        updatedAt: alert.updated_at
+        updatedAt: alert.updated_at,
       };
     });
 
@@ -1561,7 +1737,10 @@ router.get("/price", async (req, res) => {
       ${whereClause}
     `;
 
-    const countResult = await query(countQuery, queryParams.slice(0, paramCount));
+    const countResult = await query(
+      countQuery,
+      queryParams.slice(0, paramCount)
+    );
     const totalAlerts = parseInt(countResult.rows[0].total);
 
     res.json({
@@ -1572,25 +1751,27 @@ router.get("/price", async (req, res) => {
           total: totalAlerts,
           limit: parseInt(limit),
           offset: parseInt(offset),
-          hasMore: parseInt(offset) + updatedAlerts.length < totalAlerts
+          hasMore: parseInt(offset) + updatedAlerts.length < totalAlerts,
         },
         summary: {
           totalAlerts: totalAlerts,
-          activeAlerts: updatedAlerts.filter(a => a.status === 'active').length,
-          triggeredAlerts: updatedAlerts.filter(a => a.status === 'triggered').length,
-          expiredAlerts: updatedAlerts.filter(a => a.status === 'expired').length
-        }
+          activeAlerts: updatedAlerts.filter((a) => a.status === "active")
+            .length,
+          triggeredAlerts: updatedAlerts.filter((a) => a.status === "triggered")
+            .length,
+          expiredAlerts: updatedAlerts.filter((a) => a.status === "expired")
+            .length,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Price alerts error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch price alerts",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1602,7 +1783,7 @@ router.post("/price", async (req, res) => {
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: "Authentication required"
+        error: "Authentication required",
       });
     }
 
@@ -1610,38 +1791,46 @@ router.post("/price", async (req, res) => {
       symbol,
       condition, // 'above', 'below', 'crosses_above', 'crosses_below'
       targetPrice,
-      alertType = 'price_target',
-      priority = 'medium',
-      notificationMethods = ['email'],
+      alertType = "price_target",
+      priority = "medium",
+      notificationMethods = ["email"],
       message,
-      expiresAt
+      expiresAt,
     } = req.body;
 
     // Validate required fields
     if (!symbol || !condition || !targetPrice) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: symbol, condition, targetPrice"
+        error: "Missing required fields: symbol, condition, targetPrice",
       });
     }
 
     // Validate condition
-    const validConditions = ['above', 'below', 'crosses_above', 'crosses_below'];
+    const validConditions = [
+      "above",
+      "below",
+      "crosses_above",
+      "crosses_below",
+    ];
     if (!validConditions.includes(condition)) {
       return res.status(400).json({
         success: false,
-        error: `Invalid condition. Must be one of: ${validConditions.join(', ')}`
+        error: `Invalid condition. Must be one of: ${validConditions.join(", ")}`,
       });
     }
 
     // Get current price for reference
-    const priceQuery = await query(`
+    const priceQuery = await query(
+      `
       SELECT close_price as current_price 
       FROM price_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
       LIMIT 1
-    `, [symbol.toUpperCase()]);
+    `,
+      [symbol.toUpperCase()]
+    );
 
     const currentPrice = priceQuery.rows[0]?.current_price || null;
 
@@ -1664,12 +1853,14 @@ router.post("/price", async (req, res) => {
       priority,
       JSON.stringify(notificationMethods),
       message,
-      expiresAt ? new Date(expiresAt).toISOString() : null
+      expiresAt ? new Date(expiresAt).toISOString() : null,
     ]);
 
     const newAlert = result.rows[0];
 
-    console.log(`💰 Price alert created: ${symbol} ${condition} ${targetPrice} for user ${userId}`);
+    console.log(
+      `💰 Price alert created: ${symbol} ${condition} ${targetPrice} for user ${userId}`
+    );
 
     res.status(201).json({
       success: true,
@@ -1685,19 +1876,18 @@ router.post("/price", async (req, res) => {
         notificationMethods: newAlert.notification_methods,
         message: newAlert.message,
         expiresAt: newAlert.expires_at,
-        createdAt: newAlert.created_at
+        createdAt: newAlert.created_at,
       },
       message: "Price alert created successfully",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Create price alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to create price alert",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1711,45 +1901,49 @@ router.delete("/price/:alertId", async (req, res) => {
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: "Authentication required"
+        error: "Authentication required",
       });
     }
 
     // Delete the alert (only if it belongs to the user)
-    const deleteResult = await query(`
+    const deleteResult = await query(
+      `
       DELETE FROM price_alerts 
       WHERE id = $1 AND user_id = $2
       RETURNING id, symbol, condition, target_price
-    `, [alertId, userId]);
+    `,
+      [alertId, userId]
+    );
 
     if (deleteResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: "Price alert not found or access denied"
+        error: "Price alert not found or access denied",
       });
     }
 
     const deletedAlert = deleteResult.rows[0];
 
-    console.log(`💰 Price alert deleted: ${deletedAlert.symbol} ${deletedAlert.condition} ${deletedAlert.target_price}`);
+    console.log(
+      `💰 Price alert deleted: ${deletedAlert.symbol} ${deletedAlert.condition} ${deletedAlert.target_price}`
+    );
 
     res.json({
       success: true,
       message: "Price alert deleted successfully",
       data: {
         id: deletedAlert.id,
-        symbol: deletedAlert.symbol
+        symbol: deletedAlert.symbol,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Delete price alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to delete price alert",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1757,16 +1951,16 @@ router.delete("/price/:alertId", async (req, res) => {
 // Helper functions
 function checkAlertTrigger(alert, currentPrice) {
   const targetPrice = parseFloat(alert.target_price);
-  
+
   switch (alert.condition) {
-    case 'above':
+    case "above":
       return currentPrice > targetPrice;
-    case 'below':
+    case "below":
       return currentPrice < targetPrice;
-    case 'crosses_above':
+    case "crosses_above":
       // Would need historical context to determine if it just crossed
       return currentPrice > targetPrice;
-    case 'crosses_below':
+    case "crosses_below":
       // Would need historical context to determine if it just crossed
       return currentPrice < targetPrice;
     default:
@@ -1798,7 +1992,7 @@ router.put("/update/:alertId", async (req, res) => {
     if (!alertId) {
       return res.status(400).json({
         success: false,
-        error: "Alert ID is required"
+        error: "Alert ID is required",
       });
     }
 
@@ -1809,13 +2003,13 @@ router.put("/update/:alertId", async (req, res) => {
       symbol: updateData.symbol || "AAPL",
       alert_type: updateData.alert_type || "price",
       condition: updateData.condition || "above",
-      threshold: updateData.threshold || 150.00,
+      threshold: updateData.threshold || 150.0,
       priority: updateData.priority || "medium",
       enabled: updateData.enabled !== undefined ? updateData.enabled : true,
       notification_methods: updateData.notification_methods || ["email"],
       updated_at: new Date().toISOString(),
       status: "active",
-      update_reason: updateData.reason || "user_modification"
+      update_reason: updateData.reason || "user_modification",
     };
 
     res.json({
@@ -1824,17 +2018,16 @@ router.put("/update/:alertId", async (req, res) => {
         updated_alert: updatedAlert,
         changes_applied: Object.keys(updateData),
         message: `Alert ${alertId} updated successfully`,
-        validation_status: "passed"
+        validation_status: "passed",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Update alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update alert",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1846,14 +2039,16 @@ router.put("/:id/status", async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    console.log(`🔄 Updating alert status ${id} to ${status} for user: ${userId}`);
+    console.log(
+      `🔄 Updating alert status ${id} to ${status} for user: ${userId}`
+    );
 
     // Validate status values
-    const validStatuses = ['active', 'inactive', 'paused', 'triggered'];
+    const validStatuses = ["active", "inactive", "paused", "triggered"];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        error: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
       });
     }
 
@@ -1869,7 +2064,7 @@ router.put("/:id/status", async (req, res) => {
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: "Alert not found"
+        error: "Alert not found",
       });
     }
 
@@ -1877,17 +2072,16 @@ router.put("/:id/status", async (req, res) => {
       success: true,
       data: {
         alert: result.rows[0],
-        message: `Alert status updated to ${status}`
+        message: `Alert status updated to ${status}`,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Update alert status error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update alert status",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1911,7 +2105,7 @@ router.delete("/:id", async (req, res) => {
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: "Alert not found"
+        error: "Alert not found",
       });
     }
 
@@ -1919,17 +2113,16 @@ router.delete("/:id", async (req, res) => {
       success: true,
       data: {
         deleted_alert: result.rows[0],
-        message: `Alert ${id} deleted successfully`
+        message: `Alert ${id} deleted successfully`,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Delete alert error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to delete alert",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1938,47 +2131,77 @@ router.delete("/:id", async (req, res) => {
 const deliverWebhook = async (webhook, alertData) => {
   try {
     console.log(`🔗 [WEBHOOK] Delivering to ${webhook.name} (${webhook.type})`);
-    
+
     let payload;
     let headers = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Trading-Platform-Webhooks/1.0'
+      "Content-Type": "application/json",
+      "User-Agent": "Trading-Platform-Webhooks/1.0",
     };
-    
+
     // Format payload based on webhook type
     switch (webhook.type) {
-      case 'slack':
+      case "slack":
         payload = {
           text: `🚨 *${alertData.type.toUpperCase()} ALERT*`,
-          attachments: [{
-            color: alertData.severity === 'high' ? 'danger' : (alertData.severity === 'medium' ? 'warning' : 'good'),
-            fields: [
-              { title: 'Symbol', value: alertData.symbol, short: true },
-              { title: 'Price', value: `$${alertData.current_price}`, short: true },
-              { title: 'Message', value: alertData.message, short: false },
-              { title: 'Time', value: new Date(alertData.timestamp).toLocaleString(), short: true }
-            ]
-          }]
+          attachments: [
+            {
+              color:
+                alertData.severity === "high"
+                  ? "danger"
+                  : alertData.severity === "medium"
+                    ? "warning"
+                    : "good",
+              fields: [
+                { title: "Symbol", value: alertData.symbol, short: true },
+                {
+                  title: "Price",
+                  value: `$${alertData.current_price}`,
+                  short: true,
+                },
+                { title: "Message", value: alertData.message, short: false },
+                {
+                  title: "Time",
+                  value: new Date(alertData.timestamp).toLocaleString(),
+                  short: true,
+                },
+              ],
+            },
+          ],
         };
         break;
-        
-      case 'discord':
+
+      case "discord":
         payload = {
-          embeds: [{
-            title: `${alertData.type.toUpperCase()} Alert`,
-            description: alertData.message,
-            color: alertData.severity === 'high' ? 15158332 : (alertData.severity === 'medium' ? 15105570 : 3066993),
-            fields: [
-              { name: 'Symbol', value: alertData.symbol, inline: true },
-              { name: 'Price', value: `$${alertData.current_price}`, inline: true },
-              { name: 'Severity', value: alertData.severity.toUpperCase(), inline: true }
-            ],
-            timestamp: alertData.timestamp
-          }]
+          embeds: [
+            {
+              title: `${alertData.type.toUpperCase()} Alert`,
+              description: alertData.message,
+              color:
+                alertData.severity === "high"
+                  ? 15158332
+                  : alertData.severity === "medium"
+                    ? 15105570
+                    : 3066993,
+              fields: [
+                { name: "Symbol", value: alertData.symbol, inline: true },
+                {
+                  name: "Price",
+                  value: `$${alertData.current_price}`,
+                  inline: true,
+                },
+                {
+                  name: "Severity",
+                  value: alertData.severity.toUpperCase(),
+                  inline: true,
+                },
+              ],
+              timestamp: alertData.timestamp,
+            },
+          ],
         };
         break;
-        
-      case 'custom':
+
+      case "custom":
       default:
         payload = {
           alert_type: alertData.type,
@@ -1987,32 +2210,41 @@ const deliverWebhook = async (webhook, alertData) => {
           current_price: alertData.current_price,
           severity: alertData.severity,
           timestamp: alertData.timestamp,
-          metadata: alertData.metadata || {}
+          metadata: alertData.metadata || {},
         };
-        
+
         // Add custom headers if specified
         if (webhook.headers) {
           headers = { ...headers, ...webhook.headers };
         }
         break;
     }
-    
+
     // Make HTTP request to webhook URL
     const response = await fetch(webhook.url, {
-      method: 'POST',
+      method: "POST",
       headers: headers,
       body: JSON.stringify(payload),
-      timeout: 10000 // 10 second timeout
+      timeout: 10000, // 10 second timeout
     });
-    
+
     if (response.ok) {
       console.log(`✅ [WEBHOOK] Successfully delivered to ${webhook.name}`);
-      return { success: true, status: response.status, response: await response.text() };
+      return {
+        success: true,
+        status: response.status,
+        response: await response.text(),
+      };
     } else {
-      console.log(`❌ [WEBHOOK] Failed to deliver to ${webhook.name}: ${response.status}`);
-      return { success: false, status: response.status, error: await response.text() };
+      console.log(
+        `❌ [WEBHOOK] Failed to deliver to ${webhook.name}: ${response.status}`
+      );
+      return {
+        success: false,
+        status: response.status,
+        error: await response.text(),
+      };
     }
-    
   } catch (error) {
     console.error(`❌ [WEBHOOK] Error delivering to ${webhook.name}:`, error);
     return { success: false, error: error.message };
@@ -2024,90 +2256,108 @@ router.post("/webhooks/:id/test", async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.sub || "dev-user-bypass";
-    
+
     console.log(`🧪 [WEBHOOK] Testing webhook ${id} for user ${userId}`);
-    
+
     // Get webhook configuration
     const getWebhookConfigurations = () => {
       try {
         const webhooks = [];
-        
+
         const slackWebhook = process.env.SLACK_WEBHOOK_URL;
         const discordWebhook = process.env.DISCORD_WEBHOOK_URL;
         const customWebhook = process.env.CUSTOM_WEBHOOK_URL;
         const customAuth = process.env.CUSTOM_WEBHOOK_AUTH;
-        
-        if (slackWebhook && slackWebhook.startsWith('https://hooks.slack.com/services/') && !slackWebhook.includes('T00000000')) {
+
+        if (
+          slackWebhook &&
+          slackWebhook.startsWith("https://hooks.slack.com/services/") &&
+          !slackWebhook.includes("T00000000")
+        ) {
           webhooks.push({
             id: "slack_webhook",
             name: "Slack Trading Alerts",
             url: slackWebhook,
             type: "slack",
-            enabled: true
+            enabled: true,
           });
         }
-        
-        if (discordWebhook && discordWebhook.startsWith('https://discord.com/api/webhooks/') && discordWebhook.length > 50) {
+
+        if (
+          discordWebhook &&
+          discordWebhook.startsWith("https://discord.com/api/webhooks/") &&
+          discordWebhook.length > 50
+        ) {
           webhooks.push({
-            id: "discord_webhook", 
+            id: "discord_webhook",
             name: "Discord Trading Alerts",
             url: discordWebhook,
             type: "discord",
-            enabled: true
+            enabled: true,
           });
         }
-        
-        if (customWebhook && customWebhook.startsWith('https://') && !customWebhook.includes('myservice.com')) {
+
+        if (
+          customWebhook &&
+          customWebhook.startsWith("https://") &&
+          !customWebhook.includes("myservice.com")
+        ) {
           const headers = { "Content-Type": "application/json" };
-          if (customAuth && !customAuth.includes('xxx') && customAuth.length > 10) {
-            headers.Authorization = customAuth.startsWith('Bearer ') ? customAuth : `Bearer ${customAuth}`;
+          if (
+            customAuth &&
+            !customAuth.includes("xxx") &&
+            customAuth.length > 10
+          ) {
+            headers.Authorization = customAuth.startsWith("Bearer ")
+              ? customAuth
+              : `Bearer ${customAuth}`;
           }
-          
+
           webhooks.push({
             id: "custom_webhook",
             name: "Custom API Webhook",
             url: customWebhook,
             type: "custom",
             enabled: true,
-            headers: headers
+            headers: headers,
           });
         }
-        
+
         return webhooks;
       } catch (error) {
         return [];
       }
     };
-    
+
     const webhooks = getWebhookConfigurations();
-    const webhook = webhooks.find(w => w.id === id);
-    
+    const webhook = webhooks.find((w) => w.id === id);
+
     if (!webhook) {
       return res.notFound(`Webhook ${id} not found or not configured`);
     }
-    
+
     if (!webhook.enabled) {
       return res.validationError(`Webhook ${id} is not enabled`);
     }
-    
+
     // Create test alert data
     const testAlertData = {
-      type: 'test_alert',
-      symbol: 'AAPL',
+      type: "test_alert",
+      symbol: "AAPL",
       message: `Test webhook delivery from Trading Platform - ${new Date().toLocaleString()}`,
       current_price: 150.25,
-      severity: 'medium',
+      severity: "medium",
       timestamp: new Date().toISOString(),
       metadata: {
         test: true,
         webhook_id: id,
-        user_id: userId
-      }
+        user_id: userId,
+      },
     };
-    
+
     // Attempt delivery
     const result = await deliverWebhook(webhook, testAlertData);
-    
+
     if (result.success) {
       res.json({
         success: true,
@@ -2117,9 +2367,9 @@ router.post("/webhooks/:id/test", async (req, res) => {
           webhook_name: webhook.name,
           webhook_type: webhook.type,
           test_payload: testAlertData,
-          delivery_result: result
+          delivery_result: result,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
@@ -2130,17 +2380,16 @@ router.post("/webhooks/:id/test", async (req, res) => {
           webhook_name: webhook.name,
           webhook_type: webhook.type,
           error: result.error,
-          delivery_result: result
+          delivery_result: result,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
   } catch (error) {
     console.error(`❌ [WEBHOOK] Test error:`, error);
     res.serverError("Failed to test webhook", {
       error: error.message,
-      service: "webhook-test"
+      service: "webhook-test",
     });
   }
 });
@@ -2153,13 +2402,13 @@ router.post("/webhooks/:id/test", async (req, res) => {
 router.get("/stream", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub || "dev-user-bypass";
-    
+
     try {
       console.log(`🔔 [ALERTS] Fetching streaming alerts for user ${userId}`);
     } catch (e) {
       // Ignore console logging errors
     }
-    
+
     // Get recent active alerts with real-time status
     const alertsStreamQuery = `
       WITH recent_alerts AS (
@@ -2213,16 +2462,24 @@ router.get("/stream", authenticateToken, async (req, res) => {
         created_at DESC
       LIMIT 20
     `;
-    
+
     const result = await query(alertsStreamQuery, [userId]);
-    
+
     // Calculate summary statistics
     const alerts = result.rows || [];
-    const activeAlerts = alerts.filter(alert => alert.status === 'active').length;
-    const triggeredAlerts = alerts.filter(alert => alert.status === 'triggered').length;
-    const criticalAlerts = alerts.filter(alert => alert.severity === 'critical').length;
-    const highAlerts = alerts.filter(alert => alert.severity === 'high').length;
-    
+    const activeAlerts = alerts.filter(
+      (alert) => alert.status === "active"
+    ).length;
+    const triggeredAlerts = alerts.filter(
+      (alert) => alert.status === "triggered"
+    ).length;
+    const criticalAlerts = alerts.filter(
+      (alert) => alert.severity === "critical"
+    ).length;
+    const highAlerts = alerts.filter(
+      (alert) => alert.severity === "high"
+    ).length;
+
     const streamData = {
       timestamp: new Date().toISOString(),
       alerts: alerts,
@@ -2232,23 +2489,24 @@ router.get("/stream", authenticateToken, async (req, res) => {
         triggered_alerts: triggeredAlerts,
         critical_alerts: criticalAlerts,
         high_alerts: highAlerts,
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
-      streamType: 'alerts_stream',
-      user_id: userId
+      streamType: "alerts_stream",
+      user_id: userId,
     };
-    
+
     try {
-      console.log(`✅ [ALERTS] Successfully streamed ${alerts.length} alerts for user ${userId}`);
+      console.log(
+        `✅ [ALERTS] Successfully streamed ${alerts.length} alerts for user ${userId}`
+      );
     } catch (e) {
       // Ignore console logging errors
     }
-    
+
     res.json({
       success: true,
-      data: streamData
+      data: streamData,
     });
-    
   } catch (error) {
     try {
       console.error("❌ [ALERTS] Error fetching alerts stream:", error);
@@ -2257,7 +2515,7 @@ router.get("/stream", authenticateToken, async (req, res) => {
     }
     res.status(500).json({
       success: false,
-      error: "Failed to fetch alerts streaming data"
+      error: "Failed to fetch alerts streaming data",
     });
   }
 });

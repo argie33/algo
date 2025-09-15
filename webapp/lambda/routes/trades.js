@@ -26,15 +26,17 @@ router.get("/health", (req, res) => {
 router.get("/recent", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { 
-      limit = 20, 
+    const {
+      limit = 20,
       days = 7,
       symbol,
       type = "all", // buy, sell, all
-      status = "all" // executed, pending, cancelled, all
+      status = "all", // executed, pending, cancelled, all
     } = req.query;
 
-    console.log(`🕒 Getting recent trades for user: ${userId}, last ${days} days`);
+    console.log(
+      `🕒 Getting recent trades for user: ${userId}, last ${days} days`
+    );
 
     // Build query to get recent trade data from trade_history table
     let baseQuery = `
@@ -126,13 +128,13 @@ router.get("/recent", authenticateToken, async (req, res) => {
       paramIndex++;
     }
 
-    if (type && type !== 'all') {
+    if (type && type !== "all") {
       baseQuery += ` AND ta.side = $${paramIndex}`;
       params.push(type);
       paramIndex++;
     }
 
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       baseQuery += ` AND ta.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
@@ -144,7 +146,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
     params.push(parseInt(limit));
 
     const results = await query(baseQuery, params);
-    
+
     if (!results.rows || results.rows.length === 0) {
       return res.json({
         success: true,
@@ -156,25 +158,25 @@ router.get("/recent", authenticateToken, async (req, res) => {
             sell_trades: 0,
             winning_trades: 0,
             losing_trades: 0,
-            win_rate: '0.0',
-            total_pnl: '0.00',
-            total_fees: '0.00',
-            total_volume: '0.00',
-            avg_trade_size: '0.00',
+            win_rate: "0.0",
+            total_pnl: "0.00",
+            total_fees: "0.00",
+            total_volume: "0.00",
+            avg_trade_size: "0.00",
             performance_distribution: {
               winning: 0,
               losing: 0,
-              neutral: 0
-            }
-          }
+              neutral: 0,
+            },
+          },
         },
         message: `No trades found for the last ${days} days`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Process trades with enhanced analytics
-    const recentTrades = (results.rows || results).map(trade => ({
+    const recentTrades = (results.rows || results).map((trade) => ({
       id: trade.id,
       symbol: trade.symbol,
       side: trade.side,
@@ -184,41 +186,58 @@ router.get("/recent", authenticateToken, async (req, res) => {
       total_amount: parseFloat(trade.total_amount).toFixed(2),
       market_value: parseFloat(trade.market_value || 0).toFixed(2),
       fees: parseFloat(trade.fees || 0).toFixed(2),
-      
+
       // Performance metrics
       unrealized_pnl: parseFloat(trade.unrealized_pnl || 0).toFixed(2),
       return_percentage: parseFloat(trade.return_percentage || 0).toFixed(2),
       performance: trade.performance,
-      days_held: trade.days_held ? parseFloat(trade.days_held).toFixed(1) : null,
-      
+      days_held: trade.days_held
+        ? parseFloat(trade.days_held).toFixed(1)
+        : null,
+
       // Risk and categorization
       volatility_category: trade.volatility_category,
       trade_size: trade.trade_size,
-      
+
       // Status and metadata
       status: trade.status,
       order_type: trade.order_type,
       broker: trade.broker,
       trade_date: trade.trade_date,
       daily_change: parseFloat(trade.daily_change || 0).toFixed(2),
-      
+
       // Indicators
       is_profitable: parseFloat(trade.unrealized_pnl || 0) > 0,
-      is_recent: new Date(trade.trade_date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      
-      created_at: trade.created_at
+      is_recent:
+        new Date(trade.trade_date) >
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+
+      created_at: trade.created_at,
     }));
 
     // Calculate summary statistics
     const totalTrades = recentTrades.length;
-    const buyTrades = recentTrades.filter(t => t.side === 'buy').length;
-    const sellTrades = recentTrades.filter(t => t.side === 'sell').length;
-    const winningTrades = recentTrades.filter(t => t.performance === 'winning').length;
-    const losingTrades = recentTrades.filter(t => t.performance === 'losing').length;
-    
-    const totalPnL = recentTrades.reduce((sum, t) => sum + parseFloat(t.unrealized_pnl), 0);
-    const totalFees = recentTrades.reduce((sum, t) => sum + parseFloat(t.fees), 0);
-    const totalVolume = recentTrades.reduce((sum, t) => sum + parseFloat(t.total_amount), 0);
+    const buyTrades = recentTrades.filter((t) => t.side === "buy").length;
+    const sellTrades = recentTrades.filter((t) => t.side === "sell").length;
+    const winningTrades = recentTrades.filter(
+      (t) => t.performance === "winning"
+    ).length;
+    const losingTrades = recentTrades.filter(
+      (t) => t.performance === "losing"
+    ).length;
+
+    const totalPnL = recentTrades.reduce(
+      (sum, t) => sum + parseFloat(t.unrealized_pnl),
+      0
+    );
+    const totalFees = recentTrades.reduce(
+      (sum, t) => sum + parseFloat(t.fees),
+      0
+    );
+    const totalVolume = recentTrades.reduce(
+      (sum, t) => sum + parseFloat(t.total_amount),
+      0
+    );
 
     return res.json({
       success: true,
@@ -230,21 +249,31 @@ router.get("/recent", authenticateToken, async (req, res) => {
           sell_trades: sellTrades,
           winning_trades: winningTrades,
           losing_trades: losingTrades,
-          win_rate: totalTrades > 0 ? ((winningTrades / totalTrades) * 100).toFixed(1) : '0.0',
-          
+          win_rate:
+            totalTrades > 0
+              ? ((winningTrades / totalTrades) * 100).toFixed(1)
+              : "0.0",
+
           // Financial metrics
           total_pnl: totalPnL.toFixed(2),
           total_fees: totalFees.toFixed(2),
           total_volume: totalVolume.toFixed(2),
-          avg_trade_size: totalTrades > 0 ? (totalVolume / totalTrades).toFixed(2) : '0.00',
-          
+          avg_trade_size:
+            totalTrades > 0 ? (totalVolume / totalTrades).toFixed(2) : "0.00",
+
           // Performance breakdown
           performance_distribution: {
-            winning: Math.round((winningTrades / Math.max(totalTrades, 1)) * 100),
+            winning: Math.round(
+              (winningTrades / Math.max(totalTrades, 1)) * 100
+            ),
             losing: Math.round((losingTrades / Math.max(totalTrades, 1)) * 100),
-            neutral: Math.round(((totalTrades - winningTrades - losingTrades) / Math.max(totalTrades, 1)) * 100)
-          }
-        }
+            neutral: Math.round(
+              ((totalTrades - winningTrades - losingTrades) /
+                Math.max(totalTrades, 1)) *
+                100
+            ),
+          },
+        },
       },
       filters: {
         user_id: userId,
@@ -252,22 +281,23 @@ router.get("/recent", authenticateToken, async (req, res) => {
         days: parseInt(days),
         symbol: symbol || null,
         type: type,
-        status: status
+        status: status,
       },
       period: {
-        start_date: new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        end_date: new Date().toISOString().split('T')[0],
-        days_requested: parseInt(days)
+        start_date: new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
+        end_date: new Date().toISOString().split("T")[0],
+        days_requested: parseInt(days),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Recent trades error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch recent trades",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -315,17 +345,17 @@ class TradeAnalyticsService {
     try {
       // Initialize Alpaca service
       const alpacaService = new AlpacaService(apiKey, apiSecret, isSandbox);
-      
+
       // Get orders from Alpaca
       const orders = await alpacaService.getOrders({
-        status: 'filled',
+        status: "filled",
         after: startDate,
-        until: endDate
+        until: endDate,
       });
-      
+
       let importedCount = 0;
       const errors = [];
-      
+
       // Import each filled order as a transaction
       for (const order of orders) {
         try {
@@ -337,12 +367,15 @@ class TradeAnalyticsService {
             ON CONFLICT (order_id) DO NOTHING
             RETURNING id
           `;
-          
+
           // Calculate basic P&L (simplified - would need more complex logic for actual P&L)
-          const pnl = order.side === 'sell' ? 
-            (order.filled_avg_price - (order.cost_basis || order.filled_avg_price)) * order.filled_qty :
-            0;
-          
+          const pnl =
+            order.side === "sell"
+              ? (order.filled_avg_price -
+                  (order.cost_basis || order.filled_avg_price)) *
+                order.filled_qty
+              : 0;
+
           const result = await query(insertQuery, [
             userId,
             order.symbol,
@@ -351,9 +384,9 @@ class TradeAnalyticsService {
             order.filled_avg_price,
             order.id,
             order.filled_at,
-            pnl
+            pnl,
           ]);
-          
+
           if (result.rows.length > 0) {
             importedCount++;
           }
@@ -361,11 +394,11 @@ class TradeAnalyticsService {
           errors.push({
             order_id: order.id,
             symbol: order.symbol,
-            error: insertError.message
+            error: insertError.message,
           });
         }
       }
-      
+
       return {
         success: true,
         message: `Successfully imported ${importedCount} trades from Alpaca`,
@@ -375,19 +408,19 @@ class TradeAnalyticsService {
         stats: {
           total_orders: orders.length,
           imported: importedCount,
-          errors: errors.length
+          errors: errors.length,
         },
-        errors: errors
+        errors: errors,
       };
     } catch (error) {
-      console.error('Alpaca trade import error:', error);
+      console.error("Alpaca trade import error:", error);
       return {
         success: false,
         message: "Failed to import trades from Alpaca",
         error: error.message,
         userId,
         startDate,
-        endDate
+        endDate,
       };
     }
   }
@@ -409,25 +442,27 @@ class TradeAnalyticsService {
         WHERE user_id = $1 
         AND created_at >= NOW() - INTERVAL '30 days'
       `;
-      
+
       const summaryResult = await query(summaryQuery, [userId]);
       const summary = summaryResult.rows[0];
-      
+
       // Calculate win rate
       const totalTrades = parseInt(summary.total_trades) || 0;
       const profitableTrades = parseInt(summary.profitable_trades) || 0;
-      const winRate = totalTrades > 0 ? (profitableTrades / totalTrades * 100) : 0;
-      
+      const winRate =
+        totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0;
+
       return {
         userId,
-        summary: totalTrades > 0 ? 
-          `${totalTrades} trades in last 30 days, ${winRate.toFixed(1)}% win rate, $${parseFloat(summary.total_pnl || 0).toFixed(2)} total P&L` :
-          "No trades found in last 30 days",
+        summary:
+          totalTrades > 0
+            ? `${totalTrades} trades in last 30 days, ${winRate.toFixed(1)}% win rate, $${parseFloat(summary.total_pnl || 0).toFixed(2)} total P&L`
+            : "No trades found in last 30 days",
         insights: [
           `Total trades: ${totalTrades}`,
           `Win rate: ${winRate.toFixed(1)}%`,
           `Average P&L: $${parseFloat(summary.avg_pnl || 0).toFixed(2)}`,
-          `Average trade size: $${parseFloat(summary.avg_trade_size || 0).toFixed(2)}`
+          `Average trade size: $${parseFloat(summary.avg_trade_size || 0).toFixed(2)}`,
         ],
         metrics: {
           total_trades: totalTrades,
@@ -436,16 +471,16 @@ class TradeAnalyticsService {
           win_rate: winRate,
           total_pnl: parseFloat(summary.total_pnl || 0),
           avg_pnl: parseFloat(summary.avg_pnl || 0),
-          avg_trade_size: parseFloat(summary.avg_trade_size || 0)
-        }
+          avg_trade_size: parseFloat(summary.avg_trade_size || 0),
+        },
       };
     } catch (error) {
-      console.error('Trade analysis summary error:', error);
-      return { 
-        insights: [`Error: ${error.message}`], 
-        summary: "Analysis unavailable - database error", 
+      console.error("Trade analysis summary error:", error);
+      return {
+        insights: [`Error: ${error.message}`],
+        summary: "Analysis unavailable - database error",
         userId,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -471,10 +506,10 @@ class TradeAnalyticsService {
         ORDER BY created_at DESC
         LIMIT $2
       `;
-      
+
       const insightsResult = await query(insightsQuery, [userId, limit]);
-      
-      return insightsResult.rows.map(trade => ({
+
+      return insightsResult.rows.map((trade) => ({
         symbol: trade.symbol,
         side: trade.side,
         quantity: parseInt(trade.quantity),
@@ -482,14 +517,16 @@ class TradeAnalyticsService {
         pnl: parseFloat(trade.pnl || 0),
         date: trade.created_at,
         result: trade.result_type,
-        trade_value: parseFloat(trade.quantity * trade.price)
+        trade_value: parseFloat(trade.quantity * trade.price),
       }));
     } catch (error) {
-      console.error('Trade insights error:', error);
-      return [{
-        error: error.message,
-        message: "Unable to fetch trade insights - check database connection"
-      }];
+      console.error("Trade insights error:", error);
+      return [
+        {
+          error: error.message,
+          message: "Unable to fetch trade insights - check database connection",
+        },
+      ];
     }
   }
 }
@@ -615,20 +652,22 @@ router.post("/import", authenticateToken, async (req, res) => {
     const userId = validateUserAuthentication(req);
     const { format, data, broker = "alpaca" } = req.body;
 
-    console.log(`🔄 [TRADES] Generic import requested for user: ${userId}, format: ${format}, broker: ${broker}`);
+    console.log(
+      `🔄 [TRADES] Generic import requested for user: ${userId}, format: ${format}, broker: ${broker}`
+    );
 
     if (format === "csv" && data) {
       // Handle CSV import
-      const lines = data.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',');
+      const lines = data.split("\n").filter((line) => line.trim());
+      const headers = lines[0].split(",");
       const trades = [];
-      
+
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
+        const values = lines[i].split(",");
         if (values.length >= headers.length) {
           const trade = {};
           headers.forEach((header, index) => {
-            trade[header.trim()] = values[index] ? values[index].trim() : '';
+            trade[header.trim()] = values[index] ? values[index].trim() : "";
           });
           trades.push(trade);
         }
@@ -639,8 +678,8 @@ router.post("/import", authenticateToken, async (req, res) => {
         message: `Successfully parsed ${trades.length} trades from CSV`,
         data: {
           imported_count: trades.length,
-          trades: trades.slice(0, 5) // Show first 5 as sample
-        }
+          trades: trades.slice(0, 5), // Show first 5 as sample
+        },
       });
     }
 
@@ -677,9 +716,8 @@ router.post("/import", authenticateToken, async (req, res) => {
       success: false,
       error: "Invalid import format or broker",
       supported_formats: ["csv"],
-      supported_brokers: ["alpaca"]
+      supported_brokers: ["alpaca"],
     });
-
   } catch (error) {
     console.error("Error importing trades:", error);
     res.status(500).json({
@@ -704,10 +742,7 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
     const credentials = await getUserApiKey(userId, "alpaca");
 
     if (!credentials) {
-      return sendApiKeyError(
-        res,
-        "No active Alpaca API keys found"
-      );
+      return sendApiKeyError(res, "No active Alpaca API keys found");
     }
 
     console.log(
@@ -750,7 +785,8 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
       endDate
     );
 
-    res.json({message: "Trade import completed successfully",
+    res.json({
+      message: "Trade import completed successfully",
       data: importResult,
     });
   } catch (error) {
@@ -777,8 +813,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
 
     const summary = await tradeAnalyticsService.getTradeAnalysisSummary(userId);
 
-    res.json({data: summary,
-    });
+    res.json({ data: summary });
   } catch (error) {
     console.error("Error fetching trade summary:", error);
     res.status(500).json({
@@ -838,7 +873,8 @@ router.get("/positions", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    res.json({data: {
+    res.json({
+      data: {
         positions: result.rows,
         pagination: {
           total: parseInt(countResult.rows[0].total),
@@ -868,7 +904,9 @@ router.get("/analytics", authenticateToken, async (req, res) => {
     const userId = validateUserAuthentication(req);
     const { timeframe = "3M", limit = 50 } = req.query;
 
-    console.log(`📊 Trade analytics requested for user: ${userId}, timeframe: ${timeframe}`);
+    console.log(
+      `📊 Trade analytics requested for user: ${userId}, timeframe: ${timeframe}`
+    );
 
     // Calculate date range
     const endDate = new Date();
@@ -909,7 +947,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         best_trade: 0,
         worst_trade: 0,
         total_volume: 0,
-        avg_holding_period: 0
+        avg_holding_period: 0,
       },
       performance_metrics: {
         sharpe_ratio: 0,
@@ -919,17 +957,17 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         volatility: 0,
         beta: 0,
         alpha: 0,
-        sortino_ratio: 0
+        sortino_ratio: 0,
       },
       sector_breakdown: [],
       monthly_performance: [],
       trade_distribution: {
         by_size: [],
         by_holding_period: [],
-        by_time_of_day: []
+        by_time_of_day: [],
       },
       recent_trades: [],
-      insights: []
+      insights: [],
     };
 
     try {
@@ -959,7 +997,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
       if (metricsResult.rows[0] && metricsResult.rows[0].total_trades > 0) {
         const metrics = metricsResult.rows[0];
         const winRate = (metrics.winning_trades / metrics.total_trades) * 100;
-        
+
         analyticsData.summary = {
           total_trades: parseInt(metrics.total_trades),
           winning_trades: parseInt(metrics.winning_trades),
@@ -971,21 +1009,45 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           best_trade: parseFloat(metrics.best_trade || 0),
           worst_trade: parseFloat(metrics.worst_trade || 0),
           total_volume: parseFloat(metrics.total_volume || 0),
-          avg_holding_period: parseFloat(metrics.avg_holding_period || 0)
+          avg_holding_period: parseFloat(metrics.avg_holding_period || 0),
         };
 
         // Calculate performance metrics
         const volatility = parseFloat(metrics.pnl_volatility || 0);
         const avgReturn = parseFloat(metrics.avg_pnl || 0);
         analyticsData.performance_metrics = {
-          sharpe_ratio: volatility > 0 ? parseFloat((avgReturn / volatility).toFixed(3)) : 0,
-          max_drawdown: parseFloat((Math.abs(metrics.worst_trade || 0) / Math.max(metrics.total_volume || 1, 1000) * 100).toFixed(2)),
-          profit_factor: metrics.losing_trades > 0 ? parseFloat((Math.abs(metrics.total_pnl) / Math.abs(metrics.worst_trade * metrics.losing_trades)).toFixed(2)) : 0,
-          risk_adjusted_return: parseFloat((avgReturn / Math.max(volatility, 1)).toFixed(3)),
+          sharpe_ratio:
+            volatility > 0
+              ? parseFloat((avgReturn / volatility).toFixed(3))
+              : 0,
+          max_drawdown: parseFloat(
+            (
+              (Math.abs(metrics.worst_trade || 0) /
+                Math.max(metrics.total_volume || 1, 1000)) *
+              100
+            ).toFixed(2)
+          ),
+          profit_factor:
+            metrics.losing_trades > 0
+              ? parseFloat(
+                  (
+                    Math.abs(metrics.total_pnl) /
+                    Math.abs(metrics.worst_trade * metrics.losing_trades)
+                  ).toFixed(2)
+                )
+              : 0,
+          risk_adjusted_return: parseFloat(
+            (avgReturn / Math.max(volatility, 1)).toFixed(3)
+          ),
           volatility: parseFloat(volatility.toFixed(2)),
           beta: null, // Beta calculation requires market data comparison
           alpha: parseFloat((avgReturn * 0.1).toFixed(3)),
-          sortino_ratio: parseFloat(((avgReturn / Math.max(Math.abs(metrics.worst_trade || 1), 1)) * 100).toFixed(3))
+          sortino_ratio: parseFloat(
+            (
+              (avgReturn / Math.max(Math.abs(metrics.worst_trade || 1), 1)) *
+              100
+            ).toFixed(3)
+          ),
         };
       }
 
@@ -1009,12 +1071,13 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         [userId, startDate, endDate]
       );
 
-      analyticsData.sector_breakdown = sectorResult.rows.map(row => ({
+      analyticsData.sector_breakdown = sectorResult.rows.map((row) => ({
         sector: row.sector,
         trade_count: parseInt(row.trade_count),
         pnl: parseFloat(row.sector_pnl || 0),
         avg_roi: parseFloat(row.avg_roi || 0),
-        performance_grade: parseFloat(row.sector_pnl || 0) > 0 ? 'Positive' : 'Negative'
+        performance_grade:
+          parseFloat(row.sector_pnl || 0) > 0 ? "Positive" : "Negative",
       }));
 
       // Get recent trades
@@ -1041,7 +1104,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         [userId, parseInt(limit)]
       );
 
-      analyticsData.recent_trades = recentTradesResult.rows.map(trade => ({
+      analyticsData.recent_trades = recentTradesResult.rows.map((trade) => ({
         symbol: trade.symbol,
         company_name: trade.company_name,
         side: trade.side,
@@ -1053,17 +1116,28 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         opened_at: trade.opened_at,
         closed_at: trade.closed_at,
         status: trade.status,
-        duration_days: trade.closed_at ? 
-          Math.ceil((new Date(trade.closed_at) - new Date(trade.opened_at)) / (1000 * 60 * 60 * 24)) : 
-          Math.ceil((new Date() - new Date(trade.opened_at)) / (1000 * 60 * 60 * 24))
+        duration_days: trade.closed_at
+          ? Math.ceil(
+              (new Date(trade.closed_at) - new Date(trade.opened_at)) /
+                (1000 * 60 * 60 * 24)
+            )
+          : Math.ceil(
+              (new Date() - new Date(trade.opened_at)) / (1000 * 60 * 60 * 24)
+            ),
       }));
-
     } catch (dbError) {
-      console.error("Database query failed for trade analytics:", dbError.message);
-      return res.status(500).json({success: false, error: "Failed to retrieve trade analytics", 
-        details: dbError.message,
-        suggestion: "Please ensure trade data is available in the database"
-      });
+      console.error(
+        "Database query failed for trade analytics:",
+        dbError.message
+      );
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Failed to retrieve trade analytics",
+          details: dbError.message,
+          suggestion: "Please ensure trade data is available in the database",
+        });
     }
 
     res.json({
@@ -1072,21 +1146,21 @@ router.get("/analytics", authenticateToken, async (req, res) => {
       metadata: {
         timeframe: timeframe,
         date_range: {
-          start: startDate.toISOString().split('T')[0],
-          end: endDate.toISOString().split('T')[0]
+          start: startDate.toISOString().split("T")[0],
+          end: endDate.toISOString().split("T")[0],
         },
-        data_source: analyticsData.summary.total_trades > 0 ? "database" : "empty",
-        analysis_type: "comprehensive_trade_analytics"
+        data_source:
+          analyticsData.summary.total_trades > 0 ? "database" : "empty",
+        analysis_type: "comprehensive_trade_analytics",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trade analytics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trade analytics",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1376,7 +1450,10 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
           totalTrades: parseInt(dbMetrics.total_trades) || 0,
           winRate:
             dbMetrics.total_trades > 0
-              ? ((dbMetrics.winning_trades / dbMetrics.total_trades) * 100).toFixed(2)
+              ? (
+                  (dbMetrics.winning_trades / dbMetrics.total_trades) *
+                  100
+                ).toFixed(2)
               : 0,
           totalPnL: parseFloat(dbMetrics.total_pnl) || 0,
           avgPnL: parseFloat(dbMetrics.avg_pnl) || 0,
@@ -1418,15 +1495,24 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
           timeframe,
           overview: {
             totalTrades: fills.length,
-            winRate: fills.length > 0 ? ((winningTrades / fills.length) * 100).toFixed(2) : 0,
+            winRate:
+              fills.length > 0
+                ? ((winningTrades / fills.length) * 100).toFixed(2)
+                : 0,
             totalPnL: totalPnL,
             avgPnL: fills.length > 0 ? totalPnL / fills.length : 0,
             avgROI: 0, // Would need position cost basis to calculate
-            bestTrade: Math.max(...fills.map((f) => parseFloat(f.net_amount) || 0)),
-            worstTrade: Math.min(...fills.map((f) => parseFloat(f.net_amount) || 0)),
+            bestTrade: Math.max(
+              ...fills.map((f) => parseFloat(f.net_amount) || 0)
+            ),
+            worstTrade: Math.min(
+              ...fills.map((f) => parseFloat(f.net_amount) || 0)
+            ),
             avgHoldingPeriod: 0, // Would need position open/close times
             totalVolume: fills.reduce(
-              (sum, fill) => sum + (parseFloat(fill.qty) || 0) * (parseFloat(fill.price) || 0),
+              (sum, fill) =>
+                sum +
+                (parseFloat(fill.qty) || 0) * (parseFloat(fill.price) || 0),
               0
             ),
           },
@@ -1505,7 +1591,8 @@ router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
       ]
     );
 
-    res.json({data: {
+    res.json({
+      data: {
         position,
         executions: executionsResult.rows,
         analytics: {
@@ -1548,7 +1635,8 @@ router.get("/insights", authenticateToken, async (req, res) => {
       parseInt(limit)
     );
 
-    res.json({data: {
+    res.json({
+      data: {
         insights,
         total: insights.length,
       },
@@ -1603,7 +1691,8 @@ router.get("/performance", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    res.json({data: {
+    res.json({
+      data: {
         benchmarks: benchmarkResult.rows,
         portfolio: portfolioResult.rows[0] || null,
         attribution: attributionResult.rows,
@@ -1616,21 +1705,21 @@ router.get("/performance", authenticateToken, async (req, res) => {
       success: false,
       error: "Performance data unavailable",
       message: "Unable to retrieve performance metrics and benchmarks",
-      details: error.message.includes("does not exist") 
+      details: error.message.includes("does not exist")
         ? "Required database tables are missing"
         : "Database query failed",
       service: "trade-performance",
       requirements: [
         "Database tables: performance_benchmarks, portfolio_summary, performance_attribution",
         "Historical trade data in database",
-        "Performance calculations completed"
+        "Performance calculations completed",
       ],
       actions: [
         "Contact administrator to verify database schema",
         "Ensure all required tables exist and contain data",
-        "Import historical trading data from broker"
+        "Import historical trading data from broker",
       ],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1755,7 +1844,8 @@ router.get("/history", authenticateToken, async (req, res) => {
 
         console.log(`✅ Retrieved ${total} trades from Alpaca API`);
 
-        return res.json({data: {
+        return res.json({
+          data: {
             trades: paginatedTrades,
             pagination: {
               total,
@@ -1772,8 +1862,10 @@ router.get("/history", authenticateToken, async (req, res) => {
     }
 
     // Fallback to database trade data when no broker API credentials are available
-    console.log("🔄 No broker API credentials found, falling back to database trade data...");
-    
+    console.log(
+      "🔄 No broker API credentials found, falling back to database trade data..."
+    );
+
     try {
       const fallbackQuery = `
         SELECT 
@@ -1790,19 +1882,19 @@ router.get("/history", authenticateToken, async (req, res) => {
         ORDER BY executed_at DESC
         LIMIT $2 OFFSET $3
       `;
-      
+
       const countQuery = `
         SELECT COUNT(*) as total 
         FROM portfolio_transactions 
         WHERE user_id = $1
       `;
-      
+
       const [tradeResults, countResults] = await Promise.all([
         query(fallbackQuery, [userId, parseInt(limit), parseInt(offset)]),
-        query(countQuery, [userId])
+        query(countQuery, [userId]),
       ]);
-      
-      const trades = tradeResults.rows.map(trade => ({
+
+      const trades = tradeResults.rows.map((trade) => ({
         id: trade.id,
         symbol: trade.symbol,
         action: trade.action,
@@ -1811,13 +1903,15 @@ router.get("/history", authenticateToken, async (req, res) => {
         pnl: parseFloat(trade.pnl || 0),
         execution_time: trade.execution_time,
         source: trade.source,
-        status: 'filled'
+        status: "filled",
       }));
-      
+
       const total = parseInt(countResults.rows[0].total);
-      
-      console.log(`✅ Retrieved ${trades.length} trades from database (${total} total)`);
-      
+
+      console.log(
+        `✅ Retrieved ${trades.length} trades from database (${total} total)`
+      );
+
       return res.json({
         success: true,
         data: {
@@ -1829,30 +1923,31 @@ router.get("/history", authenticateToken, async (req, res) => {
             hasMore: parseInt(offset) + parseInt(limit) < total,
           },
           source: "database_fallback",
-          note: "Using database trade data. Configure broker API credentials for real-time data."
+          note: "Using database trade data. Configure broker API credentials for real-time data.",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
     } catch (dbError) {
       console.error("Database fallback failed:", dbError.message);
       // If database fallback also fails, return the original 503 error
       return res.status(503).json({
         success: false,
         error: "Trade history unavailable",
-        details: "Unable to retrieve trade history from broker APIs or database",
-        message: "Trade history requires valid broker API credentials. Please configure your broker API keys in Settings to access real trade data.",
+        details:
+          "Unable to retrieve trade history from broker APIs or database",
+        message:
+          "Trade history requires valid broker API credentials. Please configure your broker API keys in Settings to access real trade data.",
         service: "trade-history",
         requirements: [
           "Valid broker API credentials (Alpaca, Interactive Brokers, etc.)",
-          "Active trading account with broker", 
-          "API permissions enabled for trade data access"
+          "Active trading account with broker",
+          "API permissions enabled for trade data access",
         ],
         actions: [
           "Go to Settings → API Keys to configure broker credentials",
           "Ensure your broker account has API access enabled",
-          "Verify API key permissions include trade data access"
-        ]
+          "Verify API key permissions include trade data access",
+        ],
       });
     }
   } catch (error) {
@@ -1864,7 +1959,6 @@ router.get("/history", authenticateToken, async (req, res) => {
     });
   }
 });
-
 
 /**
  * @route GET /api/trades/export
@@ -1970,8 +2064,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       res.send(csv);
     } else {
       // Return JSON
-      res.json({data: result.rows,
-      });
+      res.json({ data: result.rows });
     }
   } catch (error) {
     console.error("Error exporting trade data:", error);
@@ -2024,8 +2117,7 @@ router.delete("/data", authenticateToken, async (req, res) => {
       ]);
     });
 
-    res.json({message: "All trade data deleted successfully",
-    });
+    res.json({ message: "All trade data deleted successfully" });
   } catch (error) {
     console.error("Error deleting trade data:", error);
     res.status(500).json({
@@ -2039,12 +2131,19 @@ router.delete("/data", authenticateToken, async (req, res) => {
 router.get("/analysis/patterns", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { period = "3m", pattern_type = "all", min_occurrences = 2 } = req.query;
-    
-    console.log(`📊 Trade pattern analysis requested for user: ${userId}, period: ${period}`);
+    const {
+      period = "3m",
+      pattern_type = "all",
+      min_occurrences = 2,
+    } = req.query;
+
+    console.log(
+      `📊 Trade pattern analysis requested for user: ${userId}, period: ${period}`
+    );
 
     // Get user's trading history for pattern analysis
-    const tradesResult = await query(`
+    const tradesResult = await query(
+      `
       SELECT 
         symbol, quantity, price, side, executed_at, order_type,
         EXTRACT(DOW FROM executed_at) as day_of_week,
@@ -2055,7 +2154,9 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
         AND executed_at >= NOW() - INTERVAL '3 months'
         AND status = 'executed'
       ORDER BY executed_at ASC
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     if (!tradesResult || !tradesResult.rows || tradesResult.rows.length < 5) {
       return res.json({
@@ -2066,15 +2167,17 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
             total_trades: tradesResult?.rows?.length || 0,
             analysis_period: period,
             patterns_found: 0,
-            message: "Insufficient trade history for pattern analysis. At least 5 trades required."
+            message:
+              "Insufficient trade history for pattern analysis. At least 5 trades required.",
           },
           insights: {
-            recommendation: "Continue trading to build sufficient history for pattern analysis",
+            recommendation:
+              "Continue trading to build sufficient history for pattern analysis",
             required_trades: 5,
-            current_trades: tradesResult?.rows?.length || 0
-          }
+            current_trades: tradesResult?.rows?.length || 0,
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -2087,14 +2190,29 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
     const symbolPatterns = {};
     const volumePatterns = { small: 0, medium: 0, large: 0 };
 
-    trades.forEach(trade => {
+    trades.forEach((trade) => {
       // Time of day patterns
       const hour = parseInt(trade.hour_of_day);
-      const timeSlot = hour < 10 ? 'morning' : hour < 14 ? 'midday' : hour < 16 ? 'afternoon' : 'after-hours';
+      const timeSlot =
+        hour < 10
+          ? "morning"
+          : hour < 14
+            ? "midday"
+            : hour < 16
+              ? "afternoon"
+              : "after-hours";
       timePatterns[timeSlot] = (timePatterns[timeSlot] || 0) + 1;
 
       // Day of week patterns
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const days = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
       const dayName = days[parseInt(trade.day_of_week)];
       dayPatterns[dayName] = (dayPatterns[dayName] || 0) + 1;
 
@@ -2112,11 +2230,16 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
     Object.entries(timePatterns).forEach(([time, count]) => {
       if (count >= min_occurrences) {
         patterns.push({
-          type: 'time_preference',
+          type: "time_preference",
           pattern: `Prefers trading during ${time}`,
           occurrences: count,
           percentage: ((count / trades.length) * 100).toFixed(1),
-          significance: count >= trades.length * 0.4 ? 'high' : count >= trades.length * 0.2 ? 'medium' : 'low'
+          significance:
+            count >= trades.length * 0.4
+              ? "high"
+              : count >= trades.length * 0.2
+                ? "medium"
+                : "low",
         });
       }
     });
@@ -2124,11 +2247,16 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
     Object.entries(dayPatterns).forEach(([day, count]) => {
       if (count >= min_occurrences) {
         patterns.push({
-          type: 'day_preference',
+          type: "day_preference",
           pattern: `Frequently trades on ${day}`,
           occurrences: count,
           percentage: ((count / trades.length) * 100).toFixed(1),
-          significance: count >= trades.length * 0.3 ? 'high' : count >= trades.length * 0.15 ? 'medium' : 'low'
+          significance:
+            count >= trades.length * 0.3
+              ? "high"
+              : count >= trades.length * 0.15
+                ? "medium"
+                : "low",
         });
       }
     });
@@ -2136,42 +2264,54 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
     Object.entries(symbolPatterns).forEach(([symbol, count]) => {
       if (count >= min_occurrences) {
         patterns.push({
-          type: 'symbol_preference',
+          type: "symbol_preference",
           pattern: `Frequently trades ${symbol}`,
           occurrences: count,
           percentage: ((count / trades.length) * 100).toFixed(1),
-          significance: count >= trades.length * 0.3 ? 'high' : count >= trades.length * 0.15 ? 'medium' : 'low'
+          significance:
+            count >= trades.length * 0.3
+              ? "high"
+              : count >= trades.length * 0.15
+                ? "medium"
+                : "low",
         });
       }
     });
 
     // Volume pattern analysis
-    const dominantVolume = Object.entries(volumePatterns).reduce((a, b) => 
+    const dominantVolume = Object.entries(volumePatterns).reduce((a, b) =>
       volumePatterns[a[0]] > volumePatterns[b[0]] ? a : b
     );
 
     if (dominantVolume[1] >= min_occurrences) {
       const volumeLabels = {
-        small: 'small trades (<$1,000)',
-        medium: 'medium trades ($1,000-$10,000)',
-        large: 'large trades (>$10,000)'
+        small: "small trades (<$1,000)",
+        medium: "medium trades ($1,000-$10,000)",
+        large: "large trades (>$10,000)",
       };
-      
+
       patterns.push({
-        type: 'volume_preference',
+        type: "volume_preference",
         pattern: `Prefers ${volumeLabels[dominantVolume[0]]}`,
         occurrences: dominantVolume[1],
         percentage: ((dominantVolume[1] / trades.length) * 100).toFixed(1),
-        significance: dominantVolume[1] >= trades.length * 0.5 ? 'high' : 'medium'
+        significance:
+          dominantVolume[1] >= trades.length * 0.5 ? "high" : "medium",
       });
     }
 
     // Calculate win/loss patterns if we have price data
     let tradingInsights = {
-      most_active_time: Object.entries(timePatterns).reduce((a, b) => timePatterns[a[0]] > timePatterns[b[0]] ? a : b)[0],
-      most_active_day: Object.entries(dayPatterns).reduce((a, b) => dayPatterns[a[0]] > dayPatterns[b[0]] ? a : b)[0],
-      favorite_symbol: Object.entries(symbolPatterns).reduce((a, b) => symbolPatterns[a[0]] > symbolPatterns[b[0]] ? a : b)[0],
-      trading_style: dominantVolume[0] + '_volume_trader'
+      most_active_time: Object.entries(timePatterns).reduce((a, b) =>
+        timePatterns[a[0]] > timePatterns[b[0]] ? a : b
+      )[0],
+      most_active_day: Object.entries(dayPatterns).reduce((a, b) =>
+        dayPatterns[a[0]] > dayPatterns[b[0]] ? a : b
+      )[0],
+      favorite_symbol: Object.entries(symbolPatterns).reduce((a, b) =>
+        symbolPatterns[a[0]] > symbolPatterns[b[0]] ? a : b
+      )[0],
+      trading_style: dominantVolume[0] + "_volume_trader",
     };
 
     res.json({
@@ -2184,41 +2324,52 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
           patterns_found: patterns.length,
           date_range: {
             start: trades[0]?.executed_at,
-            end: trades[trades.length - 1]?.executed_at
-          }
+            end: trades[trades.length - 1]?.executed_at,
+          },
         },
         insights: tradingInsights,
         pattern_distribution: {
           time_patterns: timePatterns,
           day_patterns: dayPatterns,
           volume_patterns: volumePatterns,
-          symbol_patterns: Object.entries(symbolPatterns).slice(0, 5).reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {})
-        }
+          symbol_patterns: Object.entries(symbolPatterns)
+            .slice(0, 5)
+            .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('Trade pattern analysis error:', error);
-    
+    console.error("Trade pattern analysis error:", error);
+
     // Handle database table missing error
-    if (error.code === '42P01') {
+    if (error.code === "42P01") {
       return res.status(500).json({
         success: false,
-        error: 'Trade history table not found',
-        message: 'Pattern analysis requires trade execution history. Please ensure trades are being recorded.',
+        error: "Trade history table not found",
+        message:
+          "Pattern analysis requires trade execution history. Please ensure trades are being recorded.",
         details: {
-          required_table: 'trades',
-          required_columns: ['user_id', 'symbol', 'quantity', 'price', 'side', 'executed_at', 'status'],
-          suggestion: 'Set up trade execution tracking or import historical trade data'
-        }
+          required_table: "trades",
+          required_columns: [
+            "user_id",
+            "symbol",
+            "quantity",
+            "price",
+            "side",
+            "executed_at",
+            "status",
+          ],
+          suggestion:
+            "Set up trade execution tracking or import historical trade data",
+        },
       });
     }
-    
+
     res.status(500).json({
       success: false,
-      error: 'Failed to analyze trade patterns',
-      message: error.message
+      error: "Failed to analyze trade patterns",
+      message: error.message,
     });
   }
 });
@@ -2226,30 +2377,35 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
 // Trade analysis endpoint (protected)
 router.get("/analysis", authenticateToken, async (req, res) => {
   try {
-    const { 
-      timeframe = '30d', 
-      analysis_type = 'summary',
+    const {
+      timeframe = "30d",
+      analysis_type = "summary",
       symbol = null,
-      limit = 50 
+      limit = 50,
     } = req.query;
-    
-    console.log(`📊 Trade analysis requested - timeframe: ${timeframe}, type: ${analysis_type}, symbol: ${symbol}`);
+
+    console.log(
+      `📊 Trade analysis requested - timeframe: ${timeframe}, type: ${analysis_type}, symbol: ${symbol}`
+    );
 
     // Calculate date range based on timeframe
     const timeframeDays = {
-      '7d': 7,
-      '30d': 30,
-      '90d': 90,
-      '1y': 365,
-      'ytd': Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24))
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "1y": 365,
+      ytd: Math.floor(
+        (new Date() - new Date(new Date().getFullYear(), 0, 0)) /
+          (1000 * 60 * 60 * 24)
+      ),
     };
-    
+
     const days = timeframeDays[timeframe] || 30;
-    
-    let symbolFilter = '';
+
+    let symbolFilter = "";
     let queryParams = [days];
     if (symbol) {
-      symbolFilter = 'AND symbol = $2';
+      symbolFilter = "AND symbol = $2";
       queryParams.push(symbol.toUpperCase());
     }
 
@@ -2279,25 +2435,26 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         message: `No trades available for analysis in the specified timeframe`,
         details: {
           timeframe: timeframe,
-          symbol: symbol || 'all',
-          suggestion: "Try expanding the timeframe or checking if trades have been recorded"
-        }
+          symbol: symbol || "all",
+          suggestion:
+            "Try expanding the timeframe or checking if trades have been recorded",
+        },
       });
     }
 
     const trades = tradesResult.rows;
-    
+
     // Perform analysis based on analysis_type
     let analysisResult;
-    
+
     switch (analysis_type) {
-      case 'summary':
+      case "summary":
         analysisResult = generateTradeSummary(trades, timeframe);
         break;
-      case 'performance':
+      case "performance":
         analysisResult = generatePerformanceAnalysis(trades, timeframe);
         break;
-      case 'patterns':
+      case "patterns":
         analysisResult = generatePatternAnalysis(trades, timeframe);
         break;
       default:
@@ -2309,19 +2466,18 @@ router.get("/analysis", authenticateToken, async (req, res) => {
       data: {
         analysis_type: analysis_type,
         timeframe: timeframe,
-        symbol_filter: symbol || 'all',
+        symbol_filter: symbol || "all",
         trade_count: trades.length,
-        ...analysisResult
+        ...analysisResult,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trade analysis error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to perform trade analysis",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2329,15 +2485,23 @@ router.get("/analysis", authenticateToken, async (req, res) => {
 // Helper functions for trade analysis
 function generateTradeSummary(trades, timeframe) {
   const totalTrades = trades.length;
-  const buyTrades = trades.filter(t => t.trade_type === 'BUY').length;
-  const sellTrades = trades.filter(t => t.trade_type === 'SELL').length;
-  
-  const totalVolume = trades.reduce((sum, t) => sum + parseFloat(t.total_value || 0), 0);
-  const totalProfitLoss = trades.reduce((sum, t) => sum + parseFloat(t.profit_loss || 0), 0);
-  
-  const profitableTrades = trades.filter(t => parseFloat(t.profit_loss || 0) > 0).length;
-  const winRate = totalTrades > 0 ? (profitableTrades / totalTrades * 100) : 0;
-  
+  const buyTrades = trades.filter((t) => t.trade_type === "BUY").length;
+  const sellTrades = trades.filter((t) => t.trade_type === "SELL").length;
+
+  const totalVolume = trades.reduce(
+    (sum, t) => sum + parseFloat(t.total_value || 0),
+    0
+  );
+  const totalProfitLoss = trades.reduce(
+    (sum, t) => sum + parseFloat(t.profit_loss || 0),
+    0
+  );
+
+  const profitableTrades = trades.filter(
+    (t) => parseFloat(t.profit_loss || 0) > 0
+  ).length;
+  const winRate = totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0;
+
   const avgTradeSize = totalTrades > 0 ? totalVolume / totalTrades : 0;
   const avgProfitLoss = totalTrades > 0 ? totalProfitLoss / totalTrades : 0;
 
@@ -2350,26 +2514,34 @@ function generateTradeSummary(trades, timeframe) {
       total_volume: totalVolume.toFixed(2),
       total_profit_loss: totalProfitLoss.toFixed(2),
       average_trade_size: avgTradeSize.toFixed(2),
-      average_profit_loss: avgProfitLoss.toFixed(2)
-    }
+      average_profit_loss: avgProfitLoss.toFixed(2),
+    },
   };
 }
 
 function generatePerformanceAnalysis(trades, timeframe) {
   const summary = generateTradeSummary(trades, timeframe);
-  
+
   // Calculate additional performance metrics
-  const profits = trades.filter(t => parseFloat(t.profit_loss || 0) > 0).map(t => parseFloat(t.profit_loss));
-  const losses = trades.filter(t => parseFloat(t.profit_loss || 0) < 0).map(t => Math.abs(parseFloat(t.profit_loss)));
-  
-  const avgProfit = profits.length > 0 ? profits.reduce((a, b) => a + b, 0) / profits.length : 0;
-  const avgLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
+  const profits = trades
+    .filter((t) => parseFloat(t.profit_loss || 0) > 0)
+    .map((t) => parseFloat(t.profit_loss));
+  const losses = trades
+    .filter((t) => parseFloat(t.profit_loss || 0) < 0)
+    .map((t) => Math.abs(parseFloat(t.profit_loss)));
+
+  const avgProfit =
+    profits.length > 0
+      ? profits.reduce((a, b) => a + b, 0) / profits.length
+      : 0;
+  const avgLoss =
+    losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
   const profitFactor = avgLoss > 0 ? avgProfit / avgLoss : 0;
-  
+
   // Risk metrics
   const maxProfit = profits.length > 0 ? Math.max(...profits) : 0;
   const maxLoss = losses.length > 0 ? Math.max(...losses) : 0;
-  
+
   return {
     ...summary,
     performance: {
@@ -2378,17 +2550,18 @@ function generatePerformanceAnalysis(trades, timeframe) {
       profit_factor: profitFactor.toFixed(2),
       max_profit: maxProfit.toFixed(2),
       max_loss: maxLoss.toFixed(2),
-      risk_reward_ratio: avgProfit > 0 && avgLoss > 0 ? (avgProfit / avgLoss).toFixed(2) : 'N/A'
-    }
+      risk_reward_ratio:
+        avgProfit > 0 && avgLoss > 0 ? (avgProfit / avgLoss).toFixed(2) : "N/A",
+    },
   };
 }
 
 function generatePatternAnalysis(trades, timeframe) {
   const summary = generateTradeSummary(trades, timeframe);
-  
+
   // Analyze trading patterns by symbol
   const symbolStats = {};
-  trades.forEach(trade => {
+  trades.forEach((trade) => {
     if (!symbolStats[trade.symbol]) {
       symbolStats[trade.symbol] = { count: 0, profit_loss: 0, volume: 0 };
     }
@@ -2396,7 +2569,7 @@ function generatePatternAnalysis(trades, timeframe) {
     symbolStats[trade.symbol].profit_loss += parseFloat(trade.profit_loss || 0);
     symbolStats[trade.symbol].volume += parseFloat(trade.total_value || 0);
   });
-  
+
   // Convert to array and sort by count
   const topSymbols = Object.entries(symbolStats)
     .map(([symbol, stats]) => ({
@@ -2404,14 +2577,15 @@ function generatePatternAnalysis(trades, timeframe) {
       trade_count: stats.count,
       total_profit_loss: stats.profit_loss.toFixed(2),
       total_volume: stats.volume.toFixed(2),
-      avg_profit_per_trade: stats.count > 0 ? (stats.profit_loss / stats.count).toFixed(2) : '0.00'
+      avg_profit_per_trade:
+        stats.count > 0 ? (stats.profit_loss / stats.count).toFixed(2) : "0.00",
     }))
     .sort((a, b) => b.trade_count - a.trade_count)
     .slice(0, 10);
 
   // Time-based analysis
   const hourlyDistribution = {};
-  trades.forEach(trade => {
+  trades.forEach((trade) => {
     const hour = new Date(trade.date).getHours();
     hourlyDistribution[hour] = (hourlyDistribution[hour] || 0) + 1;
   });
@@ -2421,8 +2595,8 @@ function generatePatternAnalysis(trades, timeframe) {
     patterns: {
       top_traded_symbols: topSymbols,
       hourly_distribution: hourlyDistribution,
-      trade_frequency: `${(trades.length / parseInt(timeframe) || 0).toFixed(2)} trades per day`
-    }
+      trade_frequency: `${(trades.length / parseInt(timeframe) || 0).toFixed(2)} trades per day`,
+    },
   };
 }
 

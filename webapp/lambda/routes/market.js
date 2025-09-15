@@ -639,16 +639,31 @@ router.get("/overview", async (req, res) => {
     let marketBreadth = {};
     try {
       console.log("Fetching market breadth data...");
+      // Calculate change_percent from close prices since change_percent column doesn't exist
       const breadthQuery = `
-        SELECT 
+        WITH daily_changes AS (
+          SELECT
+            pd1.symbol,
+            pd1.close as current_close,
+            pd2.close as prev_close,
+            CASE
+              WHEN pd2.close IS NOT NULL AND pd2.close > 0
+              THEN ((pd1.close - pd2.close) / pd2.close) * 100
+              ELSE 0
+            END as calculated_change_percent
+          FROM price_daily pd1
+          LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
+            AND pd2.date = pd1.date - INTERVAL '1 day'
+          WHERE pd1.date = (SELECT MAX(date) FROM price_daily)
+            AND pd1.close IS NOT NULL
+        )
+        SELECT
           COUNT(*) as total_stocks,
-          COUNT(CASE WHEN COALESCE(change_percent, 0) > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN COALESCE(change_percent, 0) < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN COALESCE(change_percent, 0) = 0 THEN 1 END) as unchanged,
-          AVG(COALESCE(change_percent, 0)) as average_change_percent
-        FROM price_daily
-        WHERE date = (SELECT MAX(date) FROM price_daily)
-          AND close IS NOT NULL
+          COUNT(CASE WHEN calculated_change_percent > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN calculated_change_percent < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN calculated_change_percent = 0 THEN 1 END) as unchanged,
+          AVG(calculated_change_percent) as average_change_percent
+        FROM daily_changes
       `;
       const breadthResult = await query(breadthQuery);
 

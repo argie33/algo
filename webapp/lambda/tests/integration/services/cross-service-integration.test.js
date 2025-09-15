@@ -5,7 +5,11 @@
  */
 
 const request = require("supertest");
-const { initializeDatabase, closeDatabase, query } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+  query,
+} = require("../../../utils/database");
 
 let app;
 const authToken = "Bearer dev-bypass-token";
@@ -34,13 +38,13 @@ describe("Cross-Service Integration", () => {
         const riskResponse = await request(app)
           .post("/api/risk/analyze")
           .set("Authorization", authToken)
-          .send({ 
+          .send({
             portfolio_id: "test-portfolio",
-            symbols: ["AAPL", "GOOGL"] 
+            symbols: ["AAPL", "GOOGL"],
           });
 
         expect([200, 400, 401, 500, 501]).toContain(riskResponse.status);
-        
+
         if (riskResponse.status === 200) {
           expect(riskResponse.body).toHaveProperty("success", true);
           expect(riskResponse.body.data).toBeDefined();
@@ -65,11 +69,11 @@ describe("Cross-Service Integration", () => {
           .send({
             symbols: ["AAPL"],
             indicators: ["RSI", "MACD"],
-            timeframe: "1D"
+            timeframe: "1D",
           });
 
         expect([200, 400, 401, 500, 501]).toContain(technicalResponse.status);
-        
+
         if (technicalResponse.status === 200) {
           expect(technicalResponse.body).toHaveProperty("success", true);
         }
@@ -85,7 +89,7 @@ describe("Cross-Service Integration", () => {
         .set("Authorization", authToken);
 
       expect([200, 401]).toContain(response.status);
-      
+
       if (response.status === 200) {
         // Verify that user-specific data is returned (not system-wide)
         expect(response.body).toHaveProperty("success", true);
@@ -99,7 +103,7 @@ describe("Cross-Service Integration", () => {
         symbol: "AAPL",
         quantity: 10,
         order_type: "market",
-        side: "buy"
+        side: "buy",
       };
 
       const response = await request(app)
@@ -108,7 +112,7 @@ describe("Cross-Service Integration", () => {
         .send(orderData);
 
       expect([200, 404]).toContain(response.status);
-      
+
       // If order is processed, it should involve:
       // 1. Order validation service
       // 2. Portfolio update service
@@ -128,7 +132,7 @@ describe("Cross-Service Integration", () => {
         .set("Authorization", authToken)
         .send({
           channels: ["quotes"],
-          symbols: ["AAPL", "GOOGL"]
+          symbols: ["AAPL", "GOOGL"],
         });
 
       expect([200, 400, 401, 500, 501]).toContain(subscriptionResponse.status);
@@ -148,7 +152,7 @@ describe("Cross-Service Integration", () => {
           symbol: "AAPL",
           condition: "price_above",
           value: 150,
-          notification_type: "websocket"
+          notification_type: "websocket",
         });
 
       expect([200, 201, 400, 401, 500, 501]).toContain(alertResponse.status);
@@ -173,7 +177,7 @@ describe("Cross-Service Integration", () => {
         .query({ symbols: "AAPL" });
 
       expect([200, 404]).toContain(response.status);
-      
+
       // Should handle external service failures gracefully
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("success", false);
@@ -186,14 +190,14 @@ describe("Cross-Service Integration", () => {
       const response = await request(app)
         .get("/api/market/historical")
         .set("Authorization", authToken)
-        .query({ 
+        .query({
           symbols: "AAPL",
           start_date: "2024-01-01",
-          end_date: "2024-12-31" 
+          end_date: "2024-12-31",
         });
 
       expect([200, 404]).toContain(response.status);
-      
+
       // Should return within reasonable time even for large requests
       expect(response.body).toHaveProperty("success");
     });
@@ -217,7 +221,7 @@ describe("Cross-Service Integration", () => {
           .query({ symbols: "AAPL" });
 
         expect([200, 401, 500]).toContain(secondResponse.status);
-        
+
         // Both should return consistent data
         if (secondResponse.status === 200) {
           expect(secondResponse.body).toHaveProperty("success", true);
@@ -234,16 +238,16 @@ describe("Cross-Service Integration", () => {
         .set("Authorization", authToken)
         .send({
           target_allocation: {
-            "AAPL": 0.6,
-            "GOOGL": 0.4
-          }
+            AAPL: 0.6,
+            GOOGL: 0.4,
+          },
         });
 
       expect([200, 404]).toContain(response.status);
-      
+
       // Should handle complex operation failures without crashing
       expect(response.body).toHaveProperty("success");
-      
+
       if (response.status >= 500) {
         expect(response.body.success).toBe(false);
         expect(response.body).toHaveProperty("message");

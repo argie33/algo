@@ -24,7 +24,7 @@ router.get("/", (req, res) => {
       message: "Trading API - Ready",
       timestamp: new Date().toISOString(),
       status: "operational",
-    }
+    },
   });
 });
 
@@ -106,91 +106,136 @@ router.get("/debug", async (req, res) => {
 // Get all trading signals (without timeframe requirement)
 router.get("/signals", async (req, res) => {
   try {
-    const { limit = 100, symbol, signal_type, timeframe = 'daily' } = req.query;
+    const { limit = 100, symbol, signal_type, timeframe = "daily" } = req.query;
     const userId = req.user?.sub;
 
-    console.log(`🎯 Trading signals requested - user: ${userId}, symbol: ${symbol}, type: ${signal_type}, timeframe: ${timeframe}`);
+    console.log(
+      `🎯 Trading signals requested - user: ${userId}, symbol: ${symbol}, type: ${signal_type}, timeframe: ${timeframe}`
+    );
 
     // Validate limit parameter
     const limitNum = parseInt(limit);
     if (isNaN(limitNum) || limitNum <= 0) {
       return res.status(400).json({
         success: false,
-        error: "Limit must be a positive number"
+        error: "Limit must be a positive number",
       });
     }
     if (limitNum > 500) {
       return res.status(400).json({
         success: false,
-        error: "Limit cannot exceed 500"
+        error: "Limit cannot exceed 500",
       });
     }
 
     // Generate realistic trading signals
-    const generateTradingSignals = (count, filterSymbol, filterType, timeframeFilter) => {
-      const symbols = filterSymbol ? [filterSymbol] : 
-        ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'AMD', 'CRM', 
-         'ORCL', 'ADBE', 'PYPL', 'INTC', 'CSCO', 'PEP', 'KO', 'DIS', 'WMT', 'HD'];
-      
-      const signalTypes = filterType ? [filterType] : ['buy', 'sell', 'hold', 'strong_buy', 'strong_sell'];
-      const timeframes = timeframeFilter && timeframeFilter !== 'daily' ? [timeframeFilter] : 
-        ['1min', '5min', '15min', '1hour', 'daily'];
-      
+    const generateTradingSignals = (
+      count,
+      filterSymbol,
+      filterType,
+      timeframeFilter
+    ) => {
+      const symbols = filterSymbol
+        ? [filterSymbol]
+        : [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "TSLA",
+            "NVDA",
+            "META",
+            "NFLX",
+            "AMD",
+            "CRM",
+            "ORCL",
+            "ADBE",
+            "PYPL",
+            "INTC",
+            "CSCO",
+            "PEP",
+            "KO",
+            "DIS",
+            "WMT",
+            "HD",
+          ];
+
+      const signalTypes = filterType
+        ? [filterType]
+        : ["buy", "sell", "hold", "strong_buy", "strong_sell"];
+      const timeframes =
+        timeframeFilter && timeframeFilter !== "daily"
+          ? [timeframeFilter]
+          : ["1min", "5min", "15min", "1hour", "daily"];
+
       const signals = [];
       const now = new Date();
-      
+
       for (let i = 0; i < count; i++) {
         const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-        const signalType = signalTypes[Math.floor(Math.random() * signalTypes.length)];
-        const timeframe = timeframes[Math.floor(Math.random() * timeframes.length)];
-        
+        const signalType =
+          signalTypes[Math.floor(Math.random() * signalTypes.length)];
+        const timeframe =
+          timeframes[Math.floor(Math.random() * timeframes.length)];
+
         // Generate signal timestamp (within last 24 hours)
-        const signalTime = new Date(now.getTime() - Math.random() * 24 * 60 * 60 * 1000);
-        
+        const signalTime = new Date(
+          now.getTime() - Math.random() * 24 * 60 * 60 * 1000
+        );
+
         // Generate realistic price and confidence based on signal type
-        const basePrice = 50 + (Math.random() * 200);
+        const basePrice = 50 + Math.random() * 200;
         let confidence, strength, target_price, stop_loss;
-        
+
         switch (signalType) {
-          case 'strong_buy':
-            confidence = 0.85 + (Math.random() * 0.15);
-            strength = 'strong';
+          case "strong_buy":
+            confidence = 0.85 + Math.random() * 0.15;
+            strength = "strong";
             target_price = basePrice * (1.05 + Math.random() * 0.15);
             stop_loss = basePrice * (0.95 - Math.random() * 0.05);
             break;
-          case 'buy':
-            confidence = 0.65 + (Math.random() * 0.20);
-            strength = 'moderate';
+          case "buy":
+            confidence = 0.65 + Math.random() * 0.2;
+            strength = "moderate";
             target_price = basePrice * (1.03 + Math.random() * 0.07);
             stop_loss = basePrice * (0.97 - Math.random() * 0.03);
             break;
-          case 'strong_sell':
-            confidence = 0.85 + (Math.random() * 0.15);
-            strength = 'strong';
+          case "strong_sell":
+            confidence = 0.85 + Math.random() * 0.15;
+            strength = "strong";
             target_price = basePrice * (0.85 - Math.random() * 0.15);
             stop_loss = basePrice * (1.05 + Math.random() * 0.05);
             break;
-          case 'sell':
-            confidence = 0.65 + (Math.random() * 0.20);
-            strength = 'moderate';
+          case "sell":
+            confidence = 0.65 + Math.random() * 0.2;
+            strength = "moderate";
             target_price = basePrice * (0.93 - Math.random() * 0.07);
             stop_loss = basePrice * (1.03 + Math.random() * 0.03);
             break;
-          case 'hold':
-            confidence = 0.50 + (Math.random() * 0.30);
-            strength = 'weak';
+          case "hold":
+            confidence = 0.5 + Math.random() * 0.3;
+            strength = "weak";
             target_price = basePrice * (0.98 + Math.random() * 0.04);
             stop_loss = basePrice * (0.98 + Math.random() * 0.04);
             break;
         }
-        
+
         // Technical indicators that might have generated this signal
         const indicators = [
-          'RSI', 'MACD', 'Bollinger Bands', 'Moving Average', 'Volume', 
-          'Stochastic', 'Williams %R', 'Momentum', 'CCI'
+          "RSI",
+          "MACD",
+          "Bollinger Bands",
+          "Moving Average",
+          "Volume",
+          "Stochastic",
+          "Williams %R",
+          "Momentum",
+          "CCI",
         ];
-        const triggerIndicators = indicators.sort(() => 0.5 - Math.random()).slice(0, 2 + Math.floor(Math.random() * 2));
-        
+        const triggerIndicators = indicators
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 2 + Math.floor(Math.random() * 2));
+
         signals.push({
           id: `sig_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 8)}`,
           symbol: symbol,
@@ -202,32 +247,52 @@ router.get("/signals", async (req, res) => {
           confidence: Math.round(confidence * 100) / 100,
           strength: strength,
           generated_at: signalTime.toISOString(),
-          expires_at: new Date(signalTime.getTime() + (timeframe === 'daily' ? 24 : timeframe === '1hour' ? 1 : 0.5) * 60 * 60 * 1000).toISOString(),
+          expires_at: new Date(
+            signalTime.getTime() +
+              (timeframe === "daily" ? 24 : timeframe === "1hour" ? 1 : 0.5) *
+                60 *
+                60 *
+                1000
+          ).toISOString(),
           indicators: triggerIndicators,
-          reasoning: `${triggerIndicators.join(' and ')} indicating ${signalType} opportunity`,
-          risk_level: confidence > 0.8 ? 'low' : confidence > 0.6 ? 'medium' : 'high',
+          reasoning: `${triggerIndicators.join(" and ")} indicating ${signalType} opportunity`,
+          risk_level:
+            confidence > 0.8 ? "low" : confidence > 0.6 ? "medium" : "high",
           volume_factor: Math.round((0.5 + Math.random() * 1.5) * 100) / 100,
-          market_conditions: ['bullish', 'bearish', 'sideways', 'volatile'][Math.floor(Math.random() * 4)]
+          market_conditions: ["bullish", "bearish", "sideways", "volatile"][
+            Math.floor(Math.random() * 4)
+          ],
         });
       }
-      
-      return signals.sort((a, b) => new Date(b.generated_at) - new Date(a.generated_at));
+
+      return signals.sort(
+        (a, b) => new Date(b.generated_at) - new Date(a.generated_at)
+      );
     };
 
-    const signals = generateTradingSignals(limitNum, symbol, signal_type, timeframe);
+    const signals = generateTradingSignals(
+      limitNum,
+      symbol,
+      signal_type,
+      timeframe
+    );
 
     // Calculate signal analytics
     const analytics = {
       total_signals: signals.length,
       signal_breakdown: {
-        buy_signals: signals.filter(s => s.signal_type.includes('buy')).length,
-        sell_signals: signals.filter(s => s.signal_type.includes('sell')).length,
-        hold_signals: signals.filter(s => s.signal_type === 'hold').length
+        buy_signals: signals.filter((s) => s.signal_type.includes("buy"))
+          .length,
+        sell_signals: signals.filter((s) => s.signal_type.includes("sell"))
+          .length,
+        hold_signals: signals.filter((s) => s.signal_type === "hold").length,
       },
       confidence_distribution: {
-        high_confidence: signals.filter(s => s.confidence >= 0.8).length,
-        medium_confidence: signals.filter(s => s.confidence >= 0.6 && s.confidence < 0.8).length,
-        low_confidence: signals.filter(s => s.confidence < 0.6).length
+        high_confidence: signals.filter((s) => s.confidence >= 0.8).length,
+        medium_confidence: signals.filter(
+          (s) => s.confidence >= 0.6 && s.confidence < 0.8
+        ).length,
+        low_confidence: signals.filter((s) => s.confidence < 0.6).length,
       },
       timeframe_distribution: signals.reduce((acc, signal) => {
         acc[signal.timeframe] = (acc[signal.timeframe] || 0) + 1;
@@ -242,8 +307,14 @@ router.get("/signals", async (req, res) => {
           acc[signal.symbol] = (acc[signal.symbol] || 0) + 1;
           return acc;
         }, {})
-      ).sort(([,a], [,b]) => b - a).slice(0, 10),
-      average_confidence: Math.round(signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length * 100) / 100
+      )
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10),
+      average_confidence:
+        Math.round(
+          (signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length) *
+            100
+        ) / 100,
     };
 
     res.json({
@@ -251,19 +322,23 @@ router.get("/signals", async (req, res) => {
       data: signals,
       analytics: analytics,
       filters: {
-        symbol: symbol || 'all',
-        signal_type: signal_type || 'all', 
+        symbol: symbol || "all",
+        signal_type: signal_type || "all",
         timeframe: timeframe,
-        limit: limitNum
+        limit: limitNum,
       },
       count: signals.length,
       timestamp: new Date().toISOString(),
       methodology: {
-        signal_generation: "Advanced algorithmic analysis of market conditions and technical indicators",
-        indicator_types: "RSI, MACD, Bollinger Bands, Moving Averages, Volume Analysis, Momentum",
-        confidence_calculation: "Multi-factor scoring based on indicator convergence and historical accuracy",
-        risk_assessment: "Based on volatility, liquidity, and market conditions"
-      }
+        signal_generation:
+          "Advanced algorithmic analysis of market conditions and technical indicators",
+        indicator_types:
+          "RSI, MACD, Bollinger Bands, Moving Averages, Volume Analysis, Momentum",
+        confidence_calculation:
+          "Multi-factor scoring based on indicator convergence and historical accuracy",
+        risk_assessment:
+          "Based on volatility, liquidity, and market conditions",
+      },
     });
   } catch (error) {
     console.error("Error fetching trading signals:", error);
@@ -302,25 +377,25 @@ router.get("/signals/:timeframe", async (req, res) => {
     // Validate timeframe and handle aliases
     let normalizedTimeframe = timeframe.toLowerCase();
     const timeframeAliases = {
-      "swing": "daily", // Swing trading typically uses daily data for multi-day positions
-      "day": "daily",
-      "week": "weekly", 
-      "month": "monthly"
+      swing: "daily", // Swing trading typically uses daily data for multi-day positions
+      day: "daily",
+      week: "weekly",
+      month: "monthly",
     };
-    
+
     if (timeframeAliases[normalizedTimeframe]) {
       normalizedTimeframe = timeframeAliases[normalizedTimeframe];
     }
-    
+
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(normalizedTimeframe)) {
       console.warn("[TRADING] Invalid timeframe:", timeframe);
       return res.status(400).json({
         success: false,
-        error: `Invalid timeframe: ${timeframe}. Must be one of: ${validTimeframes.join(', ')} or their aliases (swing, day, week, month)`
+        error: `Invalid timeframe: ${timeframe}. Must be one of: ${validTimeframes.join(", ")} or their aliases (swing, day, week, month)`,
       });
     }
-    
+
     // Use normalized timeframe for the rest of the processing
     const processedTimeframe = normalizedTimeframe;
 
@@ -351,7 +426,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           WHERE table_schema = 'public' 
           AND table_name = 'price_daily'
         );`
-      )
+      ),
     ]);
 
     const mainTableExists = tableChecks[0].rows[0].exists;
@@ -359,27 +434,55 @@ router.get("/signals/:timeframe", async (req, res) => {
     const priceDailyExists = tableChecks[2].rows[0].exists;
 
     // Check which columns exist in the main trading table
-    let tradingTableColumns = { symbol: false, date: false, signal: false, price: false, buylevel: false, stoplevel: false, inposition: false };
+    let tradingTableColumns = {
+      symbol: false,
+      date: false,
+      signal: false,
+      price: false,
+      buylevel: false,
+      stoplevel: false,
+      inposition: false,
+    };
     if (mainTableExists) {
       try {
-        const columnCheck = await query(`
+        const columnCheck = await query(
+          `
           SELECT column_name 
           FROM information_schema.columns 
           WHERE table_schema = 'public' 
           AND table_name = $1
           AND column_name IN ('symbol', 'date', 'signal', 'price', 'buylevel', 'stoplevel', 'inposition')
-        `, [tableName]);
-        columnCheck.rows.forEach(row => {
+        `,
+          [tableName]
+        );
+        columnCheck.rows.forEach((row) => {
           tradingTableColumns[row.column_name] = true;
         });
       } catch (error) {
-        console.error(`[TRADING] Error checking columns for ${tableName}:`, error.message);
-        tradingTableColumns = { symbol: true, date: true, signal: true, price: true, buylevel: false, stoplevel: false, inposition: false };
+        console.error(
+          `[TRADING] Error checking columns for ${tableName}:`,
+          error.message
+        );
+        tradingTableColumns = {
+          symbol: true,
+          date: true,
+          signal: true,
+          price: true,
+          buylevel: false,
+          stoplevel: false,
+          inposition: false,
+        };
       }
     }
 
     // Check which columns exist in company_profile table
-    let companyProfileColumns = { ticker: false, short_name: false, name: false, sector: false, symbol: false };
+    let companyProfileColumns = {
+      ticker: false,
+      short_name: false,
+      name: false,
+      sector: false,
+      symbol: false,
+    };
     if (companyProfileExists) {
       try {
         const columnCheck = await query(`
@@ -389,16 +492,19 @@ router.get("/signals/:timeframe", async (req, res) => {
           AND table_name = 'company_profile'
           AND column_name IN ('ticker', 'symbol', 'short_name', 'name', 'sector', 'market_cap')
         `);
-        columnCheck.rows.forEach(row => {
+        columnCheck.rows.forEach((row) => {
           companyProfileColumns[row.column_name] = true;
         });
-        
+
         // If company_profile exists but has no useful columns, don't use it
         if (!columnCheck.rows || columnCheck.rows.length === 0) {
           companyProfileExists = false;
         }
       } catch (columnError) {
-        console.warn("[TRADING] Could not check company_profile columns:", columnError.message);
+        console.warn(
+          "[TRADING] Could not check company_profile columns:",
+          columnError.message
+        );
         companyProfileExists = false;
       }
     }
@@ -445,25 +551,25 @@ router.get("/signals/:timeframe", async (req, res) => {
             bs.date,
             bs.signal,
             bs.price as price,
-            ${tradingTableColumns.stoplevel ? 'bs.stoplevel' : 'NULL'} as stoplevel,
-            ${tradingTableColumns.inposition ? 'bs.inposition' : 'false'} as inposition,
-            ${priceDailyExists ? 'pd.close' : 'NULL'} as current_price,
-            ${companyProfileExists && companyProfileColumns.short_name ? 'cp.short_name' : companyProfileExists && companyProfileColumns.name ? 'cp.name' : 'NULL'} as company_name,
-            ${companyProfileExists ? 'cp.sector' : 'NULL'} as sector,
-            ${companyProfileExists ? 'cp.market_cap' : 'NULL'} as market_cap,
+            ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
+            ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
+            ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
+            ${companyProfileExists && companyProfileColumns.short_name ? "cp.short_name" : companyProfileExists && companyProfileColumns.name ? "cp.name" : "NULL"} as company_name,
+            ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
+            ${companyProfileExists ? "cp.market_cap" : "NULL"} as market_cap,
             NULL as trailing_pe,
-            ${priceDailyExists ? 'pd.dividends' : 'NULL'} as dividend_yield,
+            ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
             CASE 
-              WHEN bs.signal = 'Buy' AND ${priceDailyExists ? 'pd.close' : 'bs.price'} > bs.price 
-              THEN ((${priceDailyExists ? 'pd.close' : 'bs.price'} - bs.price) / bs.price * 100)
-              WHEN bs.signal = 'Sell' AND ${priceDailyExists ? 'pd.close' : 'bs.price'} < bs.price 
-              THEN ((bs.price - ${priceDailyExists ? 'pd.close' : 'bs.price'}) / bs.price * 100)
+              WHEN bs.signal = 'Buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price 
+              THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
+              WHEN bs.signal = 'Sell' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price 
+              THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
               ELSE 0
             END as performance_percent,
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
-          ${companyProfileExists ? 'LEFT JOIN company_profile cp ON bs.symbol = cp.ticker' : ''}
-          ${priceDailyExists ? 'LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol' : ''}
+          ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
+          ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
         SELECT * FROM ranked_signals 
@@ -478,24 +584,24 @@ router.get("/signals/:timeframe", async (req, res) => {
           bs.date,
           bs.signal,
           bs.price as price,
-          ${tradingTableColumns.stoplevel ? 'bs.stoplevel' : 'NULL'} as stoplevel,
-          ${tradingTableColumns.inposition ? 'bs.inposition' : 'false'} as inposition,
-          ${priceDailyExists ? 'pd.close' : 'NULL'} as current_price,
-          ${companyProfileExists && companyProfileColumns.short_name ? 'cp.short_name' : companyProfileExists && companyProfileColumns.name ? 'cp.name' : 'NULL'} as company_name,
-          ${companyProfileExists ? 'cp.sector' : 'NULL'} as sector,
-          ${companyProfileExists ? 'cp.market_cap' : 'NULL'} as market_cap,
+          ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
+          ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
+          ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
+          ${companyProfileExists && companyProfileColumns.short_name ? "cp.short_name" : companyProfileExists && companyProfileColumns.name ? "cp.name" : "NULL"} as company_name,
+          ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
+          ${companyProfileExists ? "cp.market_cap" : "NULL"} as market_cap,
           NULL as trailing_pe,
-          ${priceDailyExists ? 'pd.dividends' : 'NULL'} as dividend_yield,
+          ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
           CASE 
-            WHEN bs.signal = 'Buy' AND ${priceDailyExists ? 'pd.close' : 'bs.price'} > bs.price 
-            THEN ((${priceDailyExists ? 'pd.close' : 'bs.price'} - bs.price) / bs.price * 100)
-            WHEN bs.signal = 'Sell' AND ${priceDailyExists ? 'pd.close' : 'bs.price'} < bs.price 
-            THEN ((bs.price - ${priceDailyExists ? 'pd.close' : 'bs.price'}) / bs.price * 100)
+            WHEN bs.signal = 'Buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price 
+            THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
+            WHEN bs.signal = 'Sell' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price 
+            THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
-        ${companyProfileExists ? 'LEFT JOIN company_profile cp ON bs.symbol = cp.ticker' : ''}
-        ${priceDailyExists ? 'LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol' : ''}
+        ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
+        ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
@@ -540,8 +646,13 @@ router.get("/signals/:timeframe", async (req, res) => {
 
     console.log("[TRADING] About to execute main query...");
     const result = await query(sqlQuery, queryParams);
-    console.log("[TRADING] Main query successful, now executing count query...");
-    const countResult = await query(countQuery, queryParams.slice(0, paramCount));
+    console.log(
+      "[TRADING] Main query successful, now executing count query..."
+    );
+    const countResult = await query(
+      countQuery,
+      queryParams.slice(0, paramCount)
+    );
     console.log("[TRADING] Both queries successful");
 
     const total = parseInt(countResult.rows[0].total);
@@ -608,7 +719,7 @@ router.get("/signals/:timeframe", async (req, res) => {
       position: error.position,
       detail: error.detail,
       hint: error.hint,
-      where: error.where
+      where: error.where,
     });
 
     // If it's a database error, try to extract more information
@@ -618,9 +729,11 @@ router.get("/signals/:timeframe", async (req, res) => {
     }
 
     // Handle specific database errors
-    if (error.code === '42703') {
+    if (error.code === "42703") {
       // Column does not exist - this should be rare since we validate columns beforehand
-      console.error(`[TRADING] Column error after validation passed: ${error.message}`);
+      console.error(
+        `[TRADING] Column error after validation passed: ${error.message}`
+      );
       return res.status(500).json({
         success: false,
         error: `Database query error`,
@@ -628,17 +741,20 @@ router.get("/signals/:timeframe", async (req, res) => {
         details: `Database column error: ${error.message}`,
         timeframe: req.params.timeframe,
         troubleshooting: {
-          "Issue": "Database column reference error",
-          "Table": `buy_sell_${req.params.timeframe}`,
-          "Details": "Column validation passed but query failed - possible SQL syntax issue",
-          "Status": "Database error - not an implementation issue"
-        }
+          Issue: "Database column reference error",
+          Table: `buy_sell_${req.params.timeframe}`,
+          Details:
+            "Column validation passed but query failed - possible SQL syntax issue",
+          Status: "Database error - not an implementation issue",
+        },
       });
     }
 
-    if (error.code === '42P01') {
+    if (error.code === "42P01") {
       // Table does not exist - this should never happen since we validate tables beforehand
-      console.error(`[TRADING] Table error after validation passed: ${error.message}`);
+      console.error(
+        `[TRADING] Table error after validation passed: ${error.message}`
+      );
       return res.status(500).json({
         success: false,
         error: `Database query error`,
@@ -646,11 +762,12 @@ router.get("/signals/:timeframe", async (req, res) => {
         details: `Database table error: ${error.message}`,
         timeframe: req.params.timeframe,
         troubleshooting: {
-          "Issue": "Database table reference error",
-          "Table": `buy_sell_${req.params.timeframe}`,
-          "Details": "Table validation passed but query failed - possible SQL syntax issue",
-          "Status": "Database error - not an implementation issue"
-        }
+          Issue: "Database table reference error",
+          Table: `buy_sell_${req.params.timeframe}`,
+          Details:
+            "Table validation passed but query failed - possible SQL syntax issue",
+          Status: "Database error - not an implementation issue",
+        },
       });
     }
 
@@ -658,7 +775,7 @@ router.get("/signals/:timeframe", async (req, res) => {
       success: false,
       error: `Failed to fetch trading signals: ${error.message}`,
       timeframe: req.params.timeframe,
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -672,7 +789,7 @@ router.get("/summary/:timeframe", async (req, res) => {
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid timeframe"
+        error: "Invalid timeframe",
       });
     }
 
@@ -694,7 +811,7 @@ router.get("/summary/:timeframe", async (req, res) => {
     const result = await query(sqlQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     res.json({
@@ -707,7 +824,7 @@ router.get("/summary/:timeframe", async (req, res) => {
     console.error("Error fetching signals summary:", error);
     return res.status(500).json({
       success: false,
-      error: "Failed to fetch signals summary"
+      error: "Failed to fetch signals summary",
     });
   }
 });
@@ -728,7 +845,8 @@ router.get("/swing-signals", async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "Swing trading signals not available",
-        message: "Swing trading signals table is not available. Please ensure the database is properly configured."
+        message:
+          "Swing trading signals table is not available. Please ensure the database is properly configured.",
       });
     }
 
@@ -783,7 +901,7 @@ router.get("/swing-signals", async (req, res) => {
       !Array.isArray(swingResult.rows) ||
       swingResult.rows.length === 0
     ) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     res.json({
@@ -802,12 +920,12 @@ router.get("/swing-signals", async (req, res) => {
     console.error("Swing signals error details:", {
       message: error.message,
       stack: error.stack,
-      query: req.query
+      query: req.query,
     });
     return res.status(500).json({
       success: false,
       error: `Failed to fetch swing signals: ${error.message}`,
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -851,7 +969,7 @@ router.get("/:ticker/technicals", async (req, res) => {
     const result = await query(techQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     res.json({
@@ -863,7 +981,7 @@ router.get("/:ticker/technicals", async (req, res) => {
     console.error("Error fetching technical indicators:", error);
     return res.status(500).json({
       success: false,
-      error: "Failed to fetch technical indicators"
+      error: "Failed to fetch technical indicators",
     });
   }
 });
@@ -907,7 +1025,7 @@ router.get("/performance", async (req, res) => {
     const result = await query(performanceQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query" );
+      return res.notFound("No data found for this query");
     }
 
     res.json({
@@ -919,7 +1037,7 @@ router.get("/performance", async (req, res) => {
     console.error("Error fetching performance data:", error);
     return res.status(500).json({
       success: false,
-      error: "Failed to fetch performance data"
+      error: "Failed to fetch performance data",
     });
   }
 });
@@ -932,15 +1050,19 @@ router.get("/positions", async (req, res) => {
 
     console.log(`🔄 Trading positions requested for user: ${userId}`);
 
-    const { addTradingModeContext, validateTradingOperation, executeWithTradingMode } = require('../utils/tradingModeHelper');
+    const {
+      addTradingModeContext,
+      validateTradingOperation,
+      executeWithTradingMode,
+    } = require("../utils/tradingModeHelper");
 
     // Validate that user can view trading positions
-    const validation = await validateTradingOperation(userId, 'view_positions');
+    const validation = await validateTradingOperation(userId, "view_positions");
     if (!validation.allowed) {
       return res.status(403).json({
         success: false,
         error: validation.message,
-        trading_mode: validation.mode
+        trading_mode: validation.mode,
       });
     }
 
@@ -966,26 +1088,29 @@ router.get("/positions", async (req, res) => {
       ORDER BY last_trade_date DESC
       `,
       [],
-      'buy_sell_daily'
+      "buy_sell_daily"
     );
-    
+
     // Add null safety check
     if (!result || !result.rows) {
-      console.warn("Trading positions query returned null result, database may be unavailable");
+      console.warn(
+        "Trading positions query returned null result, database may be unavailable"
+      );
       return res.status(503).json({
         success: false,
         error: "Database temporarily unavailable",
-        message: "Trading positions temporarily unavailable - database connection issue",
+        message:
+          "Trading positions temporarily unavailable - database connection issue",
         positions: [],
         summary: {
           totalPositions: 0,
           totalValue: 0,
           longPositions: 0,
-          shortPositions: 0
-        }
+          shortPositions: 0,
+        },
       });
     }
-    
+
     const positions = result.rows;
 
     if (summary === "true") {
@@ -1036,24 +1161,28 @@ router.get("/positions", async (req, res) => {
 // Trading orders endpoint (requires authentication)
 router.get("/orders", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
-  
+
   try {
     console.log(`📋 Trading orders requested for user: ${userId}`);
 
-    const { addTradingModeContext, validateTradingOperation, getTradingModeTable } = require('../utils/tradingModeHelper');
+    const {
+      addTradingModeContext,
+      validateTradingOperation,
+      getTradingModeTable,
+    } = require("../utils/tradingModeHelper");
 
     // Validate that user can view orders
-    const validation = await validateTradingOperation(userId, 'view_orders');
+    const validation = await validateTradingOperation(userId, "view_orders");
     if (!validation.allowed) {
       return res.status(403).json({
         success: false,
         error: validation.message,
-        trading_mode: validation.mode
+        trading_mode: validation.mode,
       });
     }
 
     // Get the appropriate table for trading mode
-    const { table: ordersTable } = await getTradingModeTable(userId, 'orders');
+    const { table: ordersTable } = await getTradingModeTable(userId, "orders");
 
     // Check if orders table exists
     const tableExistsResult = await query(
@@ -1064,29 +1193,32 @@ router.get("/orders", authenticateToken, async (req, res) => {
       );`,
       [ordersTable]
     );
-    
+
     if (!tableExistsResult.rows[0].exists) {
       return res.status(503).json({
         success: false,
         error: "Trading orders service unavailable",
-          details: "Orders table not available in database",
-          suggestion: "Trading orders functionality requires proper database schema setup.",
-          service: "trading-orders",
-          requirements: [
-            "Database connectivity must be available",
-            "orders table must exist with proper schema",
-            "User authentication required for order access"
-          ],
-          troubleshooting: [
-            "Verify database schema includes orders table",
-            "Check that trading infrastructure is deployed",
-            "Confirm user has valid authentication"
-          ]
-        });
+        details: "Orders table not available in database",
+        suggestion:
+          "Trading orders functionality requires proper database schema setup.",
+        service: "trading-orders",
+        requirements: [
+          "Database connectivity must be available",
+          "orders table must exist with proper schema",
+          "User authentication required for order access",
+        ],
+        troubleshooting: [
+          "Verify database schema includes orders table",
+          "Check that trading infrastructure is deployed",
+          "Confirm user has valid authentication",
+        ],
+      });
     }
 
     // Query user's orders with trading mode support
-    const finalTable = tableExistsResult.rows[0].exists ? ordersTable : 'orders';
+    const finalTable = tableExistsResult.rows[0].exists
+      ? ordersTable
+      : "orders";
     const ordersQuery = `
       SELECT 
         id as order_id, symbol, quantity, status,
@@ -1096,9 +1228,9 @@ router.get("/orders", authenticateToken, async (req, res) => {
       ORDER BY created_at DESC 
       LIMIT 100
     `;
-    
+
     const result = await query(ordersQuery, [userId]);
-    
+
     const ordersData = {
       data: result.rows,
       message: `Found ${result.rows.length} orders for user`,
@@ -1107,25 +1239,26 @@ router.get("/orders", authenticateToken, async (req, res) => {
 
     // Add trading mode context
     const enhancedData = await addTradingModeContext(ordersData, userId);
-    res.json({success: true, ...enhancedData});
+    res.json({ success: true, ...enhancedData });
   } catch (error) {
     console.error("Error fetching trading orders:", error);
     return res.status(503).json({
       success: false,
       error: "Trading orders service unavailable",
       details: error.message,
-      suggestion: "Trading orders require database connectivity and proper authentication.",
+      suggestion:
+        "Trading orders require database connectivity and proper authentication.",
       service: "trading-orders",
       requirements: [
         "Database connectivity must be available",
         "orders table must exist with trading data",
-        "Valid user authentication required"
+        "Valid user authentication required",
       ],
       troubleshooting: [
         "Check database connection status",
         "Verify orders table schema and data",
-        "Ensure user_id is valid for order access"
-      ]
+        "Ensure user_id is valid for order access",
+      ],
     });
   }
 });
@@ -1136,9 +1269,14 @@ router.post("/orders", authenticateToken, async (req, res) => {
   try {
     const { symbol, quantity, type, side, limitPrice, stopPrice } = req.body;
 
-    console.log(`📝 Order placement requested for user: ${userId}, ${side} ${quantity} ${symbol}`);
+    console.log(
+      `📝 Order placement requested for user: ${userId}, ${side} ${quantity} ${symbol}`
+    );
 
-    const { addTradingModeContext, validateTradingOperation } = require('../utils/tradingModeHelper');
+    const {
+      addTradingModeContext,
+      validateTradingOperation,
+    } = require("../utils/tradingModeHelper");
 
     // Basic validation
     if (!symbol || !quantity || !type || !side) {
@@ -1153,7 +1291,8 @@ router.post("/orders", authenticateToken, async (req, res) => {
     if (!["market", "limit", "stop", "stop_limit"].includes(type)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid order type. Must be: market, limit, stop, or stop_limit"
+        error:
+          "Invalid order type. Must be: market, limit, stop, or stop_limit",
       });
     }
 
@@ -1161,7 +1300,7 @@ router.post("/orders", authenticateToken, async (req, res) => {
     if (!["buy", "sell"].includes(side)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid side. Must be: buy or sell"
+        error: "Invalid side. Must be: buy or sell",
       });
     }
 
@@ -1169,7 +1308,7 @@ router.post("/orders", authenticateToken, async (req, res) => {
     if (quantity <= 0) {
       return res.status(400).json({
         success: false,
-        error: "Quantity must be greater than 0"
+        error: "Quantity must be greater than 0",
       });
     }
 
@@ -1177,7 +1316,7 @@ router.post("/orders", authenticateToken, async (req, res) => {
     if (type === "limit" && (!limitPrice || limitPrice <= 0)) {
       return res.status(400).json({
         success: false,
-        error: "Limit price required for limit orders"
+        error: "Limit price required for limit orders",
       });
     }
 
@@ -1186,19 +1325,23 @@ router.post("/orders", authenticateToken, async (req, res) => {
     const orderValue = quantity * estimatedPrice;
 
     // Validate trading operation based on user's trading mode
-    const validation = await validateTradingOperation(userId, side === 'buy' ? 'buy' : 'sell', {
-      amount: orderValue,
-      quantity: quantity,
-      price: estimatedPrice,
-      symbol: symbol
-    });
+    const validation = await validateTradingOperation(
+      userId,
+      side === "buy" ? "buy" : "sell",
+      {
+        amount: orderValue,
+        quantity: quantity,
+        price: estimatedPrice,
+        symbol: symbol,
+      }
+    );
 
     if (!validation.allowed) {
       return res.status(403).json({
         success: false,
         error: validation.message,
         trading_mode: validation.mode,
-        order_rejected: true
+        order_rejected: true,
       });
     }
 
@@ -1211,14 +1354,17 @@ router.post("/orders", authenticateToken, async (req, res) => {
       side,
       limitPrice: limitPrice || null,
       stopPrice: stopPrice || null,
-      status: validation.mode === 'paper' ? "simulated" : "pending",
+      status: validation.mode === "paper" ? "simulated" : "pending",
       created_at: new Date().toISOString(),
     };
 
     const orderResponse = {
-      message: validation.mode === 'paper' ? "Order simulated successfully" : "Order created successfully",
+      message:
+        validation.mode === "paper"
+          ? "Order simulated successfully"
+          : "Order created successfully",
       data: order,
-      validation_message: validation.message
+      validation_message: validation.message,
     };
 
     // Add trading mode context
@@ -1237,18 +1383,18 @@ router.post("/orders", authenticateToken, async (req, res) => {
 // Trading simulator endpoint
 router.get("/simulator", async (req, res) => {
   try {
-    const { 
-      portfolio = 100000, 
-      strategy = "momentum", 
+    const {
+      portfolio = 100000,
+      strategy = "momentum",
       period = "1y",
-      symbols = "SPY,QQQ,AAPL,TSLA,NVDA"
+      symbols = "SPY,QQQ,AAPL,TSLA,NVDA",
     } = req.query;
 
     const startingBalance = parseFloat(portfolio);
     if (isNaN(startingBalance) || startingBalance <= 0) {
       return res.status(400).json({
         success: false,
-        error: "Portfolio value must be a positive number"
+        error: "Portfolio value must be a positive number",
       });
     }
 
@@ -1256,16 +1402,21 @@ router.get("/simulator", async (req, res) => {
     if (!validStrategies.includes(strategy)) {
       return res.status(400).json({
         success: false,
-        error: `Invalid strategy. Must be one of: ${validStrategies.join(', ')}`
+        error: `Invalid strategy. Must be one of: ${validStrategies.join(", ")}`,
       });
     }
 
-    const symbolList = symbols.split(',').map(s => s.trim().toUpperCase()).slice(0, 10);
-    
-    console.log(`🎮 Trading simulator requested - Portfolio: $${startingBalance}, Strategy: ${strategy}, Symbols: ${symbolList.join(',')}`);
+    const symbolList = symbols
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .slice(0, 10);
+
+    console.log(
+      `🎮 Trading simulator requested - Portfolio: $${startingBalance}, Strategy: ${strategy}, Symbols: ${symbolList.join(",")}`
+    );
 
     // Check if required table exists and get column information
-    const tableName = 'buy_sell_daily';
+    const tableName = "buy_sell_daily";
     const tableExistsResult = await query(
       `SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -1281,26 +1432,48 @@ router.get("/simulator", async (req, res) => {
         success: false,
         error: `Trading simulator not available`,
         message: `Database table ${tableName} not configured`,
-        details: `Trading simulator requires ${tableName} table for historical signals`
+        details: `Trading simulator requires ${tableName} table for historical signals`,
       });
     }
 
     // Check which columns exist in the trading table
-    let tradingTableColumns = { symbol: false, date: false, signal: false, price: false, buylevel: false, stoplevel: false, inposition: false };
+    let tradingTableColumns = {
+      symbol: false,
+      date: false,
+      signal: false,
+      price: false,
+      buylevel: false,
+      stoplevel: false,
+      inposition: false,
+    };
     try {
-      const columnCheck = await query(`
+      const columnCheck = await query(
+        `
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_schema = 'public' 
         AND table_name = $1
         AND column_name IN ('symbol', 'date', 'signal', 'price', 'buylevel', 'stoplevel', 'inposition')
-      `, [tableName]);
-      columnCheck.rows.forEach(row => {
+      `,
+        [tableName]
+      );
+      columnCheck.rows.forEach((row) => {
         tradingTableColumns[row.column_name] = true;
       });
     } catch (error) {
-      console.error(`[TRADING] Error checking columns for ${tableName}:`, error.message);
-      tradingTableColumns = { symbol: true, date: true, signal: true, price: true, buylevel: false, stoplevel: false, inposition: false };
+      console.error(
+        `[TRADING] Error checking columns for ${tableName}:`,
+        error.message
+      );
+      tradingTableColumns = {
+        symbol: true,
+        date: true,
+        signal: true,
+        price: true,
+        buylevel: false,
+        stoplevel: false,
+        inposition: false,
+      };
     }
 
     // Simulate trading performance based on historical signals using dynamic column detection
@@ -1310,19 +1483,19 @@ router.get("/simulator", async (req, res) => {
         date,
         signal,
         price as entry_price,
-        ${tradingTableColumns.stoplevel ? 'stoplevel' : 'NULL'} as exit_price,
+        ${tradingTableColumns.stoplevel ? "stoplevel" : "NULL"} as exit_price,
         CASE 
-          WHEN signal = 'Buy' AND ${tradingTableColumns.stoplevel ? 'stoplevel IS NOT NULL' : 'FALSE'}
-          THEN ${tradingTableColumns.stoplevel ? '((stoplevel - price) / price * 100)' : '0'}
-          WHEN signal = 'Sell' AND ${tradingTableColumns.stoplevel ? 'stoplevel IS NOT NULL' : 'FALSE'}
-          THEN ${tradingTableColumns.stoplevel ? '((price - stoplevel) / price * 100)' : '0'}
+          WHEN signal = 'Buy' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
+          THEN ${tradingTableColumns.stoplevel ? "((stoplevel - price) / price * 100)" : "0"}
+          WHEN signal = 'Sell' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
+          THEN ${tradingTableColumns.stoplevel ? "((price - stoplevel) / price * 100)" : "0"}
           ELSE 0
         END as trade_return
       FROM ${tableName}
       WHERE symbol = ANY($1)
         AND date >= NOW() - INTERVAL '1 year'
         AND signal IN ('Buy', 'Sell')
-        ${tradingTableColumns.stoplevel ? 'AND stoplevel IS NOT NULL' : ''}
+        ${tradingTableColumns.stoplevel ? "AND stoplevel IS NOT NULL" : ""}
       ORDER BY date ASC
     `;
 
@@ -1340,10 +1513,10 @@ router.get("/simulator", async (req, res) => {
       if (signal.trade_return !== 0) {
         const tradeAmount = currentBalance * 0.1; // Risk 10% per trade
         const pnl = tradeAmount * (signal.trade_return / 100);
-        
+
         currentBalance += pnl;
         totalTrades++;
-        
+
         if (pnl > 0) {
           winningTrades++;
         }
@@ -1356,7 +1529,7 @@ router.get("/simulator", async (req, res) => {
           exit_price: parseFloat(signal.exit_price),
           trade_return: parseFloat(signal.trade_return),
           pnl: parseFloat(pnl.toFixed(2)),
-          balance_after: parseFloat(currentBalance.toFixed(2))
+          balance_after: parseFloat(currentBalance.toFixed(2)),
         });
       }
     }
@@ -1369,7 +1542,7 @@ router.get("/simulator", async (req, res) => {
         starting_portfolio: startingBalance,
         strategy: strategy,
         period: period,
-        symbols: symbolList
+        symbols: symbolList,
       },
       results: {
         final_balance: parseFloat(currentBalance.toFixed(2)),
@@ -1378,23 +1551,39 @@ router.get("/simulator", async (req, res) => {
         winning_trades: winningTrades,
         losing_trades: totalTrades - winningTrades,
         win_rate: parseFloat(winRate.toFixed(2)),
-        profit_loss: parseFloat((currentBalance - startingBalance).toFixed(2))
+        profit_loss: parseFloat((currentBalance - startingBalance).toFixed(2)),
       },
       trades: trades.slice(-20), // Last 20 trades
       performance_metrics: {
-        sharpe_ratio: totalReturn > 0 ? parseFloat((totalReturn / Math.sqrt(totalTrades || 1)).toFixed(2)) : 0,
-        max_drawdown: trades.length > 0 ? parseFloat(Math.min(...trades.map(t => ((t.balance_after - startingBalance) / startingBalance) * 100)).toFixed(2)) : 0,
-        avg_trade_return: totalTrades > 0 ? parseFloat((totalReturn / totalTrades).toFixed(2)) : 0
+        sharpe_ratio:
+          totalReturn > 0
+            ? parseFloat((totalReturn / Math.sqrt(totalTrades || 1)).toFixed(2))
+            : 0,
+        max_drawdown:
+          trades.length > 0
+            ? parseFloat(
+                Math.min(
+                  ...trades.map(
+                    (t) =>
+                      ((t.balance_after - startingBalance) / startingBalance) *
+                      100
+                  )
+                ).toFixed(2)
+              )
+            : 0,
+        avg_trade_return:
+          totalTrades > 0
+            ? parseFloat((totalReturn / totalTrades).toFixed(2))
+            : 0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trading simulator error:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to run trading simulation",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1402,14 +1591,16 @@ router.get("/simulator", async (req, res) => {
 // Get trading strategies
 router.get("/strategies", async (req, res) => {
   try {
-    const { 
-      category = "all", 
-      risk_level = "all", 
-      active_only = "false", 
-      limit = 50 
+    const {
+      category = "all",
+      risk_level = "all",
+      active_only = "false",
+      limit = 50,
     } = req.query;
 
-    console.log(`📈 Trading strategies requested - category: ${category}, risk: ${risk_level}, active: ${active_only}`);
+    console.log(
+      `📈 Trading strategies requested - category: ${category}, risk: ${risk_level}, active: ${active_only}`
+    );
 
     // Query trading strategies from database
     let strategiesQuery = `
@@ -1427,7 +1618,7 @@ router.get("/strategies", async (req, res) => {
       FROM trading_strategies
       WHERE 1=1
     `;
-    
+
     const queryParams = [];
     let paramIndex = 1;
 
@@ -1454,59 +1645,60 @@ router.get("/strategies", async (req, res) => {
     let strategies = [];
     try {
       const strategiesResult = await query(strategiesQuery, queryParams);
-      
+
       if (!strategiesResult || !strategiesResult.rows) {
         return res.status(503).json({
           success: false,
           error: "Database temporarily unavailable",
-          message: "Trading strategies service temporarily unavailable - database connection issue",
+          message:
+            "Trading strategies service temporarily unavailable - database connection issue",
           data: [],
           summary: {
             total_strategies: 0,
             active_strategies: 0,
-            filtered_count: 0
-          }
+            filtered_count: 0,
+          },
         });
       }
 
-      strategies = strategiesResult.rows.map(row => ({
+      strategies = strategiesResult.rows.map((row) => ({
         id: row.id,
         name: row.name,
         category: row.category,
         description: row.description,
         risk_level: row.parameters?.risk_level || "medium",
         time_horizon: row.parameters?.time_horizon || "swing",
-        active: row.status === 'active',
+        active: row.status === "active",
         performance: row.performance_metrics || {
           ytd_return: 0,
           win_rate: 0,
           sharpe_ratio: 0,
           max_drawdown: 0,
-          total_trades: 0
+          total_trades: 0,
         },
         parameters: row.parameters || {},
         signals: {
           current_signals: 0,
           recent_performance: "stable",
           last_signal_date: row.last_executed || new Date().toISOString(),
-          confidence_score: 0.5
+          confidence_score: 0.5,
         },
         metadata: {
           created_date: row.created_at,
           last_updated: row.updated_at,
           backtested_period: "historical",
           asset_classes: ["stocks"],
-          min_liquidity: 1000000
-        }
+          min_liquidity: 1000000,
+        },
       }));
-
     } catch (error) {
       console.error("Error fetching trading strategies:", error);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch trading strategies",
         message: error.message,
-        details: "Unable to retrieve trading strategy information from database"
+        details:
+          "Unable to retrieve trading strategy information from database",
       });
     }
 
@@ -1514,15 +1706,19 @@ router.get("/strategies", async (req, res) => {
     let filteredStrategies = strategies;
 
     if (category !== "all") {
-      filteredStrategies = filteredStrategies.filter(s => s.category === category);
+      filteredStrategies = filteredStrategies.filter(
+        (s) => s.category === category
+      );
     }
 
     if (risk_level !== "all") {
-      filteredStrategies = filteredStrategies.filter(s => s.risk_level === risk_level);
+      filteredStrategies = filteredStrategies.filter(
+        (s) => s.risk_level === risk_level
+      );
     }
 
     if (active_only === "true") {
-      filteredStrategies = filteredStrategies.filter(s => s.active === true);
+      filteredStrategies = filteredStrategies.filter((s) => s.active === true);
     }
 
     // Apply limit
@@ -1530,38 +1726,44 @@ router.get("/strategies", async (req, res) => {
     filteredStrategies = filteredStrategies.slice(0, limitNum);
 
     // Calculate summary statistics
-    const activeStrategies = strategies.filter(s => s.active).length;
-    const avgYtdReturn = strategies
-      .filter(s => s.active)
-      .reduce((sum, s) => sum + s.performance.ytd_return, 0) / activeStrategies;
-    
-    const avgWinRate = strategies
-      .filter(s => s.active)
-      .reduce((sum, s) => sum + s.performance.win_rate, 0) / activeStrategies;
+    const activeStrategies = strategies.filter((s) => s.active).length;
+    const avgYtdReturn =
+      strategies
+        .filter((s) => s.active)
+        .reduce((sum, s) => sum + s.performance.ytd_return, 0) /
+      activeStrategies;
+
+    const avgWinRate =
+      strategies
+        .filter((s) => s.active)
+        .reduce((sum, s) => sum + s.performance.win_rate, 0) / activeStrategies;
 
     // Strategy categories summary
     const categorySummary = {};
-    strategies.forEach(strategy => {
+    strategies.forEach((strategy) => {
       if (!categorySummary[strategy.category]) {
         categorySummary[strategy.category] = {
           count: 0,
           active_count: 0,
           avg_return: 0,
-          total_return: 0
+          total_return: 0,
         };
       }
       categorySummary[strategy.category].count++;
       if (strategy.active) {
         categorySummary[strategy.category].active_count++;
-        categorySummary[strategy.category].total_return += strategy.performance.ytd_return;
+        categorySummary[strategy.category].total_return +=
+          strategy.performance.ytd_return;
       }
     });
 
     // Calculate averages
-    Object.keys(categorySummary).forEach(category => {
+    Object.keys(categorySummary).forEach((category) => {
       const cat = categorySummary[category];
-      cat.avg_return = cat.active_count > 0 ? 
-        parseFloat((cat.total_return / cat.active_count).toFixed(2)) : 0;
+      cat.avg_return =
+        cat.active_count > 0
+          ? parseFloat((cat.total_return / cat.active_count).toFixed(2))
+          : 0;
       delete cat.total_return;
     });
 
@@ -1575,36 +1777,45 @@ router.get("/strategies", async (req, res) => {
         performance_overview: {
           avg_ytd_return: parseFloat(avgYtdReturn.toFixed(2)),
           avg_win_rate: parseFloat(avgWinRate.toFixed(2)),
-          total_signals: filteredStrategies.reduce((sum, s) => sum + s.signals.current_signals, 0),
-          top_performer: strategies
-            .filter(s => s.active)
-            .sort((a, b) => b.performance.ytd_return - a.performance.ytd_return)[0]?.name || "N/A"
+          total_signals: filteredStrategies.reduce(
+            (sum, s) => sum + s.signals.current_signals,
+            0
+          ),
+          top_performer:
+            strategies
+              .filter((s) => s.active)
+              .sort(
+                (a, b) => b.performance.ytd_return - a.performance.ytd_return
+              )[0]?.name || "N/A",
         },
-        category_breakdown: categorySummary
+        category_breakdown: categorySummary,
       },
       filters_applied: {
         category: category,
         risk_level: risk_level,
         active_only: active_only === "true",
-        limit: limitNum
+        limit: limitNum,
       },
       metadata: {
-        available_categories: [...new Set(strategies.map(s => s.category))],
-        available_risk_levels: [...new Set(strategies.map(s => s.risk_level))],
-        available_time_horizons: [...new Set(strategies.map(s => s.time_horizon))],
+        available_categories: [...new Set(strategies.map((s) => s.category))],
+        available_risk_levels: [
+          ...new Set(strategies.map((s) => s.risk_level)),
+        ],
+        available_time_horizons: [
+          ...new Set(strategies.map((s) => s.time_horizon)),
+        ],
         data_quality: "synthetic_high_fidelity",
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching trading strategies:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trading strategies",
       message: error.message,
-      details: "Unable to retrieve comprehensive trading strategy information"
+      details: "Unable to retrieve comprehensive trading strategy information",
     });
   }
 });
@@ -1615,16 +1826,20 @@ router.get("/strategies/:strategyId", async (req, res) => {
     const { strategyId } = req.params;
     const { include_signals = "false", include_backtest = "false" } = req.query;
 
-    console.log(`📊 Strategy details requested - ID: ${strategyId}, signals: ${include_signals}, backtest: ${include_backtest}`);
+    console.log(
+      `📊 Strategy details requested - ID: ${strategyId}, signals: ${include_signals}, backtest: ${include_backtest}`
+    );
 
     // Query strategy details from database
     const strategyDetails = {
       id: strategyId,
       name: "Momentum Breakout Strategy v1",
       category: "momentum",
-      description: "Advanced momentum strategy that identifies stocks breaking through key resistance levels with volume confirmation",
-      detailed_description: "This strategy combines technical analysis with volume analysis to identify high-probability breakout opportunities. It uses a multi-timeframe approach to confirm momentum and includes risk management through dynamic stop losses.",
-      
+      description:
+        "Advanced momentum strategy that identifies stocks breaking through key resistance levels with volume confirmation",
+      detailed_description:
+        "This strategy combines technical analysis with volume analysis to identify high-probability breakout opportunities. It uses a multi-timeframe approach to confirm momentum and includes risk management through dynamic stop losses.",
+
       configuration: {
         risk_level: "medium",
         time_horizon: "swing",
@@ -1632,34 +1847,34 @@ router.get("/strategies/:strategyId", async (req, res) => {
         max_holding_period: "30 days",
         position_sizing: "volatility_adjusted",
         max_positions: 10,
-        sector_diversification: true
+        sector_diversification: true,
       },
 
       parameters: {
         technical_indicators: {
           breakout_confirmation: 2.0,
           volume_threshold: 1.5,
-          rsi_filter: {enabled: true, min: 40, max: 80},
-          atr_multiplier: 1.5
+          rsi_filter: { enabled: true, min: 40, max: 80 },
+          atr_multiplier: 1.5,
         },
         entry_rules: {
           price_breakout: "20-day high",
           volume_confirmation: "150% of 10-day avg",
           trend_filter: "above 50-day MA",
-          sector_strength: "top 50% performance"
+          sector_strength: "top 50% performance",
         },
         exit_rules: {
           stop_loss: "dynamic ATR-based",
           take_profit: "2:1 risk/reward minimum",
           time_stop: "30 days maximum",
-          trailing_stop: "enabled after 10% gain"
+          trailing_stop: "enabled after 10% gain",
         },
         filters: {
           market_cap: "> 1B",
           average_volume: "> 1M shares",
           price_range: "$10 - $500",
-          exclude_sectors: ["utilities", "reits"]
-        }
+          exclude_sectors: ["utilities", "reits"],
+        },
       },
 
       performance_metrics: {
@@ -1670,7 +1885,7 @@ router.get("/strategies/:strategyId", async (req, res) => {
           volatility: 16.7,
           sharpe_ratio: 1.42,
           max_drawdown: -8.2,
-          calmar_ratio: 3.02
+          calmar_ratio: 3.02,
         },
         trade_statistics: {
           total_trades: 156,
@@ -1681,7 +1896,7 @@ router.get("/strategies/:strategyId", async (req, res) => {
           avg_loss: -4.2,
           avg_trade_duration: 4.2,
           profit_factor: 2.17,
-          expectancy: 4.8
+          expectancy: 4.8,
         },
         risk_metrics: {
           var_95: -2.8,
@@ -1689,8 +1904,8 @@ router.get("/strategies/:strategyId", async (req, res) => {
           correlation_sp500: 0.73,
           upside_capture: 125.4,
           downside_capture: 87.6,
-          information_ratio: 0.89
-        }
+          information_ratio: 0.89,
+        },
       },
 
       recent_activity: {
@@ -1699,8 +1914,8 @@ router.get("/strategies/:strategyId", async (req, res) => {
         performance_last_30_days: 3.2,
         last_trade_date: "2025-08-31",
         next_rebalance: "2025-09-02",
-        status: "active_monitoring"
-      }
+        status: "active_monitoring",
+      },
     };
 
     // Add signals if requested
@@ -1709,23 +1924,23 @@ router.get("/strategies/:strategyId", async (req, res) => {
         {
           symbol: "AAPL",
           signal_type: "buy",
-          entry_price: 178.50,
-          target_price: 195.00,
+          entry_price: 178.5,
+          target_price: 195.0,
           stop_loss: 165.75,
           signal_strength: 0.84,
           generated_at: "2025-09-01T08:30:00Z",
-          expiry: "2025-09-08T16:00:00Z"
+          expiry: "2025-09-08T16:00:00Z",
         },
         {
-          symbol: "MSFT", 
+          symbol: "MSFT",
           signal_type: "buy",
-          entry_price: 425.30,
-          target_price: 465.00,
-          stop_loss: 395.00,
+          entry_price: 425.3,
+          target_price: 465.0,
+          stop_loss: 395.0,
           signal_strength: 0.78,
           generated_at: "2025-08-31T14:15:00Z",
-          expiry: "2025-09-07T16:00:00Z"
-        }
+          expiry: "2025-09-07T16:00:00Z",
+        },
       ];
     }
 
@@ -1740,11 +1955,11 @@ router.get("/strategies/:strategyId", async (req, res) => {
         alpha: 14.83,
         trades_per_year: 28.5,
         monthly_returns: [
-          {month: "2025-08", return: 2.1},
-          {month: "2025-07", return: 4.7},
-          {month: "2025-06", return: -1.2},
-          {month: "2025-05", return: 3.8}
-        ]
+          { month: "2025-08", return: 2.1 },
+          { month: "2025-07", return: 4.7 },
+          { month: "2025-06", return: -1.2 },
+          { month: "2025-05", return: 3.8 },
+        ],
       };
     }
 
@@ -1756,17 +1971,16 @@ router.get("/strategies/:strategyId", async (req, res) => {
         data_source: "backtesting_engine",
         confidence_level: 0.92,
         includes_signals: include_signals === "true",
-        includes_backtest: include_backtest === "true"
+        includes_backtest: include_backtest === "true",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching strategy details:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch strategy details",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1776,9 +1990,11 @@ router.get("/:ticker/technicals", async (req, res) => {
   try {
     const { ticker } = req.params;
     const { timeframe = "daily" } = req.query;
-    
+
     const symbolUpper = ticker.toUpperCase();
-    console.log(`📊 Technical indicators requested for: ${symbolUpper}, timeframe: ${timeframe}`);
+    console.log(
+      `📊 Technical indicators requested for: ${symbolUpper}, timeframe: ${timeframe}`
+    );
 
     // Check if technical data tables exist
     const tableCheck = await query(`
@@ -1794,7 +2010,7 @@ router.get("/:ticker/technicals", async (req, res) => {
         success: false,
         error: "Technical data not available",
         message: `Technical indicators for ${timeframe} timeframe are not configured`,
-        requested: { symbol: symbolUpper, timeframe }
+        requested: { symbol: symbolUpper, timeframe },
       });
     }
 
@@ -1813,7 +2029,7 @@ router.get("/:ticker/technicals", async (req, res) => {
         success: false,
         error: "Technical data not found",
         message: `No technical indicators available for ${symbolUpper}`,
-        requested: { symbol: symbolUpper, timeframe }
+        requested: { symbol: symbolUpper, timeframe },
       });
     }
 
@@ -1823,16 +2039,18 @@ router.get("/:ticker/technicals", async (req, res) => {
         symbol: symbolUpper,
         timeframe,
         indicators: result.rows[0],
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
-    console.error(`Technical indicators error for ${req.params.ticker}:`, error);
+    console.error(
+      `Technical indicators error for ${req.params.ticker}:`,
+      error
+    );
     return res.status(500).json({
       success: false,
       error: "Failed to fetch technical indicators",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1872,8 +2090,12 @@ router.get("/risk/portfolio", async (req, res) => {
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
-    
-    if (!holdingsResult || !holdingsResult.rows || holdingsResult.rows.length === 0) {
+
+    if (
+      !holdingsResult ||
+      !holdingsResult.rows ||
+      holdingsResult.rows.length === 0
+    ) {
       return res.json({
         success: true,
         data: {
@@ -1886,65 +2108,89 @@ router.get("/risk/portfolio", async (req, res) => {
           concentrationRisk: 0,
           diversificationScore: 100,
           positions: [],
-          recommendations: ["No portfolio positions found. Consider adding some positions to analyze risk."],
-          timestamp: new Date().toISOString()
-        }
+          recommendations: [
+            "No portfolio positions found. Consider adding some positions to analyze risk.",
+          ],
+          timestamp: new Date().toISOString(),
+        },
       });
     }
 
     const positions = holdingsResult.rows;
-    
+
     // Calculate portfolio metrics
-    const totalValue = positions.reduce((sum, pos) => sum + (pos.current_value || 0), 0);
-    
+    const totalValue = positions.reduce(
+      (sum, pos) => sum + (pos.current_value || 0),
+      0
+    );
+
     // Concentration risk - check if any single position exceeds 25% of portfolio
-    const maxPositionPct = Math.max(...positions.map(pos => (pos.current_value || 0) / totalValue)) * 100;
-    const concentrationRisk = maxPositionPct > 25 ? Math.min((maxPositionPct - 25) * 2, 100) : 0;
-    
+    const maxPositionPct =
+      Math.max(
+        ...positions.map((pos) => (pos.current_value || 0) / totalValue)
+      ) * 100;
+    const concentrationRisk =
+      maxPositionPct > 25 ? Math.min((maxPositionPct - 25) * 2, 100) : 0;
+
     // Portfolio volatility (weighted average)
-    const portfolioVolatility = positions.reduce((sum, pos) => {
-      const weight = (pos.current_value || 0) / totalValue;
-      return sum + (weight * (pos.volatility || 0.15));
-    }, 0) * 100;
-    
-    // Portfolio beta (weighted average)  
+    const portfolioVolatility =
+      positions.reduce((sum, pos) => {
+        const weight = (pos.current_value || 0) / totalValue;
+        return sum + weight * (pos.volatility || 0.15);
+      }, 0) * 100;
+
+    // Portfolio beta (weighted average)
     const portfolioBeta = positions.reduce((sum, pos) => {
       const weight = (pos.current_value || 0) / totalValue;
-      return sum + (weight * (pos.beta || 1.0));
+      return sum + weight * (pos.beta || 1.0);
     }, 0);
-    
+
     // Sector diversification
     const sectorCounts = {};
-    positions.forEach(pos => {
-      const sector = pos.sector || 'Unknown';
-      sectorCounts[sector] = (sectorCounts[sector] || 0) + (pos.current_value || 0);
+    positions.forEach((pos) => {
+      const sector = pos.sector || "Unknown";
+      sectorCounts[sector] =
+        (sectorCounts[sector] || 0) + (pos.current_value || 0);
     });
-    
+
     const sectors = Object.keys(sectorCounts);
-    const maxSectorPct = Math.max(...Object.values(sectorCounts)) / totalValue * 100;
-    const diversificationScore = Math.max(0, 100 - (maxSectorPct > 40 ? (maxSectorPct - 40) * 2 : 0));
-    
+    const maxSectorPct =
+      (Math.max(...Object.values(sectorCounts)) / totalValue) * 100;
+    const diversificationScore = Math.max(
+      0,
+      100 - (maxSectorPct > 40 ? (maxSectorPct - 40) * 2 : 0)
+    );
+
     // Overall risk score (0-100, higher is riskier)
-    const riskScore = Math.min(100, 
-      (concentrationRisk * 0.3) + 
-      (Math.max(0, portfolioVolatility - 15) * 1.5) + 
-      (Math.max(0, portfolioBeta - 1.2) * 20) +
-      ((100 - diversificationScore) * 0.2)
+    const riskScore = Math.min(
+      100,
+      concentrationRisk * 0.3 +
+        Math.max(0, portfolioVolatility - 15) * 1.5 +
+        Math.max(0, portfolioBeta - 1.2) * 20 +
+        (100 - diversificationScore) * 0.2
     );
 
     // Generate recommendations
     const recommendations = [];
     if (maxPositionPct > 25) {
-      recommendations.push(`High concentration risk: One position represents ${maxPositionPct.toFixed(1)}% of portfolio`);
+      recommendations.push(
+        `High concentration risk: One position represents ${maxPositionPct.toFixed(1)}% of portfolio`
+      );
     }
     if (portfolioVolatility > 25) {
-      recommendations.push(`High volatility: Portfolio volatility is ${portfolioVolatility.toFixed(1)}%`);
+      recommendations.push(
+        `High volatility: Portfolio volatility is ${portfolioVolatility.toFixed(1)}%`
+      );
     }
     if (sectors.length < 3) {
-      recommendations.push(`Consider diversifying across more sectors (currently ${sectors.length})`);
+      recommendations.push(
+        `Consider diversifying across more sectors (currently ${sectors.length})`
+      );
     }
     if (portfolioBeta > 1.5) {
-      recommendations.push(`High beta portfolio (${portfolioBeta.toFixed(2)}) - may amplify market movements`);
+      recommendations.push(
+        `High beta portfolio (${portfolioBeta.toFixed(2)}) - may amplify market movements`
+      );
     }
     if (recommendations.length === 0) {
       recommendations.push("Portfolio risk profile appears balanced");
@@ -1954,7 +2200,10 @@ router.get("/risk/portfolio", async (req, res) => {
     const estimatedMaxDrawdown = portfolioVolatility * portfolioBeta * 0.8;
 
     // Estimate Sharpe ratio based on diversification and volatility
-    const estimatedSharpeRatio = Math.max(0, (diversificationScore / 100 * 1.5) - (portfolioVolatility / 100 * 0.5));
+    const estimatedSharpeRatio = Math.max(
+      0,
+      (diversificationScore / 100) * 1.5 - (portfolioVolatility / 100) * 0.5
+    );
 
     res.json({
       success: true,
@@ -1969,24 +2218,24 @@ router.get("/risk/portfolio", async (req, res) => {
         diversificationScore: Math.round(diversificationScore),
         positionCount: positions.length,
         sectorCount: sectors.length,
-        positions: positions.map(pos => ({
+        positions: positions.map((pos) => ({
           symbol: pos.symbol,
           value: pos.current_value,
           weight: Math.round((pos.current_value / totalValue) * 10000) / 100,
           sector: pos.sector,
           volatility: Math.round((pos.volatility || 0.15) * 10000) / 100,
-          beta: Math.round((pos.beta || 1.0) * 100) / 100
+          beta: Math.round((pos.beta || 1.0) * 100) / 100,
         })),
         recommendations,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Portfolio risk error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch portfolio risk",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1994,24 +2243,24 @@ router.get("/risk/portfolio", async (req, res) => {
 router.post("/risk/limits", async (req, res) => {
   try {
     const userId = req.user?.sub;
-    const { 
-      maxDrawdown, 
-      maxPositionSize, 
-      stopLossPercentage, 
+    const {
+      maxDrawdown,
+      maxPositionSize,
+      stopLossPercentage,
       maxLeverage,
       maxCorrelation,
       riskToleranceLevel,
       maxDailyLoss,
-      maxMonthlyLoss 
+      maxMonthlyLoss,
     } = req.body;
-    
+
     console.log(`⚠️ Risk limits update for user: ${userId}`);
 
     // Validate required fields
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: "User authentication required"
+        error: "User authentication required",
       });
     }
 
@@ -2023,7 +2272,10 @@ router.post("/risk/limits", async (req, res) => {
     if (maxPositionSize && (maxPositionSize < 0 || maxPositionSize > 100)) {
       validationErrors.push("Max position size must be between 0-100%");
     }
-    if (stopLossPercentage && (stopLossPercentage < 0 || stopLossPercentage > 100)) {
+    if (
+      stopLossPercentage &&
+      (stopLossPercentage < 0 || stopLossPercentage > 100)
+    ) {
       validationErrors.push("Stop loss percentage must be between 0-100%");
     }
 
@@ -2031,7 +2283,7 @@ router.post("/risk/limits", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Validation failed",
-        details: validationErrors
+        details: validationErrors,
       });
     }
 
@@ -2089,7 +2341,7 @@ router.post("/risk/limits", async (req, res) => {
 
       const updateQuery = `
         UPDATE user_risk_limits 
-        SET ${updateFields.join(', ')}
+        SET ${updateFields.join(", ")}
         WHERE user_id = $${paramCount}
         RETURNING *
       `;
@@ -2097,26 +2349,29 @@ router.post("/risk/limits", async (req, res) => {
       result = await query(updateQuery, updateValues);
     } else {
       // Insert new limits with defaults
-      result = await query(`
+      result = await query(
+        `
         INSERT INTO user_risk_limits (
           user_id, max_drawdown, max_position_size, stop_loss_percentage,
           max_leverage, max_correlation, risk_tolerance_level,
           max_daily_loss, max_monthly_loss, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
-      `, [
-        userId,
-        maxDrawdown || 20.0,
-        maxPositionSize || 25.0, 
-        stopLossPercentage || 5.0,
-        maxLeverage || 2.0,
-        maxCorrelation || 0.7,
-        riskToleranceLevel || 'moderate',
-        maxDailyLoss || 2.0,
-        maxMonthlyLoss || 10.0,
-        updateTime,
-        updateTime
-      ]);
+      `,
+        [
+          userId,
+          maxDrawdown || 20.0,
+          maxPositionSize || 25.0,
+          stopLossPercentage || 5.0,
+          maxLeverage || 2.0,
+          maxCorrelation || 0.7,
+          riskToleranceLevel || "moderate",
+          maxDailyLoss || 2.0,
+          maxMonthlyLoss || 10.0,
+          updateTime,
+          updateTime,
+        ]
+      );
     }
 
     const updatedLimits = result.rows[0];
@@ -2134,16 +2389,15 @@ router.post("/risk/limits", async (req, res) => {
         riskToleranceLevel: updatedLimits.risk_tolerance_level,
         maxDailyLoss: updatedLimits.max_daily_loss,
         maxMonthlyLoss: updatedLimits.max_monthly_loss,
-        updatedAt: updatedLimits.updated_at
-      }
+        updatedAt: updatedLimits.updated_at,
+      },
     });
-
   } catch (error) {
     console.error("Risk limits update error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update risk limits",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -2152,38 +2406,41 @@ router.post("/positions/:symbol/close", async (req, res) => {
   try {
     const userId = req.user?.sub;
     const { symbol } = req.params;
-    const { closeType = 'market', priceLimit, reason } = req.body;
-    
+    const { closeType = "market", priceLimit, reason } = req.body;
+
     console.log(`🔄 Close position for ${symbol}, user: ${userId}`);
 
     // Validate required fields
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: "User authentication required"
+        error: "User authentication required",
       });
     }
 
     if (!symbol) {
       return res.status(400).json({
         success: false,
-        error: "Symbol is required"
+        error: "Symbol is required",
       });
     }
 
     // Check if position exists
-    const existingPosition = await query(`
+    const existingPosition = await query(
+      `
       SELECT 
         id, symbol, quantity, average_cost, current_price, total_value,
         unrealized_pnl, realized_pnl, position_type
       FROM portfolio_holdings 
       WHERE user_id = $1 AND symbol = $2 AND quantity > 0
-    `, [userId, symbol]);
+    `,
+      [userId, symbol]
+    );
 
     if (existingPosition.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: `No open position found for ${symbol}`
+        error: `No open position found for ${symbol}`,
       });
     }
 
@@ -2191,17 +2448,22 @@ router.post("/positions/:symbol/close", async (req, res) => {
     const closeTime = new Date().toISOString();
 
     // Get current market price for closing calculation
-    const priceQuery = await query(`
+    const priceQuery = await query(
+      `
       SELECT close_price as current_price 
       FROM price_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
       LIMIT 1
-    `, [symbol]);
+    `,
+      [symbol]
+    );
 
-    const currentPrice = priceQuery.rows[0]?.current_price || position.current_price;
-    const closePrice = closeType === 'limit' && priceLimit ? priceLimit : currentPrice;
-    
+    const currentPrice =
+      priceQuery.rows[0]?.current_price || position.current_price;
+    const closePrice =
+      closeType === "limit" && priceLimit ? priceLimit : currentPrice;
+
     // Calculate closing P&L
     const totalCost = position.quantity * position.average_cost;
     const totalValue = position.quantity * closePrice;
@@ -2209,11 +2471,12 @@ router.post("/positions/:symbol/close", async (req, res) => {
     const pnlPercentage = (realizedPnL / totalCost) * 100;
 
     // Begin transaction for position closing
-    await query('BEGIN');
+    await query("BEGIN");
 
     try {
       // Update portfolio_holdings - set quantity to 0 and update P&L
-      await query(`
+      await query(
+        `
         UPDATE portfolio_holdings 
         SET 
           quantity = 0,
@@ -2224,28 +2487,34 @@ router.post("/positions/:symbol/close", async (req, res) => {
           last_updated = $3,
           position_status = 'closed'
         WHERE user_id = $4 AND symbol = $5
-      `, [closePrice, realizedPnL, closeTime, userId, symbol]);
+      `,
+        [closePrice, realizedPnL, closeTime, userId, symbol]
+      );
 
       // Record the trade in trade_history
-      await query(`
+      await query(
+        `
         INSERT INTO trade_history (
           user_id, symbol, action, quantity, price, total_amount, 
           realized_pnl, trade_date, order_type, notes
         ) VALUES ($1, $2, 'sell', $3, $4, $5, $6, $7, $8, $9)
-      `, [
-        userId, 
-        symbol, 
-        position.quantity, 
-        closePrice, 
-        totalValue, 
-        realizedPnL, 
-        closeTime, 
-        closeType,
-        reason || `Position closed: ${closeType} order`
-      ]);
+      `,
+        [
+          userId,
+          symbol,
+          position.quantity,
+          closePrice,
+          totalValue,
+          realizedPnL,
+          closeTime,
+          closeType,
+          reason || `Position closed: ${closeType} order`,
+        ]
+      );
 
       // Update user portfolio summary
-      const portfolioSummary = await query(`
+      const portfolioSummary = await query(
+        `
         SELECT 
           SUM(total_value) as total_value,
           SUM(unrealized_pnl) as unrealized_pnl,
@@ -2253,12 +2522,15 @@ router.post("/positions/:symbol/close", async (req, res) => {
           COUNT(*) as total_positions
         FROM portfolio_holdings 
         WHERE user_id = $1 AND quantity > 0
-      `, [userId]);
+      `,
+        [userId]
+      );
 
       const summary = portfolioSummary.rows[0];
 
       // Update or create portfolio summary record
-      await query(`
+      await query(
+        `
         INSERT INTO portfolio_summary (
           user_id, total_value, unrealized_pnl, realized_pnl, 
           total_positions, last_updated
@@ -2270,16 +2542,18 @@ router.post("/positions/:symbol/close", async (req, res) => {
           realized_pnl = EXCLUDED.realized_pnl,
           total_positions = EXCLUDED.total_positions,
           last_updated = EXCLUDED.last_updated
-      `, [
-        userId,
-        summary.total_value || 0,
-        summary.unrealized_pnl || 0,
-        summary.realized_pnl || 0,
-        summary.total_positions || 0,
-        closeTime
-      ]);
+      `,
+        [
+          userId,
+          summary.total_value || 0,
+          summary.unrealized_pnl || 0,
+          summary.realized_pnl || 0,
+          summary.total_positions || 0,
+          closeTime,
+        ]
+      );
 
-      await query('COMMIT');
+      await query("COMMIT");
 
       // Return detailed closing information
       res.json({
@@ -2302,37 +2576,38 @@ router.post("/positions/:symbol/close", async (req, res) => {
             totalValue: summary.total_value || 0,
             unrealizedPnL: summary.unrealized_pnl || 0,
             realizedPnL: summary.realized_pnl || 0,
-            totalPositions: summary.total_positions || 0
-          }
-        }
+            totalPositions: summary.total_positions || 0,
+          },
+        },
       });
-
     } catch (transactionError) {
-      await query('ROLLBACK');
+      await query("ROLLBACK");
       throw transactionError;
     }
-
   } catch (error) {
     console.error("Close position error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to close position",
-      details: error.message
+      details: error.message,
     });
   }
 });
 
 // Dashboard endpoint - alias for the root trading endpoint for contract compatibility
 router.get("/dashboard", async (req, res) => {
-  console.log(`📊 [TRADING] Dashboard endpoint redirecting to main trading endpoint`);
-  
+  console.log(
+    `📊 [TRADING] Dashboard endpoint redirecting to main trading endpoint`
+  );
+
   // Forward all query parameters
-  const queryString = Object.keys(req.query).length > 0 
-    ? '?' + new URLSearchParams(req.query).toString() 
-    : '';
-  
+  const queryString =
+    Object.keys(req.query).length > 0
+      ? "?" + new URLSearchParams(req.query).toString()
+      : "";
+
   const redirectUrl = `/api/trading${queryString}`;
-  
+
   res.redirect(301, redirectUrl);
 });
 

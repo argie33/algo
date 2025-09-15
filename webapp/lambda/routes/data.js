@@ -20,7 +20,7 @@ router.get("/", async (req, res) => {
     } catch (e) {
       // Ignore console logging errors
     }
-    
+
     res.json({
       message: "Data API - Ready",
       timestamp: new Date().toISOString(),
@@ -29,8 +29,8 @@ router.get("/", async (req, res) => {
         "/:symbol - Get comprehensive data for a symbol",
         "/historical/:symbol - Get historical data for a symbol",
         "/realtime/:symbol - Get real-time data for a symbol",
-        "/bulk - Get data for multiple symbols"
-      ]
+        "/bulk - Get data for multiple symbols",
+      ],
     });
   } catch (error) {
     try {
@@ -43,7 +43,7 @@ router.get("/", async (req, res) => {
     } else {
       res.status(500).json({
         success: false,
-        error: "Failed to get data API information"
+        error: "Failed to get data API information",
       });
     }
   }
@@ -56,18 +56,20 @@ router.get("/", async (req, res) => {
  */
 router.get("/bulk", async (req, res) => {
   const { symbols } = req.query;
-  
+
   if (!symbols) {
     return res.validationError("symbols parameter is required");
   }
-  
-  const symbolsList = symbols.split(',').map(s => s.trim().toUpperCase());
+
+  const symbolsList = symbols.split(",").map((s) => s.trim().toUpperCase());
   try {
-    console.log(`📊 [DATA] Fetching bulk data for ${symbolsList.length} symbols`);
+    console.log(
+      `📊 [DATA] Fetching bulk data for ${symbolsList.length} symbols`
+    );
   } catch (e) {
     // Ignore console logging errors
   }
-  
+
   try {
     const bulkQuery = `
       SELECT symbol, date, open, high, low, close, adj_close, volume
@@ -75,16 +77,18 @@ router.get("/bulk", async (req, res) => {
       WHERE symbol = ANY($1) 
       AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
     `;
-    
+
     const result = await query(bulkQuery, [symbolsList]);
-    
+
     const dataBySymbol = {};
-    result.rows.forEach(row => {
+    result.rows.forEach((row) => {
       dataBySymbol[row.symbol] = row;
     });
-    
+
     try {
-      console.log(`✅ [DATA] Retrieved bulk data for ${result.rows.length}/${symbolsList.length} symbols`);
+      console.log(
+        `✅ [DATA] Retrieved bulk data for ${result.rows.length}/${symbolsList.length} symbols`
+      );
     } catch (e) {
       // Ignore console logging errors
     }
@@ -92,9 +96,8 @@ router.get("/bulk", async (req, res) => {
       requested_symbols: symbolsList,
       found_symbols: Object.keys(dataBySymbol),
       data: dataBySymbol,
-      count: result.rows.length
+      count: result.rows.length,
     });
-    
   } catch (error) {
     try {
       console.error("❌ [DATA] Error fetching bulk data:", error);
@@ -104,7 +107,7 @@ router.get("/bulk", async (req, res) => {
     res.serverError("Failed to retrieve bulk data", {
       requested_symbols: symbolsList,
       error: error.message,
-      service: "data-api"
+      service: "data-api",
     });
   }
 });
@@ -117,14 +120,14 @@ router.get("/bulk", async (req, res) => {
 router.get("/:symbol", async (req, res) => {
   const { symbol } = req.params;
   const symbolUpper = symbol.toUpperCase();
-  
+
   try {
     try {
       console.log(`📊 [DATA] Fetching comprehensive data for ${symbolUpper}`);
     } catch (e) {
       // Ignore console logging errors
     }
-    
+
     // Get latest price data
     const priceQuery = `
       SELECT symbol, date, open, high, low, close, adj_close, volume
@@ -133,7 +136,7 @@ router.get("/:symbol", async (req, res) => {
       ORDER BY date DESC 
       LIMIT 1
     `;
-    
+
     // Get latest technical data
     const technicalQuery = `
       SELECT symbol, date, rsi, macd, macd_signal, macd_hist,
@@ -145,15 +148,15 @@ router.get("/:symbol", async (req, res) => {
       ORDER BY date DESC 
       LIMIT 1
     `;
-    
+
     const [priceResult, technicalResult] = await Promise.all([
       query(priceQuery, [symbolUpper]),
-      query(technicalQuery, [symbolUpper])
+      query(technicalQuery, [symbolUpper]),
     ]);
-    
+
     const priceData = priceResult.rows[0] || null;
     const technicalData = technicalResult.rows[0] || null;
-    
+
     if (!priceData && !technicalData) {
       try {
         console.log(`❌ [DATA] No data found for symbol ${symbolUpper}`);
@@ -165,25 +168,24 @@ router.get("/:symbol", async (req, res) => {
       } else {
         return res.status(404).json({
           success: false,
-          error: `No data available for symbol ${symbolUpper}`
+          error: `No data available for symbol ${symbolUpper}`,
         });
       }
     }
-    
+
     const responseData = {
       symbol: symbolUpper,
       price: priceData,
       technical: technicalData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
-    
+
     try {
       console.log(`✅ [DATA] Successfully fetched data for ${symbolUpper}`);
     } catch (e) {
       // Ignore console logging errors
     }
     res.json(responseData);
-    
   } catch (error) {
     try {
       console.error(`❌ [DATA] Error fetching data for ${symbolUpper}:`, error);
@@ -194,7 +196,7 @@ router.get("/:symbol", async (req, res) => {
       res.serverError(`Failed to retrieve data for ${symbolUpper}`, {
         symbol: symbolUpper,
         error: error.message,
-        service: "data-api"
+        service: "data-api",
       });
     } else {
       res.status(500).json({
@@ -202,7 +204,7 @@ router.get("/:symbol", async (req, res) => {
         error: `Failed to retrieve data for ${symbolUpper}`,
         symbol: symbolUpper,
         details: error.message,
-        service: "data-api"
+        service: "data-api",
       });
     }
   }
@@ -217,48 +219,54 @@ router.get("/historical/:symbol", async (req, res) => {
   const { symbol } = req.params;
   const { start, end, limit = 50 } = req.query;
   const symbolUpper = symbol.toUpperCase();
-  
+
   try {
     console.log(`📊 [DATA] Fetching historical data for ${symbolUpper}`);
   } catch (e) {
     // Ignore console logging errors
   }
-  
+
   try {
     let historicalQuery = `
       SELECT symbol, date, open, high, low, close, adj_close, volume
       FROM price_daily 
       WHERE symbol = $1
     `;
-    
+
     const queryParams = [symbolUpper];
-    
+
     if (start) {
       historicalQuery += ` AND date >= $${queryParams.length + 1}`;
       queryParams.push(start);
     }
-    
+
     if (end) {
       historicalQuery += ` AND date <= $${queryParams.length + 1}`;
       queryParams.push(end);
     }
-    
+
     historicalQuery += ` ORDER BY date DESC LIMIT $${queryParams.length + 1}`;
     queryParams.push(parseInt(limit));
-    
+
     const result = await query(historicalQuery, queryParams);
-    
+
     if (result.rows.length === 0) {
       try {
-        console.log(`❌ [DATA] No historical data found for symbol ${symbolUpper}`);
+        console.log(
+          `❌ [DATA] No historical data found for symbol ${symbolUpper}`
+        );
       } catch (e) {
         // Ignore console logging errors
       }
-      return res.notFound(`No historical data available for symbol ${symbolUpper}`);
+      return res.notFound(
+        `No historical data available for symbol ${symbolUpper}`
+      );
     }
-    
+
     try {
-      console.log(`✅ [DATA] Retrieved ${result.rows.length} historical records for ${symbolUpper}`);
+      console.log(
+        `✅ [DATA] Retrieved ${result.rows.length} historical records for ${symbolUpper}`
+      );
     } catch (e) {
       // Ignore console logging errors
     }
@@ -266,19 +274,21 @@ router.get("/historical/:symbol", async (req, res) => {
       symbol: symbolUpper,
       data: result.rows,
       count: result.rows.length,
-      parameters: { start, end, limit }
+      parameters: { start, end, limit },
     });
-    
   } catch (error) {
     try {
-      console.error(`❌ [DATA] Error fetching historical data for ${symbolUpper}:`, error);
+      console.error(
+        `❌ [DATA] Error fetching historical data for ${symbolUpper}:`,
+        error
+      );
     } catch (e) {
       // Ignore console logging errors
     }
     res.serverError(`Failed to retrieve historical data for ${symbolUpper}`, {
       symbol: symbolUpper,
       error: error.message,
-      service: "data-api"
+      service: "data-api",
     });
   }
 });
@@ -290,15 +300,15 @@ router.get("/historical/:symbol", async (req, res) => {
  */
 router.get("/realtime/:symbol", async (req, res) => {
   const { symbol } = req.params;
-  const { mock_live = 'false' } = req.query;
+  const { mock_live = "false" } = req.query;
   const symbolUpper = symbol.toUpperCase();
-  
+
   try {
     console.log(`📊 [DATA] Fetching real-time data for ${symbolUpper}`);
   } catch (e) {
     // Ignore console logging errors
   }
-  
+
   try {
     // Get the latest historical data as base
     const baseQuery = `
@@ -308,49 +318,54 @@ router.get("/realtime/:symbol", async (req, res) => {
       ORDER BY date DESC 
       LIMIT 1
     `;
-    
+
     const result = await query(baseQuery, [symbolUpper]);
-    
+
     if (result.rows.length === 0) {
       try {
         console.log(`❌ [DATA] No data found for symbol ${symbolUpper}`);
       } catch (e) {
         // Ignore console logging errors
       }
-      return res.notFound(`No real-time data available for symbol ${symbolUpper}`);
+      return res.notFound(
+        `No real-time data available for symbol ${symbolUpper}`
+      );
     }
-    
+
     const baseData = result.rows[0];
-    
+
     // Generate simulated real-time data based on historical prices
-    if (mock_live === 'true') {
+    if (mock_live === "true") {
       const now = new Date();
       const marketOpen = new Date(now);
       marketOpen.setUTCHours(14, 30, 0, 0); // 9:30 AM EST
       const marketClose = new Date(now);
       marketClose.setUTCHours(21, 0, 0, 0); // 4:00 PM EST
-      
+
       const isMarketHours = now >= marketOpen && now <= marketClose;
-      const lastPrice = parseFloat(baseData.close) || parseFloat(baseData.adj_close) || 100;
-      
+      const lastPrice =
+        parseFloat(baseData.close) || parseFloat(baseData.adj_close) || 100;
+
       // Generate realistic price movements (±0.5% typical intraday movement)
       const volatility = 0.005;
       const randomChange = (Math.random() - 0.5) * 2 * volatility;
       const currentPrice = lastPrice * (1 + randomChange);
-      
+
       // Calculate day's change
       const dayChange = currentPrice - lastPrice;
       const dayChangePercent = ((currentPrice - lastPrice) / lastPrice) * 100;
-      
+
       // Generate bid/ask spread (typically 0.01-0.05% for liquid stocks)
       const spread = currentPrice * 0.0001;
       const bid = currentPrice - spread / 2;
       const ask = currentPrice + spread / 2;
-      
+
       // Simulate volume (random between 80-120% of daily average)
       const baseVolume = parseInt(baseData.volume) || 1000000;
-      const currentVolume = Math.floor(baseVolume * (0.1 + Math.random() * 0.3)); // Partial day volume
-      
+      const currentVolume = Math.floor(
+        baseVolume * (0.1 + Math.random() * 0.3)
+      ); // Partial day volume
+
       const realtimeData = {
         symbol: symbolUpper,
         current_price: parseFloat(currentPrice.toFixed(2)),
@@ -360,36 +375,40 @@ router.get("/realtime/:symbol", async (req, res) => {
         day_change_percent: parseFloat(dayChangePercent.toFixed(2)),
         volume: currentVolume,
         last_trade_time: now.toISOString(),
-        market_status: isMarketHours ? 'open' : 'closed',
+        market_status: isMarketHours ? "open" : "closed",
         previous_close: lastPrice,
         day_high: Math.max(lastPrice, currentPrice * 1.002),
         day_low: Math.min(lastPrice, currentPrice * 0.998),
         real_time: true,
-        data_source: 'simulated_live',
-        last_updated: now.toISOString()
+        data_source: "simulated_live",
+        last_updated: now.toISOString(),
       };
-      
+
       try {
-        console.log(`✅ [DATA] Generated simulated real-time data for ${symbolUpper}`);
+        console.log(
+          `✅ [DATA] Generated simulated real-time data for ${symbolUpper}`
+        );
       } catch (e) {
         // Ignore console logging errors
       }
       res.json({
         symbol: symbolUpper,
         data: realtimeData,
-        market_status: isMarketHours ? 'open' : 'closed',
-        disclaimer: "Simulated real-time data for development - not actual market data"
+        market_status: isMarketHours ? "open" : "closed",
+        disclaimer:
+          "Simulated real-time data for development - not actual market data",
       });
     } else {
       // Return latest historical data with proper formatting
       const data = {
         ...baseData,
-        current_price: parseFloat(baseData.close) || parseFloat(baseData.adj_close),
+        current_price:
+          parseFloat(baseData.close) || parseFloat(baseData.adj_close),
         real_time: false,
-        data_source: 'historical',
-        last_updated: new Date().toISOString()
+        data_source: "historical",
+        last_updated: new Date().toISOString(),
       };
-      
+
       try {
         console.log(`✅ [DATA] Retrieved historical data for ${symbolUpper}`);
       } catch (e) {
@@ -398,20 +417,23 @@ router.get("/realtime/:symbol", async (req, res) => {
       res.json({
         symbol: symbolUpper,
         data: data,
-        disclaimer: "Real-time data feed not implemented - showing latest historical data"
+        disclaimer:
+          "Real-time data feed not implemented - showing latest historical data",
       });
     }
-    
   } catch (error) {
     try {
-      console.error(`❌ [DATA] Error fetching real-time data for ${symbolUpper}:`, error);
+      console.error(
+        `❌ [DATA] Error fetching real-time data for ${symbolUpper}:`,
+        error
+      );
     } catch (e) {
       // Ignore console logging errors
     }
     res.serverError(`Failed to retrieve real-time data for ${symbolUpper}`, {
       symbol: symbolUpper,
       error: error.message,
-      service: "data-api"
+      service: "data-api",
     });
   }
 });

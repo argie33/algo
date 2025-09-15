@@ -84,8 +84,14 @@ class ApiKeyService {
     }
 
     // Development bypass token handling
-    if (token === "dev-bypass-token" && (process.env.ALLOW_DEV_BYPASS === "true" || process.env.NODE_ENV === "development")) {
-      console.log("🔧 Development mode: Accepting dev-bypass-token for API key operations");
+    if (
+      token === "dev-bypass-token" &&
+      (process.env.ALLOW_DEV_BYPASS === "true" ||
+        process.env.NODE_ENV === "development")
+    ) {
+      console.log(
+        "🔧 Development mode: Accepting dev-bypass-token for API key operations"
+      );
       return {
         valid: true,
         user: {
@@ -101,11 +107,15 @@ class ApiKeyService {
     // In test environment, use the mocked JWT verifier if available
     if (process.env.NODE_ENV === "test") {
       // If we have a JWT verifier (mocked in tests), use it first
-      if (this.jwtVerifier && this.jwtVerifier.verify && typeof this.jwtVerifier.verify === 'function') {
+      if (
+        this.jwtVerifier &&
+        this.jwtVerifier.verify &&
+        typeof this.jwtVerifier.verify === "function"
+      ) {
         try {
           // For some tests, we want to test the actual mocking flow
           const payload = await this.jwtVerifier.verify(token);
-          
+
           return {
             valid: true,
             user: {
@@ -114,7 +124,7 @@ class ApiKeyService {
               username: payload.username,
               role: payload["custom:role"] || payload.role || "user",
               groups: payload["cognito:groups"] || payload.groups || [],
-              sessionId: require('crypto').randomUUID(),
+              sessionId: require("crypto").randomUUID(),
             },
           };
         } catch (error) {
@@ -125,24 +135,27 @@ class ApiKeyService {
           };
         }
       }
-      
+
       // For tests without mocks, handle various test token patterns
       // This handles the case where tests expect specific tokens to validate
       try {
         // Try jwt.verify first if jsonwebtoken is mocked, even for simple test tokens
-        const jwt = require('jsonwebtoken');
-        if (jwt.verify && typeof jwt.verify === 'function') {
+        const jwt = require("jsonwebtoken");
+        if (jwt.verify && typeof jwt.verify === "function") {
           try {
-            const payload = jwt.verify(token, process.env.JWT_SECRET || 'test-secret');
+            const payload = jwt.verify(
+              token,
+              process.env.JWT_SECRET || "test-secret"
+            );
             return {
               valid: true,
               user: {
                 sub: payload.sub,
                 email: payload.email || `${payload.sub}@test.local`,
                 username: payload.username || payload.sub,
-                role: payload.role || 'user',
+                role: payload.role || "user",
                 groups: payload.groups || [],
-                sessionId: require('crypto').randomUUID(),
+                sessionId: require("crypto").randomUUID(),
               },
             };
           } catch (jwtError) {
@@ -153,22 +166,26 @@ class ApiKeyService {
             };
           }
         }
-        
+
         // First, check for specific test tokens that should always be valid
-        if (token === 'valid.jwt.token' || token === 'valid-jwt-token' || token.includes('valid')) {
+        if (
+          token === "valid.jwt.token" ||
+          token === "valid-jwt-token" ||
+          token.includes("valid")
+        ) {
           return {
             valid: true,
             user: {
-              sub: 'test-user-id',
-              email: 'test@example.com',
-              username: 'testuser',
-              role: 'user',
+              sub: "test-user-id",
+              email: "test@example.com",
+              username: "testuser",
+              role: "user",
               groups: [],
-              sessionId: require('crypto').randomUUID(),
+              sessionId: require("crypto").randomUUID(),
             },
           };
         }
-        
+
         // For tokens without dots in test environment, treat as simple test tokens
         // This allows tests to use simple string tokens for validation
         return {
@@ -177,9 +194,9 @@ class ApiKeyService {
             sub: token,
             email: `${token}@test.local`,
             username: token,
-            role: 'user',
+            role: "user",
             groups: [],
-            sessionId: require('crypto').randomUUID(),
+            sessionId: require("crypto").randomUUID(),
           },
         };
       } catch (error) {
@@ -202,13 +219,16 @@ class ApiKeyService {
     try {
       if (!this.jwtVerifier) {
         // JWT verifier not configured - reject tokens in production
-        if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
+        if (
+          process.env.NODE_ENV !== "test" &&
+          process.env.NODE_ENV !== "development"
+        ) {
           return {
             valid: false,
             error: "JWT validation failed",
           };
         }
-        
+
         // Development mode bypass - when JWT verifier not available, accept any token
         // This happens when Cognito environment variables are not configured
         return {
@@ -219,7 +239,7 @@ class ApiKeyService {
             username: token,
             role: "user",
             groups: [],
-            sessionId: require('crypto').randomUUID(),
+            sessionId: require("crypto").randomUUID(),
           },
         };
       }
@@ -248,7 +268,7 @@ class ApiKeyService {
         groups: payload["cognito:groups"] || [],
         tokenIssueTime: payload.iat,
         tokenExpirationTime: payload.exp,
-        sessionId: require('crypto').randomUUID(),
+        sessionId: require("crypto").randomUUID(),
       };
 
       // Cache session
@@ -276,9 +296,14 @@ class ApiKeyService {
    */
   checkJwtCircuitBreaker() {
     // DEVELOPMENT: Reset JWT circuit breaker if ALLOW_DEV_BYPASS is set
-    if (process.env.ALLOW_DEV_BYPASS === "true" || process.env.NODE_ENV === "development") {
+    if (
+      process.env.ALLOW_DEV_BYPASS === "true" ||
+      process.env.NODE_ENV === "development"
+    ) {
       if (this.jwtCircuitBreaker.state === "OPEN") {
-        console.log("🔧 Development mode: Resetting JWT circuit breaker to CLOSED state");
+        console.log(
+          "🔧 Development mode: Resetting JWT circuit breaker to CLOSED state"
+        );
         this.jwtCircuitBreaker.state = "CLOSED";
         this.jwtCircuitBreaker.failures = 0;
         this.jwtCircuitBreaker.lastFailureTime = 0;
@@ -299,11 +324,12 @@ class ApiKeyService {
       } else {
         return {
           allowed: false,
-          error: "JWT circuit breaker is OPEN - authentication temporarily unavailable"
+          error:
+            "JWT circuit breaker is OPEN - authentication temporarily unavailable",
         };
       }
     }
-    
+
     return { allowed: true };
   }
 
@@ -374,14 +400,16 @@ class ApiKeyService {
       }
 
       this.encryptionKey =
-        secret.encryptionKey || secret.API_KEY_ENCRYPTION_SECRET || process.env.API_KEY_ENCRYPTION_KEY;
-      
+        secret.encryptionKey ||
+        secret.API_KEY_ENCRYPTION_SECRET ||
+        process.env.API_KEY_ENCRYPTION_KEY;
+
       if (!this.encryptionKey) {
         // Development fallback
         console.warn("No encryption key found, using development fallback");
         this.encryptionKey = "dev-test-key-32-chars-long1234";
       }
-      
+
       return this.encryptionKey;
     } catch (error) {
       console.error("Failed to get encryption key:", error.message);
@@ -402,9 +430,14 @@ class ApiKeyService {
     }
 
     // DEVELOPMENT: Reset circuit breaker if ALLOW_DEV_BYPASS is set
-    if (process.env.ALLOW_DEV_BYPASS === "true" || process.env.NODE_ENV === "development") {
+    if (
+      process.env.ALLOW_DEV_BYPASS === "true" ||
+      process.env.NODE_ENV === "development"
+    ) {
       if (this.circuitBreaker.state === "OPEN") {
-        console.log("🔧 Development mode: Resetting API key circuit breaker to CLOSED state");
+        console.log(
+          "🔧 Development mode: Resetting API key circuit breaker to CLOSED state"
+        );
         this.circuitBreaker.state = "CLOSED";
         this.circuitBreaker.failures = 0;
         this.circuitBreaker.lastFailureTime = 0;
@@ -425,11 +458,11 @@ class ApiKeyService {
       } else {
         return {
           allowed: false,
-          error: "Failed to store API key - service temporarily unavailable"
+          error: "Failed to store API key - service temporarily unavailable",
         };
       }
     }
-    
+
     return { allowed: true };
   }
 
@@ -544,37 +577,43 @@ class ApiKeyService {
     }
 
     // Check if provider is supported
-    const supportedProviders = ["alpaca", "polygon", "finnhub", "alpha_vantage"];
+    const supportedProviders = [
+      "alpaca",
+      "polygon",
+      "finnhub",
+      "alpha_vantage",
+    ];
     if (!supportedProviders.includes(provider)) {
       throw new Error("Invalid provider");
     }
 
     // Validate required fields based on provider
     const requiredFields = this.getRequiredFields(provider);
-    const missingFields = requiredFields.filter(field => !apiKeyData[field]);
-    
+    const missingFields = requiredFields.filter((field) => !apiKeyData[field]);
+
     if (missingFields.length > 0) {
       // Special case for alpaca to match test expectations
-      if (provider === 'alpaca') {
+      if (provider === "alpaca") {
         throw new Error("API key data must include keyId and secret");
       }
-      throw new Error(`Missing required API key fields: ${missingFields.join(", ")}`);
+      throw new Error(
+        `Missing required API key fields: ${missingFields.join(", ")}`
+      );
     }
 
     try {
-
       // Validate field lengths (allow large data for testing)
-      const maxKeyLength = process.env.NODE_ENV === 'test' ? 500 : 500;
-      const maxSecretLength = process.env.NODE_ENV === 'test' ? 500 : 1000;
-      
+      const maxKeyLength = process.env.NODE_ENV === "test" ? 500 : 500;
+      const maxSecretLength = process.env.NODE_ENV === "test" ? 500 : 1000;
+
       // Check all possible key field names
       const keyValue = apiKeyData.apiKey || apiKeyData.keyId;
       const secretValue = apiKeyData.apiSecret || apiKeyData.secret;
-      
+
       if (keyValue && keyValue.length > maxKeyLength) {
         throw new Error("API key data exceeds maximum length limits");
       }
-      
+
       if (secretValue && secretValue.length > maxSecretLength) {
         throw new Error("API key data exceeds maximum length limits");
       }
@@ -591,8 +630,10 @@ class ApiKeyService {
       const userSalt = encrypt.randomBytes(32).toString("hex");
 
       // For development/testing - store plain text (in production this would be encrypted)
-      const isDevMode = process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development';
-      
+      const isDevMode =
+        process.env.NODE_ENV === "test" ||
+        process.env.NODE_ENV === "development";
+
       let dbResult;
       if (isDevMode) {
         // Store plain text for development/testing
@@ -611,14 +652,29 @@ class ApiKeyService {
             updated_at = NOW()
           RETURNING user_id, broker_name
         `,
-          [userId, provider, apiKeyData.apiKey || apiKeyData.keyId, apiKeyData.apiSecret || apiKeyData.secret, 'dev-iv', 'dev-auth', 'dev-iv', 'dev-auth']
+          [
+            userId,
+            provider,
+            apiKeyData.apiKey || apiKeyData.keyId,
+            apiKeyData.apiSecret || apiKeyData.secret,
+            "dev-iv",
+            "dev-auth",
+            "dev-iv",
+            "dev-auth",
+          ]
         );
       } else {
         // Encrypt keyId and secret separately for production
         const keyIdValue = apiKeyData.keyId || apiKeyData.apiKey;
         const secretValue = apiKeyData.secret || apiKeyData.apiSecret;
-        const encryptedKeyId = await this.encryptApiKey({ data: keyIdValue }, userSalt);
-        const encryptedSecret = await this.encryptApiKey({ data: secretValue }, userSalt + '_secret');
+        const encryptedKeyId = await this.encryptApiKey(
+          { data: keyIdValue },
+          userSalt
+        );
+        const encryptedSecret = await this.encryptApiKey(
+          { data: secretValue },
+          userSalt + "_secret"
+        );
 
         dbResult = await query(
           `
@@ -635,7 +691,16 @@ class ApiKeyService {
             updated_at = NOW()
           RETURNING user_id, broker_name
         `,
-          [userId, provider, encryptedKeyId.encrypted, encryptedSecret.encrypted, encryptedKeyId.iv, encryptedKeyId.authTag, encryptedSecret.iv, encryptedSecret.authTag]
+          [
+            userId,
+            provider,
+            encryptedKeyId.encrypted,
+            encryptedSecret.encrypted,
+            encryptedKeyId.iv,
+            encryptedKeyId.authTag,
+            encryptedSecret.iv,
+            encryptedSecret.authTag,
+          ]
         );
       }
 
@@ -672,7 +737,9 @@ class ApiKeyService {
     } catch (error) {
       this.recordFailure(error);
       console.error("API key storage error:", error);
-      throw new Error(`Failed to store API key for ${provider}: ${error.message}`);
+      throw new Error(
+        `Failed to store API key for ${provider}: ${error.message}`
+      );
     }
   }
 
@@ -717,42 +784,57 @@ class ApiKeyService {
         return null;
       }
 
-      const { encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, secret_iv, secret_auth_tag } = queryResult.rows[0];
+      const {
+        encrypted_api_key,
+        encrypted_api_secret,
+        key_iv,
+        key_auth_tag,
+        secret_iv,
+        secret_auth_tag,
+      } = queryResult.rows[0];
 
       // Handle dev vs production mode for encryption
-      const isDevMode = process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development';
-      
+      const isDevMode =
+        process.env.NODE_ENV === "test" ||
+        process.env.NODE_ENV === "development";
+
       let decryptedData;
       if (isDevMode) {
         // For development/testing - return stored values directly (stored as plain text)
         decryptedData = {
           keyId: encrypted_api_key,
-          secret: encrypted_api_secret
+          secret: encrypted_api_secret,
         };
       } else {
         // For production - decrypt the stored encrypted data
         try {
-          const keyIdData = await this.decryptApiKey({
-            encrypted: encrypted_api_key,
-            iv: key_iv,
-            authTag: key_auth_tag,
-            algorithm: 'aes-256-gcm'
-          }, userId);
-          
-          const secretData = await this.decryptApiKey({
-            encrypted: encrypted_api_secret,
-            iv: secret_iv,
-            authTag: secret_auth_tag,
-            algorithm: 'aes-256-gcm'
-          }, userId + '_secret');
-          
+          const keyIdData = await this.decryptApiKey(
+            {
+              encrypted: encrypted_api_key,
+              iv: key_iv,
+              authTag: key_auth_tag,
+              algorithm: "aes-256-gcm",
+            },
+            userId
+          );
+
+          const secretData = await this.decryptApiKey(
+            {
+              encrypted: encrypted_api_secret,
+              iv: secret_iv,
+              authTag: secret_auth_tag,
+              algorithm: "aes-256-gcm",
+            },
+            userId + "_secret"
+          );
+
           decryptedData = {
             keyId: keyIdData.data,
-            secret: secretData.data
+            secret: secretData.data,
           };
         } catch (error) {
-          console.error('Decryption failed:', error);
-          throw new Error('Failed to decrypt API key data');
+          console.error("Decryption failed:", error);
+          throw new Error("Failed to decrypt API key data");
         }
       }
 
@@ -833,10 +915,10 @@ class ApiKeyService {
       }
 
       const requiredFields = this.getRequiredFields(provider);
-      
+
       // Create mapped data to handle field name differences
       const mappedApiKeyData = { ...apiKeyData };
-      
+
       // Map keyId/secret to provider-specific field names
       if (apiKeyData.keyId && !mappedApiKeyData.apiKey) {
         mappedApiKeyData.apiKey = apiKeyData.keyId;
@@ -844,7 +926,7 @@ class ApiKeyService {
       if (apiKeyData.secret && !mappedApiKeyData.apiSecret) {
         mappedApiKeyData.apiSecret = apiKeyData.secret;
       }
-      
+
       const missingFields = requiredFields.filter(
         (field) => !mappedApiKeyData[field]
       );
@@ -859,7 +941,7 @@ class ApiKeyService {
       }
 
       // Connection test for supported providers
-      if (testConnection && typeof testConnection === 'function') {
+      if (testConnection && typeof testConnection === "function") {
         try {
           const connectionResult = await testConnection();
           await this.logAuditEvent(
@@ -868,7 +950,7 @@ class ApiKeyService {
             provider,
             user.sessionId
           );
-          
+
           if (connectionResult) {
             return {
               valid: true,
@@ -890,7 +972,10 @@ class ApiKeyService {
           };
         }
       } else if (testConnection === true) {
-        const testResult = await this.testConnection(provider, mappedApiKeyData);
+        const testResult = await this.testConnection(
+          provider,
+          mappedApiKeyData
+        );
         await this.logAuditEvent(
           user.sub,
           "API_KEY_TESTED",
@@ -956,7 +1041,7 @@ class ApiKeyService {
    */
   getRequiredFields(provider) {
     const fieldMap = {
-      alpaca: ["keyId", "secret"], // Support test field names  
+      alpaca: ["keyId", "secret"], // Support test field names
       polygon: ["apiKey"],
       finnhub: ["apiKey"],
       alpha_vantage: ["apiKey"],
@@ -986,7 +1071,7 @@ class ApiKeyService {
           success: true,
           deleted: false,
           provider: provider,
-          message: "Token validation failed - graceful handling applied"
+          message: "Token validation failed - graceful handling applied",
         };
       }
       const user = result.user;
@@ -1021,7 +1106,7 @@ class ApiKeyService {
       this.recordSuccess();
 
       const wasDeleted = dbResult.rowCount > 0;
-      
+
       if (!wasDeleted) {
         return {
           success: true,
@@ -1073,7 +1158,9 @@ class ApiKeyService {
 
       // Add null checking for database availability
       if (!dbResult || !dbResult.rows) {
-        console.warn("API key providers query returned null result, database may be unavailable");
+        console.warn(
+          "API key providers query returned null result, database may be unavailable"
+        );
         this.recordFailure(new Error("Database temporarily unavailable"));
         return []; // Return empty array for graceful degradation
       }
@@ -1086,7 +1173,7 @@ class ApiKeyService {
         configured: true,
         lastUpdated: new Date(row.updated_at),
         createdAt: new Date(row.created_at),
-        lastUsed: row.last_used ? new Date(row.last_used) : null
+        lastUsed: row.last_used ? new Date(row.last_used) : null,
       }));
     } catch (error) {
       this.recordFailure(error);
@@ -1175,13 +1262,20 @@ class ApiKeyService {
         return null; // No API key found
       }
 
-      const { encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, secret_iv, secret_auth_tag } = queryResult.rows[0];
+      const {
+        encrypted_api_key,
+        encrypted_api_secret,
+        key_iv,
+        key_auth_tag,
+        secret_iv,
+        secret_auth_tag,
+      } = queryResult.rows[0];
 
       // For development - handle unencrypted test data
       // In production, proper decryption would be implemented
       const decryptedData = {
         keyId: encrypted_api_key, // Using plain text for dev
-        secret: encrypted_api_secret // Using plain text for dev
+        secret: encrypted_api_secret, // Using plain text for dev
       };
 
       // Cache the result
@@ -1231,7 +1325,11 @@ module.exports = {
   },
   validateApiKey: async (token, provider, testConnection) => {
     try {
-      return await apiKeyService.validateApiKey(token, provider, testConnection);
+      return await apiKeyService.validateApiKey(
+        token,
+        provider,
+        testConnection
+      );
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -1267,7 +1365,7 @@ module.exports = {
 
   // Test helper method to reinitialize the service for mocking
   __reinitializeForTests: () => {
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === "test") {
       apiKeyService.initializeJwtVerifier();
     }
   },

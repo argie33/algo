@@ -1,5 +1,8 @@
 const request = require("supertest");
-const { initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 let app;
 
@@ -22,14 +25,16 @@ describe("Positioning Routes", () => {
 
       // May return 200 with data or 404 if no data found
       expect([200, 404].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("institutional_positioning");
         expect(response.body).toHaveProperty("retail_sentiment");
         expect(response.body).toHaveProperty("metadata");
-        expect(Array.isArray(response.body.institutional_positioning)).toBe(true);
+        expect(Array.isArray(response.body.institutional_positioning)).toBe(
+          true
+        );
         expect(Array.isArray(response.body.retail_sentiment)).toBe(true);
-        
+
         // Validate metadata structure
         expect(response.body.metadata).toHaveProperty("symbol");
         expect(response.body.metadata).toHaveProperty("timeframe");
@@ -44,7 +49,7 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body.metadata.symbol).toBe("AAPL");
       }
@@ -56,7 +61,7 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body.metadata.timeframe).toBe("weekly");
       }
@@ -68,10 +73,12 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         // Should respect limit - institutional positions should be <= 10
-        expect(response.body.institutional_positioning.length).toBeLessThanOrEqual(10);
+        expect(
+          response.body.institutional_positioning.length
+        ).toBeLessThanOrEqual(10);
       }
     });
 
@@ -97,7 +104,7 @@ describe("Positioning Routes", () => {
           expect(institutional).toHaveProperty("position_size");
         }
 
-        // Validate retail sentiment structure  
+        // Validate retail sentiment structure
         if (response.body.retail_sentiment.length > 0) {
           const sentiment = response.body.retail_sentiment[0];
           expect(sentiment).toHaveProperty("symbol");
@@ -107,10 +114,18 @@ describe("Positioning Routes", () => {
         }
 
         // Validate metadata
-        expect(response.body.metadata.total_records).toHaveProperty("institutional");
-        expect(response.body.metadata.total_records).toHaveProperty("sentiment");
-        expect(typeof response.body.metadata.total_records.institutional).toBe("number");
-        expect(typeof response.body.metadata.total_records.sentiment).toBe("number");
+        expect(response.body.metadata.total_records).toHaveProperty(
+          "institutional"
+        );
+        expect(response.body.metadata.total_records).toHaveProperty(
+          "sentiment"
+        );
+        expect(typeof response.body.metadata.total_records.institutional).toBe(
+          "number"
+        );
+        expect(typeof response.body.metadata.total_records.sentiment).toBe(
+          "number"
+        );
       }
     });
 
@@ -136,7 +151,7 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404].includes(response.status)).toBe(true);
-      
+
       if (response.status === 404) {
         expect(response.body).toHaveProperty("error");
         // May have different error messages
@@ -152,7 +167,7 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty("market_overview");
         expect(response.body).toHaveProperty("key_metrics");
@@ -160,20 +175,38 @@ describe("Positioning Routes", () => {
         expect(response.body).toHaveProperty("last_updated");
 
         // Validate market overview structure
-        expect(response.body.market_overview).toHaveProperty("institutional_flow");
-        expect(response.body.market_overview).toHaveProperty("retail_sentiment");
-        expect(response.body.market_overview).toHaveProperty("overall_positioning");
+        expect(response.body.market_overview).toHaveProperty(
+          "institutional_flow"
+        );
+        expect(response.body.market_overview).toHaveProperty(
+          "retail_sentiment"
+        );
+        expect(response.body.market_overview).toHaveProperty(
+          "overall_positioning"
+        );
 
         // Validate key metrics structure
-        expect(response.body.key_metrics).toHaveProperty("institutional_avg_change");
-        expect(response.body.key_metrics).toHaveProperty("retail_net_sentiment");
-        expect(typeof response.body.key_metrics.institutional_avg_change).toBe("number");
-        expect(typeof response.body.key_metrics.retail_net_sentiment).toBe("number");
+        expect(response.body.key_metrics).toHaveProperty(
+          "institutional_avg_change"
+        );
+        expect(response.body.key_metrics).toHaveProperty(
+          "retail_net_sentiment"
+        );
+        expect(typeof response.body.key_metrics.institutional_avg_change).toBe(
+          "number"
+        );
+        expect(typeof response.body.key_metrics.retail_net_sentiment).toBe(
+          "number"
+        );
 
         // Validate data freshness structure
-        expect(response.body.data_freshness).toHaveProperty("institutional_positions");
+        expect(response.body.data_freshness).toHaveProperty(
+          "institutional_positions"
+        );
         expect(response.body.data_freshness).toHaveProperty("retail_readings");
-        expect(typeof response.body.data_freshness.institutional_positions).toBe("number");
+        expect(
+          typeof response.body.data_freshness.institutional_positions
+        ).toBe("number");
       }
     });
 
@@ -185,11 +218,23 @@ describe("Positioning Routes", () => {
       if (response.status === 200) {
         const validFlowValues = ["BULLISH", "BEARISH"];
         const validSentimentValues = ["BULLISH", "BEARISH", "MIXED"];
-        const validOverallValues = ["BULLISH", "MODERATELY_BULLISH", "NEUTRAL", "MODERATELY_BEARISH", "BEARISH"];
+        const validOverallValues = [
+          "BULLISH",
+          "MODERATELY_BULLISH",
+          "NEUTRAL",
+          "MODERATELY_BEARISH",
+          "BEARISH",
+        ];
 
-        expect(validFlowValues).toContain(response.body.market_overview.institutional_flow);
-        expect(validSentimentValues).toContain(response.body.market_overview.retail_sentiment);
-        expect(validOverallValues).toContain(response.body.market_overview.overall_positioning);
+        expect(validFlowValues).toContain(
+          response.body.market_overview.institutional_flow
+        );
+        expect(validSentimentValues).toContain(
+          response.body.market_overview.retail_sentiment
+        );
+        expect(validOverallValues).toContain(
+          response.body.market_overview.overall_positioning
+        );
       }
     });
 
@@ -208,17 +253,15 @@ describe("Positioning Routes", () => {
 
   describe("Authentication", () => {
     test("should require authentication for stock positioning", async () => {
-      const response = await request(app)
-        .get("/api/positioning/stocks");
-        // No auth header
+      const response = await request(app).get("/api/positioning/stocks");
+      // No auth header
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
 
     test("should require authentication for positioning summary", async () => {
-      const response = await request(app)
-        .get("/api/positioning/summary");
-        // No auth header
+      const response = await request(app).get("/api/positioning/summary");
+      // No auth header
 
       expect([200, 401].includes(response.status)).toBe(true);
     });
@@ -239,10 +282,12 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 404, 500].includes(response.status)).toBe(true);
-      
+
       if (response.status === 500) {
         expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toContain("Failed to fetch stock positioning data");
+        expect(response.body.error).toContain(
+          "Failed to fetch stock positioning data"
+        );
       }
     });
 
@@ -283,9 +328,11 @@ describe("Positioning Routes", () => {
         expect(response.body).toHaveProperty("institutional_positioning");
         expect(response.body).toHaveProperty("retail_sentiment");
         expect(response.body).toHaveProperty("metadata");
-        
+
         // Arrays should always be arrays
-        expect(Array.isArray(response.body.institutional_positioning)).toBe(true);
+        expect(Array.isArray(response.body.institutional_positioning)).toBe(
+          true
+        );
         expect(Array.isArray(response.body.retail_sentiment)).toBe(true);
       }
     });
@@ -296,9 +343,13 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        expect(response.body.data_freshness).toHaveProperty("institutional_positions");
+        expect(response.body.data_freshness).toHaveProperty(
+          "institutional_positions"
+        );
         expect(response.body.data_freshness).toHaveProperty("retail_readings");
-        expect(response.body.data_freshness.retail_readings).toBe("last_30_days");
+        expect(response.body.data_freshness.retail_readings).toBe(
+          "last_30_days"
+        );
       }
     });
   });
@@ -306,27 +357,33 @@ describe("Positioning Routes", () => {
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      
+
       const response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer dev-bypass-token");
 
       const responseTime = Date.now() - startTime;
-      
+
       expect(responseTime).toBeLessThan(5000); // 5 second timeout
       expect([200, 404, 500].includes(response.status)).toBe(true);
     });
 
     test("should handle concurrent requests", async () => {
       const requests = [
-        request(app).get("/api/positioning/stocks").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/positioning/summary").set("Authorization", "Bearer dev-bypass-token"),
-        request(app).get("/api/positioning/stocks?symbol=AAPL").set("Authorization", "Bearer dev-bypass-token")
+        request(app)
+          .get("/api/positioning/stocks")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/positioning/summary")
+          .set("Authorization", "Bearer dev-bypass-token"),
+        request(app)
+          .get("/api/positioning/stocks?symbol=AAPL")
+          .set("Authorization", "Bearer dev-bypass-token"),
       ];
 
       const responses = await Promise.all(requests);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect([200, 404, 500].includes(response.status)).toBe(true);
       });
     });

@@ -12,26 +12,34 @@ router.use(responseFormatter);
 // Signal backtest endpoint
 router.post("/backtest", async (req, res) => {
   try {
-    const { signal_type, symbols, start_date, end_date, parameters = {} } = req.body;
+    const {
+      signal_type,
+      symbols,
+      start_date,
+      end_date,
+      parameters = {},
+    } = req.body;
 
     if (!signal_type) {
       return res.status(400).json({
         success: false,
         error: "signal_type is required",
-        validTypes: ["buy", "sell", "momentum", "reversal", "breakout"]
+        validTypes: ["buy", "sell", "momentum", "reversal", "breakout"],
       });
     }
 
-    console.log(`🧪 Signal backtest requested: ${signal_type} for ${symbols?.length || 'all'} symbols`);
+    console.log(
+      `🧪 Signal backtest requested: ${signal_type} for ${symbols?.length || "all"} symbols`
+    );
 
     // Validate parameters
-    const startDate = new Date(start_date || '2023-01-01');
+    const startDate = new Date(start_date || "2023-01-01");
     const endDate = new Date(end_date || new Date());
 
     if (startDate >= endDate) {
       return res.status(400).json({
         success: false,
-        error: "start_date must be before end_date"
+        error: "start_date must be before end_date",
       });
     }
 
@@ -84,13 +92,18 @@ router.post("/backtest", async (req, res) => {
 
     // Calculate performance metrics
     const totalTrades = backtestResults.length;
-    const profitableTrades = backtestResults.filter(r => r.return_percent > 0).length;
-    const avgReturn = totalTrades > 0 
-      ? backtestResults.reduce((sum, r) => sum + r.return_percent, 0) / totalTrades 
-      : 0;
+    const profitableTrades = backtestResults.filter(
+      (r) => r.return_percent > 0
+    ).length;
+    const avgReturn =
+      totalTrades > 0
+        ? backtestResults.reduce((sum, r) => sum + r.return_percent, 0) /
+          totalTrades
+        : 0;
 
-    const winRate = totalTrades > 0 ? (profitableTrades / totalTrades * 100) : 0;
-    
+    const winRate =
+      totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0;
+
     // Performance by signal type
     const signalPerformance = backtestResults.reduce((acc, trade) => {
       if (!acc[trade.signal]) {
@@ -103,10 +116,10 @@ router.post("/backtest", async (req, res) => {
     }, {});
 
     // Add average return and win rate for each signal
-    Object.keys(signalPerformance).forEach(signal => {
+    Object.keys(signalPerformance).forEach((signal) => {
       const perf = signalPerformance[signal];
       perf.avgReturn = perf.trades > 0 ? perf.totalReturn / perf.trades : 0;
-      perf.winRate = perf.trades > 0 ? (perf.wins / perf.trades * 100) : 0;
+      perf.winRate = perf.trades > 0 ? (perf.wins / perf.trades) * 100 : 0;
     });
 
     res.json({
@@ -117,33 +130,34 @@ router.post("/backtest", async (req, res) => {
           profitableTrades,
           avgReturn: parseFloat(avgReturn.toFixed(2)),
           winRate: parseFloat(winRate.toFixed(2)),
-          bestTrade: backtestResults.length > 0 
-            ? Math.max(...backtestResults.map(r => r.return_percent))
-            : 0,
-          worstTrade: backtestResults.length > 0
-            ? Math.min(...backtestResults.map(r => r.return_percent))
-            : 0
+          bestTrade:
+            backtestResults.length > 0
+              ? Math.max(...backtestResults.map((r) => r.return_percent))
+              : 0,
+          worstTrade:
+            backtestResults.length > 0
+              ? Math.min(...backtestResults.map((r) => r.return_percent))
+              : 0,
         },
         signalPerformance,
         trades: backtestResults.slice(0, 100), // Return top 100 trades
         parameters: {
           signal_type,
-          symbols: symbols || 'all',
+          symbols: symbols || "all",
           start_date,
           end_date,
-          ...parameters
-        }
+          ...parameters,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Signal backtest error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to perform signal backtest",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -159,7 +173,12 @@ router.get("/buy", async (req, res) => {
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({success: false, error: "Invalid timeframe. Must be daily, weekly, or monthly"});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Invalid timeframe. Must be daily, weekly, or monthly",
+        });
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -199,20 +218,32 @@ router.get("/buy", async (req, res) => {
     ]);
 
     // Add null checking for database availability
-    if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {
-      console.warn("Buy signals query returned null result, database may be unavailable");
-      return res.status(500).json({success: false, error: "Trading signals temporarily unavailable - database connection issue", 
-        type: "service_unavailable",
-        data: [],
-        timeframe
-      });
+    if (
+      !signalsResult ||
+      !signalsResult.rows ||
+      !countResult ||
+      !countResult.rows
+    ) {
+      console.warn(
+        "Buy signals query returned null result, database may be unavailable"
+      );
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error:
+            "Trading signals temporarily unavailable - database connection issue",
+          type: "service_unavailable",
+          data: [],
+          timeframe,
+        });
     }
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
     // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
-    const transformedData = signalsResult.rows.map(row => ({
+    const transformedData = signalsResult.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -226,7 +257,8 @@ router.get("/buy", async (req, res) => {
 
     // Handle empty results with success response
     if (transformedData.length === 0) {
-      return res.json({data: [],
+      return res.json({
+        data: [],
         pagination: {
           total,
           page,
@@ -240,7 +272,8 @@ router.get("/buy", async (req, res) => {
       });
     }
 
-    res.json({data: transformedData,
+    res.json({
+      data: transformedData,
       timeframe,
       signal_type: "buy",
       pagination: {
@@ -254,9 +287,13 @@ router.get("/buy", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching buy signals:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch buy signals", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch buy signals",
+        details: error.message,
+      });
   }
 });
 
@@ -271,7 +308,12 @@ router.get("/sell", async (req, res) => {
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({success: false, error: "Invalid timeframe. Must be daily, weekly, or monthly"});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Invalid timeframe. Must be daily, weekly, or monthly",
+        });
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -311,20 +353,32 @@ router.get("/sell", async (req, res) => {
     ]);
 
     // Add null checking for database availability
-    if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {
-      console.warn("Sell signals query returned null result, database may be unavailable");
-      return res.status(500).json({success: false, error: "Sell signals temporarily unavailable - database connection issue", 
-        type: "service_unavailable",
-        data: [],
-        timeframe
-      });
+    if (
+      !signalsResult ||
+      !signalsResult.rows ||
+      !countResult ||
+      !countResult.rows
+    ) {
+      console.warn(
+        "Sell signals query returned null result, database may be unavailable"
+      );
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error:
+            "Sell signals temporarily unavailable - database connection issue",
+          type: "service_unavailable",
+          data: [],
+          timeframe,
+        });
     }
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
     // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
-    const transformedData = signalsResult.rows.map(row => ({
+    const transformedData = signalsResult.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -338,7 +392,8 @@ router.get("/sell", async (req, res) => {
 
     // Handle empty results with success response
     if (transformedData.length === 0) {
-      return res.json({data: [],
+      return res.json({
+        data: [],
         pagination: {
           total,
           page,
@@ -352,7 +407,8 @@ router.get("/sell", async (req, res) => {
       });
     }
 
-    res.json({data: transformedData,
+    res.json({
+      data: transformedData,
       timeframe,
       signal_type: "sell",
       pagination: {
@@ -366,9 +422,13 @@ router.get("/sell", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sell signals:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch sell signals", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch sell signals",
+        details: error.message,
+      });
   }
 });
 
@@ -378,14 +438,16 @@ router.get("/recent", async (req, res) => {
     const { limit = 10, hours = 24 } = req.query;
     const timeframe = req.query.timeframe || "daily";
 
-    console.log(`🔔 Recent signals requested, limit: ${limit}, hours: ${hours}`);
+    console.log(
+      `🔔 Recent signals requested, limit: ${limit}, hours: ${hours}`
+    );
 
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid timeframe. Must be daily, weekly, or monthly"
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
       });
     }
 
@@ -419,7 +481,7 @@ router.get("/recent", async (req, res) => {
     );
 
     // Transform data to camelCase
-    const transformedData = result.rows.map(row => ({
+    const transformedData = result.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -439,16 +501,16 @@ router.get("/recent", async (req, res) => {
         limit: parseInt(limit),
         hours: parseInt(hours),
         timeframe: timeframe,
-        since: hoursAgo.toISOString()
+        since: hoursAgo.toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Recent signals error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch recent signals",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -464,7 +526,12 @@ router.get("/", async (req, res) => {
     // Validate timeframe
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
-      return res.status(400).json({success: false, error: "Invalid timeframe. Must be daily, weekly, or monthly"});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Invalid timeframe. Must be daily, weekly, or monthly",
+        });
     }
 
     const tableName = `buy_sell_${timeframe}`;
@@ -518,38 +585,51 @@ router.get("/", async (req, res) => {
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != ''
-      `
+      `,
     ];
 
     const [buyResult, sellResult, countResult] = await Promise.all([
-      query(buySignalsQuery, [Math.ceil(limit/2)]),
-      query(sellSignalsQuery, [Math.floor(limit/2)]),
+      query(buySignalsQuery, [Math.ceil(limit / 2)]),
+      query(sellSignalsQuery, [Math.floor(limit / 2)]),
       query(countQuery),
     ]);
 
     // Add null checking for database availability
-    if (!buyResult || !buyResult.rows || !sellResult || !sellResult.rows || !countResult || !countResult.rows) {
-      console.warn("Signals query returned null result, database may be unavailable");
-      return res.error("Trading signals temporarily unavailable - database connection issue", 500, {
-        type: "service_unavailable",
-        data: {
-          buy_signals: [],
-          sell_signals: [],
-          summary: {
-            total_buy: 0,
-            total_sell: 0,
-            total_signals: 0
-          }
-        },
-        timeframe
-      });
+    if (
+      !buyResult ||
+      !buyResult.rows ||
+      !sellResult ||
+      !sellResult.rows ||
+      !countResult ||
+      !countResult.rows
+    ) {
+      console.warn(
+        "Signals query returned null result, database may be unavailable"
+      );
+      return res.error(
+        "Trading signals temporarily unavailable - database connection issue",
+        500,
+        {
+          type: "service_unavailable",
+          data: {
+            buy_signals: [],
+            sell_signals: [],
+            summary: {
+              total_buy: 0,
+              total_sell: 0,
+              total_signals: 0,
+            },
+          },
+          timeframe,
+        }
+      );
     }
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
     // Transform data to camelCase - signal is text ('BUY', 'SELL', 'HOLD')
-    const buySignals = buyResult.rows.map(row => ({
+    const buySignals = buyResult.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -562,7 +642,7 @@ router.get("/", async (req, res) => {
       signalType: row.signal_type,
     }));
 
-    const sellSignals = sellResult.rows.map(row => ({
+    const sellSignals = sellResult.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -584,8 +664,8 @@ router.get("/", async (req, res) => {
         summary: {
           total_buy: buySignals.length,
           total_sell: sellSignals.length,
-          total_signals: buySignals.length + sellSignals.length
-        }
+          total_signals: buySignals.length + sellSignals.length,
+        },
       },
       timeframe,
       pagination: {
@@ -599,23 +679,29 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching signals:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch signals", 
-      details: error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error: "Failed to fetch signals",
+        details: error.message,
+      });
   }
 });
 
 // Get trading recommendations (comprehensive trading signals with analysis)
 router.get("/recommendations", async (req, res) => {
-  const { 
-    limit = 20, 
-    type = "all", 
+  const {
+    limit = 20,
+    type = "all",
     risk_level = "all",
     min_score = 0,
-    sector
+    sector,
   } = req.query;
 
-  console.log(`📈 Trading recommendations requested - type: ${type}, risk: ${risk_level}, limit: ${limit}`);
+  console.log(
+    `📈 Trading recommendations requested - type: ${type}, risk: ${risk_level}, limit: ${limit}`
+  );
 
   try {
     // Build comprehensive trading recommendations query
@@ -763,13 +849,13 @@ router.get("/recommendations", async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
-    if (type && type.toLowerCase() !== 'all') {
+    if (type && type.toLowerCase() !== "all") {
       conditions.push(`rs.recommendation_type = $${paramIndex}`);
       params.push(type.toUpperCase());
       paramIndex++;
     }
 
-    if (risk_level && risk_level.toLowerCase() !== 'all') {
+    if (risk_level && risk_level.toLowerCase() !== "all") {
       conditions.push(`rs.risk_level = $${paramIndex}`);
       params.push(risk_level.toLowerCase());
       paramIndex++;
@@ -788,7 +874,7 @@ router.get("/recommendations", async (req, res) => {
 
     // Add WHERE clause if we have conditions
     if (conditions.length > 0) {
-      baseQuery += ` WHERE ${conditions.join(' AND ')}`;
+      baseQuery += ` WHERE ${conditions.join(" AND ")}`;
     }
 
     // Add ordering and limiting
@@ -800,12 +886,23 @@ router.get("/recommendations", async (req, res) => {
     // Calculate summary statistics
     const recommendationsData = results.rows || [];
     const totalRecommendations = recommendationsData.length;
-    const buySignals = recommendationsData.filter(r => ['STRONG_BUY', 'BUY'].includes(r.recommendation_type)).length;
-    const sellSignals = recommendationsData.filter(r => ['SELL', 'WEAK_SELL'].includes(r.recommendation_type)).length;
-    const holdSignals = recommendationsData.filter(r => r.recommendation_type === 'HOLD').length;
+    const buySignals = recommendationsData.filter((r) =>
+      ["STRONG_BUY", "BUY"].includes(r.recommendation_type)
+    ).length;
+    const sellSignals = recommendationsData.filter((r) =>
+      ["SELL", "WEAK_SELL"].includes(r.recommendation_type)
+    ).length;
+    const holdSignals = recommendationsData.filter(
+      (r) => r.recommendation_type === "HOLD"
+    ).length;
 
-    const avgScore = recommendationsData.length > 0 ? 
-      (results.reduce((sum, r) => sum + parseFloat(r.score), 0) / results.length).toFixed(2) : 0;
+    const avgScore =
+      recommendationsData.length > 0
+        ? (
+            results.reduce((sum, r) => sum + parseFloat(r.score), 0) /
+            results.length
+          ).toFixed(2)
+        : 0;
 
     return res.json({
       success: true,
@@ -818,18 +915,24 @@ router.get("/recommendations", async (req, res) => {
           hold_signals: holdSignals,
           average_score: parseFloat(avgScore),
           signal_distribution: {
-            buy: Math.round((buySignals / Math.max(totalRecommendations, 1)) * 100),
-            sell: Math.round((sellSignals / Math.max(totalRecommendations, 1)) * 100),
-            hold: Math.round((holdSignals / Math.max(totalRecommendations, 1)) * 100)
-          }
-        }
+            buy: Math.round(
+              (buySignals / Math.max(totalRecommendations, 1)) * 100
+            ),
+            sell: Math.round(
+              (sellSignals / Math.max(totalRecommendations, 1)) * 100
+            ),
+            hold: Math.round(
+              (holdSignals / Math.max(totalRecommendations, 1)) * 100
+            ),
+          },
+        },
       },
       filters: {
         type: type,
         risk_level: risk_level,
         min_score: parseFloat(min_score),
         sector: sector || null,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
       algorithm: "multi_factor_technical_analysis",
       scoring_methodology: {
@@ -837,23 +940,24 @@ router.get("/recommendations", async (req, res) => {
         macd_weight: "0-15 points (trend confirmation)",
         momentum_weight: "0-20 points (5d and 10d momentum)",
         price_position_weight: "0-10 points (support/resistance levels)",
-        volatility_adjustment: "-5 to +5 points (risk adjustment)"
+        volatility_adjustment: "-5 to +5 points (risk adjustment)",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('❌ Error generating trading recommendations:', error);
+    console.error("❌ Error generating trading recommendations:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to generate trading recommendations",
       message: error.message,
       troubleshooting: {
-        suggestion: "Check database connection and ensure required tables have data",
+        suggestion:
+          "Check database connection and ensure required tables have data",
         required_tables: ["price_daily", "technical_indicators"],
-        error_details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error_details:
+          process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -862,17 +966,19 @@ router.get("/recommendations", async (req, res) => {
 
 // Momentum trading signals endpoint
 router.get("/momentum", async (req, res) => {
-  const { 
-    symbol, 
-    timeframe = "daily", 
+  const {
+    symbol,
+    timeframe = "daily",
     strength = "all",
-    limit = 50, 
+    limit = 50,
     page = 1,
     sortBy = "momentum_score",
-    sortOrder = "desc"
+    sortOrder = "desc",
   } = req.query;
-  
-  console.log(`📈 Momentum signals requested - symbol: ${symbol || 'all'}, timeframe: ${timeframe}, strength: ${strength}`);
+
+  console.log(
+    `📈 Momentum signals requested - symbol: ${symbol || "all"}, timeframe: ${timeframe}, strength: ${strength}`
+  );
 
   try {
     // Build the base query for momentum signals
@@ -964,13 +1070,14 @@ router.get("/momentum", async (req, res) => {
     `;
 
     // Add symbol filter if specified
-    if (symbol && symbol.toLowerCase() !== 'all') {
+    if (symbol && symbol.toLowerCase() !== "all") {
       baseQuery += ` WHERE ms.symbol = $1`;
     }
 
-    // Add strength filter 
-    if (strength && strength.toLowerCase() !== 'all') {
-      const whereClause = symbol && symbol.toLowerCase() !== 'all' ? ' AND' : ' WHERE';
+    // Add strength filter
+    if (strength && strength.toLowerCase() !== "all") {
+      const whereClause =
+        symbol && symbol.toLowerCase() !== "all" ? " AND" : " WHERE";
       baseQuery += `${whereClause} ms.strength_category = '${strength.toLowerCase()}'`;
     }
 
@@ -980,15 +1087,22 @@ router.get("/momentum", async (req, res) => {
     baseQuery += ` LIMIT ${parseInt(limit)} OFFSET ${offset}`;
 
     // Execute query with or without symbol parameter
-    const params = (symbol && symbol.toLowerCase() !== 'all') ? [symbol.toUpperCase()] : [];
+    const params =
+      symbol && symbol.toLowerCase() !== "all" ? [symbol.toUpperCase()] : [];
     const results = await query(baseQuery, params);
 
     // Calculate signal summary statistics
-    const signalsData = (results && results.rows) ? results.rows : [];
+    const signalsData = results && results.rows ? results.rows : [];
     const totalSignals = signalsData.length;
-    const strongSignals = signalsData.filter(r => r.strength_category === 'strong').length;
-    const moderateSignals = signalsData.filter(r => r.strength_category === 'moderate').length;
-    const weakSignals = signalsData.filter(r => r.strength_category === 'weak').length;
+    const strongSignals = signalsData.filter(
+      (r) => r.strength_category === "strong"
+    ).length;
+    const moderateSignals = signalsData.filter(
+      (r) => r.strength_category === "moderate"
+    ).length;
+    const weakSignals = signalsData.filter(
+      (r) => r.strength_category === "weak"
+    ).length;
 
     return res.json({
       success: true,
@@ -1000,11 +1114,15 @@ router.get("/momentum", async (req, res) => {
           moderate_signals: moderateSignals,
           weak_signals: weakSignals,
           signal_distribution: {
-            strong: Math.round((strongSignals / Math.max(totalSignals, 1)) * 100),
-            moderate: Math.round((moderateSignals / Math.max(totalSignals, 1)) * 100),
-            weak: Math.round((weakSignals / Math.max(totalSignals, 1)) * 100)
-          }
-        }
+            strong: Math.round(
+              (strongSignals / Math.max(totalSignals, 1)) * 100
+            ),
+            moderate: Math.round(
+              (moderateSignals / Math.max(totalSignals, 1)) * 100
+            ),
+            weak: Math.round((weakSignals / Math.max(totalSignals, 1)) * 100),
+          },
+        },
       },
       filters: {
         symbol: symbol || "all",
@@ -1013,30 +1131,31 @@ router.get("/momentum", async (req, res) => {
         limit: parseInt(limit),
         page: parseInt(page),
         sortBy: sortBy,
-        sortOrder: sortOrder
+        sortOrder: sortOrder,
       },
       pagination: {
         current_page: parseInt(page),
         items_per_page: parseInt(limit),
         total_items: totalSignals,
-        has_more: totalSignals === parseInt(limit)
+        has_more: totalSignals === parseInt(limit),
       },
       timestamp: new Date().toISOString(),
-      algorithm: "multi_timeframe_momentum_with_volume_confirmation"
+      algorithm: "multi_timeframe_momentum_with_volume_confirmation",
     });
-
   } catch (error) {
-    console.error('❌ Error calculating momentum signals:', error);
+    console.error("❌ Error calculating momentum signals:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to calculate momentum signals",
       message: error.message,
       troubleshooting: {
-        suggestion: "Check database connection and ensure price_daily table has recent data",
+        suggestion:
+          "Check database connection and ensure price_daily table has recent data",
         required_tables: ["price_daily", "technical_indicators"],
-        error_details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error_details:
+          process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1044,25 +1163,37 @@ router.get("/momentum", async (req, res) => {
 // Get trading alerts and signals
 router.get("/alerts", async (req, res) => {
   try {
-    const { 
-      symbol, 
-      type = "all", 
+    const {
+      symbol,
+      type = "all",
       severity = "all",
       status = "all",
       limit = 50,
       startDate,
-      endDate
+      endDate,
     } = req.query;
 
-    console.log(`🚨 Trading alerts requested for symbol: ${symbol || 'all'}, type: ${type}, severity: ${severity}`);
+    console.log(
+      `🚨 Trading alerts requested for symbol: ${symbol || "all"}, type: ${type}, severity: ${severity}`
+    );
 
     // Validate type
-    const validTypes = ["all", "price", "volume", "technical", "fundamental", "news", "momentum", "reversal", "breakout"];
+    const validTypes = [
+      "all",
+      "price",
+      "volume",
+      "technical",
+      "fundamental",
+      "news",
+      "momentum",
+      "reversal",
+      "breakout",
+    ];
     if (!validTypes.includes(type)) {
       return res.status(400).json({
         success: false,
         error: "Invalid alert type. Must be one of: " + validTypes.join(", "),
-        requested_type: type
+        requested_type: type,
       });
     }
 
@@ -1071,24 +1202,33 @@ router.get("/alerts", async (req, res) => {
     if (!validSeverities.includes(severity)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid severity. Must be one of: " + validSeverities.join(", "),
-        requested_severity: severity
+        error:
+          "Invalid severity. Must be one of: " + validSeverities.join(", "),
+        requested_severity: severity,
       });
     }
 
     // Validate status
-    const validStatuses = ["all", "active", "triggered", "expired", "acknowledged"];
+    const validStatuses = [
+      "all",
+      "active",
+      "triggered",
+      "expired",
+      "acknowledged",
+    ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
         error: "Invalid status. Must be one of: " + validStatuses.join(", "),
-        requested_status: status
+        requested_status: status,
       });
     }
 
     // Set default date range if not provided (last 24 hours)
     const defaultEndDate = new Date().toISOString();
-    const defaultStartDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const defaultStartDate = new Date(
+      Date.now() - 24 * 60 * 60 * 1000
+    ).toISOString();
     const finalStartDate = startDate || defaultStartDate;
     const finalEndDate = endDate || defaultEndDate;
 
@@ -1165,9 +1305,9 @@ router.get("/alerts", async (req, res) => {
         AND table_name = 'trading_alerts'
       );
     `;
-    
+
     const tableExists = await query(tableCheckQuery);
-    
+
     if (!tableExists.rows[0].exists) {
       // Table doesn't exist, return empty alerts with explanation
       return res.json({
@@ -1179,33 +1319,33 @@ router.get("/alerts", async (req, res) => {
           limit: parseInt(limit),
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
+          hasPrev: false,
         },
         severity_distribution: {
           critical: 0,
           high: 0,
           medium: 0,
-          low: 0
+          low: 0,
         },
         filters: {
-          symbol: symbol || 'all',
+          symbol: symbol || "all",
           type: type,
           severity: severity,
           status: status,
           limit: parseInt(limit),
           date_range: {
             start: finalStartDate,
-            end: finalEndDate
-          }
+            end: finalEndDate,
+          },
         },
         message: "Trading alerts system not initialized - table not found",
         details: "The trading_alerts table does not exist in the database",
         troubleshooting: [
           "1. Run database migrations to create trading_alerts table",
           "2. Initialize trading alert management system",
-          "3. Configure real-time price monitoring for alerts"
+          "3. Configure real-time price monitoring for alerts",
         ],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1215,31 +1355,34 @@ router.get("/alerts", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No trading alerts found",
-        message: "Trading alerts require integration with professional alert management systems",
-        details: "No alerts found in trading_alerts table for the specified filters",
+        message:
+          "Trading alerts require integration with professional alert management systems",
+        details:
+          "No alerts found in trading_alerts table for the specified filters",
         troubleshooting: {
-          suggestion: "Trading alerts require alert management system integration",
+          suggestion:
+            "Trading alerts require alert management system integration",
           required_setup: [
             "Trading alert management system",
             "Real-time price monitoring",
             "Technical analysis alert triggers",
             "Alert delivery and management infrastructure",
-            "User alert preference management"
+            "User alert preference management",
           ],
-          status: "Database query returned no results"
+          status: "Database query returned no results",
         },
         filters: {
-          symbol: symbol || 'all',
+          symbol: symbol || "all",
           type: type,
           severity: severity,
           status: status,
           limit: parseInt(limit),
           date_range: {
             start: finalStartDate,
-            end: finalEndDate
-          }
+            end: finalEndDate,
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1248,22 +1391,23 @@ router.get("/alerts", async (req, res) => {
     const totalAlerts = alertsData.length;
 
     const severityDistribution = {
-      critical: alertsData.filter(a => a.severity === 'critical').length,
-      high: alertsData.filter(a => a.severity === 'high').length,
-      medium: alertsData.filter(a => a.severity === 'medium').length,
-      low: alertsData.filter(a => a.severity === 'low').length
+      critical: alertsData.filter((a) => a.severity === "critical").length,
+      high: alertsData.filter((a) => a.severity === "high").length,
+      medium: alertsData.filter((a) => a.severity === "medium").length,
+      low: alertsData.filter((a) => a.severity === "low").length,
     };
 
     const statusDistribution = {
-      active: alertsData.filter(a => a.status === 'active').length,
-      triggered: alertsData.filter(a => a.status === 'triggered').length,
-      expired: alertsData.filter(a => a.status === 'expired').length,
-      acknowledged: alertsData.filter(a => a.acknowledged_at !== null).length
+      active: alertsData.filter((a) => a.status === "active").length,
+      triggered: alertsData.filter((a) => a.status === "triggered").length,
+      expired: alertsData.filter((a) => a.status === "expired").length,
+      acknowledged: alertsData.filter((a) => a.acknowledged_at !== null).length,
     };
 
     const typeDistribution = {};
-    alertsData.forEach(alert => {
-      typeDistribution[alert.alert_type] = (typeDistribution[alert.alert_type] || 0) + 1;
+    alertsData.forEach((alert) => {
+      typeDistribution[alert.alert_type] =
+        (typeDistribution[alert.alert_type] || 0) + 1;
     });
 
     res.json({
@@ -1277,30 +1421,31 @@ router.get("/alerts", async (req, res) => {
           severity_distribution: severityDistribution,
           status_distribution: statusDistribution,
           type_distribution: typeDistribution,
-          symbols_covered: symbol ? 1 : new Set(alertsData.map(a => a.symbol)).size,
+          symbols_covered: symbol
+            ? 1
+            : new Set(alertsData.map((a) => a.symbol)).size,
           time_range: {
             start: finalStartDate,
-            end: finalEndDate
-          }
+            end: finalEndDate,
+          },
         },
         filters: {
-          symbol: symbol || 'all',
+          symbol: symbol || "all",
           type: type,
           severity: severity,
           status: status,
-          limit: parseInt(limit)
-        }
+          limit: parseInt(limit),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Trading alerts error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trading alerts",
       message: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1310,43 +1455,59 @@ router.get("/social", async (req, res) => {
   const {
     symbol,
     platform = "all",
-    sentiment = "all", 
+    sentiment = "all",
     timeframe = "24h",
     limit = 50,
     page = 1,
     sortBy = "timestamp",
-    sortOrder = "desc"
+    sortOrder = "desc",
   } = req.query;
 
-  console.log(`📱 Social sentiment signals requested - symbol: ${symbol || 'all'}, platform: ${platform}, timeframe: ${timeframe}`);
+  console.log(
+    `📱 Social sentiment signals requested - symbol: ${symbol || "all"}, platform: ${platform}, timeframe: ${timeframe}`
+  );
 
   // Validate parameters
-  const validPlatforms = ["all", "twitter", "reddit", "stocktwits", "discord", "telegram", "youtube"];
+  const validPlatforms = [
+    "all",
+    "twitter",
+    "reddit",
+    "stocktwits",
+    "discord",
+    "telegram",
+    "youtube",
+  ];
   const validSentiments = ["all", "bullish", "bearish", "neutral"];
   const validTimeframes = ["1h", "6h", "24h", "7d", "30d"];
-  const validSortColumns = ["timestamp", "sentiment", "mention_count", "influence_score", "symbol"];
+  const validSortColumns = [
+    "timestamp",
+    "sentiment",
+    "mention_count",
+    "influence_score",
+    "symbol",
+  ];
 
   if (!validPlatforms.includes(platform)) {
     return res.status(400).json({
       success: false,
-      error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}`,
-      validPlatforms
+      error: `Invalid platform. Must be one of: ${validPlatforms.join(", ")}`,
+      validPlatforms,
     });
   }
 
   if (!validSentiments.includes(sentiment)) {
     return res.status(400).json({
       success: false,
-      error: `Invalid sentiment. Must be one of: ${validSentiments.join(', ')}`,
-      validSentiments
+      error: `Invalid sentiment. Must be one of: ${validSentiments.join(", ")}`,
+      validSentiments,
     });
   }
 
   if (!validTimeframes.includes(timeframe)) {
     return res.status(400).json({
       success: false,
-      error: `Invalid timeframe. Must be one of: ${validTimeframes.join(', ')}`,
-      validTimeframes
+      error: `Invalid timeframe. Must be one of: ${validTimeframes.join(", ")}`,
+      validTimeframes,
     });
   }
 
@@ -1486,13 +1647,13 @@ router.get("/social", async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
-    if (symbol && symbol.toLowerCase() !== 'all') {
+    if (symbol && symbol.toLowerCase() !== "all") {
       conditions.push(`ss.symbol = $${paramIndex}`);
       params.push(symbol.toUpperCase());
       paramIndex++;
     }
 
-    if (sentiment && sentiment.toLowerCase() !== 'all') {
+    if (sentiment && sentiment.toLowerCase() !== "all") {
       conditions.push(`ss.overall_sentiment = $${paramIndex}`);
       params.push(sentiment.toLowerCase());
       paramIndex++;
@@ -1500,7 +1661,7 @@ router.get("/social", async (req, res) => {
 
     // Add WHERE clause if we have conditions
     if (conditions.length > 0) {
-      baseQuery += ` WHERE ${conditions.join(' AND ')}`;
+      baseQuery += ` WHERE ${conditions.join(" AND ")}`;
     }
 
     // Add ordering and pagination
@@ -1513,14 +1674,31 @@ router.get("/social", async (req, res) => {
     // Calculate summary statistics
     const sentimentData = results.rows || [];
     const totalSignals = sentimentData.length;
-    const bullishSignals = sentimentData.filter(r => r.overall_sentiment === 'bullish').length;
-    const bearishSignals = sentimentData.filter(r => r.overall_sentiment === 'bearish').length;
-    const positiveSignals = sentimentData.filter(r => r.overall_sentiment === 'positive').length;
-    const negativeSignals = sentimentData.filter(r => r.overall_sentiment === 'negative').length;
-    const neutralSignals = sentimentData.filter(r => r.overall_sentiment === 'neutral').length;
+    const bullishSignals = sentimentData.filter(
+      (r) => r.overall_sentiment === "bullish"
+    ).length;
+    const bearishSignals = sentimentData.filter(
+      (r) => r.overall_sentiment === "bearish"
+    ).length;
+    const positiveSignals = sentimentData.filter(
+      (r) => r.overall_sentiment === "positive"
+    ).length;
+    const negativeSignals = sentimentData.filter(
+      (r) => r.overall_sentiment === "negative"
+    ).length;
+    const neutralSignals = sentimentData.filter(
+      (r) => r.overall_sentiment === "neutral"
+    ).length;
 
-    const avgSentimentScore = sentimentData.length > 0 ? 
-      (sentimentData.reduce((sum, r) => sum + parseFloat(r.sentiment_score), 0) / sentimentData.length).toFixed(2) : 0;
+    const avgSentimentScore =
+      sentimentData.length > 0
+        ? (
+            sentimentData.reduce(
+              (sum, r) => sum + parseFloat(r.sentiment_score),
+              0
+            ) / sentimentData.length
+          ).toFixed(2)
+        : 0;
 
     return res.json({
       success: true,
@@ -1535,13 +1713,23 @@ router.get("/social", async (req, res) => {
           neutral_signals: neutralSignals,
           average_sentiment_score: parseFloat(avgSentimentScore),
           sentiment_distribution: {
-            bullish: Math.round((bullishSignals / Math.max(totalSignals, 1)) * 100),
-            bearish: Math.round((bearishSignals / Math.max(totalSignals, 1)) * 100),
-            positive: Math.round((positiveSignals / Math.max(totalSignals, 1)) * 100),
-            negative: Math.round((negativeSignals / Math.max(totalSignals, 1)) * 100),
-            neutral: Math.round((neutralSignals / Math.max(totalSignals, 1)) * 100)
-          }
-        }
+            bullish: Math.round(
+              (bullishSignals / Math.max(totalSignals, 1)) * 100
+            ),
+            bearish: Math.round(
+              (bearishSignals / Math.max(totalSignals, 1)) * 100
+            ),
+            positive: Math.round(
+              (positiveSignals / Math.max(totalSignals, 1)) * 100
+            ),
+            negative: Math.round(
+              (negativeSignals / Math.max(totalSignals, 1)) * 100
+            ),
+            neutral: Math.round(
+              (neutralSignals / Math.max(totalSignals, 1)) * 100
+            ),
+          },
+        },
       },
       filters: {
         symbol: symbol || "all",
@@ -1551,65 +1739,65 @@ router.get("/social", async (req, res) => {
         limit: parseInt(limit),
         page: parseInt(page),
         sortBy: sortBy,
-        sortOrder: sortOrder
+        sortOrder: sortOrder,
       },
       pagination: {
         current_page: parseInt(page),
         items_per_page: parseInt(limit),
         total_items: totalSignals,
-        has_more: totalSignals === parseInt(limit)
+        has_more: totalSignals === parseInt(limit),
       },
       algorithm: "composite_sentiment_analysis",
       methodology: {
-        market_sentiment: "Overall market sentiment from market_sentiment table",
+        market_sentiment:
+          "Overall market sentiment from market_sentiment table",
         stock_sentiment: "Individual stock sentiment from factor_scores table",
         volume_sentiment: "Volume-based interest level analysis",
         price_sentiment: "Price action momentum as sentiment proxy",
-        composite_score: "Weighted combination of all sentiment factors"
+        composite_score: "Weighted combination of all sentiment factors",
       },
       data_sources: {
         available: ["market_sentiment", "factor_scores", "price_daily"],
-        note: "Social media integration available for upgrade - currently using market data proxies"
+        note: "Social media integration available for upgrade - currently using market data proxies",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    console.error('❌ Error generating social sentiment signals:', error);
+    console.error("❌ Error generating social sentiment signals:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to generate social sentiment signals",
       message: error.message,
       troubleshooting: {
-        suggestion: "Check database connection and ensure required tables have data",
+        suggestion:
+          "Check database connection and ensure required tables have data",
         required_tables: ["market_sentiment", "factor_scores", "price_daily"],
-        error_details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error_details:
+          process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-
 router.get("/momentum/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { 
-      timeframe = "daily", 
-      strength = "all"
-    } = req.query;
-    
-    console.log(`📈 Momentum signals requested for ${symbol} - timeframe: ${timeframe}, strength: ${strength}`);
-    
+    const { timeframe = "daily", strength = "all" } = req.query;
+
+    console.log(
+      `📈 Momentum signals requested for ${symbol} - timeframe: ${timeframe}, strength: ${strength}`
+    );
+
     // Query momentum data from database using existing technical tables
     const tableMap = {
-      'daily': 'technical_data_daily',
-      'weekly': 'technical_data_weekly', 
-      'monthly': 'technical_data_monthly'
+      daily: "technical_data_daily",
+      weekly: "technical_data_weekly",
+      monthly: "technical_data_monthly",
     };
-    
-    const tableName = tableMap[timeframe] || 'technical_data_daily';
-    
+
+    const tableName = tableMap[timeframe] || "technical_data_daily";
+
     const momentumQuery = `
       SELECT 
         symbol,
@@ -1624,77 +1812,90 @@ router.get("/momentum/:symbol", async (req, res) => {
       ORDER BY date DESC
       LIMIT 1
     `;
-    
-    const result = await query(momentumQuery, [symbol]).catch(err => {
+
+    const result = await query(momentumQuery, [symbol]).catch((err) => {
       console.warn("Technical indicators query failed:", err.message);
       return { rows: [] };
     });
-    
+
     if (!result.rows.length) {
       return res.notFound(`No momentum data found for symbol ${symbol}`);
     }
-    
+
     const data = result.rows[0];
-    
+
     res.json({
       symbol: symbol,
       momentum_signals: [
         {
-          signal_type: data.momentum > 0.5 ? "BULLISH_MOMENTUM" : "BEARISH_MOMENTUM",
-          strength: data.momentum > 0.7 ? "STRONG" : data.momentum > 0.3 ? "MEDIUM" : "WEAK",
+          signal_type:
+            data.momentum > 0.5 ? "BULLISH_MOMENTUM" : "BEARISH_MOMENTUM",
+          strength:
+            data.momentum > 0.7
+              ? "STRONG"
+              : data.momentum > 0.3
+                ? "MEDIUM"
+                : "WEAK",
           timeframe: timeframe,
           score: parseFloat(data.momentum || 0.5),
           indicators: {
             rsi: parseFloat(data.rsi || 50),
             macd: parseFloat(data.macd || 0),
             momentum: parseFloat(data.momentum || 0.5),
-            volume_trend: data.volume > 1000000 ? "INCREASING" : "DECREASING"
+            volume_trend: data.volume > 1000000 ? "INCREASING" : "DECREASING",
           },
-          timestamp: data.fetched_at
-        }
+          timestamp: data.fetched_at,
+        },
       ],
       metadata: {
         symbol: symbol,
         timeframe: timeframe,
-        last_updated: data.created_at
-      }
+        last_updated: data.created_at,
+      },
     });
   } catch (error) {
-    console.error(`Error fetching momentum signals for ${req.params.symbol}:`, error);
-    res.status(500).json({success: false, error: "Failed to fetch momentum signals"});
+    console.error(
+      `Error fetching momentum signals for ${req.params.symbol}:`,
+      error
+    );
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch momentum signals" });
   }
 });
 
 // Technical signals endpoint
 router.get("/technical", async (req, res) => {
   try {
-    const { 
-      timeframe = "daily", 
+    const {
+      timeframe = "daily",
       signal_type = "all",
       strength = "medium",
       limit = 25,
-      page = 1 
+      page = 1,
     } = req.query;
-    
-    console.log(`🔧 Technical signals requested - timeframe: ${timeframe}, type: ${signal_type}, strength: ${strength}`);
+
+    console.log(
+      `🔧 Technical signals requested - timeframe: ${timeframe}, type: ${signal_type}, strength: ${strength}`
+    );
 
     const offset = (page - 1) * limit;
 
     // Get technical signals from database
     const tableMap = {
-      'daily': 'technical_data_daily',
-      'weekly': 'technical_data_weekly', 
-      'monthly': 'technical_data_monthly'
+      daily: "technical_data_daily",
+      weekly: "technical_data_weekly",
+      monthly: "technical_data_monthly",
     };
 
-    const table = tableMap[timeframe] || 'technical_data_daily';
-    
-    let signalTypeFilter = '';
-    if (signal_type !== 'all') {
+    const table = tableMap[timeframe] || "technical_data_daily";
+
+    let signalTypeFilter = "";
+    if (signal_type !== "all") {
       signalTypeFilter = `AND signal_type = '${signal_type.toUpperCase()}'`;
     }
 
-    let strengthFilter = '';
+    let strengthFilter = "";
     // Note: strength filtering will be done client-side since signal_strength is calculated
 
     const technicalQuery = `
@@ -1750,7 +1951,7 @@ router.get("/technical", async (req, res) => {
 
     const [signalsResult, countResult] = await Promise.all([
       query(technicalQuery, [parseInt(limit), offset]),
-      query(countQuery)
+      query(countQuery),
     ]);
 
     if (!signalsResult.rows || signalsResult.rows.length === 0) {
@@ -1762,8 +1963,8 @@ router.get("/technical", async (req, res) => {
           timeframe: timeframe,
           signal_type: signal_type,
           strength: strength,
-          suggestion: "Try adjusting the timeframe or strength parameters"
-        }
+          suggestion: "Try adjusting the timeframe or strength parameters",
+        },
       });
     }
 
@@ -1771,13 +1972,13 @@ router.get("/technical", async (req, res) => {
     const totalPages = Math.ceil(total / limit);
 
     // Process and format the signals
-    const technicalSignals = signalsResult.rows.map(row => ({
+    const technicalSignals = signalsResult.rows.map((row) => ({
       symbol: row.symbol,
-      company_name: row.company_name || 'Unknown Company',
-      sector: row.sector || 'Unknown',
+      company_name: row.company_name || "Unknown Company",
+      sector: row.sector || "Unknown",
       signal: row.signal,
       signal_strength: parseFloat(row.signal_strength).toFixed(2),
-      signal_type: 'TECHNICAL',
+      signal_type: "TECHNICAL",
       technical_indicators: {
         rsi: parseFloat(row.rsi || 0).toFixed(2),
         macd: parseFloat(row.macd || 0).toFixed(4),
@@ -1786,17 +1987,27 @@ router.get("/technical", async (req, res) => {
         bollinger_upper: parseFloat(row.bbands_upper || 0).toFixed(2),
         bollinger_lower: parseFloat(row.bbands_lower || 0).toFixed(2),
         stoch_k: parseFloat(row.stoch_k || 0).toFixed(2),
-        williams_r: parseFloat(row.williams_r || 0).toFixed(2)
+        williams_r: parseFloat(row.williams_r || 0).toFixed(2),
       },
       date: row.date,
-      confidence: parseFloat(row.signal_strength) > 0.7 ? 'High' : 
-                  parseFloat(row.signal_strength) > 0.5 ? 'Medium' : 'Low'
+      confidence:
+        parseFloat(row.signal_strength) > 0.7
+          ? "High"
+          : parseFloat(row.signal_strength) > 0.5
+            ? "Medium"
+            : "Low",
     }));
 
     // Calculate summary statistics
-    const buySignals = technicalSignals.filter(s => s.signal === 'BUY').length;
-    const sellSignals = technicalSignals.filter(s => s.signal === 'SELL').length;
-    const holdSignals = technicalSignals.filter(s => s.signal === 'HOLD').length;
+    const buySignals = technicalSignals.filter(
+      (s) => s.signal === "BUY"
+    ).length;
+    const sellSignals = technicalSignals.filter(
+      (s) => s.signal === "SELL"
+    ).length;
+    const holdSignals = technicalSignals.filter(
+      (s) => s.signal === "HOLD"
+    ).length;
 
     res.json({
       success: true,
@@ -1808,17 +2019,20 @@ router.get("/technical", async (req, res) => {
           sell_signals: sellSignals,
           hold_signals: holdSignals,
           signal_distribution: {
-            bullish_percentage: total > 0 ? ((buySignals / total) * 100).toFixed(1) : 0,
-            bearish_percentage: total > 0 ? ((sellSignals / total) * 100).toFixed(1) : 0,
-            neutral_percentage: total > 0 ? ((holdSignals / total) * 100).toFixed(1) : 0
-          }
+            bullish_percentage:
+              total > 0 ? ((buySignals / total) * 100).toFixed(1) : 0,
+            bearish_percentage:
+              total > 0 ? ((sellSignals / total) * 100).toFixed(1) : 0,
+            neutral_percentage:
+              total > 0 ? ((holdSignals / total) * 100).toFixed(1) : 0,
+          },
         },
         parameters: {
           timeframe: timeframe,
           signal_type: signal_type,
           strength: strength,
           page: parseInt(page),
-          limit: parseInt(limit)
+          limit: parseInt(limit),
         },
         pagination: {
           page: parseInt(page),
@@ -1826,32 +2040,31 @@ router.get("/technical", async (req, res) => {
           total: total,
           totalPages: totalPages,
           hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
+          hasPrev: page > 1,
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Technical signals error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch technical signals",
-      message: error.message
+      message: error.message,
     });
   }
 });
 
-// AI Trading Signals endpoint  
+// AI Trading Signals endpoint
 router.get("/ai-signals", authenticateToken, async (req, res) => {
   try {
-    const { 
-      type = 'all',
-      timeframe = '1h',
+    const {
+      type = "all",
+      timeframe = "1h",
       symbol,
       limit = 50,
       min_confidence = 0,
-      max_risk = 10
+      max_risk = 10,
     } = req.query;
 
     // Build comprehensive AI signals query using existing tables
@@ -2061,7 +2274,7 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
     let paramIndex = 1;
 
     // Apply filters
-    if (type !== 'all') {
+    if (type !== "all") {
       baseQuery += ` AND signal_type = $${paramIndex}`;
       params.push(type);
       paramIndex++;
@@ -2090,7 +2303,7 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
     const signals = result.rows || [];
 
     // Enhanced signal processing
-    const enhancedSignals = signals.map(signal => ({
+    const enhancedSignals = signals.map((signal) => ({
       id: signal.id,
       symbol: signal.symbol,
       signal_type: signal.signal_type,
@@ -2103,16 +2316,24 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
       status: signal.status,
       timestamp: signal.timestamp,
       expires_at: signal.expires_at,
-      
+
       // AI metrics
       strength: signal.strength,
       reasons: [
-        signal.rsi < 30 ? 'Oversold RSI' : signal.rsi > 70 ? 'Overbought RSI' : null,
-        signal.macd > 0 ? 'Bullish MACD' : signal.macd < 0 ? 'Bearish MACD' : null,
-        signal.volume_confirmation ? 'Volume Confirmed' : null,
-        signal.pattern_match ? `${signal.pattern_match} Pattern` : null
-      ].filter(r => r !== null),
-      
+        signal.rsi < 30
+          ? "Oversold RSI"
+          : signal.rsi > 70
+            ? "Overbought RSI"
+            : null,
+        signal.macd > 0
+          ? "Bullish MACD"
+          : signal.macd < 0
+            ? "Bearish MACD"
+            : null,
+        signal.volume_confirmation ? "Volume Confirmed" : null,
+        signal.pattern_match ? `${signal.pattern_match} Pattern` : null,
+      ].filter((r) => r !== null),
+
       // Technical data
       rsi: signal.rsi,
       macd: signal.macd,
@@ -2120,33 +2341,43 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
       rsi_score: signal.rsi_score,
       macd_score: signal.macd_score,
       bollinger_score: signal.bollinger_score,
-      
+
       // Additional metrics
       volume_confirmation: signal.volume_confirmation,
       news_sentiment: signal.news_sentiment,
       market_score: signal.market_score,
       pattern_match: signal.pattern_match,
-      price_change: signal.price_change
+      price_change: signal.price_change,
     }));
 
     // Group signals
     const signalGroups = {
-      active: enhancedSignals.filter(s => s.status === 'active'),
+      active: enhancedSignals.filter((s) => s.status === "active"),
       watching: [],
       executed: [],
-      expired: []
+      expired: [],
     };
 
     // Summary statistics
     const summary = {
       total_signals: enhancedSignals.length,
       active_signals: signalGroups.active.length,
-      high_confidence: enhancedSignals.filter(s => s.confidence >= 80).length,
-      low_risk: enhancedSignals.filter(s => s.risk_level <= 3).length,
-      avg_confidence: enhancedSignals.length > 0 ? 
-        Math.round(enhancedSignals.reduce((sum, s) => sum + s.confidence, 0) / enhancedSignals.length) : 0,
-      avg_strength: enhancedSignals.length > 0 ?
-        Math.round(enhancedSignals.reduce((sum, s) => sum + s.strength, 0) / enhancedSignals.length) : 0
+      high_confidence: enhancedSignals.filter((s) => s.confidence >= 80).length,
+      low_risk: enhancedSignals.filter((s) => s.risk_level <= 3).length,
+      avg_confidence:
+        enhancedSignals.length > 0
+          ? Math.round(
+              enhancedSignals.reduce((sum, s) => sum + s.confidence, 0) /
+                enhancedSignals.length
+            )
+          : 0,
+      avg_strength:
+        enhancedSignals.length > 0
+          ? Math.round(
+              enhancedSignals.reduce((sum, s) => sum + s.strength, 0) /
+                enhancedSignals.length
+            )
+          : 0,
     };
 
     res.json({
@@ -2160,19 +2391,21 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
           timeframe,
           symbol: symbol || null,
           min_confidence: parseInt(min_confidence),
-          max_risk: parseInt(max_risk)
+          max_risk: parseInt(max_risk),
         },
         timestamp: new Date().toISOString(),
-        total_results: enhancedSignals.length
-      }
+        total_results: enhancedSignals.length,
+      },
     });
-
   } catch (error) {
     console.error("AI Signals Error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch AI trading signals",
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 });
@@ -2181,11 +2414,11 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
 router.post("/execute/:signalId", authenticateToken, async (req, res) => {
   try {
     const { signalId } = req.params;
-    const { quantity, order_type = 'market' } = req.body;
+    const { quantity, order_type = "market" } = req.body;
 
     // Since we don't have a trading_signals table, we'll simulate execution
     // In a real implementation, this would create actual orders
-    
+
     res.json({
       success: true,
       data: {
@@ -2193,17 +2426,20 @@ router.post("/execute/:signalId", authenticateToken, async (req, res) => {
         signal_id: signalId,
         quantity: quantity,
         order_type: order_type,
-        status: 'simulated',
-        message: 'Signal execution simulated - integrate with trading platform for real execution'
-      }
+        status: "simulated",
+        message:
+          "Signal execution simulated - integrate with trading platform for real execution",
+      },
     });
-
   } catch (error) {
     console.error("Execute Signal Error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to execute trading signal",
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 });
@@ -2211,8 +2447,8 @@ router.post("/execute/:signalId", authenticateToken, async (req, res) => {
 // Signal analytics
 router.get("/analytics", authenticateToken, async (req, res) => {
   try {
-    const { period = '30d' } = req.query;
-    
+    const { period = "30d" } = req.query;
+
     // Use existing tables to provide analytics
     const analyticsQuery = `
       SELECT 
@@ -2225,7 +2461,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         COUNT(CASE WHEN ti.macd < 0 THEN 1 END) as bearish_macd_count
       FROM price_daily p
       LEFT JOIN technical_indicators ti ON p.symbol = ti.symbol
-      WHERE p.date >= CURRENT_DATE - INTERVAL '${period === '7d' ? '7 days' : period === '90d' ? '90 days' : '30 days'}'
+      WHERE p.date >= CURRENT_DATE - INTERVAL '${period === "7d" ? "7 days" : period === "90d" ? "90 days" : "30 days"}'
     `;
 
     const result = await query(analyticsQuery);
@@ -2242,18 +2478,20 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           oversold_count: parseInt(analytics.oversold_count) || 0,
           overbought_count: parseInt(analytics.overbought_count) || 0,
           bullish_macd_count: parseInt(analytics.bullish_macd_count) || 0,
-          bearish_macd_count: parseInt(analytics.bearish_macd_count) || 0
+          bearish_macd_count: parseInt(analytics.bearish_macd_count) || 0,
         },
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     console.error("Signal Analytics Error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch signal analytics",
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 });
@@ -2303,14 +2541,14 @@ router.get("/daily", async (req, res) => {
 
     const [signalsResult, countResult] = await Promise.all([
       query(signalsQuery, [limit, offset]),
-      query(countQuery, [])
+      query(countQuery, []),
     ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
     // Transform data to camelCase
-    const signals = signalsResult.rows.map(row => ({
+    const signals = signalsResult.rows.map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -2319,13 +2557,13 @@ router.get("/daily", async (req, res) => {
       date: row.date,
       currentPrice: parseFloat(row.current_price) || 0,
       marketCap: parseFloat(row.market_cap) || 0,
-      dividendYield: parseFloat(row.dividend_yield) || 0
+      dividendYield: parseFloat(row.dividend_yield) || 0,
     }));
 
     // Group by signal type
-    const buySignals = signals.filter(s => s.signal === 'BUY');
-    const sellSignals = signals.filter(s => s.signal === 'SELL');
-    const holdSignals = signals.filter(s => s.signal === 'HOLD');
+    const buySignals = signals.filter((s) => s.signal === "BUY");
+    const sellSignals = signals.filter((s) => s.signal === "SELL");
+    const holdSignals = signals.filter((s) => s.signal === "HOLD");
 
     res.json({
       success: true,
@@ -2338,8 +2576,8 @@ router.get("/daily", async (req, res) => {
           total_signals: signals.length,
           buy_count: buySignals.length,
           sell_count: sellSignals.length,
-          hold_count: holdSignals.length
-        }
+          hold_count: holdSignals.length,
+        },
       },
       timeframe: "daily",
       pagination: {
@@ -2348,18 +2586,20 @@ router.get("/daily", async (req, res) => {
         total: total,
         totalPages: totalPages,
         hasNextPage: page < totalPages,
-        hasPrevPage: page > 1
+        hasPrevPage: page > 1,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Daily signals error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch daily signals",
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
-      timestamp: new Date().toISOString()
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2369,8 +2609,10 @@ router.get("/trending", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
     const timeframe = req.query.timeframe || "daily";
-    
-    console.log(`📈 Trending signals requested - limit: ${limit}, timeframe: ${timeframe}`);
+
+    console.log(
+      `📈 Trending signals requested - limit: ${limit}, timeframe: ${timeframe}`
+    );
 
     // Get trending signals based on recent activity
     const trendingQuery = `
@@ -2396,15 +2638,18 @@ router.get("/trending", async (req, res) => {
 
     const result = await query(trendingQuery, [limit]);
 
-    res.success({
-      trending_signals: result.rows || [],
-      metadata: {
-        count: result.rows?.length || 0,
-        timeframe: timeframe,
-        period: "last_7_days"
-      }
-    }, 200, { message: "Trending signals retrieved successfully" });
-
+    res.success(
+      {
+        trending_signals: result.rows || [],
+        metadata: {
+          count: result.rows?.length || 0,
+          timeframe: timeframe,
+          period: "last_7_days",
+        },
+      },
+      200,
+      { message: "Trending signals retrieved successfully" }
+    );
   } catch (error) {
     console.error("Trending signals error:", error);
     res.error("Failed to fetch trending signals", 500, error.message);
@@ -2415,8 +2660,10 @@ router.get("/trending", async (req, res) => {
 router.get("/backtest", async (req, res) => {
   try {
     const { symbol, start_date } = req.query;
-    
-    console.log(`🔄 Signal backtest requested - symbol: ${symbol || 'all'}, start_date: ${start_date}`);
+
+    console.log(
+      `🔄 Signal backtest requested - symbol: ${symbol || "all"}, start_date: ${start_date}`
+    );
 
     // Simulate backtest results with historical signal data
     let backtestQuery = `
@@ -2447,29 +2694,44 @@ router.get("/backtest", async (req, res) => {
     backtestQuery += ` ORDER BY bs.date DESC LIMIT 100`;
 
     const result = await query(backtestQuery, params);
-    
+
     // Calculate backtest summary
     const signals = result.rows || [];
     const totalSignals = signals.length;
-    const profitableSignals = signals.filter(s => s.return_percent > 0).length;
-    const winRate = totalSignals > 0 ? (profitableSignals / totalSignals * 100).toFixed(2) : 0;
-    const avgReturn = totalSignals > 0 ? 
-      (signals.reduce((sum, s) => sum + parseFloat(s.return_percent || 0), 0) / totalSignals).toFixed(2) : 0;
+    const profitableSignals = signals.filter(
+      (s) => s.return_percent > 0
+    ).length;
+    const winRate =
+      totalSignals > 0
+        ? ((profitableSignals / totalSignals) * 100).toFixed(2)
+        : 0;
+    const avgReturn =
+      totalSignals > 0
+        ? (
+            signals.reduce(
+              (sum, s) => sum + parseFloat(s.return_percent || 0),
+              0
+            ) / totalSignals
+          ).toFixed(2)
+        : 0;
 
-    res.success({
-      backtest_results: signals,
-      summary: {
-        total_signals: totalSignals,
-        profitable_signals: profitableSignals,
-        win_rate: `${winRate}%`,
-        average_return: `${avgReturn}%`
+    res.success(
+      {
+        backtest_results: signals,
+        summary: {
+          total_signals: totalSignals,
+          profitable_signals: profitableSignals,
+          win_rate: `${winRate}%`,
+          average_return: `${avgReturn}%`,
+        },
+        parameters: {
+          symbol: symbol || "all",
+          start_date: start_date || "all_time",
+        },
       },
-      parameters: {
-        symbol: symbol || "all",
-        start_date: start_date || "all_time"
-      }
-    }, 200, { message: "Backtest results retrieved successfully" });
-
+      200,
+      { message: "Backtest results retrieved successfully" }
+    );
   } catch (error) {
     console.error("Signal backtest error:", error);
     res.error("Failed to fetch backtest results", 500, error.message);
@@ -2480,16 +2742,16 @@ router.get("/backtest", async (req, res) => {
 router.get("/performance", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "1M";
-    
+
     console.log(`📊 Signal performance requested - timeframe: ${timeframe}`);
 
     // Map timeframe to SQL intervals
     const timeframeMap = {
       "1D": "1 day",
-      "1W": "7 days", 
+      "1W": "7 days",
       "1M": "30 days",
       "3M": "90 days",
-      "1Y": "365 days"
+      "1Y": "365 days",
     };
 
     const interval = timeframeMap[timeframe] || "30 days";
@@ -2518,26 +2780,35 @@ router.get("/performance", async (req, res) => {
     `;
 
     const result = await query(performanceQuery);
-    
+
     // Format performance data
-    const performanceData = result.rows?.map(row => ({
-      signal: row.signal,
-      total_signals: parseInt(row.signal_count),
-      profitable_signals: parseInt(row.profitable_count || 0),
-      win_rate: row.signal_count > 0 ? 
-        `${((row.profitable_count / row.signal_count) * 100).toFixed(2)}%` : "0%",
-      average_return: `${parseFloat(row.avg_return || 0).toFixed(2)}%`
-    })) || [];
+    const performanceData =
+      result.rows?.map((row) => ({
+        signal: row.signal,
+        total_signals: parseInt(row.signal_count),
+        profitable_signals: parseInt(row.profitable_count || 0),
+        win_rate:
+          row.signal_count > 0
+            ? `${((row.profitable_count / row.signal_count) * 100).toFixed(2)}%`
+            : "0%",
+        average_return: `${parseFloat(row.avg_return || 0).toFixed(2)}%`,
+      })) || [];
 
-    res.success({
-      performance_metrics: performanceData,
-      metadata: {
-        timeframe: timeframe,
-        period: interval,
-        total_signals: performanceData.reduce((sum, p) => sum + p.total_signals, 0)
-      }
-    }, 200, { message: "Signal performance retrieved successfully" });
-
+    res.success(
+      {
+        performance_metrics: performanceData,
+        metadata: {
+          timeframe: timeframe,
+          period: interval,
+          total_signals: performanceData.reduce(
+            (sum, p) => sum + p.total_signals,
+            0
+          ),
+        },
+      },
+      200,
+      { message: "Signal performance retrieved successfully" }
+    );
   } catch (error) {
     console.error("Signal performance error:", error);
     res.error("Failed to fetch signal performance", 500, error.message);
@@ -2547,46 +2818,50 @@ router.get("/performance", async (req, res) => {
 // POST /signals/backtest - Signal backtesting endpoint
 router.post("/backtest", async (req, res) => {
   try {
-    const { 
-      symbols, 
-      startDate, 
-      endDate, 
+    const {
+      symbols,
+      startDate,
+      endDate,
       signalTypes,
       parameters = {},
       initialCapital = 100000,
       commission = 0.001,
-      maxPositions = 10 
+      maxPositions = 10,
     } = req.body;
 
     // Validate required parameters
     if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
       return res.status(400).json({
         success: false,
-        error: "Symbols array is required and must not be empty"
+        error: "Symbols array is required and must not be empty",
       });
     }
 
     if (!startDate || !endDate) {
       return res.status(400).json({
         success: false,
-        error: "Start date and end date are required"
+        error: "Start date and end date are required",
       });
     }
 
-    if (!signalTypes || !Array.isArray(signalTypes) || signalTypes.length === 0) {
+    if (
+      !signalTypes ||
+      !Array.isArray(signalTypes) ||
+      signalTypes.length === 0
+    ) {
       return res.status(400).json({
         success: false,
-        error: "Signal types array is required and must not be empty"
+        error: "Signal types array is required and must not be empty",
       });
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     if (start >= end) {
       return res.status(400).json({
         success: false,
-        error: "End date must be after start date"
+        error: "End date must be after start date",
       });
     }
 
@@ -2596,7 +2871,7 @@ router.post("/backtest", async (req, res) => {
       positions: {},
       trades: [],
       equity: [],
-      totalValue: initialCapital
+      totalValue: initialCapital,
     };
 
     let backtestResults = {
@@ -2612,12 +2887,12 @@ router.post("/backtest", async (req, res) => {
         winRate: 0,
         avgWin: 0,
         avgLoss: 0,
-        profitFactor: 0
+        profitFactor: 0,
       },
       trades: [],
       equity: [],
       dailyReturns: [],
-      positions: {}
+      positions: {},
     };
 
     // Get historical price data for the symbols
@@ -2637,13 +2912,18 @@ router.post("/backtest", async (req, res) => {
       ORDER BY pd.date, pd.symbol
     `;
 
-    const priceData = await query(priceQuery, [symbols, start, end, signalTypes]);
+    const priceData = await query(priceQuery, [
+      symbols,
+      start,
+      end,
+      signalTypes,
+    ]);
     const dailyData = priceData.rows;
 
     // Group data by date for simulation
     const dateGroups = {};
-    dailyData.forEach(row => {
-      const dateKey = row.date.toISOString().split('T')[0];
+    dailyData.forEach((row) => {
+      const dateKey = row.date.toISOString().split("T")[0];
       if (!dateGroups[dateKey]) {
         dateGroups[dateKey] = [];
       }
@@ -2651,12 +2931,12 @@ router.post("/backtest", async (req, res) => {
     });
 
     const tradingDays = Object.keys(dateGroups).sort();
-    
+
     // Simulate trading for each day
     for (const dateKey of tradingDays) {
       const dayData = dateGroups[dateKey];
       const currentDate = new Date(dateKey);
-      
+
       // Process signals for each symbol
       for (const data of dayData) {
         const symbol = data.symbol;
@@ -2665,12 +2945,18 @@ router.post("/backtest", async (req, res) => {
         const signalStrength = parseFloat(data.signal_strength) || 0;
 
         // Generate buy signals
-        if (signalType === 'BUY' && signalStrength > (parameters.minSignalStrength || 5)) {
+        if (
+          signalType === "BUY" &&
+          signalStrength > (parameters.minSignalStrength || 5)
+        ) {
           const positionSize = Math.floor((portfolio.cash * 0.1) / price); // 10% of cash per position
-          
-          if (positionSize > 0 && Object.keys(portfolio.positions).length < maxPositions) {
+
+          if (
+            positionSize > 0 &&
+            Object.keys(portfolio.positions).length < maxPositions
+          ) {
             const totalCost = positionSize * price * (1 + commission);
-            
+
             if (totalCost <= portfolio.cash) {
               // Execute buy
               portfolio.cash -= totalCost;
@@ -2678,39 +2964,41 @@ router.post("/backtest", async (req, res) => {
                 shares: positionSize,
                 avgPrice: price * (1 + commission),
                 entryDate: currentDate,
-                entryPrice: price
+                entryPrice: price,
               };
 
               portfolio.trades.push({
                 symbol,
-                type: 'buy',
+                type: "buy",
                 shares: positionSize,
                 price: price * (1 + commission),
                 date: currentDate,
-                signalStrength
+                signalStrength,
               });
             }
           }
         }
 
         // Generate sell signals
-        if (signalType === 'SELL' && portfolio.positions[symbol]) {
+        if (signalType === "SELL" && portfolio.positions[symbol]) {
           const position = portfolio.positions[symbol];
           const proceeds = position.shares * price * (1 - commission);
-          
+
           // Execute sell
           portfolio.cash += proceeds;
-          const gain = proceeds - (position.shares * position.avgPrice);
-          
+          const gain = proceeds - position.shares * position.avgPrice;
+
           portfolio.trades.push({
             symbol,
-            type: 'sell',
+            type: "sell",
             shares: position.shares,
             price: price * (1 - commission),
             date: currentDate,
             gain,
             gainPercent: (gain / (position.shares * position.avgPrice)) * 100,
-            holdingDays: Math.floor((currentDate - position.entryDate) / (1000 * 60 * 60 * 24))
+            holdingDays: Math.floor(
+              (currentDate - position.entryDate) / (1000 * 60 * 60 * 24)
+            ),
           });
 
           delete portfolio.positions[symbol];
@@ -2719,24 +3007,27 @@ router.post("/backtest", async (req, res) => {
         // Update position values
         if (portfolio.positions[symbol]) {
           portfolio.positions[symbol].currentPrice = price;
-          portfolio.positions[symbol].currentValue = portfolio.positions[symbol].shares * price;
-          portfolio.positions[symbol].unrealizedGain = 
-            portfolio.positions[symbol].currentValue - (portfolio.positions[symbol].shares * portfolio.positions[symbol].avgPrice);
+          portfolio.positions[symbol].currentValue =
+            portfolio.positions[symbol].shares * price;
+          portfolio.positions[symbol].unrealizedGain =
+            portfolio.positions[symbol].currentValue -
+            portfolio.positions[symbol].shares *
+              portfolio.positions[symbol].avgPrice;
         }
       }
 
       // Calculate daily portfolio value
       let positionsValue = 0;
-      Object.values(portfolio.positions).forEach(pos => {
-        positionsValue += pos.currentValue || (pos.shares * pos.avgPrice);
+      Object.values(portfolio.positions).forEach((pos) => {
+        positionsValue += pos.currentValue || pos.shares * pos.avgPrice;
       });
-      
+
       portfolio.totalValue = portfolio.cash + positionsValue;
       portfolio.equity.push({
         date: currentDate,
         value: portfolio.totalValue,
         cash: portfolio.cash,
-        positions: positionsValue
+        positions: positionsValue,
       });
     }
 
@@ -2746,19 +3037,32 @@ router.post("/backtest", async (req, res) => {
     const totalReturnPercent = (totalReturn / initialCapital) * 100;
 
     // Calculate trade statistics
-    const completedTrades = portfolio.trades.filter(t => t.type === 'sell');
-    const winningTrades = completedTrades.filter(t => t.gain > 0);
-    const losingTrades = completedTrades.filter(t => t.gain <= 0);
+    const completedTrades = portfolio.trades.filter((t) => t.type === "sell");
+    const winningTrades = completedTrades.filter((t) => t.gain > 0);
+    const losingTrades = completedTrades.filter((t) => t.gain <= 0);
 
-    const winRate = completedTrades.length > 0 ? (winningTrades.length / completedTrades.length) * 100 : 0;
-    const avgWin = winningTrades.length > 0 ? winningTrades.reduce((sum, t) => sum + t.gainPercent, 0) / winningTrades.length : 0;
-    const avgLoss = losingTrades.length > 0 ? Math.abs(losingTrades.reduce((sum, t) => sum + t.gainPercent, 0) / losingTrades.length) : 0;
+    const winRate =
+      completedTrades.length > 0
+        ? (winningTrades.length / completedTrades.length) * 100
+        : 0;
+    const avgWin =
+      winningTrades.length > 0
+        ? winningTrades.reduce((sum, t) => sum + t.gainPercent, 0) /
+          winningTrades.length
+        : 0;
+    const avgLoss =
+      losingTrades.length > 0
+        ? Math.abs(
+            losingTrades.reduce((sum, t) => sum + t.gainPercent, 0) /
+              losingTrades.length
+          )
+        : 0;
     const profitFactor = avgLoss > 0 ? avgWin / avgLoss : 0;
 
     // Calculate max drawdown
     let maxDrawdown = 0;
     let peak = initialCapital;
-    portfolio.equity.forEach(eq => {
+    portfolio.equity.forEach((eq) => {
       if (eq.value > peak) peak = eq.value;
       const drawdown = ((peak - eq.value) / peak) * 100;
       if (drawdown > maxDrawdown) maxDrawdown = drawdown;
@@ -2777,7 +3081,7 @@ router.post("/backtest", async (req, res) => {
       winRate,
       avgWin,
       avgLoss,
-      profitFactor
+      profitFactor,
     };
 
     backtestResults.trades = portfolio.trades;
@@ -2795,20 +3099,19 @@ router.post("/backtest", async (req, res) => {
           signalTypes,
           initialCapital,
           commission,
-          maxPositions
+          maxPositions,
         },
-        executionTime: new Date().toISOString()
+        executionTime: new Date().toISOString(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Signal backtest error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to execute signal backtest",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2862,7 +3165,7 @@ router.get("/swing-signals", async (req, res) => {
           ORDER BY st.date DESC
           LIMIT $1 OFFSET $2
         `;
-        
+
         const countQuery = `
           SELECT COUNT(*) as total
           FROM swing_trading_signals
@@ -2870,31 +3173,39 @@ router.get("/swing-signals", async (req, res) => {
 
         const [swingRes, countRes] = await Promise.all([
           query(swingQuery, [limit, offset]),
-          query(countQuery)
+          query(countQuery),
         ]);
 
         swingResult = swingRes;
         total = parseInt(countRes.rows[0].total);
       }
     } catch (dbError) {
-      console.log("Database error for swing signals, using fallback data:", dbError.message);
+      console.log(
+        "Database error for swing signals, using fallback data:",
+        dbError.message
+      );
       swingResult = null;
     }
 
     // Return error if database query failed or returned no results
-    if (!swingResult || !Array.isArray(swingResult.rows) || swingResult.rows.length === 0) {
+    if (
+      !swingResult ||
+      !Array.isArray(swingResult.rows) ||
+      swingResult.rows.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         error: "No swing trading signals found",
-        message: "No swing trading signals are available. Please ensure the trading_signals table is populated.",
+        message:
+          "No swing trading signals are available. Please ensure the trading_signals table is populated.",
         pagination: {
           page,
           limit,
           total: 0,
           totalPages: 0,
           hasNext: false,
-          hasPrev: false
-        }
+          hasPrev: false,
+        },
       });
     }
 
@@ -2911,33 +3222,35 @@ router.get("/swing-signals", async (req, res) => {
         hasPrev: page > 1,
       },
     });
-
   } catch (error) {
     console.error("Error fetching swing signals:", error);
     console.error("Swing signals error details:", {
       message: error.message,
       stack: error.stack,
-      query: req.query
+      query: req.query,
     });
     res.status(500).json({
       success: false,
       error: `Failed to fetch swing signals: ${error.message}`,
-      details: error.message
+      details: error.message,
     });
   }
 });
 
 // List endpoint - alias for the root signals endpoint for contract compatibility
 router.get("/list", async (req, res) => {
-  console.log(`📋 [SIGNALS] List endpoint redirecting to main signals endpoint`);
-  
+  console.log(
+    `📋 [SIGNALS] List endpoint redirecting to main signals endpoint`
+  );
+
   // Forward all query parameters
-  const queryString = Object.keys(req.query).length > 0 
-    ? '?' + new URLSearchParams(req.query).toString() 
-    : '';
-  
+  const queryString =
+    Object.keys(req.query).length > 0
+      ? "?" + new URLSearchParams(req.query).toString()
+      : "";
+
   const redirectUrl = `/api/signals${queryString}`;
-  
+
   res.redirect(301, redirectUrl);
 });
 

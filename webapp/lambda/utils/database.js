@@ -168,15 +168,16 @@ async function getDbConfig() {
     // Fallback to environment variables if available
     if (process.env.DB_HOST || process.env.DB_ENDPOINT) {
       console.log("Using database config from environment variables");
-      
+
       const host = process.env.DB_HOST || process.env.DB_ENDPOINT;
       const user = process.env.DB_USER || process.env.DB_USERNAME || "postgres";
-      const database = process.env.DB_NAME || process.env.DB_DATABASE || "postgres";
-      
+      const database =
+        process.env.DB_NAME || process.env.DB_DATABASE || "postgres";
+
       if (!host) {
         throw new Error("DB_HOST is required when using environment variables");
       }
-      
+
       dbConfig = {
         host,
         port: parseInt(process.env.DB_PORT) || 5432,
@@ -185,13 +186,15 @@ async function getDbConfig() {
         database,
         // Optimized connection pool settings based on testing insights
         max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased from 5 for better concurrency
-        min: parseInt(process.env.DB_POOL_MIN) || 2,  // Maintain minimum connections
+        min: parseInt(process.env.DB_POOL_MIN) || 2, // Maintain minimum connections
         idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
-        connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 5000, // Reduced from 10s for faster failures
-        acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 5000,    // Prevent hanging requests
-        createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 5000,      // Connection creation timeout
-        reapIntervalMillis: parseInt(process.env.DB_REAP_INTERVAL) || 1000,        // Pool maintenance interval
-        createRetryIntervalMillis: parseInt(process.env.DB_RETRY_INTERVAL) || 200,  // Retry interval on failure
+        connectionTimeoutMillis:
+          parseInt(process.env.DB_CONNECT_TIMEOUT) || 5000, // Reduced from 10s for faster failures
+        acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 5000, // Prevent hanging requests
+        createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 5000, // Connection creation timeout
+        reapIntervalMillis: parseInt(process.env.DB_REAP_INTERVAL) || 1000, // Pool maintenance interval
+        createRetryIntervalMillis:
+          parseInt(process.env.DB_RETRY_INTERVAL) || 200, // Retry interval on failure
         ssl:
           process.env.DB_SSL === "false"
             ? false
@@ -231,7 +234,9 @@ async function initializeDatabase() {
       config = await getDbConfig();
 
       if (!config) {
-        const error = new Error("Database configuration missing. Please set DB environment variables or DB_SECRET_ARN.");
+        const error = new Error(
+          "Database configuration missing. Please set DB environment variables or DB_SECRET_ARN."
+        );
         console.warn(
           "No database configuration available. API will run in fallback mode with mock data."
         );
@@ -296,7 +301,7 @@ async function initializeSchema() {
     // Create essential tables matching exactly your Python loader structures
     const tables = [
       {
-        name: 'stock_symbols',
+        name: "stock_symbols",
         sql: `CREATE TABLE IF NOT EXISTS stock_symbols (
           symbol            VARCHAR(50),
           exchange          VARCHAR(100),
@@ -308,10 +313,10 @@ async function initializeSchema() {
           round_lot_size    INT,
           etf               CHAR(1),
           secondary_symbol  VARCHAR(50)
-        )`
+        )`,
       },
       {
-        name: 'company_profile',
+        name: "company_profile",
         sql: `CREATE TABLE IF NOT EXISTS company_profile (
           symbol VARCHAR(10) UNIQUE NOT NULL,
           name VARCHAR(200),
@@ -321,10 +326,10 @@ async function initializeSchema() {
           description TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
-        name: 'technical_data_daily',
+        name: "technical_data_daily",
         sql: `CREATE TABLE IF NOT EXISTS technical_data_daily (
           symbol          VARCHAR(50),
           date            TIMESTAMP,
@@ -364,10 +369,10 @@ async function initializeSchema() {
           pivot_low_triggered DOUBLE PRECISION,
           fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'technical_data_weekly',
+        name: "technical_data_weekly",
         sql: `CREATE TABLE IF NOT EXISTS technical_data_weekly (
           symbol          VARCHAR(50),
           date            TIMESTAMP,
@@ -405,10 +410,10 @@ async function initializeSchema() {
           pivot_low_triggered DOUBLE PRECISION,
           fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'technical_data_monthly',
+        name: "technical_data_monthly",
         sql: `CREATE TABLE IF NOT EXISTS technical_data_monthly (
           symbol          VARCHAR(50),
           date            TIMESTAMP,
@@ -446,10 +451,10 @@ async function initializeSchema() {
           pivot_low_triggered DOUBLE PRECISION,
           fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'stocks',
+        name: "stocks",
         sql: `CREATE TABLE IF NOT EXISTS stocks (
           id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL UNIQUE,
@@ -463,10 +468,10 @@ async function initializeSchema() {
           exchange VARCHAR(50),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
-        name: 'price_daily',
+        name: "price_daily",
         sql: `CREATE TABLE IF NOT EXISTS price_daily (
           symbol VARCHAR(10) NOT NULL,
           date DATE NOT NULL,
@@ -481,10 +486,10 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'portfolio_holdings',
+        name: "portfolio_holdings",
         sql: `CREATE TABLE IF NOT EXISTS portfolio_holdings (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -500,10 +505,10 @@ async function initializeSchema() {
           sector VARCHAR(50),
           last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(user_id, symbol)
-        )`
+        )`,
       },
       {
-        name: 'portfolio_performance',
+        name: "portfolio_performance",
         sql: `CREATE TABLE IF NOT EXISTS portfolio_performance (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -514,10 +519,10 @@ async function initializeSchema() {
           total_pnl_percent NUMERIC DEFAULT 0,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(user_id, date)
-        )`
+        )`,
       },
       {
-        name: 'buy_sell_daily',
+        name: "buy_sell_daily",
         sql: `CREATE TABLE IF NOT EXISTS buy_sell_daily (
           id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL,
@@ -527,10 +532,10 @@ async function initializeSchema() {
           position_value NUMERIC DEFAULT 0,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'buy_sell_weekly',
+        name: "buy_sell_weekly",
         sql: `CREATE TABLE IF NOT EXISTS buy_sell_weekly (
           id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL,
@@ -540,10 +545,10 @@ async function initializeSchema() {
           position_value NUMERIC DEFAULT 0,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'buy_sell_monthly',
+        name: "buy_sell_monthly",
         sql: `CREATE TABLE IF NOT EXISTS buy_sell_monthly (
           id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL,
@@ -553,10 +558,10 @@ async function initializeSchema() {
           position_value NUMERIC DEFAULT 0,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'portfolio_transactions',
+        name: "portfolio_transactions",
         sql: `CREATE TABLE IF NOT EXISTS portfolio_transactions (
           transaction_id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -572,10 +577,10 @@ async function initializeSchema() {
           account_id VARCHAR(100),
           broker VARCHAR(50),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
-        name: 'technical_indicators',
+        name: "technical_indicators",
         sql: `CREATE TABLE IF NOT EXISTS technical_indicators (
           id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL,
@@ -591,20 +596,20 @@ async function initializeSchema() {
           macd DOUBLE PRECISION,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'market_sentiment',
+        name: "market_sentiment",
         sql: `CREATE TABLE IF NOT EXISTS market_sentiment (
           id SERIAL PRIMARY KEY,
           value DOUBLE PRECISION NOT NULL,
           classification VARCHAR(50) NOT NULL,
           data_source VARCHAR(100),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
-        name: 'price_alerts',
+        name: "price_alerts",
         sql: `CREATE TABLE IF NOT EXISTS price_alerts (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -624,10 +629,10 @@ async function initializeSchema() {
           last_triggered TIMESTAMP WITH TIME ZONE,
           triggered_at TIMESTAMP WITH TIME ZONE,
           trigger_count INTEGER DEFAULT 0
-        )`
+        )`,
       },
       {
-        name: 'risk_alerts',
+        name: "risk_alerts",
         sql: `CREATE TABLE IF NOT EXISTS risk_alerts (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -643,10 +648,10 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           triggered_at TIMESTAMP WITH TIME ZONE,
           last_check TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
-        name: 'stock_scores',
+        name: "stock_scores",
         sql: `CREATE TABLE IF NOT EXISTS stock_scores (
           id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL,
@@ -660,10 +665,10 @@ async function initializeSchema() {
           positioning_score DECIMAL(5,3),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(symbol, date)
-        )`
+        )`,
       },
       {
-        name: 'key_metrics',
+        name: "key_metrics",
         sql: `CREATE TABLE IF NOT EXISTS key_metrics (
           id SERIAL PRIMARY KEY,
           ticker VARCHAR(10) NOT NULL,
@@ -679,7 +684,7 @@ async function initializeSchema() {
           quick_ratio DECIMAL(8,3),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
         name: "dividend_calendar",
@@ -698,7 +703,7 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT unique_dividend_entry UNIQUE (symbol, ex_dividend_date)
-        )`
+        )`,
       },
       {
         name: "trading_strategies",
@@ -720,7 +725,7 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           last_executed TIMESTAMP WITH TIME ZONE
-        )`
+        )`,
       },
       {
         name: "user_risk_limits",
@@ -738,10 +743,10 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT unique_user_risk_limits UNIQUE (user_id)
-        )`
+        )`,
       },
       {
-        name: 'trade_history',
+        name: "trade_history",
         sql: `CREATE TABLE IF NOT EXISTS trade_history (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -755,10 +760,10 @@ async function initializeSchema() {
           trade_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           order_type VARCHAR(20) DEFAULT 'market',
           notes TEXT
-        )`
+        )`,
       },
       {
-        name: 'portfolio_summary',
+        name: "portfolio_summary",
         sql: `CREATE TABLE IF NOT EXISTS portfolio_summary (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL UNIQUE,
@@ -767,7 +772,7 @@ async function initializeSchema() {
           realized_pnl NUMERIC DEFAULT 0,
           total_positions INTEGER DEFAULT 0,
           last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
         name: "user_dashboard_settings",
@@ -783,7 +788,7 @@ async function initializeSchema() {
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT unique_user_settings UNIQUE (user_id)
-        )`
+        )`,
       },
       {
         name: "portfolio_metadata",
@@ -796,7 +801,7 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT unique_user_broker_metadata UNIQUE (user_id, broker)
-        )`
+        )`,
       },
       {
         name: "swing_trading_signals",
@@ -811,7 +816,7 @@ async function initializeSchema() {
           date DATE NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       },
       {
         name: "economic_data",
@@ -829,8 +834,8 @@ async function initializeSchema() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(series_id, date)
-        )`
-      }
+        )`,
+      },
     ];
 
     // Create tables
@@ -839,7 +844,10 @@ async function initializeSchema() {
         await query(table.sql);
         console.log(`✅ Created/verified table: ${table.name}`);
       } catch (error) {
-        console.warn(`⚠️  Warning creating table ${table.name}:`, error.message);
+        console.warn(
+          `⚠️  Warning creating table ${table.name}:`,
+          error.message
+        );
       }
     }
 
@@ -1069,20 +1077,20 @@ async function query(text, params = []) {
     // Enhanced performance monitoring based on testing insights
     if (duration > 5000) {
       console.error(`⚠️ VERY SLOW QUERY detected (${duration}ms):`, {
-        query: text.slice(0, 150) + (text.length > 150 ? '...' : ''),
+        query: text.slice(0, 150) + (text.length > 150 ? "..." : ""),
         rows: result.rowCount,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
       });
     } else if (duration > 1000) {
       console.warn(`⏱️ Slow query (${duration}ms):`, {
-        query: text.slice(0, 100) + (text.length > 100 ? '...' : ''),
+        query: text.slice(0, 100) + (text.length > 100 ? "..." : ""),
         rows: result.rowCount,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
       });
-    } else if (process.env.NODE_ENV === 'development' && duration > 500) {
+    } else if (process.env.NODE_ENV === "development" && duration > 500) {
       console.log(`📊 Query performance (${duration}ms):`, {
-        query: text.slice(0, 80) + (text.length > 80 ? '...' : ''),
-        rows: result.rowCount
+        query: text.slice(0, 80) + (text.length > 80 ? "..." : ""),
+        rows: result.rowCount,
       });
     }
 
@@ -1091,8 +1099,8 @@ async function query(text, params = []) {
     console.error("Database query error:", {
       error: error.message,
       query: text.slice(0, 100) + (text.length > 100 ? "..." : ""),
-      params: params?.length ? `${params.length} parameters` : 'no parameters',
-      code: error.code
+      params: params?.length ? `${params.length} parameters` : "no parameters",
+      code: error.code,
     });
 
     // Enhanced error classification for better debugging
@@ -1123,23 +1131,23 @@ async function query(text, params = []) {
 async function cachedQuery(text, params = [], cacheTtl = CACHE_TTL) {
   // Create cache key from query and parameters
   const cacheKey = `${text}|${JSON.stringify(params)}`;
-  
+
   // Check if we have a cached result
   const cached = queryCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < cacheTtl) {
+  if (cached && Date.now() - cached.timestamp < cacheTtl) {
     return cached.result;
   }
-  
+
   // Execute the query
   const result = await query(text, params);
-  
+
   // Cache the result if it's not null (database available)
   if (result !== null) {
     queryCache.set(cacheKey, {
       result,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
-    
+
     // Clean up old cache entries periodically
     if (queryCache.size > 100) {
       const now = Date.now();
@@ -1150,7 +1158,7 @@ async function cachedQuery(text, params = [], cacheTtl = CACHE_TTL) {
       }
     }
   }
-  
+
   return result;
 }
 

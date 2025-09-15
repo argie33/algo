@@ -134,24 +134,24 @@ describe("Sentiment Engine", () => {
       // Mock the logger to throw an error from within the method
       const logger = require("../../utils/logger");
       const originalError = logger.error;
-      
+
       // Create a function that throws during the execution
       const testFn = () => {
         const originalIsNaN = global.isNaN;
         global.isNaN = jest.fn(() => {
           throw new Error("isNaN error");
         });
-        
+
         const result = sentimentEngine.scoreToLabel(0.5);
-        
+
         // Restore
         global.isNaN = originalIsNaN;
         return result;
       };
-      
+
       const result = testFn();
       expect(result).toBe("neutral");
-      
+
       logger.error = originalError;
     });
   });

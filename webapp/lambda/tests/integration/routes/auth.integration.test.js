@@ -5,7 +5,11 @@
 
 const request = require("supertest");
 const { app } = require("../../../index"); // Import the actual Express app
-const { query, initializeDatabase, closeDatabase } = require("../../../utils/database");
+const {
+  query,
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 describe("Authentication Routes Integration", () => {
   let testUserId;
@@ -14,9 +18,11 @@ describe("Authentication Routes Integration", () => {
   beforeAll(async () => {
     // Initialize database connection
     await initializeDatabase();
-    
+
     // Clean up any existing test user profiles
-    await query("DELETE FROM user_profiles WHERE user_id LIKE '%test@example.com%'");
+    await query(
+      "DELETE FROM user_profiles WHERE user_id LIKE '%test@example.com%'"
+    );
   });
 
   afterAll(async () => {
@@ -24,8 +30,10 @@ describe("Authentication Routes Integration", () => {
     if (testUserId) {
       await query("DELETE FROM user_profiles WHERE user_id = $1", [testUserId]);
     }
-    await query("DELETE FROM user_profiles WHERE user_id LIKE '%test@example.com%'");
-    
+    await query(
+      "DELETE FROM user_profiles WHERE user_id LIKE '%test@example.com%'"
+    );
+
     // Close database connection
     await closeDatabase();
   });
@@ -37,12 +45,10 @@ describe("Authentication Routes Integration", () => {
         password: "SecurePassword123!",
         username: "registertest",
         firstName: "Test",
-        lastName: "User"
+        lastName: "User",
       };
 
-      const response = await request(app)
-        .post("/auth/register")
-        .send(userData);
+      const response = await request(app).post("/auth/register").send(userData);
 
       // Since this uses Cognito, we expect either success or Cognito-specific errors
       if (response.status === 200 || response.status === 201) {
@@ -58,16 +64,16 @@ describe("Authentication Routes Integration", () => {
       const userData = {
         email: "register.test@example.com", // Same email as above
         password: "AnotherPassword123!",
-        username: "anotheruser"
+        username: "anotheruser",
       };
 
-      const response = await request(app)
-        .post("/auth/register")
-        .send(userData);
+      const response = await request(app).post("/auth/register").send(userData);
 
-      // Cognito will handle duplicate user validation  
+      // Cognito will handle duplicate user validation
       if (response.status === 400) {
-        expect(response.body.error).toMatch(/Username exists|Invalid parameters/);
+        expect(response.body.error).toMatch(
+          /Username exists|Invalid parameters/
+        );
       } else {
         // Accept other error codes from Cognito service
         expect([400, 422]).toContain(response.status);
@@ -75,9 +81,7 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should validate required fields", async () => {
-      const response = await request(app)
-        .post("/auth/register")
-        .send({});
+      const response = await request(app).post("/auth/register").send({});
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
@@ -85,13 +89,11 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should validate email format", async () => {
-      const response = await request(app)
-        .post("/auth/register")
-        .send({
-          email: "invalid-email",
-          password: "ValidPassword123!",
-          username: "testuser"
-        });
+      const response = await request(app).post("/auth/register").send({
+        email: "invalid-email",
+        password: "ValidPassword123!",
+        username: "testuser",
+      });
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
@@ -99,13 +101,11 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should validate password strength", async () => {
-      const response = await request(app)
-        .post("/auth/register")
-        .send({
-          email: "weak.password@example.com",
-          password: "123", // Too weak
-          username: "testuser"
-        });
+      const response = await request(app).post("/auth/register").send({
+        email: "weak.password@example.com",
+        password: "123", // Too weak
+        username: "testuser",
+      });
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
@@ -117,12 +117,10 @@ describe("Authentication Routes Integration", () => {
     test("should login user with valid credentials", async () => {
       const loginData = {
         username: "testuser",
-        password: "SecurePassword123!"
+        password: "SecurePassword123!",
       };
 
-      const response = await request(app)
-        .post("/auth/login")
-        .send(loginData);
+      const response = await request(app).post("/auth/login").send(loginData);
 
       // Since Cognito may not be available in test environment, accept various outcomes
       if (response.status === 200) {
@@ -135,9 +133,7 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should reject missing credentials", async () => {
-      const response = await request(app)
-        .post("/auth/login")
-        .send({});
+      const response = await request(app).post("/auth/login").send({});
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
@@ -145,12 +141,10 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should reject invalid credentials", async () => {
-      const response = await request(app)
-        .post("/auth/login")
-        .send({
-          username: "nonexistentuser",
-          password: "wrongpassword"
-        });
+      const response = await request(app).post("/auth/login").send({
+        username: "nonexistentuser",
+        password: "wrongpassword",
+      });
 
       // Expect Cognito authentication failure
       expect([401, 500]).toContain(response.status);
@@ -171,8 +165,7 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should require valid token", async () => {
-      const response = await request(app)
-        .get("/auth/me");
+      const response = await request(app).get("/auth/me");
 
       // Due to development bypass in auth middleware (lines 30-47 in auth.js),
       // requests without tokens may still succeed in NODE_ENV=test
@@ -197,12 +190,10 @@ describe("Authentication Routes Integration", () => {
 
   describe("POST /auth/confirm", () => {
     test("should confirm user registration", async () => {
-      const response = await request(app)
-        .post("/auth/confirm")
-        .send({
-          username: "testuser",
-          confirmationCode: "123456"
-        });
+      const response = await request(app).post("/auth/confirm").send({
+        username: "testuser",
+        confirmationCode: "123456",
+      });
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
@@ -213,9 +204,7 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should require confirmation parameters", async () => {
-      const response = await request(app)
-        .post("/auth/confirm")
-        .send({});
+      const response = await request(app).post("/auth/confirm").send({});
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.error).toContain("Missing parameters");
@@ -224,11 +213,9 @@ describe("Authentication Routes Integration", () => {
 
   describe("POST /auth/forgot-password", () => {
     test("should initiate password reset", async () => {
-      const response = await request(app)
-        .post("/auth/forgot-password")
-        .send({
-          username: "testuser"
-        });
+      const response = await request(app).post("/auth/forgot-password").send({
+        username: "testuser",
+      });
 
       // Accept various Cognito responses
       expect([200, 404]).toContain(response.status);
@@ -249,13 +236,11 @@ describe("Authentication Routes Integration", () => {
 
   describe("POST /auth/reset-password", () => {
     test("should reset password with valid code", async () => {
-      const response = await request(app)
-        .post("/auth/reset-password")
-        .send({
-          username: "testuser",
-          confirmationCode: "123456",
-          newPassword: "NewPassword123!"
-        });
+      const response = await request(app).post("/auth/reset-password").send({
+        username: "testuser",
+        confirmationCode: "123456",
+        newPassword: "NewPassword123!",
+      });
 
       // Accept various Cognito responses
       expect([200, 404]).toContain(response.status);
@@ -265,9 +250,7 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should require all parameters", async () => {
-      const response = await request(app)
-        .post("/auth/reset-password")
-        .send({});
+      const response = await request(app).post("/auth/reset-password").send({});
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.error).toContain("Missing parameters");
@@ -277,13 +260,11 @@ describe("Authentication Routes Integration", () => {
   describe("Security and edge cases", () => {
     test("should handle SQL injection attempts", async () => {
       const maliciousUsername = "test'; DROP TABLE user_profiles; --";
-      
-      const response = await request(app)
-        .post("/auth/login")
-        .send({
-          username: maliciousUsername,
-          password: "password123"
-        });
+
+      const response = await request(app).post("/auth/login").send({
+        username: maliciousUsername,
+        password: "password123",
+      });
 
       // Should not crash and should return unauthorized or bad request
       expect([401, 500]).toContain(response.status);
@@ -296,14 +277,12 @@ describe("Authentication Routes Integration", () => {
 
     test("should handle XSS attempts in registration", async () => {
       const xssPayload = "<script>alert('xss')</script>";
-      
-      const response = await request(app)
-        .post("/auth/register")
-        .send({
-          email: "xss@example.com",
-          password: "SecurePassword123!",
-          username: xssPayload
-        });
+
+      const response = await request(app).post("/auth/register").send({
+        email: "xss@example.com",
+        password: "SecurePassword123!",
+        username: xssPayload,
+      });
 
       // Cognito will handle input validation
       expect([400, 422]).toContain(response.status);
@@ -320,13 +299,11 @@ describe("Authentication Routes Integration", () => {
     });
 
     test("should handle empty password", async () => {
-      const response = await request(app)
-        .post("/auth/register")
-        .send({
-          email: "empty.password@example.com",
-          password: "",
-          username: "emptypass"
-        });
+      const response = await request(app).post("/auth/register").send({
+        email: "empty.password@example.com",
+        password: "",
+        username: "emptypass",
+      });
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
@@ -335,13 +312,13 @@ describe("Authentication Routes Integration", () => {
 
     test("should handle extremely long inputs", async () => {
       const longString = "a".repeat(1000);
-      
+
       const response = await request(app)
         .post("/auth/register")
         .send({
           email: longString + "@example.com",
           password: "SecurePassword123!",
-          username: longString
+          username: longString,
         });
 
       expect([400, 422]).toContain(response.status);
@@ -351,8 +328,7 @@ describe("Authentication Routes Integration", () => {
 
   describe("Health check", () => {
     test("should return auth service health", async () => {
-      const response = await request(app)
-        .get("/auth/health");
+      const response = await request(app).get("/auth/health");
 
       expect([200, 404]).toContain(response.status);
       expect(response.body.status).toBe("healthy");

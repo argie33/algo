@@ -191,22 +191,91 @@ describe("schemaValidator", () => {
   describe("validateColumns", () => {
     const mockColumnsResult = {
       rows: [
-        { column_name: "symbol", data_type: "character varying", character_maximum_length: 10, is_nullable: "NO" },
-        { column_name: "name", data_type: "character varying", character_maximum_length: 200, is_nullable: "NO" },
-        { column_name: "sector", data_type: "character varying", character_maximum_length: 100, is_nullable: "YES" },
-        { column_name: "industry", data_type: "character varying", character_maximum_length: 100, is_nullable: "YES" },
+        {
+          column_name: "symbol",
+          data_type: "character varying",
+          character_maximum_length: 10,
+          is_nullable: "NO",
+        },
+        {
+          column_name: "name",
+          data_type: "character varying",
+          character_maximum_length: 200,
+          is_nullable: "NO",
+        },
+        {
+          column_name: "sector",
+          data_type: "character varying",
+          character_maximum_length: 100,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "industry",
+          data_type: "character varying",
+          character_maximum_length: 100,
+          is_nullable: "YES",
+        },
         { column_name: "market_cap", data_type: "bigint", is_nullable: "YES" },
-        { column_name: "price", data_type: "numeric", numeric_precision: 10, numeric_scale: 2, is_nullable: "YES" },
+        {
+          column_name: "price",
+          data_type: "numeric",
+          numeric_precision: 10,
+          numeric_scale: 2,
+          is_nullable: "YES",
+        },
         { column_name: "volume", data_type: "bigint", is_nullable: "YES" },
-        { column_name: "pe_ratio", data_type: "numeric", numeric_precision: 8, numeric_scale: 2, is_nullable: "YES" },
-        { column_name: "eps", data_type: "numeric", numeric_precision: 8, numeric_scale: 2, is_nullable: "YES" },
-        { column_name: "dividend_yield", data_type: "numeric", numeric_precision: 5, numeric_scale: 4, is_nullable: "YES" },
-        { column_name: "beta", data_type: "numeric", numeric_precision: 6, numeric_scale: 3, is_nullable: "YES" },
-        { column_name: "exchange", data_type: "character varying", character_maximum_length: 20, is_nullable: "YES" },
-        { column_name: "country", data_type: "character varying", character_maximum_length: 50, is_nullable: "YES" },
-        { column_name: "currency", data_type: "character varying", character_maximum_length: 3, is_nullable: "YES" },
+        {
+          column_name: "pe_ratio",
+          data_type: "numeric",
+          numeric_precision: 8,
+          numeric_scale: 2,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "eps",
+          data_type: "numeric",
+          numeric_precision: 8,
+          numeric_scale: 2,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "dividend_yield",
+          data_type: "numeric",
+          numeric_precision: 5,
+          numeric_scale: 4,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "beta",
+          data_type: "numeric",
+          numeric_precision: 6,
+          numeric_scale: 3,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "exchange",
+          data_type: "character varying",
+          character_maximum_length: 20,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "country",
+          data_type: "character varying",
+          character_maximum_length: 50,
+          is_nullable: "YES",
+        },
+        {
+          column_name: "currency",
+          data_type: "character varying",
+          character_maximum_length: 3,
+          is_nullable: "YES",
+        },
         { column_name: "is_active", data_type: "boolean", is_nullable: "YES" },
-        { column_name: "last_updated", data_type: "timestamp without time zone", is_nullable: "YES" },
+        {
+          column_name: "last_updated",
+          data_type: "timestamp without time zone",
+          is_nullable: "YES",
+        },
       ],
     };
 
@@ -403,7 +472,9 @@ describe("schemaValidator", () => {
     test("should generate indexes for tables", () => {
       const sql = schemaValidator.generateCreateTableSQL("watchlists");
 
-      expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists (user_id)");
+      expect(sql).toContain(
+        "CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists (user_id)"
+      );
     });
 
     test("should handle boolean defaults", () => {
@@ -468,8 +539,11 @@ describe("schemaValidator", () => {
           { column_name: "country", data_type: "character varying" },
           { column_name: "currency", data_type: "character varying" },
           { column_name: "is_active", data_type: "boolean" },
-          { column_name: "last_updated", data_type: "timestamp without time zone" }
-        ]
+          {
+            column_name: "last_updated",
+            data_type: "timestamp without time zone",
+          },
+        ],
       });
 
       const result = await schemaValidator.validateTableStructure("stocks");
@@ -480,18 +554,24 @@ describe("schemaValidator", () => {
 
     test("should handle table not exists", async () => {
       // For unknown table schema, validateTableStructure catches error and returns result
-      const result = await schemaValidator.validateTableStructure("nonexistent");
-      
+      const result =
+        await schemaValidator.validateTableStructure("nonexistent");
+
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain("Schema validation failed: No schema defined for table: nonexistent");
+      expect(result.errors).toContain(
+        "Schema validation failed: No schema defined for table: nonexistent"
+      );
     });
 
     test("should handle unknown table schema", async () => {
       // validateTableStructure catches error and returns result
-      const result = await schemaValidator.validateTableStructure("unknown_table");
-      
+      const result =
+        await schemaValidator.validateTableStructure("unknown_table");
+
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain("Schema validation failed: No schema defined for table: unknown_table");
+      expect(result.errors).toContain(
+        "Schema validation failed: No schema defined for table: unknown_table"
+      );
     });
 
     test("should handle table not exists for known schema", async () => {
@@ -508,9 +588,11 @@ describe("schemaValidator", () => {
       query.mockRejectedValue(new Error("Database connection failed"));
 
       const result = await schemaValidator.validateTableStructure("stocks");
-      
+
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain("Schema validation failed: Database connection failed");
+      expect(result.errors).toContain(
+        "Schema validation failed: Database connection failed"
+      );
     });
   });
 
@@ -560,7 +642,7 @@ describe("schemaValidator", () => {
       };
 
       const result = schemaValidator.validateData("user_api_keys", data);
-      
+
       expect(result.isValid).toBe(true);
     });
 
@@ -572,7 +654,7 @@ describe("schemaValidator", () => {
       };
 
       const result = schemaValidator.validateData("technical_data_daily", data);
-      
+
       expect(result.isValid).toBe(true);
     });
 
@@ -586,7 +668,9 @@ describe("schemaValidator", () => {
       const result = schemaValidator.validateData("stocks", data);
 
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Unknown field "unknown_field" for table "stocks"');
+      expect(result.errors).toContain(
+        'Unknown field "unknown_field" for table "stocks"'
+      );
     });
 
     test("should validate INTEGER max constraints", () => {
@@ -658,22 +742,23 @@ describe("schemaValidator", () => {
         "Safe query failed, database may be unavailable",
         expect.objectContaining({
           error: "Database connection failed",
-          queryText: "SELECT * FROM stocks"
+          queryText: "SELECT * FROM stocks",
         })
       );
     });
 
     test("should truncate long queries in error messages", async () => {
       query.mockRejectedValue(new Error("Database error"));
-      
-      const longQuery = "SELECT * FROM stocks WHERE ".repeat(10) + "condition = 1";
+
+      const longQuery =
+        "SELECT * FROM stocks WHERE ".repeat(10) + "condition = 1";
       const result = await schemaValidator.safeQuery(longQuery);
 
       expect(result).toBeNull();
       expect(logger.warn).toHaveBeenCalledWith(
         "Safe query failed, database may be unavailable",
         expect.objectContaining({
-          queryText: expect.stringContaining("...")
+          queryText: expect.stringContaining("..."),
         })
       );
     });
@@ -681,29 +766,36 @@ describe("schemaValidator", () => {
 
   describe("mapSchemaTypeToPostgresType", () => {
     test("should map schema types to PostgreSQL types", () => {
-      const validator = new (require("../../utils/schemaValidator").constructor || Object)();
-      
+      const validator = new (require("../../utils/schemaValidator")
+        .constructor || Object)();
+
       // Access the function through the singleton if available
       const mockValidator = {
         mapSchemaTypeToPostgresType: (type) => {
           const typeMap = {
-            'VARCHAR': 'character varying',
-            'TEXT': 'text',
-            'INTEGER': 'integer',
-            'BIGINT': 'bigint',
-            'DECIMAL': 'numeric',
-            'BOOLEAN': 'boolean',
-            'DATE': 'date',
-            'TIMESTAMP': 'timestamp without time zone',
-            'SERIAL': 'integer'
+            VARCHAR: "character varying",
+            TEXT: "text",
+            INTEGER: "integer",
+            BIGINT: "bigint",
+            DECIMAL: "numeric",
+            BOOLEAN: "boolean",
+            DATE: "date",
+            TIMESTAMP: "timestamp without time zone",
+            SERIAL: "integer",
           };
           return typeMap[type];
-        }
+        },
       };
 
-      expect(mockValidator.mapSchemaTypeToPostgresType('VARCHAR')).toBe('character varying');
-      expect(mockValidator.mapSchemaTypeToPostgresType('INTEGER')).toBe('integer');
-      expect(mockValidator.mapSchemaTypeToPostgresType('BOOLEAN')).toBe('boolean');
+      expect(mockValidator.mapSchemaTypeToPostgresType("VARCHAR")).toBe(
+        "character varying"
+      );
+      expect(mockValidator.mapSchemaTypeToPostgresType("INTEGER")).toBe(
+        "integer"
+      );
+      expect(mockValidator.mapSchemaTypeToPostgresType("BOOLEAN")).toBe(
+        "boolean"
+      );
     });
   });
 
@@ -715,7 +807,7 @@ describe("schemaValidator", () => {
           { column_name: "symbol", data_type: "character varying" },
           { column_name: "name", data_type: "character varying" },
           { column_name: "extra_column", data_type: "text" }, // Extra column
-        ]
+        ],
       });
 
       const result = await schemaValidator.validateTableStructure("stocks");
@@ -731,13 +823,15 @@ describe("schemaValidator", () => {
         rows: [
           { column_name: "symbol", data_type: "character varying" },
           // Missing 'name' column
-        ]
+        ],
       });
 
       const result = await schemaValidator.validateTableStructure("stocks");
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain("Missing column 'name' in table 'stocks'");
+      expect(result.errors).toContain(
+        "Missing column 'name' in table 'stocks'"
+      );
     });
 
     test("should sanitize field values correctly", () => {

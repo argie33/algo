@@ -12,43 +12,76 @@ function createTestRoute(errorToThrow) {
 }
 
 // Setup test routes
-app.get("/test-generic-error", createTestRoute(new Error("Generic error message")));
+app.get(
+  "/test-generic-error",
+  createTestRoute(new Error("Generic error message"))
+);
 
-app.get("/test-validation-error", createTestRoute((() => {
-  const err = new Error("Validation failed");
-  err.name = "ValidationError";
-  return err;
-})()));
+app.get(
+  "/test-validation-error",
+  createTestRoute(
+    (() => {
+      const err = new Error("Validation failed");
+      err.name = "ValidationError";
+      return err;
+    })()
+  )
+);
 
-app.get("/test-custom-status-error", createTestRoute((() => {
-  const err = new Error("Custom status error");
-  err.status = 403;
-  return err;
-})()));
+app.get(
+  "/test-custom-status-error",
+  createTestRoute(
+    (() => {
+      const err = new Error("Custom status error");
+      err.status = 403;
+      return err;
+    })()
+  )
+);
 
-app.get("/test-postgres-unique-violation", createTestRoute((() => {
-  const err = new Error("Duplicate key value violates unique constraint");
-  err.code = "23505";
-  return err;
-})()));
+app.get(
+  "/test-postgres-unique-violation",
+  createTestRoute(
+    (() => {
+      const err = new Error("Duplicate key value violates unique constraint");
+      err.code = "23505";
+      return err;
+    })()
+  )
+);
 
-app.get("/test-postgres-foreign-key", createTestRoute((() => {
-  const err = new Error("Foreign key constraint violation");
-  err.code = "23503";
-  return err;
-})()));
+app.get(
+  "/test-postgres-foreign-key",
+  createTestRoute(
+    (() => {
+      const err = new Error("Foreign key constraint violation");
+      err.code = "23503";
+      return err;
+    })()
+  )
+);
 
-app.get("/test-postgres-table-missing", createTestRoute((() => {
-  const err = new Error("Relation does not exist");
-  err.code = "42P01";
-  return err;
-})()));
+app.get(
+  "/test-postgres-table-missing",
+  createTestRoute(
+    (() => {
+      const err = new Error("Relation does not exist");
+      err.code = "42P01";
+      return err;
+    })()
+  )
+);
 
-app.get("/test-error-without-message", createTestRoute((() => {
-  const err = new Error();
-  err.message = "";
-  return err;
-})()));
+app.get(
+  "/test-error-without-message",
+  createTestRoute(
+    (() => {
+      const err = new Error();
+      err.message = "";
+      return err;
+    })()
+  )
+);
 
 // Apply error handler
 app.use(errorHandler);
@@ -69,8 +102,7 @@ describe("Error Handler Middleware", () => {
 
   describe("Generic Error Handling", () => {
     test("should handle generic errors with 500 status", async () => {
-      const response = await request(app)
-        .get("/test-generic-error");
+      const response = await request(app).get("/test-generic-error");
 
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("error");
@@ -90,14 +122,13 @@ describe("Error Handler Middleware", () => {
           url: "/test-generic-error",
           method: "GET",
           timestamp: expect.any(String),
-          stack: expect.any(String)
+          stack: expect.any(String),
         })
       );
     });
 
     test("should handle errors without message", async () => {
-      const response = await request(app)
-        .get("/test-error-without-message");
+      const response = await request(app).get("/test-error-without-message");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("Internal Server Error");
@@ -106,8 +137,7 @@ describe("Error Handler Middleware", () => {
 
   describe("Specific Error Type Handling", () => {
     test("should handle ValidationError with 400 status", async () => {
-      const response = await request(app)
-        .get("/test-validation-error");
+      const response = await request(app).get("/test-validation-error");
 
       expect(response.status).toBe(400);
       expect(response.body.error.status).toBe(400);
@@ -115,8 +145,7 @@ describe("Error Handler Middleware", () => {
     });
 
     test("should handle custom status errors", async () => {
-      const response = await request(app)
-        .get("/test-custom-status-error");
+      const response = await request(app).get("/test-custom-status-error");
 
       expect(response.status).toBe(403);
       expect(response.body.error.status).toBe(403);
@@ -124,8 +153,9 @@ describe("Error Handler Middleware", () => {
     });
 
     test("should handle PostgreSQL unique violation (23505)", async () => {
-      const response = await request(app)
-        .get("/test-postgres-unique-violation");
+      const response = await request(app).get(
+        "/test-postgres-unique-violation"
+      );
 
       expect(response.status).toBe(409);
       expect(response.body.error.status).toBe(409);
@@ -133,8 +163,7 @@ describe("Error Handler Middleware", () => {
     });
 
     test("should handle PostgreSQL foreign key violation (23503)", async () => {
-      const response = await request(app)
-        .get("/test-postgres-foreign-key");
+      const response = await request(app).get("/test-postgres-foreign-key");
 
       expect(response.status).toBe(400);
       expect(response.body.error.status).toBe(400);
@@ -142,8 +171,7 @@ describe("Error Handler Middleware", () => {
     });
 
     test("should handle PostgreSQL table missing (42P01)", async () => {
-      const response = await request(app)
-        .get("/test-postgres-table-missing");
+      const response = await request(app).get("/test-postgres-table-missing");
 
       expect(response.status).toBe(500);
       expect(response.body.error.status).toBe(500);
@@ -155,19 +183,21 @@ describe("Error Handler Middleware", () => {
     test("should include details in development mode", async () => {
       process.env.NODE_ENV = "development";
 
-      const response = await request(app)
-        .get("/test-postgres-unique-violation");
+      const response = await request(app).get(
+        "/test-postgres-unique-violation"
+      );
 
       expect(response.status).toBe(409);
       expect(response.body.error).toHaveProperty("details");
-      expect(response.body.error.details).toBe("A record with this information already exists");
+      expect(response.body.error.details).toBe(
+        "A record with this information already exists"
+      );
     });
 
     test("should include validation details in development", async () => {
       process.env.NODE_ENV = "development";
 
-      const response = await request(app)
-        .get("/test-validation-error");
+      const response = await request(app).get("/test-validation-error");
 
       expect(response.status).toBe(400);
       expect(response.body.error).toHaveProperty("details");
@@ -179,8 +209,9 @@ describe("Error Handler Middleware", () => {
     test("should not include details in production mode", async () => {
       process.env.NODE_ENV = "production";
 
-      const response = await request(app)
-        .get("/test-postgres-unique-violation");
+      const response = await request(app).get(
+        "/test-postgres-unique-violation"
+      );
 
       expect(response.status).toBe(409);
       expect(response.body.error).not.toHaveProperty("details");
@@ -189,8 +220,7 @@ describe("Error Handler Middleware", () => {
     test("should not include validation details in production", async () => {
       process.env.NODE_ENV = "production";
 
-      const response = await request(app)
-        .get("/test-validation-error");
+      const response = await request(app).get("/test-validation-error");
 
       expect(response.status).toBe(400);
       expect(response.body.error).not.toHaveProperty("details");
@@ -199,8 +229,7 @@ describe("Error Handler Middleware", () => {
 
   describe("Response Format Consistency", () => {
     test("should always include required error fields", async () => {
-      const response = await request(app)
-        .get("/test-generic-error");
+      const response = await request(app).get("/test-generic-error");
 
       expect(response.body).toHaveProperty("error");
       expect(response.body.error).toHaveProperty("status");
@@ -210,27 +239,28 @@ describe("Error Handler Middleware", () => {
 
       // Validate timestamp format (ISO string)
       expect(new Date(response.body.error.timestamp)).toBeInstanceOf(Date);
-      expect(response.body.error.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(response.body.error.timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+      );
     });
 
     test("should set correct Content-Type header", async () => {
-      const response = await request(app)
-        .get("/test-generic-error");
+      const response = await request(app).get("/test-generic-error");
 
-      expect(response.headers['content-type']).toMatch(/application\/json/);
+      expect(response.headers["content-type"]).toMatch(/application\/json/);
     });
 
     test("should maintain consistent error structure across different error types", async () => {
       const testCases = [
         "/test-generic-error",
-        "/test-validation-error", 
+        "/test-validation-error",
         "/test-custom-status-error",
-        "/test-postgres-unique-violation"
+        "/test-postgres-unique-violation",
       ];
 
       for (const testCase of testCases) {
         const response = await request(app).get(testCase);
-        
+
         expect(response.body).toHaveProperty("error");
         expect(response.body.error).toHaveProperty("status");
         expect(response.body.error).toHaveProperty("message");
@@ -248,8 +278,7 @@ describe("Error Handler Middleware", () => {
         next(null);
       });
 
-      const response = await request(app)
-        .get("/test-null-error");
+      const response = await request(app).get("/test-null-error");
 
       // Should not reach error handler with null error
       expect(response.status).toBe(404); // Route not found since next(null) continues
@@ -262,8 +291,7 @@ describe("Error Handler Middleware", () => {
         next(err);
       });
 
-      const response = await request(app)
-        .get("/test-no-stack");
+      const response = await request(app).get("/test-no-stack");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("No stack error");
@@ -275,8 +303,7 @@ describe("Error Handler Middleware", () => {
         next(new Error(longMessage));
       });
 
-      const response = await request(app)
-        .get("/test-long-message");
+      const response = await request(app).get("/test-long-message");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe(longMessage);
@@ -288,8 +315,7 @@ describe("Error Handler Middleware", () => {
         next(new Error(specialMessage));
       });
 
-      const response = await request(app)
-        .get("/test-special-chars");
+      const response = await request(app).get("/test-special-chars");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe(specialMessage);
@@ -304,8 +330,7 @@ describe("Error Handler Middleware", () => {
         next(err);
       });
 
-      const response = await request(app)
-        .get("/test-unknown-pg-error");
+      const response = await request(app).get("/test-unknown-pg-error");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("Unknown PostgreSQL error");
@@ -319,8 +344,7 @@ describe("Error Handler Middleware", () => {
         next(err);
       });
 
-      const response = await request(app)
-        .get("/test-pg-custom-status");
+      const response = await request(app).get("/test-pg-custom-status");
 
       // Should use PostgreSQL-specific status (409) not custom status (422)
       expect(response.status).toBe(409);

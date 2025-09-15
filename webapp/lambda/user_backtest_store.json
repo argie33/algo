@@ -11,11 +11,7 @@
   },
   {
     "name": "Test C 1757861167694",
-    "value": [
-      1,
-      2,
-      3
-    ],
+    "value": [1, 2, 3],
     "id": "1757861167699"
   },
   {
@@ -34,15 +30,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -61,16 +53,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -89,16 +76,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -124,15 +106,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -151,16 +129,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -179,16 +152,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -214,15 +182,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -241,16 +205,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -269,16 +228,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -304,15 +258,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -331,16 +281,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -359,16 +304,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -394,15 +334,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -421,16 +357,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -449,16 +380,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -484,15 +410,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -511,16 +433,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -539,16 +456,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -574,15 +486,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -601,16 +509,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -629,16 +532,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -664,15 +562,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -691,16 +585,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -719,16 +608,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -754,15 +638,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -781,16 +661,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -809,16 +684,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -844,15 +714,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -871,16 +737,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -899,16 +760,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -934,15 +790,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -961,16 +813,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -989,16 +836,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1024,15 +866,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1051,16 +889,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1079,16 +912,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1114,15 +942,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1141,16 +965,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1169,16 +988,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1204,15 +1018,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1231,16 +1041,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1259,16 +1064,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1294,15 +1094,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1321,16 +1117,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1349,16 +1140,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1384,15 +1170,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1411,16 +1193,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1439,16 +1216,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1474,15 +1246,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1501,16 +1269,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1529,16 +1292,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1564,15 +1322,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1591,16 +1345,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1619,16 +1368,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1654,15 +1398,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1681,16 +1421,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1709,16 +1444,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1744,15 +1474,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1771,16 +1497,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1799,16 +1520,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1834,15 +1550,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1861,16 +1573,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1889,16 +1596,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1924,15 +1626,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1951,16 +1649,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -1979,16 +1672,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2014,15 +1702,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2041,16 +1725,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2075,15 +1754,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2102,16 +1777,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2136,15 +1806,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2163,16 +1829,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2197,15 +1858,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2224,16 +1881,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2252,16 +1904,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2287,15 +1934,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
+      "symbols": ["AAPL"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2314,16 +1957,11 @@
       "slippage": 0.001,
       "startDate": "2023-01-01",
       "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
@@ -2342,16 +1980,11 @@
       "slippage": 0.0005,
       "startDate": "2023-01-01",
       "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
+      "symbols": ["AAPL", "MSFT"],
       "strategy": {
         "name": "Test Strategy",
         "code": "strategy code",
-        "symbols": [
-          "AAPL"
-        ]
+        "symbols": ["AAPL"]
       },
       "strategyType": "ai_generated"
     },
