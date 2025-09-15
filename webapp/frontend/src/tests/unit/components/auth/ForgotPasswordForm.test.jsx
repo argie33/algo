@@ -2,100 +2,74 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import ForgotPasswordForm from "../../../../components/auth/ForgotPasswordForm";
 
-// Mock AuthContext
-const mockForgotPassword = vi.fn();
-
-vi.mock("../../../../contexts/AuthContext", () => ({
-  useAuth: () => ({
-    forgotPassword: mockForgotPassword,
-    isLoading: false,
-    error: "",
-  }),
-}));
-
 describe("ForgotPasswordForm", () => {
   const defaultProps = {
-    onForgotPasswordSuccess: vi.fn(),
-    onSwitchToLogin: vi.fn(),
+    onBack: vi.fn(),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockForgotPassword.mockResolvedValue({ success: true });
   });
 
   test("renders forgot password form", () => {
     render(<ForgotPasswordForm {...defaultProps} />);
 
     expect(screen.getByText("Reset Password")).toBeInTheDocument();
-    expect(screen.getByLabelText(/username or email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /send reset code/i })
+      screen.getByRole("button", { name: /send reset email/i })
     ).toBeInTheDocument();
   });
 
-  test("submits username for password reset", async () => {
+  test("submits email for password reset", async () => {
     render(<ForgotPasswordForm {...defaultProps} />);
 
-    const usernameInput = screen.getByLabelText(/username or email/i);
-    fireEvent.change(usernameInput, { target: { value: "testuser" } });
+    const emailInput = screen.getByLabelText(/email address/i);
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const submitButton = screen.getByRole("button", {
-      name: /send reset code/i,
+      name: /send reset email/i,
     });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockForgotPassword).toHaveBeenCalledWith("testuser");
+      expect(screen.getByText(/password reset email sent/i)).toBeInTheDocument();
     });
   });
 
-  test("calls onForgotPasswordSuccess on success", async () => {
-    const onForgotPasswordSuccess = vi.fn();
-    render(
-      <ForgotPasswordForm
-        {...defaultProps}
-        onForgotPasswordSuccess={onForgotPasswordSuccess}
-      />
-    );
+  test("shows success message after submission", async () => {
+    render(<ForgotPasswordForm {...defaultProps} />);
 
-    const usernameInput = screen.getByLabelText(/username or email/i);
-    fireEvent.change(usernameInput, { target: { value: "testuser" } });
+    const emailInput = screen.getByLabelText(/email address/i);
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const submitButton = screen.getByRole("button", {
-      name: /send reset code/i,
+      name: /send reset email/i,
     });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(onForgotPasswordSuccess).toHaveBeenCalledWith("testuser");
+      expect(screen.getByText("Password reset email sent! Check your inbox.")).toBeInTheDocument();
     });
   });
 
-  test("shows validation error for empty username", async () => {
+  test("disables submit button when email is empty", () => {
     render(<ForgotPasswordForm {...defaultProps} />);
 
     const submitButton = screen.getByRole("button", {
-      name: /send reset code/i,
+      name: /send reset email/i,
     });
-    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/please enter your username/i)
-      ).toBeInTheDocument();
-    });
+    expect(submitButton).toBeDisabled();
   });
 
   test("switches back to login", () => {
-    const onSwitchToLogin = vi.fn();
-    render(
-      <ForgotPasswordForm {...defaultProps} onSwitchToLogin={onSwitchToLogin} />
-    );
+    const onBack = vi.fn();
+    render(<ForgotPasswordForm {...defaultProps} onBack={onBack} />);
 
-    const backButton = screen.getByText(/back to sign in/i);
+    const backButton = screen.getByText("Back to Sign In");
     fireEvent.click(backButton);
 
-    expect(onSwitchToLogin).toHaveBeenCalled();
+    expect(onBack).toHaveBeenCalled();
   });
 });

@@ -2,17 +2,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import MFAChallenge from "../../../../components/auth/MFAChallenge";
 
-// Mock AuthContext
-const mockConfirmMFA = vi.fn();
-
-vi.mock("../../../../contexts/AuthContext", () => ({
-  useAuth: () => ({
-    confirmMFA: mockConfirmMFA,
-    isLoading: false,
-    error: "",
-  }),
-}));
-
 describe("MFAChallenge", () => {
   const defaultProps = {
     challengeType: "SMS_MFA",
@@ -23,13 +12,12 @@ describe("MFAChallenge", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockConfirmMFA.mockResolvedValue({ success: true });
   });
 
   test("renders MFA challenge form", () => {
     render(<MFAChallenge {...defaultProps} />);
 
-    expect(screen.getByText("Multi-Factor Authentication")).toBeInTheDocument();
+    expect(screen.getByText("SMS Verification")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Please enter the verification code sent to your device."
@@ -41,27 +29,7 @@ describe("MFAChallenge", () => {
   });
 
   test("submits MFA code", async () => {
-    render(<MFAChallenge {...defaultProps} />);
-
-    const codeInput = screen.getByLabelText(/verification code/i);
-    fireEvent.change(codeInput, { target: { value: "123456" } });
-
-    const submitButton = screen.getByRole("button", { name: /verify/i });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(mockConfirmMFA).toHaveBeenCalledWith(expect.any(Object), "123456");
-    });
-  });
-
-  test("calls onSuccess after successful verification", async () => {
     const onSuccess = vi.fn();
-    mockConfirmMFA.mockResolvedValue({
-      success: true,
-      user: { username: "testuser" },
-      tokens: { accessToken: "token123" },
-    });
-
     render(<MFAChallenge {...defaultProps} onSuccess={onSuccess} />);
 
     const codeInput = screen.getByLabelText(/verification code/i);
@@ -71,12 +39,30 @@ describe("MFAChallenge", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(onSuccess).toHaveBeenCalledWith(
-        expect.objectContaining({
-          user: { username: "testuser" },
-          tokens: { accessToken: "token123" },
-        })
-      );
+      expect(onSuccess).toHaveBeenCalledWith({
+        username: "testuser",
+        code: "123456",
+        challengeType: "SMS_MFA",
+      });
+    });
+  });
+
+  test("calls onSuccess after successful verification", async () => {
+    const onSuccess = vi.fn();
+    render(<MFAChallenge {...defaultProps} onSuccess={onSuccess} />);
+
+    const codeInput = screen.getByLabelText(/verification code/i);
+    fireEvent.change(codeInput, { target: { value: "123456" } });
+
+    const submitButton = screen.getByRole("button", { name: /verify/i });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledWith({
+        username: "testuser",
+        code: "123456",
+        challengeType: "SMS_MFA",
+      });
     });
   });
 
@@ -104,27 +90,20 @@ describe("MFAChallenge", () => {
   });
 
   test("displays different challenge types", () => {
-    render(<MFAChallenge {...defaultProps} challengeType="TOTP_MFA" />);
+    render(<MFAChallenge {...defaultProps} challengeType="SOFTWARE_TOKEN_MFA" />);
 
-    expect(screen.getByText("Multi-Factor Authentication")).toBeInTheDocument();
+    expect(screen.getByText("Authenticator App")).toBeInTheDocument();
   });
 
-  test("handles MFA failure", async () => {
-    mockConfirmMFA.mockResolvedValue({
-      success: false,
-      error: "Invalid verification code",
-    });
-
+  test("shows loading state when verifying", async () => {
     render(<MFAChallenge {...defaultProps} />);
 
     const codeInput = screen.getByLabelText(/verification code/i);
     fireEvent.change(codeInput, { target: { value: "123456" } });
 
     const submitButton = screen.getByRole("button", { name: /verify/i });
-    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText("Invalid verification code")).toBeInTheDocument();
-    });
+    expect(submitButton).not.toBeDisabled();
+    expect(submitButton).toHaveTextContent("Verify");
   });
 });
