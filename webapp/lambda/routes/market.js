@@ -329,8 +329,14 @@ router.get("/overview-fixed", async (req, res) => {
     try {
       const fearGreedQuery = `
         SELECT
-          index_value as value,
-          rating as value_text,
+          value as value,
+          CASE 
+            WHEN value >= 75 THEN 'Extreme Greed'
+            WHEN value >= 55 THEN 'Greed'
+            WHEN value >= 45 THEN 'Neutral'
+            WHEN value >= 25 THEN 'Fear'
+            ELSE 'Extreme Fear'
+          END as value_text,
           date as timestamp
         FROM fear_greed_index
         ORDER BY date DESC
@@ -546,8 +552,14 @@ router.get("/overview", async (req, res) => {
       console.log("Fetching Fear & Greed data...");
       const fearGreedQuery = `
         SELECT
-          index_value as value,
-          rating as value_text,
+          value as value,
+          CASE 
+            WHEN value >= 75 THEN 'Extreme Greed'
+            WHEN value >= 55 THEN 'Greed'
+            WHEN value >= 45 THEN 'Neutral'
+            WHEN value >= 25 THEN 'Fear'
+            ELSE 'Extreme Fear'
+          END as value_text,
           date as timestamp
         FROM fear_greed_index
         ORDER BY date DESC
@@ -880,8 +892,14 @@ router.get("/sentiment/history", async (req, res) => {
     const fearGreedQuery = `
       SELECT
         date,
-        index_value as value,
-        rating as classification
+        value as value,
+        CASE 
+          WHEN value >= 75 THEN 'Extreme Greed'
+          WHEN value >= 55 THEN 'Greed'
+          WHEN value >= 45 THEN 'Neutral'
+          WHEN value >= 25 THEN 'Fear'
+          ELSE 'Extreme Fear'
+        END as classification
       FROM fear_greed_index
       WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
@@ -1718,8 +1736,14 @@ router.get("/fear-greed", async (req, res) => {
     const fearGreedQuery = `
       SELECT
         date,
-        index_value as value,
-        rating as classification
+        value as value,
+        CASE 
+          WHEN value >= 75 THEN 'Extreme Greed'
+          WHEN value >= 55 THEN 'Greed'
+          WHEN value >= 45 THEN 'Neutral'
+          WHEN value >= 25 THEN 'Fear'
+          ELSE 'Extreme Fear'
+        END as classification
       FROM fear_greed_index
       ORDER BY date DESC
       LIMIT $1
@@ -2007,8 +2031,14 @@ router.get("/indicators", async (req, res) => {
     // Get latest sentiment data
     const sentimentQuery = `
       SELECT 
-        index_value as value,
-        rating as classification,
+        value as value,
+        CASE 
+          WHEN value >= 75 THEN 'Extreme Greed'
+          WHEN value >= 55 THEN 'Greed'
+          WHEN value >= 45 THEN 'Neutral'
+          WHEN value >= 25 THEN 'Fear'
+          ELSE 'Extreme Fear'
+        END as classification,
         date
       FROM fear_greed_index
       ORDER BY date DESC
@@ -2064,8 +2094,14 @@ router.get("/sentiment", async (req, res) => {
     // Get latest fear & greed data
     const fearGreedQuery = `
       SELECT 
-        index_value as value,
-        rating as classification,
+        value as value,
+        CASE 
+          WHEN value >= 75 THEN 'Extreme Greed'
+          WHEN value >= 55 THEN 'Greed'
+          WHEN value >= 45 THEN 'Neutral'
+          WHEN value >= 25 THEN 'Fear'
+          ELSE 'Extreme Fear'
+        END as classification,
         date
       FROM fear_greed_index
       ORDER BY date DESC
@@ -2991,7 +3027,7 @@ router.get("/recession-forecast", async (req, res) => {
       WITH latest_values AS (
         SELECT 
           series_id,
-          index_value as value,
+          value as value,
           date,
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
@@ -3137,7 +3173,7 @@ router.get("/leading-indicators", async (req, res) => {
       WITH latest_values AS (
         SELECT 
           series_id,
-          index_value as value,
+          value as value,
           date,
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
@@ -3289,7 +3325,7 @@ router.get("/sectoral-analysis", async (req, res) => {
       WITH latest_values AS (
         SELECT 
           series_id,
-          index_value as value,
+          value as value,
           date,
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
@@ -5596,7 +5632,7 @@ router.get("/economic", async (req, res) => {
       SELECT 
         series_id as indicator,
         date,
-        index_value as value,
+        value as value,
         'Economic Indicator' as name,
         'Monthly' as frequency
       FROM economic_data 

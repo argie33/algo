@@ -1059,6 +1059,52 @@ export const getTopStocks = async (params = {}) => {
   }
 };
 
+export const getStockScores = async (symbol, params = {}) => {
+  console.log(`📈 [API] Fetching scores for ${symbol}...`, params);
+  console.log("📈 [API] Current config:", getApiConfig());
+
+  try {
+    const queryParams = new URLSearchParams({
+      symbol: symbol,
+      limit: params.limit || 20,
+      ...params,
+    }).toString();
+
+    const endpoint = `/api/scores/latest?${queryParams}`;
+
+    console.log(`📈 [API] Trying scores endpoint: ${endpoint}`);
+    const response = await api.get(endpoint);
+    console.log(`📈 [API] SUCCESS with scores endpoint: ${endpoint}`, response);
+
+    const result = normalizeApiResponse(response, true);
+
+    // Filter for the specific symbol if provided
+    if (symbol && result?.length > 0) {
+      const symbolScores = result.filter(score => score.symbol === symbol);
+      return { data: symbolScores.length > 0 ? symbolScores[0] : null };
+    }
+
+    return { data: result };
+  } catch (error) {
+    console.error(`❌ [API] Error fetching scores for ${symbol}:`, error.message);
+
+    const isExpectedError =
+      error?.message === "Network Error" ||
+      error?.code === "ERR_NETWORK" ||
+      error?.response?.status === 503;
+
+    if (!isExpectedError) {
+      console.error("Full error details:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        method: error.config?.method,
+      });
+    }
+    throw new Error(handleApiError(error, `Failed to fetch scores for ${symbol}`));
+  }
+};
+
 export const getMarketSentimentHistory = async (days = 30) => {
   console.log(`📊 [API] Fetching market sentiment history for ${days} days...`);
 

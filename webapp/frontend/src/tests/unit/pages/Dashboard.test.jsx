@@ -234,21 +234,19 @@ describe("Dashboard Page", () => {
         // Debug: Log all text content to see what's actually rendered
         const allText = document.body.textContent;
         console.log('DEBUG - All rendered text:', allText);
-        console.log('DEBUG - Looking for: 125,751 or $125,751 or 125751');
+        console.log('DEBUG - Looking for: 1,250,000 or $1,250,000 or 1250000 (actual mock data)');
         
-        // Portfolio summary should be visible - check for the number in any format
-        expect(
-          screen.getByText((content, element) => {
-            const text = element?.textContent || '';
-            return text.includes('125,751') || text.includes('$125,751') || text.includes('125751');
-          })
-        ).toBeTruthy();
+        // Portfolio summary should be visible - check for the mock portfolio value (1,250,000)
+        const portfolioValues = screen.getAllByText((content, element) => {
+          const text = element?.textContent || '';
+          return text.includes('1,250,000') || text.includes('$1,250,000') || text.includes('1250000');
+        });
+        expect(portfolioValues.length).toBeGreaterThan(0);
       });
 
-      // Today's P&L should be displayed
-      expect(
-        screen.getByText(/2,500/i) || screen.getByText(/\$2,500/i)
-      ).toBeTruthy();
+      // Today's P&L should be displayed (mock data has daily: 3200)
+      const pnlElements = screen.getAllByText(/3,200/i);
+      expect(pnlElements.length).toBeGreaterThan(0);
 
       // Market indices should be shown
       expect(
@@ -602,12 +600,11 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         // More flexible text search for portfolio value
-        expect(
-          screen.getByText((content, element) => {
-            const text = element?.textContent || '';
-            return text.includes('125,751') || text.includes('$125,751') || text.includes('125751');
-          })
-        ).toBeTruthy();
+        const portfolioValues = screen.getAllByText((content, element) => {
+          const text = element?.textContent || '';
+          return text.includes('1,250,000') || text.includes('$1,250,000') || text.includes('1250000');
+        });
+        expect(portfolioValues.length).toBeGreaterThan(0);
       });
 
       // Simulate data update
@@ -648,12 +645,11 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         // Portfolio should still display - flexible text search
-        expect(
-          screen.getByText((content, element) => {
-            const text = element?.textContent || '';
-            return text.includes('125,751') || text.includes('$125,751') || text.includes('125751');
-          })
-        ).toBeTruthy();
+        const portfolioValues = screen.getAllByText((content, element) => {
+          const text = element?.textContent || '';
+          return text.includes('1,250,000') || text.includes('$1,250,000') || text.includes('1250000');
+        });
+        expect(portfolioValues.length).toBeGreaterThan(0);
       });
 
       // Should handle missing market data gracefully

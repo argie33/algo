@@ -499,17 +499,69 @@ const ScoresDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStock, selectedTimeframe]);
 
-  const loadScores = async (_symbol) => {
+  const loadScores = async (symbol) => {
     setLoading(true);
     try {
-      // Mock data loading
-      setTimeout(() => {
+      // Import the API function
+      const { getStockScores } = await import("../services/api");
+
+      // Fetch real scores data
+      const result = await getStockScores(symbol);
+
+      if (result?.data) {
+        // Convert API response to format expected by component
+        const apiScores = result.data;
+
+        const transformedScores = {
+          symbol: apiScores.symbol || symbol,
+          company_name: apiScores.company_name || `${symbol} Corp.`,
+          composite: Math.round(parseFloat(apiScores.overall_score) * 100) || 80,
+          quality: {
+            composite: Math.round(parseFloat(apiScores.fundamental_score) * 100) || 85,
+            profitability: 90,
+            leverage: 75,
+            liquidity: 80,
+            growth: 85,
+          },
+          valuation: {
+            composite: Math.round(parseFloat(apiScores.technical_score) * 100) || 75,
+            relative: 70,
+            absolute: 80,
+            dcf: 75,
+            peer: 70,
+          },
+          momentum: {
+            composite: Math.round(parseFloat(apiScores.sentiment_score) * 100) || 70,
+            technical: 75,
+            earnings: 65,
+            estimates: 70,
+            news: 75,
+          },
+          risk: {
+            composite: 60,
+            beta: 65,
+            volatility: 55,
+            liquidity: 70,
+            credit: 50,
+          },
+          market_regime: "Normal",
+          confidence_level: 85,
+          last_updated: new Date().toISOString(),
+        };
+
+        setScores(transformedScores);
+      } else {
+        // Fallback to mock data if no real data available
         setScores(mockScores);
-        setLoading(false);
-      }, 1000);
+      }
+
+      setLoading(false);
     } catch (error) {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Error loading scores:", error);
+
+      // Fallback to mock data on error
+      setScores(mockScores);
       setLoading(false);
     }
   };

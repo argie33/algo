@@ -75,11 +75,12 @@ describe("TradingSignals", () => {
     vi.clearAllMocks();
     // useDocumentTitle mock is set up in vi.mock above
 
-    // Mock successful API response
+    // Mock successful API response - match TradingSignals component expected structure
     global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        signals: mockSignalsData,
+        success: true,
+        data: mockSignalsData,  // Component expects data to be array, not signals
         metadata: {
           total: 2,
           lastUpdated: "2024-01-15T10:30:00Z",

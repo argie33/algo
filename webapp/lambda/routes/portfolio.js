@@ -1474,11 +1474,7 @@ router.get("/holdings", async (req, res) => {
         ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
         0 as day_change, 0 as day_change_percent,
         'Unknown' as sector, 
-        CASE 
-          WHEN COALESCE(md.market_cap, 0) > 10000000000 THEN 'Large Cap'
-          WHEN COALESCE(md.market_cap, 0) > 2000000000 THEN 'Mid Cap'  
-          ELSE 'Small Cap'
-        END as asset_class,
+        'Unknown' as asset_class,
         ph.broker, ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
@@ -1610,9 +1606,7 @@ router.get("/rebalance", async (req, res) => {
         ph.symbol, ph.quantity, ph.market_value, ph.current_price,
         'Unknown' as sector,
         CASE 
-          WHEN COALESCE(md.market_cap, 0) > 10000000000 THEN 'large_cap'
-          WHEN COALESCE(md.market_cap, 0) > 2000000000 THEN 'mid_cap'  
-          ELSE 'small_cap'
+          ELSE 'unknown'
         END as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
@@ -4394,9 +4388,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
         ph.market_value, 
         'Technology' as sector,
         CASE 
-          WHEN COALESCE(md.market_cap, 0) > 10000000000 THEN 'large_cap'
-          WHEN COALESCE(md.market_cap, 0) > 2000000000 THEN 'mid_cap'  
-          ELSE 'small_cap'
+          ELSE 'unknown'
         END as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
@@ -4616,9 +4608,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
         'Technology' as sector, 
         'Technology' as industry,
         CASE 
-          WHEN COALESCE(md.market_cap, 0) > 10000000000 THEN 'large_cap'
-          WHEN COALESCE(md.market_cap, 0) > 2000000000 THEN 'mid_cap'  
-          ELSE 'small_cap'
+          ELSE 'unknown'
         END as market_cap_tier,
         'US' as country
       FROM portfolio_holdings ph
