@@ -535,10 +535,11 @@ router.get("/", stocksListValidation, async (req, res) => {
 
     params.push(limit, offset);
 
-    // Count query - also fast
+    // Count query - must match main query tables for WHERE clause compatibility
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${whereClause}
     `;
 
