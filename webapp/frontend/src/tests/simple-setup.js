@@ -3,6 +3,9 @@ import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import React from "react";
 
+// Make React globally available to all tests
+global.React = React;
+
 // Simple setup - only essential mocks
 vi.mock("@mui/icons-material", () => {
   const createIconMock = (iconName) => (props) =>
@@ -64,6 +67,9 @@ vi.mock("@mui/icons-material", () => {
     VpnKey: createIconMock("VpnKey"),
     Login: createIconMock("Login"),
     AccountCircle: createIconMock("AccountCircle"),
+    PersonAdd: createIconMock("PersonAdd"),
+    Visibility: createIconMock("Visibility"),
+    VisibilityOff: createIconMock("VisibilityOff"),
     Api: createIconMock("Api"),
     Palette: createIconMock("Palette"),
     NotificationsNone: createIconMock("NotificationsNone"),
@@ -87,7 +93,6 @@ vi.mock("@mui/icons-material", () => {
     Star: createIconMock("Star"),
     StarBorder: createIconMock("StarBorder"),
     FilterList: createIconMock("FilterList"),
-    Visibility: createIconMock("Visibility"),
     Notifications: createIconMock("Notifications"),
 
     // Layout and display
@@ -133,6 +138,8 @@ vi.mock("@mui/icons-material", () => {
     ArrowForward: createIconMock("ArrowForward"),
     ArrowUpward: createIconMock("ArrowUpward"),
     ArrowDownward: createIconMock("ArrowDownward"),
+    ViewModule: createIconMock("ViewModule"),
+    Clear: createIconMock("Clear"),
 
     // Support and contact icons
     ContactSupport: createIconMock("ContactSupport"),

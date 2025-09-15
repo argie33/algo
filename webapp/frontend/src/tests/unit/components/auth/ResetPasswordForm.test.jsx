@@ -1,15 +1,17 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { vi } from "vitest";
+import { describe, test, expect, beforeEach, vi } from "vitest";
 import ResetPasswordForm from "../../../../components/auth/ResetPasswordForm";
 
 // Mock AuthContext
-const mockForgotPasswordSubmit = vi.fn();
+const mockConfirmForgotPassword = vi.fn();
+const mockClearError = vi.fn();
 
 vi.mock("../../../../contexts/AuthContext", () => ({
   useAuth: () => ({
-    forgotPasswordSubmit: mockForgotPasswordSubmit,
+    confirmForgotPassword: mockConfirmForgotPassword,
     isLoading: false,
     error: "",
+    clearError: mockClearError,
   }),
 }));
 
@@ -22,16 +24,16 @@ describe("ResetPasswordForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockForgotPasswordSubmit.mockResolvedValue({ success: true });
+    mockConfirmForgotPassword.mockResolvedValue({ success: true });
   });
 
   test("renders reset password form", () => {
     render(<ResetPasswordForm {...defaultProps} />);
 
     expect(screen.getByText("Set New Password")).toBeInTheDocument();
-    expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
-    expect(screen.getByLabelText("New Password")).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm new password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/reset code/i)).toBeInTheDocument();
+    expect(document.getElementById("newPassword")).toBeInTheDocument();
+    expect(document.getElementById("confirmPassword")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /reset password/i })
     ).toBeInTheDocument();
@@ -40,13 +42,13 @@ describe("ResetPasswordForm", () => {
   test("submits password reset", async () => {
     render(<ResetPasswordForm {...defaultProps} />);
 
-    fireEvent.change(screen.getByLabelText(/verification code/i), {
+    fireEvent.change(screen.getByLabelText(/reset code/i), {
       target: { value: "123456" },
     });
-    fireEvent.change(screen.getByLabelText("New Password"), {
+    fireEvent.change(document.getElementById("newPassword"), {
       target: { value: "NewPassword123!" },
     });
-    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+    fireEvent.change(document.getElementById("confirmPassword"), {
       target: { value: "NewPassword123!" },
     });
 
@@ -56,7 +58,7 @@ describe("ResetPasswordForm", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockForgotPasswordSubmit).toHaveBeenCalledWith(
+      expect(mockConfirmForgotPassword).toHaveBeenCalledWith(
         "testuser",
         "123456",
         "NewPassword123!"
@@ -67,13 +69,13 @@ describe("ResetPasswordForm", () => {
   test("shows validation error for password mismatch", async () => {
     render(<ResetPasswordForm {...defaultProps} />);
 
-    fireEvent.change(screen.getByLabelText(/verification code/i), {
+    fireEvent.change(screen.getByLabelText(/reset code/i), {
       target: { value: "123456" },
     });
-    fireEvent.change(screen.getByLabelText("New Password"), {
+    fireEvent.change(document.getElementById("newPassword"), {
       target: { value: "NewPassword123!" },
     });
-    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+    fireEvent.change(document.getElementById("confirmPassword"), {
       target: { value: "Different123!" },
     });
 
@@ -96,13 +98,13 @@ describe("ResetPasswordForm", () => {
       />
     );
 
-    fireEvent.change(screen.getByLabelText(/verification code/i), {
+    fireEvent.change(screen.getByLabelText(/reset code/i), {
       target: { value: "123456" },
     });
-    fireEvent.change(screen.getByLabelText("New Password"), {
+    fireEvent.change(document.getElementById("newPassword"), {
       target: { value: "NewPassword123!" },
     });
-    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+    fireEvent.change(document.getElementById("confirmPassword"), {
       target: { value: "NewPassword123!" },
     });
 

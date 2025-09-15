@@ -150,8 +150,8 @@ Resources:
       Code:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref LambdaCodeKey
-      Timeout: 60
-      MemorySize: 1024
+      Timeout: 30
+      MemorySize: 512
       VpcConfig:
         SubnetIds:
           - !ImportValue StocksCore-PrivateSubnet1Id

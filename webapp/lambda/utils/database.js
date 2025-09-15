@@ -252,9 +252,6 @@ async function initializeDatabase() {
       dbInitialized = true;
       console.log("✅ Database connection pool initialized successfully");
 
-      // Initialize database schema if needed
-      await initializeSchema();
-
       pool.on("error", (err) => {
         console.error("Database pool error:", err);
         dbInitialized = false;
