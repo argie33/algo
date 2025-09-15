@@ -339,15 +339,16 @@ router.get("/", stocksListValidation, async (req, res) => {
     );
     console.log("Triggering workflow deploy");
 
-    // Use validated and sanitized parameters from validation middleware
-    const page = req.validated.page || 1;
-    const limit = req.validated.limit || 50;
+    // Use validated and sanitized parameters from validation middleware with fallback
+    const validated = req.validated || req.query || {};
+    const page = parseInt(validated.page) || 1;
+    const limit = Math.min(parseInt(validated.limit) || 50, 100);
     const offset = (page - 1) * limit;
-    const search = req.validated.search || "";
-    const sector = req.validated.sector || "";
-    const exchange = req.validated.exchange || "";
-    const sortBy = req.validated.sortBy || "symbol";
-    const sortOrder = req.validated.sortOrder || "asc";
+    const search = validated.search || "";
+    const sector = validated.sector || "";
+    const exchange = validated.exchange || "";
+    const sortBy = validated.sortBy || "symbol";
+    const sortOrder = validated.sortOrder || "asc";
 
     let whereClause = "WHERE 1=1";
     const params = [];
