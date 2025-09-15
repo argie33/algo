@@ -8,6 +8,25 @@ const { CognitoJwtVerifier } = require("aws-jwt-verify");
 
 const { query } = require("./database");
 
+// Safe UUID generation that works across Node.js versions
+function generateUUID() {
+  try {
+    // Try the newer crypto.randomUUID() first (Node 14.17.0+)
+    if (encrypt.randomUUID && typeof encrypt.randomUUID === 'function') {
+      return encrypt.randomUUID();
+    }
+  } catch (error) {
+    // Fall back to manual UUID generation
+  }
+
+  // Fallback UUID v4 generation for older Node.js versions
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 /**
  * Unified API Key Service with JWT Integration
  * Combines resilient design with proper JWT validation and session management
@@ -137,7 +156,7 @@ class ApiKeyService {
               username: payload.username,
               role: payload["custom:role"] || payload.role || "user",
               groups: payload["cognito:groups"] || payload.groups || [],
-              sessionId: require("crypto").randomUUID(),
+              sessionId: generateUUID(),
             },
           };
         } catch (error) {
@@ -168,7 +187,7 @@ class ApiKeyService {
                 username: payload.username || payload.sub,
                 role: payload.role || "user",
                 groups: payload.groups || [],
-                sessionId: require("crypto").randomUUID(),
+                sessionId: generateUUID(),
               },
             };
           } catch (jwtError) {
@@ -194,7 +213,7 @@ class ApiKeyService {
               username: "testuser",
               role: "user",
               groups: [],
-              sessionId: require("crypto").randomUUID(),
+              sessionId: generateUUID(),
             },
           };
         }
@@ -209,7 +228,7 @@ class ApiKeyService {
             username: token,
             role: "user",
             groups: [],
-            sessionId: require("crypto").randomUUID(),
+            sessionId: generateUUID(),
           },
         };
       } catch (error) {
@@ -252,7 +271,7 @@ class ApiKeyService {
             username: token,
             role: "user",
             groups: [],
-            sessionId: require("crypto").randomUUID(),
+            sessionId: generateUUID(),
           },
         };
       }
@@ -281,7 +300,7 @@ class ApiKeyService {
         groups: payload["cognito:groups"] || [],
         tokenIssueTime: payload.iat,
         tokenExpirationTime: payload.exp,
-        sessionId: require("crypto").randomUUID(),
+        sessionId: generateUUID(),
       };
 
       // Cache session
