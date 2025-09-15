@@ -353,7 +353,7 @@ router.get("/overview-fixed", async (req, res) => {
           bearish,
           date as week_ending
         FROM naaim 
-        ORDER BY COALESCE(week_ending, date, timestamp) DESC 
+        ORDER BY date DESC 
         LIMIT 1
       `;
       const naaimResult = await query(naaimQuery);
@@ -585,7 +585,7 @@ router.get("/overview", async (req, res) => {
           bearish,
           date as week_ending
         FROM naaim 
-        ORDER BY COALESCE(week_ending, date, timestamp) DESC 
+        ORDER BY date DESC 
         LIMIT 1
       `;
       const naaimResult = await query(naaimQuery);
