@@ -521,6 +521,89 @@ router.post("/", async (req, res) => {
   }
 });
 
+// Get specific order by ID
+router.get("/:orderId", authenticateToken, async (req, res) => {
+  const userId = req.user.sub;
+  const { orderId } = req.params;
+
+  console.log(`Order details request for user: ${userId}, order: ${orderId}`);
+
+  try {
+    // Validate orderId is a valid integer
+    const orderIdInt = parseInt(orderId, 10);
+    if (isNaN(orderIdInt) || orderIdInt.toString() !== orderId) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid order ID",
+        message: `Order ID must be a valid integer, got: ${orderId}`,
+        orderId: orderId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get order details
+    const orderQuery = `
+      SELECT * FROM orders
+      WHERE user_id = $1 AND id = $2
+      ORDER BY created_at DESC
+    `;
+
+    const result = await query(orderQuery, [userId, orderIdInt]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Order not found",
+        message: `No order found with ID ${orderId} for this user`,
+        orderId: orderId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const order = result.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        id: order.id,
+        symbol: order.symbol,
+        side: order.side,
+        quantity: parseFloat(order.quantity),
+        price: parseFloat(order.price || 0),
+        status: order.status,
+        type: order.type,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        filled_quantity: parseFloat(order.filled_quantity || 0),
+        avg_fill_price: parseFloat(order.avg_fill_price || 0),
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Order details error:", error);
+
+    // Check if orders table doesn't exist
+    if (error.message.includes('relation "orders" does not exist')) {
+      return res.status(503).json({
+        success: false,
+        error: "Orders service not initialized",
+        message: "Orders database table needs to be created. Please run the database setup script.",
+        details: "Missing required table: orders",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch order details",
+      message: "An error occurred while retrieving the order",
+      details: process.env.NODE_ENV === "development" ? error.message : undefined,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Cancel order
 router.post("/:orderId/cancel", async (req, res) => {
   const userId = req.user.sub;

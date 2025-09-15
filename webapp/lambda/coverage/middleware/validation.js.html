@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">3.84% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/156</span>
+                <span class='fraction'>6/156</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">2.22% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/45</span>
+                <span class='fraction'>1/45</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">4.31% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/139</span>
+                <span class='fraction'>6/139</span>
             </div>
         
             
@@ -599,7 +599,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -666,7 +666,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -865,7 +865,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1034,7 +1034,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1076,7 +1076,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1110,7 +1110,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1130,7 +1130,7 @@
  * Provides comprehensive input validation and sanitization
  */
 &nbsp;
-const { validationError } = <span class="cstat-no" title="statement not covered" >require("../utils/responseFormatter");</span>
+const { validationError } = require("../utils/responseFormatter");
 &nbsp;
 /**
  * Sanitize string input
@@ -1197,7 +1197,7 @@ function <span class="fstat-no" title="function not covered" >isValidDate(</span
 /**
  * Common validation schemas
  */
-const validationSchemas = <span class="cstat-no" title="statement not covered" >{</span>
+const validationSchemas = {
   // Stock symbol validation
   symbol: {
     required: true,
@@ -1395,8 +1395,8 @@ const validationSchemas = <span class="cstat-no" title="statement not covered" >
 /**
  * Create validation middleware for specific fields
  */
-function <span class="fstat-no" title="function not covered" >createValidationMiddleware(</span>fieldSchemas) {
-<span class="cstat-no" title="statement not covered" >  return <span class="fstat-no" title="function not covered" >(r</span>eq, res, next) =&gt; {</span>
+function createValidationMiddleware(fieldSchemas) {
+  return <span class="fstat-no" title="function not covered" >(r</span>eq, res, next) =&gt; {
     const errors = <span class="cstat-no" title="statement not covered" >[];</span>
     const validatedData = <span class="cstat-no" title="statement not covered" >{};</span>
 &nbsp;
@@ -1565,7 +1565,7 @@ function <span class="fstat-no" title="function not covered" >validateQuery(</sp
 /**
  * Common validation middleware presets
  */
-const commonValidations = <span class="cstat-no" title="statement not covered" >{</span>
+const commonValidations = {
   // Pagination validation
   pagination: createValidationMiddleware({
     limit: validationSchemas.limit,
@@ -1607,7 +1607,7 @@ const commonValidations = <span class="cstat-no" title="statement not covered" >
  * Sanitizers object for backwards compatibility
  * Provides the API expected by stocks.js route
  */
-const sanitizers = <span class="cstat-no" title="statement not covered" >{</span>
+const sanitizers = {
   string: <span class="fstat-no" title="function not covered" >(v</span>alue, options = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
 <span class="cstat-no" title="statement not covered" >    if (typeof value !== "string") <span class="cstat-no" title="statement not covered" >return "";</span></span>
 &nbsp;
@@ -1641,7 +1641,7 @@ const sanitizers = <span class="cstat-no" title="statement not covered" >{</span
   array: sanitizeArray,
 };
 &nbsp;
-<span class="cstat-no" title="statement not covered" >module.exports = {</span>
+module.exports = {
   createValidationMiddleware,
   validateBody,
   validateQuery,
@@ -1663,7 +1663,7 @@ const sanitizers = <span class="cstat-no" title="statement not covered" >{</span
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T07:36:11.306Z
+                at 2025-09-15T11:15:51.521Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -137,7 +137,7 @@ router.get("/summary", async (req, res) => {
             FROM price_daily pd
             LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-            JOIN company_profile cp ON pd.symbol = cp.ticker
+            JOIN company_profile cp ON pd.symbol = cp.symbol
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
                 AND cp.sector IS NOT NULL 
                 AND cp.sector != ''
@@ -263,15 +263,36 @@ router.get("/summary", async (req, res) => {
       `✅ Dashboard queries completed: ${marketResult.rowCount} market, ${gainersResult.rowCount} gainers, ${losersResult.rowCount} losers, ${sectorResult.rowCount} sectors, ${earningsResult.rowCount} earnings, ${sentimentResult.rowCount} sentiment, ${volumeResult.rowCount} volume, ${breadthResult.rowCount} breadth`
     );
 
+    // Helper function to parse numeric fields in database results
+    const parseNumericFields = (rows, numericFields) => {
+      return rows.map(row => {
+        const parsed = { ...row };
+        numericFields.forEach(field => {
+          if (parsed[field] !== null && parsed[field] !== undefined) {
+            parsed[field] = parseFloat(parsed[field]);
+          }
+        });
+        return parsed;
+      });
+    };
+
     const summary = {
-      market_overview: marketResult.rows,
-      top_gainers: gainersResult.rows,
-      top_losers: losersResult.rows,
-      sector_performance: sectorResult.rows,
-      recent_earnings: earningsResult.rows,
-      market_sentiment: sentimentResult.rows[0] || null,
-      volume_leaders: volumeResult.rows,
-      market_breadth: breadthResult.rows[0] || null,
+      market_overview: parseNumericFields(marketResult.rows, ['current_price', 'change_percent', 'change_amount', 'volume']),
+      top_gainers: parseNumericFields(gainersResult.rows, ['current_price', 'change_percent', 'change_amount', 'volume']),
+      top_losers: parseNumericFields(losersResult.rows, ['current_price', 'change_percent', 'change_amount', 'volume']),
+      sector_performance: parseNumericFields(sectorResult.rows, ['stock_count', 'avg_change', 'avg_volume']),
+      recent_earnings: parseNumericFields(earningsResult.rows, ['eps_estimate', 'eps_actual', 'surprise_percent']),
+      market_sentiment: sentimentResult.rows[0] ? {
+        ...sentimentResult.rows[0],
+        value: parseFloat(sentimentResult.rows[0].value)
+      } : null,
+      volume_leaders: parseNumericFields(volumeResult.rows, ['current_price', 'volume', 'change_percent', 'change_amount']),
+      market_breadth: breadthResult.rows[0] ? {
+        ...breadthResult.rows[0],
+        advancing: parseInt(breadthResult.rows[0].advancing),
+        declining: parseInt(breadthResult.rows[0].declining),
+        unchanged: parseInt(breadthResult.rows[0].unchanged)
+      } : null,
       timestamp: new Date().toISOString(),
     };
 
@@ -603,7 +624,11 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     }
 
     const alerts = alertsResult.rows;
-    const summary = summaryResult.rows;
+    const summary = summaryResult.rows.map(row => ({
+      ...row,
+      count: parseInt(row.count),
+      active_count: parseInt(row.active_count)
+    }));
 
     res.json({
       success: true,
@@ -670,7 +695,7 @@ router.get("/market-data", async (req, res) => {
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
             FROM price_daily pd
-            JOIN company_profile cp ON pd.symbol = cp.ticker
+            JOIN company_profile cp ON pd.symbol = cp.symbol
             WHERE cp.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
@@ -865,7 +890,7 @@ router.get("/overview", async (req, res) => {
       FROM price_daily pd
       LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
           AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-      JOIN company_profile cp ON pd.symbol = cp.ticker
+      JOIN company_profile cp ON pd.symbol = cp.symbol
       WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
         AND cp.sector IS NOT NULL 
         AND pd.close IS NOT NULL
