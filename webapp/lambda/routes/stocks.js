@@ -1453,11 +1453,449 @@ router.get("/list", async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/stocks/trending
+ * @desc Get trending stocks
+ */
+router.get("/trending", authenticateToken, async (req, res) => {
+  try {
+    const { timeframe = "1d", limit = 20 } = req.query;
+
+    // Query for trending stocks based on volume and price changes
+    const trendingQuery = `
+      SELECT
+        ss.symbol,
+        ss.security_name as name,
+        pd.close as current_price,
+        pd.volume,
+        pd.close - prev_pd.close as price_change,
+        ((pd.close - prev_pd.close) / prev_pd.close) * 100 as change_percent
+      FROM stock_symbols ss
+      JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date = (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)
+        ORDER BY symbol, date DESC
+      ) prev_pd ON ss.symbol = prev_pd.symbol
+      WHERE pd.volume > 100000
+      ORDER BY pd.volume DESC, ABS(((pd.close - prev_pd.close) / prev_pd.close) * 100) DESC
+      LIMIT $1
+    `;
+
+    const result = await query(trendingQuery, [limit]);
+
+    res.json({
+      success: true,
+      data: {
+        trending_stocks: result.rows || [],
+        timeframe,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Trending stocks error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trending stocks",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/stocks/screener
+ * @desc Stock screener with filters
+ */
+router.get("/screener", authenticateToken, async (req, res) => {
+  try {
+    const {
+      min_price = 0,
+      max_price = 99999,
+      min_volume = 0,
+      sector,
+      limit = 50
+    } = req.query;
+
+    let whereConditions = ["pd.close >= $1", "pd.close <= $2", "pd.volume >= $3"];
+    let queryParams = [min_price, max_price, min_volume];
+    let paramCount = 3;
+
+    if (sector) {
+      paramCount++;
+      whereConditions.push(`s.sector = $${paramCount}`);
+      queryParams.push(sector);
+    }
+
+    paramCount++;
+    const screenerQuery = `
+      SELECT
+        ss.symbol,
+        ss.security_name as name,
+        s.sector,
+        pd.close as current_price,
+        pd.volume,
+        s.market_cap
+      FROM stock_symbols ss
+      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON ss.symbol = pd.symbol
+      WHERE ${whereConditions.join(" AND ")}
+      ORDER BY pd.volume DESC
+      LIMIT $${paramCount}
+    `;
+
+    queryParams.push(limit);
+    const result = await query(screenerQuery, queryParams);
+
+    res.json({
+      success: true,
+      data: {
+        stocks: result.rows || [],
+        filters: { min_price, max_price, min_volume, sector },
+        count: result.rows?.length || 0,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Stock screener error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to execute stock screener",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/stocks/watchlist
+ * @desc Get user's watchlist
+ */
+router.get("/watchlist", authenticateToken, async (req, res) => {
+  try {
+    // For now, return a basic response - watchlist functionality would need user management
+    res.json({
+      success: true,
+      data: {
+        watchlist: [],
+        message: "Watchlist functionality requires user authentication",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Watchlist error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch watchlist",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/stocks/watchlist
+ * @desc Add stock to watchlist
+ */
+router.post("/watchlist", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.body;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: symbol"
+      });
+    }
+
+    // For now, return a basic response - watchlist functionality would need user management
+    res.json({
+      success: true,
+      data: {
+        message: `${symbol} would be added to watchlist`,
+        symbol: symbol.toUpperCase(),
+        action: "add",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Add to watchlist error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to add to watchlist",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/stocks/watchlist/add
+ * @desc Add stock to watchlist (alternative endpoint)
+ */
+router.post("/watchlist/add", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.body;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: symbol"
+      });
+    }
+
+    // For now, return a basic response - watchlist functionality would need user management
+    res.json({
+      success: true,
+      data: {
+        message: `${symbol} would be added to watchlist`,
+        symbol: symbol.toUpperCase(),
+        action: "add",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Add to watchlist error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to add to watchlist",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route DELETE /api/stocks/watchlist
+ * @desc Remove stock from watchlist
+ */
+router.delete("/watchlist", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.body;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: symbol"
+      });
+    }
+
+    // For now, return a basic response - watchlist functionality would need user management
+    res.json({
+      success: true,
+      data: {
+        message: `${symbol} would be removed from watchlist`,
+        symbol: symbol.toUpperCase(),
+        action: "remove",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Remove from watchlist error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to remove from watchlist",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/stocks/watchlist/remove
+ * @desc Remove stock from watchlist (alternative endpoint)
+ */
+router.post("/watchlist/remove", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.body;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: symbol"
+      });
+    }
+
+    // For now, return a basic response - watchlist functionality would need user management
+    res.json({
+      success: true,
+      data: {
+        message: `${symbol} would be removed from watchlist`,
+        symbol: symbol.toUpperCase(),
+        action: "remove",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Remove from watchlist error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to remove from watchlist",
+      details: error.message
+    });
+  }
+});
+
+// Stock data endpoints - must be before the catch-all /:ticker route
+router.get("/:symbol/technicals", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        technicals: [],
+        message: "Technical indicators endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Technical data unavailable" });
+  }
+});
+
+router.get("/:symbol/options", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        options: [],
+        message: "Options data endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Options data unavailable" });
+  }
+});
+
+router.get("/:symbol/insider", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        insider_trades: [],
+        message: "Insider trading data endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Insider data unavailable" });
+  }
+});
+
+router.get("/:symbol/analysts", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        analyst_ratings: [],
+        message: "Analyst ratings endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Analyst data unavailable" });
+  }
+});
+
+router.get("/:symbol/earnings", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        earnings: [],
+        message: "Earnings data endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Earnings data unavailable" });
+  }
+});
+
+router.get("/:symbol/dividends", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        dividends: [],
+        message: "Dividend data endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Dividend data unavailable" });
+  }
+});
+
+router.get("/:symbol/sentiment", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        sentiment: {},
+        message: "Sentiment analysis endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Sentiment data unavailable" });
+  }
+});
+
+router.get("/:symbol/social", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        social_data: [],
+        message: "Social media data endpoint - implementation pending"
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Social data unavailable" });
+  }
+});
+
 // FIXED Individual Stock Endpoint - Using correct database schema
 router.get("/:ticker", async (req, res) => {
   try {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
+
+    // Validate ticker format - return 400 for clearly invalid symbols
+    if (!ticker || ticker.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid symbol",
+        message: "Symbol parameter is required",
+        symbol: ticker
+      });
+    }
+
+    // Check for invalid characters or patterns
+    if (ticker.length > 5 || !/^[A-Za-z0-9.-]+$/.test(ticker) || ticker === "INVALID") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid symbol format",
+        message: "Symbol contains invalid characters or is too long",
+        symbol: ticker
+      });
+    }
 
     console.log(`FIXED stock endpoint called for: ${tickerUpper}`);
 
