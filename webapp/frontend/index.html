@@ -19,133 +19,16 @@
   <body>
     <div id="root"></div>
     <script>
-      // Critical React Context error fix for production builds
-      // Prevents: Cannot set properties of undefined (setting 'ContextConsumer')
-      (function() {
-        'use strict';
-        
-        if (typeof window !== 'undefined' && !window.__CONTEXT_CONSUMER_FIX_APPLIED__) {
-          // The error occurs when hoist-non-react-statics tries to copy React Context properties
-          // but the target object is undefined. We need to intercept and prevent this specific error.
-          
-          console.log('🔧 Applying React Context ContextConsumer fix...');
-          
-          // Method 1: Prevent the error by ensuring any undefined object access creates a valid target
-          var originalSetProperty = Object.defineProperty;
-          var errorCount = 0;
-          
-          Object.defineProperty = function(obj, prop, descriptor) {
-            // If we're trying to set 'ContextConsumer' on undefined/null, create a safe target
-            if ((obj === undefined || obj === null) && prop === 'ContextConsumer') {
-              console.warn('🔧 React Context fix intercepted ContextConsumer assignment on undefined object');
-              errorCount++;
-              
-              // Create a safe mock object for the assignment
-              obj = {
-                $$typeof: Symbol.for('react.context'),
-                _currentValue: undefined,
-                _currentValue2: undefined,
-                Consumer: {
-                  $$typeof: Symbol.for('react.consumer'),
-                  _context: null
-                },
-                Provider: {
-                  $$typeof: Symbol.for('react.provider'), 
-                  _context: null
-                }
-              };
-            }
-            
-            try {
-              return originalSetProperty.call(this, obj, prop, descriptor);
-            } catch (error) {
-              if (prop === 'ContextConsumer' && error.message && error.message.includes('undefined')) {
-                console.warn('🔧 React Context fix caught ContextConsumer error:', error.message);
-                errorCount++;
-                
-                // Return a no-op result to prevent the error from propagating
-                return obj;
-              }
-              // Re-throw other errors
-              throw error;
-            }
-          };
-          
-          // Method 2: Override any potential undefined access patterns at the global level
-          var createSafeProxy = function(target) {
-            return new Proxy(target || {}, {
-              get: function(obj, prop) {
-                if (prop === 'ContextConsumer' || prop === 'ContextProvider') {
-                  console.warn('🔧 React Context proxy intercepted:', prop);
-                  return {};
-                }
-                return obj[prop];
-              },
-              set: function(obj, prop, value) {
-                if (prop === 'ContextConsumer' || prop === 'ContextProvider') {
-                  console.warn('🔧 React Context proxy assignment intercepted:', prop);
-                  obj[prop] = value;
-                  return true;
-                }
-                obj[prop] = value;
-                return true;
-              }
-            });
-          };
-          
-          // Method 3: Trap the specific error at the window level
-          window.addEventListener('error', function(event) {
-            if (event.error && event.error.message && 
-                event.error.message.includes("Cannot set properties of undefined") &&
-                event.error.message.includes("ContextConsumer")) {
-              console.warn('🔧 React Context window error handler caught and prevented ContextConsumer error');
-              event.preventDefault();
-              event.stopImmediatePropagation();
-              return false;
-            }
-          }, true);
-          
-          // Method 4: DISABLED - console.error override was causing infinite recursion
-          // The other 3 methods should be sufficient to prevent React Context errors
-          
-          window.__CONTEXT_CONSUMER_FIX_APPLIED__ = true;
-          console.log('✅ React Context ContextConsumer fix applied with 4 interception methods');
-          
-          // Log fix status after a delay to see if it worked
-          setTimeout(function() {
-            if (errorCount > 0) {
-              console.log('🔧 React Context fix intercepted', errorCount, 'ContextConsumer errors');
-            } else {
-              console.log('ℹ️ No ContextConsumer errors detected so far');
-            }
-          }, 2000);
-        }
-      })();
-    </script>
-    <script>
-      console.log('🔍 HTML DEBUGGING: About to load main.jsx');
-      console.log('🔍 HTML DEBUGGING: DOM loaded, root element exists:', !!document.getElementById('root'));
-      
-      // Catch any unhandled errors
-      window.addEventListener('error', function(event) {
-        console.error('🚨 UNHANDLED ERROR:', event.error);
-        console.error('🚨 ERROR DETAILS:', {
-          message: event.message,
-          filename: event.filename,
-          lineno: event.lineno,
-          colno: event.colno,
-          error: event.error
-        });
+      // Show errors in browser console for debugging
+      window.addEventListener('error', function(e) {
+        console.error('Error:', e.error?.message || e.message);
+        console.error('File:', e.filename, 'Line:', e.lineno);
       });
-      
-      window.addEventListener('unhandledrejection', function(event) {
-        console.error('🚨 UNHANDLED PROMISE REJECTION:', event.reason);
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('Promise rejected:', e.reason);
       });
     </script>
-    <script src="/config.js" onerror="console.error('🚨 CONFIG.JS FAILED TO LOAD:', event)"></script>
-    <script type="module" src="/src/main.jsx" onerror="console.error('🚨 MAIN.JSX FAILED TO LOAD:', event)"></script>
-    <script>
-      console.log('🔍 HTML DEBUGGING: main.jsx script tag processed');
-    </script>
+    <script src="/config.js"></script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
