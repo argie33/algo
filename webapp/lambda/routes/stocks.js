@@ -1075,7 +1075,7 @@ router.get("/search", stocksListValidation, async (req, res) => {
     const countResult = await query(
       `
       SELECT COUNT(*) as total
-      FROM stocks 
+      FROM stock_symbols
       WHERE symbol ILIKE $1 OR security_name ILIKE $1
       `,
       [`%${search}%`]
@@ -1085,12 +1085,13 @@ router.get("/search", stocksListValidation, async (req, res) => {
 
     const result = await query(
       `
-      SELECT symbol, security_name as company_name, sector, exchange, market_cap
-      FROM stocks 
-      WHERE symbol ILIKE $1 OR security_name ILIKE $1
-      ORDER BY 
-        CASE WHEN symbol ILIKE $1 THEN 1 ELSE 2 END,
-        symbol
+      SELECT ss.symbol, ss.security_name as company_name, ss.exchange, s.sector, s.market_cap
+      FROM stock_symbols ss
+      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      WHERE ss.symbol ILIKE $1 OR ss.security_name ILIKE $1
+      ORDER BY
+        CASE WHEN ss.symbol ILIKE $1 THEN 1 ELSE 2 END,
+        ss.symbol
       LIMIT $2 OFFSET $3
       `,
       [`%${search}%`, limitNum, offset]
@@ -1139,19 +1140,20 @@ router.get("/analysis", async (req, res) => {
 
     // Get basic stock information using your database schema
     const stockQuery = `
-      SELECT 
-        s.symbol, s.security_name as name, s.sector, s.market_cap, s.exchange,
+      SELECT
+        ss.symbol, ss.security_name as name, s.sector, s.market_cap, ss.exchange,
         sp.close as current_price,
         sp.volume,
         (sp.close - sp.open_price) / sp.open_price * 100 as daily_change_percent
-      FROM stocks s
+      FROM stock_symbols ss
+      LEFT JOIN stocks s ON ss.symbol = s.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
+        SELECT DISTINCT ON (symbol)
           symbol, close, open_price, volume, date
-        FROM price_daily 
+        FROM price_daily
         ORDER BY symbol, date DESC
-      ) sp ON s.symbol = sp.symbol
-      WHERE s.symbol = $1
+      ) sp ON ss.symbol = sp.symbol
+      WHERE ss.symbol = $1
     `;
 
     const stockResult = await query(stockQuery, [cleanSymbol]);
@@ -1348,20 +1350,21 @@ router.get("/recommendations", async (req, res) => {
     const whereClause = whereConditions.join(' AND ');
 
     const recommendationsQuery = `
-      SELECT 
-        s.symbol, s.security_name as name, s.sector, s.market_cap, s.exchange,
+      SELECT
+        ss.symbol, ss.security_name as name, s.sector, s.market_cap, ss.exchange,
         sp.close as current_price,
         sp.volume,
         'BUY' as recommendation,
         'Strong fundamentals and market position' as reason
-      FROM stocks s
+      FROM stock_symbols ss
+      LEFT JOIN stocks s ON ss.symbol = s.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
+        SELECT DISTINCT ON (symbol)
           symbol, close, open_price, volume, date
-        FROM price_daily 
+        FROM price_daily
         ORDER BY symbol, date DESC
-      ) sp ON s.symbol = sp.symbol
-      WHERE ${whereClause}
+      ) sp ON ss.symbol = sp.symbol
+      WHERE ${whereClause.replace(/s\./g, 'ss.')}
       ORDER BY s.market_cap DESC
       LIMIT $${paramIndex}
     `;
@@ -1458,32 +1461,74 @@ router.get("/:ticker", async (req, res) => {
 
     console.log(`FIXED stock endpoint called for: ${tickerUpper}`);
 
-    // FIXED QUERY - Use same pattern as working dashboard endpoint
+    // FIXED QUERY - Try stock_symbols first, fallback to stocks table
     const stockQuery = `
-      SELECT 
-        ss.symbol,
-        ss.security_name as company_name,
-        ss.sector,
-        ss.exchange,
-        ss.type as market_category,
-        ss.market_cap,
-        
-        -- Get latest price from price_daily
-        pd.close as current_price,
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.volume,
-        pd.date as price_date
-        
-      FROM stock_symbols ss
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
-          symbol, close, open, high, low, volume, date
-        FROM price_daily
-        ORDER BY symbol, date DESC
-      ) pd ON ss.symbol = pd.symbol
-      WHERE ss.symbol = $1
+      SELECT
+        symbol,
+        company_name,
+        sector,
+        exchange,
+        market_category,
+        market_cap,
+        current_price,
+        open,
+        high,
+        low,
+        volume,
+        price_date
+      FROM (
+        -- First try stock_symbols table
+        SELECT
+          ss.symbol,
+          ss.security_name as company_name,
+          ss.sector,
+          ss.exchange,
+          ss.type as market_category,
+          ss.market_cap,
+          pd.close as current_price,
+          pd.open,
+          pd.high,
+          pd.low,
+          pd.volume,
+          pd.date as price_date,
+          1 as priority
+        FROM stock_symbols ss
+        LEFT JOIN (
+          SELECT DISTINCT ON (symbol)
+            symbol, close, open, high, low, volume, date
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) pd ON ss.symbol = pd.symbol
+        WHERE ss.symbol = $1
+
+        UNION ALL
+
+        -- Fallback to stocks table if not found in stock_symbols
+        SELECT
+          s.symbol,
+          s.symbol as company_name,
+          s.sector,
+          'Unknown' as exchange,
+          'Stock' as market_category,
+          s.market_cap,
+          pd.close as current_price,
+          pd.open,
+          pd.high,
+          pd.low,
+          pd.volume,
+          pd.date as price_date,
+          2 as priority
+        FROM stocks s
+        LEFT JOIN (
+          SELECT DISTINCT ON (symbol)
+            symbol, close, open, high, low, volume, date
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) pd ON s.symbol = pd.symbol
+        WHERE s.symbol = $1
+          AND NOT EXISTS (SELECT 1 FROM stock_symbols WHERE symbol = $1)
+      ) combined
+      ORDER BY priority
       LIMIT 1
     `;
 
