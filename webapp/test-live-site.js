@@ -11,7 +11,7 @@ const https = require('https');
 const http = require('http');
 
 const API_BASE = 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev';
-const FRONTEND_BASE = 'https://d1zb7knau41vl9.cloudfront.net';
+const FRONTEND_BASE = 'https://d1copuy2oqlazx.cloudfront.net';
 
 class LiveSiteTester {
   constructor() {

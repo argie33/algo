@@ -258,7 +258,7 @@ router.get("/analytics", async (req, res) => {
         COALESCE(cp.industry, 'Unknown') as industry,
         COALESCE(cp.name, ph.symbol) as short_name
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -756,7 +756,7 @@ router.get("/risk-metrics", async (req, res) => {
         COALESCE(cp.sector, 'Technology') as sector,
         ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -1172,7 +1172,7 @@ router.get("/performance/analysis", async (req, res) => {
         ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
         COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC
     `;
@@ -5585,7 +5585,7 @@ router.get("/watchlist", async (req, res) => {
         0 as change,
         0 as change_percent
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
       ORDER BY ph.symbol
       LIMIT 10
@@ -5631,7 +5631,7 @@ router.get("/allocation", async (req, res) => {
           ELSE 'Equity'
         END as asset_class
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 
@@ -5912,7 +5912,7 @@ router.get("/value", async (req, res) => {
         (ph.market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
       ORDER BY ph.market_value DESC
       LIMIT 5

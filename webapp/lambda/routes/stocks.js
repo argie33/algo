@@ -1919,10 +1919,10 @@ router.get("/:ticker", async (req, res) => {
         SELECT
           ss.symbol,
           ss.security_name as company_name,
-          ss.sector,
+          COALESCE(cp.sector, 'Unknown') as sector,
           ss.exchange,
-          ss.type as market_category,
-          ss.market_cap,
+          ss.market_category as market_category,
+          COALESCE(cp.market_cap, 0) as market_cap,
           pd.close as current_price,
           pd.open,
           pd.high,
@@ -1931,6 +1931,7 @@ router.get("/:ticker", async (req, res) => {
           pd.date as price_date,
           1 as priority
         FROM stock_symbols ss
+        LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
             symbol, close, open, high, low, volume, date
