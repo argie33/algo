@@ -297,15 +297,16 @@ const ensureDatabase = async () => {
         });
         throw err;
       }),
-      new Promise((_, reject) =>
+      new Promise((_, reject) => {
+        const timeoutMs = parseInt(process.env.DB_INIT_TIMEOUT) || 30000; // Default 30 seconds, configurable via env
         setTimeout(
           () =>
             reject(
-              new Error("Database initialization timeout after 15 seconds")
+              new Error(`Database initialization timeout after ${timeoutMs/1000} seconds`)
             ),
-          15000
-        )
-      ),
+          timeoutMs
+        );
+      }),
     ])
       .then((pool) => {
         __dbAvailable = true;

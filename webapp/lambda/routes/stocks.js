@@ -2297,12 +2297,13 @@ router.get("/:ticker/prices", async (req, res) => {
     
     // Execute query with timeout protection
     const queryPromise = query(pricesQuery, [symbol, limit]);
-    const timeoutPromise = new Promise((_, reject) =>
+    const timeoutPromise = new Promise((_, reject) => {
+      const queryTimeoutMs = parseInt(process.env.DB_QUERY_TIMEOUT) || 20000; // Default 20 seconds
       setTimeout(
-        () => reject(new Error("Query timeout - database taking too long")),
-        15000
-      )
-    );
+        () => reject(new Error(`Query timeout - database taking too long (${queryTimeoutMs/1000}s)`)),
+        queryTimeoutMs
+      );
+    });
 
     const result = await Promise.race([queryPromise, timeoutPromise]);
 

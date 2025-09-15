@@ -150,8 +150,8 @@ Resources:
       Code:
         S3Bucket: !ImportValue StocksCore-CodeBucketName
         S3Key: !Ref LambdaCodeKey
-      Timeout: 45
-      MemorySize: 512
+      Timeout: 60
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !ImportValue StocksCore-PrivateSubnet1Id
@@ -168,6 +168,12 @@ Resources:
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           ENVIRONMENT: !Ref EnvironmentName
           FRONTEND_URL: !Sub 'https://${CloudFrontDistribution.DomainName}'
+          # Database performance optimization settings
+          DB_INIT_TIMEOUT: '30000'
+          DB_QUERY_TIMEOUT: '20000'
+          DB_POOL_MAX: '10'
+          DB_POOL_MIN: '2'
+          DB_CONNECT_TIMEOUT: '10000'
 
   ## 8) HTTP API Gateway v2 (better for Lambda integration)
   HttpApi:
