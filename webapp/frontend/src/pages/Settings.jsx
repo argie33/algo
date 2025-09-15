@@ -44,6 +44,7 @@ import {
   Api,
   Notifications,
   Palette,
+  Shield,
   Visibility,
   VisibilityOff,
   Download,
@@ -936,6 +937,12 @@ const Settings = () => {
             label="Security"
             aria-label="Security and account settings"
           />
+          <Tab
+            value={5}
+            icon={<Shield />}
+            label="Privacy"
+            aria-label="Privacy settings and data management"
+          />
         </Tabs>
 
         {/* Profile Tab */}
@@ -1522,6 +1529,116 @@ const Settings = () => {
                   >
                     Revoke All Other Sessions
                   </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
+
+        {/* Privacy Tab */}
+        <TabPanel value={activeTab} index={5}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Data Privacy" />
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Control how your data is collected, stored, and used.
+                  </Typography>
+                  <FormControlLabel
+                    control={<Switch defaultChecked />}
+                    label="Allow analytics collection"
+                    sx={{ mb: 2 }}
+                  />
+                  <FormControlLabel
+                    control={<Switch defaultChecked />}
+                    label="Share usage data for improvements"
+                    sx={{ mb: 2 }}
+                  />
+                  <FormControlLabel
+                    control={<Switch />}
+                    label="Allow marketing communications"
+                    sx={{ mb: 2 }}
+                  />
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<Download />}
+                    sx={{ mt: 2 }}
+                  >
+                    Download My Data
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Data Retention" />
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Manage how long your data is stored in our systems.
+                  </Typography>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Trading History Retention</InputLabel>
+                    <Select defaultValue="12months" label="Trading History Retention">
+                      <MenuItem value="3months">3 Months</MenuItem>
+                      <MenuItem value="6months">6 Months</MenuItem>
+                      <MenuItem value="12months">12 Months</MenuItem>
+                      <MenuItem value="forever">Keep Forever</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Analytics Data Retention</InputLabel>
+                    <Select defaultValue="6months" label="Analytics Data Retention">
+                      <MenuItem value="30days">30 Days</MenuItem>
+                      <MenuItem value="3months">3 Months</MenuItem>
+                      <MenuItem value="6months">6 Months</MenuItem>
+                      <MenuItem value="never">Don't Store</MenuItem>
+                    </Select>
+                  </FormControl>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12}>
+              <Card>
+                <CardHeader title="Account Data Management" />
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Request actions regarding your personal data.
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<Download />}
+                      >
+                        Export Data
+                      </Button>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        fullWidth
+                        startIcon={<Warning />}
+                      >
+                        Request Data Deletion
+                      </Button>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <Button
+                        variant="outlined"
+                        color="info"
+                        fullWidth
+                      >
+                        Privacy Report
+                      </Button>
+                    </Grid>
+                  </Grid>
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    Data export and deletion requests may take up to 30 days to process.
+                  </Alert>
                 </CardContent>
               </Card>
             </Grid>
