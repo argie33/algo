@@ -19,14 +19,11 @@
   <body>
     <div id="root"></div>
     <script>
-      // Minimal fix: Create fallback object for ContextConsumer assignment
-      window.addEventListener('error', function(e) {
-        if (e.error && e.error.message && e.error.message.includes("Cannot set properties of undefined (setting 'ContextConsumer')")) {
-          console.warn('ContextConsumer error suppressed');
-          e.preventDefault();
-          return false;
-        }
-      });
+      // Create React Context fallback for hoist-non-react-statics
+      if (typeof window !== 'undefined') {
+        window.React = window.React || {};
+        window.React.ContextConsumer = window.React.ContextConsumer || function() { return null; };
+      }
     </script>
     <script src="/config.js"></script>
     <script type="module" src="/src/main.jsx"></script>
