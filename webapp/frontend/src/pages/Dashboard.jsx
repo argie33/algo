@@ -390,7 +390,19 @@ function usePortfolioData(enabled = true) {
       if (!isAuthenticated) return mockPortfolio;
       try {
         const result = await getPortfolioAnalytics();
-        return result?.data || mockPortfolio;
+        if (result?.data) {
+          // Transform API data to match expected structure
+          return {
+            value: result.data.total_value || result.data.value || mockPortfolio.value,
+            pnl: {
+              daily: result.data.daily_change || result.data.pnl?.daily || mockPortfolio.pnl.daily,
+              mtd: result.data.mtd_change || result.data.pnl?.mtd || mockPortfolio.pnl.mtd,
+              ytd: result.data.ytd_change || result.data.pnl?.ytd || mockPortfolio.pnl.ytd,
+            },
+            allocation: result.data.allocation || mockPortfolio.allocation,
+          };
+        }
+        return mockPortfolio;
       } catch (err) {
         console.error("Portfolio API failed:", err);
         return mockPortfolio;

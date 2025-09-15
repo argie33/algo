@@ -70,6 +70,16 @@ export const formatNumber = (value, decimals = 2) => {
   }
 };
 
+// Format numbers with commas but no abbreviations (for portfolio values, etc.)
+export const formatExactNumber = (value, decimals = 0) => {
+  if (value === null || value === undefined) return "N/A";
+
+  const num = parseFloat(value);
+  if (isNaN(num)) return "N/A";
+
+  return numeral(num).format(`0,0.${"0".repeat(decimals)}`);
+};
+
 // Format ratio values
 export const formatRatio = (value, decimals = 2) => {
   if (value === null || value === undefined) return "N/A";

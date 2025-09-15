@@ -128,54 +128,74 @@ describe("HistoricalPriceChart", () => {
       ).toBeInTheDocument();
     });
 
-    it("displays empty state when no data available", () => {
-      renderWithProviders(<HistoricalPriceChart {...defaultProps} data={[]} />);
+    it("displays empty state when no data available", async () => {
+      // Mock API to return empty data
+      const { getStockPrices } = await import("../../../services/api");
+      vi.mocked(getStockPrices).mockResolvedValueOnce({ data: [] });
 
-      expect(
-        screen.getByText(/no historical data available/i)
-      ).toBeInTheDocument();
+      renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/no price data available/i)).toBeInTheDocument();
+      });
     });
   });
 
   describe("Chart Configuration", () => {
-    it("configures chart with correct data structure", () => {
-      renderWithProviders(<HistoricalPriceChart {...defaultProps} />);
+    it("configures chart with correct data structure", async () => {
+      renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("line-chart")).toBeInTheDocument();
+      });
 
       const chartElement = screen.getByTestId("line-chart");
       const chartData = JSON.parse(
         chartElement.getAttribute("data-chart-data")
       );
 
-      expect(chartData).toHaveLength(5);
+      expect(chartData).toHaveLength(30);
       expect(chartData[0]).toHaveProperty("date", "2024-01-01");
-      expect(chartData[0]).toHaveProperty("price", 150.0);
+      expect(chartData[0]).toHaveProperty("close", 150.0);
     });
 
-    it("sets up price line with correct styling", () => {
-      renderWithProviders(<HistoricalPriceChart {...defaultProps} />);
+    it("sets up price line with correct styling", async () => {
+      renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("chart-line")).toBeInTheDocument();
+      });
 
       const priceLine = screen.getByTestId("chart-line");
-      expect(priceLine).toHaveAttribute("data-key", "price");
+      expect(priceLine).toHaveAttribute("data-key", "close");
       expect(priceLine).toHaveAttribute("data-stroke");
     });
 
-    it("configures axes correctly", () => {
-      renderWithProviders(<HistoricalPriceChart {...defaultProps} />);
+    it("configures axes correctly", async () => {
+      renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("x-axis")).toBeInTheDocument();
+      });
 
       expect(screen.getByTestId("x-axis")).toHaveAttribute("data-key", "date");
       expect(screen.getByTestId("y-axis")).toBeInTheDocument();
     });
 
-    it("includes cartesian grid for readability", () => {
-      renderWithProviders(<HistoricalPriceChart {...defaultProps} />);
+    it("includes cartesian grid for readability", async () => {
+      renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
 
-      expect(screen.getByTestId("cartesian-grid")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("cartesian-grid")).toBeInTheDocument();
+      });
     });
 
-    it("includes tooltip for data interaction", () => {
-      renderWithProviders(<HistoricalPriceChart {...defaultProps} />);
+    it("includes tooltip for data interaction", async () => {
+      renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
 
-      expect(screen.getByTestId("chart-tooltip")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("chart-tooltip")).toBeInTheDocument();
+      });
     });
   });
 

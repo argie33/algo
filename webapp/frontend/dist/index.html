@@ -28,26 +28,35 @@
   <body>
     <div id="root"></div>
     <script>
-      // Fix React Context ContextConsumer error
+      // Fix hoist-non-react-statics ContextConsumer issue in production
       (function() {
-        const originalDefineProperty = Object.defineProperty;
-        Object.defineProperty = function(obj, prop, descriptor) {
-          if ((obj === undefined || obj === null) && prop === 'ContextConsumer') {
-            console.warn('Preventing ContextConsumer assignment on undefined object');
-            return obj || {};
-          }
-          return originalDefineProperty.call(this, obj, prop, descriptor);
-        };
-      })();
+        // Create early React namespace
+        window.React = window.React || {};
 
-      // Show errors in browser console for debugging
-      window.addEventListener('error', function(e) {
-        console.error('Error:', e.error?.message || e.message);
-        console.error('File:', e.filename, 'Line:', e.lineno);
-      });
-      window.addEventListener('unhandledrejection', function(e) {
-        console.error('Promise rejected:', e.reason);
-      });
+        // Intercept ContextConsumer property assignments
+        const reactDesc = Object.getOwnPropertyDescriptor(window, 'React') || { configurable: true };
+        if (reactDesc.configurable) {
+          let reactObj = window.React;
+          Object.defineProperty(window, 'React', {
+            get: () => reactObj,
+            set: (value) => {
+              if (value && typeof value === 'object') {
+                reactObj = value;
+                // Ensure ContextConsumer is always available
+                if (!reactObj.ContextConsumer) {
+                  reactObj.ContextConsumer = function() { return null; };
+                }
+              }
+            },
+            configurable: true
+          });
+        }
+
+        // Provide fallback ContextConsumer
+        if (!window.React.ContextConsumer) {
+          window.React.ContextConsumer = function() { return null; };
+        }
+      })();
     </script>
     <script src="/config.js"></script>
   </body>

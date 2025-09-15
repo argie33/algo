@@ -59,6 +59,7 @@ vi.mock("@mui/icons-material", () => {
     AttachMoney: createIconMock("AttachMoney"),
     TrendingUp: createIconMock("TrendingUp"),
     TrendingDown: createIconMock("TrendingDown"),
+    TrendingFlat: createIconMock("TrendingFlat"),
     ShowChart: createIconMock("ShowChart"),
     Assessment: createIconMock("Assessment"),
     Business: createIconMock("Business"),
@@ -140,6 +141,7 @@ vi.mock("@mui/icons-material", () => {
     ArrowDownward: createIconMock("ArrowDownward"),
     ViewModule: createIconMock("ViewModule"),
     Clear: createIconMock("Clear"),
+    Circle: createIconMock("Circle"),
 
     // Support and contact icons
     ContactSupport: createIconMock("ContactSupport"),

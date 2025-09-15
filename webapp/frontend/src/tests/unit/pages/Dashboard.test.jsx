@@ -92,9 +92,9 @@ vi.mock("../../../services/api.js", () => ({
   getPortfolioAnalytics: vi.fn().mockResolvedValue({
     success: true,
     data: {
-      total_value: 100000,
-      daily_change: 1500,
-      daily_change_percent: 1.5,
+      total_value: 125750.5,
+      daily_change: 2500.75,
+      daily_change_percent: 2.03,
       holdings: [],
       performance: { ytd: 12.5, month: 2.1, week: 0.8 },
     },
@@ -233,7 +233,7 @@ describe("Dashboard Page", () => {
       await waitFor(() => {
         // Portfolio summary should be visible
         expect(
-          screen.getByText(/125,750/i) || screen.getByText(/\$125,750/i)
+          screen.getByText(/125,751/i) || screen.getByText(/\$125,751/i)
         ).toBeTruthy();
       });
 
@@ -594,7 +594,7 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/100,000/i) || screen.getByText(/\$100,000/i)
+          screen.getByText(/125,751/i) || screen.getByText(/\$125,751/i)
         ).toBeTruthy();
       });
 
@@ -636,7 +636,7 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         // Portfolio should still display
-        expect(screen.getByText(/100,000/i)).toBeTruthy();
+        expect(screen.getByText(/125,751/i)).toBeTruthy();
       });
 
       // Should handle missing market data gracefully

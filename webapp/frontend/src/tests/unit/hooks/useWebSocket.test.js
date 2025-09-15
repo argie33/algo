@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { useWebSocket } from "../../../hooks/useWebSocket.js";
 
 // Note: WebSocket is already mocked globally in simple-setup.js
@@ -41,10 +41,8 @@ describe("useWebSocket Hook API Contract", () => {
       result.current.connect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
-
+    // Direct check instead of waitFor to prevent hanging
+    expect(result.current.isConnected).toBe(true);
     expect(result.current.error).toBe(null);
   });
 
@@ -66,17 +64,13 @@ describe("useWebSocket Hook API Contract", () => {
       result.current.connect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
+    expect(result.current.isConnected).toBe(true);
 
     act(() => {
       result.current.disconnect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(false);
-    });
+    expect(result.current.isConnected).toBe(false);
   });
 
   it("sends messages when connected", async () => {
@@ -86,9 +80,7 @@ describe("useWebSocket Hook API Contract", () => {
       result.current.connect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
+    expect(result.current.isConnected).toBe(true);
 
     const message = { type: "test", data: "hello" };
 
@@ -133,9 +125,7 @@ describe("useWebSocket Hook API Contract", () => {
     );
 
     // With autoConnect, should connect automatically
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
+    expect(result.current.isConnected).toBe(true);
   });
 
   it("handles reconnection attempts", async () => {
@@ -150,18 +140,14 @@ describe("useWebSocket Hook API Contract", () => {
       result.current.connect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
+    expect(result.current.isConnected).toBe(true);
 
     // Simulate disconnection
     act(() => {
       result.current.disconnect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(false);
-    });
+    expect(result.current.isConnected).toBe(false);
 
     // Should handle reconnection logic (simplified test)
     expect(result.current.connect).toBeDefined();
@@ -208,9 +194,7 @@ describe("useWebSocket Hook API Contract", () => {
       result.current.connect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
+    expect(result.current.isConnected).toBe(true);
 
     // Message handling would be tested with actual WebSocket events
     expect(result.current.error).toBe(null);
@@ -256,18 +240,14 @@ describe("useWebSocket Hook API Contract", () => {
       result.current.connect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
+    expect(result.current.isConnected).toBe(true);
 
     // Disconnect
     act(() => {
       result.current.disconnect();
     });
 
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(false);
-    });
+    expect(result.current.isConnected).toBe(false);
   });
 
   it("provides connection status", () => {

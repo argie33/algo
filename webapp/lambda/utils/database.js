@@ -648,6 +648,35 @@ async function initializeSchema() {
         )`,
       },
       {
+        name: "alert_settings",
+        sql: `CREATE TABLE IF NOT EXISTS alert_settings (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL UNIQUE,
+          notification_preferences JSONB DEFAULT '{}',
+          delivery_settings JSONB DEFAULT '{}',
+          alert_categories JSONB DEFAULT '{}',
+          watchlist_settings JSONB DEFAULT '{}',
+          advanced_settings JSONB DEFAULT '{}',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )`,
+      },
+      {
+        name: "alert_rules",
+        sql: `CREATE TABLE IF NOT EXISTS alert_rules (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          rule_name VARCHAR(255) NOT NULL,
+          rule_type VARCHAR(50) NOT NULL,
+          condition_logic JSONB NOT NULL,
+          enabled BOOLEAN DEFAULT true,
+          priority VARCHAR(20) DEFAULT 'medium',
+          actions JSONB DEFAULT '[]',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )`,
+      },
+      {
         name: "stock_scores",
         sql: `CREATE TABLE IF NOT EXISTS stock_scores (
           id SERIAL PRIMARY KEY,

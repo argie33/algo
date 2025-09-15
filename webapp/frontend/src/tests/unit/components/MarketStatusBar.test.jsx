@@ -5,6 +5,8 @@ import MarketStatusBar from "../../../components/MarketStatusBar";
 vi.mock("../../../services/dataCache", () => ({
   default: {
     get: vi.fn(),
+    cache: { size: 5 },
+    getStats: vi.fn(() => ({ hits: 10, misses: 2, size: 5 })),
   },
   __esModule: true,
 }));
@@ -56,7 +58,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Open")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Open")).toBeInTheDocument();
       });
     });
 
@@ -64,7 +66,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Open")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Open")).toBeInTheDocument();
         expect(screen.getByText("Closes at 4:00 PM")).toBeInTheDocument();
       });
     });
@@ -102,7 +104,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Pre-Market")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Pre-Market")).toBeInTheDocument();
         expect(screen.getByText("Opens at 9:30 AM")).toBeInTheDocument();
       });
     });
@@ -119,7 +121,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market After-Hours")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: After-Hours")).toBeInTheDocument();
         expect(screen.getByText("Closes at 8:00 PM")).toBeInTheDocument();
       });
     });
@@ -136,7 +138,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Closed")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Closed")).toBeInTheDocument();
       });
     });
   });
@@ -170,7 +172,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Open")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Open")).toBeInTheDocument();
       });
     });
   });
@@ -223,7 +225,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Open")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Open")).toBeInTheDocument();
         expect(screen.queryByText(/Cache:/)).not.toBeInTheDocument();
       });
 
@@ -269,7 +271,7 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Open")).toBeInTheDocument();
+        expect(screen.getByText("Market Status: Open")).toBeInTheDocument();
       });
     });
 

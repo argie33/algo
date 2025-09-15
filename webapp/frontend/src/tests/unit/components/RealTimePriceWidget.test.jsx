@@ -34,11 +34,6 @@ describe("RealTimePriceWidget", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDataCache.get.mockResolvedValue(mockPriceData);
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   describe("Rendering", () => {

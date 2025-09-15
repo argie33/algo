@@ -879,26 +879,28 @@ class MockWebSocket {
     this.onmessage = null;
     this.onerror = null;
 
-    // Simulate connection immediately in tests
-    Promise.resolve().then(() => {
-      this.readyState = MockWebSocket.OPEN;
-      if (this.onopen) {
-        this.onopen({ target: this });
+    // Simulate connection after a minimal delay to allow React to set handlers
+    setTimeout(() => {
+      if (this.readyState === MockWebSocket.CONNECTING) {
+        this.readyState = MockWebSocket.OPEN;
+        if (this.onopen) {
+          this.onopen({ target: this });
+        }
       }
-    });
+    }, 0);
   }
 
   send(data) {
     if (this.readyState === MockWebSocket.OPEN) {
-      // Simulate echo back for testing immediately
-      Promise.resolve().then(() => {
+      // Simulate echo back for testing with minimal delay
+      setTimeout(() => {
         if (this.onmessage) {
           this.onmessage({
             data: JSON.stringify({ echo: data }),
             target: this
           });
         }
-      });
+      }, 0);
     } else {
       throw new Error('WebSocket is not open');
     }
