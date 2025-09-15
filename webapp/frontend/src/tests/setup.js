@@ -603,19 +603,54 @@ Object.defineProperty(window, "sessionStorage", {
   writable: true,
 });
 
-// Mock window.matchMedia for MUI
+// Mock window.matchMedia for MUI and Dashboard components
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: (query) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => {},
-  }),
+  value: (query) => {
+    const listeners = [];
+    const mql = {
+      matches: query.includes('(max-width: 600px)') ? false :
+               query.includes('(max-width: 768px)') ? false :
+               query.includes('(prefers-contrast: high)') ? false : false,
+      media: query,
+      onchange: null,
+      addListener: (callback) => {
+        if (callback && typeof callback === 'function') {
+          listeners.push(callback);
+        }
+      },
+      removeListener: (callback) => {
+        const index = listeners.indexOf(callback);
+        if (index > -1) {
+          listeners.splice(index, 1);
+        }
+      },
+      addEventListener: (event, callback) => {
+        if (event === 'change' && callback && typeof callback === 'function') {
+          listeners.push(callback);
+        }
+      },
+      removeEventListener: (event, callback) => {
+        if (event === 'change') {
+          const index = listeners.indexOf(callback);
+          if (index > -1) {
+            listeners.splice(index, 1);
+          }
+        }
+      },
+      dispatchEvent: (event) => {
+        listeners.forEach(listener => {
+          try {
+            listener(event);
+          } catch (error) {
+            console.warn('Media query listener error:', error);
+          }
+        });
+        return true;
+      },
+    };
+    return mql;
+  },
 });
 
 // Configure fetch for real site testing
@@ -832,6 +867,70 @@ Object.defineProperty(Element.prototype, "scrollIntoView", {
   },
   writable: true,
 });
+
+// Mock WebSocket for useWebSocket tests
+class MockWebSocket {
+  constructor(url, protocols) {
+    this.url = url;
+    this.protocols = protocols;
+    this.readyState = MockWebSocket.CONNECTING;
+    this.onopen = null;
+    this.onclose = null;
+    this.onmessage = null;
+    this.onerror = null;
+
+    // Simulate connection immediately in tests
+    Promise.resolve().then(() => {
+      this.readyState = MockWebSocket.OPEN;
+      if (this.onopen) {
+        this.onopen({ target: this });
+      }
+    });
+  }
+
+  send(data) {
+    if (this.readyState === MockWebSocket.OPEN) {
+      // Simulate echo back for testing immediately
+      Promise.resolve().then(() => {
+        if (this.onmessage) {
+          this.onmessage({
+            data: JSON.stringify({ echo: data }),
+            target: this
+          });
+        }
+      });
+    } else {
+      throw new Error('WebSocket is not open');
+    }
+  }
+
+  close(code = 1000, reason = '') {
+    this.readyState = MockWebSocket.CLOSED;
+    if (this.onclose) {
+      this.onclose({
+        code,
+        reason,
+        wasClean: true,
+        target: this
+      });
+    }
+  }
+
+  // WebSocket constants
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
+}
+
+// Set WebSocket constants on the constructor
+MockWebSocket.prototype.CONNECTING = MockWebSocket.CONNECTING;
+MockWebSocket.prototype.OPEN = MockWebSocket.OPEN;
+MockWebSocket.prototype.CLOSING = MockWebSocket.CLOSING;
+MockWebSocket.prototype.CLOSED = MockWebSocket.CLOSED;
+
+global.WebSocket = MockWebSocket;
+window.WebSocket = MockWebSocket;
 
 // Restore original console on cleanup
 afterAll(() => {

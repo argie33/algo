@@ -89,6 +89,7 @@ import HistoricalPriceChart from "../components/HistoricalPriceChart";
 import dataCache from "../services/dataCache";
 import MarketStatusBar from "../components/MarketStatusBar";
 import useDevelopmentMode from "../hooks/useDevelopmentMode";
+import { formatExactNumber } from "../utils/formatters";
 
 // Logo import removed as it was unused
 
@@ -793,13 +794,19 @@ const Dashboard = () => {
 
     const checkHighContrast = () => {
       if (window.matchMedia) {
-        const mediaQuery = window.matchMedia('(prefers-contrast: high)');
-        setIsHighContrast(mediaQuery.matches);
-        
-        const handleChange = (e) => setIsHighContrast(e.matches);
-        mediaQuery.addListener(handleChange);
-        
-        return () => mediaQuery.removeListener(handleChange);
+        try {
+          const mediaQuery = window.matchMedia('(prefers-contrast: high)');
+          if (mediaQuery && typeof mediaQuery.matches !== 'undefined') {
+            setIsHighContrast(mediaQuery.matches);
+
+            const handleChange = (e) => setIsHighContrast(e.matches);
+            mediaQuery.addListener(handleChange);
+
+            return () => mediaQuery.removeListener(handleChange);
+          }
+        } catch (error) {
+          console.warn('Media query not supported:', error);
+        }
       }
     };
 
@@ -1035,7 +1042,7 @@ const Dashboard = () => {
                         Portfolio Value
                       </Typography>
                       <Typography variant="h5" fontWeight="bold">
-                        ${safePortfolio.value.toLocaleString()}
+                        ${formatExactNumber(safePortfolio.value)}
                       </Typography>
                     </Box>
                     <Box textAlign="center">
@@ -1051,7 +1058,7 @@ const Dashboard = () => {
                             : "error.light"
                         }
                       >
-                        ${safePortfolio.pnl.daily.toLocaleString()}
+                        ${formatExactNumber(safePortfolio.pnl.daily)}
                       </Typography>
                     </Box>
                     <Box textAlign="center">
@@ -1345,21 +1352,21 @@ const Dashboard = () => {
                   variant="h4"
                   sx={{ fontWeight: 700, color: "primary.main", mb: 2 }}
                 >
-                  ${safePortfolio.value.toLocaleString()}
+                  ${formatExactNumber(safePortfolio.value)}
                 </Typography>
                 <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap" }}>
                   <Chip
-                    label={`Daily: $${safePortfolio.pnl.daily.toLocaleString()}`}
+                    label={`Daily: $${formatExactNumber(safePortfolio.pnl.daily)}`}
                     color={safePortfolio.pnl.daily >= 0 ? "success" : "error"}
                     size="small"
                   />
                   <Chip
-                    label={`MTD: $${safePortfolio.pnl.mtd.toLocaleString()}`}
+                    label={`MTD: $${formatExactNumber(safePortfolio.pnl.mtd)}`}
                     color={safePortfolio.pnl.mtd >= 0 ? "success" : "error"}
                     size="small"
                   />
                   <Chip
-                    label={`YTD: $${safePortfolio.pnl.ytd.toLocaleString()}`}
+                    label={`YTD: $${formatExactNumber(safePortfolio.pnl.ytd)}`}
                     color={safePortfolio.pnl.ytd >= 0 ? "success" : "error"}
                     size="small"
                   />
@@ -1714,7 +1721,7 @@ const Dashboard = () => {
                             fontWeight="bold"
                             color="primary.main"
                           >
-                            ${act.amount.toLocaleString()}
+                            ${formatExactNumber(act.amount)}
                           </Typography>
                         )}
                       </Box>
