@@ -19,11 +19,35 @@
   <body>
     <div id="root"></div>
     <script>
-      // Create React Context fallback for hoist-non-react-statics
-      if (typeof window !== 'undefined') {
+      // Fix hoist-non-react-statics ContextConsumer issue in production
+      (function() {
+        // Create early React namespace
         window.React = window.React || {};
-        window.React.ContextConsumer = window.React.ContextConsumer || function() { return null; };
-      }
+
+        // Intercept ContextConsumer property assignments
+        const reactDesc = Object.getOwnPropertyDescriptor(window, 'React') || { configurable: true };
+        if (reactDesc.configurable) {
+          let reactObj = window.React;
+          Object.defineProperty(window, 'React', {
+            get: () => reactObj,
+            set: (value) => {
+              if (value && typeof value === 'object') {
+                reactObj = value;
+                // Ensure ContextConsumer is always available
+                if (!reactObj.ContextConsumer) {
+                  reactObj.ContextConsumer = function() { return null; };
+                }
+              }
+            },
+            configurable: true
+          });
+        }
+
+        // Provide fallback ContextConsumer
+        if (!window.React.ContextConsumer) {
+          window.React.ContextConsumer = function() { return null; };
+        }
+      })();
     </script>
     <script src="/config.js"></script>
     <script type="module" src="/src/main.jsx"></script>
