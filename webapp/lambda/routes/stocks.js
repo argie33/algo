@@ -1922,7 +1922,7 @@ router.get("/:ticker", async (req, res) => {
           COALESCE(cp.sector, 'Unknown') as sector,
           ss.exchange,
           ss.market_category as market_category,
-          COALESCE(cp.market_cap, 0) as market_cap,
+          0 as market_cap,
           pd.close as current_price,
           pd.open,
           pd.high,
