@@ -1421,20 +1421,35 @@ router.get("/breadth", async (req, res) => {
         });
     }
 
-    // Get market breadth data
+    // Get market breadth data with calculated change_percent
     const breadthQuery = `
-      SELECT 
+      WITH daily_changes AS (
+        SELECT
+          pd1.symbol,
+          pd1.close as current_close,
+          pd2.close as prev_close,
+          pd1.volume,
+          CASE
+            WHEN pd2.close IS NOT NULL AND pd2.close > 0
+            THEN ((pd1.close - pd2.close) / pd2.close) * 100
+            ELSE 0
+          END as calculated_change_percent
+        FROM price_daily pd1
+        LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
+          AND pd2.date = pd1.date - INTERVAL '1 day'
+        WHERE pd1.date = (SELECT MAX(date) FROM price_daily)
+          AND pd1.close IS NOT NULL
+      )
+      SELECT
         COUNT(*) as total_stocks,
-        COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
-        COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
-        COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
-        COUNT(CASE WHEN change_percent > 5 THEN 1 END) as strong_advancing,
-        COUNT(CASE WHEN change_percent < -5 THEN 1 END) as strong_declining,
-        AVG(COALESCE(change_percent, 0)) as avg_change,
+        COUNT(CASE WHEN calculated_change_percent > 0 THEN 1 END) as advancing,
+        COUNT(CASE WHEN calculated_change_percent < 0 THEN 1 END) as declining,
+        COUNT(CASE WHEN calculated_change_percent = 0 THEN 1 END) as unchanged,
+        COUNT(CASE WHEN calculated_change_percent > 5 THEN 1 END) as strong_advancing,
+        COUNT(CASE WHEN calculated_change_percent < -5 THEN 1 END) as strong_declining,
+        AVG(calculated_change_percent) as avg_change,
         AVG(volume) as avg_volume
-      FROM price_daily
-      WHERE date = (SELECT MAX(date) FROM price_daily)
-        AND change_percent IS NOT NULL
+      FROM daily_changes
     `;
 
     const result = await query(breadthQuery);
