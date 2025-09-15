@@ -794,15 +794,34 @@ router.get("/overview", async (req, res) => {
     let indices = [];
     try {
       const indicesQuery = `
-        SELECT 
+        WITH latest_prices AS (
+          SELECT
+            pd1.symbol,
+            pd1.close as current_price,
+            pd2.close as prev_price,
+            CASE
+              WHEN pd2.close IS NOT NULL AND pd2.close > 0
+              THEN pd1.close - pd2.close
+              ELSE 0
+            END as calculated_change,
+            CASE
+              WHEN pd2.close IS NOT NULL AND pd2.close > 0
+              THEN ((pd1.close - pd2.close) / pd2.close) * 100
+              ELSE 0
+            END as calculated_change_percent
+          FROM price_daily pd1
+          LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
+            AND pd2.date = pd1.date - INTERVAL '1 day'
+          WHERE pd1.symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
+            AND pd1.date = (SELECT MAX(date) FROM price_daily WHERE symbol = pd1.symbol)
+            AND pd1.close IS NOT NULL
+        )
+        SELECT
           symbol,
-          close as price,
-          COALESCE(change_amount, 0) as change,
-          COALESCE(change_percent, 0) as changePercent
-        FROM price_daily 
-        WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
-          AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'))
-          AND close IS NOT NULL
+          current_price as price,
+          calculated_change as change,
+          calculated_change_percent as changePercent
+        FROM latest_prices
         ORDER BY symbol
       `;
       const indicesResult = await query(indicesQuery);
