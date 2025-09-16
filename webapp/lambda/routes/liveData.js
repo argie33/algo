@@ -570,7 +570,7 @@ router.get("/quotes", async (req, res) => {
       WITH latest_prices AS (
         SELECT DISTINCT ON (p.symbol)
           p.symbol,
-          p.close_price,
+          p.close,
           p.high_price,
           p.low_price,
           p.open_price,
@@ -578,7 +578,7 @@ router.get("/quotes", async (req, res) => {
           p.change_percent,
           p.change_amount,
           p.date,
-          p.adj_close_price
+          p.adj_close
         FROM price_daily p
         WHERE p.symbol = ANY($1)
         ORDER BY p.symbol, p.date DESC
@@ -587,14 +587,14 @@ router.get("/quotes", async (req, res) => {
         SELECT 
           lp.symbol,
           -- Simulate real-time price with small random variations
-          lp.close_price + (RANDOM() - 0.5) * lp.close_price * 0.002 as current_price,
-          lp.close_price as previous_close,
+          lp.close + (RANDOM() - 0.5) * lp.close * 0.002 as current_price,
+          lp.close as previous_close,
           lp.high_price + (RANDOM() - 0.5) * lp.high_price * 0.001 as day_high,
           lp.low_price + (RANDOM() - 0.5) * lp.low_price * 0.001 as day_low,
           lp.open_price as open_price,
           lp.volume + FLOOR(RANDOM() * 100000) as volume,
           lp.change_percent + (RANDOM() - 0.5) * 0.1 as change_percent,
-          lp.adj_close_price as adjusted_close,
+          lp.adj_close as adjusted_close,
           -- Market status simulation
           CASE 
             WHEN EXTRACT(HOUR FROM NOW() AT TIME ZONE 'America/New_York') BETWEEN 9 AND 15 
@@ -1029,7 +1029,7 @@ router.get("/stream", authenticateToken, async (req, res) => {
         const streamQuery = `
           SELECT DISTINCT ON (s.symbol)
             s.symbol,
-            s.price as close_price,
+            s.price as close,
             0 as volume,
             CURRENT_TIMESTAMP as date
           FROM stocks s
@@ -1042,7 +1042,7 @@ router.get("/stream", authenticateToken, async (req, res) => {
         if (result && result.rows) {
           const streamData = result.rows.map((row) => {
             // Simulate real-time price fluctuations
-            const basePrice = parseFloat(row.close_price);
+            const basePrice = parseFloat(row.close);
             const fluctuation = (Math.random() - 0.5) * 0.02; // ±1% fluctuation
             const currentPrice = basePrice * (1 + fluctuation);
 
@@ -1140,7 +1140,7 @@ router.get("/stream", authenticateToken, async (req, res) => {
 });
 
 // Helper functions for market status
-function isMarketOpen() {
+function _isMarketOpen() {
   const now = new Date();
   const day = now.getDay();
   const hour = now.getUTCHours() - 5; // EST
@@ -1423,6 +1423,48 @@ router.post("/subscriptions", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to create subscription",
+    });
+  }
+});
+
+
+// Live data stream
+router.get("/stream", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        stream: "unavailable",
+        message: "Live streaming not implemented"
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Live data stream unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Live quotes
+router.get("/quotes", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        quotes: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Live quotes unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });

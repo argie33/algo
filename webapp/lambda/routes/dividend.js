@@ -251,16 +251,16 @@ router.get("/calendar", async (req, res) => {
     }
 
     // Calculate summary statistics
-    const eventTypes = dividendEvents.reduce((acc, event) => {
+    const _eventTypes = dividendEvents.reduce((acc, event) => {
       acc[event.event_type] = (acc[event.event_type] || 0) + 1;
       return acc;
     }, {});
 
-    const totalDividendAmount = dividendEvents
+    const _totalDividendAmount = dividendEvents
       .filter((event) => event.event_type === "payment")
       .reduce((sum, event) => sum + event.dividend_amount, 0);
 
-    const avgYield =
+    const _avgYield =
       dividendEvents.length > 0
         ? dividendEvents.reduce((sum, event) => sum + event.dividend_yield, 0) /
           dividendEvents.length
@@ -396,5 +396,28 @@ router.get("/calendar", async (req, res) => {
 });
 
 // Helper functions removed - not needed for not implemented endpoints
+
+
+// Dividend history
+router.get("/history", async (req, res) => {
+  try {
+    const { symbol } = req.query;
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol || "ALL",
+        dividends: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Dividend history unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 module.exports = router;

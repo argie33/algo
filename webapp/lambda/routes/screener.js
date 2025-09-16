@@ -2092,12 +2092,12 @@ router.get("/ai-scan", async (req, res) => {
         };
 
         const strategy =
-          fallbackStrategies[type] || fallbackStrategies.momentum;
+          fallbackStrategies[req.query.type] || fallbackStrategies.momentum;
 
         res.json({
           success: true,
           data: {
-            scanType: type,
+            scanType: req.query.type,
             strategy: strategy.name,
             description: strategy.description,
             results: [],

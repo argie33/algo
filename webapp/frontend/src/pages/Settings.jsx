@@ -1593,7 +1593,7 @@ const Settings = () => {
                       <MenuItem value="30days">30 Days</MenuItem>
                       <MenuItem value="3months">3 Months</MenuItem>
                       <MenuItem value="6months">6 Months</MenuItem>
-                      <MenuItem value="never">Don't Store</MenuItem>
+                      <MenuItem value="never">Don&apos;t Store</MenuItem>
                     </Select>
                   </FormControl>
                 </CardContent>
