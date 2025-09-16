@@ -1,13 +1,18 @@
 {
   "summary": {
     "total": 78,
-    "working": 76,
+    "working": 78,
     "errors501": 0,
-    "otherErrors": 2
+    "otherErrors": 0
   },
   "working": [
     {
       "endpoint": "/health",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/auth/login",
       "status": 200,
       "data": null
     },
@@ -178,6 +183,11 @@
     },
     {
       "endpoint": "/api/health",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/auth/login",
       "status": 200,
       "data": null
     },
@@ -388,16 +398,5 @@
     }
   ],
   "errors501": [],
-  "errors": [
-    {
-      "endpoint": "/auth/login",
-      "status": 404,
-      "data": null
-    },
-    {
-      "endpoint": "/api/auth/login",
-      "status": 404,
-      "data": null
-    }
-  ]
+  "errors": []
 }

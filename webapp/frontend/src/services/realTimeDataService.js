@@ -234,13 +234,17 @@ class RealTimeDataService {
           // Start ping to keep connection alive
           this.startPing();
 
-          // Subscribe to price updates
-          this.webSocket.send(
-            JSON.stringify({
-              type: "subscribe",
-              topics: ["prices", "market_overview", "portfolio_updates"],
-            })
-          );
+          // Use setTimeout to ensure WebSocket is fully ready
+          setTimeout(() => {
+            if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+              this.webSocket.send(
+                JSON.stringify({
+                  type: "subscribe",
+                  topics: ["prices", "market_overview", "portfolio_updates"],
+                })
+              );
+            }
+          }, 10);
 
           // Notify connection listeners
           this.connectionListeners.forEach((callback) => {
