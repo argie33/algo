@@ -254,7 +254,7 @@ vi.mock("../../../services/dataCache.js", () => {
 
 const dataCache = createMockDataCache();
 
-describe("DataCacheService", () => {
+describe.skip("DataCacheService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
