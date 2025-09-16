@@ -396,7 +396,178 @@ function FinancialData() {
       );
     }
 
-    // Handle the new normalized table structure (symbol, date, item_name, value)
+    // Handle the new API structure (direct properties like totalAssets, currentAssets)
+    const hasDirectProperties = actualData.length > 0 && actualData[0].totalAssets !== undefined;
+
+    if (hasDirectProperties) {
+      // Use the new API structure directly
+      const periods = actualData.map((item) => {
+        // Extract all numerical properties except metadata
+        const items = {};
+        Object.entries(item).forEach(([key, value]) => {
+          if (!['symbol', 'date', 'raw'].includes(key) && value !== undefined) {
+            items[key] = value;
+          }
+        });
+
+        return {
+          date: item.date,
+          items: items,
+        };
+      });
+
+      return (
+        <Card>
+          <CardContent>
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{ display: "flex", alignItems: "center" }}
+            >
+              {icon}
+              <Box sx={{ ml: 1 }}>
+                {title} - {ticker}
+              </Box>
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Grid container spacing={3}>
+              {periods.slice(0, 5).map((period, index) => (
+                <Grid item xs={12} md={6} lg={4} key={period.date || index}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography
+                        variant="subtitle1"
+                        sx={{ fontWeight: "bold", mb: 2 }}
+                      >
+                        {period.date
+                          ? new Date(period.date).getFullYear()
+                          : "N/A"}
+                      </Typography>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
+                            {period.items &&
+                              Object.entries(period.items)
+                                .slice(0, 10)
+                                .map(([key, value]) => (
+                                  <TableRow key={key}>
+                                    <TableCell
+                                      sx={{
+                                        py: 0.5,
+                                        fontSize: "0.875rem",
+                                        border: "none",
+                                      }}
+                                    >
+                                      {key.replace(/([A-Z])/g, " $1").trim()}
+                                    </TableCell>
+                                    <TableCell
+                                      align="right"
+                                      sx={{
+                                        py: 0.5,
+                                        fontSize: "0.875rem",
+                                        fontWeight: "bold",
+                                        border: "none",
+                                      }}
+                                    >
+                                      {value || value === 0
+                                        ? formatCurrency(value, 0)
+                                        : "N/A"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                            {!period.items && (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={2}
+                                  sx={{
+                                    py: 1,
+                                    fontSize: "0.875rem",
+                                    border: "none",
+                                    textAlign: "center",
+                                    color: "text.secondary",
+                                  }}
+                                >
+                                  No financial data available for this period
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+            {/* Trend Chart */}
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                Trend Analysis - {title === 'Balance Sheet' ? 'Total Assets' : title === 'Income Statement' ? 'Revenue' : 'Operating Cash Flow'}
+              </Typography>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={periods
+                    .slice(0, 5)
+                    .reverse()
+                    .map((period) => {
+                      // Choose primary metric based on statement type
+                      let value = 0;
+                      let metricName = 'Value';
+
+                      if (title === 'Balance Sheet' && period.items?.totalAssets) {
+                        value = Number(period.items.totalAssets) || 0;
+                        metricName = 'Total Assets';
+                      } else if (title === 'Income Statement' && period.items?.revenue) {
+                        value = Number(period.items.revenue) || 0;
+                        metricName = 'Revenue';
+                      } else if (title === 'Cash Flow Statement' && period.items?.operatingCashFlow) {
+                        value = Number(period.items.operatingCashFlow) || 0;
+                        metricName = 'Operating Cash Flow';
+                      } else {
+                        // Fallback to first available item
+                        const items = period.items;
+                        const firstItem = items && Object.keys(items).length > 0
+                          ? Object.entries(items)[0]
+                          : null;
+                        value = firstItem ? Number(firstItem[1]) || 0 : 0;
+                        metricName = firstItem ? firstItem[0] : 'Value';
+                      }
+
+                      return {
+                        year: period.date
+                          ? new Date(period.date).getFullYear()
+                          : "N/A",
+                        value: value,
+                        name: metricName,
+                      };
+                    })}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="year" />
+                  <YAxis />
+                  <Tooltip
+                    formatter={(value, _name) => {
+                      if (value === null || value === undefined || isNaN(value)) {
+                        return ["N/A", "Value"];
+                      }
+                      return [formatCurrency(value, 0), "Value"];
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#1976d2"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Box>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Handle the old normalized table structure (symbol, date, item_name, value)
     const isNormalizedStructure =
       actualData.length > 0 && actualData[0].item_name !== undefined;
 
@@ -521,7 +692,7 @@ function FinancialData() {
                         year: period.date
                           ? new Date(period.date).getFullYear()
                           : "N/A",
-                        value: firstItem ? firstItem[1] : 0,
+                        value: firstItem ? Number(firstItem[1]) || 0 : 0,
                         name: firstItem ? firstItem[0] : "N/A",
                       };
                     })}
@@ -655,7 +826,7 @@ function FinancialData() {
                       year: period.date
                         ? new Date(period.date).getFullYear()
                         : "N/A",
-                      value: firstItem ? firstItem[1] : 0,
+                      value: firstItem ? Number(firstItem[1]) || 0 : 0,
                       name: firstItem ? firstItem[0] : "N/A",
                     };
                   })}

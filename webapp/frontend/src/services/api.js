@@ -2420,7 +2420,20 @@ export const getIncomeStatement = async (ticker, period = "annual") => {
       `/api/financials/${ticker}/income-statement?period=${period}`
     );
     const result = normalizeApiResponse(response, true);
-    return { data: result };
+
+    // Transform data to match frontend expectations (add items property)
+    const transformedData = Array.isArray(result)
+      ? result.map(period => ({
+          ...period,
+          items: Object.fromEntries(
+            Object.entries(period).filter(([key]) =>
+              !['symbol', 'date', 'raw'].includes(key)
+            )
+          )
+        }))
+      : result;
+
+    return { data: transformedData };
   } catch (error) {
     const errorMessage = handleApiError(error, "get income statement");
     return { data: [], error: errorMessage };
@@ -2446,7 +2459,20 @@ export const getBalanceSheet = async (ticker, period = "annual") => {
       `/api/financials/${ticker}/balance-sheet?period=${period}`
     );
     const result = normalizeApiResponse(response, true);
-    return { data: result };
+
+    // Transform data to match frontend expectations (add items property)
+    const transformedData = Array.isArray(result)
+      ? result.map(period => ({
+          ...period,
+          items: Object.fromEntries(
+            Object.entries(period).filter(([key]) =>
+              !['symbol', 'date', 'raw'].includes(key)
+            )
+          )
+        }))
+      : result;
+
+    return { data: transformedData };
   } catch (error) {
     const errorMessage = handleApiError(error, "get balance sheet");
     return { data: [], error: errorMessage };

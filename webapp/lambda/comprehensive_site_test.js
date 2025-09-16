@@ -10,7 +10,7 @@ const apiEndpoints = [
   { path: '/api/stocks', name: 'Stocks List' },
   { path: '/api/stocks/popular', name: 'Popular Stocks' },
   { path: '/api/market/overview', name: 'Market Overview' },
-  { path: '/api/sentiment/analysis', name: 'Sentiment Analysis' },
+  { path: '/api/sentiment/analysis?symbol=AAPL', name: 'Sentiment Analysis' },
   { path: '/api/metrics/market', name: 'Market Metrics' },
   { path: '/api/metrics/performance', name: 'Performance Metrics' },
   { path: '/api/financials/statements?symbol=AAPL', name: 'Financial Statements' },

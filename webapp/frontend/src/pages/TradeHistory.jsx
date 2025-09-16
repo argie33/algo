@@ -117,7 +117,11 @@ const TradeHistory = () => {
 
   const fetchTradeHistory = async () => {
     const isDevelopment = process.env.NODE_ENV === "development";
-    if (!user?.token && !isDevelopment) {
+
+    // In development mode, use dev-bypass-token if no user token
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+
+    if (!authToken) {
       console.warn("No user token available for fetching trade history");
       setLoading(false);
       return;
@@ -139,7 +143,7 @@ const TradeHistory = () => {
 
       const response = await fetch(`/api/trades/history?${params}`, {
         headers: {
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${authToken}`,
         },
       });
 
@@ -166,14 +170,16 @@ const TradeHistory = () => {
 
   const fetchAnalytics = async () => {
     const isDevelopment = process.env.NODE_ENV === "development";
-    if (!user?.token && !isDevelopment) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+
+    if (!authToken) {
       console.warn("No user token available for fetching analytics");
       return;
     }
 
     try {
       const response = await fetch("/api/trades/analytics/overview", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -187,14 +193,16 @@ const TradeHistory = () => {
 
   const fetchInsights = async () => {
     const isDevelopment = process.env.NODE_ENV === "development";
-    if (!user?.token && !isDevelopment) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+
+    if (!authToken) {
       console.warn("No user token available for fetching insights");
       return;
     }
 
     try {
       const response = await fetch("/api/trades/insights", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -208,14 +216,16 @@ const TradeHistory = () => {
 
   const fetchPerformance = async () => {
     const isDevelopment = process.env.NODE_ENV === "development";
-    if (!user?.token && !isDevelopment) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+
+    if (!authToken) {
       console.warn("No user token available for fetching performance data");
       return;
     }
 
     try {
       const response = await fetch("/api/trades/performance", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -228,7 +238,10 @@ const TradeHistory = () => {
   };
 
   const handleImportTrades = async () => {
-    if (!user?.token) {
+    const isDevelopment = process.env.NODE_ENV === "development";
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+
+    if (!authToken) {
       setError("No authentication token available");
       return;
     }
@@ -237,7 +250,7 @@ const TradeHistory = () => {
       setLoading(true);
       const response = await fetch("/api/trades/import/alpaca", {
         method: "POST",
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
@@ -254,14 +267,17 @@ const TradeHistory = () => {
   };
 
   const handleExportTrades = async (format = "csv") => {
-    if (!user?.token) {
+    const isDevelopment = process.env.NODE_ENV === "development";
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+
+    if (!authToken) {
       setError("No authentication token available");
       return;
     }
 
     try {
       const response = await fetch(`/api/trades/export?format=${format}`, {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
