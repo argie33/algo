@@ -177,12 +177,6 @@ function FinancialData() {
     }
   }, [cashFlowError, ticker, period, logger]);
 
-  useEffect(() => {
-    if (keyMetricsError) {
-      logger.queryError("keyMetrics", keyMetricsError, { ticker });
-    }
-  }, [keyMetricsError, ticker, logger]);
-
   if (import.meta.env && import.meta.env.DEV)
     console.log("📊 FinancialData: Data summary:", {
       ticker,
@@ -214,6 +208,12 @@ function FinancialData() {
     queryFn: () => getKeyMetrics(ticker),
     enabled: !!ticker && tabValue === 3,
   });
+
+  useEffect(() => {
+    if (keyMetricsError) {
+      logger.queryError("keyMetrics", keyMetricsError, { ticker });
+    }
+  }, [keyMetricsError, ticker, logger]);
   const renderKeyMetrics = (data) => {
     // Handle error response
     if (data?.error) {
