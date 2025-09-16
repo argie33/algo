@@ -63,21 +63,24 @@ const OrderManagement = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
+  const isDevelopment = window.location.hostname === "localhost";
+
   // Helper function for authenticated requests
   const _makeAuthenticatedRequest = useCallback(
     async (url, options = {}) => {
-      if (!user?.token) {
+      const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+      if (!authToken) {
         throw new Error("No authentication token available");
       }
 
       const headers = {
         ...options.headers,
-        Authorization: `Bearer ${user.token}`,
+        Authorization: `Bearer ${authToken}`,
       };
 
       return fetch(url, { ...options, headers });
     },
-    [user]
+    [user, isDevelopment]
   );
 
   // State management
@@ -120,7 +123,8 @@ const OrderManagement = () => {
   const [executionAlerts, setExecutionAlerts] = useState([]);
 
   const fetchOrders = useCallback(async () => {
-    if (!user?.token) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+    if (!authToken) {
       console.warn("No user token available for fetching orders");
       setLoading(false);
       return;
@@ -129,7 +133,7 @@ const OrderManagement = () => {
     try {
       setLoading(true);
       const response = await fetch("/api/orders", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (!response.ok) throw new Error("Failed to fetch orders");
@@ -173,17 +177,18 @@ const OrderManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, isDevelopment]);
 
   const fetchAccountInfo = useCallback(async () => {
-    if (!user?.token) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+    if (!authToken) {
       console.warn("No user token available for fetching account info");
       return;
     }
 
     try {
       const response = await fetch("/api/orders/account", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
@@ -203,17 +208,18 @@ const OrderManagement = () => {
         patternDayTrader: false,
       });
     }
-  }, [user]);
+  }, [user, isDevelopment]);
 
   const fetchPositions = useCallback(async () => {
-    if (!user?.token) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+    if (!authToken) {
       console.warn("No user token available for fetching positions");
       return;
     }
 
     try {
       const response = await fetch("/api/portfolio/holdings", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
@@ -224,17 +230,18 @@ const OrderManagement = () => {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Failed to fetch positions:", err);
     }
-  }, [user]);
+  }, [user, isDevelopment]);
 
   const fetchWatchlist = useCallback(async () => {
-    if (!user?.token) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+    if (!authToken) {
       console.warn("No user token available for fetching watchlist");
       return;
     }
 
     try {
       const response = await fetch("/api/watchlist", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
@@ -244,17 +251,18 @@ const OrderManagement = () => {
     } catch (err) {
       setWatchlist(["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]);
     }
-  }, [user]);
+  }, [user, isDevelopment]);
 
   const fetchOrderUpdates = useCallback(async () => {
-    if (!user?.token) {
+    const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
+    if (!authToken) {
       console.warn("No user token available for fetching order updates");
       return;
     }
 
     try {
       const response = await fetch("/api/orders", {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
@@ -271,7 +279,7 @@ const OrderManagement = () => {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Failed to fetch order updates:", err);
     }
-  }, [user]);
+  }, [user, isDevelopment]);
 
   const fetchMarketData = useCallback(async () => {
     try {
@@ -285,10 +293,11 @@ const OrderManagement = () => {
         return;
       }
 
+      const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
       const response = await fetch(
         `/api/websocket/stream/${symbols.join(",")}`,
         {
-          headers: { Authorization: `Bearer ${user.token}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         }
       );
 
@@ -300,12 +309,11 @@ const OrderManagement = () => {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Failed to fetch market data:", err);
     }
-  }, [user, watchlist, orders]);
+  }, [user, isDevelopment, watchlist, orders]);
 
   // Fetch initial data
   useEffect(() => {
     // In development mode, allow demo access even without full authentication
-    const isDevelopment = window.location.hostname === "localhost";
 
     if (!isDevelopment && (!isAuthenticated || !user)) {
       navigate("/");
@@ -336,6 +344,7 @@ const OrderManagement = () => {
     fetchWatchlist,
     fetchOrderUpdates,
     fetchMarketData,
+    isDevelopment,
   ]);
 
   const handleSubmitOrder = async () => {
@@ -364,11 +373,12 @@ const OrderManagement = () => {
     try {
       setLoading(true);
 
+      const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify(orderForm),
       });
@@ -416,9 +426,10 @@ const OrderManagement = () => {
 
   const cancelOrder = async (orderId) => {
     try {
+      const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
       const response = await fetch(`/api/orders/${orderId}/cancel`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (!response.ok) throw new Error("Failed to cancel order");
@@ -440,11 +451,12 @@ const OrderManagement = () => {
 
   const _modifyOrder = async (orderId, modifications) => {
     try {
+      const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
       const response = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify(modifications),
       });
@@ -459,11 +471,12 @@ const OrderManagement = () => {
 
   const getOrderPreview = async (orderData) => {
     try {
+      const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
       const response = await fetch("/api/orders/preview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify(orderData),
       });
@@ -581,7 +594,6 @@ const OrderManagement = () => {
   );
 
   // Only show auth warning in production
-  const isDevelopment = window.location.hostname === "localhost";
   if (!isDevelopment && !isAuthenticated) {
     return (
       <Container maxWidth="md" sx={{ mt: 4 }}>
