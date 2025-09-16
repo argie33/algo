@@ -1,0 +1,11 @@
+
+> financial-dashboard-lambda@1.0.0 test
+> jest --coverage --coverageReporters=text --coverageReporters=html --coverageReporters=lcov --run --reporter=json
+
+● Unrecognized CLI Parameter:
+
+  Unrecognized option "run". Did you mean "u"?
+
+  CLI Options Documentation:
+  https://jestjs.io/docs/cli
+

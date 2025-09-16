@@ -1,0 +1,103 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/performance/portfolio
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Created/verified table: price_alerts
+✅ Created/verified table: risk_alerts
+✅ Created/verified table: stock_scores
+✅ Created/verified table: key_metrics
+✅ Created/verified table: dividend_calendar
+✅ Created/verified table: trading_strategies
+✅ Created/verified table: user_risk_limits
+✅ Created/verified table: trade_history
+✅ Created/verified table: portfolio_summary
+✅ Created/verified table: user_dashboard_settings
+✅ Database schema initialization completed
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+DEBUG: holdingsQuery = 
+      SELECT ph.symbol, ph.quantity as shares, ph.average_cost as cost_basis, ph.current_price, ph.total_value as market_value,
+             ph.unrealized_pnl as unrealized_gain_loss, 
+             CASE WHEN ph.average_cost > 0 THEN (ph.unrealized_pnl / (ph.average_cost * ph.quantity)) * 100 ELSE 0 END as unrealized_gain_loss_percent,
+             ph.last_updated as updated_at
+      FROM portfolio_holdings ph 
+      WHERE ph.user_id = $1 AND ph.quantity > 0
+      ORDER BY ph.total_value DESC
+    
+Database query error: {
+  error: 'column ph.total_value does not exist',
+  query: '\n' +
+    '      SELECT ph.symbol, ph.quantity as shares, ph.average_cost as cost_basis, ph.current_price, ph....',
+  params: '1 parameters',
+  code: '42703'
+}
+Portfolio performance database error: error: column ph.total_value does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:944:20)
+    at async /home/stocks/algo/webapp/lambda/routes/performance.js:321:28 {
+  length: 112,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '98',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [12/Sep/2025:10:05:43 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 503 552 "-" "curl/8.5.0"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+::1 - - [12/Sep/2025:10:05:55 +0000] "GET /api/alerts/active HTTP/1.1" 200 2526 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: test-token
+::1 - - [12/Sep/2025:10:06:10 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 438 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: dev-token
+::1 - - [12/Sep/2025:10:06:11 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 438 "-" "curl/8.5.0"
+Killed

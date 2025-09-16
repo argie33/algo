@@ -1,584 +1,440 @@
-const express = require('express');
-const { query } = require('../utils/database');
+/**
+ * Data Routes - General data access endpoints
+ * Provides unified access to various data types (price, technical, fundamental)
+ */
+
+const express = require("express");
 
 const router = express.Router();
+const { query } = require("../utils/database");
 
-// Get EPS revisions data
-router.get('/eps-revisions', async (req, res) => {
+/**
+ * @route GET /api/data
+ * @description Get general data API information
+ * @access Public
+ */
+router.get("/", async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
-    const symbol = req.query.symbol;
-
-    let whereClause = '';
-    const queryParams = [];
-    let paramCount = 0;
-
-    if (symbol) {
-      paramCount++;
-      whereClause = `WHERE symbol = $${paramCount}`;
-      queryParams.push(symbol.toUpperCase());
-    }
-
-    const revisionsQuery = `
-      SELECT 
-        symbol,
-        period,
-        current_estimate,
-        seven_days_ago,
-        thirty_days_ago,
-        sixty_days_ago,
-        ninety_days_ago,
-        revision_direction,
-        fetched_at
-      FROM eps_revisions
-      ${whereClause}
-      ORDER BY symbol, period DESC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total FROM eps_revisions ${whereClause}
-    `;
-
-    queryParams.push(limit, offset);
-
-    const [revisionsResult, countResult] = await Promise.all([
-      query(revisionsQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    if (!revisionsResult || !Array.isArray(revisionsResult.rows) || revisionsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    try {
+      console.log("📊 Data API info requested");
+    } catch (e) {
+      // Ignore console logging errors
     }
 
     res.json({
-      data: revisionsResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+      message: "Data API - Ready",
+      timestamp: new Date().toISOString(),
+      status: "operational",
+      endpoints: [
+        "/:symbol - Get comprehensive data for a symbol",
+        "/historical/:symbol - Get historical data for a symbol",
+        "/realtime/:symbol - Get real-time data for a symbol",
+        "/bulk - Get data for multiple symbols",
+      ],
     });
-
   } catch (error) {
-    console.error('Error fetching EPS revisions:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    try {
+      console.error("❌ Data API info error:", error);
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    if (res.serverError) {
+      res.serverError("Failed to get data API information");
+    } else {
+      res.status(500).json({
+        success: false,
+        error: "Failed to get data API information",
+      });
+    }
   }
 });
 
-// Get EPS trend data
-router.get('/eps-trend', async (req, res) => {
+/**
+ * @route GET /api/data/bulk
+ * @description Get data for multiple symbols
+ * @access Public
+ */
+router.get("/bulk", async (req, res) => {
+  const { symbols } = req.query;
+
+  if (!symbols) {
+    return res.validationError("symbols parameter is required");
+  }
+
+  const symbolsList = symbols.split(",").map((s) => s.trim().toUpperCase());
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
-    const symbol = req.query.symbol;
+    console.log(
+      `📊 [DATA] Fetching bulk data for ${symbolsList.length} symbols`
+    );
+  } catch (e) {
+    // Ignore console logging errors
+  }
 
-    let whereClause = '';
-    const queryParams = [];
-    let paramCount = 0;
-
-    if (symbol) {
-      paramCount++;
-      whereClause = `WHERE symbol = $${paramCount}`;
-      queryParams.push(symbol.toUpperCase());
-    }
-
-    const trendQuery = `
-      SELECT 
-        symbol,
-        period,
-        current_estimate,
-        seven_days_ago,
-        thirty_days_ago,
-        sixty_days_ago,
-        ninety_days_ago,
-        number_of_revisions_up,
-        number_of_revisions_down,
-        fetched_at
-      FROM eps_trend
-      ${whereClause}
-      ORDER BY symbol, period DESC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+  try {
+    const bulkQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily 
+      WHERE symbol = ANY($1) 
+      AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
     `;
 
-    const countQuery = `
-      SELECT COUNT(*) as total FROM eps_trend ${whereClause}
-    `;
+    const result = await query(bulkQuery, [symbolsList]);
 
-    queryParams.push(limit, offset);
-
-    const [trendResult, countResult] = await Promise.all([
-      query(trendQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    if (!trendResult || !Array.isArray(trendResult.rows) || trendResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
-    res.json({
-      data: trendResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+    const dataBySymbol = {};
+    result.rows.forEach((row) => {
+      dataBySymbol[row.symbol] = row;
     });
 
+    try {
+      console.log(
+        `✅ [DATA] Retrieved bulk data for ${result.rows.length}/${symbolsList.length} symbols`
+      );
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    res.json({
+      requested_symbols: symbolsList,
+      found_symbols: Object.keys(dataBySymbol),
+      data: dataBySymbol,
+      count: result.rows.length,
+    });
   } catch (error) {
-    console.error('Error fetching EPS trend:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    try {
+      console.error("❌ [DATA] Error fetching bulk data:", error);
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    res.serverError("Failed to retrieve bulk data", {
+      requested_symbols: symbolsList,
+      error: error.message,
+      service: "data-api",
+    });
   }
 });
 
-// Get growth estimates data
-router.get('/growth-estimates', async (req, res) => {
+/**
+ * @route GET /api/data/:symbol
+ * @description Get comprehensive data for a symbol (price + technical)
+ * @access Public
+ */
+router.get("/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  const symbolUpper = symbol.toUpperCase();
+
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
-    const symbol = req.query.symbol;
-
-    let whereClause = '';
-    const queryParams = [];
-    let paramCount = 0;
-
-    if (symbol) {
-      paramCount++;
-      whereClause = `WHERE symbol = $${paramCount}`;
-      queryParams.push(symbol.toUpperCase());
+    try {
+      console.log(`📊 [DATA] Fetching comprehensive data for ${symbolUpper}`);
+    } catch (e) {
+      // Ignore console logging errors
     }
 
-    const growthQuery = `
-      SELECT 
-        symbol,
-        period,
-        growth_estimate,
-        number_of_analysts,
-        low_estimate,
-        high_estimate,
-        mean_estimate,
-        fetched_at
-      FROM growth_estimates
-      ${whereClause}
-      ORDER BY symbol, period DESC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    // Get latest price data
+    const priceQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 1
     `;
 
-    const countQuery = `
-      SELECT COUNT(*) as total FROM growth_estimates ${whereClause}
+    // Get latest technical data
+    const technicalQuery = `
+      SELECT symbol, date, rsi, macd, macd_signal, macd_hist,
+             sma_20, sma_50, ema_4, ema_9, ema_21,
+             bbands_upper, bbands_lower, bbands_middle,
+             adx, atr
+      FROM technical_data_daily 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 1
     `;
 
-    queryParams.push(limit, offset);
-
-    const [growthResult, countResult] = await Promise.all([
-      query(growthQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
+    const [priceResult, technicalResult] = await Promise.all([
+      query(priceQuery, [symbolUpper]),
+      query(technicalQuery, [symbolUpper]),
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
+    const priceData = priceResult.rows[0] || null;
+    const technicalData = technicalResult.rows[0] || null;
 
-    if (!growthResult || !Array.isArray(growthResult.rows) || growthResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    if (!priceData && !technicalData) {
+      try {
+        console.log(`❌ [DATA] No data found for symbol ${symbolUpper}`);
+      } catch (e) {
+        // Ignore console logging errors
+      }
+      if (res.notFound) {
+        return res.notFound(`No data available for symbol ${symbolUpper}`);
+      } else {
+        return res.status(404).json({
+          success: false,
+          error: `No data available for symbol ${symbolUpper}`,
+        });
+      }
     }
 
-    res.json({
-      data: growthResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
+    const responseData = {
+      symbol: symbolUpper,
+      price: priceData,
+      technical: technicalData,
+      timestamp: new Date().toISOString(),
+    };
 
+    try {
+      console.log(`✅ [DATA] Successfully fetched data for ${symbolUpper}`);
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    res.json(responseData);
   } catch (error) {
-    console.error('Error fetching growth estimates:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    try {
+      console.error(`❌ [DATA] Error fetching data for ${symbolUpper}:`, error);
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    if (res.serverError) {
+      res.serverError(`Failed to retrieve data for ${symbolUpper}`, {
+        symbol: symbolUpper,
+        error: error.message,
+        service: "data-api",
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: `Failed to retrieve data for ${symbolUpper}`,
+        symbol: symbolUpper,
+        details: error.message,
+        service: "data-api",
+      });
+    }
   }
 });
 
-// Get economic data
-router.get('/economic', async (req, res) => {
+/**
+ * @route GET /api/data/historical/:symbol
+ * @description Get historical data for a symbol
+ * @access Public
+ */
+router.get("/historical/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  const { start, end, limit = 50 } = req.query;
+  const symbolUpper = symbol.toUpperCase();
+
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
-    const series = req.query.series;
-
-    let whereClause = '';
-    const queryParams = [];
-    let paramCount = 0;
-
-    if (series) {
-      paramCount++;
-      whereClause = `WHERE series_id = $${paramCount}`;
-      queryParams.push(series);
-    }
-
-    const economicQuery = `
-      SELECT 
-        series_id,
-        date,
-        value,
-        title,
-        units,
-        frequency,
-        last_updated
-      FROM economic_data
-      ${whereClause}
-      ORDER BY series_id, date DESC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total FROM economic_data ${whereClause}
-    `;
-
-    queryParams.push(limit, offset);
-
-    const [economicResult, countResult] = await Promise.all([
-      query(economicQuery, queryParams),
-      query(countQuery, queryParams.slice(0, paramCount))
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    if (!economicResult || !Array.isArray(economicResult.rows) || economicResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
-    res.json({
-      data: economicResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching economic data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    console.log(`📊 [DATA] Fetching historical data for ${symbolUpper}`);
+  } catch (e) {
+    // Ignore console logging errors
   }
-});
 
-// Get economic data (for DataValidation page - matches frontend expectation)
-router.get('/economic/data', async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
-    console.log(`Economic data endpoint called with limit: ${limit}`);
-    
-    const economicQuery = `
-      SELECT series_id, date, value
-      FROM economic_data 
-      ORDER BY date DESC, series_id ASC
-      LIMIT $1
+    let historicalQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily 
+      WHERE symbol = $1
     `;
-    
-    const result = await query(economicQuery, [limit]);
-    
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+
+    const queryParams = [symbolUpper];
+
+    if (start) {
+      historicalQuery += ` AND date >= $${queryParams.length + 1}`;
+      queryParams.push(start);
     }
-    
+
+    if (end) {
+      historicalQuery += ` AND date <= $${queryParams.length + 1}`;
+      queryParams.push(end);
+    }
+
+    historicalQuery += ` ORDER BY date DESC LIMIT $${queryParams.length + 1}`;
+    queryParams.push(parseInt(limit));
+
+    const result = await query(historicalQuery, queryParams);
+
+    if (result.rows.length === 0) {
+      try {
+        console.log(
+          `❌ [DATA] No historical data found for symbol ${symbolUpper}`
+        );
+      } catch (e) {
+        // Ignore console logging errors
+      }
+      return res.notFound(
+        `No historical data available for symbol ${symbolUpper}`
+      );
+    }
+
+    try {
+      console.log(
+        `✅ [DATA] Retrieved ${result.rows.length} historical records for ${symbolUpper}`
+      );
+    } catch (e) {
+      // Ignore console logging errors
+    }
     res.json({
+      symbol: symbolUpper,
       data: result.rows,
       count: result.rows.length,
-      limit: limit,
-      timestamp: new Date().toISOString()
+      parameters: { start, end, limit },
     });
-    
   } catch (error) {
-    console.error('Error fetching economic data:', error);
-    res.status(500).json({ 
-      error: 'Database error',
-      details: error.message,
-      timestamp: new Date().toISOString()
+    try {
+      console.error(
+        `❌ [DATA] Error fetching historical data for ${symbolUpper}:`,
+        error
+      );
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    res.serverError(`Failed to retrieve historical data for ${symbolUpper}`, {
+      symbol: symbolUpper,
+      error: error.message,
+      service: "data-api",
     });
   }
 });
 
-// Get NAAIM exposure data
-router.get('/naaim', async (req, res) => {
+/**
+ * @route GET /api/data/realtime/:symbol
+ * @description Get real-time data for a symbol
+ * @access Public
+ */
+router.get("/realtime/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  const { mock_live = "false" } = req.query;
+  const symbolUpper = symbol.toUpperCase();
+
   try {
-    const limit = parseInt(req.query.limit) || 50;
-    const naaimQuery = `
-      SELECT 
-        date,
-        naaim_number_mean,
-        bearish,
-        bullish
-      FROM naaim
-      ORDER BY date DESC
-      LIMIT $1
+    console.log(`📊 [DATA] Fetching real-time data for ${symbolUpper}`);
+  } catch (e) {
+    // Ignore console logging errors
+  }
+
+  try {
+    // Get the latest historical data as base
+    const baseQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 1
     `;
 
-    const result = await query(naaimQuery, [limit]);
+    const result = await query(baseQuery, [symbolUpper]);
 
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
-    res.json({
-      data: result.rows,
-      count: result.rows.length
-    });
-
-  } catch (error) {
-    console.error('Error fetching NAAIM data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
-  }
-});
-
-// Get Fear & Greed Index data
-router.get('/fear-greed', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 50;    const fearGreedQuery = `
-      SELECT 
-        date,
-        index_value,
-        rating,
-        fetched_at
-      FROM fear_greed_index
-      ORDER BY date DESC
-      LIMIT $1
-    `;
-
-    const result = await query(fearGreedQuery, [limit]);
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
-    res.json({
-      data: result.rows,
-      count: result.rows.length
-    });
-
-  } catch (error) {
-    console.error('Error fetching Fear & Greed data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
-  }
-});
-
-// Get data validation summary
-router.get('/validation-summary', async (req, res) => {
-  try {
-    const summaryQuery = `
-      SELECT 
-        'stock_symbols' as table_name,
-        COUNT(*) as record_count,
-        NULL as last_updated
-      FROM stock_symbols
-      UNION ALL
-      SELECT 
-        'earnings_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM earnings_estimates
-      UNION ALL
-      SELECT 
-        'earnings_history' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM earnings_history
-      UNION ALL
-      SELECT 
-        'revenue_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM revenue_estimates
-      UNION ALL
-      SELECT 
-        'growth_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM growth_estimates
-      UNION ALL
-      SELECT 
-        'eps_revisions' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM eps_revisions
-      UNION ALL
-      SELECT 
-        'eps_trend' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM eps_trend
-      UNION ALL
-      SELECT 
-        'technical_data_daily' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM technical_data_daily
-      UNION ALL
-      SELECT 
-        'analyst_recommendations' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM analyst_recommendations
-      UNION ALL
-      SELECT 
-        'aaii_sentiment' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM aaii_sentiment
-      ORDER BY table_name
-    `;
-
-    const result = await query(summaryQuery);
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
-    res.json({
-      summary: result.rows,
-      generated_at: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching validation summary:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
-  }
-});
-
-// Get all financial data for a symbol across all statement types
-router.get('/financials/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const limit = parseInt(req.query.limit) || 10;
-
-    // Query all financial statement types
-    const queries = [
-      { name: 'TTM Income Statement', table: 'ttm_income_stmt' },
-      { name: 'TTM Cash Flow', table: 'ttm_cashflow' },
-      { name: 'Annual Income Statement', table: 'income_stmt' },
-      { name: 'Annual Cash Flow', table: 'cash_flow' },
-      { name: 'Balance Sheet', table: 'balance_sheet' },
-      { name: 'Quarterly Income Statement', table: 'quarterly_income_stmt' },
-      { name: 'Quarterly Cash Flow', table: 'quarterly_cashflow' },
-      { name: 'Quarterly Balance Sheet', table: 'quarterly_balance_sheet' }
-    ];
-
-    const results = {};
-
-    for (const { name, table } of queries) {
+    if (result.rows.length === 0) {
       try {
-        const financialQuery = `
-          SELECT date, item_name, value
-          FROM ${table}
-          WHERE symbol = $1
-          ORDER BY date DESC, item_name
-          LIMIT $2
-        `;
-        
-        const result = await query(financialQuery, [symbol.toUpperCase(), limit * 50]); // Get more items per date
-        
-        // Transform the data by date
-        const transformedData = {};
-        result.rows.forEach(row => {
-          const dateKey = row.date;
-          if (!transformedData[dateKey]) {
-            transformedData[dateKey] = {
-              date: row.date,
-              items: {}
-            };
-          }
-          transformedData[dateKey].items[row.item_name] = row.value;
-        });
-
-        results[name] = Object.values(transformedData)
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
-          .slice(0, limit);
-
-      } catch (tableError) {
-        console.warn(`Table ${table} not accessible:`, tableError.message);
-        results[name] = [];
+        console.log(`❌ [DATA] No data found for symbol ${symbolUpper}`);
+      } catch (e) {
+        // Ignore console logging errors
       }
+      return res.notFound(
+        `No real-time data available for symbol ${symbolUpper}`
+      );
     }
 
-    if (Object.values(results).every(tableData => tableData.length === 0)) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
+    const baseData = result.rows[0];
 
-    res.json({
-      symbol: symbol.toUpperCase(),
-      data: results,
-      limit
-    });
+    // Generate simulated real-time data based on historical prices
+    if (mock_live === "true") {
+      const now = new Date();
+      const marketOpen = new Date(now);
+      marketOpen.setUTCHours(14, 30, 0, 0); // 9:30 AM EST
+      const marketClose = new Date(now);
+      marketClose.setUTCHours(21, 0, 0, 0); // 4:00 PM EST
 
-  } catch (error) {
-    console.error('Error fetching comprehensive financial data:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
-  }
-});
+      const isMarketHours = now >= marketOpen && now <= marketClose;
+      const lastPrice =
+        parseFloat(baseData.close) || parseFloat(baseData.adj_close) || 100;
 
-// Get all available financial metrics (item names) across all tables
-router.get('/financial-metrics', async (req, res) => {
-  try {
-    const tables = [
-      'ttm_income_stmt', 'ttm_cashflow', 'income_stmt', 'cash_flow', 
-      'balance_sheet', 'quarterly_income_stmt', 'quarterly_cashflow', 'quarterly_balance_sheet'
-    ];
+      // Generate realistic price movements (±0.5% typical intraday movement)
+      const volatility = 0.005;
+      const randomChange = (Math.random() - 0.5) * 2 * volatility;
+      const currentPrice = lastPrice * (1 + randomChange);
 
-    const metrics = {};
+      // Calculate day's change
+      const dayChange = currentPrice - lastPrice;
+      const dayChangePercent = ((currentPrice - lastPrice) / lastPrice) * 100;
 
-    for (const table of tables) {
+      // Generate bid/ask spread (typically 0.01-0.05% for liquid stocks)
+      const spread = currentPrice * 0.0001;
+      const bid = currentPrice - spread / 2;
+      const ask = currentPrice + spread / 2;
+
+      // Simulate volume (random between 80-120% of daily average)
+      const baseVolume = parseInt(baseData.volume) || 1000000;
+      const currentVolume = Math.floor(
+        baseVolume * (0.1 + Math.random() * 0.3)
+      ); // Partial day volume
+
+      const realtimeData = {
+        symbol: symbolUpper,
+        current_price: parseFloat(currentPrice.toFixed(2)),
+        bid: parseFloat(bid.toFixed(2)),
+        ask: parseFloat(ask.toFixed(2)),
+        day_change: parseFloat(dayChange.toFixed(2)),
+        day_change_percent: parseFloat(dayChangePercent.toFixed(2)),
+        volume: currentVolume,
+        last_trade_time: now.toISOString(),
+        market_status: isMarketHours ? "open" : "closed",
+        previous_close: lastPrice,
+        day_high: Math.max(lastPrice, currentPrice * 1.002),
+        day_low: Math.min(lastPrice, currentPrice * 0.998),
+        real_time: true,
+        data_source: "simulated_live",
+        last_updated: now.toISOString(),
+      };
+
       try {
-        const metricsQuery = `
-          SELECT DISTINCT item_name, COUNT(*) as occurrence_count
-          FROM ${table}
-          GROUP BY item_name
-          ORDER BY item_name
-        `;
-        
-        const result = await query(metricsQuery);
-        metrics[table] = result.rows;
-
-      } catch (tableError) {
-        console.warn(`Table ${table} not accessible:`, tableError.message);
-        metrics[table] = [];
+        console.log(
+          `✅ [DATA] Generated simulated real-time data for ${symbolUpper}`
+        );
+      } catch (e) {
+        // Ignore console logging errors
       }
+      res.json({
+        symbol: symbolUpper,
+        data: realtimeData,
+        market_status: isMarketHours ? "open" : "closed",
+        disclaimer:
+          "Simulated real-time data for development - not actual market data",
+      });
+    } else {
+      // Return latest historical data with proper formatting
+      const data = {
+        ...baseData,
+        current_price:
+          parseFloat(baseData.close) || parseFloat(baseData.adj_close),
+        real_time: false,
+        data_source: "historical",
+        last_updated: new Date().toISOString(),
+      };
+
+      try {
+        console.log(`✅ [DATA] Retrieved historical data for ${symbolUpper}`);
+      } catch (e) {
+        // Ignore console logging errors
+      }
+      res.json({
+        symbol: symbolUpper,
+        data: data,
+        disclaimer:
+          "Real-time data feed not implemented - showing latest historical data",
+      });
     }
-
-    if (Object.values(metrics).every(tableMetrics => tableMetrics.length === 0)) {
-      return res.status(404).json({ error: 'No data found for this query' });
-    }
-
-    res.json({
-      metrics,
-      tables: tables,
-      generated_at: new Date().toISOString()
-    });
-
   } catch (error) {
-    console.error('Error fetching financial metrics:', error);
-    res.status(500).json({ error: 'Database error', details: error.message });
+    try {
+      console.error(
+        `❌ [DATA] Error fetching real-time data for ${symbolUpper}:`,
+        error
+      );
+    } catch (e) {
+      // Ignore console logging errors
+    }
+    res.serverError(`Failed to retrieve real-time data for ${symbolUpper}`, {
+      symbol: symbolUpper,
+      error: error.message,
+      service: "data-api",
+    });
   }
 });
 

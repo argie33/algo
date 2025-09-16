@@ -1,20 +1,63 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Financial Dashboard</title>
-    <meta name="description" content="Professional financial data dashboard with real-time stock metrics, market analysis, and portfolio tools." />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-C4fCNShD.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-Cr2nE3UY.js">
-    <link rel="modulepreload" crossorigin href="/assets/mui-qKKVx3rW.js">
-    <link rel="modulepreload" crossorigin href="/assets/charts-DRURijbb.js">
+    <meta
+      name="description"
+      content="Professional financial data dashboard with real-time stock metrics, market analysis, and portfolio tools."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="/assets/index-DSUtKTCv.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-misc-C1JC95Pr.js">
+    <link rel="modulepreload" crossorigin href="/assets/mui-CmhyR9sP.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-BBMmebbj.js">
+    <link rel="modulepreload" crossorigin href="/assets/query-CwQrFGJO.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-DN40xT9X.js">
+    <link rel="modulepreload" crossorigin href="/assets/analysis-DyFx2yZt.js">
+    <link rel="modulepreload" crossorigin href="/assets/pages-CCbJfIh7.js">
+    <link rel="modulepreload" crossorigin href="/assets/trading-D0qXprQz.js">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Fix hoist-non-react-statics ContextConsumer issue in production
+      (function() {
+        // Create early React namespace
+        window.React = window.React || {};
+
+        // Intercept ContextConsumer property assignments
+        const reactDesc = Object.getOwnPropertyDescriptor(window, 'React') || { configurable: true };
+        if (reactDesc.configurable) {
+          let reactObj = window.React;
+          Object.defineProperty(window, 'React', {
+            get: () => reactObj,
+            set: (value) => {
+              if (value && typeof value === 'object') {
+                reactObj = value;
+                // Ensure ContextConsumer is always available
+                if (!reactObj.ContextConsumer) {
+                  reactObj.ContextConsumer = function() { return null; };
+                }
+              }
+            },
+            configurable: true
+          });
+        }
+
+        // Provide fallback ContextConsumer
+        if (!window.React.ContextConsumer) {
+          window.React.ContextConsumer = function() { return null; };
+        }
+      })();
+    </script>
+    <script src="/config.js"></script>
   </body>
 </html>

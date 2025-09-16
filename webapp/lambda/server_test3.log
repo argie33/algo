@@ -1,0 +1,2202 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/performance/portfolio
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Created/verified table: price_alerts
+✅ Created/verified table: risk_alerts
+✅ Created/verified table: stock_scores
+✅ Created/verified table: key_metrics
+✅ Created/verified table: dividend_calendar
+✅ Created/verified table: trading_strategies
+✅ Created/verified table: user_risk_limits
+✅ Created/verified table: trade_history
+✅ Created/verified table: portfolio_summary
+✅ Created/verified table: user_dashboard_settings
+✅ Database schema initialization completed
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:12:42 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 200 478 "-" "curl/8.5.0"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:12:49 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 200 478 "-" "curl/8.5.0"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:12:56 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 200 478 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:10:13:29 +0000] "GET /api/health HTTP/1.1" 200 331 "-" "curl/8.5.0"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+::1 - - [12/Sep/2025:10:13:29 +0000] "GET /api/alerts/active HTTP/1.1" 200 2526 "-" "curl/8.5.0"
+Processing request: GET /api/dividend/calendar
+Database connection verified for database-dependent endpoint
+📅 Dividend calendar requested for next 30 days, type: all, symbol: all
+🔍 Attempting to query dividend_calendar database...
+📊 Executing dividend calendar query...
+✅ Found 5 dividend events from database
+::1 - - [12/Sep/2025:10:13:29 +0000] "GET /api/dividend/calendar HTTP/1.1" 200 3435 "-" "curl/8.5.0"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:13:29 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 200 478 "-" "curl/8.5.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+OPTIMIZED Stocks main endpoint called with params: {}
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 15 stocks, 15 total
+::1 - - [12/Sep/2025:10:13:29 +0000] "GET /api/stocks HTTP/1.1" 200 14762 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio holdings endpoint called for authenticated user: dev-user-bypass
+::1 - - [12/Sep/2025:10:13:29 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 6468 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:10:14:35 +0000] "GET /api/health HTTP/1.1" 200 332 "-" "curl/8.5.0"
+Processing request: GET /api/data/AAPL
+Database connection verified for database-dependent endpoint
+📊 [DATA] Fetching comprehensive data for AAPL
+✅ [DATA] Successfully fetched data for AAPL
+::1 - - [12/Sep/2025:10:14:43 +0000] "GET /api/data/AAPL HTTP/1.1" 200 479 "-" "curl/8.5.0"
+Processing request: GET /api/news/recent
+Database connection verified for database-dependent endpoint
+📰 Recent news requested, limit: 20, hours: 24
+::1 - - [12/Sep/2025:10:14:48 +0000] "GET /api/news/recent HTTP/1.1" 200 7445 "-" "curl/8.5.0"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: AAPL,MSFT, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/market/correlation?symbols=AAPL,MSFT HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1W
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/market/correlation?period=1W HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: 1d, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/scores/momentum?limit=10&timeframe=1d HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/orders/active HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: AAPL, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/orders/active?symbol=AAPL HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: BUY
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/orders/active?side=BUY HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1W, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/metrics/dashboard?period=1W HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: invalid
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/market/correlation?period=invalid HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/MSFT
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for MSFT via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for MSFT: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/financials/ratios/MSFT HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/GOOGL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for GOOGL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for GOOGL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/financials/ratios/GOOGL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/social/leaderboard
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/social/leaderboard HTTP/1.1" 404 632 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/social/feed
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/social/feed HTTP/1.1" 404 611 "-" "-"
+Processing request: GET /api/social/portfolios
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/social/portfolios HTTP/1.1" 404 629 "-" "-"
+Processing request: POST /api/social/copy-trade
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "POST /api/social/copy-trade HTTP/1.1" 404 629 "-" "-"
+Processing request: GET /api/social/copy-trades/2
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/social/copy-trades/2 HTTP/1.1" 404 638 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+📊 Portfolio summary requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/summary HTTP/1.1" 200 597 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+📋 Portfolio positions requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/positions HTTP/1.1" 200 99 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 438 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+💰 Portfolio value requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/value HTTP/1.1" 200 700 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocation requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/allocation HTTP/1.1" 200 227 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocations requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/allocations HTTP/1.1" 200 1007 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+Portfolio analytics endpoint called for authenticated user: mock-access-token, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/analytics HTTP/1.1" 200 704 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+📈 Portfolio returns requested for user: mock-access-token, period: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/returns HTTP/1.1" 200 758 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+Portfolio benchmark endpoint called for SPY, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 200 135 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+Portfolio risk endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/risk HTTP/1.1" 200 323 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+Portfolio risk analysis endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 200 266 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+⚠️ Portfolio risk analysis requested for user: mock-access-token
+Database query error: {
+  error: 'column "user_id" does not exist',
+  query: '\n' +
+    '        SELECT risk_score, beta, var_1d \n' +
+    '        FROM portfolio_risk \n' +
+    '        WHERE user_id = $1 \n' +
+    ' ...',
+  params: '1 parameters',
+  code: '42703'
+}
+Could not fetch risk metrics: column "user_id" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 200 320 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 200 82 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 200 117 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 200 84 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+Portfolio rebalance endpoint called for user: mock-access-token, strategy: balanced
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 200 237 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+Portfolio optimization endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/optimization HTTP/1.1" 200 251 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+👀 Portfolio watchlist requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 200 132 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+📈 Portfolio transactions requested for user: mock-access-token, type: all, limit: 50
+Database query error: {
+  error: 'column "amount" does not exist',
+  query: '\n' +
+    '      SELECT \n' +
+    '        transaction_id,\n' +
+    '        symbol,\n' +
+    '        transaction_type,\n' +
+    '        quantity,\n' +
+    ' ...',
+  params: '5 parameters',
+  code: '42703'
+}
+Database query failed: column "amount" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/transactions HTTP/1.1" 200 525 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 200 65 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+API key stored securely for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 200 129 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/health HTTP/1.1" 200 186 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio holdings endpoint called for authenticated user: dev-user-bypass
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 6468 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 404 656 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+📊 Holdings for portfolio invalid-user-id requested
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 200 98 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+API key deleted for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:16:24 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 200 119 "-" "-"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:17:16 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 200 478 "-" "curl/8.5.0"
+Processing request: GET /api/performance/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:10:17:20 +0000] "GET /api/performance/portfolio?user_id=dev-user-bypass HTTP/1.1" 200 478 "-" "curl/8.5.0"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: AAPL,MSFT, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/market/correlation?symbols=AAPL,MSFT HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1W
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/market/correlation?period=1W HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: 1d, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/scores/momentum?limit=10&timeframe=1d HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/orders/active HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: AAPL, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/orders/active?symbol=AAPL HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: BUY
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/orders/active?side=BUY HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1W, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/metrics/dashboard?period=1W HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: invalid
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/market/correlation?period=invalid HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/MSFT
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for MSFT via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for MSFT: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/financials/ratios/MSFT HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/GOOGL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for GOOGL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for GOOGL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/financials/ratios/GOOGL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/social/leaderboard
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/social/leaderboard HTTP/1.1" 404 632 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/social/feed
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/social/feed HTTP/1.1" 404 611 "-" "-"
+Processing request: GET /api/social/portfolios
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/social/portfolios HTTP/1.1" 404 629 "-" "-"
+Processing request: POST /api/social/copy-trade
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "POST /api/social/copy-trade HTTP/1.1" 404 629 "-" "-"
+Processing request: GET /api/social/copy-trades/2
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/social/copy-trades/2 HTTP/1.1" 404 638 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:17:35 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+📊 Portfolio summary requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/summary HTTP/1.1" 200 597 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+📋 Portfolio positions requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/positions HTTP/1.1" 200 99 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 438 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+💰 Portfolio value requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/value HTTP/1.1" 200 700 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocation requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/allocation HTTP/1.1" 200 227 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocations requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/allocations HTTP/1.1" 200 1007 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+Portfolio analytics endpoint called for authenticated user: mock-access-token, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/analytics HTTP/1.1" 200 704 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+📈 Portfolio returns requested for user: mock-access-token, period: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/returns HTTP/1.1" 200 758 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+Portfolio benchmark endpoint called for SPY, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 200 135 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+Portfolio risk endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/risk HTTP/1.1" 200 323 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+Portfolio risk analysis endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 200 266 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+⚠️ Portfolio risk analysis requested for user: mock-access-token
+Database query error: {
+  error: 'column "user_id" does not exist',
+  query: '\n' +
+    '        SELECT risk_score, beta, var_1d \n' +
+    '        FROM portfolio_risk \n' +
+    '        WHERE user_id = $1 \n' +
+    ' ...',
+  params: '1 parameters',
+  code: '42703'
+}
+Could not fetch risk metrics: column "user_id" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 200 320 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 200 82 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 200 117 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 200 84 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+Portfolio rebalance endpoint called for user: mock-access-token, strategy: balanced
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 200 237 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+Portfolio optimization endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/optimization HTTP/1.1" 200 251 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+👀 Portfolio watchlist requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:07 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 200 132 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+📈 Portfolio transactions requested for user: mock-access-token, type: all, limit: 50
+Database query error: {
+  error: 'column "amount" does not exist',
+  query: '\n' +
+    '      SELECT \n' +
+    '        transaction_id,\n' +
+    '        symbol,\n' +
+    '        transaction_type,\n' +
+    '        quantity,\n' +
+    ' ...',
+  params: '5 parameters',
+  code: '42703'
+}
+Database query failed: column "amount" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "GET /api/portfolio/transactions HTTP/1.1" 200 525 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 200 65 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+API key stored securely for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 200 129 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "GET /api/portfolio/health HTTP/1.1" 200 186 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio holdings endpoint called for authenticated user: dev-user-bypass
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 6468 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 404 656 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+📊 Holdings for portfolio invalid-user-id requested
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 200 98 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+API key deleted for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:18:08 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 200 119 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: AAPL,MSFT, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/market/correlation?symbols=AAPL,MSFT HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1W
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/market/correlation?period=1W HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: 1d, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/scores/momentum?limit=10&timeframe=1d HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/orders/active HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: AAPL, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/orders/active?symbol=AAPL HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: BUY
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/orders/active?side=BUY HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1W, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/metrics/dashboard?period=1W HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: invalid
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/market/correlation?period=invalid HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/MSFT
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for MSFT via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for MSFT: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/financials/ratios/MSFT HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/GOOGL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for GOOGL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for GOOGL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/financials/ratios/GOOGL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/social/leaderboard
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/social/leaderboard HTTP/1.1" 404 632 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/social/feed
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/social/feed HTTP/1.1" 404 611 "-" "-"
+Processing request: GET /api/social/portfolios
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/social/portfolios HTTP/1.1" 404 629 "-" "-"
+Processing request: POST /api/social/copy-trade
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "POST /api/social/copy-trade HTTP/1.1" 404 629 "-" "-"
+Processing request: GET /api/social/copy-trades/2
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/social/copy-trades/2 HTTP/1.1" 404 638 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:03 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+📊 Portfolio summary requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/summary HTTP/1.1" 200 597 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+📋 Portfolio positions requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/positions HTTP/1.1" 200 99 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 438 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+💰 Portfolio value requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/value HTTP/1.1" 200 700 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocation requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/allocation HTTP/1.1" 200 227 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocations requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/allocations HTTP/1.1" 200 1007 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+Portfolio analytics endpoint called for authenticated user: mock-access-token, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/analytics HTTP/1.1" 200 704 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+📈 Portfolio returns requested for user: mock-access-token, period: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/returns HTTP/1.1" 200 758 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+Portfolio benchmark endpoint called for SPY, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 200 135 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+Portfolio risk endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/risk HTTP/1.1" 200 323 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+Portfolio risk analysis endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 200 266 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+⚠️ Portfolio risk analysis requested for user: mock-access-token
+Database query error: {
+  error: 'column "user_id" does not exist',
+  query: '\n' +
+    '        SELECT risk_score, beta, var_1d \n' +
+    '        FROM portfolio_risk \n' +
+    '        WHERE user_id = $1 \n' +
+    ' ...',
+  params: '1 parameters',
+  code: '42703'
+}
+Could not fetch risk metrics: column "user_id" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 200 320 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 200 82 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 200 117 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 200 84 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+Portfolio rebalance endpoint called for user: mock-access-token, strategy: balanced
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 200 237 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+Portfolio optimization endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/optimization HTTP/1.1" 200 251 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+👀 Portfolio watchlist requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 200 132 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+📈 Portfolio transactions requested for user: mock-access-token, type: all, limit: 50
+Database query error: {
+  error: 'column "amount" does not exist',
+  query: '\n' +
+    '      SELECT \n' +
+    '        transaction_id,\n' +
+    '        symbol,\n' +
+    '        transaction_type,\n' +
+    '        quantity,\n' +
+    ' ...',
+  params: '5 parameters',
+  code: '42703'
+}
+Database query failed: column "amount" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/transactions HTTP/1.1" 200 525 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 200 65 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+API key stored securely for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 200 129 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/health HTTP/1.1" 200 186 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio holdings endpoint called for authenticated user: dev-user-bypass
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 6468 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 404 656 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+📊 Holdings for portfolio invalid-user-id requested
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 200 98 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+API key deleted for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:20:33 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 200 119 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: AAPL,MSFT, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/market/correlation?symbols=AAPL,MSFT HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1W
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/market/correlation?period=1W HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: 1d, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/scores/momentum?limit=10&timeframe=1d HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/orders/active HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: AAPL, side: all
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/orders/active?symbol=AAPL HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/orders/active
+Database connection verified for database-dependent endpoint
+⚡ Active orders requested - symbol: all, side: BUY
+Active orders error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  orders: [Array],
+  summary: [Object],
+  filters: [Object],
+  metadata: [Object],
+  actions: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/orders.js:1516:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/orders/active?side=BUY HTTP/1.1" 500 203 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1W, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/metrics/dashboard?period=1W HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: invalid
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/market/correlation?period=invalid HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/MSFT
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for MSFT via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for MSFT: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/financials/ratios/MSFT HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/financials/ratios/GOOGL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for GOOGL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for GOOGL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/financials/ratios/GOOGL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/social/leaderboard
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/social/leaderboard HTTP/1.1" 404 632 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/social/feed
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/social/feed HTTP/1.1" 404 611 "-" "-"
+Processing request: GET /api/social/portfolios
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/social/portfolios HTTP/1.1" 404 629 "-" "-"
+Processing request: POST /api/social/copy-trade
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "POST /api/social/copy-trade HTTP/1.1" 404 629 "-" "-"
+Processing request: GET /api/social/copy-trades/2
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/social/copy-trades/2 HTTP/1.1" 404 638 "-" "-"
+Processing request: GET /api/scores/momentum
+Database connection verified for database-dependent endpoint
+⚡ Momentum scores requested - symbol: all, timeframe: daily, period: 14
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/scores/momentum HTTP/1.1" 503 689 "-" "-"
+Processing request: GET /api/market/correlation
+Database connection verified for database-dependent endpoint
+📊 Market correlation requested - symbols: all, period: 1M
+Market correlation analysis error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  correlation_matrix: [Object],
+  analysis: [Object],
+  recommendations: [Array],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/market.js:3543:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/market/correlation HTTP/1.1" 500 212 "-" "-"
+Processing request: GET /api/financials/ratios/AAPL
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching ratios for AAPL via /ratios/ route
+❌ [FINANCIALS] Error fetching ratios for AAPL: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  financial_ratios: [Object],
+  analysis: [Object],
+  industry_averages: [Object],
+  peer_comparison: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/financials.js:1236:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/financials/ratios/AAPL HTTP/1.1" 500 231 "-" "-"
+Processing request: GET /api/metrics/dashboard
+Database connection verified for database-dependent endpoint
+📊 Dashboard metrics requested - period: 1M, charts: false
+Dashboard metrics error: RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: {
+  dashboard: [Object],
+  insights: [Array],
+  market_status: [Object],
+  metadata: [Object]
+}
+    at ServerResponse.writeHead (node:_http_server:351:11)
+    at ServerResponse.writeHead (/home/stocks/algo/webapp/lambda/node_modules/on-headers/index.js:50:26)
+    at ServerResponse._implicitHeader (node:_http_server:337:8)
+    at write_ (node:_http_outgoing:945:9)
+    at ServerResponse.end (node:_http_outgoing:1056:5)
+    at ServerResponse.send (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:232:10)
+    at ServerResponse.json (/home/stocks/algo/webapp/lambda/node_modules/express/lib/response.js:278:15)
+    at res.success (/home/stocks/algo/webapp/lambda/middleware/responseFormatter.js:21:45)
+    at /home/stocks/algo/webapp/lambda/routes/metrics.js:571:9
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5) {
+  code: 'ERR_HTTP_INVALID_STATUS_CODE'
+}
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/metrics/dashboard HTTP/1.1" 500 234 "-" "-"
+Processing request: GET /api/social/users/1
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:21:33 +0000] "GET /api/social/users/1 HTTP/1.1" 404 620 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+📊 Portfolio summary requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/summary HTTP/1.1" 200 597 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+📋 Portfolio positions requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/positions HTTP/1.1" 200 99 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 438 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+💰 Portfolio value requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/value HTTP/1.1" 200 700 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocation requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/allocation HTTP/1.1" 200 227 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+📊 Portfolio allocations requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/allocations HTTP/1.1" 200 1007 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+Portfolio analytics endpoint called for authenticated user: mock-access-token, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/analytics HTTP/1.1" 200 704 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+📈 Portfolio returns requested for user: mock-access-token, period: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/returns HTTP/1.1" 200 758 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+Portfolio benchmark endpoint called for SPY, timeframe: 1y
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 200 135 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+Portfolio risk endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/risk HTTP/1.1" 200 323 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+Portfolio risk analysis endpoint called for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 200 266 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+⚠️ Portfolio risk analysis requested for user: mock-access-token
+Database query error: {
+  error: 'column "user_id" does not exist',
+  query: '\n' +
+    '        SELECT risk_score, beta, var_1d \n' +
+    '        FROM portfolio_risk \n' +
+    '        WHERE user_id = $1 \n' +
+    ' ...',
+  params: '1 parameters',
+  code: '42703'
+}
+Could not fetch risk metrics: column "user_id" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 200 320 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 200 82 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 200 117 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 200 84 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+Portfolio rebalance endpoint called for user: mock-access-token, strategy: balanced
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 200 237 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+Portfolio optimization endpoint called for authenticated user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/optimization HTTP/1.1" 200 251 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+👀 Portfolio watchlist requested for user: mock-access-token
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 200 132 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+📈 Portfolio transactions requested for user: mock-access-token, type: all, limit: 50
+Database query error: {
+  error: 'column "amount" does not exist',
+  query: '\n' +
+    '      SELECT \n' +
+    '        transaction_id,\n' +
+    '        symbol,\n' +
+    '        transaction_type,\n' +
+    '        quantity,\n' +
+    ' ...',
+  params: '5 parameters',
+  code: '42703'
+}
+Database query failed: column "amount" does not exist
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/transactions HTTP/1.1" 200 525 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 200 65 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+API key stored securely for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 200 129 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/health HTTP/1.1" 200 186 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio holdings endpoint called for authenticated user: dev-user-bypass
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 6468 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 404 656 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+📊 Holdings for portfolio invalid-user-id requested
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 200 98 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+API key deleted for user mock-access-token, broker: test-broker
+::ffff:127.0.0.1 - - [12/Sep/2025:10:22:04 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 200 119 "-" "-"
+Killed

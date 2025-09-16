@@ -1,0 +1,244 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+Initializing database connection pool...
+Getting DB credentials from Secrets Manager...
+🚀 Real-Time Data Service initialized
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Failed to get secrets from Secrets Manager, falling back to environment variables: Invalid name. Must be a valid name containing alphanumeric characters, or any of the following: -/_+=.@!
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+Database query error: {
+  error: 'column "sector" does not exist',
+  query: 'CREATE TABLE IF NOT EXISTS stock_symbols (\n' +
+    '  symbol VARCHAR(10) NOT NULL PRIMARY KEY,\n' +
+    '  name VARCHAR...',
+  params: []
+}
+⚠️  Warning creating table stock_symbols: column "sector" does not exist
+Database query error: {
+  error: 'column "last_updated" does not exist',
+  query: 'CREATE TABLE IF NOT EXISTS market_data (\n' +
+    '  ticker VARCHAR(10) NOT NULL,\n' +
+    '  current_price DECIMAL(10,2...',
+  params: []
+}
+⚠️  Warning creating table market_data: column "last_updated" does not exist
+✅ Created/verified table: price_daily
+Database query error: {
+  error: 'column "exchange" does not exist',
+  query: 'CREATE TABLE IF NOT EXISTS company_profile (\n' +
+    '  ticker VARCHAR(10) NOT NULL PRIMARY KEY,\n' +
+    '  name VARCH...',
+  params: []
+}
+⚠️  Warning creating table company_profile: column "exchange" does not exist
+✅ Created/verified table: earnings_reports
+✅ Created/verified table: fear_greed_index
+✅ Created/verified table: aaii_sentiment
+✅ Created/verified table: naaim
+Database query error: {
+  error: 'column "indicator" does not exist',
+  query: 'CREATE TABLE IF NOT EXISTS economic_data (\n' +
+    '  id SERIAL PRIMARY KEY,\n' +
+    '  indicator VARCHAR(50) NOT NULL...',
+  params: []
+}
+⚠️  Warning creating table economic_data: column "indicator" does not exist
+✅ Created/verified table: comprehensive_scores
+✅ Created/verified table: user_api_keys
+✅ Created/verified table: portfolio_metadata
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: trading_alerts
+✅ Created/verified table: stocks
+✅ Created/verified table: stock_prices
+✅ Created/verified table: watchlists
+✅ Created/verified table: watchlist_items
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: user_profiles
+✅ Database schema initialization completed
+Processing request: GET /api/dashboard/summary
+Initializing database connection...
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 10 market, 10 gainers, 3 losers, 4 sectors, 0 earnings, 1 sentiment, 10 volume, 1 breadth
+📤 Sending comprehensive dashboard summary response
+⚠️ No earnings data available
+::1 - - [03/Sep/2025:00:14:39 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5683 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 10 market, 10 gainers, 3 losers, 4 sectors, 0 earnings, 1 sentiment, 10 volume, 1 breadth
+📤 Sending comprehensive dashboard summary response
+⚠️ No earnings data available
+::ffff:127.0.0.1 - - [03/Sep/2025:00:19:20 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5683 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 10 market, 10 gainers, 3 losers, 4 sectors, 0 earnings, 1 sentiment, 10 volume, 1 breadth
+📤 Sending comprehensive dashboard summary response
+⚠️ No earnings data available
+::1 - - [03/Sep/2025:00:29:00 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5683 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 10 market, 10 gainers, 3 losers, 4 sectors, 0 earnings, 1 sentiment, 10 volume, 1 breadth
+📤 Sending comprehensive dashboard summary response
+⚠️ No earnings data available
+::1 - - [03/Sep/2025:00:29:09 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5683 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 10 market, 10 gainers, 3 losers, 4 sectors, 0 earnings, 1 sentiment, 10 volume, 1 breadth
+📤 Sending comprehensive dashboard summary response
+⚠️ No earnings data available
+::ffff:127.0.0.1 - - [03/Sep/2025:00:29:29 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5683 "-" "curl/8.5.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+OPTIMIZED Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 42 stocks, 42 total
+::1 - - [03/Sep/2025:00:32:30 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 38938 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+OPTIMIZED Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 42 stocks, 42 total
+::1 - - [03/Sep/2025:00:32:49 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 38938 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 10 market, 10 gainers, 3 losers, 4 sectors, 0 earnings, 1 sentiment, 10 volume, 1 breadth
+📤 Sending comprehensive dashboard summary response
+⚠️ No earnings data available
+::1 - - [03/Sep/2025:00:34:32 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 5683 "-" "curl/8.5.0"
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column t.macd_hist does not exist',
+  query: '\n' +
+    '      SELECT \n' +
+    '        t.symbol,\n' +
+    '        t.date,\n' +
+    '        p.open,\n' +
+    '        p.high,\n' +
+    '        p.low,\n' +
+    '    ...',
+  params: [ 50, 0 ]
+}
+Technical data error: error: column t.macd_hist does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:466:20)
+    at async /home/stocks/algo/webapp/lambda/routes/technical.js:669:24 {
+  length: 110,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '194',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [03/Sep/2025:00:34:35 +0000] "GET /api/technical/daily HTTP/1.1" 500 319 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+Portfolio performance endpoint called for user: dev-user-bypass, timeframe: 1y
+📊 Retrieved 0 holdings for performance calculation
+::1 - - [03/Sep/2025:00:34:37 +0000] "GET /api/portfolio/performance HTTP/1.1" 404 617 "-" "curl/8.5.0"
+Processing request: GET /api/market/data
+Database connection verified for database-dependent endpoint
+::1 - - [03/Sep/2025:00:34:39 +0000] "GET /api/market/data HTTP/1.1" 404 611 "-" "curl/8.5.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+OPTIMIZED Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 42 stocks, 42 total
+::1 - - [03/Sep/2025:00:37:43 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 38938 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Using dev-bypass-token for authentication
+OPTIMIZED Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 42 stocks, 42 total
+::1 - - [03/Sep/2025:00:41:20 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 38938 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column t.macd_hist does not exist',
+  query: '\n' +
+    '      SELECT \n' +
+    '        t.symbol,\n' +
+    '        t.date,\n' +
+    '        p.open,\n' +
+    '        p.high,\n' +
+    '        p.low,\n' +
+    '    ...',
+  params: [ 50, 0 ]
+}
+Technical data error: error: column t.macd_hist does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:466:20)
+    at async /home/stocks/algo/webapp/lambda/routes/technical.js:669:24 {
+  length: 110,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '194',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [03/Sep/2025:00:42:30 +0000] "GET /api/technical/daily HTTP/1.1" 500 319 "-" "curl/8.5.0"

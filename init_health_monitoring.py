@@ -9,24 +9,26 @@ Usage:
     python init_health_monitoring.py
 """
 
+import json
 import os
 import sys
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import json
-import requests
 from datetime import datetime
+
+import psycopg2
+import requests
+from psycopg2.extras import RealDictCursor
+
 
 def get_db_connection():
     """Get database connection using environment variables."""
     try:
         # Try to connect using environment variables
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            port=os.getenv('DB_PORT', 5432),
-            database=os.getenv('DB_NAME', 'postgres'),
-            user=os.getenv('DB_USER', 'postgres'),
-            password=os.getenv('DB_PASSWORD', 'password')
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", 5432),
+            database=os.getenv("DB_NAME", "postgres"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", "password"),
         )
         return conn
     except Exception as e:
@@ -35,119 +37,107 @@ def get_db_connection():
         print("  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD")
         return None
 
+
 def create_health_status_table(conn):
     """Create the health_status table and populate it with all monitored tables."""
-    
+
     # All 70+ tables to monitor with their categories and criticality
     monitored_tables = [
         # Core Tables (Stock Symbol Management)
-        ('stock_symbols', 'symbols', True, '1 week'),
-        ('etf_symbols', 'symbols', True, '1 week'),
-        ('last_updated', 'tracking', True, '1 hour'),
-        
+        ("stock_symbols", "symbols", True, "1 week"),
+        ("etf_symbols", "symbols", True, "1 week"),
+        ("last_updated", "tracking", True, "1 hour"),
         # Price & Market Data Tables
-        ('price_daily', 'prices', True, '1 day'),
-        ('price_weekly', 'prices', True, '1 week'),
-        ('price_monthly', 'prices', True, '1 month'),
-        ('etf_price_daily', 'prices', True, '1 day'),
-        ('etf_price_weekly', 'prices', True, '1 week'),
-        ('etf_price_monthly', 'prices', True, '1 month'),
-        ('price_data_montly', 'prices', False, '1 month'),  # Test table with typo
-        
+        ("price_daily", "prices", True, "1 day"),
+        ("price_weekly", "prices", True, "1 week"),
+        ("price_monthly", "prices", True, "1 month"),
+        ("etf_price_daily", "prices", True, "1 day"),
+        ("etf_price_weekly", "prices", True, "1 week"),
+        ("etf_price_monthly", "prices", True, "1 month"),
+        ("price_data_montly", "prices", False, "1 month"),  # Test table with typo
         # Technical Analysis Tables (corrected names)
-        ('technical_data_daily', 'technicals', True, '1 day'),
-        ('technical_data_weekly', 'technicals', True, '1 week'),
-        ('technical_data_monthly', 'technicals', True, '1 month'),
-        
+        ("technical_data_daily", "technicals", True, "1 day"),
+        ("technical_data_weekly", "technicals", True, "1 week"),
+        ("technical_data_monthly", "technicals", True, "1 month"),
         # Financial Statement Tables (Annual)
-        ('annual_balance_sheet', 'financials', False, '3 months'),
-        ('annual_income_statement', 'financials', False, '3 months'),
-        ('annual_cash_flow', 'financials', False, '3 months'),  # Fixed name
-        
+        ("annual_balance_sheet", "financials", False, "3 months"),
+        ("annual_income_statement", "financials", False, "3 months"),
+        ("annual_cash_flow", "financials", False, "3 months"),  # Fixed name
         # Financial Statement Tables (Quarterly)
-        ('quarterly_balance_sheet', 'financials', True, '3 months'),
-        ('quarterly_income_statement', 'financials', True, '3 months'),
-        ('quarterly_cash_flow', 'financials', True, '3 months'),  # Fixed name
-        
+        ("quarterly_balance_sheet", "financials", True, "3 months"),
+        ("quarterly_income_statement", "financials", True, "3 months"),
+        ("quarterly_cash_flow", "financials", True, "3 months"),  # Fixed name
         # Financial Statement Tables (TTM)
-        ('ttm_income_statement', 'financials', False, '3 months'),
-        ('ttm_cash_flow', 'financials', False, '3 months'),  # Fixed name
-        
+        ("ttm_income_statement", "financials", False, "3 months"),
+        ("ttm_cash_flow", "financials", False, "3 months"),  # Fixed name
         # Company Information Tables
-        ('company_profile', 'company', True, '1 week'),
-        ('market_data', 'company', True, '1 day'),
-        ('key_metrics', 'company', True, '1 day'),
-        ('analyst_estimates', 'company', False, '1 week'),
-        ('governance_scores', 'company', False, '1 month'),
-        ('leadership_team', 'company', False, '1 month'),
-        
+        ("company_profile", "company", True, "1 week"),
+        ("market_data", "company", True, "1 day"),
+        ("key_metrics", "company", True, "1 day"),
+        ("analyst_estimates", "company", False, "1 week"),
+        ("governance_scores", "company", False, "1 month"),
+        ("leadership_team", "company", False, "1 month"),
         # Earnings & Calendar Tables
-        ('earnings_history', 'earnings', False, '1 day'),
-        ('earnings_estimates', 'earnings', True, '1 day'),  # Fixed name
-        ('revenue_estimates', 'earnings', False, '1 day'),   # Fixed name
-        ('calendar_events', 'earnings', True, '1 day'),
-        ('earnings_metrics', 'earnings', False, '1 day'),    # Added missing table
-        
+        ("earnings_history", "earnings", False, "1 day"),
+        ("earnings_estimates", "earnings", True, "1 day"),  # Fixed name
+        ("revenue_estimates", "earnings", False, "1 day"),  # Fixed name
+        ("calendar_events", "earnings", True, "1 day"),
+        ("earnings_metrics", "earnings", False, "1 day"),  # Added missing table
         # Market Sentiment & Economic Tables
-        ('fear_greed_index', 'sentiment', True, '1 day'),
-        ('aaii_sentiment', 'sentiment', False, '1 week'),
-        ('naaim', 'sentiment', False, '1 week'),
-        ('economic_data', 'sentiment', False, '1 day'),
-        ('analyst_upgrade_downgrade', 'sentiment', False, '1 day'),
-        
+        ("fear_greed_index", "sentiment", True, "1 day"),
+        ("aaii_sentiment", "sentiment", False, "1 week"),
+        ("naaim", "sentiment", False, "1 week"),
+        ("economic_data", "sentiment", False, "1 day"),
+        ("analyst_upgrade_downgrade", "sentiment", False, "1 day"),
         # Trading & Portfolio Tables
-        ('portfolio_holdings', 'trading', False, '1 hour'),
-        ('portfolio_performance', 'trading', False, '1 hour'),
-        ('trading_alerts', 'trading', False, '1 hour'),
-        ('buy_sell_daily', 'trading', True, '1 day'),
-        ('buy_sell_weekly', 'trading', True, '1 week'),
-        ('buy_sell_monthly', 'trading', True, '1 month'),
-        
+        ("portfolio_holdings", "trading", False, "1 hour"),
+        ("portfolio_performance", "trading", False, "1 hour"),
+        ("trading_alerts", "trading", False, "1 hour"),
+        ("buy_sell_daily", "trading", True, "1 day"),
+        ("buy_sell_weekly", "trading", True, "1 week"),
+        ("buy_sell_monthly", "trading", True, "1 month"),
         # News & Additional Data
-        ('stock_news', 'news', False, '1 hour'),  # Fixed name
-        ('stocks', 'other', False, '1 day'),
-        
+        ("stock_news", "news", False, "1 hour"),  # Fixed name
+        ("stocks", "other", False, "1 day"),
         # Quality & Value Metrics Tables
-        ('quality_metrics', 'scoring', True, '1 day'),
-        ('value_metrics', 'scoring', True, '1 day'),
-        
+        ("quality_metrics", "scoring", True, "1 day"),
+        ("value_metrics", "scoring", True, "1 day"),
         # Advanced Scoring System Tables
-        ('stock_scores', 'scoring', True, '1 day'),
-        ('earnings_quality_metrics', 'scoring', False, '1 day'),
-        ('balance_sheet_strength', 'scoring', False, '1 day'),
-        ('profitability_metrics', 'scoring', False, '1 day'),
-        ('management_effectiveness', 'scoring', False, '1 day'),
-        ('valuation_multiples', 'scoring', False, '1 day'),
-        ('intrinsic_value_analysis', 'scoring', False, '1 day'),
-        ('revenue_growth_analysis', 'scoring', False, '1 day'),
-        ('earnings_growth_analysis', 'scoring', False, '1 day'),
-        ('price_momentum_analysis', 'scoring', False, '1 day'),
-        ('technical_momentum_analysis', 'scoring', False, '1 day'),
-        ('analyst_sentiment_analysis', 'scoring', False, '1 day'),
-        ('social_sentiment_analysis', 'scoring', False, '1 day'),
-        ('institutional_positioning', 'scoring', False, '1 week'),
-        ('insider_trading_analysis', 'scoring', False, '1 day'),
-        ('score_performance_tracking', 'scoring', False, '1 day'),
-        ('market_regime', 'scoring', False, '1 day'),
-        ('stock_symbols_enhanced', 'scoring', False, '1 week'),
-        
+        ("stock_scores", "scoring", True, "1 day"),
+        ("earnings_quality_metrics", "scoring", False, "1 day"),
+        ("balance_sheet_strength", "scoring", False, "1 day"),
+        ("profitability_metrics", "scoring", False, "1 day"),
+        ("management_effectiveness", "scoring", False, "1 day"),
+        ("valuation_multiples", "scoring", False, "1 day"),
+        ("intrinsic_value_analysis", "scoring", False, "1 day"),
+        ("revenue_growth_analysis", "scoring", False, "1 day"),
+        ("earnings_growth_analysis", "scoring", False, "1 day"),
+        ("price_momentum_analysis", "scoring", False, "1 day"),
+        ("technical_momentum_analysis", "scoring", False, "1 day"),
+        ("analyst_sentiment_analysis", "scoring", False, "1 day"),
+        ("social_sentiment_analysis", "scoring", False, "1 day"),
+        ("institutional_positioning", "scoring", False, "1 week"),
+        ("insider_trading_analysis", "scoring", False, "1 day"),
+        ("score_performance_tracking", "scoring", False, "1 day"),
+        ("market_regime", "scoring", False, "1 day"),
+        ("stock_symbols_enhanced", "scoring", False, "1 week"),
         # System Health Monitoring
-        ('health_status', 'system', True, '1 hour'),
-        
+        ("health_status", "system", True, "1 hour"),
         # Test Tables (from init.sql)
-        ('earnings', 'test', False, '1 day'),
-        ('prices', 'test', False, '1 day')
+        ("earnings", "test", False, "1 day"),
+        ("prices", "test", False, "1 day"),
     ]
-    
+
     try:
         with conn.cursor() as cur:
             # Drop existing table if it exists
             print("Dropping existing health_status table if it exists...")
             cur.execute("DROP TABLE IF EXISTS health_status CASCADE")
-            
+
             # Create the health_status table
             print("Creating health_status table...")
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE TABLE health_status (
                     table_name VARCHAR(255) PRIMARY KEY,
                     status VARCHAR(50) NOT NULL DEFAULT 'unknown',
@@ -163,27 +153,42 @@ def create_health_status_table(conn):
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
-            
+            """
+            )
+
             # Create indexes
             print("Creating indexes...")
-            cur.execute("CREATE INDEX idx_health_status_status ON health_status(status)")
-            cur.execute("CREATE INDEX idx_health_status_last_updated ON health_status(last_updated)")
-            cur.execute("CREATE INDEX idx_health_status_category ON health_status(table_category)")
-            cur.execute("CREATE INDEX idx_health_status_critical ON health_status(critical_table)")
-            cur.execute("CREATE INDEX idx_health_status_stale ON health_status(is_stale)")
-            
+            cur.execute(
+                "CREATE INDEX idx_health_status_status ON health_status(status)"
+            )
+            cur.execute(
+                "CREATE INDEX idx_health_status_last_updated ON health_status(last_updated)"
+            )
+            cur.execute(
+                "CREATE INDEX idx_health_status_category ON health_status(table_category)"
+            )
+            cur.execute(
+                "CREATE INDEX idx_health_status_critical ON health_status(critical_table)"
+            )
+            cur.execute(
+                "CREATE INDEX idx_health_status_stale ON health_status(is_stale)"
+            )
+
             # Insert all monitored tables
             print(f"Inserting {len(monitored_tables)} tables to monitor...")
             for table_name, category, critical, frequency in monitored_tables:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO health_status (table_name, table_category, critical_table, expected_update_frequency)
                     VALUES (%s, %s, %s, %s::interval)
-                """, (table_name, category, critical, frequency))
-            
+                """,
+                    (table_name, category, critical, frequency),
+                )
+
             # Create update trigger function
             print("Creating update trigger function...")
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE OR REPLACE FUNCTION update_health_status_updated_at()
                 RETURNS TRIGGER AS $$
                 BEGIN
@@ -191,19 +196,23 @@ def create_health_status_table(conn):
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql
-            """)
-            
+            """
+            )
+
             # Create trigger
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE TRIGGER trigger_health_status_updated_at
                     BEFORE UPDATE ON health_status
                     FOR EACH ROW
                     EXECUTE FUNCTION update_health_status_updated_at()
-            """)
-            
+            """
+            )
+
             # Create summary view
             print("Creating health_status_summary view...")
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE OR REPLACE VIEW health_status_summary AS
                 SELECT 
                     table_category,
@@ -221,35 +230,44 @@ def create_health_status_table(conn):
                 FROM health_status
                 GROUP BY table_category
                 ORDER BY table_category
-            """)
-            
+            """
+            )
+
             # Commit all changes
             conn.commit()
-            print(f"✅ Successfully created health_status table with {len(monitored_tables)} tables to monitor")
-            
+            print(
+                f"✅ Successfully created health_status table with {len(monitored_tables)} tables to monitor"
+            )
+
             # Show summary
-            cur.execute("SELECT table_category, COUNT(*) as count FROM health_status GROUP BY table_category ORDER BY table_category")
+            cur.execute(
+                "SELECT table_category, COUNT(*) as count FROM health_status GROUP BY table_category ORDER BY table_category"
+            )
             results = cur.fetchall()
             print("\n📊 Tables by category:")
             for category, count in results:
-                cur.execute("SELECT COUNT(*) FROM health_status WHERE table_category = %s AND critical_table = true", (category,))
+                cur.execute(
+                    "SELECT COUNT(*) FROM health_status WHERE table_category = %s AND critical_table = true",
+                    (category,),
+                )
                 critical_count = cur.fetchone()[0]
                 print(f"  {category}: {count} tables ({critical_count} critical)")
-            
+
             return True
-            
+
     except Exception as e:
         print(f"❌ Error creating health_status table: {e}")
         conn.rollback()
         return False
 
+
 def test_health_endpoint():
     """Test the health update endpoint if the webapp is running."""
     try:
         # Try to call the health update endpoint
-        webapp_url = os.getenv('WEBAPP_URL', 'http://localhost:3001')
+        webapp_url = os.getenv("WEBAPP_URL", "http://localhost:3001")
         response = requests.post(f"{webapp_url}/api/health/update-status", timeout=30)
-        
+
         if response.status_code == 200:
             result = response.json()
             print(f"✅ Health update endpoint test successful")
@@ -259,44 +277,48 @@ def test_health_endpoint():
         else:
             print(f"⚠️  Health update endpoint returned status {response.status_code}")
             return False
-            
+
     except requests.exceptions.RequestException as e:
         print(f"⚠️  Could not test health endpoint (webapp may not be running): {e}")
         return False
 
+
 def main():
     """Main function to initialize health monitoring."""
     print("🔧 Initializing comprehensive database health monitoring system...")
-    print(f"   Monitoring {len(monitored_tables)} database tables across multiple categories")
+    print(
+        f"   Monitoring {len(monitored_tables)} database tables across multiple categories"
+    )
     print(f"   Timestamp: {datetime.now()}")
     print()
-    
+
     # Connect to database
     conn = get_db_connection()
     if not conn:
         sys.exit(1)
-    
+
     try:
         # Create health status table
         if create_health_status_table(conn):
             print("\n🎉 Health monitoring system initialized successfully!")
-            
+
             # Test the webapp endpoint if available
             print("\n🧪 Testing webapp health endpoint...")
             test_health_endpoint()
-            
+
             print("\n📋 Next steps:")
             print("   1. Run the webapp to test the health endpoints")
             print("   2. Visit /service-health page to see the monitoring dashboard")
             print("   3. Use POST /api/health/update-status to refresh table status")
             print("   4. Set up automated health checks in your CI/CD pipeline")
-            
+
         else:
             print("❌ Failed to initialize health monitoring system")
             sys.exit(1)
-            
+
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     main()

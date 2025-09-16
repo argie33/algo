@@ -1,8 +1,8 @@
-yfinance
-psycopg2-binary
-boto3
-pandas
-numpy
-requests
-textblob
+yfinance==0.2.64
+psycopg2-binary==2.9.9
+boto3==1.34.69
+pandas==2.1.4
+numpy==1.24.4
+requests==2.31.0
+textblob==0.17.1
 pytrends

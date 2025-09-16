@@ -13,6 +13,7 @@ The frontend uses a multi-layered configuration system:
 ## Quick Start
 
 ### Development
+
 ```
 npm run setup-dev
 npm run dev
@@ -43,12 +44,14 @@ npm run build
 ## Environment Configuration
 
 ### Development Environment
+
 - **API URL**: `http://localhost:3001`
 - **Serverless**: `false`
 - **Debug**: `true`
 - **Mock Data**: `false`
 
 ### Production Environment
+
 - **API URL**: Your API Gateway URL
 - **Serverless**: `true`
 - **Debug**: `false`
@@ -57,6 +60,7 @@ npm run build
 ## Configuration Files
 
 ### 1. Runtime Configuration (`public/config.js`)
+
 This file is loaded by the browser and can be dynamically updated:
 
 ```javascript
@@ -64,11 +68,12 @@ window.__CONFIG__ = {
   API_URL: "http://localhost:3001", // or your production API URL
   BUILD_TIME: "2024-01-01T00:00:00.000Z",
   VERSION: "1.0.0",
-  ENVIRONMENT: "development" // or "production"
+  ENVIRONMENT: "development", // or "production"
 };
 ```
 
 ### 2. Environment Variables (`.env`)
+
 Vite environment variables for build-time configuration:
 
 ```bash
@@ -87,6 +92,7 @@ VITE_ENABLE_MOCK_DATA=false
 ```
 
 ### 3. Vite Configuration (`vite.config.js`)
+
 Development server proxy and build settings:
 
 ```javascript
@@ -114,6 +120,7 @@ The frontend resolves the API URL in this order:
 ## Deployment Scripts
 
 ### Local Development
+
 ```bash
 # Set up development environment
 npm run setup-dev
@@ -123,6 +130,7 @@ npm run dev
 ```
 
 ### Production Build
+
 ```bash
 # Set up production environment
 npm run setup-prod https://your-api-url.com
@@ -132,6 +140,7 @@ npm run build-prod
 ```
 
 ### Serverless Deployment
+
 ```bash
 # Deploy to AWS Lambda + API Gateway
 cd webapp
@@ -139,6 +148,7 @@ cd webapp
 ```
 
 ### CloudFormation Deployment
+
 ```bash
 # Deploy with dynamic API URL from CloudFormation
 cd webapp/frontend
@@ -150,6 +160,7 @@ cd webapp/frontend
 ### API Connection Issues
 
 1. **Check API URL Configuration**:
+
    ```javascript
    // In browser console
    console.log(window.__CONFIG__);
@@ -157,6 +168,7 @@ cd webapp/frontend
    ```
 
 2. **Verify Backend Server**:
+
    ```bash
    # Test API health
    curl http://localhost:3001/health
@@ -187,6 +199,7 @@ cd webapp/frontend
 ## Environment-Specific Features
 
 ### Development Features
+
 - Hot module replacement
 - Source maps
 - Debug logging
@@ -194,6 +207,7 @@ cd webapp/frontend
 - Mock data support (optional)
 
 ### Production Features
+
 - Optimized builds
 - Minified code
 - CDN caching
@@ -210,14 +224,17 @@ cd webapp/frontend
 ## Migration Guide
 
 ### From Old Configuration
+
 If you're migrating from the old configuration system:
 
 1. **Backup current config**:
+
    ```bash
    cp public/config.js public/config.js.backup
    ```
 
 2. **Set up new environment**:
+
    ```bash
    npm run setup-dev  # for development
    # or
@@ -225,6 +242,7 @@ If you're migrating from the old configuration system:
    ```
 
 3. **Test configuration**:
+
    ```bash
    npm run dev  # test development
    npm run build-prod  # test production build
@@ -239,4 +257,4 @@ For issues with environment configuration:
 1. Check this README
 2. Review the setup scripts in `scripts/`
 3. Check browser console for configuration logs
-4. Verify API connectivity with the ServiceHealth page 
+4. Verify API connectivity with the ServiceHealth page

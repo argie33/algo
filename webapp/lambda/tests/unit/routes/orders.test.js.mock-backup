@@ -1,0 +1,591 @@
+const express = require('express');
+const request = require("supertest");
+
+// Mock the database utility
+jest.mock('../../../utils/database', () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn(),
+  closeDatabase: jest.fn()
+}));
+
+// Mock the trading mode helper
+jest.mock('../../../utils/tradingModeHelper', () => ({
+  addTradingModeContext: jest.fn(),
+  validateTradingOperation: jest.fn(),
+  getTradingModeTable: jest.fn()
+}));
+
+// Mock the auth middleware
+jest.mock('../../../middleware/auth', () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: 'test-user-123', email: 'test@example.com', username: 'testuser' };
+    next();
+  })
+}));
+
+let app;
+
+describe("Orders Routes Unit Tests", () => {
+  let mockQuery;
+  let mockAddTradingModeContext;
+  let mockValidateTradingOperation;
+  let mockGetTradingModeTable;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Set up mocks
+    const { query } = require('../../../utils/database');
+    mockQuery = query;
+    
+    const tradingModeHelper = require('../../../utils/tradingModeHelper');
+    mockAddTradingModeContext = tradingModeHelper.addTradingModeContext;
+    mockValidateTradingOperation = tradingModeHelper.validateTradingOperation;
+    mockGetTradingModeTable = tradingModeHelper.getTradingModeTable;
+    
+    // Create test app
+    app = express();
+    app.use(express.json());
+    
+    // Add response helper middleware
+    app.use((req, res, next) => {
+      res.error = (message, status, details) => res.status(status).json({ 
+        success: false, 
+        error: message,
+        details 
+      });
+      next();
+    });
+    
+    // Load the route module
+    const ordersRouter = require('../../../routes/orders');
+    app.use('/api/orders', ordersRouter);
+  });
+
+  describe("Trading Mode Integration", () => {
+    describe("GET /api/orders", () => {
+      test("should return orders with paper trading context", async () => {
+        // Mock trading mode validation
+        mockValidateTradingOperation.mockResolvedValueOnce({
+          allowed: true,
+          mode: 'paper',
+          message: 'Operation allowed in paper trading mode (simulated)'
+        });
+        
+        // Mock table lookup
+        mockGetTradingModeTable.mockResolvedValueOnce({
+          table: 'orders_paper',
+          mode: 'paper'
+        });
+        
+        // Mock orders query
+        mockQuery.mockResolvedValueOnce({
+          rows: [
+            {
+              order_id: '123',
+              symbol: 'AAPL',
+              quantity: 10,
+              side: 'buy',
+              order_type: 'market',
+              status: 'filled',
+              created_at: '2025-08-31T10:00:00Z'
+            }
+          ]
+        });
+        
+        // Mock trading mode context addition
+        mockAddTradingModeContext.mockImplementation(async (data) => ({
+          ...data,
+          trading_mode: 'paper',
+          paper_trading: true,
+          live_trading: false,
+          mode_context: {
+            description: "Paper trading - Simulated trades, no real money at risk",
+            risk_level: "none",
+            disclaimer: "📊 Paper trading for learning and strategy testing."
+          }
+        }));
+
+        const response = await request(app)
+          .get("/api/orders");
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.trading_mode).toBe('paper');
+        expect(response.body.paper_trading).toBe(true);
+        
+        // Verify trading mode helper functions were called
+        expect(mockValidateTradingOperation).toHaveBeenCalledWith('test-user-123', 'view_orders');
+        expect(mockGetTradingModeTable).toHaveBeenCalledWith('test-user-123', 'orders');
+        expect(mockAddTradingModeContext).toHaveBeenCalled();
+      });
+      
+      test("should handle trading validation failure", async () => {
+        // Mock trading mode validation failure
+        mockValidateTradingOperation.mockResolvedValueOnce({
+          allowed: false,
+          mode: 'live',
+          message: 'Live trading requires valid brokerage API keys. Please configure API keys in settings.'
+        });
+
+        const response = await request(app)
+          .get("/api/orders");
+
+        expect(response.status).toBe(403);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toContain('Live trading requires valid brokerage API keys');
+        expect(response.body.trading_mode).toBe('live');
+        
+        // Should not proceed to database query
+        expect(mockQuery).not.toHaveBeenCalled();
+      });
+      
+      test("should filter orders by status with trading mode support", async () => {
+        mockValidateTradingOperation.mockResolvedValueOnce({
+          allowed: true,
+          mode: 'live',
+          message: 'Operation allowed in live trading mode'
+        });
+        
+        mockGetTradingModeTable.mockResolvedValueOnce({
+          table: 'orders_live',
+          mode: 'live'
+        });
+        
+        mockQuery.mockResolvedValueOnce({
+          rows: [
+            {
+              order_id: '456',
+              symbol: 'MSFT',
+              quantity: 5,
+              side: 'sell',
+              status: 'filled'
+            }
+          ]
+        });
+        
+        mockAddTradingModeContext.mockImplementation(async (data) => ({
+          ...data,
+          trading_mode: 'live',
+          paper_trading: false,
+          live_trading: true
+        }));
+
+        const response = await request(app)
+          .get("/api/orders?status=filled");
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.trading_mode).toBe('live');
+        expect(response.body.live_trading).toBe(true);
+        
+        // Verify query was called with status filter
+        expect(mockQuery).toHaveBeenCalledWith(
+          expect.stringContaining('WHERE user_id = $1 AND status = $2'),
+          ['test-user-123', 'filled', 50, 0]
+        );
+      });
+      
+      test("should handle pagination with trading mode", async () => {
+        mockValidateTradingOperation.mockResolvedValueOnce({
+          allowed: true,
+          mode: 'paper',
+          message: 'Operation allowed in paper trading mode (simulated)'
+        });
+        
+        mockGetTradingModeTable.mockResolvedValueOnce({
+          table: 'orders_paper',
+          mode: 'paper'
+        });
+        
+        mockQuery.mockResolvedValueOnce({ rows: [] });
+        mockAddTradingModeContext.mockImplementation(async (data) => data);
+
+        const response = await request(app)
+          .get("/api/orders?limit=10&offset=5");
+
+        expect(response.status).toBe(200);
+        
+        // Verify pagination parameters were passed to query
+        expect(mockQuery).toHaveBeenCalledWith(
+          expect.any(String),
+          ['test-user-123', 10, 5]
+        );
+      });
+    });
+
+    describe("POST /api/orders", () => {
+      test("should create order with paper trading validation", async () => {
+        mockValidateTradingOperation.mockResolvedValueOnce({
+          allowed: true,
+          mode: 'paper',
+          message: 'Operation allowed in paper trading mode (simulated)'
+        });
+        
+        mockGetTradingModeTable.mockResolvedValueOnce({
+          table: 'orders_paper',
+          mode: 'paper'
+        });
+        
+        // Mock order creation query
+        mockQuery.mockResolvedValueOnce({
+          rows: [{
+            order_id: '789',
+            symbol: 'AAPL',
+            quantity: 10,
+            side: 'buy',
+            order_type: 'market',
+            status: 'pending'
+          }]
+        });
+        
+        mockAddTradingModeContext.mockImplementation(async (data) => ({
+          ...data,
+          trading_mode: 'paper',
+          paper_trading: true,
+          live_trading: false
+        }));
+        
+        const orderData = {
+          symbol: "AAPL",
+          quantity: 10,
+          side: "buy",
+          order_type: "market"
+        };
+
+        const response = await request(app)
+          .post("/api/orders")
+          .send(orderData);
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.data.order_id).toBe('789');
+        expect(response.body.trading_mode).toBe('paper');
+        expect(response.body.paper_trading).toBe(true);
+        
+        expect(mockValidateTradingOperation).toHaveBeenCalledWith(
+          'test-user-123', 
+          'place_order',
+          expect.objectContaining({
+            symbol: 'AAPL',
+            quantity: 10,
+            side: 'buy',
+            order_type: 'market'
+          })
+        );
+      });
+      
+      test("should reject order creation in live mode without API keys", async () => {
+        mockValidateTradingOperation.mockResolvedValueOnce({
+          allowed: false,
+          mode: 'live',
+          message: 'Live trading requires valid brokerage API keys. Please configure API keys in settings.'
+        });
+        
+        const orderData = {
+          symbol: "AAPL",
+          quantity: 10,
+          side: "buy",
+          order_type: "market"
+        };
+
+        const response = await request(app)
+          .post("/api/orders")
+          .send(orderData);
+
+        expect(response.status).toBe(403);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toContain('Live trading requires valid brokerage API keys');
+        expect(response.body.trading_mode).toBe('live');
+        
+        // Should not proceed to order creation
+        expect(mockQuery).not.toHaveBeenCalled();
+      });
+      
+      test("should validate required fields", async () => {
+        const invalidOrder = {
+          symbol: "AAPL"
+          // Missing required fields
+        };
+
+        const response = await request(app)
+          .post("/api/orders")
+          .send(invalidOrder);
+
+        expect(response.status).toBe(400);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toContain('Missing required fields');
+      });
+    });
+  });
+
+  describe("Order Management Operations", () => {
+    beforeEach(() => {
+      // Set up common mocks for order management operations
+      mockValidateTradingOperation.mockResolvedValue({
+        allowed: true,
+        mode: 'paper',
+        message: 'Operation allowed in paper trading mode (simulated)'
+      });
+      
+      mockGetTradingModeTable.mockResolvedValue({
+        table: 'orders_paper',
+        mode: 'paper'
+      });
+      
+      mockAddTradingModeContext.mockImplementation(async (data) => ({
+        ...data,
+        trading_mode: 'paper',
+        paper_trading: true,
+        live_trading: false
+      }));
+    });
+
+    test("should update order with trading mode validation", async () => {
+      // Mock order existence check
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          order_id: 'test-order-id',
+          user_id: 'test-user-123',
+          status: 'pending'
+        }]
+      });
+      
+      // Mock update query
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          order_id: 'test-order-id',
+          symbol: 'AAPL',
+          quantity: 15,
+          limit_price: 160.00
+        }]
+      });
+      
+      const updateData = {
+        quantity: 15,
+        limit_price: 160.00
+      };
+
+      const response = await request(app)
+        .put("/api/orders/test-order-id")
+        .send(updateData);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty("order_id");
+      expect(response.body.trading_mode).toBe('paper');
+      
+      expect(mockValidateTradingOperation).toHaveBeenCalledWith(
+        'test-user-123', 
+        'modify_order',
+        expect.objectContaining({
+          orderId: 'test-order-id',
+          changes: updateData
+        })
+      );
+    });
+    
+    test("should handle non-existent order", async () => {
+      // Mock order not found
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      
+      const updateData = {
+        quantity: 15
+      };
+
+      const response = await request(app)
+        .put("/api/orders/non-existent-id")
+        .send(updateData);
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Order not found');
+    });
+
+    test("should cancel order with trading mode validation", async () => {
+      // Mock order existence check
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          order_id: 'test-order-id',
+          user_id: 'test-user-123',
+          status: 'pending',
+          symbol: 'AAPL'
+        }]
+      });
+      
+      // Mock cancel query
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          order_id: 'test-order-id',
+          status: 'cancelled'
+        }]
+      });
+      
+      const response = await request(app)
+        .delete("/api/orders/test-order-id");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.trading_mode).toBe('paper');
+      
+      expect(mockValidateTradingOperation).toHaveBeenCalledWith(
+        'test-user-123', 
+        'cancel_order',
+        expect.objectContaining({
+          orderId: 'test-order-id',
+          symbol: 'AAPL'
+        })
+      );
+    });
+    
+    test("should handle non-existent order cancellation", async () => {
+      // Mock order not found
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      
+      const response = await request(app)
+        .delete("/api/orders/non-existent-id");
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Order not found');
+    });
+
+    test("should get specific order with trading mode context", async () => {
+      // Mock order query
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          order_id: 'test-order-id',
+          symbol: 'AAPL',
+          quantity: 10,
+          side: 'buy',
+          status: 'filled',
+          user_id: 'test-user-123'
+        }]
+      });
+      
+      const response = await request(app)
+        .get("/api/orders/test-order-id");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty("order_id");
+      expect(response.body.data).toHaveProperty("symbol");
+      expect(response.body.data).toHaveProperty("status");
+      expect(response.body.trading_mode).toBe('paper');
+    });
+
+    test("should get orders by status with trading mode", async () => {
+      // Mock orders by status query
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            order_id: '123',
+            symbol: 'AAPL',
+            status: 'pending',
+            side: 'buy'
+          }
+        ]
+      });
+      
+      const response = await request(app)
+        .get("/api/orders/status/pending");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.trading_mode).toBe('paper');
+    });
+    
+    test("should handle invalid status validation", async () => {
+      const response = await request(app)
+        .get("/api/orders/status/invalid_status");
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Invalid order status');
+    });
+
+    test("should get orders for specific symbol with trading mode", async () => {
+      // Mock orders by symbol query
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            order_id: '456',
+            symbol: 'AAPL',
+            quantity: 5,
+            side: 'sell',
+            status: 'filled'
+          }
+        ]
+      });
+      
+      const response = await request(app)
+        .get("/api/orders/symbol/AAPL");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data[0].symbol).toBe('AAPL');
+      expect(response.body.trading_mode).toBe('paper');
+    });
+    
+    test("should validate symbol format", async () => {
+      const response = await request(app)
+        .get("/api/orders/symbol/invalid-symbol-123");
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Invalid symbol format');
+    });
+  });
+
+  describe("Error Handling", () => {
+    test("should handle database errors gracefully", async () => {
+      // Mock validation success but database error
+      mockValidateTradingOperation.mockResolvedValueOnce({
+        allowed: true,
+        mode: 'paper',
+        message: 'Operation allowed in paper trading mode (simulated)'
+      });
+      
+      mockGetTradingModeTable.mockResolvedValueOnce({
+        table: 'orders_paper',
+        mode: 'paper'
+      });
+      
+      // Mock database error
+      mockQuery.mockRejectedValueOnce(new Error('Database connection failed'));
+
+      const response = await request(app)
+        .get("/api/orders");
+
+      expect(response.status).toBe(500);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Failed to fetch orders');
+    });
+
+    test("should handle authentication through middleware", async () => {
+      // Our mock middleware provides authentication, so test successful flow
+      mockValidateTradingOperation.mockResolvedValueOnce({
+        allowed: true,
+        mode: 'paper',
+        message: 'Operation allowed in paper trading mode (simulated)'
+      });
+      
+      mockGetTradingModeTable.mockResolvedValueOnce({
+        table: 'orders_paper',
+        mode: 'paper'
+      });
+      
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      mockAddTradingModeContext.mockImplementation(async (data) => data);
+
+      const response = await request(app)
+        .get("/api/orders");
+
+      expect(response.status).toBe(200);
+      expect(mockValidateTradingOperation).toHaveBeenCalledWith('test-user-123', 'view_orders');
+    });
+  });
+});

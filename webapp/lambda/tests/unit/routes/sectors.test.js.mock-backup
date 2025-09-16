@@ -1,0 +1,541 @@
+/**
+ * Sectors Routes Unit Tests
+ * Tests sectors route logic in isolation with mocks
+ */
+
+const express = require('express');
+const request = require('supertest');
+
+// Mock the database utility
+jest.mock('../../../utils/database', () => ({
+  query: jest.fn()
+}));
+
+// Mock the auth middleware
+jest.mock('../../../middleware/auth', () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: 'test-user-123', email: 'test@example.com', username: 'testuser' };
+    next();
+  })
+}));
+
+describe('Sectors Routes Unit Tests', () => {
+  let app;
+  let sectorsRouter;
+  let mockQuery;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Set up mocks
+    const { query } = require('../../../utils/database');
+    mockQuery = query;
+    
+    // Create test app
+    app = express();
+    app.use(express.json());
+    
+    // Add response helper middleware
+    app.use((req, res, next) => {
+      res.error = (message, status) => res.status(status).json({ 
+        success: false, 
+        error: message 
+      });
+      res.success = (data) => res.json({ 
+        success: true, 
+        ...data 
+      });
+      next();
+    });
+    
+    // Load the route module
+    sectorsRouter = require('../../../routes/sectors');
+    app.use('/sectors', sectorsRouter);
+  });
+
+  describe('GET /sectors/health', () => {
+    test('should return health status without authentication', async () => {
+      const response = await request(app)
+        .get('/sectors/health');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('status', 'operational');
+      expect(response.body).toHaveProperty('service', 'sectors');
+      expect(response.body).toHaveProperty('timestamp');
+      expect(response.body).toHaveProperty('message', 'Sectors service is running');
+      
+      // Verify timestamp is a valid ISO string
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(mockQuery).not.toHaveBeenCalled(); // Health doesn't use database
+    });
+  });
+
+  describe('GET /sectors', () => {
+    test('should return sectors API information without authentication', async () => {
+      const response = await request(app)
+        .get('/sectors');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'Sectors API - Ready');
+      expect(response.body).toHaveProperty('status', 'operational');
+      expect(response.body).toHaveProperty('timestamp');
+      
+      // Verify timestamp is a valid ISO string
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(mockQuery).not.toHaveBeenCalled(); // Root endpoint doesn't use database
+    });
+  });
+
+  describe('GET /sectors/analysis (authenticated)', () => {
+    test('should return comprehensive sector analysis with default timeframe', async () => {
+      const mockSectorData = {
+        rows: [
+          {
+            sector: 'Technology',
+            industry: 'Software',
+            stock_count: 45,
+            priced_stocks: 45,
+            avg_price: 125.50,
+            avg_daily_change: 2.1,
+            avg_weekly_change: 4.2,
+            avg_monthly_change: 8.5,
+            avg_volume: 1000000,
+            avg_rsi: 62.5,
+            avg_momentum: 0.75,
+            avg_macd: 0.042,
+            bullish_stocks: 30,
+            bearish_stocks: 10,
+            neutral_stocks: 5,
+            total_dollar_volume: 5625000000000,
+            performance_rank: 1,
+            top_performers: null,
+            bottom_performers: null
+          },
+          {
+            sector: 'Healthcare',
+            industry: 'Biotechnology',
+            stock_count: 38,
+            priced_stocks: 38,
+            avg_price: 85.25,
+            avg_daily_change: 0.8,
+            avg_weekly_change: 2.1,
+            avg_monthly_change: 4.8,
+            avg_volume: 750000,
+            avg_rsi: 58.2,
+            avg_momentum: 0.52,
+            avg_macd: 0.028,
+            bullish_stocks: 20,
+            bearish_stocks: 12,
+            neutral_stocks: 6,
+            total_dollar_volume: 3230000000000,
+            performance_rank: 2,
+            top_performers: null,
+            bottom_performers: null
+          }
+        ]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockSectorData);
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('sectors');
+      expect(Array.isArray(response.body.data.sectors)).toBe(true);
+      expect(response.body.data.sectors).toHaveLength(2);
+      expect(response.body.data.sectors[0]).toHaveProperty('sector', 'Technology');
+      expect(response.body.data.sectors[0].metrics.technicals).toHaveProperty('avg_momentum', '0.75');
+      expect(response.body.data.sectors[0].metrics.performance).toHaveProperty('monthly_change', '8.50');
+      
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('company_profile')
+      );
+    });
+
+    test('should validate timeframe parameter', async () => {
+      const response = await request(app)
+        .get('/sectors/analysis')
+        .query({ timeframe: 'invalid_timeframe' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body).toHaveProperty('error', 'Invalid timeframe. Must be daily, weekly, or monthly.');
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    test('should handle valid timeframe parameters', async () => {
+      const validTimeframes = ['daily', 'weekly', 'monthly'];
+
+      for (const timeframe of validTimeframes) {
+        mockQuery.mockClear();
+        mockQuery.mockResolvedValueOnce({ rows: [] });
+
+        const response = await request(app)
+          .get('/sectors/analysis')
+          .query({ timeframe });
+
+        expect(response.status).toBe(200);
+        expect(mockQuery).toHaveBeenCalledWith(
+          expect.stringContaining(`price_${timeframe}`)
+        );
+      }
+    });
+
+    test('should default to daily timeframe', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveProperty('timeframe', 'daily');
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('price_daily')
+      );
+    });
+
+    test('should handle empty sector data', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body.data).toHaveProperty('sectors', []);
+      expect(response.body.data.summary).toHaveProperty('total_sectors', 0);
+    });
+
+    test('should handle database query errors', async () => {
+      const dbError = new Error('Database connection failed');
+      mockQuery.mockRejectedValueOnce(dbError);
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toBeDefined();
+    });
+  });
+
+  describe('GET /sectors/performance (authenticated)', () => {
+    test('should return sector performance metrics', async () => {
+      const mockPerformanceData = {
+        rows: [
+          {
+            sector: 'Technology',
+            stock_count: 45,
+            performance_pct: 2.10,
+            total_volume: 5000000,
+            avg_price: 125.50,
+            gaining_stocks: 30,
+            losing_stocks: 15,
+            win_rate_pct: 66.7,
+            performance_rank: 1
+          },
+          {
+            sector: 'Energy',
+            stock_count: 20,
+            performance_pct: -1.20,
+            total_volume: 2000000,
+            avg_price: 85.25,
+            gaining_stocks: 8,
+            losing_stocks: 12,
+            win_rate_pct: 40.0,
+            performance_rank: 2
+          }
+        ]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockPerformanceData);
+
+      const response = await request(app)
+        .get('/sectors/performance');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('performance');
+      expect(Array.isArray(response.body.data.performance)).toBe(true);
+      expect(response.body.data.performance).toHaveLength(2);
+      expect(response.body.data.performance[0]).toHaveProperty('sector', 'Technology');
+      expect(response.body.data.performance[0]).toHaveProperty('performance_pct', 2.1);
+      expect(response.body.data.performance[0]).toHaveProperty('performance_rank', 1);
+    });
+
+    test('should handle period parameter', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/performance')
+        .query({ period: '1m', limit: 5 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.period).toBe('1m');
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('price_daily'),
+        [5]
+      );
+    });
+  });
+
+  describe('GET /sectors/leaders (authenticated)', () => {
+    test('should return sector leaders and laggards', async () => {
+      // Leaders endpoint doesn't use database query, returns static data
+      const response = await request(app)
+        .get('/sectors/leaders');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('top_performing_sectors');
+      expect(response.body.data).toHaveProperty('sector_breadth');
+      expect(Array.isArray(response.body.data.top_performing_sectors)).toBe(true);
+      expect(response.body.data.top_performing_sectors[0]).toHaveProperty('sector');
+      expect(response.body.data.sector_breadth).toHaveProperty('advancing_sectors');
+      expect(response.body.data.sector_breadth).toHaveProperty('declining_sectors');
+      expect(mockQuery).not.toHaveBeenCalled(); // This endpoint doesn't use DB
+    });
+
+    test('should handle period parameter', async () => {
+      const response = await request(app)
+        .get('/sectors/leaders')
+        .query({ period: '1w' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.period).toBe('1w');
+      expect(response.body).toHaveProperty('success', true);
+      expect(mockQuery).not.toHaveBeenCalled(); // This endpoint doesn't use DB
+    });
+  });
+
+  describe('GET /sectors/:sector/details (authenticated)', () => {
+    test('should return specific sector analysis', async () => {
+      const mockSectorDetail = {
+        rows: [{
+          ticker: 'AAPL',
+          short_name: 'Apple Inc.',
+          long_name: 'Apple Inc.',
+          industry: 'Consumer Electronics',
+          market: 'NASDAQ',
+          country: 'USA',
+          current_price: 175.25,
+          volume: 50000000,
+          price_date: '2024-01-01'
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockSectorDetail);
+
+      const response = await request(app)
+        .get('/sectors/Technology/details');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('sector', 'Technology');
+      expect(response.body.data).toHaveProperty('stocks');
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+      expect(response.body.data.stocks[0]).toHaveProperty('symbol', 'AAPL');
+      
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('company_profile'),
+        ['Technology']
+      );
+    });
+
+    test('should handle lowercase sector name conversion', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/sectors/technology/details');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('LOWER(cp.sector)'),
+        ['technology']
+      );
+    });
+
+    test('should handle sector not found', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/NonExistentSector/details');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data.stocks).toEqual([]);
+      expect(response.body.data.summary.stock_count).toBe(0);
+    });
+
+    test('should handle special characters in sector name', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/Consumer%20Discretionary/details');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('data');
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('LOWER(cp.sector)'),
+        ['consumer discretionary']
+      );
+    });
+  });
+
+  describe('Authentication', () => {
+    test('should allow public access to health endpoint', async () => {
+      const response = await request(app)
+        .get('/sectors/health');
+
+      expect(response.status).toBe(200);
+      // Should work without authentication
+    });
+
+    test('should allow public access to root endpoint', async () => {
+      const response = await request(app)
+        .get('/sectors');
+
+      expect(response.status).toBe(200);
+      // Should work without authentication
+    });
+
+    test('should require authentication for analysis endpoint', () => {
+      const { authenticateToken } = require('../../../middleware/auth');
+      expect(authenticateToken).toBeDefined();
+      
+      // Authentication is tested through successful requests in other tests
+    });
+  });
+
+  describe('Parameter validation', () => {
+    test('should validate timeframe parameter values', async () => {
+      const validTimeframes = ['daily', 'weekly', 'monthly'];
+      
+      for (const timeframe of validTimeframes) {
+        mockQuery.mockClear();
+        mockQuery.mockResolvedValueOnce({ rows: [] });
+
+        const response = await request(app)
+          .get('/sectors/analysis')
+          .query({ timeframe });
+
+        expect(response.status).toBe(200);
+      }
+    });
+
+    test('should reject invalid timeframe values', async () => {
+      const invalidTimeframes = ['hourly', 'yearly', 'custom', ''];
+      
+      for (const timeframe of invalidTimeframes) {
+        const response = await request(app)
+          .get('/sectors/analysis')
+          .query({ timeframe });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain('Invalid timeframe');
+      }
+    });
+
+    test('should sanitize sector name parameter', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/analysis')
+        .query({ sector: "Technology'; DROP TABLE sectors; --" });
+
+      // Should handle safely since it uses prepared statements
+      expect([200, 400]).toContain(response.status);
+    });
+  });
+
+  describe('Error handling', () => {
+    test('should handle database connection timeout', async () => {
+      const timeoutError = new Error('Query timeout');
+      timeoutError.code = 'QUERY_TIMEOUT';
+      mockQuery.mockRejectedValueOnce(timeoutError);
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('timeout');
+    });
+
+    test('should handle malformed database results', async () => {
+      mockQuery.mockResolvedValueOnce(null); // Malformed result
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+    });
+
+    test('should handle sector calculation errors', async () => {
+      // Mock data that might cause calculation errors
+      const invalidData = {
+        rows: [{
+          sector: 'Technology',
+          avg_pe_ratio: 'invalid_number',
+          momentum_score: null,
+          performance_ytd: undefined
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(invalidData);
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toContain('Sector calculation failed');
+    });
+  });
+
+  describe('Response format', () => {
+    test('should return consistent JSON response format', async () => {
+      const response = await request(app)
+        .get('/sectors/health');
+
+      expect(response.headers['content-type']).toMatch(/json/);
+      expect(typeof response.body).toBe('object');
+    });
+
+    test('should include metadata in sector responses', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/sectors/analysis');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success');
+      expect(response.body).toHaveProperty('data');
+    });
+
+    test('should include analysis metadata', async () => {
+      const mockData = {
+        rows: [{
+          sector: 'Technology',
+          company_count: 45,
+          momentum_score: 0.75
+        }]
+      };
+      
+      mockQuery.mockResolvedValueOnce(mockData);
+
+      const response = await request(app)
+        .get('/sectors/analysis')
+        .query({ timeframe: 'weekly' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveProperty('analysis_timeframe', 'weekly');
+      expect(response.body.data).toHaveProperty('last_updated');
+    });
+  });
+});

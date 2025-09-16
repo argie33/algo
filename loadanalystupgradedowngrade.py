@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
+import gc
+import json
+import logging
+import math
+import os
+import resource
 import sys
 import time
-import logging
-import json
-import os
-import gc
-import resource
-import math
-
-import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
 import boto3
+import psycopg2
 import yfinance as yf
+from psycopg2.extras import RealDictCursor, execute_values
 
 SCRIPT_NAME = "loadanalystupgradedowngrade.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
+    stream=sys.stdout,
 )
+
 
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -28,25 +28,30 @@ def get_rss_mb():
         return usage / 1024
     return usage / (1024 * 1024)
 
+
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
+
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    secret_str = boto3.client("secretsmanager").get_secret_value(
+        SecretId=os.environ["DB_SECRET_ARN"]
+    )["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
+        "host": sec["host"],
+        "port": int(sec.get("port", 5432)),
+        "user": sec["username"],
         "password": sec["password"],
-        "dbname": sec["dbname"]
+        "dbname": sec["dbname"],
     }
+
 
 def create_table(cur):
     logging.info("Recreating analyst_upgrade_downgrade table…")
     cur.execute("DROP TABLE IF EXISTS analyst_upgrade_downgrade;")
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE analyst_upgrade_downgrade (
             id           SERIAL PRIMARY KEY,
             symbol       VARCHAR(20) NOT NULL,
@@ -58,7 +63,9 @@ def create_table(cur):
             details      TEXT,
             fetched_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
-    """)
+    """
+    )
+
 
 def fetch_analyst_actions(symbol):
     # yfinance: Ticker(symbol).get_analyst_price_target_history() is not available, but recommendations is
@@ -74,6 +81,7 @@ def fetch_analyst_actions(symbol):
     df = df[df["To Grade"].notna() | df["From Grade"].notna()]
     return df
 
+
 def load_analyst_actions(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading analyst upgrades/downgrades: {total} symbols")
@@ -86,15 +94,17 @@ def load_analyst_actions(symbols, cur, conn):
             continue
         rows = []
         for dt, row in df.iterrows():
-            rows.append([
-                symbol,
-                row.get("Firm"),
-                row.get("Action"),
-                row.get("From Grade"),
-                row.get("To Grade"),
-                dt.date() if hasattr(dt, 'date') else dt,
-                row.get("Details") if "Details" in row else None
-            ])
+            rows.append(
+                [
+                    symbol,
+                    row.get("Firm"),
+                    row.get("Action"),
+                    row.get("From Grade"),
+                    row.get("To Grade"),
+                    dt.date() if hasattr(dt, "date") else dt,
+                    row.get("Details") if "Details" in row else None,
+                ]
+            )
         if not rows:
             continue
         sql = """
@@ -118,11 +128,13 @@ def load_analyst_actions(symbols, cur, conn):
 
 def lambda_handler(event, context):
     log_mem("startup")
-    cfg  = get_db_config()
+    cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
+        host=cfg["host"],
+        port=cfg["port"],
+        user=cfg["user"],
+        password=cfg["password"],
+        dbname=cfg["dbname"],
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -134,24 +146,24 @@ def lambda_handler(event, context):
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t, i, f = load_analyst_actions(stock_syms, cur, conn)
 
-    cur.execute("""
+    cur.execute(
+        """
       INSERT INTO last_updated (script_name, last_run)
       VALUES (%s, NOW())
       ON CONFLICT (script_name) DO UPDATE
         SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
+    """,
+        (SCRIPT_NAME,),
+    )
     conn.commit()
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Analyst Upgrades/Downgrades — total: {t}, inserted: {i}, failed: {len(f)}")
+    logging.info(
+        f"Analyst Upgrades/Downgrades — total: {t}, inserted: {i}, failed: {len(f)}"
+    )
 
     cur.close()
     conn.close()
     logging.info("All done.")
-    return {
-        "total": t,
-        "inserted": i,
-        "failed": f,
-        "peak_rss_mb": peak
-    }
+    return {"total": t, "inserted": i, "failed": f, "peak_rss_mb": peak}

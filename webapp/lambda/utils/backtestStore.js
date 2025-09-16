@@ -1,11 +1,11 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const STORE_FILE = path.join(__dirname, '../user_backtest_store.json');
+const STORE_FILE = path.join(__dirname, "../user_backtest_store.json");
 
 function loadStrategies() {
   if (!fs.existsSync(STORE_FILE)) return [];
-  return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+  return JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
 }
 
 function saveStrategies(strategies) {
@@ -21,13 +21,30 @@ function addStrategy(strategy) {
 }
 
 function getStrategy(id) {
-  return loadStrategies().find(s => s.id === id);
+  return loadStrategies().find((s) => s.id === id);
 }
 
 function deleteStrategy(id) {
   let strategies = loadStrategies();
-  strategies = strategies.filter(s => s.id !== id);
+  strategies = strategies.filter((s) => s.id !== id);
   saveStrategies(strategies);
+}
+
+// Backtest-specific methods (alias for strategies)
+function getBacktest(id) {
+  return getStrategy(id);
+}
+
+function addBacktest(backtest) {
+  return addStrategy(backtest);
+}
+
+function listBacktests() {
+  return loadStrategies();
+}
+
+function getUserStrategies(userId) {
+  return loadStrategies().filter((s) => s.userId === userId);
 }
 
 module.exports = {
@@ -35,5 +52,9 @@ module.exports = {
   saveStrategies,
   addStrategy,
   getStrategy,
-  deleteStrategy
+  deleteStrategy,
+  getUserStrategies,
+  getBacktest,
+  addBacktest,
+  listBacktests,
 };

@@ -1,67 +1,80 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
+  Alert,
   Box,
-  Card,
-  CardContent,
-  Typography,
   Button,
   ButtonGroup,
-  Alert,
+  Card,
+  CardContent,
+  Chip,
   CircularProgress,
-  Chip
-} from '@mui/material';
+  Typography,
+} from "@mui/material";
 import {
   ShowChart,
   TrendingUp,
   TrendingDown,
-  Timeline
-} from '@mui/icons-material';
+  Timeline,
+} from "@mui/icons-material";
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
+  ResponsiveContainer,
   Tooltip,
-  ResponsiveContainer
-} from 'recharts';
-import { getStockPrices } from '../services/api';
-import { format } from 'date-fns';
+} from "recharts";
+import { getStockPrices } from "../services/api";
+import { format } from "date-fns";
 
-const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
+const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
   const [period, setPeriod] = useState(defaultPeriod);
-  const [timeframe, setTimeframe] = useState('daily');
+  const [timeframe, setTimeframe] = useState("daily");
 
-  const { data: priceData, isLoading, error, refetch } = useQuery({
-    queryKey: ['historical-prices', symbol, timeframe, period],
+  const {
+    data: priceData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["historical-prices", symbol, timeframe, period],
     queryFn: async () => {
-      console.log(`Fetching ${timeframe} prices for ${symbol}, ${period} periods`);
-      return await getStockPrices(symbol, timeframe, period);
+      console.log(
+        `Fetching ${timeframe} prices for ${symbol}, ${period} periods`
+      );
+      try {
+        const result = await getStockPrices(symbol, timeframe, period);
+        return result || { data: [] };
+      } catch (err) {
+        console.warn("Historical prices API failed, using fallback:", err.message);
+        return { data: [] };
+      }
     },
     enabled: !!symbol,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2
+    retry: 2,
   });
 
   const formatPrice = (value) => {
-    if (!value) return 'N/A';
+    if (!value) return "N/A";
     return `$${value.toFixed(2)}`;
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return "";
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
+      return format(new Date(dateString), "MMM dd, yyyy");
     } catch {
       return dateString;
     }
   };
 
   const formatTooltipDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return "";
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy, h:mm a');
+      return format(new Date(dateString), "MMM dd, yyyy, h:mm a");
     } catch {
       return dateString;
     }
@@ -69,29 +82,31 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
 
   const chartData = priceData?.data || [];
   const latestPrice = chartData[0];
-  const oldestPrice = chartData[chartData.length - 1];
-  
-  const priceChange = latestPrice && oldestPrice ? 
-    latestPrice.close - oldestPrice.close : 0;
-  const priceChangePct = latestPrice && oldestPrice && oldestPrice.close ? 
-    (priceChange / oldestPrice.close) * 100 : 0;
+  const oldestPrice = chartData[(chartData?.length || 0) - 1];
+
+  const priceChange =
+    latestPrice && oldestPrice ? latestPrice.close - oldestPrice.close : 0;
+  const priceChangePct =
+    latestPrice && oldestPrice && oldestPrice.close
+      ? (priceChange / oldestPrice.close) * 100
+      : 0;
 
   const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
+    if (active && payload && (payload?.length || 0)) {
       const data = payload[0].payload;
       return (
         <Box
           sx={{
-            backgroundColor: 'background.paper',
+            backgroundColor: "background.paper",
             border: 1,
-            borderColor: 'divider',
+            borderColor: "divider",
             borderRadius: 1,
             p: 2,
-            boxShadow: 2
+            boxShadow: 2,
           }}
         >
           <Typography variant="subtitle2" gutterBottom>
-            {formatTooltipDate(label)}
+            {formatTooltipDate(label) || "No Date"}
           </Typography>
           <Typography variant="body2">
             <strong>Open:</strong> {formatPrice(data.open)}
@@ -106,20 +121,27 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
             <strong>Close:</strong> {formatPrice(data.close)}
           </Typography>
           <Typography variant="body2">
-            <strong>Volume:</strong> {data.volume?.toLocaleString() || 'N/A'}
+            <strong>Volume:</strong> {data.volume?.toLocaleString() || "N/A"}
           </Typography>
         </Box>
       );
     }
-    return null;
+    return <Box />;
   };
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ height: "100%" }}>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ShowChart sx={{ color: 'primary.main' }} />
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <ShowChart sx={{ color: "primary.main" }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Historical Prices - {symbol}
             </Typography>
@@ -136,44 +158,44 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
         </Box>
 
         {/* Controls */}
-        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
           <ButtonGroup size="small" variant="outlined">
-            <Button 
-              onClick={() => setTimeframe('daily')}
-              variant={timeframe === 'daily' ? 'contained' : 'outlined'}
+            <Button
+              onClick={() => setTimeframe("daily")}
+              variant={timeframe === "daily" ? "contained" : "outlined"}
             >
               Daily
             </Button>
-            <Button 
-              onClick={() => setTimeframe('weekly')}
-              variant={timeframe === 'weekly' ? 'contained' : 'outlined'}
+            <Button
+              onClick={() => setTimeframe("weekly")}
+              variant={timeframe === "weekly" ? "contained" : "outlined"}
             >
               Weekly
             </Button>
-            <Button 
-              onClick={() => setTimeframe('monthly')}
-              variant={timeframe === 'monthly' ? 'contained' : 'outlined'}
+            <Button
+              onClick={() => setTimeframe("monthly")}
+              variant={timeframe === "monthly" ? "contained" : "outlined"}
             >
               Monthly
             </Button>
           </ButtonGroup>
 
           <ButtonGroup size="small" variant="outlined">
-            <Button 
+            <Button
               onClick={() => setPeriod(30)}
-              variant={period === 30 ? 'contained' : 'outlined'}
+              variant={period === 30 ? "contained" : "outlined"}
             >
               30 periods
             </Button>
-            <Button 
+            <Button
               onClick={() => setPeriod(90)}
-              variant={period === 90 ? 'contained' : 'outlined'}
+              variant={period === 90 ? "contained" : "outlined"}
             >
               90 periods
             </Button>
-            <Button 
+            <Button
               onClick={() => setPeriod(252)}
-              variant={period === 252 ? 'contained' : 'outlined'}
+              variant={period === 252 ? "contained" : "outlined"}
             >
               1 Year
             </Button>
@@ -181,21 +203,21 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
         </Box>
 
         {/* Price Summary */}
-        {latestPrice && (
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-            <Chip 
+        {latestPrice && oldestPrice && (
+          <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
+            <Chip
               label={`Current: ${formatPrice(latestPrice.close)}`}
               color="primary"
               variant="outlined"
             />
-            <Chip 
+            <Chip
               icon={priceChange >= 0 ? <TrendingUp /> : <TrendingDown />}
-              label={`${priceChange >= 0 ? '+' : ''}${formatPrice(priceChange)} (${priceChangePct.toFixed(2)}%)`}
-              color={priceChange >= 0 ? 'success' : 'error'}
+              label={`${priceChange >= 0 ? "+" : ""}${formatPrice(priceChange)} (${priceChangePct.toFixed(2)}%)`}
+              color={priceChange >= 0 ? "success" : "error"}
               variant="outlined"
             />
-            <Chip 
-              label={`Volume: ${latestPrice.volume?.toLocaleString() || 'N/A'}`}
+            <Chip
+              label={`Volume: ${latestPrice.volume?.toLocaleString() || "N/A"}`}
               variant="outlined"
             />
           </Box>
@@ -203,7 +225,14 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
 
         {/* Loading State */}
         {isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: 300,
+            }}
+          >
             <CircularProgress />
           </Box>
         )}
@@ -211,9 +240,11 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
         {/* Error State */}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2">Failed to load price data</Typography>
+            <Typography variant="subtitle2">
+              Failed to load price data
+            </Typography>
             <Typography variant="body2">
-              {error.message || 'Unknown error occurred'}
+              {error.message || "Unknown error occurred"}
             </Typography>
           </Alert>
         )}
@@ -221,47 +252,39 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
         {/* Chart */}
         {!isLoading && !error && chartData.length > 0 && (
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData.reverse()}>
+            <LineChart data={[...chartData].reverse()}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 12 }}
-                tickFormatter={formatDate}
-              />
-              <YAxis 
-                tick={{ fontSize: 12 }}
-                domain={['auto', 'auto']}
-                tickFormatter={(value) => `$${value?.toFixed(2)}`}
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={["auto", "auto"]} />
               <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="close" 
-                stroke="#1976d2" 
-                strokeWidth={2} 
-                dot={false}
-                connectNulls={false}
+              <Line
+                type="monotone"
+                dataKey="close"
+                stroke="#1976d2"
+                strokeWidth={2}
+                dot={{ r: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>
         )}
 
         {/* No Data State */}
-        {!isLoading && !error && chartData.length === 0 && (
+        {!isLoading && !error && (chartData?.length || 0) === 0 && (
           <Alert severity="info">
             <Typography variant="subtitle2">No price data available</Typography>
             <Typography variant="body2">
-              The price data for {symbol} ({timeframe}) is not yet loaded. 
-              The price loaders need to populate the database tables.
+              The price data for {symbol} ({timeframe}) is not yet loaded. The
+              price loaders need to populate the database tables.
             </Typography>
           </Alert>
         )}
 
         {/* Data Summary */}
         {chartData.length > 0 && (
-          <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
             <Typography variant="caption" color="text.secondary">
-              Showing {chartData.length} {timeframe} data points for {symbol}
+              Showing {chartData?.length || 0} {timeframe} data points for{" "}
+              {symbol}
               {latestPrice && ` • Latest: ${formatDate(latestPrice.date)}`}
             </Typography>
           </Box>

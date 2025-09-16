@@ -1,0 +1,403 @@
+{
+  "summary": {
+    "total": 78,
+    "working": 76,
+    "errors501": 0,
+    "otherErrors": 2
+  },
+  "working": [
+    {
+      "endpoint": "/health",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/stocks",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/screener",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/scores",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/metrics",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/market",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/analysts",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/analytics",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/commodities",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/data",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/financials",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/trading",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/technical/daily",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/calendar",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/dashboard",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/signals",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/backtest",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/portfolio",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/performance",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/scoring",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/price",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/risk",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/sectors",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/sentiment",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/settings",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/trades",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/live-data",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/orders",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/news",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/diagnostics",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/watchlist",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/etf",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/insider",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/dividend",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/health",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/stocks",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/screener",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/scores",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/metrics",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/market",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/analysts",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/analytics",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/commodities",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/data",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/financials",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/trading",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/technical/daily",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/calendar",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/dashboard",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/economic",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/signals",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/backtest",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/portfolio",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/performance",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/recommendations",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/research",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/earnings",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/scoring",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/price",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/risk",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/sectors",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/sentiment",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/settings",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/trades",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/live-data",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/orders",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/news",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/diagnostics",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/watchlist",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/etf",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/insider",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/dividend",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/positioning",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/strategyBuilder",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/liveData",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/api/alerts",
+      "status": 200,
+      "data": null
+    }
+  ],
+  "errors501": [],
+  "errors": [
+    {
+      "endpoint": "/auth/login",
+      "status": 404,
+      "data": null
+    },
+    {
+      "endpoint": "/api/auth/login",
+      "status": 404,
+      "data": null
+    }
+  ]
+}

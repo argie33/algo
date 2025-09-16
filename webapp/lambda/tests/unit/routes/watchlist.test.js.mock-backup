@@ -1,0 +1,864 @@
+/**
+ * Watchlist Route Unit Tests - Enhanced
+ * Comprehensive testing with improved coverage and error handling
+ */
+
+const request = require('supertest');
+const express = require('express');
+const watchlistRouter = require('../../../routes/watchlist');
+
+const app = express();
+app.use(express.json());
+app.use('/api/watchlist', watchlistRouter);
+
+// Mock authentication middleware
+jest.mock('../../../middleware/auth', () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { 
+      sub: 'test-user-123', 
+      email: 'test@example.com', 
+      username: 'testuser',
+      user_id: 'test-user-123'
+    };
+    next();
+  }),
+  requireRole: jest.fn(() => (req, res, next) => {
+    next();
+  })
+}));
+
+// Mock database module
+jest.mock('../../../utils/database', () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn(),
+  closeDatabase: jest.fn()
+}));
+
+const { query } = require('../../../utils/database');
+const { authenticateToken } = require('../../../middleware/auth');
+
+describe('Watchlist Routes', () => {
+  let consoleSpy;
+
+  beforeEach(() => {
+    consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'error').mockImplementation();
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    consoleSpy.mockRestore();
+    jest.restoreAllMocks();
+  });
+
+  describe('GET /api/watchlist/', () => {
+    const mockWatchlists = [
+      {
+        id: 1,
+        user_id: 'test-user-123',
+        name: 'My Tech Stocks',
+        description: 'Technology companies',
+        is_public: true,
+        created_at: '2023-01-01T00:00:00Z',
+        item_count: 5
+      },
+      {
+        id: 2,
+        user_id: 'test-user-123',
+        name: 'Growth Plays',
+        description: 'High growth potential',
+        is_public: false,
+        created_at: '2023-01-02T00:00:00Z',
+        item_count: 3
+      }
+    ];
+
+    test('should return user watchlists', async () => {
+      query.mockResolvedValue({ rows: mockWatchlists });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        data: mockWatchlists,
+        total: 2
+      });
+
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('FROM watchlists w'),
+        ['test-user-123']
+      );
+    });
+
+    test('should handle empty watchlists', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        data: [],
+        total: 0
+      });
+    });
+
+    test('should handle database unavailable', async () => {
+      query.mockRejectedValue(new Error('Database connection failed'));
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to fetch watchlists',
+        message: 'Database connection failed'
+      });
+    });
+
+    test('should handle database errors', async () => {
+      query.mockRejectedValue(new Error('Query timeout'));
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to fetch watchlists',
+        message: 'Query timeout'
+      });
+    });
+
+    test('should order watchlists by public first, then by creation date', async () => {
+      const orderedWatchlists = [mockWatchlists[0], mockWatchlists[1]]; // public first
+      query.mockResolvedValue({ rows: orderedWatchlists });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(200);
+
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toEqual(orderedWatchlists);
+      expect(response.body).toHaveProperty('total', 2);
+    });
+  });
+
+  describe('GET /api/watchlist/items', () => {
+    const mockWatchlistItems = [
+      {
+        symbol: 'AAPL',
+        notes: 'Strong growth potential',
+        added_at: '2023-01-01T00:00:00Z',
+        watchlist_name: 'My Tech Stocks',
+        watchlist_id: 1,
+        current_price: 150.25,
+        change_amount: 0,
+        change_percent: 0,
+        company_name: 'Apple Inc.',
+        sector: 'Technology',
+        market_cap: 2500000000000
+      },
+      {
+        symbol: 'GOOGL',
+        notes: 'Search dominance',
+        added_at: '2023-01-02T00:00:00Z',
+        watchlist_name: 'My Tech Stocks',
+        watchlist_id: 1,
+        current_price: 2750.50,
+        change_amount: 0,
+        change_percent: 0,
+        company_name: 'Alphabet Inc.',
+        sector: 'Technology',
+        market_cap: 1800000000000
+      }
+    ];
+
+    test('should return all watchlist items for user', async () => {
+      query.mockResolvedValue({ rows: mockWatchlistItems });
+
+      const response = await request(app)
+        .get('/api/watchlist/items')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        data: mockWatchlistItems,
+        total: 2,
+        summary: {
+          total_items: 2,
+          total_value: 2900.75,
+          total_change: 0,
+          average_change_percent: 0,
+          unique_watchlists: 1
+        },
+        filters: {
+          symbol: null,
+          watchlist_id: null,
+          limit: 100
+        },
+        timestamp: expect.any(String)
+      });
+
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('FROM watchlist_items wi'),
+        ['test-user-123', 100]
+      );
+    });
+
+    test('should filter items by symbol', async () => {
+      const filteredItems = mockWatchlistItems.filter(item => item.symbol === 'AAPL');
+      query.mockResolvedValue({ rows: filteredItems });
+
+      const response = await request(app)
+        .get('/api/watchlist/items?symbol=AAPL')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.filters.symbol).toBe('AAPL');
+      expect(response.body).toHaveProperty('summary');
+      expect(response.body).toHaveProperty('timestamp');
+
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('AND wi.symbol = $3'),
+        ['test-user-123', 100, 'AAPL']
+      );
+    });
+
+    test('should filter items by watchlist ID', async () => {
+      const filteredItems = mockWatchlistItems.filter(item => item.watchlist_id === 1);
+      query.mockResolvedValue({ rows: filteredItems });
+
+      const response = await request(app)
+        .get('/api/watchlist/items?watchlist_id=1')
+        .expect(200);
+
+      expect(response.body.filters.watchlist_id).toBe('1');
+      expect(response.body).toHaveProperty('summary');
+      expect(response.body).toHaveProperty('timestamp');
+
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('AND wi.watchlist_id = $3'),
+        ['test-user-123', 100, '1']
+      );
+    });
+
+    test('should respect limit parameter', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      await request(app)
+        .get('/api/watchlist/items?limit=25')
+        .expect(200);
+
+      expect(query).toHaveBeenCalledWith(
+        expect.any(String),
+        ['test-user-123', 25]
+      );
+    });
+
+    test('should handle empty items', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/items')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        data: [],
+        total: 0,
+        summary: {
+          total_items: 0,
+          total_value: 0,
+          total_change: 0,
+          average_change_percent: 0,
+          unique_watchlists: 0
+        },
+        filters: {
+          symbol: null,
+          watchlist_id: null,
+          limit: 100
+        },
+        timestamp: expect.any(String)
+      });
+    });
+
+    test('should handle database errors', async () => {
+      query.mockRejectedValue(new Error('Connection timeout'));
+
+      const response = await request(app)
+        .get('/api/watchlist/items')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to fetch watchlist items',
+        message: 'Connection timeout'
+      });
+    });
+  });
+
+  describe('POST /api/watchlist/', () => {
+    const newWatchlistData = {
+      name: 'New Watchlist',
+      description: 'My new watchlist',
+      is_public: false
+    };
+
+    test('should create new watchlist', async () => {
+      const mockCreatedWatchlist = {
+        id: 3,
+        user_id: 'test-user-123',
+        ...newWatchlistData,
+        created_at: '2023-01-03T00:00:00Z'
+      };
+
+      query.mockResolvedValue({ rows: [mockCreatedWatchlist] });
+
+      const response = await request(app)
+        .post('/api/watchlist/')
+        .send(newWatchlistData)
+        .expect(201);
+
+      expect(response.body).toEqual({
+        success: true,
+        data: mockCreatedWatchlist,
+        message: 'Watchlist created successfully'
+      });
+
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO watchlists'),
+        ['test-user-123', 'New Watchlist', 'My new watchlist', false]
+      );
+    });
+
+    test('should validate required fields', async () => {
+      const response = await request(app)
+        .post('/api/watchlist/')
+        .send({})
+        .expect(400);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Name is required'
+      });
+    });
+
+    test('should default is_public to false', async () => {
+      const mockCreatedWatchlist = { id: 3, name: 'Test', is_public: false };
+      query.mockResolvedValue({ rows: [mockCreatedWatchlist] });
+
+      await request(app)
+        .post('/api/watchlist/')
+        .send({ name: 'Test' })
+        .expect(201);
+
+      expect(query).toHaveBeenCalledWith(
+        expect.any(String),
+        ['test-user-123', 'Test', '', false]
+      );
+    });
+
+    test('should handle database errors', async () => {
+      query.mockRejectedValue(new Error('Duplicate name'));
+
+      const response = await request(app)
+        .post('/api/watchlist/')
+        .send(newWatchlistData)
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to create watchlist',
+        message: 'Duplicate name'
+      });
+    });
+  });
+
+  describe('DELETE /api/watchlist/:id', () => {
+    test('should delete watchlist successfully', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [{ id: 1, is_public: false }] }) // watchlist check
+        .mockResolvedValueOnce({ rowCount: 3 }) // delete items
+        .mockResolvedValueOnce({ rowCount: 1 }); // delete watchlist
+
+      const response = await request(app)
+        .delete('/api/watchlist/1')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        message: 'Watchlist deleted successfully'
+      });
+
+      expect(query).toHaveBeenCalledTimes(3);
+    });
+
+    test('should handle watchlist not found', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .delete('/api/watchlist/999')
+        .expect(404);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Watchlist not found'
+      });
+    });
+
+    test('should prevent deletion of public watchlists', async () => {
+      query.mockResolvedValue({ rows: [{ id: 1, is_public: true }] });
+
+      const response = await request(app)
+        .delete('/api/watchlist/1')
+        .expect(400);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'cannot delete public watchlist'
+      });
+    });
+
+    test('should handle database errors', async () => {
+      query.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .delete('/api/watchlist/1')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to delete watchlist',
+        message: 'Database error'
+      });
+    });
+  });
+
+  describe('GET /api/watchlist/:id', () => {
+    const mockWatchlistDetails = [
+      {
+        id: 1,
+        name: 'My Tech Stocks',
+        description: 'Technology companies',
+        is_public: true,
+        created_at: '2023-01-01T00:00:00Z'
+      }
+    ];
+
+    const mockWatchlistItems = [
+      {
+        symbol: 'AAPL',
+        notes: 'Strong growth',
+        added_at: '2023-01-01T00:00:00Z'
+      }
+    ];
+
+    test('should return watchlist details with items', async () => {
+      query
+        .mockResolvedValueOnce({ rows: mockWatchlistDetails })
+        .mockResolvedValueOnce({ rows: mockWatchlistItems });
+
+      const response = await request(app)
+        .get('/api/watchlist/1')
+        .expect(200);
+
+      expect(response.body).toEqual({
+        success: true,
+        data: {
+          ...mockWatchlistDetails[0],
+          items: mockWatchlistItems
+        }
+      });
+
+      expect(query).toHaveBeenCalledTimes(2);
+    });
+
+    test('should return 404 for non-existent watchlist', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/999')
+        .expect(404);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Watchlist not found'
+      });
+    });
+
+    test('should handle database errors', async () => {
+      query.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .get('/api/watchlist/1')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to fetch watchlist',
+        message: 'Database error'
+      });
+    });
+  });
+
+  describe('POST /api/watchlist/:id/items', () => {
+    test('should add item to watchlist successfully', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [{ id: 1, user_id: 'test-user-123' }] }) // watchlist check
+        .mockResolvedValueOnce({ rows: [{ symbol: 'AAPL', watchlist_id: 1 }] }); // insert item
+
+      const response = await request(app)
+        .post('/api/watchlist/1/items')
+        .send({ symbol: 'AAPL', notes: 'Good buy opportunity' })
+        .expect(201);
+
+      expect(response.body).toEqual({
+        success: true,
+        data: { symbol: 'AAPL', watchlist_id: 1 },
+        message: 'Item added to watchlist successfully'
+      });
+
+      expect(query).toHaveBeenCalledTimes(2);
+    });
+
+    test('should handle validation errors', async () => {
+      const response = await request(app)
+        .post('/api/watchlist/1/items')
+        .send({})
+        .expect(400);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Symbol is required'
+      });
+    });
+
+    test('should handle watchlist not found', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .post('/api/watchlist/999/items')
+        .send({ symbol: 'AAPL' })
+        .expect(404);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Watchlist not found'
+      });
+    });
+
+    test('should handle database errors', async () => {
+      query.mockRejectedValue(new Error('Constraint violation'));
+
+      const response = await request(app)
+        .post('/api/watchlist/1/items')
+        .send({ symbol: 'AAPL' })
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to add item to watchlist',
+        message: 'Constraint violation'
+      });
+    });
+  });
+
+  describe('Authentication', () => {
+    test('should require authentication for all endpoints', async () => {
+      // Mock authentication failure
+      authenticateToken.mockImplementationOnce((req, res, next) => {
+        return res.status(401).json({ error: 'Unauthorized' });
+      });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(401);
+
+      expect(response.body).toEqual({
+        error: 'Unauthorized'
+      });
+    });
+  });
+
+  describe('Response Format Validation', () => {
+    test('should return consistent response format', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('total');
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(typeof response.body.total).toBe('number');
+    });
+
+    test('should include required fields in watchlist items', async () => {
+      const mockItems = [{
+        symbol: 'AAPL',
+        notes: 'Test',
+        added_at: '2023-01-01T00:00:00Z',
+        watchlist_name: 'Test',
+        watchlist_id: 1,
+        current_price: 150.00,
+        change_amount: 0,
+        change_percent: 0,
+        company_name: 'Apple Inc.',
+        sector: 'Technology',
+        market_cap: 1000000000
+      }];
+
+      query.mockResolvedValue({ rows: mockItems });
+
+      const response = await request(app)
+        .get('/api/watchlist/items')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body).toHaveProperty('summary');
+      expect(response.body).toHaveProperty('filters');
+      expect(response.body).toHaveProperty('timestamp');
+      
+      const item = response.body.data[0];
+      expect(item).toHaveProperty('symbol');
+      expect(item).toHaveProperty('current_price');
+      expect(item).toHaveProperty('company_name');
+      expect(item).toHaveProperty('sector');
+    });
+
+    test('should handle timestamps correctly', async () => {
+      const mockWatchlist = [{
+        id: 1,
+        name: 'Test',
+        created_at: new Date().toISOString(),
+        is_public: false,
+        user_id: 'test-user-123'
+      }];
+
+      query.mockResolvedValue({ rows: mockWatchlist });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(200);
+
+      expect(response.body.data[0].created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    });
+
+    test('should validate numeric fields', async () => {
+      const mockItems = [{
+        symbol: 'AAPL',
+        current_price: 150.50,
+        change_amount: -2.25,
+        change_percent: -1.47,
+        market_cap: 2500000000000,
+        watchlist_id: 1
+      }];
+
+      query.mockResolvedValue({ rows: mockItems });
+
+      const response = await request(app)
+        .get('/api/watchlist/items')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('summary');
+      const { summary } = response.body;
+      expect(typeof summary.total_value).toBe('number');
+      expect(typeof summary.total_change).toBe('number');
+      expect(typeof summary.average_change_percent).toBe('number');
+      expect(typeof summary.total_items).toBe('number');
+
+      const item = response.body.data[0];
+      expect(typeof item.current_price).toBe('number');
+      expect(typeof item.change_amount).toBe('number');  
+      expect(typeof item.change_percent).toBe('number');
+      expect(typeof item.market_cap).toBe('number');
+      expect(typeof item.watchlist_id).toBe('number');
+    });
+  });
+
+  describe('Edge Cases', () => {
+    test('should handle special characters in symbol', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [{ id: 1, user_id: 'test-user-123' }] }) // watchlist check
+        .mockResolvedValueOnce({ rows: [{ symbol: 'BRK.A', watchlist_id: 1 }] }); // insert item
+
+      const response = await request(app)
+        .post('/api/watchlist/1/items')
+        .send({ symbol: 'BRK.A', notes: 'Berkshire Hathaway A' })
+        .expect(201);
+
+      expect(response.body).toEqual({
+        success: true,
+        data: { symbol: 'BRK.A', watchlist_id: 1 },
+        message: 'Item added to watchlist successfully'
+      });
+    });
+
+    test('should handle very large limit values', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/items?limit=999999')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('total');
+      expect(query).toHaveBeenCalledWith(
+        expect.any(String),
+        ['test-user-123', 999999]
+      );
+    });
+
+    test('should handle non-numeric watchlist ID', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/abc')
+        .expect(404);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Watchlist not found'
+      });
+    });
+
+    test('should handle invalid symbols gracefully', async () => {
+      query.mockResolvedValue({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/watchlist/999')
+        .expect(404);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Watchlist not found'
+      });
+    });
+
+    test('should handle concurrent request stress test', async () => {
+      const testWatchlists = [
+        {
+          id: 1,
+          user_id: 'test-user-123',
+          name: 'My Tech Stocks',
+          description: 'Technology companies',
+          is_public: true,
+          created_at: '2023-01-01T00:00:00Z',
+          item_count: 5
+        }
+      ];
+      
+      query.mockResolvedValue({ rows: testWatchlists });
+
+      const requests = Array.from({ length: 10 }, () =>
+        request(app).get('/api/watchlist/')
+      );
+
+      const responses = await Promise.all(requests);
+      
+      responses.forEach(response => {
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('data');
+        expect(response.body).toHaveProperty('total');
+      });
+    });
+
+    test('should validate request payload size limits', async () => {
+      const largePayload = {
+        name: 'A'.repeat(10000),
+        description: 'B'.repeat(50000)
+      };
+
+      const response = await request(app)
+        .post('/api/watchlist/')
+        .send(largePayload);
+
+      expect([400, 413, 500]).toContain(response.status);
+    });
+
+    test('should handle SQL injection attempts', async () => {
+      const maliciousSymbol = "'; DROP TABLE watchlists; --";
+      query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+      const response = await request(app)
+        .delete(`/api/watchlist/${encodeURIComponent(maliciousSymbol)}`)
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+    });
+
+    test('should handle XSS attempts in watchlist names', async () => {
+      const xssPayload = {
+        name: '<script>alert("xss")</script>',
+        description: '<img src="x" onerror="alert(1)">'
+      };
+
+      query.mockResolvedValue({ 
+        rows: [{ id: 1, name: xssPayload.name, description: xssPayload.description }] 
+      });
+
+      const response = await request(app)
+        .post('/api/watchlist/')
+        .send(xssPayload);
+
+      expect([201, 400, 500]).toContain(response.status);
+      
+      if (response.status === 201) {
+        expect(response.body.data.name).toBe(xssPayload.name);
+      }
+    });
+  });
+
+  describe('Performance and Error Recovery', () => {
+    test('should handle database timeout gracefully', async () => {
+      jest.setTimeout(10000);
+      query.mockImplementation(() => new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout')), 100)
+      ));
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Failed to fetch watchlists',
+        message: 'Query timeout'
+      });
+    });
+
+    test('should handle route error and return 500', async () => {
+      query.mockImplementation(() => {
+        throw new Error('Unexpected error');
+      });
+
+      const response = await request(app)
+        .get('/api/watchlist/')
+        .expect(500);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Failed to fetch watchlists');
+    });
+
+    test('should maintain consistent error format across endpoints', async () => {
+      query.mockRejectedValue(new Error('Test error'));
+
+      const endpoints = [
+        { method: 'get', path: '/api/watchlist/' },
+        { method: 'get', path: '/api/watchlist/items' },
+        { method: 'post', path: '/api/watchlist/', data: { name: 'test' } },
+        { method: 'delete', path: '/api/watchlist/1' }
+      ];
+
+      for (const endpoint of endpoints) {
+        const response = await request(app)[endpoint.method](endpoint.path)
+          .send(endpoint.data || {});
+
+        expect(response.status).toBeGreaterThanOrEqual(400);
+        expect(response.body).toHaveProperty('success', false);
+        expect(response.body).toHaveProperty('error');
+      }
+    });
+  });
+});

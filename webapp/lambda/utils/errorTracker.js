@@ -3,7 +3,7 @@
  * Comprehensive error tracking for production-ready financial platform
  */
 
-const logger = require('./logger');
+const logger = require("./logger");
 
 class ErrorTracker {
   constructor() {
@@ -11,10 +11,10 @@ class ErrorTracker {
     this.errorHistory = [];
     this.maxHistorySize = 1000;
     this.alertThresholds = {
-      database: 5,      // Database errors per minute
-      api: 10,          // API errors per minute
-      auth: 3,          // Authentication errors per minute
-      general: 15       // General errors per minute
+      database: 5, // Database errors per minute
+      api: 10, // API errors per minute
+      auth: 3, // Authentication errors per minute
+      general: 15, // General errors per minute
     };
   }
 
@@ -37,11 +37,11 @@ class ErrorTracker {
       ip: context.ip,
       category: this.categorizeError(error),
       severity: this.calculateSeverity(error),
-      context: context
+      context: context,
     };
 
     // Log the error with structured format
-    logger.error('Application Error', errorData);
+    logger.error("Application Error", errorData);
 
     // Track error frequency
     this.updateErrorCounts(errorData);
@@ -61,53 +61,63 @@ class ErrorTracker {
    */
   categorizeError(error) {
     const message = error.message.toLowerCase();
-    const code = error.code || '';
-    const stack = error.stack || '';
+    const code = error.code || "";
+    const stack = error.stack || "";
 
     // Database errors
-    if (message.includes('database') || 
-        message.includes('connection') || 
-        message.includes('timeout') ||
-        code.includes('ECONNREFUSED') ||
-        code.includes('ECONNRESET') ||
-        stack.includes('pg')) {
-      return 'database';
+    if (
+      message.includes("database") ||
+      message.includes("connection") ||
+      message.includes("timeout") ||
+      code.includes("ECONNREFUSED") ||
+      code.includes("ECONNRESET") ||
+      stack.includes("pg")
+    ) {
+      return "database";
     }
 
     // Authentication errors
-    if (message.includes('unauthorized') ||
-        message.includes('forbidden') ||
-        message.includes('token') ||
-        message.includes('auth') ||
-        error.statusCode === 401 ||
-        error.statusCode === 403) {
-      return 'auth';
+    if (
+      message.includes("unauthorized") ||
+      message.includes("forbidden") ||
+      message.includes("token") ||
+      message.includes("auth") ||
+      error.statusCode === 401 ||
+      error.statusCode === 403
+    ) {
+      return "auth";
     }
 
     // API integration errors
-    if (message.includes('api') ||
-        message.includes('request') ||
-        message.includes('network') ||
-        error.statusCode >= 500) {
-      return 'api';
+    if (
+      message.includes("api") ||
+      message.includes("request") ||
+      message.includes("network") ||
+      error.statusCode >= 500
+    ) {
+      return "api";
     }
 
     // Validation errors
-    if (message.includes('validation') ||
-        message.includes('invalid') ||
-        message.includes('required') ||
-        error.statusCode === 400) {
-      return 'validation';
+    if (
+      message.includes("validation") ||
+      message.includes("invalid") ||
+      message.includes("required") ||
+      error.statusCode === 400
+    ) {
+      return "validation";
     }
 
     // Circuit breaker errors
-    if (message.includes('circuit') ||
-        message.includes('breaker') ||
-        message.includes('open')) {
-      return 'circuit_breaker';
+    if (
+      message.includes("circuit") ||
+      message.includes("breaker") ||
+      message.includes("open")
+    ) {
+      return "circuit_breaker";
     }
 
-    return 'general';
+    return "general";
   }
 
   /**
@@ -118,32 +128,38 @@ class ErrorTracker {
     const message = error.message.toLowerCase();
 
     // Critical errors
-    if (statusCode >= 500 ||
-        message.includes('database') ||
-        message.includes('connection') ||
-        message.includes('timeout') ||
-        message.includes('circuit breaker is open')) {
-      return 'critical';
+    if (
+      statusCode >= 500 ||
+      message.includes("database") ||
+      message.includes("connection") ||
+      message.includes("timeout") ||
+      message.includes("circuit breaker is open")
+    ) {
+      return "critical";
     }
 
     // High severity errors
-    if (statusCode === 401 ||
-        statusCode === 403 ||
-        message.includes('unauthorized') ||
-        message.includes('forbidden') ||
-        message.includes('api key')) {
-      return 'high';
+    if (
+      statusCode === 401 ||
+      statusCode === 403 ||
+      message.includes("unauthorized") ||
+      message.includes("forbidden") ||
+      message.includes("api key")
+    ) {
+      return "high";
     }
 
     // Medium severity errors
-    if (statusCode === 400 ||
-        message.includes('validation') ||
-        message.includes('invalid')) {
-      return 'medium';
+    if (
+      statusCode === 400 ||
+      message.includes("validation") ||
+      message.includes("invalid")
+    ) {
+      return "medium";
     }
 
     // Low severity errors
-    return 'low';
+    return "low";
   }
 
   /**
@@ -162,7 +178,7 @@ class ErrorTracker {
     // Clean up old counts (keep last 5 minutes)
     const cutoffKey = minuteKey - 5;
     for (const [key] of this.errorCounts) {
-      const keyMinute = parseInt(key.split(':')[1]);
+      const keyMinute = parseInt(key.split(":")[1]);
       if (keyMinute < cutoffKey) {
         this.errorCounts.delete(key);
       }
@@ -187,7 +203,8 @@ class ErrorTracker {
     const minuteKey = Math.floor(now / 60000);
     const countKey = `${errorData.category}:${minuteKey}`;
     const currentCount = this.errorCounts.get(countKey) || 0;
-    const threshold = this.alertThresholds[errorData.category] || this.alertThresholds.general;
+    const threshold =
+      this.alertThresholds[errorData.category] || this.alertThresholds.general;
 
     if (currentCount >= threshold) {
       this.triggerAlert(errorData.category, currentCount, threshold);
@@ -203,11 +220,11 @@ class ErrorTracker {
       category,
       currentCount,
       threshold,
-      severity: 'high',
-      message: `High error rate detected: ${currentCount} ${category} errors in the last minute (threshold: ${threshold})`
+      severity: "high",
+      message: `High error rate detected: ${currentCount} ${category} errors in the last minute (threshold: ${threshold})`,
     };
 
-    logger.warn('Error Rate Alert', alertData);
+    logger.warn("Error Rate Alert", alertData);
 
     // Here you would integrate with your alerting system
     // Examples: SNS, Slack, PagerDuty, etc.
@@ -220,7 +237,7 @@ class ErrorTracker {
   sendAlert(alertData) {
     // Integration with external alerting systems
     // This is a placeholder - implement based on your needs
-    console.log('🚨 ALERT:', alertData.message);
+    console.log("🚨 ALERT:", alertData.message);
   }
 
   /**
@@ -239,26 +256,28 @@ class ErrorTracker {
   getErrorStats() {
     const now = Date.now();
     const currentMinute = Math.floor(now / 60000);
-    
+
     const stats = {
       total: this.errorHistory.length,
-      lastHour: this.errorHistory.filter(e => 
-        Date.now() - new Date(e.timestamp).getTime() < 3600000
+      lastHour: this.errorHistory.filter(
+        (e) => Date.now() - new Date(e.timestamp).getTime() < 3600000
       ).length,
       byCategory: {},
       bySeverity: {},
-      currentMinuteRates: {}
+      currentMinuteRates: {},
     };
 
     // Count by category and severity
-    this.errorHistory.forEach(error => {
-      stats.byCategory[error.category] = (stats.byCategory[error.category] || 0) + 1;
-      stats.bySeverity[error.severity] = (stats.bySeverity[error.severity] || 0) + 1;
+    this.errorHistory.forEach((error) => {
+      stats.byCategory[error.category] =
+        (stats.byCategory[error.category] || 0) + 1;
+      stats.bySeverity[error.severity] =
+        (stats.bySeverity[error.severity] || 0) + 1;
     });
 
     // Current minute rates
     for (const [key, count] of this.errorCounts) {
-      const [category, minute] = key.split(':');
+      const [category, minute] = key.split(":");
       if (parseInt(minute) === currentMinute) {
         stats.currentMinuteRates[category] = count;
       }
@@ -290,21 +309,21 @@ class ErrorTracker {
   middleware() {
     return (err, req, res, next) => {
       const context = {
-        correlationId: req.headers['x-correlation-id'] || req.id,
+        correlationId: req.headers["x-correlation-id"] || req.id,
         userId: req.user?.id,
         route: req.route?.path,
         method: req.method,
-        userAgent: req.get('User-Agent'),
+        userAgent: req.get("User-Agent"),
         ip: req.ip,
         body: req.body,
         query: req.query,
-        params: req.params
+        params: req.params,
       };
 
       const errorId = this.trackError(err, context);
-      
+
       // Add error ID to response headers for debugging
-      res.setHeader('X-Error-ID', errorId);
+      res.setHeader("X-Error-ID", errorId);
 
       next(err);
     };

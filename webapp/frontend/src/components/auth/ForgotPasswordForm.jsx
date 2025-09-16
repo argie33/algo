@@ -1,117 +1,95 @@
-import React, { useState } from 'react';
+import { useState } from "react";
 import {
   Box,
-  Card,
-  CardContent,
   TextField,
   Button,
   Typography,
   Alert,
-  CircularProgress,
-  Link
-} from '@mui/material';
-import { LockReset as ResetIcon } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+  Paper,
+} from "@mui/material";
 
-function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
-  const [username, setUsername] = useState('');
-  const [localError, setLocalError] = useState('');
-
-  const { forgotPassword, isLoading, error, clearError } = useAuth();
-
-  const handleChange = (e) => {
-    setUsername(e.target.value);
-    // Clear errors when user starts typing
-    if (error) clearError();
-    if (localError) setLocalError('');
-  };
+const ForgotPasswordForm = ({ onBack }) => {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
+    setLoading(true);
+    setError("");
+    setMessage("");
 
-    if (!username) {
-      setLocalError('Please enter your username or email');
-      return;
-    }
-
-    const result = await forgotPassword(username);
-    
-    if (result.success) {
-      onForgotPasswordSuccess?.(username);
-    } else if (result.error) {
-      setLocalError(result.error);
+    try {
+      // Mock password reset functionality
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setMessage("Password reset email sent! Check your inbox.");
+    } catch (err) {
+      setError("Failed to send password reset email. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const displayError = error || localError;
-
   return (
-    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <ResetIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h4" component="h1" color="primary">
-            Reset Password
-          </Typography>
-        </Box>
+    <Paper elevation={3} sx={{ p: 4, maxWidth: 400, width: "100%" }}>
+      <Typography variant="h4" gutterBottom align="center">
+        Reset Password
+      </Typography>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
-          Enter your username or email address and we'll send you a reset code
-        </Typography>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mb: 3 }}
+        align="center"
+      >
+        Enter your email address and we&apos;ll send you a password reset link.
+      </Typography>
 
-        {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {displayError}
-          </Alert>
-        )}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <TextField
-            fullWidth
-            id="username"
-            name="username"
-            label="Username or Email"
-            type="text"
-            value={username}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoFocus
-            disabled={isLoading}
-            autoComplete="username"
-          />
+      {message && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {message}
+        </Alert>
+      )}
 
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2, py: 1.5 }}
-            disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <ResetIcon />}
-          >
-            {isLoading ? 'Sending...' : 'Send Reset Code'}
-          </Button>
+      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+        <TextField
+          margin="normal"
+          required
+          fullWidth
+          id="email"
+          label="Email Address"
+          name="email"
+          autoComplete="email"
+          autoFocus
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={loading}
+        />
 
-          <Box textAlign="center" mt={2}>
-            <Typography variant="body2" color="text.secondary">
-              Remember your password?{' '}
-              <Link
-                component="button"
-                type="button"
-                variant="body2"
-                onClick={onSwitchToLogin}
-                disabled={isLoading}
-                sx={{ fontWeight: 'medium' }}
-              >
-                Back to Sign In
-              </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+        <Button
+          type="submit"
+          fullWidth
+          variant="contained"
+          sx={{ mt: 3, mb: 2 }}
+          disabled={loading || !email}
+        >
+          {loading ? "Sending..." : "Send Reset Email"}
+        </Button>
+
+        <Button fullWidth variant="text" onClick={onBack} disabled={loading}>
+          Back to Sign In
+        </Button>
+      </Box>
+    </Paper>
   );
-}
+};
 
 export default ForgotPasswordForm;

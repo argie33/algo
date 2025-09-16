@@ -37,7 +37,7 @@ Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub 'financial-dashboard-user-pool-${EnvironmentName}'
+      UserPoolName: !Sub 'stocks-webapp-user-pool-${EnvironmentName}'
       UsernameAttributes:
         - email
       AutoVerifiedAttributes:
@@ -56,7 +56,7 @@ Resources:
         EmailMessage: 'Your verification code is {####}'
         EmailSubject: 'Your verification code'
       UserPoolTags:
-        Project: financial-dashboard
+        Project: stocks-webapp
         Environment: !Ref EnvironmentName
 
   # Cognito User Pool Client
@@ -64,7 +64,7 @@ Resources:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       UserPoolId: !Ref UserPool
-      ClientName: !Sub 'financial-dashboard-client-${EnvironmentName}'
+      ClientName: !Sub 'stocks-webapp-client-${EnvironmentName}'
       GenerateSecret: false
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
@@ -93,15 +93,15 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref UserPool
-      Domain: !Sub 'financial-dashboard-${EnvironmentName}-${AWS::AccountId}'
+      Domain: !Sub 'stocks-webapp-${EnvironmentName}-${AWS::AccountId}'
   # S3 Bucket for frontend hosting
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'financial-dashboard-frontend-dev-${AWS::AccountId}'
+      BucketName: !Sub 'stocks-webapp-frontend-${EnvironmentName}-${AWS::AccountId}'
       WebsiteConfiguration:
         IndexDocument: index.html
-        ErrorDocument: error.html
+        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -133,7 +133,7 @@ Resources:
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub 'financial-dashboard-api-dev'
+      Name: !Sub 'stocks-webapp-api-${EnvironmentName}'
       StageName: dev
       OpenApiVersion: 3.0.1
       EndpointConfiguration:
@@ -147,14 +147,14 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
-        AllowOrigin: "'*'"
+        AllowOrigin: !Sub "'https://${CloudFrontDistribution.DomainName},http://localhost:5173,http://localhost:3000'"
         AllowCredentials: "'true'"
 
   # Main API Lambda function (handles all routes)
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-dev'
+      FunctionName: !Sub 'stocks-webapp-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
       Environment:
@@ -220,14 +220,14 @@ Resources:
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/apigateway/financial-dashboard-dev'
+      LogGroupName: !Sub '/aws/apigateway/stocks-webapp-${EnvironmentName}'
       RetentionInDays: 14
 
   # CloudWatch Log Group for Lambda
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-dev'
+      LogGroupName: !Sub '/aws/lambda/stocks-webapp-api-${EnvironmentName}'
       RetentionInDays: 14
 
   # IAM Role for Lambda execution

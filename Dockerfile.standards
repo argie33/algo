@@ -1,0 +1,18 @@
+# Docker Standards for Systematic Dependency Management
+# Base Images - Standardized Versions
+
+# Python Services
+FROM python:3.11-slim as base
+
+# Node.js Services  
+FROM node:18-alpine as node-base
+
+# Multi-stage Build Pattern
+FROM base as dependencies
+WORKDIR /app
+COPY requirements-master.txt .
+RUN pip install --no-cache-dir -r requirements-master.txt
+
+FROM dependencies as production
+COPY . .
+CMD ["python", "app.py"]

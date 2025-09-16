@@ -2,9 +2,9 @@
 """
 Test wrapper that sets up mocks before running the actual script
 """
-import sys
-import os
 import logging
+import os
+import sys
 
 # Add test directory to path first
 test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +13,8 @@ sys.path.insert(0, test_dir)
 
 # Set up mock boto3 before any other imports
 import mock_boto3
-sys.modules['boto3'] = mock_boto3
+
+sys.modules["boto3"] = mock_boto3
 
 # Patch yfinance to return dummy data in test environment
 import yfinance_mock
@@ -31,6 +32,7 @@ logging.root.setLevel(logging.NOTSET)
 # Now import and run the actual script
 if __name__ == "__main__":
     import subprocess
+
     if len(sys.argv) < 2:
         print("Usage: test_wrapper.py <script_name>")
         sys.exit(1)
@@ -56,7 +58,9 @@ if __name__ == "__main__":
         env["PYTHONPATH"] = test_dir
     env["PYTHONNOUSERSITE"] = "1"
     try:
-        result = subprocess.run([sys.executable, script_path] + sys.argv[2:], env=env, check=True)
+        result = subprocess.run(
+            [sys.executable, script_path] + sys.argv[2:], env=env, check=True
+        )
         print(f"[WRAPPER] Finished {script_name} successfully")
         sys.exit(result.returncode)
     except subprocess.CalledProcessError as e:
@@ -65,6 +69,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[WRAPPER] ERROR in {script_name}: {str(e)}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     finally:

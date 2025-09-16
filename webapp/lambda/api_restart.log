@@ -1,0 +1,226 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Cognito environment variables not set - JWT verification disabled
+🚨 Alert System initialized
+📊 Monitoring started
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+Processing request: GET /api/technical/daily
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Initializing database schema...
+✅ Created/verified table: stock_symbols
+✅ Created/verified table: company_profile
+✅ Created/verified table: technical_data_daily
+✅ Created/verified table: technical_data_weekly
+✅ Created/verified table: technical_data_monthly
+✅ Created/verified table: stocks
+✅ Created/verified table: portfolio_holdings
+✅ Created/verified table: portfolio_performance
+✅ Created/verified table: buy_sell_daily
+✅ Created/verified table: buy_sell_weekly
+✅ Created/verified table: buy_sell_monthly
+✅ Created/verified table: portfolio_transactions
+✅ Created/verified table: technical_indicators
+✅ Created/verified table: market_sentiment
+✅ Created/verified table: price_alerts
+✅ Created/verified table: stock_scores
+✅ Created/verified table: key_metrics
+✅ Created/verified table: dividend_calendar
+✅ Created/verified table: trading_strategies
+✅ Created/verified table: user_risk_limits
+✅ Created/verified table: trade_history
+✅ Created/verified table: portfolio_summary
+✅ Created/verified table: user_dashboard_settings
+✅ Database schema initialization completed
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:52:29 +0000] "GET /api/technical/daily HTTP/1.1" 200 11582 "-" "curl/8.5.0"
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:52:34 +0000] "GET /api/technical/daily HTTP/1.1" 200 11582 "-" "curl/8.5.0"
+Processing request: GET /health
+Endpoint does not require database connection
+Starting health check with database...
+::1 - - [12/Sep/2025:09:53:45 +0000] "GET /health HTTP/1.1" 200 330 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:09:53:46 +0000] "GET /api/health HTTP/1.1" 200 331 "-" "curl/8.5.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called
+Table existence check: true
+Fetching Fear & Greed data...
+Fear & Greed query result: [
+  {
+    value: 68,
+    value_text: 'Greed',
+    timestamp: 2025-09-08T05:00:00.000Z
+  }
+]
+Fear & Greed data processed: { value: 68, value_text: 'Greed', timestamp: 2025-09-08T05:00:00.000Z }
+Fetching NAAIM data...
+NAAIM query result: [
+  {
+    average: '72.50',
+    bullish_8100: '68.30',
+    bearish: '31.70',
+    week_ending: 2025-09-01T05:00:00.000Z
+  }
+]
+NAAIM data processed: {
+  average: '72.50',
+  bullish_8100: '68.30',
+  bearish: '31.70',
+  week_ending: 2025-09-01T05:00:00.000Z
+}
+Attempting to fetch AAII data...
+AAII query returned 1 rows
+AAII data found: {
+  bullish: '42.50',
+  neutral: '29.20',
+  bearish: '28.30',
+  date: 2025-09-08T05:00:00.000Z
+}
+Fetching market breadth data...
+Market breadth query result: [
+  {
+    total_stocks: '3',
+    advancing: '2',
+    declining: '1',
+    unchanged: '0',
+    average_change_percent: 0.21
+  }
+]
+Market breadth data processed: {
+  total_stocks: 3,
+  advancing: 2,
+  declining: 1,
+  unchanged: 0,
+  advance_decline_ratio: '2.00',
+  average_change_percent: '0.00'
+}
+Market overview response structure: [
+  'indices',
+  'sentiment_indicators',
+  'market_breadth',
+  'market_cap',
+  'economic_indicators'
+]
+Sentiment indicators in response: [ 'fear_greed', 'naaim', 'aaii' ]
+AAII in sentiment indicators: true
+::1 - - [12/Sep/2025:09:53:47 +0000] "GET /api/market/overview HTTP/1.1" 200 1710 "-" "curl/8.5.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+OPTIMIZED Stocks main endpoint called with params: {}
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 15 stocks, 15 total
+::1 - - [12/Sep/2025:09:53:49 +0000] "GET /api/stocks HTTP/1.1" 200 14762 "-" "curl/8.5.0"
+Processing request: GET /health
+Endpoint does not require database connection
+Starting health check with database...
+::1 - - [12/Sep/2025:09:53:51 +0000] "GET /health HTTP/1.1" 200 331 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:09:53:54 +0000] "GET /api/health HTTP/1.1" 200 332 "-" "curl/8.5.0"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+❌ Error fetching active alerts: TypeError: results.map is not a function
+    at /home/stocks/algo/webapp/lambda/routes/alerts.js:160:37
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+::1 - - [12/Sep/2025:09:53:54 +0000] "GET /api/alerts/active HTTP/1.1" 500 502 "-" "curl/8.5.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+OPTIMIZED Stocks main endpoint called with params: {}
+Triggering workflow deploy
+OPTIMIZED query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+FAST query results: 15 stocks, 15 total
+::1 - - [12/Sep/2025:09:54:20 +0000] "GET /api/stocks HTTP/1.1" 200 14762 "-" "curl/8.5.0"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:54:22 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:54:22 +0000] "GET /api/dashboard HTTP/1.1" 200 436 "-" "curl/8.5.0"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:54:23 +0000] "GET /api/news HTTP/1.1" 200 107 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:09:54:25 +0000] "GET /api/health HTTP/1.1" 200 332 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [12/Sep/2025:09:54:30 +0000] "GET /api/health HTTP/1.1" 200 332 "-" "curl/8.5.0"
+Processing request: GET /api/technical/AAPL
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:54:34 +0000] "GET /api/technical/AAPL HTTP/1.1" 400 61 "-" "curl/8.5.0"
+Processing request: GET /api/dashboard/summary
+Database connection verified for database-dependent endpoint
+📊 Dashboard summary request received
+🔍 Executing comprehensive dashboard queries...
+✅ Dashboard queries completed: 5 market, 6 gainers, 3 losers, 2 sectors, 6 earnings, 0 sentiment, 10 volume, 1 breadth
+::1 - - [12/Sep/2025:09:54:36 +0000] "GET /api/dashboard/summary HTTP/1.1" 200 4942 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:09:54:39 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "curl/8.5.0"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+❌ Error fetching active alerts: TypeError: results.map is not a function
+    at /home/stocks/algo/webapp/lambda/routes/alerts.js:160:37
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+::1 - - [12/Sep/2025:09:54:44 +0000] "GET /api/alerts/active HTTP/1.1" 500 502 "-" "curl/8.5.0"
+Processing request: GET /api/technical/AAPL
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:54:44 +0000] "GET /api/technical/AAPL?timeframe=daily HTTP/1.1" 400 61 "-" "curl/8.5.0"
+Processing request: GET /api/technical/daily/AAPL
+Database connection verified for database-dependent endpoint
+📊 Daily technical analysis requested for: AAPL
+::1 - - [12/Sep/2025:09:55:15 +0000] "GET /api/technical/daily/AAPL HTTP/1.1" 200 2673 "-" "curl/8.5.0"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:55:25 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+Portfolio performance endpoint called for user: dev-user-bypass, timeframe: 1y
+📊 Retrieved 5 performance data points
+::1 - - [12/Sep/2025:09:56:00 +0000] "GET /api/portfolio/performance HTTP/1.1" 200 2043 "-" "curl/8.5.0"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+::1 - - [12/Sep/2025:09:56:01 +0000] "GET /api/watchlist HTTP/1.1" 200 36 "-" "curl/8.5.0"
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+::1 - - [12/Sep/2025:09:56:02 +0000] "GET /api/technical/daily HTTP/1.1" 200 11582 "-" "curl/8.5.0"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Bypassing authentication
+🔔 Active alerts requested for user: dev-user-bypass, status: active
+❌ Error fetching active alerts: TypeError: results.map is not a function
+    at /home/stocks/algo/webapp/lambda/routes/alerts.js:160:37
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+::1 - - [12/Sep/2025:09:56:53 +0000] "GET /api/alerts/active HTTP/1.1" 500 502 "-" "curl/8.5.0"
