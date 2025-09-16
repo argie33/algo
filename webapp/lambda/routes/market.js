@@ -2797,8 +2797,8 @@ router.get("/research-indicators", async (req, res) => {
         SELECT COUNT(*) as count 
         FROM price_daily 
         WHERE date = CURRENT_DATE 
-        AND close_price >= (
-          SELECT MAX(close_price) 
+        AND close >= (
+          SELECT MAX(close) 
           FROM price_daily 
           WHERE symbol = market_data.symbol 
           AND date >= CURRENT_DATE - INTERVAL '52 weeks'
@@ -2809,8 +2809,8 @@ router.get("/research-indicators", async (req, res) => {
         SELECT COUNT(*) as count 
         FROM price_daily 
         WHERE date = CURRENT_DATE 
-        AND close_price <= (
-          SELECT MIN(close_price) 
+        AND close <= (
+          SELECT MIN(close) 
           FROM price_daily 
           WHERE symbol = market_data.symbol 
           AND date >= CURRENT_DATE - INTERVAL '52 weeks'
@@ -3793,7 +3793,7 @@ router.get("/movers", async (req, res) => {
 // Market correlation analysis endpoint
 router.get("/correlation", async (req, res) => {
   try {
-    const { symbols, period = "1M", limit = 50 } = req.query;
+    const { symbols, period = "1M", limit: _limit = 50 } = req.query;
 
     console.log(
       `📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
@@ -4966,7 +4966,7 @@ router.get("/quote/:symbol", async (req, res) => {
     let result = null;
     try {
       result = await query(
-        `SELECT symbol, close_price as price, volume, date, 
+        `SELECT symbol, close as price, volume, date, 
                 change_percent, high_price as high, low_price as low, open_price as open
          FROM price_daily 
          WHERE symbol = $1 
@@ -5052,7 +5052,7 @@ router.get("/quotes", async (req, res) => {
     let result = null;
     try {
       result = await query(
-        `SELECT symbol, close_price as price, volume, date, 
+        `SELECT symbol, close as price, volume, date, 
                 change_percent, high_price as high, low_price as low, open_price as open
          FROM price_daily 
          WHERE symbol IN (${placeholders})
@@ -5141,7 +5141,7 @@ router.get("/historical/:symbol", async (req, res) => {
     try {
       result = await query(
         `SELECT date, open_price as open, high_price as high, low_price as low, 
-                close_price as close, volume
+                close as close, volume
          FROM price_daily 
          WHERE symbol = $1 
          AND date >= CURRENT_DATE - INTERVAL '${periodDays[period]} days'
@@ -5294,7 +5294,7 @@ router.get("/gainers", async (req, res) => {
     let result = null;
     try {
       result = await query(
-        `SELECT symbol, close_price as price, change_percent, volume
+        `SELECT symbol, close as price, change_percent, volume
          FROM price_daily 
          WHERE date = (SELECT MAX(date) FROM price_daily)
          AND change_percent > 0
@@ -5364,7 +5364,7 @@ router.get("/losers", async (req, res) => {
     let result = null;
     try {
       result = await query(
-        `SELECT symbol, close_price as price, change_percent, volume
+        `SELECT symbol, close as price, change_percent, volume
          FROM price_daily 
          WHERE date = (SELECT MAX(date) FROM price_daily)
          AND change_percent < 0

@@ -58,7 +58,7 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.12.2",
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-node": "^11.1.0",
@@ -80,6 +80,6 @@
   "author": "Financial Dashboard Team",
   "license": "MIT",
   "overrides": {
-    "axios": "^1.6.0"
+    "axios": "^1.12.2"
   }
 }

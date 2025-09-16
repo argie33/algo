@@ -7,7 +7,7 @@ const BASE_URL = 'http://localhost:3001';
 // Critical failing endpoints from previous tests
 const criticalEndpoints = [
   { path: '/api/stocks/popular', method: 'GET', name: 'Stocks Popular' },
-  { path: '/api/sentiment/analysis', method: 'GET', name: 'Sentiment Analysis' },
+  { path: '/api/sentiment/analysis?symbol=AAPL', method: 'GET', name: 'Sentiment Analysis' },
   { path: '/api/metrics/market', method: 'GET', name: 'Market Metrics' },
   { path: '/api/metrics/performance', method: 'GET', name: 'Performance Metrics' },
   { path: '/api/financials/statements?symbol=AAPL', method: 'GET', name: 'Financial Statements' },
