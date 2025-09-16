@@ -97,7 +97,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 3000,
+      port: 5173,
       proxy: isDevelopment
         ? {
             "/api": {
@@ -130,9 +130,12 @@ export default defineConfig(({ mode }) => {
         "@": resolve(__dirname, "src"),
         // Force specific react-is version to avoid compatibility issues
         "react-is": resolve(__dirname, "node_modules/react-is"),
+        // Force MUI styled-engine to use the emotion version
+        "@mui/styled-engine": resolve(__dirname, "node_modules/@mui/styled-engine"),
       },
     },
     optimizeDeps: {
+      include: ["@mui/styled-engine", "@emotion/react", "@emotion/styled"],
       esbuildOptions: {
         loader: {
           ".js": "jsx",

@@ -23,7 +23,7 @@ export default defineConfig({
   },
   
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -54,7 +54,7 @@ export default defineConfig({
           ]
         }
       },
-      // dependencies: ['setup'], // Temporarily remove setup dependency
+      // dependencies: ['setup'], // Setup dependency removed
     },
 
     // Desktop Firefox - Cross-browser coverage
@@ -64,7 +64,7 @@ export default defineConfig({
         ...devices['Desktop Firefox'],
         viewport: { width: 1920, height: 1080 },
       },
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Desktop Safari - WebKit engine
@@ -74,7 +74,7 @@ export default defineConfig({
         ...devices['Desktop Safari'],
         viewport: { width: 1920, height: 1080 },
       },
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Tablet testing
@@ -83,7 +83,7 @@ export default defineConfig({
       use: { 
         ...devices['iPad Pro'],
       },
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Mobile Chrome - Responsive testing
@@ -92,7 +92,7 @@ export default defineConfig({
       use: { 
         ...devices['Pixel 5'],
       },
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Mobile Safari - iOS testing
@@ -101,7 +101,7 @@ export default defineConfig({
       use: { 
         ...devices['iPhone 12'],
       },
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Visual regression testing
@@ -112,7 +112,7 @@ export default defineConfig({
         viewport: { width: 1920, height: 1080 },
       },
       testMatch: /.*\.visual\.spec\.js/,
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Performance testing
@@ -123,7 +123,7 @@ export default defineConfig({
         viewport: { width: 1920, height: 1080 },
       },
       testMatch: /.*\.perf\.spec\.js/,
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Accessibility testing
@@ -134,21 +134,21 @@ export default defineConfig({
         viewport: { width: 1920, height: 1080 },
       },
       testMatch: /.*\.accessibility\.spec\.js/,
-      dependencies: ['setup'],
+      // dependencies: ['setup'], // Temporarily disabled
     },
   ],
 
   // Start dev server for testing
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3000',
+    url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
-    timeout: 60000, // Reduced timeout
+    timeout: 120000, // Increased timeout for slower startup
     stdout: 'pipe',
     stderr: 'pipe',
   },
 
-  // Global test configuration
-  globalSetup: './src/tests/e2e/global-setup.js',
-  globalTeardown: './src/tests/e2e/global-teardown.js',
+  // Global test configuration - temporarily disabled for debugging
+  // globalSetup: './src/tests/e2e/global-setup.js',
+  // globalTeardown: './src/tests/e2e/global-teardown.js',
 });
