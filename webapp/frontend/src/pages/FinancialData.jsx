@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
@@ -85,12 +85,6 @@ function FinancialData() {
     queryKey: ["companies"],
     queryFn: () => getStocks({ limit: 1000, sortBy: "ticker" }),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV)
-        console.log("✅ FinancialData: Companies data loaded:", data);
-    },
-    onError: (error) =>
-      console.error("❌ FinancialData: Companies data error:", error),
   });
 
   const companies =
@@ -139,14 +133,6 @@ function FinancialData() {
     queryKey: ["balanceSheet", ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
     enabled: !!ticker && tabValue === 0,
-    onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV)
-        console.log("✅ FinancialData: Balance sheet loaded:", data);
-    },
-    onError: (error) => {
-      console.error("❌ FinancialData: Balance sheet error:", error);
-      logger.queryError("balanceSheet", error, { ticker, period });
-    },
   });
 
   const {
@@ -157,14 +143,6 @@ function FinancialData() {
     queryKey: ["incomeStatement", ticker, period],
     queryFn: () => getIncomeStatement(ticker, period),
     enabled: !!ticker && tabValue === 1,
-    onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV)
-        console.log("✅ FinancialData: Income statement loaded:", data);
-    },
-    onError: (error) => {
-      console.error("❌ FinancialData: Income statement error:", error);
-      logger.queryError("incomeStatement", error, { ticker, period });
-    },
   });
 
   const {
@@ -175,15 +153,35 @@ function FinancialData() {
     queryKey: ["cashFlowStatement", ticker, period],
     queryFn: () => getCashFlowStatement(ticker, period),
     enabled: !!ticker && tabValue === 2,
-    onSuccess: (data) => {
-      if (import.meta.env && import.meta.env.DEV)
-        console.log("✅ FinancialData: Cash flow statement loaded:", data);
-    },
-    onError: (error) => {
-      console.error("❌ FinancialData: Cash flow statement error:", error);
-      logger.queryError("cashFlowStatement", error, { ticker, period });
-    },
   });
+
+  // Error handling and logging with useEffect
+  useEffect(() => {
+    if (balanceSheetError) {
+      console.error("❌ FinancialData: Balance sheet error:", balanceSheetError);
+      logger.queryError("balanceSheet", balanceSheetError, { ticker, period });
+    }
+  }, [balanceSheetError, ticker, period, logger]);
+
+  useEffect(() => {
+    if (incomeStatementError) {
+      console.error("❌ FinancialData: Income statement error:", incomeStatementError);
+      logger.queryError("incomeStatement", incomeStatementError, { ticker, period });
+    }
+  }, [incomeStatementError, ticker, period, logger]);
+
+  useEffect(() => {
+    if (cashFlowError) {
+      console.error("❌ FinancialData: Cash flow statement error:", cashFlowError);
+      logger.queryError("cashFlowStatement", cashFlowError, { ticker, period });
+    }
+  }, [cashFlowError, ticker, period, logger]);
+
+  useEffect(() => {
+    if (keyMetricsError) {
+      logger.queryError("keyMetrics", keyMetricsError, { ticker });
+    }
+  }, [keyMetricsError, ticker, logger]);
 
   if (import.meta.env && import.meta.env.DEV)
     console.log("📊 FinancialData: Data summary:", {
@@ -215,7 +213,6 @@ function FinancialData() {
     queryKey: ["keyMetrics", ticker],
     queryFn: () => getKeyMetrics(ticker),
     enabled: !!ticker && tabValue === 3,
-    onError: (error) => logger.queryError("keyMetrics", error, { ticker }),
   });
   const renderKeyMetrics = (data) => {
     // Handle error response
@@ -533,10 +530,12 @@ function FinancialData() {
                   <XAxis dataKey="year" />
                   <YAxis />
                   <Tooltip
-                    formatter={(value, _name) => [
-                      formatCurrency(value, 0),
-                      "Value",
-                    ]}
+                    formatter={(value, _name) => {
+                      if (value === null || value === undefined || isNaN(value)) {
+                        return ["N/A", "Value"];
+                      }
+                      return [formatCurrency(value, 0), "Value"];
+                    }}
                   />
                   <Line
                     type="monotone"
@@ -665,10 +664,12 @@ function FinancialData() {
                 <XAxis dataKey="year" />
                 <YAxis />
                 <Tooltip
-                  formatter={(value, _name) => [
-                    formatCurrency(value, 0),
-                    "Value",
-                  ]}
+                  formatter={(value, _name) => {
+                    if (value === null || value === undefined || isNaN(value)) {
+                      return ["N/A", "Value"];
+                    }
+                    return [formatCurrency(value, 0), "Value"];
+                  }}
                 />
                 <Line
                   type="monotone"
