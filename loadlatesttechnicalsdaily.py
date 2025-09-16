@@ -2,6 +2,7 @@
 """
 Load Latest Technical Daily - Fetches the latest daily technical indicators for stocks
 This is a lightweight version that gets only the most recent technical data.
+Updated: 2025-01-16 - Trigger technical data loading for APIs
 """
 
 import json
@@ -296,9 +297,9 @@ def main():
         # Final summary
         total_time = time.time() - start_time
         logging.info(f" {SCRIPT_NAME} completed successfully!")
-        logging.info(f"=Ê Processed {len(symbols)} symbols")
+        logging.info(f"=ï¿½ Processed {len(symbols)} symbols")
         logging.info(f"( Loaded {len(all_technical_data)} latest technical records")
-        logging.info(f"ñ  Total time: {total_time:.1f}s")
+        logging.info(f"ï¿½  Total time: {total_time:.1f}s")
         
     except Exception as e:
         logging.error(f"L Error in {SCRIPT_NAME}: {e}")

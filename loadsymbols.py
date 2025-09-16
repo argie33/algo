@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Stock Symbols Enhanced Loader Script
+Updated: 2025-01-16 - Trigger symbols data loading for AWS RDS
 
 This script loads stock symbols with enhanced metadata including:
 - Company name and basic info

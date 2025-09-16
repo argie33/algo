@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-01-16 - Trigger full technical data loading for stock APIs
 import concurrent.futures
 import gc
 import json

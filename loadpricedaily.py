@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - daily loader update
+# Updated: 2025-01-16 - Trigger daily price data loading for AWS RDS
 import gc
 import json
 import logging

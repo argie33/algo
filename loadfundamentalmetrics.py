@@ -2,6 +2,7 @@
 """
 Load Fundamental Metrics - Fetches and stores fundamental metrics for stocks
 Includes P/E ratio, market cap, dividend yield, debt-to-equity, ROE, etc.
+Updated: 2025-01-16 - Trigger data loading for stock scores API
 """
 
 import json
@@ -323,9 +324,9 @@ def main():
         # Final summary
         total_time = time.time() - start_time
         logging.info(f" {SCRIPT_NAME} completed successfully!")
-        logging.info(f"=Ê Processed {len(symbols)} symbols")
+        logging.info(f"=ï¿½ Processed {len(symbols)} symbols")
         logging.info(f"( Loaded {len(all_metrics)} fundamental metrics records")
-        logging.info(f"ñ  Total time: {total_time:.1f}s")
+        logging.info(f"ï¿½  Total time: {total_time:.1f}s")
         
     except Exception as e:
         logging.error(f"L Error in {SCRIPT_NAME}: {e}")
