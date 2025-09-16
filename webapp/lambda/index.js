@@ -38,6 +38,7 @@ const performanceRoutes = require("./routes/performance");
 const portfolioRoutes = require("./routes/portfolio");
 const priceRoutes = require("./routes/price");
 const recommendationsRoutes = require("./routes/recommendations");
+const researchRoutes = require("./routes/research");
 const earningsRoutes = require("./routes/earnings");
 const riskRoutes = require("./routes/risk");
 const scoringRoutes = require("./routes/scoring");
@@ -58,6 +59,7 @@ const insiderRoutes = require("./routes/insider");
 const dividendRoutes = require("./routes/dividend");
 const positioningRoutes = require("./routes/positioning");
 const strategyBuilderRoutes = require("./routes/strategyBuilder");
+const debugRoutes = require("./routes/debug");
 
 const app = express();
 
@@ -443,6 +445,7 @@ app.use("/api/backtest", backtestRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/performance", performanceRoutes);
 app.use("/api/recommendations", recommendationsRoutes);
+app.use("/api/research", researchRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/scoring", scoringRoutes);
 app.use("/api/price", priceRoutes);
@@ -463,6 +466,7 @@ app.use("/api/strategyBuilder", strategyBuilderRoutes);
 app.use("/api/strategies", strategyBuilderRoutes); // Alias for strategies
 app.use("/api/liveData", liveDataRoutes);
 app.use("/api/livedata", liveDataRoutes);
+app.use("/api/debug", debugRoutes); // Debug routes for development
 
 // API info endpoint
 app.get("/api", (req, res) => {

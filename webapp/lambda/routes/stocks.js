@@ -1832,6 +1832,90 @@ router.get("/:symbol/technicals", authenticateToken, async (req, res) => {
   }
 });
 
+// Stock prices endpoint - redirect to price service
+router.get("/:symbol/prices", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = 'daily', limit = 30 } = req.query;
+
+    // Query price data from price_daily table
+    const { query: dbQuery } = require("../utils/database");
+
+    const priceQuery = `
+      WITH price_data AS (
+        SELECT
+          date,
+          open_price::DECIMAL(12,4) as open,
+          high_price::DECIMAL(12,4) as high,
+          low_price::DECIMAL(12,4) as low,
+          close::DECIMAL(12,4) as close,
+          close::DECIMAL(12,4) as adj_close,
+          volume::BIGINT as volume,
+          LAG(close) OVER (ORDER BY date DESC) as prev_close
+        FROM price_daily
+        WHERE symbol = $1
+          AND close IS NOT NULL
+        ORDER BY date DESC
+        LIMIT $2
+      )
+      SELECT
+        date,
+        open,
+        high,
+        low,
+        close,
+        adj_close,
+        volume,
+        CASE
+          WHEN prev_close IS NOT NULL AND prev_close > 0
+          THEN ROUND((close - prev_close)::DECIMAL, 4)
+          ELSE NULL
+        END as price_change,
+        CASE
+          WHEN prev_close IS NOT NULL AND prev_close > 0
+          THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+          ELSE NULL
+        END as price_change_pct
+      FROM price_data
+      ORDER BY date DESC;
+    `;
+
+    const result = await dbQuery(priceQuery, [symbol.toUpperCase(), parseInt(limit)]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No price data found",
+        message: `No historical data available for ${symbol.toUpperCase()}`,
+        symbol: symbol.toUpperCase()
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        timeframe,
+        prices: result.rows,
+        metadata: {
+          count: result.rows.length,
+          latest_date: result.rows[0]?.date,
+          oldest_date: result.rows[result.rows.length - 1]?.date
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`Price data error for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Price data unavailable",
+      message: error.message
+    });
+  }
+});
+
 router.get("/:symbol/options", authenticateToken, async (req, res) => {
   try {
     const { symbol } = req.params;
@@ -2428,16 +2512,16 @@ router.get("/:ticker/prices", async (req, res) => {
       console.log(`DEBUG: Building weekly query with tableName: ${tableName}`);
       pricesQuery = `
         WITH weekly_data AS (
-          SELECT 
+          SELECT
             DATE_TRUNC('week', date) + INTERVAL '6 days' as date,
-            (ARRAY_AGG(open_price ORDER BY date ASC))[1] as open,
-            MAX(high_price) as high,
-            MIN(low_price) as low,
+            (ARRAY_AGG(open ORDER BY date ASC))[1] as open,
+            MAX(high) as high,
+            MIN(low) as low,
             (ARRAY_AGG(close ORDER BY date DESC))[1] as close,
             (ARRAY_AGG(close ORDER BY date DESC))[1] as adj_close,
             SUM(volume) as volume
           FROM ${tableName}
-          WHERE symbol = $1 
+          WHERE symbol = $1
             AND date >= CURRENT_DATE - INTERVAL '2 years'
             AND close IS NOT NULL
           GROUP BY DATE_TRUNC('week', date)
@@ -2445,11 +2529,11 @@ router.get("/:ticker/prices", async (req, res) => {
           LIMIT $2
         ),
         price_data AS (
-          SELECT 
+          SELECT
             date,
-            open_price::DECIMAL(12,4) as open,
-            high_price::DECIMAL(12,4) as high,
-            low_price::DECIMAL(12,4) as low,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
             close::DECIMAL(12,4) as close,
             close::DECIMAL(12,4) as adj_close,
             volume::BIGINT as volume,
@@ -2481,16 +2565,16 @@ router.get("/:ticker/prices", async (req, res) => {
       // Aggregate daily data into monthly data
       pricesQuery = `
         WITH monthly_data AS (
-          SELECT 
+          SELECT
             DATE_TRUNC('month', date) + INTERVAL '1 month' - INTERVAL '1 day' as date,
-            (ARRAY_AGG(open_price ORDER BY date ASC))[1] as open,
-            MAX(high_price) as high,
-            MIN(low_price) as low,
+            (ARRAY_AGG(open ORDER BY date ASC))[1] as open,
+            MAX(high) as high,
+            MIN(low) as low,
             (ARRAY_AGG(close ORDER BY date DESC))[1] as close,
             (ARRAY_AGG(close ORDER BY date DESC))[1] as adj_close,
             SUM(volume) as volume
           FROM ${tableName}
-          WHERE symbol = $1 
+          WHERE symbol = $1
             AND date >= CURRENT_DATE - INTERVAL '2 years'
             AND close IS NOT NULL
           GROUP BY DATE_TRUNC('month', date)
@@ -2498,11 +2582,11 @@ router.get("/:ticker/prices", async (req, res) => {
           LIMIT $2
         ),
         price_data AS (
-          SELECT 
+          SELECT
             date,
-            open_price::DECIMAL(12,4) as open,
-            high_price::DECIMAL(12,4) as high,
-            low_price::DECIMAL(12,4) as low,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
             close::DECIMAL(12,4) as close,
             close::DECIMAL(12,4) as adj_close,
             volume::BIGINT as volume,
@@ -2534,17 +2618,17 @@ router.get("/:ticker/prices", async (req, res) => {
       // Daily data (default)
       pricesQuery = `
         WITH price_data AS (
-          SELECT 
+          SELECT
             date,
-            open_price::DECIMAL(12,4) as open,
-            high_price::DECIMAL(12,4) as high,
-            low_price::DECIMAL(12,4) as low,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
             close::DECIMAL(12,4) as close,
             close::DECIMAL(12,4) as adj_close,
             volume::BIGINT as volume,
             LAG(close) OVER (ORDER BY date DESC) as prev_close
           FROM ${tableName}
-          WHERE symbol = $1 
+          WHERE symbol = $1
             AND date >= CURRENT_DATE - INTERVAL '2 years'
             AND close IS NOT NULL
           ORDER BY date DESC
@@ -3432,18 +3516,40 @@ router.get("/:symbol/financials", async (req, res) => {
     let result = { rows: [] };
     try {
       const financialsQuery = `
+        WITH balance_sheet_pivot AS (
+          SELECT
+            symbol,
+            date,
+            MAX(CASE WHEN item_name = 'Total Assets' THEN value::numeric ELSE 0 END) as total_assets,
+            MAX(CASE WHEN item_name = 'Total Liabilities' THEN value::numeric ELSE 0 END) as total_liabilities,
+            MAX(CASE WHEN item_name = 'Total Equity' THEN value::numeric ELSE 0 END) as shareholders_equity,
+            MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value::numeric ELSE 0 END) as cash
+          FROM annual_balance_sheet
+          WHERE UPPER(symbol) = UPPER($1)
+          GROUP BY symbol, date
+        ),
+        income_pivot AS (
+          SELECT
+            symbol,
+            date,
+            MAX(CASE WHEN item_name = 'Total Revenue' THEN value::numeric ELSE 0 END) as revenue,
+            MAX(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income
+          FROM annual_income_statement
+          WHERE UPPER(symbol) = UPPER($1)
+          GROUP BY symbol, date
+        )
         SELECT
           'balance_sheet' as statement_type,
-          COALESCE(total_assets::numeric, 0) as total_assets,
-          COALESCE(total_liabilities::numeric, 0) as total_liabilities,
-          COALESCE((COALESCE(total_assets::numeric, 0) - COALESCE(total_liabilities::numeric, 0)), 0) as shareholders_equity,
-          COALESCE(total_debt::numeric, 0) as total_debt,
-          0 as revenue,
-          0 as net_income,
-          0 as cash
-        FROM annual_balance_sheet
-        WHERE UPPER(ticker) = UPPER($1)
-        ORDER BY year DESC
+          COALESCE(b.total_assets, 0) as total_assets,
+          COALESCE(b.total_liabilities, 0) as total_liabilities,
+          COALESCE(b.shareholders_equity, 0) as shareholders_equity,
+          0 as total_debt,
+          COALESCE(i.revenue, 0) as revenue,
+          COALESCE(i.net_income, 0) as net_income,
+          COALESCE(b.cash, 0) as cash
+        FROM balance_sheet_pivot b
+        LEFT JOIN income_pivot i ON b.symbol = i.symbol AND b.date = i.date
+        ORDER BY b.date DESC
         LIMIT 5
       `;
 
