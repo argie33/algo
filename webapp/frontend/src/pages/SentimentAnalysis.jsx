@@ -658,14 +658,14 @@ const SentimentAnalysis = () => {
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="Multi-Source Analysis" icon={<Analytics />} />
-          <Tab label="Sentiment Trends" icon={<Timeline />} />
-          <Tab label="Contrarian Signals" icon={<Psychology />} />
-          <Tab label="News Impact" icon={<Newspaper />} />
-          <Tab label="Social Sentiment" icon={<Reddit />} />
-          <Tab label="AI Insights" icon={<Lightbulb />} />
+          <Tab label="Multi-Source Analysis" icon={<Analytics />} value={0} />
+          <Tab label="Sentiment Trends" icon={<Timeline />} value={1} />
+          <Tab label="Contrarian Signals" icon={<Psychology />} value={2} />
+          <Tab label="News Impact" icon={<Newspaper />} value={3} />
+          <Tab label="Social Sentiment" icon={<Reddit />} value={4} />
+          <Tab label="AI Insights" icon={<Lightbulb />} value={5} />
           {liveUpdatesEnabled && (
-            <Tab label="Real-Time Updates" icon={<SignalCellular4Bar />} />
+            <Tab label="Real-Time Updates" icon={<SignalCellular4Bar />} value={6} />
           )}
         </Tabs>
       </Box>

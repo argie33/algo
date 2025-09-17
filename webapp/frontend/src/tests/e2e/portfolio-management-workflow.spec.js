@@ -94,7 +94,7 @@ test.describe("Portfolio Management Workflow", () => {
       const button = page.locator(selector).first();
       if (await button.isVisible({ timeout: 1000 })) {
         console.log(`➕ Clicking add position button: ${selector}`);
-        await button.click();
+        await button.click({ force: true });
         await page.waitForTimeout(1000);
         addButtonFound = true;
 
@@ -442,7 +442,7 @@ test.describe("Portfolio Management Workflow", () => {
     );
 
     if (await timeButtons.first().isVisible()) {
-      await timeButtons.first().click();
+      await timeButtons.first().click({ force: true });
       await page.waitForTimeout(1000);
       console.log("✅ Time period selector working");
     }

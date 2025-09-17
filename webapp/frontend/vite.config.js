@@ -133,10 +133,12 @@ export default defineConfig(({ mode }) => {
         // Force MUI styled-engine to use the emotion version
         "@mui/styled-engine": resolve(__dirname, "node_modules/@mui/styled-engine"),
         // Fix AWS Amplify ES module imports completely
-        "@aws-amplify/auth/cognito": resolve(__dirname, "src/test-utils/aws-amplify-mock.js"),
-        "aws-amplify/auth/cognito": resolve(__dirname, "src/test-utils/aws-amplify-mock.js"),
-        // Fix the main directory import issue
-        "@aws-amplify/auth/lib-esm/providers/cognito": resolve(__dirname, "src/test-utils/aws-amplify-mock.js"),
+        "aws-amplify": resolve(__dirname, "src/aws-amplify-mock.js"),
+        "@aws-amplify/auth": resolve(__dirname, "src/aws-amplify-mock.js"),
+        "@aws-amplify/core": resolve(__dirname, "src/aws-amplify-mock.js"),
+        "@aws-amplify/auth/cognito": resolve(__dirname, "src/aws-amplify-mock.js"),
+        "aws-amplify/auth/cognito": resolve(__dirname, "src/aws-amplify-mock.js"),
+        "@aws-amplify/auth/lib-esm/providers/cognito": resolve(__dirname, "src/aws-amplify-mock.js"),
       },
     },
     optimizeDeps: {

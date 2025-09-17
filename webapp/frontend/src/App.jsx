@@ -74,6 +74,7 @@ import Settings from "./pages/Settings";
 import ScoresDashboard from "./pages/ScoresDashboard";
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Watchlist from "./pages/Watchlist";
 import SectorAnalysis from "./pages/SectorAnalysis";
@@ -285,23 +286,8 @@ function App() {
 
   console.log("🎯 APP COMPONENT: About to call useAuth...");
 
-  // Safe auth context access with error boundary
-  let authContext;
-  try {
-    authContext = useAuth();
-  } catch (error) {
-    console.error("🚨 AUTH CONTEXT ERROR:", error);
-    // Provide fallback values if context fails
-    authContext = {
-      isAuthenticated: false,
-      user: null,
-      logout: async () => {},
-      isLoading: false,
-      error: error.message
-    };
-  }
-
-  const { isAuthenticated, user, logout } = authContext;
+  // Safe auth context access - useAuth now has built-in fallback safety
+  const { isAuthenticated, user, logout } = useAuth();
   console.log(
     "🎯 APP COMPONENT: Auth state loaded - isAuthenticated:",
     isAuthenticated,
@@ -518,7 +504,16 @@ function App() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{
+              flexGrow: 1,
+              mr: 2,
+              pointerEvents: 'none'
+            }}
+          >
             {menuItems.find((item) => item.path === location.pathname)?.text ||
               "Dashboard"}
           </Typography>
@@ -574,7 +569,13 @@ function App() {
               color="inherit"
               startIcon={<LoginIcon />}
               onClick={() => setAuthModalOpen(true)}
-              sx={{ ml: 2 }}
+              sx={{
+                ml: 2,
+                zIndex: 1000,
+                position: 'relative',
+                flexShrink: 0
+              }}
+              data-testid="auth-sign-in-button"
             >
               Sign In
             </Button>
@@ -634,9 +635,9 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/realtime" element={<RealTimeDashboard />} />
-            <Route path="/portfolio" element={<PortfolioHoldings />} />
-            <Route path="/trade-history" element={<TradeHistory />} />
-            <Route path="/orders" element={<OrderManagement />} />
+            <Route path="/portfolio" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
+            <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
             <Route
               path="/portfolio/optimize"
               element={<PortfolioOptimization />}
@@ -663,7 +664,7 @@ function App() {
             <Route path="/backtest" element={<Backtest />} />
             <Route path="/financial-data" element={<FinancialData />} />
             <Route path="/service-health" element={<ServiceHealth />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/auth-test" element={<AuthTest />} />
             <Route
               path="/technical-history/:symbol"
